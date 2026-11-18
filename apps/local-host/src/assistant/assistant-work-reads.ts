@@ -76,7 +76,7 @@ export class AssistantWorkReads {
 
   /** The rounds run in the executor's session the work carries, read through the executor's own actions. */
   async executorPart(work: StoredWork, carried: { plugin_id: string; session_id: string }): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; unreadable?: boolean;
-    mode?: string; problem?: { message: string; action?: string } }> {
+    mode?: string; queued_inputs?: AssistantWorkView["queued_inputs"]; problem?: { message: string; action?: string } }> {
     let read: WorkExecutorSession;
     try { read = await (await this.link.executorOf(work, carried.plugin_id)).read(carried.session_id, 6); }
     catch (error) { return { rounds: [], reviews: [], recovery: false, unreadable: true, problem: { message: `执行方的会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
@@ -92,7 +92,7 @@ export class AssistantWorkReads {
     const host = await this.ports.host();
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     const reviews = read.runtime_session_id ? (await this.reviewsFor(host, { ...work, session_id: read.runtime_session_id })).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
-    return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
+    return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}), ...(read.queued_inputs ? { queued_inputs: read.queued_inputs } : {}),
       ...(read.recovery ? { problem: { message: read.recovery.message, action: uiText.text("workbench.assistant-work-reads.check-executor-s-page") } } : {}) };
   }
 
@@ -313,7 +313,7 @@ export class AssistantWorkReads {
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
-    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
+    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character, ...(view?.frozen.character ? { version: view.frozen.character.version } : {}) } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.link.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),

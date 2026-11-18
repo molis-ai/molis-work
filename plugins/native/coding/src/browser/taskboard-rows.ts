@@ -121,6 +121,7 @@ export function drawRow(view: RowView, row: BoardRow, depth: number, owner: stri
   item.style.setProperty("--board-depth", String(depth));
   const entry = el("div", "", "coding-board-entry"), open = !collapsed.has(row.key), lead = drawLead(view, row, open);
   const main = el("button", "", "coding-board-node");
+  main.id = "coding-board-" + encodeURIComponent(JSON.stringify([owner, row.key]));
   main.type = "button";
   if (row.hint) main.title = row.hint;
   if (row.label) main.append(el("span", row.label, "coding-board-key"));

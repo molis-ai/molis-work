@@ -276,11 +276,15 @@ test("WLN-03 WLN-40: 「发给」 lists the Assistant, the Characters and the li
   const store = openTodoStore(homeDirectory);
   const item = store.create({ title: "给王总回电话", placement: "project", planned_date: today() }, { projectId, projectIds: [], actor: "user" as const, actorId: "test" }).item;
   store.close();
-  const editor = { artifact_id: "character:project:editor", version: 2 };
+  // The page reads the roles as a catalog (roles.list) and sends the chosen member's stable ref, not a pinned version.
+  const editor = { kind: "project", member_id: "editor" };
+  const catalog = { in_project: true, originals: [], defaults: { personal: null, project: null }, effective: { kind: "assistant", source: "assistant" },
+    members: [{ title: "严格的编辑", availability: { available: true },
+      role: { current: { kind: "project", member_id: "editor", member_version: 2, original: { kind: "personal", character_id: "editor", version: 1 } } } }] };
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__sent = []; (() => { const real = window.fetch; window.fetch = async function (input, init) {
     const url = new URL(typeof input === 'string' ? input : input.url, location.href);
     if (/\\/api\\/assistant\\/send$/.test(url.pathname) && init && typeof init.body === 'string') window.__sent.push(JSON.parse(init.body));
-    if (/\\/api\\/assistant\\/characters$/.test(url.pathname)) return new Response(JSON.stringify({ characters: [{ reference: ${JSON.stringify(editor)}, title: "严格的编辑", available: true }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (/\\/api\\/assistant\\/characters$/.test(url.pathname)) return new Response(JSON.stringify({ catalog: ${JSON.stringify(catalog)} }), { status: 200, headers: { "content-type": "application/json" } });
     return real.apply(this, arguments); }; })();` }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);

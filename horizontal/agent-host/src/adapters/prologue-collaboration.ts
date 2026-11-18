@@ -162,7 +162,8 @@ export const SUBAGENT_KEY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
   forRun(runId: string): import("./prologue-node-kit.js").DispatchGuard | undefined;
-  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string }): void | Promise<void>;
+  onAdmitted?(request: { parentRunId: string; parentSessionId: string; childSessionId: string; node: string;
+    character?: import("@prologue/sdk").ExactRef<"character">; tools: readonly string[] }): void | Promise<void>;
 }
 
 /**
@@ -209,6 +210,8 @@ export function createCollaborationHost(checks: DispatchChecks, starts: Continua
           parentSessionId: request.parent.session.id,
           childSessionId: request.child.session.id,
           node: request.node,
+          character: request.character,
+          tools: request.tools,
         });
       } catch (error) {
         return {

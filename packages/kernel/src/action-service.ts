@@ -33,6 +33,17 @@ interface RegisteredScene {
 
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
+/**
+ * The descriptor as the registration is stored: a plugin's own `observation_source` declaration is stripped; only a `system`
+ * provider's handler binding may classify its calls (a trial replay), so no plugin can hide its calls from reports.
+ */
+function definitionForRegistration<Input, Output>(definition: ActionDefinition<Input, Output>, provider: ActionProvider,
+  observation: "trial" | undefined): ActionDefinition<Input, Output> & { action_provider: ActionProvider; observation_source?: "trial" } {
+  const { observation_source: _ignored, ...base } = definition as typeof definition & { observation_source?: "trial" };
+  const source = provider.kind === "system" ? observation : undefined;
+  return { ...base, action_provider: provider, ...(source ? { observation_source: source } : {}) };
+}
+
 /** One execution registry, shared by UI, workflows, SDK and protocol adapters. */
 export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly scenes = new Map<string, RegisteredScene>();
@@ -103,7 +114,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const own = handler.availability?.(context) ?? { available: true };
           return own.available ? this.dependencyAvailability(context, definition, metadata) : own;
         };
-        const registeredDefinition = { ...definition, action_provider: provider };
+        const registeredDefinition = definitionForRegistration(definition, provider, handler.observation_source);
         const execute = registerActionExecution({ registeredDefinition, handler, validateInput, validateOutput,
           registry: this.registry, resolve: (context, ref) => this.actionDefinition(context, ref), availability, effects: this.effects });
         disposers.push(this.registry.register(registeredDefinition, execute,

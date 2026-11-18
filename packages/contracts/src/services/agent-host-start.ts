@@ -1,9 +1,9 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
 import type { UiLanguageTag } from "../platform/ui-text.js";
 import type { ActionCallOrigin, ActionSubject, ExactActionReference, ActionView } from "../platform/actions.js";
-import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
+import type { ArtifactReference } from "../modules/artifacts.js";
 import type { MaterialRef } from "../platform/project-materials.js";
-import type { CharacterContent } from "../modules/characters.js";
+import type { CharacterRoleSnapshot, CharacterTaskSelection } from "../modules/characters.js";
 import type { RunDirectories } from "../modules/projects.js";
 import type { AgentRoleExecution, AgentPromptLayer, AgentPromptText } from "../platform/plugin-agent.js";
 import type { SkillRef } from "./agent-definitions.js";
@@ -21,6 +21,10 @@ export interface AgentStartExecution extends ActionCallOrigin {
   beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
   /** Release Host-only selected material controls at rejection or actual Run termination. */
   disposeDispatch?(): void;
+  /** Bind the real business child before its first Run freezes tools; re-resolve on an explicit continuation. */
+  subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
+  /** Current declaration and execution ceiling, checked again at the child's actual dispatch. */
+  assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
   /** Same owner check at the final write/answer boundary; must outlive the start invocation. */
   assertBeforeDispatch?(): void;
   /** The work owner's exact subject for this Run, supplied only by the trusted Host. */
@@ -211,16 +215,10 @@ export interface AgentExecutionPlan {
 }
 
 /**
- * Exactly what the Host froze for one Run. Later settings changes never alter a
- * started Run; the product shows this, not the next-run selection.
+ * Exactly what the Host froze for one Run: the role's fixed version and what it said. Later settings changes never alter a started
+ * Run; the product shows this, not the next-run selection. `project_id` is the member's project, null for a personal original.
  */
-export interface AgentFrozenCharacter extends CharacterContent {
-  reference: ArtifactReference;
-  project_id: string;
-  content_digest: string;
-  producer: ArtifactProducerIdentity;
-  published_at: string;
-}
+export type AgentFrozenCharacter = CharacterRoleSnapshot;
 
 /** What a round recorded of the repository's instruction files it was given (`frozen.instructions`). */
 export interface AgentRunInstructions {
@@ -508,6 +506,8 @@ export interface AgentFrozenRole {
 }
 
 interface AgentStartInputFields {
+  /** Start only from this ended Run and consume this exact original queued answer under the Session's admission lock. */
+  resume_answer?: { run_id: string; pending_id: string; queued_input_id: string };
   /** Host-proven original text before assembly. Mutually exclusive with continued_from; person requires Host authority. */
   original_input?: import("./agent-inputs.js").AgentOriginalInputDraft;
   /** Reuse the original input of this exact Run in the same Session, without creating a new personal statement. */
@@ -545,8 +545,12 @@ interface AgentStartInputFields {
   history?: "session" | "digest";
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
-  /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
-  character?: ArtifactReference | null;
+  /**
+   * The role chosen for the task, as a stable choice (an original, a member of this project, or the Assistant itself); never a
+   * version. The Host pins the version: a session keeps the version its earlier round froze for the same choice, and a new choice
+   * is resolved by Characters now, which refuses one that is turned off.
+   */
+  character?: CharacterTaskSelection | null;
   session: AgentSessionRef;
   /** The assembled task for this Run; it may contain Host-derived text and is not proof of personal authorship. */
   task: string;

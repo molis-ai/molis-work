@@ -5,6 +5,7 @@ import { clip, firstLine, oneLine, when } from "./taskboard-format.js";
 import { activeLeafSteps, formatBoardProgressSummary, scopeRemoved, settled, skipped, stepOf, stepPointsBadge } from "./taskboard-steps.js";
 import type { Board, BoardChild, BoardGroup, BoardRow, BoardRun, BoardSubagents, Executor, StateMark, TreeInput } from "./taskboard-types.js";
 import type { Translate } from "./types.js";
+import { subtaskDescription } from "./subtask-words.js";
 
 /** A subagent with the round that ran it. */
 interface ChildItem { readonly child: BoardChild; readonly run_id: string }
@@ -65,8 +66,9 @@ function childRow({ translate: readText, words, ports }: TreeInput, run: BoardRu
   const here = run.frozen?.directory?.canonical_path;
   const own = child.workspace_path && here && child.workspace_path !== here ? child.workspace_path.split("/").filter(Boolean).at(-1) : "";
   const state = verdict === "accepted" ? words.state.accepted! : verdict === "needs-work" ? words.state["needs-work"]! : words.child[child.state] || unknown(readText);
+  const task = subtaskDescription(child.task);
   return {
-    key: "child-" + child.subagent_id, label: uiText.text("coding.board.subtask"), title: oneLine(child.task), hint: child.task, state, progress: null,
+    key: "child-" + child.subagent_id, label: uiText.text("coding.board.subtask"), title: oneLine(task), hint: task, state, progress: null,
     note: own ? uiText.text("coding.board.own-directory", { path: own }) : "",
     executor: { name: role, detail: uiText.text("coding.board.by-role", { role }) + (child.error ? " · " + child.error : "") },
     time: Number.isFinite(at) ? when(at) : null, target: { kind: "child", run_id, child_id: child.subagent_id }, children: [],

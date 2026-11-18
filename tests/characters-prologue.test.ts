@@ -33,16 +33,15 @@ test("packed SDK consumes the Host-frozen Character instructions and narrowed to
     adapter = await make(); const host = new AgentHost(); host.register(adapter);
     const owner = { project_id: "b", plugin_id: "caller", install_id: "i", actor_id: "u" }, directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Character freeze" });
-    const original: AgentFrozenCharacter = { character_id: "profile", title: "Verifier", instructions: "CHARACTER_FIXED_V2: cite actual evidence.", host_tools: ["read-file"],
-      source: { owner_actor_id: "u", draft_revision: 3 }, reference: { artifact_id: "character:b:profile", version: 2 }, project_id: "b", content_digest: "fixed",
-      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" };
+    const original: AgentFrozenCharacter = { version: { kind: "personal", character_id: "profile", version: 2 }, character_id: "profile", title: "Verifier",
+      instructions: "CHARACTER_FIXED_V2: cite actual evidence.", host_tools: ["read-file"], project_id: null, owner_actor_id: "u", saved_at: "2026-09-22T00:00:00Z" };
     const expected = structuredClone(original), resolved = Promise.withResolvers<void>();
     const authority: AgentStartAuthority = { manifest: { roles: [{ role_id: "reader", version: 1, name: "Reader", prompts: ["base", "reader"], host_tools: ["read-file", "search"] }],
-      prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "reader", version: 1 }], characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader"] } },
+      prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "reader", version: 1 }], characters: { selection: "optional-role", scope: "owner", role_ids: ["reader"] } },
       authorizedDirectories: [root], prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "BASE_MARKER" }, { prompt_id: "reader", version: 1, layer: "role", body: "ROLE_MARKER" }],
-      project_prompts: [{ prompt_id: "project", version: 1, body: "PROJECT_MARKER" }], resolveCharacter: () => { resolved.resolve(); return original; } };
+      project_prompts: [{ prompt_id: "project", version: 1, body: "PROJECT_MARKER" }], resolveCharacter: () => { resolved.resolve(); return original; }, characterVersion: () => structuredClone(expected) };
     const task = "Inspect the repository without changing files.";
-    const starting = host.start("prologue", { ...owner, session, directory, task, role_id: "reader", character: original.reference }, authority);
+    const starting = host.start("prologue", { ...owner, session, directory, task, role_id: "reader", character: { kind: "personal", character_id: "profile" } }, authority);
     await resolved.promise;
     original.instructions = "LATER_UNPUBLISHED_EDIT"; original.host_tools.push("search");
     const handle = await starting;
@@ -93,15 +92,19 @@ test("packed SDK sends full Coding prompts and the current Character on consecut
     ];
     const tail = "长角色末尾：只依据实际回执报告结果。";
     instructions.push("角色说明。".repeat(4_000).slice(0, 20_000 - tail.length) + tail);
-    const profile = (version: number): AgentFrozenCharacter => ({ character_id: "profile", title: "Verifier", instructions: instructions[version - 1]!, host_tools: null,
-      source: { owner_actor_id: "u", draft_revision: version }, reference: { artifact_id: "character:b:profile", version }, project_id: "b", content_digest: `digest-${version}`,
-      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" });
-    const authority: AgentStartAuthority = { manifest: codingAgentManifest, authorizedDirectories: [root], prompts: [...codingPrompts], resolveCharacter: ref => profile(ref.version) };
+    // Each run names another of the person's roles, so each run resolves that role's current version (the same role again would keep
+    // the version its last round froze, ROLE-07).
+    const profile = (version: number): AgentFrozenCharacter => ({ version: { kind: "personal", character_id: `profile-${version}`, version }, character_id: `profile-${version}`,
+      title: "Verifier", instructions: instructions[version - 1]!, host_tools: null, project_id: null, owner_actor_id: "u", saved_at: "2026-09-22T00:00:00Z" });
+    const choice = (version: number) => ({ kind: "personal" as const, character_id: `profile-${version}` });
+    const numberOf = (id: string) => Number(id.slice("profile-".length));
+    const authority: AgentStartAuthority = { manifest: codingAgentManifest, authorizedDirectories: [root], prompts: [...codingPrompts],
+      resolveCharacter: selection => profile(numberOf((selection as { character_id: string }).character_id)), characterVersion: version => profile(version.version) };
     const task = "请检查 shipping.mjs 是否符合 README 的要求，完成这次代码检查。";
     for (const version of [null, 1, 2, 3, null]) {
       const before = requests.length;
       const handle = await host.start("prologue", { ...owner, session, directory, task, role_id: "builder",
-        ...(version ? { character: profile(version).reference } : {}) }, authority);
+        ...(version ? { character: choice(version) } : {}) }, authority);
       const view = await new Promise<AgentRunView>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error("Coding fixture did not finish")), 10_000); let off = () => {};
         off = adapter.observe(handle.ref, value => { if (["completed", "failed", "cancelled"].includes(value.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(value); } });
@@ -113,14 +116,14 @@ test("packed SDK sends full Coding prompts and the current Character on consecut
       for (const id of ["coding-base", "coding-builder"]) assert.ok(system.includes(codingPrompts.find(prompt => prompt.prompt_id === id)!.body), `missing full ${id}`);
       for (let i = 0; i < instructions.length; i++) assert.equal(system.includes(instructions[i]!), version === i + 1, `wrong Character body on run ${before + 1}`);
       assert.ok(!system.includes("[truncated:"));
-      assert.equal(view.frozen.character?.reference.version ?? null, version);
+      assert.equal(view.frozen.character?.version.version ?? null, version);
       // A round without a plan keeps its role's board tools; the Host's board hook bounds what they reach.
       assert.deepEqual(view.frozen.host_tools, codingAgentManifest.roles.find(role => role.role_id === "builder")!.host_tools);
       assert.ok(["board-read", "board-report"].every(name => requests.at(-1).tools.some((tool: { name: string }) => tool.name === name)), "ordinary Character runs keep the board tools");
     }
     const beforeRejected = requests.length;
     const runsBeforeRejected = await adapter.readSession(session);
-    await assert.rejects(host.start("prologue", { ...owner, session, directory, task, role_id: "builder", character: profile(2).reference },
+    await assert.rejects(host.start("prologue", { ...owner, session, directory, task, role_id: "builder", character: choice(2) },
       { ...authority, project_prompts: [{ prompt_id: "project-long", version: 1, body: "项目指令。".repeat(13_000) }] }), /合计超过 64000 字符，未启动执行/);
     assert.equal(requests.length, beforeRejected, "oversize composition never reaches the model");
     assert.deepEqual(await adapter.readSession(session), runsBeforeRejected, "rejected instructions do not create an unfinished execution");

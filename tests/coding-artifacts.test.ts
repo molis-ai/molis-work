@@ -12,7 +12,7 @@ import {
   type CodingDiagram,
 } from "@molis-ai/molis-work-plugin-coding";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** C2 的验收：三个 Artifact 类型的形状、声明一致性，以及图的结构校验。 */
 
@@ -20,8 +20,10 @@ test("Manifest 通过 v1 解析，且端口与产出类型逐项对应", () => {
   const parsed = parsePluginManifest(JSON.parse(JSON.stringify(codingManifest)));
   assert.equal(parsed.plugin_id, "io.molis.work.coding");
   assert.equal(parsed.schema_version, 1);
-  assert.ok(parsed.artifacts.consumes.some(entry => entry.artifact_type_id === CHARACTER_ARTIFACT_TYPE && entry.schema_version === 1));
-  assert.deepEqual(parsed.agent?.characters, { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] });
+  // ROLE-07: Coding reads the person's roles through Characters' role actions, never a role's 成果 version.
+  assert.ok(!parsed.artifacts.consumes.some(entry => entry.artifact_type_id === CHARACTER_ARTIFACT_TYPE));
+  assert.ok([characterRoleActions.list, characterRoleActions.resolve].every(({ capability_id }) => parsed.capabilities.consumes.includes(capability_id)));
+  assert.deepEqual(parsed.agent?.characters, { selection: "optional-role", scope: "owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] });
 
   // Only the run report is a 成果; plans, goal context, change sets and diagrams are process items (artifact-positioning A2).
   assert.deepEqual(parsed.artifacts.produces.map((entry) => entry.artifact_type_id), ["coding.report.v1"]);

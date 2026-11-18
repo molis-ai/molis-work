@@ -531,13 +531,7 @@ export interface AgentExecutionPlan {
     }>;
 }
 
-export interface AgentFrozenCharacter extends CharacterContent {
-    reference: ArtifactReference;
-    project_id: string;
-    content_digest: string;
-    producer: ArtifactProducerIdentity;
-    published_at: string;
-}
+export type AgentFrozenCharacter = CharacterRoleSnapshot;
 
 export interface AgentFrozenRole {
     memory?: AgentRecalledMemory;
@@ -2170,6 +2164,8 @@ export interface AgentStartExecution extends ActionCallOrigin {
     assertBeforeStart?(): void;
     beforeDispatch?(): void | (() => void) | Promise<void | (() => void)>;
     disposeDispatch?(): void;
+    subagentGateway?(role: AgentFrozenSubagentRole, session: AgentSessionRef): Promise<NonNullable<AgentFrozenRole["action_gateway"]>>;
+    assertSubagent?(role: Pick<AgentFrozenSubagentRole, "role_id" | "version" | "execution" | "host_tools">): void;
     assertBeforeDispatch?(): void;
     delegation?: {
         readonly subject: Extract<AgentDelegationSubject, {
@@ -2314,6 +2310,66 @@ export interface AgentSubagentBudgetView {
     prior_attempts?: AgentSubagentAttemptSummary[];
 }
 
+export type AgentSubagentCommand = {
+    request_id: string;
+    child_run: AgentRunRef;
+} & ({
+    kind: "send" | "continue";
+    text: string;
+} | (AgentAnswerControl & {
+    pending_revision: number;
+}) | {
+    kind: "resume-answer";
+    pending_id: string;
+    pending_revision: number;
+} | {
+    kind: "retry";
+    source?: AgentSubagentRetrySource;
+    reason?: string;
+} | {
+    kind: "stop";
+} | {
+    kind: "extend-budget";
+    attempts: number;
+});
+
+export interface AgentSubagentControl {
+    actor_id: string;
+    original_text?: string;
+    execution: AgentStartExecution;
+}
+
+export interface AgentSubagentConversation {
+    child: AgentSubagentView;
+    messages: Array<AgentTurnView & {
+        run: AgentRunRef;
+    }>;
+    phase: AgentRunPhase;
+    questions: AgentPendingQuestion[];
+    queued_answer?: {
+        pending_id: string;
+        pending_revision: number;
+    };
+    approvals: Array<{
+        pending_id: string;
+        pending_revision?: number;
+    }>;
+    input_unavailable?: string;
+}
+
+export type AgentSubagentRequestResult = {
+    state: "applied";
+    run: AgentRunRef;
+    input_id?: string;
+    answer_delivery?: "delivered" | "queued";
+} | {
+    state: "not-applied";
+    reason: string;
+    problems?: readonly AgentQuestionProblem[];
+} | {
+    state: "unknown";
+};
+
 export type AgentSubagentRetrySource = "check-failed" | "model-error" | "user-requested";
 
 export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
@@ -2327,6 +2383,8 @@ export interface AgentSubagentView {
     subagent_id: string;
     parent_run: AgentRunRef;
     role_id: string;
+    role_version: number;
+    execution: import("services/agent-host-start").AgentFrozenSubagentRole["execution"];
     role_name?: string;
     task: string;
     continuation_task?: {
@@ -2350,14 +2408,16 @@ export interface AgentSubagentWorkspace {
 export interface AgentSubagentsCapability {
     workspaces?: true;
     list(run: AgentRunRef): Promise<AgentSubagentView[]>;
-    cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
-    retry?(run: AgentRunRef, subagentId: string, options: {
-        actor_id: string;
-        source: AgentSubagentRetrySource;
-        reason?: string;
-        extend_attempts?: number;
-    }): Promise<AgentSubagentView>;
-    extendBudget?(run: AgentRunRef, subagentId: string, extraAttempts: number, actorId: string): Promise<AgentSubagentView>;
+    resultCandidates?(parentSessionIds: ReadonlySet<string>): readonly {
+        parent_run: AgentRunRef;
+        subagent_id: string;
+        attempt_run_id: string;
+    }[];
+    conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;
+    assertCurrent?(run: AgentRunRef, subagentId: string, childRun: AgentRunRef): void;
+    subscribe?(run: AgentRunRef, changed: () => void): Promise<() => void>;
+    command?(run: AgentRunRef, subagentId: string, input: AgentSubagentCommand, control: AgentSubagentControl): Promise<AgentSubagentRequestResult>;
+    checkRequest?(run: AgentRunRef, subagentId: string, requestId: string, actorId: string): Promise<AgentSubagentRequestResult>;
 }
 
 export type AgentTextMaterial = {
@@ -2437,6 +2497,7 @@ export interface AgentTurnView {
     turn_id: string;
     kind: AgentTurnKind;
     text: string;
+    notice?: "peer-update" | "subagent-input" | "task-unavailable";
     at: string | null;
     sequence?: number;
     steer?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentTurnSteer;
@@ -2739,6 +2800,13 @@ export declare const agentDelegationActions: {
 };
 
 export declare const agentHostCapabilities: {
+    readonly readSubagentConversation: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], AgentSubagentConversation>;
+    readonly waitSubagentConversation: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, since: string | null, timeoutMs: number], {
+        version: string;
+        view: AgentSubagentConversation;
+    }>;
+    readonly commandSubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, input: AgentSubagentCommand], AgentSubagentRequestResult>;
+    readonly checkSubagentRequest: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, requestId: string], AgentSubagentRequestResult>;
     readonly listActions: ActionDefinition<[runtimeId: string], readonly ActionView[]>;
     readonly listRuntimes: ActionDefinition<[], AgentRuntimeDescriptor[]>;
     readonly availableRoles: ActionDefinition<[runtimeId: string], Array<{
@@ -2748,13 +2816,6 @@ export declare const agentHostCapabilities: {
     }>>;
     readonly createSession: ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
     readonly listSubagents: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
-    readonly cancelSubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>;
-    readonly retrySubagent: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, options: {
-        source?: AgentSubagentRetrySource;
-        reason?: string;
-        extend_attempts?: number;
-        only_extend?: true;
-    }], AgentSubagentView>;
     readonly readSessionLifecycle: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
     readonly archiveSession: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
     readonly unarchiveSession: ActionDefinition<[session: AgentSessionRef], AgentSessionLifecycleView>;
@@ -2821,6 +2882,289 @@ export declare const agentOfferActions: {
     readonly run: ActionDefinition<AgentOfferRunRequest, {
         output: unknown;
     }>;
+};
+
+export declare const agentSubagentCommandSchema: {
+    readonly anyOf: readonly [{
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            pending_revision: {
+                type: string;
+                minimum: number;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+            kind: {
+                readonly const: "answer";
+            };
+            pending_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            text: {
+                readonly type: "string";
+                readonly maxLength: 1000000;
+            };
+            answers: {
+                readonly type: "array";
+                readonly maxItems: 500;
+                readonly items: {
+                    readonly type: "object";
+                    readonly required: readonly ["question"];
+                    readonly additionalProperties: false;
+                    readonly properties: {
+                        readonly question: {
+                            readonly type: "integer";
+                            readonly minimum: 0;
+                        };
+                        readonly indexes: {
+                            readonly type: "array";
+                            readonly maxItems: 500;
+                            readonly items: {
+                                readonly type: "integer";
+                                readonly minimum: 0;
+                            };
+                        };
+                        readonly other: {
+                            readonly type: "string";
+                            readonly maxLength: 1000000;
+                        };
+                        readonly value: {
+                            readonly anyOf: readonly [{
+                                readonly type: "string";
+                                readonly maxLength: 1000000;
+                            }, {
+                                readonly type: "number";
+                            }, {
+                                readonly type: "null";
+                            }, {
+                                readonly type: "array";
+                                readonly maxItems: 500;
+                                readonly items: {
+                                    readonly type: "object";
+                                    readonly required: readonly ["kind", "id", "label"];
+                                    readonly additionalProperties: false;
+                                    readonly properties: {
+                                        readonly kind: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 500;
+                                        };
+                                        readonly id: {
+                                            readonly type: "string";
+                                            readonly minLength: 1;
+                                            readonly maxLength: 500;
+                                        };
+                                        readonly label: {
+                                            readonly type: "string";
+                                            readonly maxLength: 2000;
+                                        };
+                                    };
+                                };
+                            }];
+                        };
+                    };
+                };
+            };
+        };
+    }, {
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            kind: {
+                const: string;
+            };
+            pending_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            pending_revision: {
+                type: string;
+                minimum: number;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+        };
+    }, {
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            kind: {
+                enum: string[];
+            };
+            text: {
+                readonly type: "string";
+                readonly maxLength: number;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+        };
+    }, {
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            kind: {
+                const: string;
+            };
+            source: {
+                readonly enum: readonly ["check-failed", "model-error", "user-requested"];
+            };
+            reason: {
+                readonly type: "string";
+                readonly maxLength: number;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+        };
+    }, {
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            kind: {
+                const: string;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+        };
+    }, {
+        readonly type: "object";
+        readonly required: string[];
+        readonly properties: {
+            kind: {
+                const: string;
+            };
+            attempts: {
+                type: string;
+                minimum: number;
+                maximum: number;
+            };
+            request_id: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 500;
+            };
+            child_run: {
+                readonly type: "object";
+                readonly required: readonly ["run_id", "session_id"];
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly run_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                    readonly session_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                        readonly maxLength: 500;
+                    };
+                };
+            };
+        };
+    }];
 };
 
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;
@@ -2938,13 +3282,18 @@ interface AgentMemoryToolControl {
 }
 
 type AgentReviewOwner = {
-    readonly kind: "agent-review" | "goal-acceptance";
+    readonly kind: "agent-review";
     readonly project_id: string;
     readonly plugin_id: string;
     readonly install_id: string;
 };
 
 interface AgentStartInputFields {
+    resume_answer?: {
+        run_id: string;
+        pending_id: string;
+        queued_input_id: string;
+    };
     original_input?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentOriginalInputDraft;
     continued_from?: import("services/agent-host-runtime").AgentRunRef;
     action_tools?: ExactActionReference[];
@@ -2958,7 +3307,7 @@ interface AgentStartInputFields {
     browser?: false;
     history?: "session" | "digest";
     subagent_workspaces?: AgentSubagentWorkspace[];
-    character?: ArtifactReference | null;
+    character?: CharacterTaskSelection | null;
     session: AgentSessionRef;
     task: string;
     role_id: string;

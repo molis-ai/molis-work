@@ -385,7 +385,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs";
+const BUSINESS_ROLE_ERROR = "业务角色 reader 只能只读或经审查操作，工具限于无目录业务工具；派发须显式声明子角色";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */
@@ -412,9 +412,10 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a role with a bad id", agent: agentOf({ roles: [reader, { role_id: "Bad", version: 1, name: "Bad" }] }), expected: "Agent 角色声明不合法" },
   { rule: "a role twice", agent: agentOf({ roles: [reader, reader] }), expected: "Agent 角色重复：reader" },
   { rule: "a role with an unknown workspace", agent: roleOf({ workspace: "elsewhere" }), expected: "Agent 角色 reader 的工作区声明无效" },
-  { rule: "a business role that writes", agent: roleOf({ workspace: "business", execution: "workspace-write" }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
-  { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
-  { rule: "a business role that dispatches sub-tasks", agent: withChild({}, { roles: [{ ...reader, workspace: "business" }] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
+  { rule: "a business role that writes", agent: roleOf({ workspace: "business", execution: "workspace-write" }), expected: BUSINESS_ROLE_ERROR },
+  { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: BUSINESS_ROLE_ERROR },
+  { rule: "SAI-01: a business role with declared child roles can dispatch", agent: withChild({}, { roles: [{ ...reader, workspace: "business", host_tools: ["dispatch-subagent"] }] }), expected: "" },
+  { rule: "SAI-08: a business role cannot dispatch without declared children", agent: roleOf({ workspace: "business", host_tools: ["dispatch-subagent"] }), expected: BUSINESS_ROLE_ERROR },
   { rule: "a conforming operating business role", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["ask-user"] }), expected: "" },
   { rule: "ASC-19: a business role can declare persistent waiting", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["board-wait"] }), expected: "" },
   { rule: "operate outside a business role", agent: roleOf({ execution: "operate" }), expected: "Agent 角色 reader 的 operate 执行方式只用于业务角色" },
@@ -423,11 +424,11 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a role with no prompt of its own and none named", agent: { roles: [reader], prompts: [] }, expected: "Agent 角色 reader 既没有声明 prompts，也没有同名 Prompt" },
   { rule: "a role that names its prompts", agent: { roles: [{ ...reader, prompts: ["shared"] }], prompts: [{ prompt_id: "shared", version: 1 }] }, expected: "" },
   { rule: "a parent of own workspaces that is not read-only", agent: roleOf({ subagent_workspaces: "required", execution: "text-edit" }), expected: "Agent 角色 reader 要求独立子目录时必须是只读父角色" },
-  { rule: "characters with another selection", agent: agentOf({ characters: { selection: "any", scope: "project-owner", role_ids: ["reader"] } }), expected: "Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色" },
-  { rule: "characters naming no role", agent: agentOf({ characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [] } }), expected: "Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色" },
-  { rule: "characters naming a role twice", agent: agentOf({ characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "reader"] } }), expected: "Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色" },
-  { rule: "characters naming an undeclared role", agent: agentOf({ characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["nowhere"] } }), expected: "Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色" },
-  { rule: "conforming characters", agent: agentOf({ characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader"] } }), expected: "" },
+  { rule: "characters with another selection", agent: agentOf({ characters: { selection: "any", scope: "owner", role_ids: ["reader"] } }), expected: "Agent Character 必须声明本人范围、角色选择和已声明的角色" },
+  { rule: "characters naming no role", agent: agentOf({ characters: { selection: "optional-role", scope: "owner", role_ids: [] } }), expected: "Agent Character 必须声明本人范围、角色选择和已声明的角色" },
+  { rule: "characters naming a role twice", agent: agentOf({ characters: { selection: "optional-role", scope: "owner", role_ids: ["reader", "reader"] } }), expected: "Agent Character 必须声明本人范围、角色选择和已声明的角色" },
+  { rule: "characters naming an undeclared role", agent: agentOf({ characters: { selection: "optional-role", scope: "owner", role_ids: ["nowhere"] } }), expected: "Agent Character 必须声明本人范围、角色选择和已声明的角色" },
+  { rule: "conforming characters", agent: agentOf({ characters: { selection: "optional-role", scope: "owner", role_ids: ["reader"] } }), expected: "" },
   { rule: "a compaction prompt that is not declared", agent: agentOf({ compaction: { prompt_id: "nowhere", above_tokens: 1000 } }), expected: "Agent 压缩 Prompt nowhere 未声明" },
   { rule: "a compaction threshold of 0", agent: agentOf({ compaction: { prompt_id: "reader", above_tokens: 0 } }), expected: "Agent 压缩阈值无效" },
   { rule: "a skill with a bad id", agent: agentOf({ skills: [{ skill_id: "Bad", version: 1, name: "Bad", summary: "x", tools: ["t"] }] }), expected: "Agent 方法声明不合法" },
@@ -457,7 +458,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
     text_sources: [{ input_port: "nowhere", output_port: "text", artifact_type_id: "example.text", schema_version: 0 }],
     prompts: [{ prompt_id: "Bad", version: 1 }, { prompt_id: "reader", version: 1, layer: "task" }, { prompt_id: "reader", version: 1, layer: "system" }],
     roles: [{ ...reader, prompts: ["nowhere"], workspace: "none", execution: "text-edit" }, { role_id: "Bad2", version: 1, name: "Bad" }, reader],
-    characters: { selection: "any", scope: "project-owner", role_ids: ["reader"] },
+    characters: { selection: "any", scope: "owner", role_ids: ["reader"] },
     compaction: { prompt_id: "nowhere", above_tokens: 0 },
     skills: [agentSkill({ skill_id: "tooling", tools: [] })],
     subagents: { parent_role_ids: ["nowhere"], roles: [{ ...TASK_DELEGATE, parent_role_ids: ["other"] }] },
@@ -474,7 +475,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
     "无工作区角色 reader 必须为不使用工具或子任务的只读推理",
     "Agent 角色声明不合法",
     "Agent 角色重复：reader",
-    "Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色",
+    "Agent Character 必须声明本人范围、角色选择和已声明的角色",
     "Agent 压缩 Prompt nowhere 未声明",
     "Agent 压缩阈值无效",
     "Agent 方法 tooling 必须声明可用工具",

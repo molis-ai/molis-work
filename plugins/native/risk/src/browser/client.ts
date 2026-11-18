@@ -4,7 +4,7 @@ import { loadOverview, renderOverview } from "./overview.js";
 import { failureOf, isPermission, riskPage } from "./page.js";
 import { text } from "./parts.js";
 import { renderRecord } from "./record.js";
-import { customAt, reviewAt } from "./review.js";
+import { customAt, renderReview, reviewAt } from "./review.js";
 import type { RiskEvent, RiskHost, RiskLevel, RiskLink, RiskPage, RiskRecord, RiskReview, RiskStatus } from "./types.js";
 
 /**
@@ -70,7 +70,12 @@ async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boo
   await loadReview(page);
 }
 
-async function loadReview(page: RiskPage): Promise<void> {
+function updateReviewSection(page: RiskPage): void {
+  const section = page.body.querySelector("[data-rk-section=review]"), record = page.state.record;
+  if (section && record) section.outerHTML = renderReview(page, record.risk);
+}
+
+async function loadReview(page: RiskPage, region: "review" | "record" = "review"): Promise<void> {
   const { state } = page;
   const riskId = state.record?.risk.risk_id;
   if (!riskId) return;
@@ -84,7 +89,8 @@ async function loadReview(page: RiskPage): Promise<void> {
     state.review = null;
     state.reviewError = error instanceof Error ? error.message : text("error.failed");
   }
-  page.render();
+  if (region === "record") page.render();
+  else updateReviewSection(page);
 }
 
 /** A write refused for who-may-write reasons turns the record read-only and says so once; anything else is a toast. */
@@ -181,7 +187,7 @@ async function reviewCommand(page: RiskPage, capability: "risk.review.enabled" |
   const answer = await write<{ review?: RiskReview; cancelled?: boolean }>(page, capability, { risk_id: risk.risk_id, ...input });
   if (!answer) { page.render(); return; }
   if (capability === "risk.review.cancel") page.toast(text("review.cancelled"));
-  await loadReview(page);
+  await loadReview(page, "record");
 }
 
 function searchLinks(page: RiskPage, query: string): void {
@@ -264,7 +270,7 @@ async function onAct(page: RiskPage, action: string, value: string, element: HTM
     case "expand": if (risk) page.host.openItem("risk", risk.risk_id, risk.title); return;
     // A record that could not be read is tried again by its id; only with none to try does the page go back to the overview.
     case "reload-record": if (risk ?? state.recordId) await openRecord(page, risk?.risk_id ?? state.recordId); else { state.view = "overview"; await loadOverview(page); } return;
-    case "reload-review": state.reviewError = ""; page.render(); await loadReview(page); return;
+    case "reload-review": state.reviewError = ""; updateReviewSection(page); await loadReview(page); return;
     case "review-enabled": await reviewCommand(page, "risk.review.enabled", { enabled: value === "true" }); return;
     case "review-cancel": await reviewCommand(page, "risk.review.cancel", {}); return;
     // The task's reads are granted on Schedule's own page, by the person: the review opens that task there.

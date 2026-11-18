@@ -1,3 +1,4 @@
+import type { SubtaskConversationOptions } from "./subtask-contract.js";
 import { contentHtml } from "../browser.js";
 import type { ScrollFollower } from "../page-globals.js";
 import { escapeHtml } from "../ui/html.js";
@@ -43,7 +44,8 @@ function detailNode(document: Document, detail: MwSubtaskDetail, open: boolean, 
   if (!existing) node.innerHTML = '<summary></summary><div class="mw-subtask__detail-body" translate="no"></div><div class="mw-subtask__answers"></div>';
   const summary = node.querySelector("summary")!;
   if (summary.textContent !== detail.title) summary.textContent = detail.title;
-  patch(node.querySelector<HTMLElement>(".mw-subtask__detail-body")!, htmlOf(detail.content, document), true);
+  const body = node.querySelector<HTMLElement>(".mw-subtask__detail-body")!;
+  if (!body.hasAttribute("data-subtask-owner-mounted")) patch(body, htmlOf(detail.content, document), true);
   patch(node.querySelector<HTMLElement>(".mw-subtask__answers")!, (detail.actions ?? []).map(subtaskAction).join(""));
   if (node.open !== open) node.open = open;
   return node;
@@ -59,14 +61,27 @@ function keyed<T extends { readonly id: string }>(root: HTMLElement, rows: reado
   for (const node of existing.values()) node.remove();
 }
 
-interface Place { readonly top: number; readonly following: boolean; readonly unread: boolean; readonly expanded: Map<string, boolean> }
-export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversationLabels) {
+interface Place { readonly outerTop: number; readonly top: number; readonly following: boolean; readonly unread: boolean; readonly expanded: Map<string, boolean> }
+export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversationLabels, mount?: (root: HTMLElement, view: MwSubtaskConversationView, detail: MwSubtaskDetail) => ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>) {
+  const mounts = new Map<HTMLElement, { key: string; handle: NonNullable<ReturnType<NonNullable<SubtaskConversationOptions["mountDetail"]>>> }>();
+  const release = (body: HTMLElement) => { const mounted = mounts.get(body); mounts.delete(body); mounted?.handle.destroy(); body.removeAttribute("data-subtask-owner-mounted"); body.replaceChildren(); };
+  const releaseAll = () => { for (const body of mounts.keys()) release(body); };
   root.innerHTML = renderSubtaskConversation({ labels: labels() });
   const find = (name: string) => root.querySelector<HTMLElement>(`[data-subtask-${name}]`)!;
   const thread = find("thread"), messages = find("messages"), details = find("details"), latest = find("latest");
-  const places = new Map<string, Place>();
+  const places = new Map<string, Place>(), surface = root.querySelector<HTMLElement>(".mw-subtask")!;
+  let restoreOuter: number | undefined;
+  // A delayed draft may resize this surface, but must not undo navigation made after opening it.
+  const intervene = (event: Event) => {
+    // Leaving before layout finishes preserves the saved place; choosing another reading position cancels it.
+    const key = event instanceof KeyboardEvent ? event.key : undefined;
+    if (key === "Escape" || (event.type === "pointerdown" || key === "Enter" || key === " ")
+      && event.target instanceof Element && event.target.closest("[data-subtask-close],[data-subtask-back],[data-subtask-open]")) return;
+    restoreOuter = undefined;
+  }, inputEvents = ["wheel", "pointerdown", "keydown"];
+  for (const type of inputEvents) root.addEventListener(type, intervene, { capture: true, passive: true });
   let target: string | undefined, expanded = new Map<string, boolean>(), follower: ScrollFollower | undefined, first = true;
-  const remember = () => { if (target && !root.hidden) places.set(target, { top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
+  const remember = () => { if (target && !first && !root.hidden) places.set(target, { outerTop: restoreOuter ?? surface.scrollTop, top: thread.scrollTop, following: follower?.state !== "detached", unread: !latest.hidden, expanded }); };
   function show(next: string) {
     remember(); follower?.dispose();
     first = true;
@@ -76,6 +91,7 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     follower = window.molisFollow?.(thread, { onChange: state => { if (state === "following") latest.hidden = true; } });
   }
   function clear() {
+    releaseAll();
     for (const name of ["context", "intro", "messages", "details", "children", "feedback"]) find(name).replaceChildren();
     latest.hidden = true;
   }
@@ -87,12 +103,26 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
     patch(find("intro"), subtaskIntroduction(view));
     keyed(messages, view.messages, "data-subtask-message", (message, old) => messageNode(root.ownerDocument, message, old));
     keyed(details, view.details ?? [], "data-subtask-detail", (detail, old) => detailNode(root.ownerDocument, detail, expanded.get(detail.id) ?? Boolean(detail.expanded), old));
+    for (const body of mounts.keys()) if (!details.contains(body)) release(body);
+    for (const node of Array.from(details.querySelectorAll<HTMLElement>("[data-subtask-detail]"))) {
+      const detail = view.details?.find(one => one.id === node.dataset.subtaskDetail), body = node.querySelector<HTMLElement>(".mw-subtask__detail-body")!;
+      if (!detail) continue;
+      const key = JSON.stringify([view.target, view.binding, detail.id]); let mounted = mounts.get(body);
+      if (mounted && mounted.key !== key) { release(body); mounted = undefined; }
+      if (!mounted && mount) {
+        const handle = mount(body, view, detail);
+        if (handle) { mounted = { key, handle }; mounts.set(body, mounted); body.setAttribute("data-subtask-owner-mounted", ""); }
+        else patch(body, htmlOf(detail.content, root.ownerDocument), true);
+      }
+      mounted?.handle.update?.(view, detail);
+    }
     patch(find("children"), subtaskChildren(view, words));
     root.querySelector(".mw-subtask")!.setAttribute("aria-label", view.title);
     thread.setAttribute("aria-label", words.messages); find("follow").setAttribute("title", words.latest);
     const latestLabel = find("follow").querySelector('[data-slot="button-label"]'); if (latestLabel) latestLabel.textContent = words.latest;
     if (first) {
       const place = places.get(view.target);
+      restoreOuter = place?.outerTop ?? 0;
       if (place && !place.following) follower?.restore(place.top); else { follower?.resume(); thread.scrollTop = thread.scrollHeight; follower?.pin(); }
       first = false;
     } else if (following) follower?.pin();
@@ -107,11 +137,14 @@ export function subtaskDom(root: HTMLElement, labels: () => MwSubtaskConversatio
   };
   details.addEventListener("toggle", toggled, true);
   return {
-    find, draw, show, composer: find("composer"),
-    forget() { if (target) places.delete(target); expanded.clear(); first = true; follower?.resume(); clear(); },
+    releaseDetails: releaseAll, holdDetails: (held: boolean) => { for (const body of mounts.keys()) body.inert = held; },
+    find, draw, show,
+    laidOut() { if (restoreOuter !== undefined) { surface.scrollTop = restoreOuter; restoreOuter = undefined; } },
+    composer: find("composer"),
+    forget() { if (target) places.delete(target); restoreOuter = undefined; expanded.clear(); first = true; follower?.resume(); clear(); },
     idle() { patch(find("head"), subtaskHeader(undefined, labels())); },
     latest() { latest.hidden = true; follower?.toLatest(); },
-    hide() { remember(); follower?.dispose(); follower = undefined; root.hidden = true; },
-    destroy() { follower?.dispose(); details.removeEventListener("toggle", toggled, true); places.clear(); root.replaceChildren(); },
+    hide() { remember(); first = true; follower?.dispose(); follower = undefined; root.hidden = true; },
+    destroy() { follower?.dispose(); details.removeEventListener("toggle", toggled, true); for (const type of inputEvents) root.removeEventListener(type, intervene, true); places.clear(); root.replaceChildren(); },
   };
 }

@@ -279,8 +279,6 @@ export interface MwMaterialsTrackOptions {
     readonly title?: string;
 }
 
-export type MwObjectRowTone = "ok" | "quiet" | "attention" | "bad";
-
 export interface MwRoundReportCardOptions {
     readonly statusLabel: string;
     readonly statusTone: MwStatusTone;
@@ -333,6 +331,14 @@ export interface MwScopeDeltaItem {
     readonly detail?: string;
 }
 
+export interface MwSourceLayer {
+    readonly name: string;
+    readonly value: string;
+    readonly state: MwSourceLayerState;
+}
+
+export type MwSourceLayerState = "on" | "under" | "empty" | "off";
+
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
 export interface MwSubtaskAction {
@@ -341,6 +347,7 @@ export interface MwSubtaskAction {
     readonly label: string;
     readonly title?: string;
     readonly disabled?: string;
+    readonly pendingSafe?: boolean;
 }
 
 export type MwSubtaskContent = {
@@ -382,6 +389,7 @@ export interface MwSubtaskConversationView {
     readonly running: boolean;
     readonly inputUnavailable?: string;
     readonly pending?: {
+        readonly blocking?: boolean;
         readonly kind: "input" | "action";
         readonly requestId: string;
         readonly message: string;
@@ -877,19 +885,6 @@ export declare function renderLabel(options: {
     className?: string;
 }): string;
 
-export declare function renderListToolbar(options: {
-    label: string;
-    search: string;
-    filters?: string;
-    more?: {
-        label: string;
-        body: string;
-    };
-    end?: string;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-}): string;
-
 export declare function renderMaterialIssueRow(options: MwMaterialIssueRowOptions): string;
 
 export declare function renderMaterialsFunnel(counts: ReadonlyArray<{
@@ -925,29 +920,20 @@ export declare function renderMeter(options: {
     className?: string;
 }): string;
 
+export declare function renderNote(options: {
+    text: string;
+    icon?: PluginIconName;
+    tone?: Extract<MwTone, "neutral" | "warning">;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderNumberField(options: {
     name?: string;
     value?: number | string;
     min?: number;
     max?: number;
     step?: number;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-}): string;
-
-export declare function renderObjectRow(options: {
-    name: string;
-    hint?: string;
-    icon?: PluginIconName;
-    mark?: string;
-    state?: {
-        label: string;
-        tone?: MwObjectRowTone;
-        attrs?: Record<string, AttrValue>;
-    };
-    action?: string;
-    body?: string;
-    open?: boolean;
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
@@ -985,16 +971,6 @@ export declare function renderProgress(options: {
     value: number;
     max?: number;
     label?: string;
-    className?: string;
-}): string;
-
-export declare function renderQuestionList(options: {
-    rows: ReadonlyArray<{
-        question: string;
-        answer: string;
-        action?: string;
-        attrs?: Record<string, AttrValue>;
-    }>;
     className?: string;
 }): string;
 
@@ -1051,27 +1027,6 @@ export declare function renderSelect(options?: MwInputOptions & {
 
 export declare function renderSeparator(options?: {
     className?: string;
-}): string;
-
-export declare function renderSettingRow(options: {
-    name: string;
-    hint?: string;
-    control: string;
-    label?: boolean;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
-    nameAttrs?: Record<string, AttrValue>;
-    hintAttrs?: Record<string, AttrValue>;
-}): string;
-
-export declare function renderSettingsSection(options: {
-    title?: string;
-    body: string;
-    id?: string;
-    action?: string;
-    lead?: string;
-    className?: string;
-    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderSeverityGrid(options: {
@@ -1137,6 +1092,13 @@ export declare function renderSlider(options: {
     label?: string;
     disabled?: boolean;
     className?: string;
+}): string;
+
+export declare function renderSourceLadder(options: {
+    label: string;
+    layers: readonly MwSourceLayer[];
+    className?: string;
+    attrs?: Record<string, AttrValue>;
 }): string;
 
 export declare function renderSpinner(options?: {

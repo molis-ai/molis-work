@@ -1,5 +1,5 @@
 import {
-  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS,
+  AGENT_PROMPT_LAYERS, BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS,
   type AgentManifest, type AgentRoleDeclaration, type AgentSubagentRoleDeclaration, type AgentSubagentsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginDeclarationProblem } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -138,9 +138,9 @@ function agentRoleProblems(agent: AgentManifest, role: AgentRoleDeclaration, pro
     problems.push(`Agent 角色 ${role.role_id} 的工作区声明无效`);
   }
   if (role.workspace === "business" && (!["read-only", "operate"].includes(role.execution ?? "read-only")
-    || role.host_tools?.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
-    || role.subagent_workspaces || agent.subagents?.parent_role_ids.includes(role.role_id))) {
-    problems.push(`业务角色 ${role.role_id} 只能只读或经审查操作，工具限于 ${BUSINESS_HOST_TOOLS.join("、")}，不能分派子任务`);
+    || role.host_tools?.some(tool => !([...BUSINESS_HOST_TOOLS, ...(agent.subagents?.parent_role_ids.includes(role.role_id) ? BUSINESS_SUBAGENT_HOST_TOOLS : [])] as readonly string[]).includes(tool))
+    || role.subagent_workspaces)) {
+    problems.push(`业务角色 ${role.role_id} 只能只读或经审查操作，工具限于无目录业务工具；派发须显式声明子角色`);
   }
   if (role.execution === "operate" && role.workspace !== "business") {
     problems.push(`Agent 角色 ${role.role_id} 的 operate 执行方式只用于业务角色`);
@@ -162,10 +162,10 @@ function agentRoleProblems(agent: AgentManifest, role: AgentRoleDeclaration, pro
 function agentCharacterProblems(agent: AgentManifest, roleIds: ReadonlySet<string>): string[] {
   const selection = agent.characters;
   if (!selection) return [];
-  if (selection.selection !== "optional-exact-artifact" || selection.scope !== "project-owner"
+  if (selection.selection !== "optional-role" || selection.scope !== "owner"
     || !Array.isArray(selection.role_ids) || !selection.role_ids.length
     || new Set(selection.role_ids).size !== selection.role_ids.length
-    || selection.role_ids.some(id => !roleIds.has(id))) return ["Agent Character 必须声明本项目本人范围、精确版本选择和已声明的角色"];
+    || selection.role_ids.some(id => !roleIds.has(id))) return ["Agent Character 必须声明本人范围、角色选择和已声明的角色"];
   return [];
 }
 

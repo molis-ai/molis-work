@@ -62,7 +62,7 @@ export function writingContext(page: WritingPage): WritingContext {
     },
     async reload() {
       context.versions.clear(); context.upstream.clear();
-      const [, listed] = await Promise.all([page.load(), listDrafts(project).catch(() => context.drafts)]);
+      const [, listed] = await Promise.all([page.load(), listDrafts(project, true).catch(() => context.drafts)]);
       context.drafts = listed;
     },
     drafts: [], versions: new Map(), upstream: new Map(),

@@ -77,3 +77,33 @@ test("a command that names extra paths or the network is approved once, never as
   assert.equal(queue.receipt("widened-again")!.status, "pending", "the extra access is asked for again");
   assert.deepEqual(executed, ["granted", "plain"]);
 });
+
+test("SAI-06/08: revocation after acceptance retains the decision without establishing session approval", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date(AT) });
+  let current = true;
+  const ask = (review_id: string) => queue.request({ review_id, reference: { owner: { kind: "agent-review", project_id: BOARD, plugin_id: PLUGIN, install_id: "install" }, id: review_id, version: "proposal-1" }, project_id: BOARD, plugin_id: PLUGIN,
+    run: { run_id: "run-s1", session_id: "s1" }, kind: "command", requested_at: AT, expires_at: null,
+    document: { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"], escalate: false } });
+  ask("accepted");
+  queue.registerDecisionHandler("accepted", async (_input, commit) => { const receipt = await commit(); current = false; return receipt; });
+  const receipt = await queue.respond({ review_id: "accepted", version: "proposal-1", decision: "approve", actor_id: "alice", remember: "session" },
+    { async beforeEffect() {}, assertCurrent() { assert.ok(current, "original authority revoked"); } });
+  assert.equal(receipt.status, "approved"); assert.ok(!receipt.delivery_error); assert.ok(receipt.remember_error);
+  ask("later"); queue.registerDecisionHandler("later", async (_input, commit) => commit()); await tick();
+  assert.equal(queue.receipt("later")!.status, "pending", "revocation prevents a future grant, not the accepted receipt");
+});
+
+test("SAI-06/08: a decision with uncertain delivery cannot establish automatic session approval", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date(AT) });
+  const ask = (review_id: string) => queue.request({ review_id, reference: { owner: { kind: "agent-review", project_id: BOARD, plugin_id: PLUGIN, install_id: "install" }, id: review_id, version: "proposal-1" }, project_id: BOARD, plugin_id: PLUGIN,
+    run: { run_id: "run-s1", session_id: "s1" }, kind: "command", requested_at: AT, expires_at: null,
+    document: { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, env_allowlist: ["PATH"], escalate: false } });
+  ask("uncertain");
+  queue.registerDecisionHandler("uncertain", async (input, commit) => {
+    await commit(); return queue.deliveryFailed(input.review_id, "Original owner did not confirm acceptance");
+  });
+  const result = await queue.respond({ review_id: "uncertain", version: "proposal-1", decision: "approve", actor_id: "alice", remember: "session" }, { async beforeEffect() {}, assertCurrent() {} });
+  assert.ok(result.delivery_error); assert.equal(result.status, "approved", "the original decision is retained for reconciliation");
+  ask("later"); queue.registerDecisionHandler("later", async (_input, commit) => commit()); await tick();
+  assert.equal(queue.receipt("later")!.status, "pending", "uncertainty grants no standing authority");
+});

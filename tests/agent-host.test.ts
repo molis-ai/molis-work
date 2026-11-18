@@ -655,13 +655,13 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
     "命令未接审批时，回执读取必须报不可用而不是空结果",
   );
 
-  // Reading a receipt is the only command-shaped Capability: there is no way to
-  // run one through this surface.
+  // Exact child control and command receipt reading are the only command-named capabilities.
+  // Neither exposes a shell-command execution bypass.
   assert.deepEqual(
     Object.values(agentHostCapabilities)
       .map((entry) => entry.capability_id)
       .filter((id) => id.includes("command")),
-    ["agent.command-output"],
+    ["agent.subagents.command", "agent.command-output"],
   );
 
   // Deciding an approval is deliberately not a Capability.

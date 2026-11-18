@@ -146,6 +146,10 @@ export type {
   AgentSubagentAttemptSummary,
   AgentSubagentBudgetView,
   AgentSubagentView,
+  AgentSubagentConversation,
+  AgentSubagentCommand,
+  AgentSubagentControl,
+  AgentSubagentRequestResult,
   AgentSubagentsCapability,
   AgentRecoveryReport,
   AgentScheduledTask,
@@ -245,4 +249,4 @@ export interface AgentDraftTextResult {
   usage: { input: number; output: number } | null;
 }
 
-export { agentHostCapabilities, type AgentHostCapabilityId } from "./agent-host-capabilities.js";
+export { agentSubagentCommandSchema, agentHostCapabilities, type AgentHostCapabilityId } from "./agent-host-capabilities.js";

@@ -164,27 +164,25 @@ test('RAC-2850 global Characters entry carries only its own CSS through real HTT
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails)); return result.result.value;
   };
   await load();
-  assert.deepEqual(await entry("({path:location.pathname,settings:document.body.classList.contains('settings-page'),workbench:!!document.querySelector('[data-tab-workspace]'),style:document.querySelector('.characters-settings-entry').querySelectorAll(':scope > style').length})"),
+  // Settings › 角色 is the role page itself since batch 36 (the person's originals and default); it is a settings page, not the
+  // workbench, and carries one style of its own: the role page's.
+  assert.deepEqual(await entry("({path:location.pathname,settings:document.body.classList.contains('settings-page'),workbench:!!document.querySelector('[data-tab-workspace]'),style:document.querySelector('.roles-page').querySelectorAll(':scope > style').length})"),
     { path: '/settings/characters', settings: true, workbench: false, style: 1 });
-  assert.equal(await entry("document.querySelector('.characters-hint').textContent.includes('还没有项目')"), true);
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-hint')).fontSize"), '12px');
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-hint')).lineHeight"), '19.2px');
+  assert.equal(await entry("document.querySelector('.roles-page > style').textContent.includes('.roles-page')"), true);
+  assert.equal(await entry("document.querySelector('.roles-page > style').textContent.includes('[data-tab-workspace]')"), false, "no workbench stage CSS rides along");
+  assert.equal(await entry("document.querySelector('.roles-page .settings-heading p').textContent.includes('项目设置 › 角色')"), true);
+  assert.equal(await entry("getComputedStyle(document.querySelector('.roles-hint')).fontSize"), '13px');
   const directory = `${REVIEW_EVIDENCE}/pg070-current`; await mkdir(directory, { recursive: true });
   const shot = async (name: string) => { const image = await b.command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, b.sessionId); await writeFile(`${directory}/${name}.png`, Buffer.from(image.data, 'base64')); };
   await shot('characters-global-empty');
-  const project = await createProject(b.web, "PG070 linked project");
+  await createProject(b.web, "PG070 linked project");
   await load(); await b.setViewport(390, 500);
-  assert.equal(await entry("document.querySelector('.characters-project-link').pathname"), '/projects/' + project.project_id + '/');
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).display"), 'flex');
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).minHeight"), '40px');
+  assert.equal(await entry("document.documentElement.scrollWidth<=innerWidth+1"), true);
   const response = await fetch(b.origin + '/settings/characters'); assert.equal(response.status, 200); const html = await response.text();
   // The unchanged production extractor chooses settings-document; adopt that real HTTP node, including its child style.
   await entry(`(()=>{const parsed=new DOMParser().parseFromString(${JSON.stringify(html)},'text/html'),node=parsed.querySelector('.settings-document');document.querySelector('.settings-content').replaceChildren(document.adoptNode(node));})()`);
-  assert.equal(await entry("document.querySelector('.characters-settings-entry').querySelectorAll(':scope > style').length"), 1);
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).display"), 'flex');
-  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).minHeight"), '40px');
+  assert.equal(await entry("document.querySelector('.roles-page').querySelectorAll(':scope > style').length"), 1);
   assert.equal(await entry("document.documentElement.scrollWidth<=innerWidth+1"), true);
-  assert.equal(await entry("document.querySelector('.characters-settings-entry style').textContent.includes('.characters-terminal')"), false);
   await shot('characters-global-extracted-narrow');
 });
 

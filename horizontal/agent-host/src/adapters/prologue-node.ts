@@ -1,3 +1,4 @@
+import { answerPending, questionReader } from "./prologue-question-port.js";
 import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prologue-saved-history.js';
 import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,7 +24,7 @@ import { readResource, readResourceText, createRoundState, type DispatchGuards, 
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { createContinuationStarts } from "./prologue-collaboration.js";
-import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
+import { createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { actionDispatchReceipts } from "./prologue-review-effects.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
@@ -187,7 +188,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
   runtime = await createNodeRuntime(options, effects.host, task => dispatchGuards.exit(() => schedule.run(task)), () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
-    onAdmitted: async ({ parentRunId, parentSessionId, childSessionId, node }) => {
+    onAdmitted: async request => {
+      const { parentRunId, parentSessionId, childSessionId, node } = request;
+      await state.childAdmissions.get(parentRunId)?.(request);
       await index.update(parentSessionId, saved => {
         const attempt = saved.attempts.find(item => item.run_id === parentRunId) ?? saved.attempts.at(-1);
         if (attempt) (attempt.subagent_nodes ??= {})[childSessionId] = node;
@@ -219,7 +222,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation),
     directoryAuthorized: options.checks?.directoryAuthorized,
-    holdDirectory: options.checks?.holdMcpDirectory,
+    holdDirectory: options.checks?.holdWorkspaceDirectory,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
@@ -258,6 +261,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     shutdown: async () => {
       await closeReceipts();
       for (const controller of state.actionControllers.values()) controller.abort();
+      for (const controller of state.childActionControllers.values()) controller.abort();
+      state.childActionControllers.clear(); state.childAdmissions.clear(); state.subagentListeners.clear();
       state.actionControllers.clear();
       await closeNodeResources(closeSurfaces, [closeMemoryAuthority, closeEffects, closeMcp, closeInference, closeStepBoards, closeMessages, closeChecks,
         closeReviews, closeCheckpoints, closeGit, closeDelegations, closeRuntime]);

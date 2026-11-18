@@ -33,7 +33,7 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
   for (const { manifest } of libraries) {
     const library = pluginSyncDatabaseDeclaration(manifest, manifest.databases!.home!), store = homeStores().get(library.store_name);
     assert.equal(store?.owner, manifest.plugin_id, library.store_name);
-    assert.deepEqual(store?.library, { baseline: { version: library.version, schema: library.schema }, ...library.partition ? { partition: library.partition } : {} }, library.store_name);
+    assert.deepEqual(store?.library, { baseline: { version: library.version, schema: library.schema, ...library.upgrades ? { upgrades: library.upgrades } : {} }, ...library.partition ? { partition: library.partition } : {} }, library.store_name);
     const permissions = new Set(manifest.permissions.map(item => item.permission));
     for (const permission of ["storage:private", library.read_permission, library.write_permission]) assert.ok(permissions.has(permission), `${manifest.plugin_id}: ${permission}`);
   }

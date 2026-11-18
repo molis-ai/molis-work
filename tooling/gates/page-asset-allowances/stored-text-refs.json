@@ -1,0 +1,42 @@
+{
+  "reason": "Work Brief 的来源名与下一步结果改存文字引用（存键和参数，不存译文）后，简报页在画的时候解析它们：六处 say.text(...) 与「读不到」原因的括号改用平台 common.punctuation.in-parens（不再把中文括号拼在模板里）。最初从 SDK 引入 say 把文字解析打进了包（+13241 B）；改用插件框架与 t、format 一起装好的 globalThis.say 后降到 +116 B。试过把括号收进 parts.ts 的小函数，反而 +124 B，已撤回。首屏：动作卡片结果原来是 SDK 里写死的中文句子，现在是工作台词包里的九个 common.action-card.* 键（中英各一份），随词包进每页冷启动。已删掉与现有键重复的两类：「已完成」改用 common.presentation.done，后台任务结束时卡片直接用通知同一句 workbench.assistant-job.{done,failed,expired,unchecked}，从 zh +450 / en +509 降到 zh +378 / en +396；许可按实测向上取整到 100 B，作为上限；合并队列对照更新后的 main 实测英文四页 +418，英文许可取 500。热启动不变。",
+  "review": "PR #2118（fix(text): 卡片结果与 Work Brief 来源名存键和参数，不存译文）评审；本机 pnpm build 后 node scripts/gates/page-assets.mjs --base origin/main 实测 work-brief.js 37640 → 37756 B，node scripts/gates/first-screen.mjs --base origin/main 实测四页冷启动 zh +378 / en +396。",
+  "userApproval": "用户于 2026-11-17 在会话中选「Add 116-byte allowance」，批准 work-brief.js 的这 116 字节增长；2026-11-18 在会话中选「Approve, push」，批准工作台中英文词包因新增 common.action-card.* 键换内容定址文件名，以及上列四页冷启动各约 400 B 的增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "assets": {
+    "/assets/molis-work-plugins/work-brief.js": 116
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 400, "warm": 0 },
+    "arrival-empty/en": { "cold": 500, "warm": 0 },
+    "chooser/zh": { "cold": 400, "warm": 0 },
+    "chooser/en": { "cold": 500, "warm": 0 },
+    "workbench-default/zh": { "cold": 400, "warm": 0 },
+    "workbench-default/en": { "cold": 500, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 400, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 500, "warm": 0 }
+  }
+}

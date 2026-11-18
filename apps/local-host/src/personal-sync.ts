@@ -1,3 +1,4 @@
+import { configuredAccountEnvironment, configuredSyncOrigin, localEnvironmentName } from "./active-release-profile.js";
 import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.js';
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
@@ -14,7 +15,12 @@ import {createProjectApprovalSyncRegistration} from './personal-project-approval
 
 /** Built-in bindings only; the sync service and Rust transport never import plugin owners. */
 export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService,readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader) {
-  const endpoint=resolveSyncEndpoint({origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL==='1'});
+  const managed = configuredAccountEnvironment({});
+  const origin = configuredSyncOrigin();
+  const local = localEnvironmentName() === 'dev' && Boolean(origin);
+  const endpoint = resolveSyncEndpoint(managed
+    ? { origin: local ? undefined : origin, local }
+    : { origin: process.env.MOLIS_WORK_SYNC_ORIGIN, local: process.env.MOLIS_WORK_SYNC_LOCAL === '1' });
   if(!endpoint)return null;
   const check=()=>{lease.assertCurrent();assertActive();};
   const goalsManifest=builtinPluginByProjectKey('goals')?.manifest;

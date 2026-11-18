@@ -119,7 +119,9 @@ test("FSS-36 the project chooser opens sign-in methods in its own language", { t
     await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/locale?lang=${locale}&next=%2F` }, browser.sessionId));
     await browser.waitFor("document.querySelector('.chooser') && document.querySelector('[data-unified-account-link]')");
     const currentProject = await browser.evaluate(selected);
-    await browser.click("[data-unified-account-link]");
+    assert.equal(await browser.evaluate("document.querySelectorAll('.arrival-titlebar [data-account-link], .arrival-titlebar [data-unified-account-link]').length"), 1);
+    await browser.click(".arrival-titlebar [data-account-link]");
+    await browser.click("#mw-account-menu [data-unified-account-link]");
     await browser.waitFor("document.querySelector('.account-dialog[open] .account-form input[name=password]')");
     assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('.account-dialog .account-modes button')].filter(button => !button.hidden).map(button => button.textContent)"), modes);
     assert.deepEqual(await browser.evaluate("[...document.querySelectorAll('.account-dialog .account-social button[type=button]')].filter(button => !button.hidden).map(button => button.textContent)"), providers);
@@ -131,6 +133,7 @@ test("FSS-36 the project chooser opens sign-in methods in its own language", { t
     assert.equal(await browser.evaluate("document.querySelector('.account-form input[name=password]').autocomplete"), "current-password");
     await browser.click(".account-dialog > button");
     await browser.waitFor("!document.querySelector('.account-dialog')");
+    assert.equal(await browser.evaluate("document.activeElement?.matches('.arrival-titlebar [data-account-link]')"), true);
     assert.equal(await browser.evaluate("location.pathname"), "/");
     assert.equal(await browser.evaluate(selected), currentProject);
   }

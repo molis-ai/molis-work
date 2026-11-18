@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
-import { accountEnvironment } from "../scripts/account-environments.mjs";
-import { carrierIssues, connectorApplicationReferences, misplacedValues, missingProfileValues, nodeVersion } from "../tooling/release/profile.mjs";
+import { workEnvironment, workSettings } from "../scripts/account-environments.mjs";
+import { carrierIssues, connectorApplicationReferences, misplacedValues, missingProfileValues, nodeVersion, tauriSettings } from "../tooling/release/profile.mjs";
+import { releaseProfile } from "../apps/local-host/src/release-profile.ts";
 import { packBundledReleasePackages } from "../tooling/release/pack-bundled.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -17,27 +18,61 @@ test("26-9 C-1: development keeps its Tauri, Node, ad-hoc and local Auth setting
   assert.deepEqual(carrierIssues("dev"), []);
   assert.deepEqual(missingProfileValues("dev"), []);
   assert.equal(nodeVersion({}), (await readFile(join(root, ".nvmrc"), "utf8")).trim());
-  assert.deepEqual(accountEnvironment("dev"), {
+  assert.deepEqual(workEnvironment("dev", undefined, { publicOnly: true }), {
     environmentId: "unified-local",
     environmentKind: "LOCAL",
     authOrigin: "http://127.0.0.1:8787",
     applicationId: "molis-work-unified-local-app",
     clientId: "molis-work-unified-local",
-    providerMode: "MOCK",
-    deliveryMode: "MOCK",
+    providerMode: "LIVE",
+    deliveryMode: "LIVE",
     productOrigin: "http://127.0.0.1:4207",
     policyProfile: "unified-account-v2",
     redirectAllowlist: ["http://127.0.0.1:4207/account/callback"],
   });
-  assert.throws(() => accountEnvironment("constructor"), /Choose dev, test or prod/u);
+  assert.throws(() => workEnvironment("constructor", undefined, { publicOnly: true }), /Choose dev, test or prod/u);
   assert.deepEqual(connectorApplicationReferences("dev", "github"), { primary: "OAUTH_APP_GITHUB", fallback: "OAUTH_APPS" });
   assert.deepEqual(connectorApplicationReferences("test", "google-calendar"), { primary: "OAUTH_APP_GOOGLE_CALENDAR", fallback: "OAUTH_APPS" });
   assert.deepEqual(connectorApplicationReferences("release", "github"), { primary: undefined, fallback: undefined });
 });
 
+test("V2-03: source and installed Work use distinct loopback clients and validate sync targets", async t => {
+  assert.equal(tauriSettings(releaseProfile("test")).identifier, "com.molis.work.test");
+  assert.equal(tauriSettings(releaseProfile("test")).productName, "Molis Work Test");
+  assert.equal(releaseProfile("test").desktopApplication.home, ".molis-work-environments/installed-test");
+  assert.equal(tauriSettings(releaseProfile("release")).identifier, "com.molis.work");
+  const directory = await mkdtemp(join(tmpdir(), "molis-release-sync-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(join(root, "config"), join(directory, "config"), { recursive: true });
+  const configRoot = pathToFileURL(directory + "/");
+  const select = (name, installed = false) => workSettings(name, configRoot, { publicOnly: true, installed });
+  const testConfig = join(directory, "config", "test.properties");
+  const contents = await readFile(testConfig, "utf8");
+  const configureSync = origin => writeFile(testConfig, contents.replace(/^syncOrigin=.*$/mu, "syncOrigin=" + origin));
+  const testOrigin = "https://sync.test.molis.ai";
+  await configureSync(testOrigin);
+  const source = select("test");
+  const desktop = select("test", true);
+  assert.equal(source.syncOrigin, testOrigin);
+  assert.equal(desktop.syncOrigin, testOrigin);
+  assert.equal(source.account.clientId, "molis-work-test");
+  assert.equal(desktop.account.clientId, "molis-work-test-desktop");
+  assert.deepEqual(source.account.redirectAllowlist, ["http://127.0.0.1:4207/account/callback"]);
+  assert.deepEqual(desktop.account.redirectAllowlist, ["http://127.0.0.1:4173/account/callback"]);
+  assert.deepEqual(select("prod", true).account.redirectAllowlist, ["http://127.0.0.1:4173/account/callback"]);
+  for (const origin of ["https://sync.molis.ai", "https://auth.test.molis.ai", "http://127.0.0.1:8788", testOrigin + "/api"]) {
+    await configureSync(origin);
+    assert.throws(() => select("test"), /invalid field syncOrigin/u);
+  }
+  const devConfig = join(directory, "config", "dev.properties");
+  const dev = await readFile(devConfig, "utf8");
+  await writeFile(devConfig, dev.replace(/^syncOrigin=.*$/mu, "syncOrigin=http://127.0.0.1:8788"));
+  assert.equal(select("dev").syncOrigin, "http://127.0.0.1:8788");
+});
+
 test("26-9 C-1: report identifies the unfilled production fields and a mismatched carrier", () => {
   assert.deepEqual(missingProfileValues("release"), [
-    "accountEnvironment", "signingIdentity", "notarization", "publisherKeyRef", "entitlements",
+    "signingIdentity", "notarization", "publisherKeyRef", "entitlements",
     "connectors.brokerOrigin", "connectors.applicationRefs", "connectors.applications",
     "updateChannel", "symbolUploadTarget",
   ]);
@@ -57,6 +92,7 @@ test("26-9 C-1: report finds duplicate application selectors and Mach-O paths ou
   const directory = await mkdtemp(join(tmpdir(), "molis-release-report-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   execFileSync("git", ["init", "--quiet"], { cwd: directory });
+  await cp(join(root, "config"), join(directory, "config"), { recursive: true });
   const config = "apps/local-host/src/release-profiles.json";
   await mkdir(join(directory, "apps/local-host/src"), { recursive: true });
   const configuration = JSON.parse(await readFile(join(root, config), "utf8"));

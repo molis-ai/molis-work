@@ -123,10 +123,19 @@ fn product_env(suffix: &str) -> Option<String> {
 }
 
 pub(crate) fn molis_work_home() -> PathBuf {
+    if let Some(home) = packaged_test_home() {
+        return home;
+    }
     if let Some(home) = product_env("HOME") {
         return PathBuf::from(home);
     }
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into())).join(".molis-work")
+}
+
+pub(crate) fn packaged_test_home() -> Option<PathBuf> {
+    option_env!("MOLIS_WORK_TEST_DESKTOP_HOME").map(|relative| {
+        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into())).join(relative)
+    })
 }
 
 fn web_launcher(home: &Path) -> PathBuf {
@@ -406,7 +415,9 @@ pub(crate) fn start_molis_work_web(
         false
     };
     if upgraded_runtime {
-        let _ = sync_managed_web_service_after_upgrade(&home);
+        if packaged_test_home().is_none() {
+            let _ = sync_managed_web_service_after_upgrade(&home);
+        }
         bin = web_launcher(&home);
     }
     if web_healthy() {

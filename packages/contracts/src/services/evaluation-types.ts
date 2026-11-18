@@ -100,6 +100,8 @@ export interface EvaluationEvaluatorRule {
   readonly evaluator_id: string;
   readonly evaluator_version: string;
   readonly rubric: string;
+  /** Fact and content role supplying the text assessed by this rubric. */
+  readonly evidence_source?: { readonly fact: string; readonly role: string };
   readonly expected_posture?: EvaluationOpportunityPosture;
   readonly required_facts?: readonly string[];
   readonly required_skill_ids?: readonly string[];
@@ -261,6 +263,8 @@ export interface EvaluationReplayReceipt {
 }
 
 export interface EvaluationFunnelCounts {
+  /** Present when executed/completed count distinct units attested by their business owner. */
+  readonly execution_basis?: "owner_work";
   readonly presented: number;
   readonly viewed: number;
   readonly selected: number;
@@ -386,7 +390,7 @@ export interface EvaluationMetricsSummary {
   readonly verdict_counts: Readonly<Record<EvaluationVerdict, number>>;
   readonly unknown_reason_counts: Readonly<Partial<Record<EvaluationUnknownReason, number>>>;
   readonly work_outcome_counts: Readonly<Partial<Record<ObservationOutcome, number>>>;
-  readonly funnel_totals: EvaluationFunnelCounts;
+  readonly funnel_totals: EvaluationFunnelCounts & { readonly excluded_execution_runs: number };
   readonly by_work_mode: readonly {
     readonly work_mode: EvaluationWorkMode;
     readonly denominator: number;

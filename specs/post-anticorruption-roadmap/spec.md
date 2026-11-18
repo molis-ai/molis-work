@@ -12,9 +12,9 @@
 
 <a id="execution-batches"></a>
 
-## 01～90
+## 01～91
 
-2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。新增批次带字母，原批号不变。
+2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md) 对话与执行流式丝滑化（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 54](reference/decisions.md#decision-54)）。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -93,7 +93,7 @@
 | [36](reference/batches/36.md) | [角色设置、生效与恢复](reference/batches/36.md#batch-36-item-1) |
 |  | [主线第一片的合同与服务](reference/batches/36.md#batch-36-item-2) |
 | [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（2026-11-18 加，[决定 52](reference/decisions.md#decision-52)） |
-|  | [事项线：底栏第四版](reference/batches/36a.md#batch-36a-item-2) |
+|  | [底栏：第十三版](reference/batches/36a.md#batch-36a-item-2)（2026-11-17 改，[决定 53](reference/decisions.md#decision-53)） |
 |  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
 |  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
 |  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
@@ -230,12 +230,16 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
+| [91](reference/batches/91.md) | [Design System 流式、状态环与滚动原语](reference/batches/91.md#batch-91-item-1)（2026-11-18 加，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)） |
+|  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
+|  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
+|  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
 
 <a id="server-batch"></a>
 
 ## 服务端批
 
-排在 01～90 之后，开工时间由用户定；01～90 不等它。后续服务端需求继续加在这一批。
+排在 01～91 之后，开工时间由用户定；01～91 不等它。后续服务端需求继续加在这一批。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -268,7 +272,7 @@
 
 ## 发行批
 
-只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～90 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～91 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
 
 | 批次 | 批次内内容 |
 | --- | --- |

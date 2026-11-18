@@ -83,14 +83,13 @@ export function buildCanonicalEvaluationSuite(ids: SuiteContextIds): readonly Ca
       expectedRawVerdict: "passed",
       sample: {
         sample_id: "ec-02-model-round",
-        version: REV,
+        version: 2,
         title: "EC-02 真实模型回合记录与准则评判",
         purpose: "validation",
         work_mode: "assistant",
         project_id: ids.mainProjectId,
         case_ref: "EC-02",
         initial_intent: "读取发布材料并输出包含留存豁免与隔离回放要点的中文摘要",
-        allowed_variations: ["留存", "回放"],
         query: { project_id: ids.mainProjectId, run_id: ids.agentRunId },
         expectations: [
           {
@@ -110,11 +109,11 @@ export function buildCanonicalEvaluationSuite(ids: SuiteContextIds): readonly Ca
             source: "evaluator",
             rule: {
               evaluator_id: "eval.delivery.summary-rubric",
-              evaluator_version: EVALUATOR_REV,
-              rubric: "摘要须准确概括样本留存豁免清理与隔离回放两项核心边界，允许同义措辞变化。",
+              evaluator_version: "2.0.0",
+              rubric: "核对本轮回复是否按原请求包含「留存豁免」与「隔离回放」两个词语。",
               required_facts: ["agent.reply"],
               required_evidence_terms: ["留存豁免", "隔离回放"],
-              allowed_variations: ["留存", "回放"],
+              evidence_source: { fact: "agent.reply", role: "reply" },
             },
           },
         ],

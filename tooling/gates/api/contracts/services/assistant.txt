@@ -81,7 +81,7 @@ export interface AssistantCard {
         question: string;
     }>;
     status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-    outcome?: string;
+    outcome?: OwnedTextRef;
     presentation?: ActionResultPresentation;
     from?: {
         surface: string;
@@ -261,7 +261,8 @@ export interface AssistantMaterial {
         user_revision?: number | null;
     };
     image?: {
-        attachment: MaterialRef;
+        resource_id: string;
+        revision: number;
         media_type: string;
         byte_length: number;
     };
@@ -810,6 +811,7 @@ export interface AssistantWork {
     updated_at: string;
     archived: boolean;
     character?: AssistantCharacter;
+    character_selection_required?: true;
     delegated_by?: {
         work_id: string;
         title: string;

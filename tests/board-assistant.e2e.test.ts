@@ -56,7 +56,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   assert.deepEqual(Object.keys(plan).filter((key) => ["environment", "materials", "tools", "results", "changes", "background"].includes(key)),
     ["environment", "materials", "tools", "results", "changes", "background"]);
   assert.deepEqual([plan.environment, plan.materials, plan.tools, plan.results, plan.changes, plan.background], [
-    ["工作环境", "", false], ["参考内容", "2 项有变化", true], ["连接与工具", "1 项要处理", true], ["产出", "2", false], ["变更", "1 项失败", true], ["后台任务", "1 项没有完成", true]]);
+    ["工作环境", "", false], ["上下文", "2 项有变化", true], ["连接与工具", "1 项要处理", true], ["产出", "2", false], ["变更", "1 项失败", true], ["后台任务", "1 项没有完成", true]]);
   const groups = await inFrame<Record<string, string>>(`return Object.fromEntries(['environment', 'tools', 'results', 'changes', 'background'].map((key) => [key, d.querySelector('[data-assistant-block=' + key + ']').textContent.replace(/\\s+/g, ' ')]));`);
   assert.match(groups.environment!, /示例项目.*项目范围/);
   assert.match(groups.tools!, /你的连接.*Google Calendar.*企业微信.*需要登录授权.*可调用.*现在不能用.*通讯录/);

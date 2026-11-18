@@ -1,6 +1,6 @@
 import { assistantAttachmentImage, assistantAttachments } from "./assistant-attachments.js";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginPageRequest } from "../plugin-page-authority.js";
 import { computerHolderFor } from "../computer/computer-surfaces.js";
 import { assertHumanReview } from "../computer/computer-policy.js";
@@ -457,7 +457,7 @@ export const assistantPanelActions = {
     // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
     const card = of(entry).service.offers.card(input.work_id, input.item);
     return of(entry).service.send({ work_id: input.work_id, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
-      { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page",
+      { title: card.title, why: card.outcome ? say.text(card.outcome) : uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...entry.language(), ...scoped(entry) }, "page",
       () => { caller.signal?.throwIfAborted(); return true; });
   }, true),
 };

@@ -5,6 +5,7 @@ import { parseExactActionReferences, type ActionView, type ExactActionReference 
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { characterVersionMatchesSelection } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSessionView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -148,26 +149,30 @@ async function roundCodeRevision(a: CodingActivation, beforeWrite: CodingBeforeW
  * both again at start). Read here so a round's own steps stay apart from this resolution.
  */
 async function roundCharacter(context: PluginStartContext, record: CodingSessionRecord, body: Record<string, unknown>, execution: CodingExecution, beforeWrite: CodingBeforeWrite,
-  ranBefore: () => Promise<boolean>) {
+  priorSession: () => Promise<AgentSessionView | null>) {
   const saved = savedCharacter(context, record.session_id), control = codingActionControl(beforeWrite);
   if (body.character === undefined && saved === "unreadable") throw codingFailure("coding.server.character-reference");
   let character = body.character === undefined ? (saved && saved !== "unreadable" ? saved.ref : null) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly ExactActionReference[] | null | undefined;
-  const limited = async () => limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
+  let limits: Promise<boolean> | undefined;
+  const limited = () => limits ??= codingActions(context, beforeWrite).invoke(agent.listRuntimes, []).then(list => limitsCharacters(list, record.runtime_id));
   // A session never chosen for takes the role a new task gets (project default, else the person's) at its first round, once; where the
   // Runtime has not verified a role's tool limits it takes none. Either way the session keeps what it got. A session that has already
   // run without a role (the round after an answer to a parked one, a session from before roles) goes on without one.
   // Kept only once the round has started, beside its other records (`pinCharacter`): a caller refused before that leaves nothing.
   let pinCharacter: (() => void) | undefined;
-  if (body.character === undefined && saved === undefined && !await ranBefore()) {
+  if (body.character === undefined && saved === undefined && !(await priorSession())?.runs.length) {
     const effective = await execution.characters.effective(control), taken = effective && await limited() ? effective : null;
     pinCharacter = () => saveCharacter(context, record.session_id, taken);
     character = taken?.ref ?? null;
   }
   if (character) {
     if (!await limited()) throw codingFailure("coding.server.character-unverified");
-    characterTools = await execution.characters.actionTools(character, control);
+    const previous = (await priorSession())?.latest_run?.frozen.character;
+    // Host resolves and checks the fixed version at admission. Use that same snapshot to prepare a continuation's tools.
+    characterTools = previous && characterVersionMatchesSelection(previous.version, character)
+      ? previous.action_tools : await execution.characters.actionTools(character, control);
   }
   return { character, character_skill_ids, characterTools, pinCharacter };
 }
@@ -256,11 +261,10 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const availability = roles.find((entry) => entry.role_id === role);
   if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
   // The session's earlier rounds, listed once: whether it has run decides if it takes a default role, and the rounds are read below.
-  let listed: Promise<AgentSessionView["runs"]> | undefined;
-  const runsOf = (session: { runtime_id: string; session_id: string }) => codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]).then(read => read.runs);
-  const priorRuns = () => listed ??= record.runtime_session_id ? runsOf({ runtime_id: record.runtime_id, session_id: record.runtime_session_id }) : Promise.resolve([]);
-  const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite,
-    async () => (await priorRuns()).length > 0);
+  let listed: Promise<AgentSessionView | null> | undefined;
+  const readSession = (session: { runtime_id: string; session_id: string }) => codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
+  const priorSession = () => listed ??= record.runtime_session_id ? readSession({ runtime_id: record.runtime_id, session_id: record.runtime_session_id }) : Promise.resolve(null);
+  const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite, priorSession);
   const chosenActions = body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools);
   const chosenSkills = skillSelection(body.skills ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
@@ -280,7 +284,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
   // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
   let earlier: AgentRunView[] | undefined;
-  const earlierRuns = async () => earlier ??= await Promise.all((record.runtime_session_id ? await priorRuns() : await runsOf(session)).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
+  const earlierRuns = async () => earlier ??= await Promise.all(((await priorSession() ?? await readSession(session)).runs)
+    .map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
   let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
   // A session given its runtime session before it ran (a delegation's letters need one) still starts with its first round.
   const firstRound = !record.runtime_session_id || !(await earlierRuns()).length;

@@ -3,7 +3,9 @@ import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, a
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
+import { TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextDateStyle } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorKind } from "./errors.js";
+import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
 
 /**
  * Action cards (specs/ai-interaction-experience H2, D26): a suggestion the person runs with one click, exactly as shown,
@@ -26,7 +28,8 @@ export interface ActionCard {
   editable: string[];
   missing: Array<{ field: string; question: string }>;
   status: ActionCardStatus;
-  outcome?: string;
+  /** What happened, or why not, as a key with its raw values (`common.action-card.*`), or the owner's own words as a `literal`; never a sentence made here. */
+  outcome?: OwnedTextRef;
   /** The successful call's declared, bounded presentation; never the raw result. */
   presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
@@ -114,8 +117,18 @@ export async function draftActionCard(cardId: string, offer: AgentActionOffer, v
   return card;
 }
 
+/**
+ * A card's outcome is kept and drawn later, maybe in another language: the platform's sentence by key with the raw values as
+ * arguments (a date as a date, never formatted here), or the owner's own words as they came.
+ */
+const said = (key: string, ...args: TextArg[]): OwnedTextRef => ({ owner: PLATFORM_TEXT_OWNER, key: `common.action-card.${key}`, ...(args.length ? { args } : {}) });
+const textArg = (name: string, text: string): TextArg => ({ name, kind: "text", text: cutWithEllipsis(text, TEXT_REF_LIMITS.arg_text) });
+const dateArg = (name: string, at: string, style: TextDateStyle, zone?: string): TextArg => at.length > TEXT_REF_LIMITS.arg_at ? textArg(name, at)
+  : { name, kind: "date", at, style, ...(zone ? { time_zone: zone } : {}) };
+const ownWords = (text: string): OwnedTextRef => ({ literal: cutWithEllipsis(text, TEXT_REF_LIMITS.literal) });
+
 /** A result in a line the person can read: what was made or changed, by its name; never the whole payload. */
-function summarizeResult(result: unknown): string {
+function summarizeResult(result: unknown): OwnedTextRef | null {
   const named = (value: unknown): string | null => {
     if (!value || typeof value !== "object") return null;
     const row = value as Record<string, unknown>;
@@ -123,16 +136,16 @@ function summarizeResult(result: unknown): string {
     for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
     return null;
   };
-  if (typeof result === "string") return cutWithEllipsis(result, 200) || "已完成";
+  if (typeof result === "string") return result ? ownWords(cutWithEllipsis(result, 200)) : { owner: PLATFORM_TEXT_OWNER, key: "common.presentation.done" };
   const name = named(result);
-  return name ? `「${name.slice(0, 120)}」` : "";
+  return name ? { owner: PLATFORM_TEXT_OWNER, key: "common.punctuation.quoted", args: [textArg("value", name.slice(0, 120))] } : null;
 }
 
 /** Words that count days from the day they were said. */
 const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
 
 /** Why a card is no longer what the person would mean by it: a moment passed, or "today" was another day. */
-function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): string | null {
+function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): OwnedTextRef | null {
   const zone = ports.timeZone;
   const day = (at: Date) => new Intl.DateTimeFormat("en-CA", { ...(zone ? { timeZone: zone } : {}), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
   const now = ports.now(), today = day(now), prepared = day(new Date(card.created_at));
@@ -140,19 +153,19 @@ function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick
   for (const [key, value] of Object.entries(plainObject(input) ? input : {})) {
     if (typeof value !== "string" || !value) continue;
     const kind = actionFieldInput(properties[key]);
-    if (kind === "datetime" && Date.parse(value) < now.getTime()) return `卡里的时间（${actionFieldValue(key, value, properties[key])}）已经过去，这张建议没有执行；需要时让助理按现在重新准备`;
-    if (kind === "date" && value < today && value >= prepared) return `卡里的日期（${value}）已经过去，这张建议没有执行；需要时让助理按今天重新准备`;
+    if (kind === "datetime" && Date.parse(value) < now.getTime()) return said("time-passed", dateArg("time", value, "datetime", zone));
+    if (kind === "date" && value < today && value >= prepared) return said("date-passed", dateArg("date", value, "date"));
   }
-  if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return `这张建议是 ${prepared} 准备的，里面说的“今天、明天”按那天算，没有执行；需要时让助理按今天重新准备`;
+  if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return said("prepared-another-day", dateArg("date", prepared, "date"));
   return null;
 }
 
 /** Why the object a card would change is no longer the one it was suggested for: deleted, or changed by hand since. */
-async function targetMoved(card: ActionCard, ports: Pick<ActionCardPorts, "readSubject">): Promise<string | null> {
+async function targetMoved(card: ActionCard, ports: Pick<ActionCardPorts, "readSubject">): Promise<OwnedTextRef | null> {
   if (!card.target) return null;
   const now = await ports.readSubject(card.target);
-  if (now === "missing") return `「${card.target.title}」已在原处删除，这张建议不再执行`;
-  if (now && now.revision !== card.target.revision) return `你在原处改过「${card.target.title}」，这张建议基于改之前的内容，不再执行；需要时让助理按现在的内容重新准备`;
+  if (now === "missing") return said("target-deleted", textArg("title", card.target.title));
+  if (now && now.revision !== card.target.revision) return said("target-changed", textArg("title", card.target.title));
   return null;
 }
 
@@ -191,10 +204,10 @@ const OUTCOME_UNKNOWN: ReadonlySet<string> = new Set(["actions.outcome_unknown",
 /** How a run that threw reads, by the failure's code and kind alone, never by its wording (specs/ai-interaction-experience D26). */
 function settled(error: unknown): Partial<ActionCard> {
   const message = error instanceof Error ? error.message : String(error);
-  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` };
+  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: said("unknown", textArg("message", message)) };
   // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
-  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` };
-  return { status: "failed", outcome: message };
+  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: said("data-changed", textArg("message", message)) };
+  return { status: "failed", outcome: ownWords(message) };
 }
 
 /**
@@ -214,16 +227,16 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   const authority = await ports.authority();
   const view = (await authority.discover()).find(row => sameAction(row, card.reference));
   // The card runs what it shows or not at all: never another capability, version or provider.
-  if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" });
+  if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? ownWords(view.availability.reason) : said("unavailable") });
   try { await authority.check(view, prepared); }
   catch (error) { throw ports.refuse("invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
   let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined, presentation: undefined });
   try {
     const result = await authority.invoke(claimed.reference, prepared);
     const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
-    const outcome = presentation?.summary ?? summarizeResult(result);
+    const outcome = presentation?.summary ? ownWords(presentation.summary) : summarizeResult(result);
     // Background work it started: the card shows it running, then how it ended.
-    if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: "已开始，后台进行中" });
+    if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: said("started") });
     claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
     return claimed;
   } catch (error) {

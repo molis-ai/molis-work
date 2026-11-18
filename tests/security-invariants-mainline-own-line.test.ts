@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions } from "@molis-ai/molis-work-contracts/services/mainline";
+import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions } from "@molis-ai/molis-work-contracts/services/mainline";
 import { mainlineRig, notesPlugin } from "./fixtures/mainline-items-plugin.js";
 
 // S-mainline-own-line: a mainline is one person's in one project. Whose it is and which project come from the call, never from its input;
@@ -73,4 +73,14 @@ test("S-mainline-own-line a next step that starts another provider's action is n
   const line = await me.invoke(mainlineActions.line, { ...WINDOW, item: item.item_id });
   assert.deepEqual(line.events.filter(event => event.suggestion), []);
   assert.deepEqual(line.issues.map(issue => issue.code), ["mainline.owner_answer_invalid"]);
+});
+
+test("S-mainline-own-line putting a task into an item requires arrange permission", { timeout: 60_000 }, async t => {
+  const { a, as } = await rigged(t), owner = as(a);
+  const { item } = await owner.invoke(mainlineItemActions.create, { name: "目标事项" });
+  const placeOnly = as(a, { permissions: [MAINLINE_READ_PERMISSION, MAINLINE_PLACE_PERMISSION] });
+  const task = { kind: "assistant_work", id: "task" };
+  await assert.rejects(placeOnly.invoke(mainlineActions.place, { task, item: { kind: "item", item_id: item.item_id } }), code("actions.forbidden"));
+  await assert.rejects(placeOnly.invoke(mainlineActions.place, { task, to: { kind: "none" }, item: { kind: "none" } }), code("actions.forbidden"));
+  assert.deepEqual(await owner.invoke(mainlineItemActions.holdsList, { subject: task }), { targets: [] });
 });

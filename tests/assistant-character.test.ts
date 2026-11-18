@@ -88,12 +88,55 @@ async function fixture(t: import("node:test").TestContext) {
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   let editor: MemberState = "active";
-  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...roleAuthority(() => editor) }),
     characters: async scope => roleCatalog(scope, editor), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
-  return { service, store, requests, project, set: (state: MemberState) => { editor = state; }, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, db, requests, project, set: (state: MemberState) => { editor = state; }, async close() { service.continuations.close(); db.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
+
+test("B36F-02 a persisted artifact selection refuses sending and keeps the draft until the person chooses again", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  try {
+    const first = await f.service.send({ text: "保留这一轮", request_id: "legacy-first", character: editorRef }, { project_ref: f.project });
+    const id = first.work.work_id;
+    await until(async () => (await f.service.read(id)).work.state === "completed", "first round");
+    const old = JSON.stringify({ artifact_id: "published-old-role", version: 1, title: "旧角色" });
+    f.db.prepare("UPDATE assistant_works SET body = json_set(body, '$.character', json(?)) WHERE work_id = ?").run(old, id);
+    f.db.prepare("UPDATE assistant_rounds SET body = json_set(body, '$.character', json(?)) WHERE work_id = ?").run(old, id);
+    f.db.prepare("UPDATE assistant_requests SET result = json_set(result, '$.work.character', json(?)) WHERE work_id = ?").run(old, id);
+    const before = await f.service.read(id);
+    assert.equal(before.work.character, undefined);
+    assert.equal(before.work.character_selection_required, true);
+    assert.equal(before.rounds[0]?.character, undefined);
+    assert.equal(before.rounds[0]?.text, "保留这一轮");
+    const receipt = f.store.requests.read("web-user", "legacy-first");
+    assert.equal(receipt.state, "sent");
+    assert.equal(receipt.result.work.character, undefined);
+    assert.equal(receipt.result.work.character_selection_required, true);
+    const calls = f.requests.length;
+    await assert.rejects(f.service.send({ work_id: id, request_id: "legacy-refused", text: "下一轮原话" }, {}),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.character_unavailable" && /重新选择角色/.test(error.message));
+    assert.equal(f.requests.length, calls);
+    assert.equal((await f.service.read(id)).work.draft, "下一轮原话");
+    const resumed = await f.service.send({ work_id: id, request_id: "legacy-cleared", text: "下一轮原话", character: null }, {});
+    assert.equal(resumed.work.work_id, id);
+    assert.equal(resumed.work.character_selection_required, undefined);
+    await until(async () => { const view = await f.service.read(id); return view.rounds.length === 2 && view.work.state === "completed"; }, "resumed round");
+
+    const incomplete = JSON.stringify({ ref: editorRef, title: editorChoice.title });
+    f.db.prepare("UPDATE assistant_works SET body = json_set(body, '$.character', json(?)) WHERE work_id = ?").run(incomplete, id);
+    assert.equal((await f.service.read(id)).work.character_selection_required, true);
+    const corrected = await f.service.send({ work_id: id, request_id: "legacy-reselected", text: "还是请原来的编辑", character: editorRef }, {});
+    assert.deepEqual(corrected.work.character, editorChoice);
+    const last = await until(async () => {
+      const view = await f.service.read(id);
+      return view.rounds.length === 3 && view.work.state === "completed" ? view : undefined;
+    }, "the same role resumed");
+    assert.deepEqual(last.rounds.map(round => round.text), ["保留这一轮", "下一轮原话", "还是请原来的编辑"]);
+    assert.deepEqual(last.rounds[2]?.character, { ...editorChoice, version: EDITOR_VERSION });
+  } finally { await f.close(); }
+});
 
 test("a Character the person chose really carries the round: its instructions reach the model and the round says who carried it", { timeout: 60_000 }, async t => {
   const f = await fixture(t);

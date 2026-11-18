@@ -10,7 +10,7 @@ export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionDelegationDeclaration } from "./action-delegation.js";
 import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
-import type { UiLanguageTag } from "./ui-text.js";
+import type { OwnedTextRef, UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./background-tasks.js";
@@ -402,6 +402,11 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Omi
 export interface ActionProvider {
   readonly provider_id: string;
   readonly title: string;
+  /**
+   * Set only by the Plugin Runtime's registration, from the Manifest's `name_text` bound to the plugin: the name to keep where it is
+   * shown later, so it reads in the language shown then. `title` is the Manifest's `name` as written.
+   */
+  readonly title_text?: OwnedTextRef;
   readonly kind: "system" | "plugin" | "mcp";
   /** A project activation cannot accidentally service another project's calls. */
   readonly project_id?: string;

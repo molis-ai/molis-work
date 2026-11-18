@@ -25,12 +25,6 @@ export class ImagesStore {
       [INTERRUPTED, new Date().toISOString()]);
   }
 
-  recoverProject(projectId: string, live: readonly string[]): void {
-    this.db.run(`UPDATE jobs SET status='interrupted', error=?, finished_at=?
-      WHERE project_id=? AND status='running' AND id NOT IN (SELECT value FROM json_each(?))`,
-      [INTERRUPTED, new Date().toISOString(), projectId, JSON.stringify(live)]);
-  }
-
   referencedFiles(): Set<string> {
     return new Set(this.db.all("SELECT images_json FROM jobs").flatMap(row =>
       (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename)));
@@ -110,9 +104,9 @@ export class ImagesStore {
     return null;
   }
 
-  finish(projectId: string, id: string, status: Exclude<ImageJobStatus, "running">, images: GeneratedImage[], error: string): void {
+  finish(projectId: string, id: string, status: Exclude<ImageJobStatus, "running">, images: GeneratedImage[], error: string, finishedAt = new Date().toISOString()): void {
     this.db.run(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
-      WHERE project_id = ? AND id = ? AND status = 'running'`, [status, JSON.stringify(images), error, new Date().toISOString(), projectId, id]);
+      WHERE project_id = ? AND id = ? AND status = 'running'`, [status, JSON.stringify(images), error, finishedAt, projectId, id]);
   }
 }
 

@@ -25,6 +25,7 @@ export interface ImagesServiceOptions {
 export class ImagesService {
   private readonly store: ImagesStore;
   private readonly active = new Map<string, AbortController>();
+  private readonly interruptions = new Map<string, { projectId: string; at: string }>();
   private readonly changingConnections = new Set<string>();
   private closed = false;
 
@@ -125,7 +126,8 @@ export class ImagesService {
   }
 
   private executionState(job: ImageJob): ImageJob {
-    return job.status === "running" && !this.active.has(job.id) ? { ...job, status: "interrupted", error: INTERRUPTED } : job;
+    const stopped = this.interruptions.get(job.id);
+    return job.status === "running" && stopped ? { ...job, status: "interrupted", error: INTERRUPTED, finished_at: stopped.at } : job;
   }
 
   listJobs(projectId: string): ImageJob[] { this.assertOpen(); return this.store.listJobs(project(projectId)).map(job => this.executionState(job)); }
@@ -133,8 +135,8 @@ export class ImagesService {
 
   async deleteJob(projectId: string, id: string, control: ImagesControl): Promise<void> {
     const stored = this.store.getJob(project(projectId), textField(id, "任务 ID", 128));
-    if (stored.status === "running" && !this.active.has(stored.id)) {
-      await this.write(control, store => store.recoverProject(stored.project_id, [...this.active.keys()]));
+    if (stored.status === "running" && this.interruptions.has(stored.id)) {
+      await this.writeWithRecovery(stored.project_id, control, () => undefined);
     }
     const snapshot=this.getJob(projectId,id),sync=this.options.sync;
     const retained=sync?{spaceId:sync.spaceId,job:snapshot,authorize:()=>sync.assertActive(),images:snapshot.images.map(image=>{
@@ -183,19 +185,22 @@ export class ImagesService {
         throw imagesErrors.connection_changed("图像连接已改变，本次结果未保存。");
       }
     };
+    let recorded = false;
     try {
       const execution = await this.options.background.start(async background => {
         if (!await admitted) return;
-        await runImageJob({ ...this.options, job, connection, revision: state.revision, control: background, current,
+        const outcome = await runImageJob({ ...this.options, job, connection, revision: state.revision, control: background, current,
           read: () => this.store.getJob(job.project_id, job.id), write: (check, apply) => this.write(check, apply) });
+        recorded = outcome === "recorded";
       }, { signal: controller.signal });
-      void execution.result.catch(() => { controller.abort(); }).finally(() => this.active.delete(job.id));
-      const duplicate = await this.write(control, store => { current();
+      void execution.result.catch(() => { controller.abort(); }).finally(async () => {
+        if (await admitted && !recorded && !this.closed) this.interruptions.set(job.id, { projectId: job.project_id, at: new Date().toISOString() });
+        this.active.delete(job.id);
+      });
+      const duplicate = await this.writeWithRecovery(projectIdValue, control, store => { current();
         const latest = this.options.imageGeneration.inspect({ slot_id: connection.id, base_url: connection.base_url });
         if (!latest.available || latest.revision !== state.revision) throw imagesErrors.connection_changed("图像连接已改变，请重新生成。");
-        const live = [...this.active.keys()];
-        store.recoverProject(projectIdValue, live);
-        return store.insertJob(job, inputHash, live); });
+        return store.insertJob(job, inputHash, [...this.active.keys()]); });
       admit(!duplicate);
       if (duplicate) { execution.cancel(); return this.executionState(duplicate); }
       return job;
@@ -222,6 +227,17 @@ export class ImagesService {
   }
 
   close(): void { this.closed = true; for (const controller of this.active.values()) controller.abort(); this.active.clear(); }
+
+  /** Only a new authorized write in this project can persist the executor's observed end time. Keep it across rollbacks. */
+  private async writeWithRecovery<T>(projectId: string, control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
+    const stopped = [...this.interruptions].filter(([, entry]) => entry.projectId === projectId);
+    const result = await this.write(control, store => {
+      for (const [id, entry] of stopped) store.finish(projectId, id, "interrupted", [], INTERRUPTED, entry.at);
+      return apply(store);
+    });
+    for (const [id] of stopped) this.interruptions.delete(id);
+    return result;
+  }
 
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     return this.options.database.transaction(() => control.beforeEffect(), transaction => {

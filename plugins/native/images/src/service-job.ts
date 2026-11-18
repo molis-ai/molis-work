@@ -19,7 +19,7 @@ interface JobRun extends ImagesServiceOptions {
   write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T>;
 }
 
-export async function runImageJob(run: JobRun): Promise<void> {
+export async function runImageJob(run: JobRun): Promise<"recorded" | "interrupted"> {
   const { job, connection, control } = run;
   const target = { slot_id: connection.id, base_url: connection.base_url };
   let resultRevision: string | undefined;
@@ -56,12 +56,13 @@ export async function runImageJob(run: JobRun): Promise<void> {
     try {
       check();
       const state = run.imageGeneration.inspect(target);
-      if (state.revision !== (resultRevision ?? run.revision)) return;
+      if (state.revision !== (resultRevision ?? run.revision)) return "interrupted";
       resultRevision = state.revision;
-    } catch { return; }
+    } catch { return "interrupted"; }
     await run.write(guarded, store => store.finish(job.project_id, job.id, "failed", [], failureMessage(error)));
   } finally { lifetime.dispose(); }
   // Unreferenced files from a partial write are reclaimed during the next authorized plugin start.
+  return "recorded";
 }
 
 function failureMessage(error: unknown): string {

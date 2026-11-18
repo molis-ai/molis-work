@@ -1,6 +1,7 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
 import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-styles.js";
 import { CODING_FOOTNOTE_STYLES } from "./footnote-styles.js";
+import { CODING_POLISH_STYLES } from "./polish-styles.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
@@ -26,7 +27,6 @@ export const CODING_STYLES = `
 .coding-directory-back { display:none; }
 .coding-directory { height:100%; min-height:0; }
 .coding-directory .mw-dir__body { min-height:0; }
-.coding-directory .mw-dir__add { flex:none; margin-top:8px; }
 [data-coding-workbench]:not([data-coding-detail=true]) .coding-dialogue,
 [data-coding-workbench]:not([data-coding-detail=true]) .coding-tools { display:none; }
 [data-coding-detail=true] .coding-start { display:none; }
@@ -337,10 +337,6 @@ ${CODING_FOOTNOTE_STYLES}
 [data-coding-tools][data-companion-open=true] .coding-tools-title { visibility:hidden; }
 .coding-tool-tabs .coding-results-close { flex:none; width:28px; height:28px; min-height:28px; padding:0; justify-content:center; order:9; }
 /* The index under the panel's title: one chip per section on show. */
-.coding-results-index { display:flex; flex-wrap:wrap; gap:4px; padding:8px 12px 0 20px; }
-.coding-results-index[hidden] { display:none; }
-.coding-results-index .mw-btn { height:24px; min-height:24px; padding:0 8px; font-size:11px; color:var(--muted); }
-.coding-results-index .mw-btn:hover:not(:disabled) { color:var(--ink); }
 .coding-results-close svg { width:16px; height:16px; }
 .coding-result { padding:12px 24px; font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-result h3 { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--ink); }
@@ -395,7 +391,7 @@ ${CODING_FOOTNOTE_STYLES}
   /* The title keeps its line; the view switch and the header's buttons go under it rather than squeezing it to nothing. */
   .coding-dialogue-head { flex-wrap:wrap; row-gap:8px; }
   .coding-identity { flex:1 1 220px; }
-  [data-coding-workbench] :is(.mw-btn,.mw-toggle,.mw-dir-row,.mw-dir__add,.mw-select-picker__trigger) { min-height:44px; }
+  [data-coding-workbench] :is(.mw-btn,.mw-toggle,.mw-dir-row,.mw-select-picker__trigger) { min-height:44px; }
 }
 @media (prefers-reduced-motion:no-preference) {
   [data-coding-results=true] .coding-tools { animation:craft-rise var(--dur-move) var(--ease-quint) both; }
@@ -447,7 +443,6 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-run-card[data-tone=failed] .coding-run-mark { background:var(--red-soft); color:var(--red); }
 .coding-run-card[data-tone=stopped] .coding-run-mark { background:var(--rail); color:var(--muted); }
 .coding-run-card[data-tone=partial] .coding-run-mark { background:color-mix(in srgb,var(--amber) 14%,transparent); color:var(--amber); }
-.coding-run-round { margin-left:auto; font-size:11px; color:var(--faint); }
 .coding-run-facts { margin:8px 0 0 32px; font-size:13px; color:var(--muted); }
 .coding-run-reason { margin:8px 0 0 32px; font-size:13px; color:var(--ink); }
 .coding-run-reason small { display:inline-block; margin-top:4px; color:var(--faint); font:11px var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); overflow-wrap:anywhere; }
@@ -498,7 +493,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-view-count[hidden] { display:none; }
 .mw-toggle.is-current .coding-view-count { color:var(--ink-soft, var(--ink)); }
 /* The header's buttons stand as tall as the view switch beside them, in its type size. */
-.coding-head-actions :is(.coding-priority-toggle,.coding-results-toggle) { height:32px; min-height:32px; padding:0 12px; gap:8px; font-size:12px; color:var(--muted); }
+.coding-head-actions .coding-results-toggle { height:32px; min-height:32px; padding:0 12px; gap:8px; font-size:12px; color:var(--ink); }
 .coding-head-actions .coding-results-toggle svg { width:16px; height:16px; }
 .coding-phase { display:inline-flex; align-items:center; gap:8px; height:24px; padding:0 12px; border-radius:999px; font-size:12px; background:color-mix(in srgb, var(--blue) 10%, transparent); color:var(--blue-dark, var(--blue)); }
 .coding-phase[data-phase=awaiting-review], .coding-phase[data-phase=awaiting-input] { background:color-mix(in srgb, var(--amber) 14%, transparent); color:var(--amber); }
@@ -630,14 +625,6 @@ ${CODING_FOOTNOTE_STYLES}
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
 .mw-dir-row.coding-session-row .coding-session-state[data-state=done] { color:var(--green); }
-/* The name comes first: it keeps four letters' room and the state gives way before it does. In a column too narrow for the
-   name beside the state in words, a state that asks nothing of the person keeps only its ring (the word stays in the row for a
-   reader, and is the chip's title); one that needs the person keeps its word, cut at its end when even that has no room. */
-.coding-session-group { container:coding-sessions/inline-size; }
-@container coding-sessions (max-width:320px) {
-  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) { --ring-size:13px; gap:0; padding:0 3px; font-size:0; }
-  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) > .mw-state-ring { margin:0; }
-}
 
 /* Streaming caret: sits after the last line the model has written so far. */
 .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:4px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }
@@ -738,4 +725,4 @@ dialog.mw-dialog--form.coding-rules { width:min(560px,calc(100vw - 32px)); }
 .coding-env-checklist, .coding-round-materials, .coding-material-recovery { box-sizing:border-box; min-width:0; width:min(100%,var(--coding-reading)); margin:0 auto 10px; overflow-wrap:anywhere; }
 .coding-child-budget { min-width:0; margin:6px 0 0 24px; }
 .coding-run-card > .mw-report-card { margin:4px 0 8px; }
-` + CODING_TIMELINE_STYLES;
+` + CODING_TIMELINE_STYLES + CODING_POLISH_STYLES;

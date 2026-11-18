@@ -389,8 +389,8 @@ function envTemplateAndWorktreeRows(readiness: CodingEnvironmentReadinessInput):
   return rows;
 }
 
-export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadinessInput | null | undefined): string {
-  if (!readiness || !readiness.workspace_id) return "";
+/** The rows of the environment checklist, and what its footer needs to offer the baseline run. */
+function environmentRows(readiness: CodingEnvironmentReadinessInput) {
   const { rows: scriptRows, baselineCmd, canRunBaseline } = scriptsAndBaselineRows(readiness);
   const rows: MwEnvCheckRowOptions[] = [
     gitReadinessRow(readiness),
@@ -398,7 +398,17 @@ export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadin
     ...scriptRows,
     ...envTemplateAndWorktreeRows(readiness),
   ];
-  const attentionCount = rows.filter(row => row.state === "failed" || row.state === "verify").length;
+  return { rows, baselineCmd, canRunBaseline, attentionCount: rows.filter(row => row.state === "failed" || row.state === "verify").length };
+}
+
+/** How many rows of the environment checklist wait on the person: 0 when the workspace is ready to work in. */
+export function environmentAttention(readiness: CodingEnvironmentReadinessInput | null | undefined): number {
+  return readiness?.workspace_id ? environmentRows(readiness).attentionCount : 0;
+}
+
+export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadinessInput | null | undefined): string {
+  if (!readiness || !readiness.workspace_id) return "";
+  const { rows, baselineCmd, canRunBaseline, attentionCount } = environmentRows(readiness);
   return renderEnvChecklist({
     title: uiText.text("coding.env.title"),
     statusLabel: attentionCount > 0 ? uiText.text("coding.env.status.attention", { count: attentionCount }) : uiText.text("coding.env.status.ready"),
@@ -451,10 +461,22 @@ function wasMaterialContinuedRead(
   });
 }
 
-export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): string {
+/** A round's materials as the card lists them: the ones sent with the task, and the ones the envelope had no room for. */
+function roundMaterials(run: CodingRoundMaterialsRunInput) {
   const raw = run.frozen?.text_materials || [];
   const inline = raw.filter(item => !item.material_id.startsWith("coding-materials-overflow"));
   const overflow = raw.find(item => item.material_id.startsWith("coding-materials-overflow"))?.overflow_materials || [];
+  return { inline, overflow };
+}
+
+/** How many materials the round took in: the number of rows on its materials card. */
+export function roundMaterialCount(run: CodingRoundMaterialsRunInput): number {
+  const { inline, overflow } = roundMaterials(run);
+  return inline.length + overflow.length;
+}
+
+export function buildRoundMaterialsHtml(run: CodingRoundMaterialsRunInput): string {
+  const { inline, overflow } = roundMaterials(run);
   if (!inline.length && !overflow.length) return "";
   const pinned = uiText.text("coding.material.pinned-note");
   const items: MwCodingRoundMaterialItem[] = [];

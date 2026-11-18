@@ -1,11 +1,10 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codingIntentOptions } from "../../composer-labels.js";
-import { buildEnvironmentChecklistHtml } from "../../recovery-parts.js";
 import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
 import { controls } from "./controls.js";
 import type { Page } from "./page.js";
+import { drawWelcomePrep, refreshRunPrep } from "./prep-fold.js";
 import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
@@ -106,44 +105,15 @@ function drawWorkspaces(page: Page, result: StateRead) {
   if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
 }
 
+/** The environment as it was just read: on the welcome of a session with no round yet, or in the newest round's fold. */
 export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
   const { s, turns } = page;
-  const welcoming = turns.hasAttribute("data-coding-welcoming");
-  const matchesSelected = Boolean(readiness) && !s.worktree && (!s.workspaceId || readiness?.workspace_id === s.workspaceId);
-  if (welcoming) {
-    const html = matchesSelected ? buildEnvironmentChecklistHtml(readiness) : "";
-    let box = turns.querySelector<HTMLElement>(":scope > [data-coding-env-checklist]");
-    if (!html) {
-      box?.remove();
-      return;
-    }
-    if (!box) {
-      box = el("div", "", "coding-env-checklist");
-      box.dataset.codingEnvChecklist = "";
-      turns.append(box);
-    }
-    if (box.dataset.html !== html) {
-      box.dataset.html = html;
-      setContentHtml(box, html);
-    }
+  if (turns.hasAttribute("data-coding-welcoming")) {
+    drawWelcomePrep(page, readiness, Boolean(readiness) && !s.worktree && (!s.workspaceId || readiness?.workspace_id === s.workspaceId));
     return;
   }
-  turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
-  const mounted = turns.querySelector<HTMLElement>("[data-run] > [data-coding-env-checklist]");
-  if (!mounted) return;
-  const last = s.lastRun;
-  const matchesLastRun = Boolean(readiness)
-    && last?.frozen?.directories?.execution.kind !== "worktree"
-    && (!last?.frozen?.directory?.canonical_path || !readiness?.canonical_path || last.frozen.directory.canonical_path === readiness.canonical_path);
-  const html = matchesLastRun ? buildEnvironmentChecklistHtml(readiness) : "";
-  if (!html) {
-    mounted.remove();
-    return;
-  }
-  if (mounted.dataset.html !== html) {
-    mounted.dataset.html = html;
-    setContentHtml(mounted, html);
-  }
+  turns.querySelector(":scope > [data-coding-prep]")?.remove();
+  refreshRunPrep(page);
 }
 
 async function readState(page: Page) {

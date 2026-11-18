@@ -14,7 +14,10 @@ function sectionsOnShow(page: Page, nav: HTMLElement, tools: HTMLElement): HTMLE
   return [...tools.children].filter((node): node is HTMLElement => node instanceof HTMLElement && node !== nav && !node.classList.contains("coding-tool-tabs") && !node.hidden && Boolean(sectionLabel(node)) && getComputedStyle(node).display !== "none");
 }
 
-/** The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of sections changes. */
+/**
+ * The results panel's index: one segment per section on show, to jump to it (the design system's segmented control,
+ * screen-polish §6.5). It is rebuilt only when the set of sections changes; the segment last jumped to stays pressed.
+ */
 function resultsIndex(page: Page) {
   const { q } = page, { s } = page;
   const nav = q("[data-coding-results-index]"), tools = q("[data-coding-tools]");
@@ -26,7 +29,8 @@ function resultsIndex(page: Page) {
   sections.forEach((section, at) => {
     const chip = document.createElement("button"), text = sectionLabel(section);
     chip.type = "button";
-    chip.className = "mw-btn mw-btn--ghost";
+    chip.className = at === 0 ? "mw-toggle is-current" : "mw-toggle";
+    chip.setAttribute("aria-pressed", String(at === 0));
     chip.textContent = s.SECTION_SHORT[text] || text;
     chip.title = uiText.text("coding.results.jump", { section: text });
     chip.dataset.codingResultsJump = String(at);
@@ -52,13 +56,17 @@ export function mountResultsIndex(page: Page) {
   const { lifetime, q, root } = page, { s } = page;
   s.SECTION_SHORT = {
     [uiText.text("coding.results.cooperation")]: uiText.text("coding.short.cooperation"), [uiText.text("coding.checkpoints.title")]: uiText.text("coding.short.checkpoints"), [uiText.text("coding.results.recovery")]: uiText.text("coding.short.recovery"),
-    [uiText.text("coding.results.facts")]: uiText.text("coding.short.facts"), [uiText.text("coding.outcomes.title")]: uiText.text("coding.short.outcomes"), [uiText.text("coding.change.title")]: uiText.text("coding.short.change"),
+    [uiText.text("coding.outcomes.title")]: uiText.text("coding.short.outcomes"), [uiText.text("coding.change.title")]: uiText.text("coding.short.change"),
     [uiText.text("coding.commands.title")]: uiText.text("coding.short.commands"), [uiText.text("coding.results.background")]: uiText.text("coding.short.background"),
   };
   lifetime.listen(q("[data-coding-results-index]"), "click", event => {
     const chip = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-coding-results-jump]") : null, tools = q("[data-coding-tools]");
     const section = chip && s.indexed[Number(chip.dataset.codingResultsJump)];
     if (!section) return;
+    for (const other of q("[data-coding-results-index]").querySelectorAll("[data-coding-results-jump]")) {
+      other.classList.toggle("is-current", other === chip);
+      other.setAttribute("aria-pressed", String(other === chip));
+    }
     tools.scrollTo({ top: section.getBoundingClientRect().top - tools.getBoundingClientRect().top + tools.scrollTop - 8, behavior: "smooth" });
     section.tabIndex = -1;
     section.focus({ preventScroll: true });

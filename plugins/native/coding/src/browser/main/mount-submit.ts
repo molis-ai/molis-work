@@ -28,7 +28,7 @@ function mountCommands(page: Page) {
 async function togglePriority(page: Page, button: HTMLButtonElement) {
   const id = button.dataset.session;
   if (!id) return;
-  const on = button.getAttribute("aria-pressed") !== "true";
+  const on = button.getAttribute("aria-checked") !== "true";
   button.disabled = true;
   try {
     const result = await api<{ priority: boolean; notified: string[]; paths: string[] }>(page, sessionPath(id) + "/priority", "POST", { on });
@@ -64,7 +64,11 @@ function mountSend(page: Page) {
   const { lifetime, q, s } = page;
   s.queuedKey = "";
   const priority = q<HTMLButtonElement>("[data-coding-priority]");
-  lifetime.listen(priority, "click", () => { void togglePriority(page, priority); });
+  // The header's ⋯ menu holds it: choosing closes the menu, and so does a press outside or Escape (back to its button).
+  const more = q<HTMLDetailsElement>("[data-coding-head-more]"), shut = (refocus = false) => { if (more.open) { more.open = false; if (refocus) more.querySelector("summary")?.focus(); } };
+  lifetime.listen(priority, "click", () => { shut(); void togglePriority(page, priority); });
+  lifetime.listen(document, "pointerdown", event => { if (!(event.target instanceof Node && more.contains(event.target))) shut(); });
+  lifetime.listen(more, "keydown", event => { if (event instanceof KeyboardEvent && event.key === "Escape") { event.stopPropagation(); shut(true); } });
   mountReturns(page, async () => { q<HTMLButtonElement>("[data-coding-input] [data-composer-send]").click(); });
 }
 

@@ -202,6 +202,15 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
     await recoverAndContinue(page, target.dataset.codingRecoverContinue || "");
     target.disabled = false;
   }],
+  // A round's own details open under its line; its footer remembers it, so the next draw of the round leaves them open.
+  ["[data-coding-run-more]", (_page, target) => {
+    const footer = target.closest<HTMLElement>(".coding-run-footer");
+    if (!footer) return;
+    const open = footer.dataset.more !== "open";
+    if (open) footer.dataset.more = "open"; else delete footer.dataset.more;
+    target.setAttribute("aria-expanded", String(open));
+    footer.querySelector<HTMLElement>(".coding-run-more")?.toggleAttribute("hidden", !open);
+  }],
   ["[data-coding-archived]", async (page, target) => {
     target.disabled = true;
     try {

@@ -164,7 +164,10 @@ function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) 
 export function usageMeter(ports: UsageMeterPorts): UsageMeter {
   const { lifetime, q, current, status } = ports;
   const root = q("[data-coding-meter]"), toggle = q("[data-coding-meter-toggle]"), panel = q("[data-coding-meter-panel]"), fill = q<SVGElement>("[data-coding-meter-fill]"), label = q("[data-coding-meter-label]");
-  let view: MeterView | null = null, owner = "", warned = "";
+  let view: MeterView | null = null, owner = "", warned = "", quiet = true;
+  // The meter stays out of the way until the context or the budget is close to its limit, or the person opens it
+  // (the palette's 「上下文与用量」); screen-polish §6.3.
+  const show = () => { root.hidden = !view?.run || (quiet && panel.hidden); root.dataset.available = String(Boolean(view?.run)); };
   const parts: PanelParts = { ports, panel, budgetSaved: () => { warned = ""; } };
   const draw = () => {
     if (!view) return;
@@ -177,6 +180,7 @@ export function usageMeter(ports: UsageMeterPorts): UsageMeter {
   };
   const open = (on: boolean) => {
     panel.hidden = !on;
+    show();
     toggle.setAttribute("aria-expanded", String(on));
     if (on) {
       draw();
@@ -202,12 +206,13 @@ export function usageMeter(ports: UsageMeterPorts): UsageMeter {
         open(false);
       }
       view = { data, run };
-      root.hidden = !run;
-      if (!run) return;
+      if (!run) { show(); return; }
       const context = contextOf(run), budget = data.budget, spent = spentOf(data), over = budget && spent >= budget.tokens, near = budget && spent >= budget.tokens * 0.8;
       const share = context.share === null ? null : Math.min(1, context.share);
       fill.style.strokeDasharray = (share === null ? 0 : share * RING) + " " + RING;
       root.dataset.tone = over ? "attention" : data.next_history?.history === "digest" ? "notice" : (share ?? 0) >= 0.85 ? "attention" : "";
+      quiet = !root.dataset.tone && !near;
+      show();
       label.textContent = over ? uiText.text("coding.meter.over") : share === null ? uiText.text("coding.meter.context") : Math.round(share * 100) + "%";
       toggle.setAttribute("aria-label", uiText.text("coding.meter.toggle", { state: share === null ? uiText.text("coding.meter.share-unknown") : uiText.text("coding.meter.share", { percent: Math.round(share * 100) }) }) + (data.next_history?.history === "digest" ? uiText.text("coding.meter.toggle-digest") : "") + (over ? uiText.text("coding.meter.toggle-over") : ""));
       // Crossing the budget is said once, where the person is looking; the round carries on.

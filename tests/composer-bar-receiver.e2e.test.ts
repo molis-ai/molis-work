@@ -108,6 +108,42 @@ test("UIV-18 UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's
   assert.equal(assistantWords, "", "the Assistant's box started empty here");
 });
 
+// screen-polish P0, seen in the product with a Coding session in front and settings opened over it: the bar still said the
+// session's name and showed the session's line above the input (settings hides every page without touching one, so nothing
+// told the bar); the settings chip in the title bar read 「设…」 (it was measured with its name already cut); and the empty
+// state of 对外接入 ran its two sentences together.
+test("UIV-21: settings over the pages hands the bar back to the Assistant and returns it when closed; the settings chip keeps its name whole; 对外接入's empty state is two lines", { timeout: 180_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'home'");
+  await browser.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await child.waitFor("typeof window.molisComposer === 'function' && !document.querySelector('[data-work-surface=lingguang]').hidden");
+  await child.evaluate(probe());
+  await browser.waitFor(`${BAR}.dataset.receiver === 'page' && ${BOX}.placeholder === '写给探针…'`);
+
+  await browser.evaluate("document.querySelector('[data-directory-open=settings]').click()");
+  await browser.waitFor("document.querySelector('.tab-workspace')?.dataset.exclusive === 'settings'");
+  await browser.waitFor(`!${BAR}.dataset.receiver && globalThis.molisBarReceivers.front() === null`);
+  assert.notEqual(await browser.evaluate(`${BOX}.placeholder`), "写给探针…", "the input is the Assistant's while settings is in front");
+  assert.equal(await browser.evaluate(`${BAR}.querySelector('.mw-composer__to')?.textContent.includes('探针') ?? false`), false, "the page's name is not on the bar");
+
+  const CHIP = "document.querySelector('[data-titlebar-tabs] > .tab-view-chip[data-cover-chip=settings] > span')";
+  await browser.waitFor(`(() => { const name = ${CHIP}; return Boolean(name) && name.scrollWidth <= name.clientWidth; })()`);
+  assert.equal(await browser.evaluate(`${CHIP}.textContent`), "设置");
+
+  await browser.evaluate("document.querySelector('[data-directory-panel=settings] [data-settings-section=access]').click()");
+  await browser.waitFor("Boolean(document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty'))", 15_000);
+  assert.deepEqual(await browser.evaluate(`(() => { const empty = document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty'), title = empty.querySelector('strong').getBoundingClientRect(), note = empty.querySelector('span').getBoundingClientRect();
+    return [title.width > 0 && note.width > 0, note.top >= title.bottom - 0.5]; })()`), [true, true], "the sentence under the title starts on a line of its own");
+
+  await browser.evaluate("document.querySelector('[data-cover-close]').click()");
+  await browser.waitFor("!document.querySelector('.tab-workspace')?.dataset.exclusive");
+  await browser.waitFor(`${BAR}.dataset.receiver === 'page' && ${BOX}.placeholder === '写给探针…'`);
+});
+
 // S-composer-source-call item 5 (refusals): what a framed page sends is rebuilt from the parts the bar knows. An icon that is not a
 // platform icon's name is left out, so markup put in one is never drawn in the workbench (it was, in the review of head 8fd0f3c20:
 // a command's icon went through `icon()` into the ＋ and `/` menus' HTML); a state with a field of the wrong shape is dropped whole,

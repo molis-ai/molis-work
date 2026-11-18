@@ -229,6 +229,10 @@ const pages: Record<string, Draw> = {
 // `goals.dialogs-ui.means-part-that-goal-only-decides-tree-placement`, `goals.guidance-document.only-active-revisions-sent-placed-before-round-s`,
 // `coding.directory.summary`, `git.directory.summary`, and `Text Stats` → `Text stats`). Reversing only those string edits on all 30
 // candidate draws reproduces every main 8d9f1fb0 SHA-256 and byte length exactly; the other 22 records did not change.
+// Screen polish P0 (the next wing shows whole events only): the shell's work line no longer marks its next run ` data-overflow-fade`
+// (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
+// hash and length exactly; the other 36 records did not change. Checked again on the merges of main 6359987103 (batch 34's records)
+// and of a717e44284, bdfcc36454 and 43a3c3fa2f (the copywriting polish) after it, and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }

@@ -90,6 +90,7 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
   drawTime(time, session.updated_at);
   const label = stateLabel(page, session, visible);
   if (mark.textContent !== label) mark.textContent = label;
+  mark.title = label;
   mark.dataset.state = session.checkpoint_busy ? "waiting-approval" : session.state;
   mark.dataset.mwState = session.checkpoint_busy ? "verify" : CODING_SESSION_MARKS[session.state as keyof typeof CODING_SESSION_MARKS]?.ring || "idle";
 }

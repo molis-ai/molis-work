@@ -4,7 +4,7 @@ import { loadOverview, renderOverview } from "./overview.js";
 import { failureOf, isPermission, riskPage } from "./page.js";
 import { text } from "./parts.js";
 import { renderRecord } from "./record.js";
-import { customAt, reviewAt } from "./review.js";
+import { customAt, renderReview, reviewAt } from "./review.js";
 import type { RiskEvent, RiskHost, RiskLevel, RiskLink, RiskPage, RiskRecord, RiskReview, RiskStatus } from "./types.js";
 
 /**
@@ -67,10 +67,10 @@ async function openRecord(page: RiskPage, riskId: string, options: { quiet?: boo
     return;
   }
   page.render();
-  await loadReview(page);
+  await loadReview(page, "review");
 }
 
-async function loadReview(page: RiskPage): Promise<void> {
+async function loadReview(page: RiskPage, region: "record" | "review" = "record"): Promise<void> {
   const { state } = page;
   const riskId = state.record?.risk.risk_id;
   if (!riskId) return;
@@ -84,7 +84,12 @@ async function loadReview(page: RiskPage): Promise<void> {
     state.review = null;
     state.reviewError = error instanceof Error ? error.message : text("error.failed");
   }
-  page.render();
+  if (region === "record") page.render();
+  else {
+    // This read may finish while the person is typing in another section of the same record.
+    const section = page.body.querySelector("[data-rk-section=review]");
+    if (section) section.outerHTML = renderReview(page, state.record.risk);
+  }
 }
 
 /** A write refused for who-may-write reasons turns the record read-only and says so once; anything else is a toast. */
@@ -157,7 +162,7 @@ async function setStatus(page: RiskPage, status: RiskStatus): Promise<void> {
   // Closing archives the review; when Schedule could not be reached, the task is left and the person is told.
   // `task_id: null` means the archive could not even read the review; the person still needs to look in Schedule.
   if (answer.review_left) page.toast(text("review.left"), true);
-  await loadReview(page);
+  await loadReview(page, "review");
 }
 
 async function schedule(page: RiskPage, form: HTMLFormElement, submitter: HTMLElement | null): Promise<void> {

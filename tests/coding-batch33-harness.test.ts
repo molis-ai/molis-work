@@ -6,7 +6,7 @@ import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { AgentRunRef, AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentRunView, AgentStepBoard, AgentSubagentRequestResult } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ensureSystemAgentService, ModelProviderStore, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -897,9 +897,11 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   const initialList = await adapter.subagents!.list(parentEnded.ref);
   assert.equal(initialList.length, 1);
   const childId = initialList[0]!.subagent_id;
-  await settleChild(parentEnded.ref, childId);
-  assert.equal(initialList[0]!.budget?.attempt, 1);
-  assert.equal(initialList[0]!.budget?.max_attempts, SUBAGENT_DEFAULT_MAX_ATTEMPTS);
+  const controlPath = `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/${childId}`;
+  const firstAttempt = await settleChild(parentEnded.ref, childId);
+  assert.ok(firstAttempt.child_run);
+  assert.equal(firstAttempt.budget?.attempt, 1);
+  assert.equal(firstAttempt.budget?.max_attempts, SUBAGENT_DEFAULT_MAX_ATTEMPTS);
 
   // Switch the global default model before retrying to prove retry inherits parent's frozen model rather than drifting to the new default.
   const credentialRef = withConnectorConnections(home, store => store.list()[0]!.credential_ref!);
@@ -916,17 +918,20 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   const reqCountBeforeRetry = providerRequests.length;
 
   // Retry 1 (attempt 2 of 2) with check-failed source via Coding's control-subagent route.
-  const retry1 = await call<{ ok: boolean; subagent: { budget: { attempt: number; max_attempts: number; retry_source?: string; prior_attempts?: unknown[] } } }>(
-    project.project_id,
-    `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/${childId}`,
-    { action: "retry", source: "check-failed", reason: "单测断言未覆盖空输入" },
-  );
+  const retry1 = await call<{ result: AgentSubagentRequestResult }>(project.project_id, controlPath, {
+    action: "retry", source: "check-failed", reason: "单测断言未覆盖空输入",
+    request_id: "attempt-budget-retry-1", child_run: firstAttempt.child_run,
+  });
   assert.equal(retry1.status, 200, JSON.stringify(retry1.body));
-  assert.equal(retry1.body.subagent.budget.attempt, 2);
-  assert.equal(retry1.body.subagent.budget.max_attempts, 2);
-  assert.equal(retry1.body.subagent.budget.retry_source, "check-failed");
-  assert.equal(retry1.body.subagent.budget.prior_attempts?.length, 1);
-  await settleChild(parentEnded.ref, childId);
+  assert.equal(retry1.body.result.state, "applied");
+  const secondAttempt = await settleChild(parentEnded.ref, childId);
+  assert.ok(secondAttempt.child_run);
+  assert.deepEqual(secondAttempt.child_run, retry1.body.result.run);
+  assert.equal(secondAttempt.budget?.attempt, 2);
+  assert.equal(secondAttempt.budget?.max_attempts, 2);
+  assert.equal(secondAttempt.budget?.retry_source, "check-failed");
+  assert.equal(secondAttempt.budget?.prior_attempts?.length, 1);
+  assert.equal(secondAttempt.budget?.prior_attempts?.[0]?.run_id, firstAttempt.child_run.run_id);
   const retryModels = providerRequests
     .slice(reqCountBeforeRetry)
     .filter(raw => raw.includes("CHILD_CHECK"))
@@ -934,38 +939,41 @@ test("BL-051, BL-182: subagent attempt budget tracking, exhaustion guard, +3 bud
   assert.ok(retryModels.length >= 1 && retryModels.every(m => m === "fixture-model"), `expected frozen fixture-model on retry, got ${JSON.stringify(retryModels)}`);
 
   // Attempt 3 without extending budget is refused (budget exhausted at 2/2).
-  const overBudget = await call<{ error: string }>(
-    project.project_id,
-    `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/${childId}`,
-    { action: "retry", source: "user-requested" },
-  );
-  assert.ok(overBudget.status >= 400, "retrying past max_attempts without extending budget is refused");
+  const overBudget = await call<{ error: string }>(project.project_id, controlPath, {
+    action: "retry", source: "user-requested",
+    request_id: "attempt-budget-exhausted", child_run: secondAttempt.child_run,
+  });
+  assert.equal(overBudget.status, 400, "retrying past max_attempts without extending budget is refused");
 
   // Extend budget (+3 -> max_attempts = 5) without running yet, then retry once more.
-  const extended = await call<{ ok: boolean; subagent: { budget: { attempt: number; max_attempts: number } } }>(
-    project.project_id,
-    `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/${childId}`,
-    { action: "extend-budget", extend_attempts: 3 },
-  );
+  const extended = await call<{ result: AgentSubagentRequestResult }>(project.project_id, controlPath, {
+    action: "extend-budget", extend_attempts: 3,
+    request_id: "attempt-budget-extend", child_run: secondAttempt.child_run,
+  });
   assert.equal(extended.status, 200, JSON.stringify(extended.body));
-  assert.equal(extended.body.subagent.budget.max_attempts, 5);
-  assert.equal(extended.body.subagent.budget.attempt, 2);
+  assert.equal(extended.body.result.state, "applied");
+  assert.deepEqual(extended.body.result.run, secondAttempt.child_run);
+  const extendedAttempt = await settleChild(parentEnded.ref, childId);
+  assert.deepEqual(extendedAttempt.child_run, secondAttempt.child_run);
+  assert.equal(extendedAttempt.budget?.max_attempts, 5);
+  assert.equal(extendedAttempt.budget?.attempt, 2);
 
-  const retry2 = await call<{ ok: boolean; subagent: { budget: { attempt: number; max_attempts: number; retry_source?: string } } }>(
-    project.project_id,
-    `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/${childId}`,
-    { action: "retry", source: "model-error", reason: "上游模型短暂限流" },
-  );
+  const retry2 = await call<{ result: AgentSubagentRequestResult }>(project.project_id, controlPath, {
+    action: "retry", source: "model-error", reason: "上游模型短暂限流",
+    request_id: "attempt-budget-retry-2", child_run: secondAttempt.child_run,
+  });
   assert.equal(retry2.status, 200, JSON.stringify(retry2.body));
-  assert.equal(retry2.body.subagent.budget.attempt, 3);
-  assert.equal(retry2.body.subagent.budget.retry_source, "model-error");
-  await settleChild(parentEnded.ref, childId);
+  assert.equal(retry2.body.result.state, "applied");
+  const thirdAttempt = await settleChild(parentEnded.ref, childId);
+  assert.deepEqual(thirdAttempt.child_run, retry2.body.result.run);
+  assert.equal(thirdAttempt.budget?.attempt, 3);
+  assert.equal(thirdAttempt.budget?.retry_source, "model-error");
 
   // Invalid subagent id / already-completed state check rejects cleanly without leaking execution slots.
   const unknownChild = await call<{ error: string }>(
     project.project_id,
     `${CODING_PREFIX}/sessions/${sid}/runs/${runId}/subagents/nonexistent-subagent`,
-    { action: "retry", source: "user-requested" },
+    { action: "retry", source: "user-requested", request_id: "attempt-budget-unknown", child_run: thirdAttempt.child_run },
   );
   assert.equal(unknownChild.status, 400);
   assert.ok(unknownChild.body.error.length > 0);

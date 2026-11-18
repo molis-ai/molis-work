@@ -1,0 +1,7 @@
+{
+  "reason": "迟到的复查读取只刷新风险详情的复查段，保留正在填写的备注和焦点。",
+  "review": "specs/subagent-interaction/spec.md §12.25",
+  "assets": {
+    "/assets/molis-work-plugins/risk.js": 151
+  }
+}

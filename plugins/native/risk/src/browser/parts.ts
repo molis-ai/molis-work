@@ -39,8 +39,8 @@ export function choices(label: string, action: string, items: readonly { value: 
     attrs: { "data-rk-act": action, "data-rk-value": item.value } })).join("")}</div>`;
 }
 
-export const section = (title: string, body: string, extra = "") =>
-  `<section class="rk-sec"><div class="rk-sec__head"><h3 class="rk-h">${esc(title)}</h3>${extra}</div>${body}</section>`;
+export const section = (title: string, body: string, extra = "", name = "") =>
+  `<section class="rk-sec"${name ? ` data-rk-section="${esc(name)}"` : ""}><div class="rk-sec__head"><h3 class="rk-h">${esc(title)}</h3>${extra}</div>${body}</section>`;
 
 export const prose = (value: string) => (value.trim() ? `<p class="rk-prose">${esc(value)}</p>` : `<p class="rk-muted">—</p>`);
 

@@ -68,10 +68,39 @@ for (const width of [1440, 1024, 390]) test(`RISK-04 RISK-05 RISK-06 risk page $
   const riskId = await evaluate<string>("[...document.querySelectorAll('[data-risk-row]')].find(row => row.textContent.includes('供应商延期')).dataset.riskId");
   await click(`[data-risk-id="${riskId}"]`);
   await waitFor("document.querySelector('[data-rk-act=pop][data-rk-value=status]')");
+  // On a narrow page, let a real review read arrive while the person is still writing the note.
+  if (width === 390) await browser.evaluate(`(() => {
+    const original = window.molisWorkUiTransport;
+    let statusChanged = false, release;
+    const held = new Promise(resolve => { release = resolve; });
+    const review = window.heldRiskReview = { ready: false, release };
+    window.molisWorkUiTransport = (url, init) => {
+      const body = typeof init.body === 'string' && new URL(url).pathname.endsWith('/api/host/plugin-page-actions') ? JSON.parse(init.body) : null;
+      if (body?.reference?.capability_id === 'risk.status.set') statusChanged = true;
+      if (statusChanged && body?.reference?.capability_id === 'risk.review.get') {
+        window.molisWorkUiTransport = original;
+        return Promise.resolve(original?.(url, init) ?? fetch(url, init)).then(async response => {
+          review.ready = true;
+          await held;
+          return response;
+        });
+      }
+      return original?.(url, init);
+    };
+  })()`);
   await click('[data-rk-act=pop][data-rk-value=status]');
   await click('[data-rk-act=set-status][data-rk-value=mitigating]');
   await waitFor("document.querySelector('.rk-log')?.textContent.includes('处置中')");
+  if (width === 390) {
+    await browser.waitFor("window.heldRiskReview.ready");
+    await evaluate("globalThis.previousReviewSection = document.querySelector('.rk-side > .rk-sec:last-child')");
+  }
   await set('form[data-rk-form=note] input[name=note]', "已联系备选供应商");
+  if (width === 390) {
+    await browser.evaluate("window.heldRiskReview.release()");
+    await waitFor("document.querySelector('.rk-side > .rk-sec:last-child') !== globalThis.previousReviewSection");
+    assert.equal(await evaluate("document.activeElement?.value"), "已联系备选供应商", "the arriving review keeps the note and its focus");
+  }
   await click('form[data-rk-form=note] button[type=submit]');
   await waitFor("document.querySelector('.rk-log')?.textContent.includes('已联系备选供应商')");
   await waitFor("document.querySelector('[data-rk-act=pop][data-rk-value=review], .rk-review, .rk-sec .mw-alert')");

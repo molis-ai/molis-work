@@ -1,6 +1,9 @@
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
 import { composerFoldRules, composerRestRules, composerRestTouch } from "../composer-styles.js";
 
+const RESTING_ASSISTANT = ".assistant-composer > .mw-composer[data-rest]";
+const RESTING_ASSISTANT_WITH_ROLE = `${SHELL} ${RESTING_ASSISTANT}:has([data-composer-control="character"])`;
+
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
   /* ─── Browser defaults: no system blue, purple or yellow anywhere (zero specificity, so any real rule wins) ─── */
@@ -330,10 +333,14 @@ export const CRAFT_BAR_STYLES = `
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
-     controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
+     controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(RESTING_ASSISTANT)}
   /* Where the one row cannot hold them and still leave the words their room, the scene controls wait behind 更多 (the bar has no
      side columns since its plugin icons moved up, so its box is wider than the narrow box's 480px, but not wide enough for them). */
-  @container mw-composer (max-width: 600px) {${composerFoldRules(".assistant-composer > .mw-composer[data-rest]")} }
+  @container mw-composer (max-width: 600px) {${composerFoldRules(RESTING_ASSISTANT)} }
+  /* The role choice sits with the receiver. Opening the details panel takes over the choice without shifting the input's right edge. */
+  ${RESTING_ASSISTANT_WITH_ROLE} > .mw-composer__box { grid-template-columns: auto var(--bar-receiver-track, auto) auto minmax(var(--bar-input-minimum, 0px), 1fr) auto; }
+  ${RESTING_ASSISTANT_WITH_ROLE} .mw-composer__text { grid-column: 4; }
+  ${RESTING_ASSISTANT_WITH_ROLE} :is(.mw-composer__more, .mw-composer__controls) { grid-column: 3; }
   @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
   /* A fine pointer keeps the bar's sizes from 601px (touch-targets.ts): at rest the box's buttons follow --bar-row rather than the
      narrow window's 44px controls, so in a short window the input is the Dock's height too and the work keeps those 8px. */
@@ -345,9 +352,12 @@ export const CRAFT_BAR_STYLES = `
      gives way to the hint beside it: about nine characters, the rest under the pointer. */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
   ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: 9em; }
-  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")}
+  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(RESTING_ASSISTANT)}
     /* Reserve the 44px input plus its inline padding; the receiver's name gives way when the More button needs a column. */
-    ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { grid-template-columns: auto minmax(0, max-content) minmax(58px, 1fr) auto auto; }
+    ${SHELL} ${RESTING_ASSISTANT} > .mw-composer__box {
+      --bar-receiver-track: minmax(0, max-content); --bar-input-minimum: 58px;
+      grid-template-columns: auto var(--bar-receiver-track) minmax(var(--bar-input-minimum), 1fr) auto auto;
+    }
     ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: min(100%, 9em); }
   }
   /* 「发给」 (one input, O4): the platform's menu in the top layer, risen from the tag (the island places it), the receiver now on the nav's active wash. */

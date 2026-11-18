@@ -5,7 +5,7 @@ import { asList, asRecord, bearer, CatalogLiveError, nestedText, splitParts, tex
 import { setupLinksFor } from "./setup-links.js";
 import { atlassianBase, catalogCloudOrigin } from "./targets.js";
 import type { CatalogAuthContext, CatalogConnectorSpec, CatalogHttpRequest } from "./types.js";
-import { WEB_SEARCH_CONNECTORS } from "./web-search.js";
+import { webSearchSpec } from "./web-search.js";
 
 type CatalogConnectorDraft = Omit<CatalogConnectorSpec, "setup_links">;
 
@@ -901,7 +901,10 @@ const CATALOG: CatalogConnectorDraft[] = [
     feed_available: false,
     feed: { async collect() { return []; } },
   }),
-
+  // The web search services (§13.7, batch 61): written in web-search.ts, listed here like the rest.
+  webSearchSpec("brave-search"),
+  webSearchSpec("deepseek-search"),
+  webSearchSpec("tavily"),
 ];
 
 function nestedTextList(record: Record<string, unknown> | null, path: string[]): unknown {
@@ -1029,7 +1032,7 @@ const SERVICE_TRAITS: Readonly<Record<string, Pick<CatalogConnectorSpec, "catego
   linkedin: { categories: ["social"] },
 };
 
-export const CATALOG_CONNECTORS: readonly CatalogConnectorSpec[] = [...CATALOG, ...WEB_SEARCH_CONNECTORS].map((entry) => ({
+export const CATALOG_CONNECTORS: readonly CatalogConnectorSpec[] = CATALOG.map((entry) => ({
   ...SERVICE_TRAITS[entry.id],
   ...entry,
   setup_links: setupLinksFor(entry.id),

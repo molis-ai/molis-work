@@ -116,6 +116,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindAuthorizationSettings?.(root);
     globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
+    globalThis.molisWorkBindWebSearchSettings?.(root);
     globalThis.molisWorkBindMemorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindRunningSettings?.(root);

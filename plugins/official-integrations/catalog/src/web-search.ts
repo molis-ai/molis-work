@@ -30,7 +30,7 @@ function braveSearch(q: string, count: number): string {
   return url.href;
 }
 
-export const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
+const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
   {
     id: "brave-search", title: "Brave Search", group_id: "search",
     summary: { key: "brave-search.connection.summary" }, inbound: { key: "brave-search.connection.inbound" },
@@ -78,3 +78,8 @@ export const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
     },
   },
 ];
+
+/** One web search service's entry, by id, written into the catalog's list like every other service's (`webSearchSpec("tavily")`). */
+export function webSearchSpec(id: "brave-search" | "deepseek-search" | "tavily"): Draft {
+  return WEB_SEARCH_CONNECTORS.find((entry) => entry.id === id)!;
+}

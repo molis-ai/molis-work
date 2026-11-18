@@ -89,7 +89,8 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
     if (!await browser.evaluate("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0")) await browser.click("[data-assistant-side-toggle]");
     await browser.waitFor("document.querySelector('.assistant-subtask-name')?.getBoundingClientRect().width > 0");
   }
-  const draftPath = place === "home" && source === "work" ? base + "/works/" + current!.delegated![0]!.work_id : undefined;
+  const workPath = source === "work" ? base + "/works/" + current!.delegated![0]!.work_id : undefined;
+  const draftPath = place === "home" ? workPath : undefined;
   const followUpText = `FOLLOW_UP_${source}_59`;
   const writeDraft = (draft: string) => browser.evaluate<boolean>(`fetch(${JSON.stringify(draftPath + "/draft")},{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({draft:${JSON.stringify(draft)}})}).then(response=>response.ok)`);
   if (draftPath) assert.equal(await writeDraft(followUpText), true);
@@ -108,6 +109,11 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   assert.ok(layout.left >= 0 && layout.right <= layout.viewport + 1 && layout.top >= 0 && layout.bottom <= layout.height + 1, JSON.stringify(layout));
   assert.equal(layout.theme, theme); assert.ok(layout.locale.startsWith(locale));
   const before = childCalls;
+  const failedDraft = place === "project" && workPath ? Promise.withResolvers<{ requestId: string; session: string | undefined }>() : undefined;
+  if (failedDraft) {
+    t.after(browser.on("Fetch.requestPaused", (event, session) => failedDraft.resolve({ requestId: String(event.requestId), session })));
+    await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*${workPath}/draft` }] }, browser.sessionId);
+  }
   if (draftPath) {
     // B59-FIX-02: Work restored the first revision. A later owner write must survive sending the visible text.
     await browser.waitFor(`${childInput}.value === ${JSON.stringify(followUpText)}`);
@@ -118,6 +124,17 @@ for (const place of ["project", "home"] as const) for (const source of ["work", 
   }
   await browser.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
   await browser.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, browser.sessionId);
+  if (failedDraft) {
+    // B59-FIX-02: a failed Work autosave must leave the same edit retryable without retyping it.
+    const failure = await failedDraft.promise;
+    await browser.command("Fetch.failRequest", { requestId: failure.requestId, errorReason: "ConnectionFailed" }, failure.session);
+    await browser.command("Fetch.disable", {}, browser.sessionId);
+    const retry = '[data-work-task-float] [data-composer-status-action="retry"]';
+    await browser.waitFor(`document.querySelector(${JSON.stringify(retry)})`);
+    assert.equal(await browser.evaluate(`${childInput}.value`), followUpText);
+    assert.equal(childCalls, before);
+    await browser.click(retry);
+  }
   try { await browser.waitFor(`document.querySelector('[data-work-task-float]')?.textContent.includes('FOLLOW_UP_${source}_59')`, 20_000); }
   catch (error) { t.diagnostic(JSON.stringify({ parentCalls, childCalls, view: await read(), ui: await browser.evaluate("({errors:window.__subtaskErrors,float:document.querySelector('[data-work-task-float]')?.outerHTML})") })); throw error; }
   for (const end = Date.now() + 20_000; childCalls === before && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50));

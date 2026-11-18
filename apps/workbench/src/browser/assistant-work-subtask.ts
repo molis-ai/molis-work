@@ -24,19 +24,24 @@ export function assistantWorkSubtaskSource(api: AssistantSubtaskRequest, storage
   const draft = (target: string) => {
     let adapter = adapters.get(target); if (adapter) return adapter;
     let writing: Promise<unknown> = Promise.resolve();
-    let editor: { text: string; revision: Promise<number> } | undefined;
+    let editor: { text: string; revision: Promise<number>; failed?: boolean } | undefined;
     const write = (text: string) => {
       const saved = writing.catch(() => {}).then(() => api<{ work: AssistantWork }>(pathOf(target) + "/draft", { draft: text })).then(result => result.work.draft_revision);
-      editor = { text, revision: saved }; writing = saved; return saved;
+      const edit = { text, revision: saved, failed: false };
+      editor = edit; writing = saved;
+      void saved.catch(() => { edit.failed = true; });
+      return saved;
     };
     adapter = { async prepare(text) {
       // The composer has already queued its latest edit. A restored draft still owns only the version it read.
       if (editor?.text !== text) throw new Error(say("draft-unsaved"));
-      return editor.revision;
+      return editor.failed ? write(text) : editor.revision;
     }, flush: () => writing, write: async text => { await write(text); }, sent: async () => {},
     async read(signal) {
       const previous = writing;
-      await previous;
+      await previous.catch(() => {});
+      signal.throwIfAborted();
+      if (writing === previous && editor?.failed) return editor.text;
       const { work } = await api<AssistantWorkView>(pathOf(target), undefined, signal);
       if (!signal.aborted && writing === previous) editor = { text: work.draft, revision: Promise.resolve(work.draft_revision) };
       return work.draft;

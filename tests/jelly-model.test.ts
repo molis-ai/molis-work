@@ -84,7 +84,7 @@ test("Jelly custom model selects a Connector credential and keeps preferences fr
   const settings = configuration(home).save({ base_url: "https://models.example.com/v1", api_format: "openai-chat-completions", model_id: "text-a", connection_id: connection.connection_id });
   assert.equal(settings.configured, true); assert.equal(settings.source, "selection"); assert.deepEqual(settings.selection, { provider_id: "jelly-text", model_id: "text-a" }); assert.equal(settings.providers[0]!.has_credential, true); assert.equal(requests, 0);
   assert.equal(settings.custom_connection_id, connection.connection_id);
-  const prefs = readFileSync(join(home, "jelly", "preferences.json"), "utf8"); assert.equal(prefs.includes("jelly-test-plaintext-key"), false); assert.deepEqual(JSON.parse(prefs), { schema_version: 1, provider_id: "jelly-text", model_id: "text-a" }); assert.equal(JSON.stringify(settings).includes("jelly-test-plaintext-key"), false);
+  const prefs = readFileSync(join(home, "jelly", "preferences.json"), "utf8"); assert.equal(prefs.includes("jelly-test-plaintext-key"), false); assert.deepEqual(JSON.parse(prefs), { schema_version: 2, selection: { provider_id: "jelly-text", model_id: "text-a" }, revision: 1, receipts: {} }); assert.equal(JSON.stringify(settings).includes("jelly-test-plaintext-key"), false);
   providerStore(home, (store, storage) => { assert.equal(store.get("jelly-text")?.base_url, "https://models.example.com/v1"); assert.equal(store.get("jelly-text")?.credential_ref, connection.credential_ref); assert.equal(JSON.stringify(storage.db.prepare("SELECT * FROM model_providers").all()).includes("jelly-test-plaintext-key"), false); });
   const secrets = runWithMolisWorkHome(home, () => createFileSecretStore()); assert.equal(secrets.get(connection.credential_ref!), "jelly-test-plaintext-key");
   configuration(home).save({ provider_id: "jelly-text", model_id: "text-b" });
@@ -181,7 +181,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
     { base_url: "https://jelly-runtime.example/v1", model_id: "private", connection_id: connection.connection_id }) as JellyModelSettings;
   assert.deepEqual(saved.selection, { provider_id: "jelly-text", model_id: "private" });
   assert.equal(requests, 0);
-  assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 1, provider_id: "jelly-text", model_id: "private" });
+  assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 2, selection: { provider_id: "jelly-text", model_id: "private" }, revision: 1, receipts: {} });
   assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), saved);
   await assert.rejects(host.homeActionClient().invoke(person(["jelly:read", "model:invoke"]), jellyActions.modelPlan, { source_type: "text", text: "plan" }));
   t.mock.restoreAll();

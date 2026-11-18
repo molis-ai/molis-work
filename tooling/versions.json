@@ -1293,7 +1293,7 @@
     "format.memory.forgetting": 1,
     "format.memory.page-cursor": 1,
     "format.memory.session-clear-plan": 1,
-    "format.model.preference": 1,
+    "format.model.preference": 2,
     "format.placement.copy-journal": 1,
     "format.placement.copy-preview": 1,
     "format.plugin-builder.action-catalog": 1,

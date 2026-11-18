@@ -1,3 +1,4 @@
+import { isRecord, type SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -17,21 +18,36 @@ const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid"
 /** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
 export type ConsumerModelConfigurationDeclaration = Pick<PluginModelConfigurationDeclaration, "preference" | "custom_provider">;
 export const modelConfigurationInvalid = errors.model_configuration_invalid;
-const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 1;
-const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
-interface PreferenceFile extends PluginModelSelection { schema_version: typeof MODEL_PREFERENCE_SCHEMA_VERSION }
+const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 2;
+const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [{ from: 1, transform(value) {
+  if (!isSelection(value)) throw invalidFile();
+  return { selection: { provider_id: value.provider_id, model_id: value.model_id }, revision: 0, receipts: {} };
+} }];
+export interface ModelPreferenceFile {
+  schema_version: typeof MODEL_PREFERENCE_SCHEMA_VERSION;
+  selection: PluginModelSelection | null;
+  revision: number;
+  receipts: Record<string, SettingsWriteReceipt>;
+}
+const invalidFile = () => errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
+function isSelection(value: unknown): value is PluginModelSelection {
+  return isRecord(value) && typeof value.provider_id === "string" && !!value.provider_id.trim()
+    && typeof value.model_id === "string" && !!value.model_id.trim();
+}
 function preferencePath(home: string, declaration: ConsumerModelConfigurationDeclaration): string { return join(home, declaration.preference.store_name, declaration.preference.file_name); }
-function readPreference(home: string, declaration: ConsumerModelConfigurationDeclaration): PreferenceFile | undefined {
-  const path = preferencePath(home, declaration); if (!existsSync(path)) return undefined;
+export function readModelPreference(home: string, declaration: ConsumerModelConfigurationDeclaration): ModelPreferenceFile {
+  const path = preferencePath(home, declaration);
+  if (!existsSync(path)) return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, selection: null, revision: 0, receipts: {} };
   return parsePreference(JSON.parse(readFileSync(path, "utf8")));
 }
-/** The file behind a consumer's `model_configuration.preference`, for the upgrade process (§2.6). */
-export const MODEL_PREFERENCE_FILE: VersionedFile<PreferenceFile> = { version: MODEL_PREFERENCE_SCHEMA_VERSION, field: "schema_version", upgrades: MODEL_PREFERENCE_UPGRADES, parse: parsePreference };
-function parsePreference(value: unknown): PreferenceFile {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
-  const pref = value as Partial<PreferenceFile>;
-  if (pref.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || typeof pref.provider_id !== "string" || !pref.provider_id.trim() || typeof pref.model_id !== "string" || !pref.model_id.trim()) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
-  return { schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, provider_id: pref.provider_id, model_id: pref.model_id };
+/** The host upgrade process applies this same owner definition to every existing model preference. */
+export const MODEL_PREFERENCE_FILE: VersionedFile<ModelPreferenceFile> = { version: MODEL_PREFERENCE_SCHEMA_VERSION, field: "schema_version", upgrades: MODEL_PREFERENCE_UPGRADES, parse: parsePreference };
+function parsePreference(value: unknown): ModelPreferenceFile {
+  if (!isRecord(value) || value.schema_version !== MODEL_PREFERENCE_SCHEMA_VERSION || !(value.selection === null || isSelection(value.selection))
+    || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || !isRecord(value.receipts)
+    || Object.values(value.receipts).some(receipt => !isRecord(receipt) || !isRecord(receipt.request) || !isRecord(receipt.result) || !Array.isArray(receipt.result.values)))
+    throw invalidFile();
+  return value as unknown as ModelPreferenceFile;
 }
 function atomicWrite(path: string, body: string): void {
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -39,7 +55,7 @@ function atomicWrite(path: string, body: string): void {
   finally { if (existsSync(temporary)) unlinkSync(temporary); }
 }
 function readSettings(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationView {
-  const pref = readPreference(home, declaration), opened = openProviders(home);
+  const pref = readModelPreference(home, declaration).selection ?? undefined, opened = openProviders(home);
   const connections = existsSync(join(home, "connectors", "connectors.db"))
     ? withConnectorConnections(home, store => store.list("model-api").map(connection => ({ connection_id: connection.connection_id,
       display_name: connection.display_name, state: !connection.enabled || connection.disconnected_at ? "disconnected" : connection.credential_ref
@@ -74,6 +90,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
   assertVersionedFileWritable(MODEL_PREFERENCE_FILE, prefPath, home);
   // The catalog is created and owned by the normal Host lifecycle. Never write an incomplete lookalike catalog.
   const opened = openProviders(home); if (!opened) throw errors.model_configuration_invalid("Molis Work 工作台尚未初始化，请先打开工作台再保存模型设置");
+  const prior = readModelPreference(home, declaration);
   const oldPreference = existsSync(prefPath) ? readFileSync(prefPath, "utf8") : undefined;
   let preferenceWritten = false;
   try {
@@ -100,7 +117,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
         opened.store.upsert({ provider_id: declaration.custom_provider.provider_id, display_name: declaration.custom_provider.display_name, base_url: baseUrl!, api_format: format ?? existing?.api_format ?? "openai-chat-completions", enabled: true, models,
           ...(selectedConnection?.credential_ref ? { credential_ref: selectedConnection.credential_ref } : {}) });
       }
-      atomicWrite(prefPath, JSON.stringify({ schema_version: MODEL_PREFERENCE_SCHEMA_VERSION, provider_id: providerId, model_id: modelId } satisfies PreferenceFile, null, 2) + "\n"); preferenceWritten = true;
+      atomicWrite(prefPath, JSON.stringify({ ...prior, selection: { provider_id: providerId, model_id: modelId }, revision: prior.revision + 1 } satisfies ModelPreferenceFile, null, 2) + "\n"); preferenceWritten = true;
     }).immediate();
   } catch (error) {
     if (preferenceWritten) { if (oldPreference !== undefined) atomicWrite(prefPath, oldPreference); else unlinkSync(prefPath); }
@@ -111,7 +128,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
 /** The Host owns this consumer binding; provider and connector facts remain behind their existing owners. */
 export function createConsumerModelConfiguration(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationPort {
   return {
-    selection: () => { const value = readPreference(home, declaration); return value ? { provider_id: value.provider_id, model_id: value.model_id } : undefined; },
+    selection: () => readModelPreference(home, declaration).selection ?? undefined,
     read: () => readSettings(home, declaration),
     save: input => saveSettings(home, declaration, input),
   };

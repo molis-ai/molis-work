@@ -82,8 +82,8 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await evaluate("(() => { const form=" + dom("[data-create-form]") + "; form.elements.parent_goal_id.value='V1'; form.elements.parent_goal_id.dispatchEvent(new Event('change',{bubbles:true})); const dependency=form.querySelector('[name=dependency_goal_ids][value=INTERFACES]'); dependency.checked=true; dependency.dispatchEvent(new Event('change',{bubbles:true})); return true; })()");
   const parentTitle = before.goals.find(item => item.goal_id === "V1")!.title;
   const dependencyTitle = before.goals.find(item => item.goal_id === "INTERFACES")!.title;
-  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新 Goal → 属于 → 「" + parentTitle + "」。这是目录层级，不需要等待它完成。");
-  assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新 Goal → 依赖 → 「" + dependencyTitle + "」；这些 Goal 完成前，新 Goal 还不能收尾。普通笔记和准备仍可先做。");
+  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新目标归在「" + parentTitle + "」名下（仅作目录分级，无需等它先完成）。");
+  assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新目标需等待 「" + dependencyTitle + "」 完成后才能收尾（平时记进展、做准备不受影响）。");
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals"] }, sessionId);
   const createSubmit = '[data-create-form] button[type="submit"]';
   await click(createSubmit);
@@ -179,7 +179,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await reloadPage();
   await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
   await evaluate("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')?.click()");
-  await waitFor("document.querySelector('[data-goal-trash-dialog]')?.open === true && document.querySelector('[data-goal-trash-title]')?.textContent === '恢复 Goal'");
+  await waitFor("document.querySelector('[data-goal-trash-dialog]')?.open === true && document.querySelector('[data-goal-trash-title]')?.textContent === '恢复目标'");
   await evaluate(dom(reason) + ".value='Restore the same Goal'");
   await navigate(() => click(trashSubmit));
   await waitFor(dom('[data-goal-view="' + goalId + '"]'));

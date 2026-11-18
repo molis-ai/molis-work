@@ -45,10 +45,10 @@ export class SystemFunctionsActions {
           && (!record.scene_provider_id || scene.provider.provider_id === record.scene_provider_id));
         if (matches.length > 1) throw new ActionError("actions.scene_ambiguous", "此用途有多个版本，请选择具体场景版本和提供方");
         const matched = matches[0];
-        if (!matched) throw new ActionError("actions.scene_missing", "原消费场景版本或提供方不存在或不可访问，草稿已保留");
+        if (!matched) throw new ActionError("actions.scene_missing", "原用途版本或提供方不存在或不可访问，草稿已保留");
         const purpose = liveHostJudgmentRuleAuthoringCatalog(directory, matches).destinations.find(row => row.destination_id === record.scene_id
           && row.scene_version === matched.definition.version && row.provider_id === matched.provider.provider_id);
-        if (!purpose) throw new ActionError("actions.scene_missing", "原消费场景不存在或当前调用者无权使用，草稿已保留");
+        if (!purpose) throw new ActionError("actions.scene_missing", "原用途不存在或当前调用者无权使用，草稿已保留");
         if (purpose.availability?.available === false) throw new ActionError(purpose.availability.code, purpose.availability.reason);
         const intent = { scene_id: matched.definition.scene_id, version: matched.definition.version, provider_id: matched.provider.provider_id };
         const definition = publishedFunctionAction({ ...record, scene_version: intent.version, scene_provider_id: intent.provider_id, status: "published", version: 1 });

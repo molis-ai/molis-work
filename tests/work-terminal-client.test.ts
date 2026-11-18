@@ -53,7 +53,7 @@ test("Terminal channel authenticates once, shares in-flight connect, routes data
   ws.message({ type: "data", panelId: "panel-a", data: "output" });
   assert.deepEqual(messages, [{ type: "data", panelId: "panel-a", data: "output" }]);
   ws.close();
-  assert.deepEqual(disconnected, ["终端通道已断开"]);
+  assert.deepEqual(disconnected, ["终端连接已断开"]);
   t.mock.timers.tick(399);
   assert.equal(reconnects, 0);
   t.mock.timers.tick(1);
@@ -73,7 +73,7 @@ test("Closed authentication handshake rejects pending connect and allows a fresh
   });
   const first = connection.connect();
   BrowserSocket.instances[0]!.close();
-  await assert.rejects(first, /终端通道已断开/);
+  await assert.rejects(first, /终端连接已断开/);
   const next = connection.connect();
   assert.equal(BrowserSocket.instances.length, 2);
   BrowserSocket.instances[1]!.open();

@@ -43,7 +43,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
     }
     return { destination_id: definition.scene_id, scene_version: definition.version, provider_id: provider.provider_id,
       kind: "event" as const, title: definition.title, when: definition.trigger, effect: definition.description,
-      configure_at: "发布后在原消费场景启用", subject_kinds: definition.subject_kinds.length ? definition.subject_kinds : [...new Set(offered.flatMap(choice => choice.subject_kinds))],
+      configure_at: "发布后在原用途中启用", subject_kinds: definition.subject_kinds.length ? definition.subject_kinds : [...new Set(offered.flatMap(choice => choice.subject_kinds))],
       option_ids: ids, availability: available };
   });
   return {

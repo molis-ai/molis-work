@@ -28,11 +28,11 @@ test("collection placeholders preserve full versus refresh behavior", () => {
   assert.match(compact, /回收站是空的/);
   assert.doesNotMatch(compact, /<p>|<a /);
   const trash = renderer.renderEmptyGoalCollection(true, true);
-  assert.match(trash, /移入回收站的 Goal 可以在这里恢复/);
+  assert.match(trash, /移入回收站的目标不会干扰日常列表，需要时可随时在这里恢复/);
   assert.match(trash, /href="\/"/);
   const archive = withGoalLocale("en", () => renderer.renderEmptyGoalCollection(false, true));
-  assert.match(archive, /No archived Goal yet/);
-  assert.match(archive, /Historical facts are not deleted/);
+  assert.match(archive, /No archived Goals yet/);
+  assert.match(archive, /while keeping full history/);
   assert.doesNotMatch(archive, /Trash is empty/);
 });
 
@@ -105,7 +105,7 @@ test("accepted Goal requirements keep original criterion details expandable with
   const detailsEnd = requirements.indexOf("</details>");
   assert.ok(detailsStart >= 0 && detailsEnd > detailsStart);
   const details = requirements.slice(detailsStart, detailsEnd + "</details>".length);
-  assert.match(details, /<details class="original-goal-criteria"><summary>原 Goal 标准<\/summary>/);
+  assert.match(details, /<details class="original-goal-criteria"><summary>初始完成标准<\/summary>/);
   assert.match(details, /legacy-read-criterion/);
   assert.match(details, /inspection/);
   assert.match(details, /90 分/);
@@ -116,7 +116,7 @@ test("accepted Goal requirements keep original criterion details expandable with
   assert.match(requirements, /<h3>关联结果<\/h3><article>Artifact owner<\/article>/);
   assert.ok(detailsEnd < requirements.indexOf("Artifact owner"));
   const empty = render({ ...value, goal: { ...value.goal, acceptance_criteria: [] } });
-  assert.doesNotMatch(empty, /original-goal-criteria|原 Goal 标准/);
+  assert.doesNotMatch(empty, /original-goal-criteria|初始完成标准/);
 });
 
 test("event-owned documents keep the note entry and do not restore a draft editor", () => {

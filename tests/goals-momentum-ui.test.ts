@@ -29,8 +29,8 @@ test("canvas renders provider-to-consumer edges, keeps parent membership separat
   assert.doesNotMatch(html, /data-edge-from="ROOT"|data-edge-to="ROOT"/);
   assert.match(html, /属于：Parent/);
   assert.match(html, /API → User &quot;&lt;title&gt; · Provider &quot;result&quot; &lt;safe&gt;/);
-  assert.match(html, /展开 Goal：User &quot;&lt;title&gt;/);
-  assert.match(html, /打开 Frame：User &quot;&lt;title&gt;/);
+  assert.match(html, /展开目标：User &quot;&lt;title&gt;/);
+  assert.match(html, /打开工作框：User &quot;&lt;title&gt;/);
   assert.match(html, /class="goal-canvas-frame"/);
   assert.match(html, /class="goal-canvas-open"/);
   assert.match(html, /data-graph-frame/);
@@ -58,9 +58,9 @@ test("canvas has an honest empty state and localizes controls without translatin
   const empty = view([]);
   const emptyHtml = renderer.renderGoalMomentum(empty, "", []);
   const emptyBlock = emptyHtml.match(/<div class="goal-canvas-empty mw-empty"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? "";
-  assert.match(emptyBlock, /还没有 Goal/);
+  assert.match(emptyBlock, /还没有目标/);
   assert.match(emptyBlock, /目标和依赖会作为节点出现在这里/);
-  assert.doesNotMatch(emptyBlock, /还没有目标|data-open-create|mw-btn|<h2>|<button/);
+  assert.doesNotMatch(emptyBlock, /data-open-create|mw-btn|<h2>|<button/);
   assert.doesNotMatch(emptyHtml, /从想要的结果开始|创建第一条 Goal/);
   const emptyEnglish = withGoalLocale("en", () => renderer.renderGoalMomentum(empty, "", []));
   assert.match(emptyEnglish, /No Goals yet/);

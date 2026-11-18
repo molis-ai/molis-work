@@ -244,7 +244,7 @@ test("W5-02-REG-09 SYS-15-U9 the mounted Host confirms a workspace and translate
       set(target, key, value) { target[key] = key === 'coding' ? host => { window.workspaceTestHost = host; return value(host); } : value; return true; }
     });
   `);
-  for (const [locale, linkFailure, defaultFailure] of [["zh", "无法关联工作区", "来源操作失败"], ["en", "Unable to link workspace", "Source operation failed"]]) {
+  for (const [locale, linkFailure, defaultFailure] of [["zh", "无法关联项目目录", "来源操作失败"], ["en", "Unable to link project folder", "Source operation failed"]]) {
     await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: origin }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
     await browser.click('[data-plugin-strip] [data-plugin-id="coding"]');

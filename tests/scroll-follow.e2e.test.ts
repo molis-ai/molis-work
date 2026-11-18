@@ -53,6 +53,7 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await wheel(-120);
   await page.wait(`document.getElementById("thread").dataset.follow === "detached"`);
   await sleep(200);
+  assert.ok(await distance() > 1, "the first upward wheel moves the native scroller");
   const reading = await page.evaluate<number>(`document.getElementById("thread").scrollTop`);
   await page.evaluate(`window.grow()`); await frames();
   assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), reading, "detached, new content does not move the reader");
@@ -106,6 +107,28 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await page.wait(`(() => { const t = document.getElementById("thread"); return t.scrollHeight - t.scrollTop - t.clientHeight <= 1; })()`);
   await sleep(150);
   assert.deepEqual(await page.evaluate<string[]>(`window.changes`), ["following"], "scrolling down on the way back keeps following");
+
+  // B58-02: leave during a near-end pin and during a smooth return from a saved reading position.
+  for (const { fromEnd, changes } of [
+    { fromEnd: 32, changes: ["detached"] },
+    { fromEnd: 300, changes: ["following", "detached"] },
+  ]) {
+    const interruptedAt = await page.evaluate<number>(`(() => {
+      const thread = document.getElementById("thread");
+      window.follow.restore(thread.scrollHeight - thread.clientHeight - ${fromEnd});
+      window.changes.length = 0;
+      window.follow.toLatest();
+      thread.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
+      thread.dispatchEvent(new Event("scroll"));
+      return thread.scrollTop;
+    })()`);
+    assert.deepEqual(await page.evaluate<string[]>(`window.changes`), changes, "a queued event from the return cannot resume following");
+    await frames(); await frames();
+    assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), interruptedAt, "the interrupted trip leaves the reader in place");
+    await page.evaluate(`(() => { const t = document.getElementById("thread"); window.follow.restore(t.scrollHeight - t.clientHeight - 60); })()`);
+    await wheel(120);
+    await page.wait(`document.getElementById("thread").dataset.follow === "following"`);
+  }
 
   // The page's own words: restore(top) judges the restored place, resume() follows a fresh conversation, release() steps aside.
   await page.evaluate(`window.follow.restore(100)`);

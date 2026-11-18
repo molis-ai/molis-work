@@ -553,7 +553,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const directGoal = renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id);
     const browserMarkup = browser.slice(0, browser.indexOf("<style>"));
     assert.match(browser, /class="tui-pane"/);
-    assert.match(browser, /推进这个 Goal/);
+    assert.match(browser, /推进这个目标/);
     assert.match(browser, /pty-client\.js/);
     assert.match(browser, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);
     assert.match(browser, /data-desktop-shell="true"/);
@@ -658,10 +658,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(browser, /data-tui-kind="pi-agent"/);
     assert.match(browser, /data-tui-kind="grok-build"/);
     assert.match(browser, /data-tui-kind="generic"/);
-    assert.match(browser, /常用 Runtime 或自定义命令|请选择具体的子 Goal/);
+    assert.match(browser, /常用的外部 AI 工具或自定义命令|请进入一个具体的子目标/);
     assert.match(desktop, /class="tui-pane"/);
     assert.match(desktop, /data-tui-pane/);
-    assert.match(desktop, /推进这个 Goal/);
+    assert.match(desktop, /推进这个目标/);
     assert.match(desktop, /填入不发送/);
     assert.match(desktop, /添加终端/);
     assert.match(desktop, /还没有终端|上层 Goal 不直接使用终端/);
@@ -675,7 +675,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /<strong data-tui-owner-title>/);
     assert.match(desktop, /class="goal-status goal-status--[a-z_]+"[^>]*data-tui-owner-status/);
     assert.doesNotMatch(desktop, /<small data-tui-owner-status/);
-    assert.match(desktop, /<b>绑定到 Goal<\/b>/);
+    assert.match(desktop, /<b>已关联目标<\/b>/);
     assert.match(desktop, /class="tui-mode-label">终端<\/span>/);
     assert.doesNotMatch(desktop, /data-navigator-heading>目标导航/);
     assert.match(desktop, /class="workbench-header immersive-titlebar"/);
@@ -699,7 +699,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-tui-copy/);
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
     assert.match(desktop, /\*::-webkit-scrollbar\{display:none/);
-    assert.match(desktop, /在这个 Goal 上打开终端/);
+    assert.match(desktop, /为这个目标打开终端/);
     // #994 gathered the page's lookups behind one `q`; the tree resizer is still found in the page's own document.
     assert.match(CLIENT_SCRIPT, /const q = \(selector\) => document\.querySelector\(selector\);/);
     assert.match(CLIENT_SCRIPT, /const treeResizer = q\("\[data-tree-resizer\]"\);/);
@@ -855,7 +855,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.match(browserPage, /class="tui-pane"|data-tui-pane/);
     // RAC-2566: the pane is given Goals' route; the platform terminal names no plugin.
     assert.match(browserPage, /data-tui-terminals-route="\/api\/plugins\/io\.molis\.work\.goals\/goals\/:goalId\/terminals"/);
-    assert.match(browserPage, /推进这个 Goal/);
+    assert.match(browserPage, /推进这个目标/);
     assert.match(browserPage, /pty-client\.js/);
 
     const index = await webFetch(`${origin}/`);
@@ -897,7 +897,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
       await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, { headers: { "x-molis-work-desktop": "1" } })
     ).text();
     assert.match(desktopPage, /data-tui-pane/);
-    assert.match(desktopPage, /推进这个 Goal/);
+    assert.match(desktopPage, /推进这个目标/);
     assert.match(desktopPage, /添加终端/);
     assert.match(desktopPage, /data-native-desktop="true"/);
 
@@ -975,7 +975,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     const parentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
     assert.match(parentPage, /data-tui-parent-read-only="true"/);
     assert.match(parentPage, /data-tui-read-only="true"/);
-    assert.match(parentPage, /这个上层 Goal 不直接使用终端/);
+    assert.match(parentPage, /上层目标不直接使用终端/);
     assert.match(parentPage, /实现具体终端交互/);
     assert.match(parentPage, /href="\/projects\/[^\"]+\/goals\/TUI-CHILD"/);
     assert.match(parentPage, /data-tui-add[^>]*disabled/);
@@ -1027,7 +1027,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
 
     const completedParentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
     assert.match(completedParentPage, /data-tui-parent-read-only="true"/);
-    assert.match(completedParentPage, /这项工作已经由子 Goal 完成/);
+    assert.match(completedParentPage, /下属子目标已完成执行/);
     assert.match(completedParentPage, /data-tui-add[^>]*disabled/);
 
     const completedListed = await webFetch(parentPanelsUrl);

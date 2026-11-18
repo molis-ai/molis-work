@@ -41,7 +41,7 @@ function relative(value: unknown): string {
 }
 export function parseCharacterImportSnapshot(value: unknown): CharacterImportSnapshot {
   const x = object(value), limits = CHARACTER_IMPORT_LIMITS;
-  if (!CHARACTER_IMPORT_RUNTIMES.includes(x.runtime_id as CharacterImportRuntimeId)) throw new Error("不支持的 Agent 来源");
+  if (!CHARACTER_IMPORT_RUNTIMES.includes(x.runtime_id as CharacterImportRuntimeId)) throw new Error("不支持的外部 AI 工具来源");
   const config_root = absolute(x.config_root), project_root = x.project_root === undefined ? undefined : absolute(x.project_root);
   const captured_at = string(x.captured_at, "采集时间", 40);
   if (!/^\d{4}-\d\d-\d\dT/.test(captured_at) || !Number.isFinite(Date.parse(captured_at))) throw new Error("采集时间无效");

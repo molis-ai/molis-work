@@ -145,7 +145,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
     assert.equal(refused.next_round?.reason,'这个会话正在恢复，请稍后再试');
     busy=1;calls.length=0;
     const later=await call();
-    assert.equal(later.next_round?.reason,'请先为这个项目选择已授权的工作区目录','busy once, the second try is a real start, refused here for its own reason');
+    assert.equal(later.next_round?.reason,'请先为此项目选择已授权的项目目录','busy once, the second try is a real start, refused here for its own reason');
     assert.equal(calls.filter(id=>id===agent.controlRun.capability_id).length,1,'the answer itself was handed over once');
   }finally{db.close();}
 });

@@ -124,7 +124,7 @@ test("ASC-70 Images: generating with a service that has no key shows the connect
   await browser.waitFor(`!document.querySelector(${JSON.stringify(CARD)}).hasAttribute("data-unready")`);
   await browser.click(`${CARD} [data-framed-control="cancel"]`);
   await waitFor("document.querySelector('[data-images-connection-need]').hidden");
-  assert.equal(await evaluate("document.querySelector('[data-images-note]').textContent"), "没有连上图像服务，提示词还在；准备好了再点生成。");
+  assert.equal(await evaluate("document.querySelector('[data-images-note]').textContent"), "还没有连上生图服务，你写的画面描述已保留；连好后再点生成即可。");
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').value"), "a lighthouse at dusk", "the words stay");
   assert.equal(await evaluate("document.querySelector('[data-images-generate]').classList.contains('mw-btn--primary')"), true, "生成 is the primary button again");
   const sent = await browser.evaluate<Array<{ url: string; method: string; body: { operation?: string } | null }>>("window.ascSent");

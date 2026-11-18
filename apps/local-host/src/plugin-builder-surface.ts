@@ -9,7 +9,7 @@ export const FRAME_QUERY='frame=workbench';
 export function selectionPorts(homeDirectory?:string){
  const key=()=>process.env.TYPESAFE_API_KEY?.trim()||(homeDirectory?typeSafeCredential(homeDirectory):null);
  return {selectionAvailable:()=>Boolean(key()),async choose(question:ChoiceQuestion){
-  const credential=key();if(!credential)throw new Error('请在 Functions 设置中配置 TypeSafe Key');
+  const credential=key();if(!credential)throw new Error('请在「能力 › 服务连接」中配置 TypeSafe Key');
   const provider=createPrologueTypeSafeProvider(homeDirectory,{resolveCredential:key,configuration:()=>process.env.TYPESAFE_API_KEY?.trim()?'env':homeDirectory?typeSafeConfiguration(homeDirectory):null});const started=performance.now(),now=new Date().toISOString();
   // A transient choice question: never listed, published or stored as a user function.
   const record:JudgmentRuleRecord={id:question.key,name:'插件创作零件选择',status:'draft',version:null,instructions:question.instructions,scene_id:null,subject_kinds:[],scene_map:{},config_hash:'',last_preview:null,samples:[],published_at:null,created_at:now,updated_at:now,function_key:question.key,primitive:'choice',model:FUNCTIONS_DEFAULT_MODEL,criteria:question.candidates.map(c=>({key:c.key,description:c.description}))};

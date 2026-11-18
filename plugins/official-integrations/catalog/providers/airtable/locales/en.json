@@ -9,6 +9,6 @@
     "airtable.connection.token-label": "Airtable Personal Access Token",
     "airtable.guide.mcp-link": "View the official Airtable MCP",
     "airtable.guide.oauth-link": "View Airtable OAuth",
-    "airtable.setup.create-airtable-personal-access-token": "Create Airtable Personal Access Token"
+    "airtable.setup.create-airtable-personal-access-token": "Create Airtable personal access token"
   }
 }

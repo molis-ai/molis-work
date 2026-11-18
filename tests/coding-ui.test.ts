@@ -80,7 +80,7 @@ test("不可用的工具页保留标签但禁用，并带上理由", () => {
   // 终端：命令未接审批；浏览器：这个构建没有内嵌浏览器
   assert.match(html, /data-coding-tool="terminal"[^>]*disabled/);
   assert.match(html, /data-coding-tool="browser"[^>]*disabled/);
-  assert.match(html, /data-coding-tool-panel="terminal"[^>]*>[\s\S]*?命令回执/);
+  assert.match(html, /data-coding-tool-panel="terminal"[^>]*>[\s\S]*?命令记录/);
   assert.match(html, /is-unavailable/);
   // 结果页与 Canvas 不该被禁用
   assert.doesNotMatch(html, /data-coding-tool="result"[^>]*disabled/);
@@ -91,7 +91,7 @@ test("项目没绑定工作区时如实说明，不显示一个猜出来的路�
   // The built-in Agent's grants open for this project, from a link the Host's project-local prefixing leaves alone.
   const project = renderCodingWorkbench(model({ route_prefix: "/projects/p-1" }));
   assert.match(project, /href="\.\.\/\.\.\/capabilities\/access\?client=agent%3Aprologue&amp;project=p-1"/);
-  assert.match(html, /还没有绑定工作区目录/);
+  assert.match(html, /还没有绑定项目目录/);
   assert.doesNotMatch(html, /data-coding-workspace="/);
   assert.match(html, /data-coding-workspace-open/);
 });
@@ -105,7 +105,7 @@ test("会话按 Goal 分组渲染，未关联目标是一个真实分组", () =>
   assert.match(html, /data-coding-goal="g1"/);
   assert.match(html, /让首次使用不再卡住/);
   // The group with no Goal is named as the page's live list names it (VUX-39: the first paint read 未关联目标, untranslated).
-  assert.match(html, /<h2 class="mw-dir__heading" data-slot="directory-heading">未关联 Goal<\/h2>/);
+  assert.match(html, /<h2 class="mw-dir__heading" data-slot="directory-heading">未关联目标<\/h2>/);
   // Each row carries its state in words and its state ring, as the live list draws it (VUX-39: the first paint had no ring).
   assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running">执行中<\/small>/);
   assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle">/);

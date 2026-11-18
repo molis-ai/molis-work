@@ -276,7 +276,7 @@ test("a text edit reads as a unified diff with context and counts; a command rea
   command.request.document = { kind: "command", command: "node", args: ["--test", "a b.test.js", "it's"], cwd: ".", timeout_ms: 15000 };
   const commandHtml = renderAgentReviewSurface({ rows: [command], primitives: p });
   assert.match(commandHtml, /\$<\/span> node --test (&#39;|')a b\.test\.js(&#39;|') (&#39;|')it(&#39;|')\\(&#39;|')(&#39;|')s(&#39;|')</);
-  assert.match(commandHtml, /在 工作区根目录 运行/);
+  assert.match(commandHtml, /在 项目目录根路径 运行/);
 });
 
 test("only an in-boundary command offers 'allow for this session', and a rule's approval says so", () => {
@@ -305,8 +305,8 @@ test("a command that names extra paths or the network shows exactly what it asks
   assert.match(html, /读取<\/span> <code>\/Users\/me\/\.npmrc<\/code>/);
   assert.match(html, /读写<\/span> <code>\/tmp\/cache<\/code>/);
   assert.match(html, /联网/);
-  assert.match(html, /超出宿主执行边界/);
-  assert.doesNotMatch(html, /在宿主执行边界内/, "it does not say it stays inside the boundary");
+  assert.match(html, /超出本轮允许范围/);
+  assert.doesNotMatch(html, /在允许范围内/, "it does not say it stays inside the boundary");
   assert.doesNotMatch(html, /data-agent-review-remember/, "the extra access is never remembered");
 });
 

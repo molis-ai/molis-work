@@ -7,7 +7,7 @@
     "ppt.action.new": "New deck",
     "ppt.action.reload": "Reload",
     "ppt.actions.configure-model-first": "Set up a text model first.",
-    "ppt.actions.model-unavailable-permission": "This caller is not allowed to use AI to organize an outline.",
+    "ppt.actions.model-unavailable-permission": "AI outline organization isn’t enabled for this feature yet.",
     "ppt.actions.pages-unavailable": "Pages is unavailable.",
     "ppt.actions.pages-unreadable": "Could not read the Pages documents.",
     "ppt.artifacts.type-title": "Presentation",

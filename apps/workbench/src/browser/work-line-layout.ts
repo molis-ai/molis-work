@@ -5,6 +5,7 @@
  * the task panel floats. Call it after each draw of a line or a dialog under `root`; it keeps itself right when sizes change.
  * It reads no data and changes no state but scroll positions, a count, and the attributes and properties the sheet reads.
  */
+import { PLACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
 
 const PAST_RUN = '.work-line-wing[data-wing="past"] .work-line-run';
 const NEXT_RUN = '.work-line-wing[data-wing="next"] .work-line-run';
@@ -298,14 +299,17 @@ const LEAST_SLOT = 300, LEAST_NEXT = 120, INSET = 24;
 function installPlace(slot: HTMLElement): void {
   const row = slot.parentElement, stage = document.querySelector<HTMLElement>("[data-plugin-stage]");
   if (!row || !stage || !("ResizeObserver" in window)) return;
-  const pane = (): DOMRect | null => {
-    const box = (stage.querySelector<HTMLElement>(".tab-workspace-panes > [data-tab-pane].is-focused:not([hidden])") ?? stage).getBoundingClientRect();
-    return box.width > 0 ? box : null;
-  };
+  let pane: HTMLElement | null = null;
   const place = (): void => {
+    const focused = stage.querySelector<HTMLElement>(".tab-workspace-panes > [data-tab-pane].is-focused:not([hidden])");
+    if (focused !== pane) {
+      moved.disconnect();
+      pane = focused;
+      if (pane) moved.observe(pane, { attributeFilter: ["style"] });
+    }
     row.removeAttribute("data-slot-placed"); row.style.removeProperty("--slot-columns");
-    const work = pane(), style = getComputedStyle(row);
-    if (!work || style.display !== "grid" || getComputedStyle(slot).gridRowStart !== "1") return;
+    const work = (pane ?? stage).getBoundingClientRect(), style = getComputedStyle(row);
+    if (!work.width || style.display !== "grid" || getComputedStyle(slot).gridRowStart !== "1") return;
     const page = globalThis.molisBarReceivers?.front()?.column() ?? null;
     const column = page && page.width > 0 ? page : { left: work.left + INSET, width: work.width - 2 * INSET };
     const box = row.getBoundingClientRect(), gap = parseFloat(style.columnGap) || 0, natural = slot.getBoundingClientRect().width;
@@ -322,9 +326,10 @@ function installPlace(slot: HTMLElement): void {
   let queued = false;
   const now = (): void => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; place(); }); } };
   const sizes = new ResizeObserver(place);
+  const moved = new MutationObserver(now);
   sizes.observe(row); sizes.observe(stage);
-  // Panes split, close and take focus by class and children; the window moves the stage without resizing it.
-  new MutationObserver(now).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
+  // The workspace announces focus. A split can also move the pane without resizing the stage.
+  document.addEventListener(PLACE_CHANGED_EVENT, now);
   window.addEventListener("resize", now, { passive: true });
   globalThis.molisWorkBarPlace = now;
   place();

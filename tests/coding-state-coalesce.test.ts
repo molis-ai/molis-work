@@ -247,7 +247,7 @@ test("PG-054 integrating a child's work needs sub-agents in the session's own Ru
   try {
     const none = await h.call("/sessions/a/runs/r1/subagents/c1/integration");
     assert.equal(none.status, 400, JSON.stringify(none.body));
-    assert.match(none.body.error, /没有可整合的原子任务/);
+    assert.match(none.body.error, /没有可合并的子任务/);
     assert.equal(h.made(writerIntegrationCapabilities.read).length, 0);
     const read = await h.call("/sessions/b/runs/r1/subagents/c1/integration");
     assert.equal(read.status, 200, JSON.stringify(read.body));

@@ -134,7 +134,7 @@ test("the Functions edge reads its body inside the answer: too large is 413, not
   const notJson = await edge.post("/api/functions", "{");
   assert.deepEqual([notJson.status, notJson.body.code], [400, "actions.input_invalid"]);
   const unchosen = await edge.post("/api/functions/settings", JSON.stringify({}));
-  assert.deepEqual([unchosen.status, unchosen.body], [400, { error: "请在 Connectors 中选择 TypeSafe 连接", code: "functions.invalid" }]);
+  assert.deepEqual([unchosen.status, unchosen.body], [400, { error: "请在「设置 › 服务连接」中选择 TypeSafe 连接", code: "functions.invalid" }]);
 });
 
 // ---- 2. The project catalog ------------------------------------------------------------------------------------------

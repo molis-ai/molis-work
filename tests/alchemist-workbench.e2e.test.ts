@@ -66,7 +66,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   assert.equal((await read('/bootstrap')).ideas.length,3);
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');
   await click('[data-alc-action="market"]');await includes('研究摘要');await includes('测试来源');
-  await click('[data-alc-action="plan"]');await visible('[data-alc-submit]');await click('[data-alc-submit]');await includes('请先在宿主设置里配置模型。');await click('[data-alc-dialog] [data-alc-action="close"]');
+  await click('[data-alc-action="plan"]');await visible('[data-alc-submit]');await click('[data-alc-submit]');await includes('请先在「设置 › 模型」中配置模型。');await click('[data-alc-dialog] [data-alc-action="close"]');
   await click('[data-alc-action="chat"]');await visible('[data-alc-chat-form]');await evaluate(`document.querySelector('[data-alc-chat-form] textarea').value='哪些证据尚未验证？'`);await click('[data-alc-chat-form] button[type="submit"]');await includes('你的消息和上下文已经保存');
   assert.equal((await read('/conversation/messages')).messages.at(-1).context.ideaId,ids.idea);
   await click('[data-alc-action="notice-close"]');await click('[data-alc-action="side-close"]');

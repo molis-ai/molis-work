@@ -205,9 +205,9 @@ test("QEA-145 RAC-2644–2649 S-107 actual project settings show each action onc
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A after the same-declaration File upgrade");
   await ui.openSettings();
   await ui.upgrade("1.2.0", "model.generate");
-  assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /声明的动作增加/u);
+  assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /新版本增加了可执行的动作/u);
   const blocked = await f.state(f.a); await ui.openPackage(); await ui.submit("A before renewed agreement");
-  await ui.child.waitFor("document.body.innerText.includes('声明的动作增加')"); assert.deepEqual(await f.state(f.a), blocked);
+  await ui.child.waitFor("document.body.innerText.includes('新版本增加了可执行的动作')"); assert.deepEqual(await f.state(f.a), blocked);
   await ui.openSettings();
   const expanded = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false); assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), expanded);
   assert.deepEqual(await declarations(), [{ heading: "新增声明的动作", actions: ["调用模型"] }, ...existingGroups]);

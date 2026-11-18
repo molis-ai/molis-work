@@ -570,11 +570,11 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.equal(await page.evaluate<string>(`document.querySelector('[data-as-title]').textContent`), 'New plugin');
     assert.equal(await page.evaluate<string>(`document.querySelector('.as-send').getAttribute('aria-label')`), 'Send');
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-input]').placeholder`), /^Describe the plugin you want/u);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Choose the model used for building · Jev (configured|not set separately \(uses the interface model\))$/u);
 
     // The brief goes to the stand-in designer as the person typed it.
     await page.evaluate(`(()=>{const s=document.querySelector('[data-as-model]');s.value=[...s.options].find(o=>o.value.startsWith('fixture')).value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await page.wait(`document.querySelector('[data-as-model-note]').textContent.startsWith('Lead designer and Code Agent: ')`);
+    await page.wait(`document.querySelector('[data-as-model-note]').textContent.startsWith('Design and build model: ')`);
     await page.fill('[data-as-input]', '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面');
     await page.click('.as-send');
     await page.wait(`document.querySelectorAll('[data-as-candidate]').length===2`);
@@ -610,12 +610,12 @@ test('studio in English: its controls, labels, phases and boards are English', {
     await page.wait(`document.querySelector('[data-as-board]:not([hidden]) .as-board-label')`);
     await page.wait(`['Building','Ready to try'].includes(document.querySelector('[data-as-phase]').textContent)`);
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-feed] summary').textContent`), /^Collaboration log · steps done: \d+$/u);
-    assert.match(await page.evaluate<string>(`document.querySelector('.as-board-label').innerText`), /^Spec board\s+Placed \d+\/\d+ · in use \d+\/\d+$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-board-label').innerText`), /^Component library\s+Placed \d+\/\d+ · in use \d+\/\d+$/u);
     assert.match(await page.evaluate<string>(`document.querySelector('.as-board-cap').innerText`), /^Capability board\s+Connected \d+\/\d+ · catalog \d+$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('.as-board .as-part:not(.as-cap)')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'the spec board names its components in English');
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-board] [data-kind]').getAttribute('aria-label')`), /^[A-Z][\w ]+ · [A-Z]/u, 'name, catalog name: description');
     assert.deepEqual(await page.evaluate<string[]>(chrome), [], 'and so is the rest of the stage');
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Lead designer and Code Agent: .+ · Jev (configured|not configured \(the UI Agent’s design is used first\))$/u);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-model-note]').textContent`), /^Design and build model: .+ · Jev (configured|not set separately \(uses the interface model\))$/u);
     assert.deepEqual(await page.evaluate<string[]>(`[...new Set([...document.querySelectorAll('.as-plugin .pc-inspect')].map(b=>b.textContent))]`), ['Inspect part'], 'the button that points the studio at a part of the plugin');
 
     // The catalog panel and a tip carry the catalog's words in English.

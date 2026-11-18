@@ -1,0 +1,300 @@
+/* 底栏第十二版多出来的编排，叠在 lip.css、rail.css 上面（输入框两行沿用 lip.css，线和站沿用 rail.css）。颜色都引用 ../kit/kit.css 的变量。不是产品样式。 */
+/* 底部 116 = 上空 4 + 事项标签 28 + 输入框 74 + 底边 10 */
+.sp-win.c.lp.rz.pz{height:776px;grid-template-rows:44px minmax(0,1fr) 116px}
+.pz .lb{padding:32px 22px 10px}
+.pz .lb-s{height:74px}
+
+/* 中间：输入框和它上沿的事项标签是同一张，阴影打在合起来的形状上 */
+.pz .lu,.pz .lu.open{filter:drop-shadow(0 0 .6px color-mix(in srgb,var(--shadow-color) 44%,transparent)) drop-shadow(0 6px 16px color-mix(in srgb,var(--shadow-color) 13%,transparent))}
+.pz .lu.open{filter:drop-shadow(0 0 .6px color-mix(in srgb,var(--shadow-color) 44%,transparent)) drop-shadow(0 14px 34px color-mix(in srgb,var(--shadow-color) 20%,transparent))}
+.pz .lt,.pz .lt.tall{min-height:74px;padding:0 8px 4px;box-shadow:none}
+.pz .lt textarea{margin:10px 0 4px}
+.pz .lg{display:none}
+.pz .lu.open .lt,.pz .lu.open .lt.tall{box-shadow:inset 0 1px 0 var(--line)}
+
+/* 事项标签 */
+.pz .lx{height:30px;padding:0 22px}
+.pz .lx-t{height:25px;max-width:190px;background:color-mix(in srgb,var(--popover) 62%,var(--desk))}
+.pz .lx-t.on{height:29px;max-width:340px;background:var(--popover)}
+.lx-t.home{min-width:0;padding:0 9px}
+.lx-t svg.sep{margin:0 -3px;color:var(--faint)}
+.lx-t.on:has(.ev) .cut:not(.ev){font-weight:500;color:var(--ink-soft)}
+.lx-t em{flex:none;display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:10.5px;font-weight:600;font-style:normal}
+.pz .lx-m{height:25px;margin:0;padding:0 7px;border-radius:10px 10px 0 0;background:color-mix(in srgb,var(--popover) 62%,var(--desk))}
+
+/* 对话分两栏：右栏只有说过的话，和输入框一样宽；左栏放该你做的、信息卡、总结、上下文 */
+.pz .lv{height:440px;border-radius:0 18px 0 0;--sidebg:color-mix(in srgb,var(--ink) 3.5%,var(--popover))}
+.pz .lv-b{flex:1;max-height:none;padding:24px 22px 16px}
+.lv-x{position:absolute;top:8px;right:8px;z-index:2;display:flex;gap:2px}
+.pz .lv::before{content:"";position:absolute;left:-12px;bottom:-2px;width:12px;height:12px;background:radial-gradient(circle at 0 100%,transparent 11.5px,var(--popover) 12px);pointer-events:none}
+.lz{position:absolute;right:100%;top:0;bottom:10px;width:var(--side,340px);display:flex;flex-direction:column;gap:8px;padding:12px;overflow-y:auto;scrollbar-width:none;border-radius:18px 0 0 18px;background:var(--sidebg);box-shadow:inset -1px 0 0 var(--line)}
+.zc{flex:none;padding:10px 12px 11px;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);font-size:12.5px;color:var(--ink-soft)}
+.zc-h{margin-bottom:5px;font-size:11.5px;font-weight:600;line-height:16px;color:var(--muted)}
+.zc p{display:flex;align-items:center;gap:6px;margin:0;line-height:1.6}
+.zc.ask{background:var(--amber-soft);box-shadow:none}
+.zc.ask .zc-h{color:var(--amber)}
+.zc.ask p{font-size:13px;color:var(--ink)}
+.zc-a{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.zc-a .dc-act{height:28px;padding:0 12px;font-size:12.5px}
+.zc-a .dc-act:not(.pri){background:var(--popover)}
+.zc-a .dc-act[role=button]:hover{filter:brightness(1.06)}
+.zi{display:flex;align-items:center;gap:8px;min-width:0;font-size:13.5px;color:var(--ink)}
+.zi b{font-weight:600}
+.zr{display:flex;align-items:center;gap:10px;margin-top:3px;font-size:12px;color:var(--muted)}
+.zr small{font-size:12px}
+.zr small.you,.zs small.you{color:var(--amber);font-weight:600}
+.zc .ls{flex-wrap:wrap;gap:6px 14px;padding:8px 0 0}
+.zn{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-soft)}
+.zn span{display:inline-flex;align-items:center;gap:6px}
+.zs{display:flex;flex-direction:column;margin:8px -8px -4px}
+.zs>small{padding:0 8px 2px;font-size:11.5px;color:var(--faint)}
+.zs .lv-k{height:30px;padding:0 8px;font-size:12.5px}
+.zk{display:flex;align-items:center;justify-content:space-between;gap:12px;height:25px;font-size:12.5px}
+.zk span{flex:none;color:var(--muted)}
+.zk b{font-weight:500;color:var(--ink)}
+.zc.ctx{background:none;box-shadow:none;padding:4px 12px 0}
+
+/* 左边：一叠该你的卡 */
+.pz .lb-s.l{align-items:flex-end;justify-content:flex-start;padding:0 14px 0 0}
+.dk{position:relative;width:100%;height:74px}
+.dk-c{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;padding:8px 10px 8px 14px;border-radius:16px;background:var(--popover);box-shadow:0 0 0 1px var(--line),0 1px 2px color-mix(in srgb,var(--shadow-color) 10%,transparent),0 10px 22px -8px color-mix(in srgb,var(--shadow-color) 24%,transparent);transition:transform var(--dur-hover)}
+.dk-c:hover{transform:translateY(-2px)}
+.dk-p{position:absolute;left:12px;right:12px;top:-6px;z-index:1;height:24px;border-radius:13px 13px 0 0;background:color-mix(in srgb,var(--popover) 74%,var(--desk));box-shadow:0 0 0 1px var(--line-strong);transition:top var(--dur-hover)}
+.dk-p.p2{left:24px;right:24px;top:-11px;z-index:0;background:color-mix(in srgb,var(--popover) 46%,var(--desk))}
+.dk-p[role=button]:hover{top:-9px}
+.dk-h{display:flex;align-items:center;gap:8px;height:18px;font-size:13px;line-height:18px;white-space:nowrap}
+.dk-h b{font-weight:600;color:var(--ink)}
+.dk-n{flex:none;display:inline-flex;align-items:center;gap:1px;height:20px;margin-right:-4px;padding:0 3px 0 6px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--amber)}
+.dk-n svg{color:currentColor;opacity:.7}
+.dk-n[role=button]:hover{background:var(--amber-soft)}
+.dk-q{height:17px;font-size:12.5px;line-height:17px;color:var(--ink-soft)}
+.dk-a{display:flex;align-items:center;gap:6px;margin-top:auto;white-space:nowrap}
+.dk-a .dc-act{flex:none;height:23px;padding:0 11px;font-size:12px}
+.dk-a .dc-act:hover{filter:brightness(1.07)}
+.dk-o{flex:none;display:inline-flex;align-items:center;gap:1px;font-size:11.5px;color:var(--faint);transition:color var(--dur-hover)}
+.dk-c:hover .dk-o,.dk-c:hover .dk-o svg{color:var(--accent)}
+.dk.pulse .dk-c{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.dk0{display:flex;align-items:center;gap:10px;height:74px;padding:0 6px;font-size:12.5px;color:var(--faint)}
+.dk0 svg{flex:none;color:var(--green)}
+.dk0 span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.dk0 b{font-weight:500;color:var(--muted)}
+.dk0 small{font-size:11.5px}
+
+/* 右边的站：组名能点（看这一站的全部），名字能点（专注到那件） */
+.pz .rc{padding:0;margin:0 2px}
+.pz .rc[role=button]:hover,.pz .rc:hover{background:none}
+.pz .rc .cp{padding:0 10px;border-radius:6px}
+.pz .rc .cp[role=button]:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.pz .rc .tx{padding:0 10px;height:23px;border-radius:8px;transition:background var(--dur-hover),box-shadow var(--dur-hover)}
+.pz .rc .tx[role=button]:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.pz .rc.on,.pz .rc.on:hover{background:none;box-shadow:none}
+.pz .rc.on .tx,.pz .rc.on .tx:hover{background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-1)}
+
+/* 清单：换事项（标签上方），这一站的全部（右） */
+.pz .lm{left:calc(50% - var(--mid,660px) / 2 + 18px);bottom:calc(100% - 2px)}
+.pz .lm.r{left:auto;right:22px;bottom:calc(100% - 28px)}
+.pz .lb.nar{padding:32px 16px 10px}
+.lb.nar .dk-o{display:none}
+.zc.quick .zc-a{margin-top:2px}
+.lb.mid .kbar{display:none}
+.lb.nar .rc:not(.on) .tx{display:none}
+.lb.nar .rc .cp{height:26px}
+
+/* —— 综合设计补的：状态标记、决定请求、失败、任务栏、浮条、回执 —— */
+.dg.bad{width:8px;height:8px;margin:0 1.5px;background:var(--red)}
+.dg.wait{width:9px;height:9px;margin:0 1px;border:1.5px solid color-mix(in srgb,var(--accent) 58%,transparent)}
+.dg.sug{width:9px;height:9px;margin:0 1px;border:1.5px dashed var(--faint)}
+.dk.bad .dk-n{color:var(--red)}
+.dk.bad .dk-n[role=button]:hover{background:var(--red-soft)}
+/* 卡叠的节奏：上下各 7，名字 18、问句 16、按钮 22 */
+.dk-c{padding:7px 10px 7px 14px}
+.dk-q{height:16px;margin-top:1px;line-height:16px}
+.dk-a .dc-act{height:22px}
+/* 一屏一个实底：框里有字时，卡上的第一项让给发送键 */
+.lb.typing .dk-a .dc-act.pri,.lb.typing .zc-a .dc-act.pri{background:var(--popover);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+/* 右栏：话少时贴着输入框，从下往上排；回执在你那句话下面，安放在回复下面 */
+.pz .lv-b>:first-child{margin-top:auto}
+.dd-rc{align-self:flex-end;display:inline-flex;align-items:center;gap:4px;margin-top:-6px;font-size:11.5px;line-height:16px;color:var(--faint)}
+.dd-rc svg{color:var(--faint)}
+.dd-r span[role=button]{margin-left:8px;padding:0 4px;border-radius:5px;color:var(--accent)}
+.dd-r span[role=button]:hover{background:var(--accent-soft)}
+/* 左栏最上面那张卡的几种 */
+.zc-h{display:flex;align-items:center;gap:6px}
+.zc-p{margin-left:auto;display:grid;place-items:center;width:20px;height:20px;border-radius:6px;color:var(--faint);cursor:pointer}
+.zc-p:hover{background:var(--control-fill);color:var(--ink)}
+.zc.bad{background:var(--red-soft);box-shadow:none}
+.zc.bad .zc-h{color:var(--red)}
+.zc.bad p{font-size:13px;color:var(--ink)}
+.zc.bad .zc-a .dc-act:not(.pri){background:var(--popover)}
+.zl{display:flex;flex-direction:column;gap:3px;margin:7px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--ink)}
+.zl li{display:flex;align-items:center;gap:7px}
+.zl svg{flex:none;color:var(--amber)}
+.zw{display:block;margin-top:7px;font-size:11.5px;color:var(--muted)}
+.zr small.bad{color:var(--red);font-weight:600}
+.zc .zs{margin:8px -8px -4px}
+/* 对话关着时到的回复：亮着的标签上一个点 */
+.lx-t .nw{flex:none;width:6px;height:6px;margin-left:1px;border-radius:50%;background:var(--accent)}
+/* 右边向上长的任务栏 */
+.rp{position:absolute;right:22px;bottom:calc(100% - 24px);z-index:7;display:flex;flex-direction:column;width:var(--rside,340px);max-height:440px;background:var(--popover);border-radius:16px;box-shadow:0 0 0 1px var(--line),var(--lift-3);font-size:12.5px;color:var(--ink-soft);animation:fx-up var(--dur-move) var(--ease-quint)}
+.rp-h{flex:none;display:flex;align-items:center;gap:7px;height:40px;padding:0 8px 0 14px;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+.rp-h b{font-weight:600;color:var(--ink)}
+.rp-h em{margin-left:-2px;font-style:normal;color:var(--faint)}
+.rp-h small{font-size:11.5px;color:var(--muted)}
+.rp-h svg.sep{flex:none;margin:0 -4px;color:var(--faint)}
+.rp-s{display:inline-flex;padding:2px;border-radius:8px;background:var(--control-fill);font-size:11.5px;color:var(--muted)}
+.rp-s span{padding:2px 8px;border-radius:6px;cursor:pointer}
+.rp-s .on{background:var(--popover);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.rp-l{display:flex;flex-direction:column;gap:1px;padding:6px;overflow-y:auto}
+.rp-r{display:flex;align-items:center;gap:10px;min-height:44px;padding:3px 10px;border-radius:10px;cursor:pointer;transition:background var(--dur-hover)}
+.rp-r:hover,.rp-r.on{background:var(--control-fill)}
+.rp-n{flex:1;min-width:0;display:flex;flex-direction:column}
+.rp-n b{font-size:13px;font-weight:500;line-height:19px;color:var(--ink)}
+.rp-n small{font-size:11.5px;line-height:16px;color:var(--muted)}
+.rp-r .kbar{flex:none}
+.rp-r.sub{min-height:30px;margin:0 0 0 15px;padding:0 8px 0 14px;border-radius:0 8px 8px 0;box-shadow:inset 1.5px 0 0 var(--line-strong);white-space:nowrap}
+.rp-r.sub b{min-width:0;font-size:12.5px;font-weight:500;color:var(--ink-soft)}
+.rp-r.sub small{flex:none;font-size:11.5px;color:var(--muted)}
+.rp-r.sub svg{flex:none;color:var(--faint)}
+.rp-f{flex:none;padding:8px 14px 10px;box-shadow:inset 0 1px 0 var(--line);font-size:11.5px;line-height:1.5;color:var(--faint)}
+.rp-0{padding:14px 10px;color:var(--faint)}
+.rp-b{display:inline-flex;align-items:center;gap:2px;min-width:0;max-width:120px;margin-left:-6px;padding:2px 6px 2px 2px;border-radius:6px;color:var(--muted);cursor:pointer}
+.rp-b:hover{background:var(--control-fill);color:var(--ink)}
+.rp-t{display:flex;flex-direction:column;gap:8px;min-height:132px;padding:14px;font-size:13px;line-height:1.6;color:var(--ink)}
+.rp-i{flex:none;display:flex;align-items:center;gap:6px;height:38px;margin:0 10px 10px;padding:0 4px 0 12px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line-strong)}
+.rp-i input{flex:1;min-width:0;border:0;outline:0;background:none;font:inherit;font-size:13px;color:var(--ink)}
+.rp-i input::placeholder{color:var(--faint)}
+.pz .rc .cp.on{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
+/* 主区里的一句话和贴着它的浮条 */
+.pk-p{position:relative}
+.pk{border-radius:3px;cursor:pointer;box-shadow:inset 0 -1px 0 var(--line-strong)}
+.pk.on{background:color-mix(in srgb,var(--accent) 20%,transparent);box-shadow:none}
+.fb{position:absolute;left:176px;top:calc(100% + 6px);z-index:3;display:inline-flex;align-items:center;gap:2px;height:34px;padding:0 5px;border-radius:11px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-2);font-size:12.5px;white-space:nowrap;animation:fx-up var(--dur-move) var(--ease-quint)}
+.fb span{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:7px;color:var(--ink);cursor:pointer}
+.fb span:hover{background:var(--control-fill)}
+.fb i{width:1px;height:16px;margin:0 3px;background:var(--line-strong)}
+.fb .ai{font-weight:600;color:var(--accent)}
+.fb svg{color:currentColor}
+.pp-r small.bad{color:var(--red);font-weight:600}
+.rp{width:max(var(--rside,340px),336px)}
+.rp-st{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+.rp .rp-i input#subin{height:auto;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+.rp-b{max-width:150px}
+.lb.nar .rc{flex-shrink:0}
+.lb.nar .rc.on{flex:0 1 auto;min-width:72px}
+.lb.nar .rl{min-width:4px}
+.lb.nar .rl.f{flex:0 0 6px}
+.lb.nar .rc{margin:0}
+.lb.nar .rc .cp,.lb.nar .rc .tx{padding:0 6px}
+.lb.nar .rc.on{min-width:104px}
+/* 对话开着、左栏最上面那张有第一项时，卡叠上的实底也让出来 */
+.lb.sidepri .dk-a .dc-act.pri{background:var(--popover);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+/* 停下不是主动作：不用实底 */
+.pz .dc-k.send.stop{background:var(--control-fill);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.pz .dc-k.send.stop .sq{background:var(--ink)}
+.zs .lv-k>svg:last-child{color:var(--faint)}
+
+/* —— 二稿：标签只有事项和事件，事项包着它的事件；侧边栏；最大化；宽屏 —— */
+.tg{position:relative;z-index:1;flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:1px;height:30px;padding:0 5px 1px 4px;border-radius:11px 11px 0 0;background:var(--popover);font-size:12.5px;white-space:nowrap}
+.tg::before,.tg::after{content:"";position:absolute;bottom:0;width:9px;height:9px;pointer-events:none}
+.tg::before{left:-9px;background:radial-gradient(circle at 0 0,transparent 8.5px,var(--popover) 9px)}
+.tg::after{right:-9px;background:radial-gradient(circle at 100% 0,transparent 8.5px,var(--popover) 9px)}
+.tg-h{flex:none;display:inline-flex;align-items:center;gap:7px;height:24px;max-width:180px;padding:0 9px 0 8px;border-radius:8px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background var(--dur-hover),color var(--dur-hover)}
+.tg-h.on{color:var(--ink)}
+.tg-h:not(.on):hover{background:var(--control-fill);color:var(--ink)}
+.tg-h .mini{flex:none;display:grid}
+.tg-h .mini svg.rg{width:15px;height:15px}
+.tg-h .mini .rg circle{stroke-width:5.5}
+.tg-h>svg{flex:none;color:var(--muted)}
+.tg>svg.sep{flex:none;margin:0 1px 0 -3px;color:var(--faint)}
+.tg-e{position:relative;flex:0 1 auto;min-width:44px;max-width:158px;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 4px 0 9px;border-radius:8px;color:var(--muted);cursor:pointer;transition:background var(--dur-hover),color var(--dur-hover)}
+.tg-e+.tg-e::before{content:"";position:absolute;left:-1px;top:6px;bottom:6px;width:1px;background:var(--line-strong)}
+.tg-e:hover{color:var(--ink)}
+.tg-e.on{background:var(--control-fill);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--line)}
+.tg-e.on::before,.tg-e.on+.tg-e::before{display:none}
+.tg-x{flex:none;display:grid;place-items:center;width:16px;height:16px;border-radius:5px;color:var(--faint);opacity:0;transition:opacity var(--dur-hover)}
+.tg-e:hover .tg-x,.tg-e.on .tg-x{opacity:1}
+.tg-x:hover{background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink)}
+.tg-m{flex:none;display:inline-grid;place-items:center;height:22px;padding:0 7px;border-radius:7px;font-size:11.5px;color:var(--muted);cursor:pointer}
+.tg-m:hover{background:var(--control-fill);color:var(--ink)}
+.tg .nw{flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+/* 侧边栏：主区的一部分 */
+.sp-sheet.sd{flex:0 0 320px;flex-direction:column;animation:fx-swap var(--dur-move) var(--ease-quint)}
+.sd-h{flex:none;display:flex;align-items:center;gap:2px;height:56px;padding:0 10px 0 18px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}
+.sd-h b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sd-i{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--muted);cursor:pointer}
+.sd-i:hover{background:var(--control-fill);color:var(--ink)}
+.sd-b{display:flex;flex-direction:column;gap:2px;padding:12px 10px;overflow-y:auto}
+.sd-p{margin:0 2px 10px;padding:9px 12px 10px;border-radius:12px;box-shadow:0 0 0 1px var(--line);font-size:12.5px;cursor:pointer}
+.sd-ph{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.sd-ph svg{color:var(--faint)}
+.sd-x{display:grid;place-items:center;width:18px;height:18px;border-radius:5px;cursor:pointer}
+.sd-x:hover{background:var(--control-fill)}
+.sd-p .sd-r{margin:0 -8px}
+.sd-g{padding:4px 10px 4px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.sd-r{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:9px;font-size:13px;white-space:nowrap;cursor:pointer}
+.sd-r:hover,.sd-r.on{background:var(--control-fill)}
+.sd-r>svg{flex:none;color:var(--muted)}
+.sd-r .nm{flex:1;min-width:0;color:var(--ink)}
+.sd-r small{flex:none;font-size:11.5px;color:var(--faint)}
+/* 最大化：主区和侧边栏让出来，三块顶到页签下面 */
+.sp-win.mx .sp-stage{visibility:hidden}
+.sp-win.mx.pz .lv{height:var(--mxh,440px)}
+.sp-win.mx .rp{height:calc(var(--mxh,440px) - 8px);max-height:none}
+.sp-win.mx .rp-l{flex:1}
+/* 任务栏跟着右边那一段的右边缘 */
+.pz .rp{right:var(--rr,22px)}
+/* 宽屏：卡叠和三站贴着输入框，不往两边散 */
+.pz .lb-s.l{justify-content:flex-end}
+.dk,.dk0{max-width:400px}
+.dk0{width:100%}
+.pz .lb-s.r{justify-content:flex-start;max-width:470px}
+/* 组上沿一道墨蓝：这一道底下的都是这件事项的 */
+.tg{box-shadow:inset 0 2px 0 color-mix(in srgb,var(--accent) 62%,transparent)}
+.tg-h,.tg-e,.tg-m,.tg>svg.sep{margin-top:2px}
+.tg-e:not(.on):not(:hover) .tg-x{display:none}
+.tg-e:not(.on){padding-right:9px}
+.tg-e:not(.on):hover{padding-right:4px}
+.pz .lx-t{flex-shrink:4}
+
+/* —— 窄屏两档。960 以下两行：上一行是标签，右端是该你和三站的件数；下一行是输入框。540 以下一行半：标签只留当前事项和专注的事件 —— */
+.pz .lb.two,.pz .lb.two.nar{grid-template-columns:var(--mid);gap:0;justify-content:center;padding:32px 0 10px}
+.lb.two #left,.lb.two #right{display:none}
+.pz .lb.two .lx{padding:0 12px 0 16px}
+.tc{flex:none;display:inline-flex;align-items:center;gap:5px;height:24px;margin:0 0 3px 2px;padding:0 8px;border-radius:8px;font-size:11.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:background var(--dur-hover),color var(--dur-hover)}
+.tc:hover,.tc.on{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.tc.you{color:var(--amber)}
+.tc.you:hover,.tc.you.on{background:var(--amber-soft);color:var(--amber)}
+.tc.you.none{color:var(--faint);font-weight:500}
+.tc svg.dg.done{color:var(--faint)}
+.dkp{position:absolute;right:18px;bottom:calc(100% - 26px);z-index:8;width:min(372px,calc(100% - 36px));padding-top:12px;animation:fx-up var(--dur-move) var(--ease-quint)}
+.dkp .dk{max-width:none}
+.pz .lb.two .rp{right:18px;width:min(336px,calc(100% - 36px))}
+.pz .lb.two .lm{left:18px}
+/* 两行时对话：左栏收进对话里面，在左边 */
+.pz .lb.two .lv{display:grid;grid-template-columns:232px minmax(0,1fr);border-radius:18px 18px 0 0}
+.pz .lb.two .lv::before{display:none}
+.lb.two .lz{position:static;grid-column:1;grid-row:1;width:auto;min-height:0;border-radius:18px 0 0 0}
+.pz .lb.two .lv-b{grid-column:2;grid-row:1;min-height:0}
+/* 一行半：对话占满工作面，左栏叠在对话上面，只留该你做的和现状 */
+.pz .lb.one .lv{display:flex;flex-direction:column;height:var(--mxh,440px)}
+.lb.one .lz{flex:none;max-height:46%;border-radius:18px 18px 0 0;box-shadow:inset 0 -1px 0 var(--line);padding:10px 10px 10px}
+.lb.one .lz .zc.sum,.lb.one .lz .zc.ctx{display:none}
+.lb.one .lv-x [data-act=max]{display:none}
+.lb.one .lv-x{top:auto;bottom:calc(100% + 2px);right:4px;display:none}
+.lb.one .k-look .cut{max-width:92px}
+.lb.one .tg-h{max-width:124px}
+.lb.one .tg-e{max-width:118px}
+.lb.one .dkp,.pz .lb.one .rp{right:10px;width:calc(100% - 20px)}
+.pz .lb.one .lx{padding:0 6px 0 10px}
+.pz .lb.two{min-width:0;width:100%}
+.sp-win.pz{grid-template-columns:minmax(0,1fr)}
+.dkp{bottom:calc(100% + 2px)}
+.pz .lb.two .rp{bottom:calc(100% + 2px)}
+/* 窄屏、对话开着：该你的卡和任务栏从对话顶上的件数往下落，不漂在半中间 */
+.pz .lb.two.dlg .rp,.lb.two.dlg .dkp{bottom:auto;top:-400px;padding-top:0}
+.pz .lb.one.dlg .rp,.lb.one.dlg .dkp{top:calc(40px - var(--mxh,440px))}
+.lb.one .lz{max-height:62%}
+.lb.one .lv-x{display:flex;top:-29px;bottom:auto;right:2px}
+.lb.one .lv-x .lk:not([data-act=toggle]){display:none}
+.lb.one.dlg .lx-m{display:none}
+.pz .lb.one.dlg .lx{padding-right:34px}

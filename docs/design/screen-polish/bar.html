@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>底栏第七版 · 事项在上，事件在两边，对话在中间 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="screens.css">
+  <link rel="stylesheet" href="line.css">
+  <link rel="stylesheet" href="dirs.css">
+  <link rel="stylesheet" href="focus.css">
+  <link rel="stylesheet" href="bar.css">
+</head>
+<body class="sp-body">
+  <div id="icons" hidden></div>
+  <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b>底栏第七版</b>
+    <span class="ln-ctrls" id="ctrls">
+      <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
+      <span class="ln-vr"></span>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="ask"><span data-slot="button-label">助理问你</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="step"><span data-slot="button-label">做完一步</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="back"><span data-slot="button-label">从设置回来</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="fail"><span data-slot="button-label">没发出去</span></button>
+      <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
+    </span>
+    <span class="grow"></span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标出固定区域" id="marks">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="off">不标</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="on">标出六个区域</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1180">1180</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="1024">1024</button>
+    </span>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="theme">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="light">浅色</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="dark">深色</button>
+    </span>
+  </header>
+  <main id="dirs">
+    <section class="d-sec" id="proto">
+      <h2>28 · 底栏第七版：上面一排是事项，左右两边是事件，中间是对话</h2>
+      <p>可以直接点：两边的任何一件、上面的事项、主区里的行、输入框、＋。上面的按钮让它发生一件事，「演示一遍」按顺序走完。底部一行始终是 68 高；输入框上面只有一排标签。顶部的页签是静态的，没有跟着换。</p>
+      <div class="sp-fit"><div class="sp-win c bx" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">上面一排是事项，亮着的是「发布 v2.3」。左边两件该你了，右边是它在办的和接下来的。输入框里只有 ＋、字、语音、发送。</span></div>
+      <div class="ln-rules">
+        <div><b>上面一排：事项</b><span>事项是输入框上沿的标签，亮着的那一枚和输入框是同一张纸。标签上只放「现在」这一组，别的在 ⌄ 里。点一下就换事项：两边和主区一起换。别的事项有等你的，标签上带一个数字。</span></div>
+        <div><b>左右两边：事件，按球在谁手里分</b><span>左边是该你了的，离输入框最近的是第一件。右边是它在办的，再往右是接下来的。一件事要你定时从右边走到左边，你答了它走回右边或者办完消失。办完的不在底部，在事项的第一页里。</span></div>
+        <div><b>中间：对话，向上长</b><span>点一件事、或者你发了一句话，对话区从输入框向上长出来，和输入框是同一张纸，用曲线接上。高度跟着内容。点主区或按 Esc 收回去。别处来的事不会让它自己长出来。</span></div>
+        <div><b>输入框上面只有标签</b><span>没有状态行、提示行、带上的那一行。要读的东西都在对话区里；要选的都在对话区最下面。点输入框、打字都不让它挪位置：字那一行永远在最下面，字多了才向上长；带了东西或换了谁来办，卡里字的上面才多一排片。</span></div>
+      </div>
+      <h3 class="ln-h3">每样东西的固定位置</h3>
+      <table class="ln-count map">
+        <thead><tr><th>东西</th><th>固定在哪</th><th>什么时候看得见</th></tr></thead>
+        <tbody>
+          <tr><td>1 · 在哪件事里、发给谁</td><td>标签。亮着的事项就是这句话的归属；点开了一件事件，它接在事项名后面（「发布 v2.3 › 定稿公告」），话就是对它说的</td><td>一直</td></tr>
+          <tr><td>2 · 该你了的事</td><td>输入框左边</td><td>有的时候</td></tr>
+          <tr><td>3 · 它在办的、接下来的、后台任务</td><td>输入框右边</td><td>有的时候</td></tr>
+          <tr><td>4 · 回复、任务反馈的智能卡片</td><td>对话区。交办出去的事是一张卡，带状态和进度，点它就专注到那件事</td><td>对话区开着时</td></tr>
+          <tr><td>5 · 选择项、接续（接着做下一步、下一件该你的、从设置回来接着做）、发送中和没发出</td><td>答复位：对话区最下面一行，紧挨输入框。一次只有一组</td><td>对话区开着、而且有下一步时</td></tr>
+          <tr><td>6 · 正在看、附件、材料、换了的谁来办</td><td>输入框这张卡里、字上面的一排片。都从 ＋ 进，点 × 拿掉，发出去清空。默认的（不带、助理来办）不显示</td><td>带了东西或换了谁来办时</td></tr>
+          <tr><td>这句话怎么送达</td><td>发送键左边一个词（补充、改向、下一轮）</td><td>它在办、你又打了字时</td></tr>
+          <tr><td>字</td><td>输入框的一整行，两头只有 ＋、语音、发送</td><td>一直</td></tr>
+        </tbody>
+      </table>
+      <h3 class="ln-h3">和助理对话的界面</h3>
+      <div class="ln-rules">
+        <div><b>没有头部</b><span>对话区上面就是那排事项标签，右边只有「⋯」和收起。原来头部的六个键、六种页签都没有了：换一件事点两边，换事项点标签。</span></div>
+        <div><b>一件事一条对话</b><span>事项有一条主对话；每件事件有自己的一条，开头是它的卡片。在主对话里交办出去的事是一张卡，不把过程刷在主对话里。</span></div>
+        <div><b>内容只有三种</b><span>你说的话（右边一小块）、它说的话（正文）、卡片（一件事的现状）。时间、谁执行、技能这些平时不显示。</span></div>
+        <div><b>下一步永远在同一个地方</b><span>选择项、接着做、下一件该你的都在答复位。第一项是实心的，其余是描边的。直接打字回答也行。</span></div>
+      </div>
+      <h3 class="ln-h3">我先按这些做了，你可以改</h3>
+      <table class="ln-count map">
+        <thead><tr><th>细则</th><th>这一稿的做法</th><th>别的做法</th></tr></thead>
+        <tbody>
+          <tr><td>底部高度</td><td>68 不变：标签 24、输入框 38、底边 6。输入框比现在矮 6</td><td>标签浮在主区下沿上，输入框保持 44</td></tr>
+          <tr><td>两边按什么排</td><td>球在谁手里：左边该你了，右边它在办的和接下来的。办完的不上底栏</td><td>按时间：左边办完的，右边接下来的（前几版）</td></tr>
+          <tr><td>两边放几件</td><td>1440 宽每边点名两件，窄了点名一件，其余是「还有 N」</td><td>只放数字</td></tr>
+          <tr><td>点一件事件</td><td>它在原位描边；标签上接出「› 事件名」；对话区长出来；主区换成它的对象页</td><td>主区不动，只在对话区里看</td></tr>
+          <tr><td>别处来了要你定的事</td><td>从右边走到左边、闪一下；别的事项的只在那枚标签上加数字。不动对话区</td><td>对话区自己长出来</td></tr>
+          <tr><td>点输入框、打字</td><td>不挪位置。字那一行只有 ＋、字、语音、发送，永远在最下面；字多到换行才向上长</td><td>点进去就展开成两行（上一稿，你说会弹上去）</td></tr>
+          <tr><td>谁来办</td><td>默认助理，不显示；要换从 ＋ 进，换了是字上面的一枚片</td><td>—</td></tr>
+          <tr><td>事项标签放哪几件</td><td>主线里「现在」这一组，加当前这一件；最左是不选事项（整个项目）</td><td>只放当前一件加 ⌄</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <script src="../kit/kit.js"></script>
+  <script src="screens.js"></script>
+  <script src="bar.js"></script>
+</body>
+</html>

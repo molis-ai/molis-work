@@ -255,20 +255,19 @@ test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as t
   assert.deepEqual([written.same, written.piece], [true, true], "past a slice the block is still the same figure, with the same first piece, from its first lines to its last");
   assert.equal(written.code, code, "copy gives the code as written");
   await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
+  const expected = await evaluate<{ html: string; spans: number }>(`({ html: want, spans: ${figure}.querySelectorAll('code [class^="tok-"]').length })`);
 
-  // Reopened: each frame, before the page's own work, notes how much of the block reads and how much is coloured.
+  // Reuse the whole-colouring comparison and let the sampler tell us when to read it.
   const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
     const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
     if (code) samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
     if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`${figure}?.querySelector('code')`, 30_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)}) + "<br>"`);
-  await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
+  await waitFor(`samples.at(-1)?.[2] === ${expected.spans}`, 30_000);
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
   const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");
-  const total = await evaluate<number>(`${figure}.querySelectorAll('code [class^="tok-"]').length`);
-  const painting = samples.filter(([, , spans]) => spans < total);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
+  const painting = samples.filter(([, , spans]) => spans < expected.spans);
   assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);
   assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
   const firstColour = painting.findIndex(([, , spans]) => spans > 0);

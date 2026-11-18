@@ -40,7 +40,7 @@ test("卡片只做摘要和引路，不提供任何就地放行", () => {
   for (const forbidden of [/data-approve/, /data-reject/, /全部放行/, /下次不再询问/]) {
     assert.doesNotMatch(html, forbidden, `卡片上不该出现 ${forbidden}`);
   }
-  assert.match(html, /在你批准之前，这些操作不会发生/);
+  assert.match(html, /批准前不会执行任何操作/);
 });
 
 test("没有待审时什么都不画，不在对话中间插一句「没有待办」", () => {

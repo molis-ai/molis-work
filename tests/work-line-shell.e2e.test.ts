@@ -50,7 +50,7 @@ async function rises(evaluate: <T>(expression: string) => Promise<T>, waitFor: (
   assert.deepEqual(await evaluate<Shell>(SHELL), rest, `${width}: back to one line, back as it was`);
 }
 
-test("WLN-01 WLN-02: the line keeps its height while the input grows to many lines and back and while the task panel opens; what the input lies over makes the same room, at 1440 and 1024 and with the side open", { timeout: 150_000 }, async t => {
+test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to many lines and back and while the task panel opens; what the input lies over makes the same room, at 1440 and 1024 and with the side open", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
@@ -59,6 +59,21 @@ test("WLN-01 WLN-02: the line keeps its height while the input grows to many lin
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`Boolean(${INPUT}) && Boolean(document.querySelector('.work-line-row'))`, 20_000);
   await rises(evaluate, waitFor, 1440);
+
+  await waitFor("document.querySelector('.work-line-row[data-slot-placed]') && document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]')");
+  const placements = await evaluate<number>(`new Promise(resolve => requestAnimationFrame(() => {
+    const row = document.querySelector('.work-line-row'), body = document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]');
+    const detail = document.createElement('span'); detail.hidden = true;
+    let writes = 0;
+    const observe = new MutationObserver(records => { writes += records.length; });
+    observe.observe(row, { attributeFilter: ['data-slot-placed'] });
+    body.append(detail); detail.className = 'sample-detail';
+    requestAnimationFrame(() => {
+      writes += observe.takeRecords().length;
+      observe.disconnect(); detail.remove(); resolve(writes);
+    });
+  }))`);
+  assert.equal(placements, 0, "a change in pane content does not reposition the input");
 
   // The task panel floats beside the dialog: opening it moves neither the line nor what stands above it.
   const before = await evaluate<Shell>(SHELL);

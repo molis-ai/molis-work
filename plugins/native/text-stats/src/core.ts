@@ -34,8 +34,8 @@ export interface TextStatsView {
   lines?: number;
 }
 
-export const TEXT_STATS_WAITING = "固定一份文件快照后，这里会显示该版本的文本统计";
-export const TEXT_STATS_UNAVAILABLE = "捕获的快照已经不在了";
+export const TEXT_STATS_WAITING = "固定一份文件版本后，这里会显示它的字数与行数统计";
+export const TEXT_STATS_UNAVAILABLE = "之前固定的文件版本已不可用";
 export const TEXT_STATS_RECOVERY = "重新捕获一次，或者在 Sources 里换一个输入";
 
 export interface TextStatsInput {

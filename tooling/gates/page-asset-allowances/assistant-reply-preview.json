@@ -1,0 +1,25 @@
+{
+  "reason": "底栏忽略助理代码分帧着色产生的节点变化，新增判断避免重复复制整段回复。",
+  "review": "与 6c88cba611 的隔离构建比较，工作台脚本从 1352318 增至 1352413 字节。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 95
+  },
+  "pages": {
+    "workbench-default/zh": {
+      "cold": 95,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 95,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 95,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 95,
+      "warm": 0
+    }
+  }
+}

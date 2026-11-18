@@ -124,7 +124,10 @@ function installDialogRow(panel: string, paint: () => void): void {
     } else if (!mini) { peek?.remove(); shown = drawn = ""; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
   };
   new MutationObserver(row).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
-  if (thread) new MutationObserver(() => { if (dialog.hidden) row(); }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });
+  if (thread) new MutationObserver(records => {
+    // A colouring slice inserts token nodes into the same code block; the preview already has its words.
+    if (dialog.hidden && records.some(record => !(record.target instanceof Element && record.target.matches(".assistant-code pre > code")))) row();
+  }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });
   // The person went back to the work: the reply folds away, and stays away until another comes. A plugin's page is its own
   // document, so a press in it comes as the frame's `molis:surface-interaction`.
   document.addEventListener("pointerdown", event => { if (event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) fold(); }, true);

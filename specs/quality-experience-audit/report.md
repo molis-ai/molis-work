@@ -1466,6 +1466,8 @@ PF-16 的现行消费者是 Placement 描述、灵光和其他关联原件的界
 
 等你位置收到助理效果或目标列表更新时，普通读取和重绘原先各调用一次 `suspend`。它会中止位置纠正并关闭当前确认。默认设置菜单还会因 open 属性与新 DOM 不同而被替换。第 13 片的浏览器在既有移走后的真实回执之后等不到确认。工作台现在复用不变的菜单渲染，普通重读交同一个位置控制器按实际修订保留或失效确认。位置退出、读取失败及新修订仍关闭过期内容。清除的位置范围照原已批准确认，实际纠正、本人身份和修订由 Host 和 Surfaces 核对。成本低，未改合同或持久结构。[重读](../../apps/workbench/src/browser/project-position.ts#L38) · [菜单](../../apps/workbench/src/browser/project-home.ts#L44) · [确认](../../apps/workbench/src/browser/project-position-corrections.ts#L26) · [Surfaces 写点](../../horizontal/surfaces/src/corrections.ts#L70) · [第 13 片](https://github.com/molis-ai/molis-work/actions/runs/44300274321/job/134787904522)
 
+QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现当前菜单被收起。未插入此刷新交错的原用例也有一次通过记录。候选 `01539451ea` 沿相同隔离 Home 路径验证菜单、对话框与焦点都能保留，取消前后修订相同。另一笔实际写入生成新修订时关闭旧确认、返回菜单，重新进入且确认后只增一次修订，原 Feed 条目保持原修订。候选测试用时 14.4 秒。日志 `quality-audit-b115-position-{base,before,actual}.log`。[实际路径](../../tests/surface-cross-positions.e2e.test.ts#L598)
+
 ### 第 115 批首屏复量
 
 同口径实测 67 条静态资源、十组首屏 HTTP。相对 `9ce951d49b` 只新增 258 B 的工作台脚本内容，静态路径没有新增。删除重复词条后内容地址为中文 `/assets/locale/workbench.zh.ae54fb08ac73d15bb50b32f3.js`、英文 `/assets/locale/workbench.en.84c25955f4ea98463078b005.js`。既有授权的按语言内容定址范围及其他入口共匹配 22 条实际请求。相对产品源文件相同的主干构建，控量页面最大冷增 2,070 B、热增 20 B，静态最大净增仍为 Git 脚本 8,403 B。全插件页依既有 Linux 路径证据额外复算冷加载各 8 B。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
@@ -1479,3 +1481,7 @@ PF-16 的现行消费者是 Placement 描述、灵光和其他关联原件的界
 | 示例工作台 | +252 / 0 | +232 / 0 |
 
 表内相对 `9ce951d49b`。原静态及首屏策略比较零超额，按已验证 Linux 路径长度复算也通过。完整构建、源码健康、包边界、111 份 API 快照、640 项清单动作及 617 项宿主注册动作、44 个结构快照和自有版本一致。源数据 `quality-audit-b115-candidate-{assets,http}.json` 与 `quality-audit-b115-resource-proof.json`。
+
+### 第 116 批 Linux 首屏实测
+
+`01539451ea` 的远端静态预算通过，67 条资源齐备。Linux 首屏的默认工作台中英文冷增 508／414 B，各比本机估值多 8 B。全插件工作台冷增 1,756／1,673 B，符合此前按每种语言各 8 B 的登记。到达页、选择页和热加载额度均通过，最大冷增仍是项目选择中文的 2,070 B。此次提交仅补默认工作台两条各 8 B 的冷加载记录及验收证据。 [Linux 作业](https://github.com/molis-ai/molis-work/actions/runs/44309181949/job/134818804848) · [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)

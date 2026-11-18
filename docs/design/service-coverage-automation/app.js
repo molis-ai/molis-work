@@ -20,7 +20,7 @@
       st_scanning: "正在读项目", st_confirm: "采用前确认", st_adopted: "采用后·已生效", st_failed: "采用没成", st_empty: "没什么可加的", st_noworkspace: "项目没有文件夹",
       sA_diff: "A 行里写用途，展开分「能做／还做不了」", sB_diff: "B 「按服务／按用途」对照表", sC_diff: "C 只在挑选时对比",
       sA_search: "A 服务连接页顶上一节", sB_search: "B 设置里单独一页", sC_search: "C 在服务行里「设为默认」",
-      sA_rec: "A 对话框（分组卡片、就地确认）", sB_rec: "B 项目设置里一页（列表＋详情）", sC_rec: "C 到达页「三件事」＋全部建议",
+      sA_rec: "A 到项目时说一次，一张卡里勾选", sB_rec: "B 一次问一条", sC_rec: "C 做相关的事时顺带提",
       chrome: "全局设置", close: "关闭全局设置", back: "返回项目",
       g_local: "本机", g_personal: "个人", g_ai: "AI", g_tools: "工具与接入", g_system: "系统",
       n_appearance: "界面与语言", n_directories: "本机目录", n_memory: "记忆", n_sync: "同步", n_models: "模型设置", n_assistant: "助理", n_characters: "角色", n_kit: "能力包", n_runtimes: "AI 与执行工具", n_library: "能力库", n_connections: "服务连接", n_search: "网页搜索", n_access: "对外接入", n_history: "调用记录", n_diagnostics: "诊断",
@@ -55,6 +55,20 @@
       hidden: "已收起的建议（{n}）", showAgain: "再显示",
       threeT: "这个项目值得加的 {n} 件事", seeAll: "看全部 {n} 条建议", projHome: "项目首页", openAll: "全部建议",
       h_rec: "自动化建议", lead_rec: "按项目文件给出的建议。只读，采用时再确认。",
+      assistant: "助理", assistOff: "主动建议的设置", composer: "问助理，或让它做点事", homeNote: "（项目首页；助理在右边，窄屏时盖满）",
+      earlier_me: "今天先把发布清单过一遍", earlier_ai: "好，清单在 Pages 里，我按上周的顺序过了一遍，两处待你确认。",
+      quietNote: "这种情况助理不主动说话；下面是你主动问时它怎么答。", ask_what: "这个项目还能加点什么自动化？",
+      kicker_rec: "项目建议", kicker_one: "项目建议 · {i}/{n}", a_intro: "我只读看了一遍 molis-site，有 3 样已经装好、值得开的东西。不会自动开，你勾好再定：",
+      b_intro: "我只读看了一遍 molis-site，有 3 样值得开。一样一样问你：", bundleTitle: "给 molis-site 加 {n} 样", bundleAbout: "依据都是项目里的文件；开之前再给你看来源和权限。",
+      waitYou: "等你定", reading: "正在读", doneBadge: "已生效", partDone: "部分没成", scanTitle: "看看这个项目能加什么", stop: "停下",
+      adoptPicked: "开启所选（{n}）", later: "以后再说", previewT: "开启前确认", previewNote: "技能下一轮对话起生效；GitHub 要你在浏览器里登录一次。", confirmBtn: "确认开启", back2: "改选",
+      cf_conn: "去 GitHub 登录授权（只读）", cf_role: "需要时交给它评审",
+      res_title: "已开启 {n} 样", res_body: "技能和角色下一轮对话起生效；在「能力包」里能看到、随时关掉。", res_title_partial: "开了 {n} 样，Notion 没连上", res_partial: "Notion 要工作区管理员同意这个应用；同意后在这里点「重试」接着连。其余已生效。",
+      conn_kicker: "服务连接", conn_title: "连接 GitHub", conn_body: "在浏览器里登录并同意只读权限，回来后自动接着用。", conn_go: "去登录", waiting: "等你登录",
+      ask_skill: "要开「{t}」吗？", ask_connection: "要{t}吗？", ask_role: "要启用「{t}」吗？", oneNote: "不开也没关系，问完就不再提。", notNow: "这次不要", allAsked: "就这些了。想再看可以问我「这个项目还能加什么」。", ans_on: "已开启",
+      c_ask: "帮我看看为什么 CI 挂了", c_reply: "挂在 tests/home.test.ts：上次改了首页标题，快照没更新。我已经更新快照并在本地跑过，CI 下一次会过。", c_scan: "顺便只读看了一下项目…",
+      nextSteps: "下一步", c_step1: "开「测试与质量」，以后改完先跑测试", c_step2: "连接 GitHub，直接读 CI 日志", c_more: "看这个项目全部 {n} 条建议", forProject: "加到",
+      allowFolder: "给权限", gapsB: "「docs」文件夹没有读的权限，那里的配置没算进来。", failedB: "Notion 要工作区管理员同意这个应用。建议留着，同意后点重试。",
       pv_note: "原型：{x}",
     },
     en: {
@@ -63,7 +77,7 @@
       st_scanning: "Reading the project", st_confirm: "Confirm before adopting", st_adopted: "Adopted, in effect", st_failed: "Adopting failed", st_empty: "Nothing to add", st_noworkspace: "Project has no folder",
       sA_diff: "A Uses in the row; open for can / can't", sB_diff: "B By service / by use table", sC_diff: "C Compare only when choosing",
       sA_search: "A A section atop Service connections", sB_search: "B Its own settings page", sC_search: "C “Make default” in the service row",
-      sA_rec: "A Dialog (grouped cards, confirm in place)", sB_rec: "B Project settings page (list + detail)", sC_rec: "C “Three things” on arrival + all",
+      sA_rec: "A Say it once on arrival, pick in one card", sB_rec: "B Ask one at a time", sC_rec: "C Bring it up when relevant",
       chrome: "Settings", close: "Close settings", back: "Back to project",
       g_local: "This computer", g_personal: "Personal", g_ai: "AI", g_tools: "Tools and access", g_system: "System",
       n_appearance: "Appearance", n_directories: "Local folders", n_memory: "Memory", n_sync: "Sync", n_models: "Models", n_assistant: "Assistant", n_characters: "Roles", n_kit: "AI kits", n_runtimes: "AI and tools", n_library: "Library", n_connections: "Service connections", n_search: "Web search", n_access: "External access", n_history: "Call history", n_diagnostics: "Diagnostics",
@@ -98,6 +112,20 @@
       hidden: "Hidden suggestions ({n})", showAgain: "Show again",
       threeT: "{n} things worth adding to this project", seeAll: "See all {n} suggestions", projHome: "Project home", openAll: "All suggestions",
       h_rec: "Automation suggestions", lead_rec: "Suggestions from the project's files. Read only; you confirm when adopting.",
+      assistant: "Assistant", assistOff: "Suggestion settings", composer: "Ask the assistant or give it a task", homeNote: "(Project home; the assistant is on the right, full screen when narrow)",
+      earlier_me: "Let's go through the release checklist first", earlier_ai: "Done. The checklist is in Pages; I went through it in last week's order and two items need you.",
+      quietNote: "In this case the assistant doesn't speak up; below is its answer when you ask.", ask_what: "What else could this project automate?",
+      kicker_rec: "Project suggestion", kicker_one: "Project suggestion · {i}/{n}", a_intro: "I read molis-site once, read only. Three things already installed are worth turning on. Nothing turns on by itself; tick what you want:",
+      b_intro: "I read molis-site once, read only. Three things are worth turning on. One at a time:", bundleTitle: "Add {n} things to molis-site", bundleAbout: "Each is based on files in the project; you see the source and permissions before anything turns on.",
+      waitYou: "Your call", reading: "Reading", doneBadge: "In effect", partDone: "Partly failed", scanTitle: "What this project could add", stop: "Stop",
+      adoptPicked: "Turn on selected ({n})", later: "Later", previewT: "Before turning on", previewNote: "Skills apply from the next conversation; GitHub needs one sign-in in your browser.", confirmBtn: "Turn on", back2: "Change picks",
+      cf_conn: "Sign in to GitHub and allow read access", cf_role: "Reviews when needed",
+      res_title: "{n} things are on", res_body: "Skills and roles apply from the next conversation; they're under AI kits, where you can turn them off.", res_title_partial: "{n} on; Notion didn't connect", res_partial: "Notion needs a workspace admin to allow this app; press Retry here once allowed. The rest is in effect.",
+      conn_kicker: "Service connection", conn_title: "Connect GitHub", conn_body: "Sign in and allow read access in your browser; it carries on when you're back.", conn_go: "Sign in", waiting: "Waiting for sign-in",
+      ask_skill: "Turn on “{t}”?", ask_connection: "{t}?", ask_role: "Turn on “{t}”?", oneNote: "No is fine; once asked, it isn't raised again.", notNow: "Not this time", allAsked: "That's all. Ask me “what else could this project add” any time.", ans_on: "On",
+      c_ask: "Why did CI fail?", c_reply: "It failed in tests/home.test.ts: the home title changed last time and the snapshot wasn't updated. I updated it and ran it locally; the next CI run will pass.", c_scan: "Also reading the project, read only…",
+      nextSteps: "Next steps", c_step1: "Turn on “Testing and quality” to run tests after edits", c_step2: "Connect GitHub to read CI logs directly", c_more: "See all {n} suggestions for this project", forProject: "Add to",
+      allowFolder: "Allow folder", gapsB: "There's no permission for the “docs” folder, so its settings aren't counted.", failedB: "Notion needs a workspace admin to allow this app. The suggestion stays; press Retry once allowed.",
       pv_note: "Prototype: {x}",
     },
   };
@@ -119,7 +147,7 @@
   const fresh = () => {
     ui = { open: { diff: P.st === "gaps" ? "google-calendar" : P.st === "blocked" ? "feishu" : "github" }, filter: P.st === "filter" ? "assistant" : "all", view: P.s === "B" ? "use" : "service",
       def: ["connected", "broken", "switched"].includes(P.st) ? "brave" : "anysearch", picked: null, recOpen: "skill-test",
-      adopt: {}, prefs: [], saved: false };
+      adopt: {}, prefs: [], saved: false, unpicked: [], stage: P.st === "confirm" ? "confirm" : P.st === "adopted" ? "done" : P.st === "failed" ? "failed" : "pick", step: P.st === "adopted" ? 1 : 0, answers: [], ctx: ["confirm", "adopted", "failed"].includes(P.st) ? (P.st === "failed" ? "conn-github" : "skill-test") : null };
     if (P.st === "confirm") ui.adopt["skill-test"] = "confirm";
     if (P.st === "adopted") ui.adopt["skill-test"] = "done";
     if (P.st === "failed") { ui.adopt["conn-notion"] = "failed"; ui.recOpen = "conn-notion"; }
@@ -232,76 +260,85 @@
     return frame("connections", t("h_conn"), t("lead_conn"), `${line}${brokenAlert()}<div class="settings-connection-list">${serviceList()}</div>`);
   }
 
-  /* ---------- ③ suggestions and adopting ---------- */
-  const visibleRecs = () => D.rec.filter((r) => !ui.prefs.includes(r.id));
-  const adoptLabel = (r) => t("adopt_" + r.next);
-  function recDetail(r) {
-    const st = ui.adopt[r.id];
-    if (st === "done") return `<div class="b61-done">${K.renderAlert({ tone: "success", title: t("adoptedT", { t: L(r.title) }), body: t("adoptedB"), actions: [{ label: t("seeIt"), variant: "secondary", size: "sm" }, { label: t("undo"), variant: "ghost", size: "sm", attrs: { "data-act": "undo", "data-v": r.id } }] })}</div>`;
-    const meta = `<dl class="mw-facts b61-facts b61-facts--row"><dt>${esc(t("effect"))}</dt><dd>${esc(L(r.effect))}</dd><dt>${esc(t("needs"))}</dt><dd>${esc(L(r.needs))}</dd><dt>${esc(t("risk"))}</dt><dd>${esc(L(r.risk))}</dd></dl>`;
-    const ev = `<p class="b61-evidence"><span>${esc(t("evidence"))}</span>${r.evidence.map((p) => `<code>${esc(p)}</code>`).join("")}</p>`;
-    let foot;
-    if (st === "confirm") {
-      foot = `<div class="b61-confirm" role="group" aria-labelledby="cf-${r.id}"><h4 id="cf-${r.id}">${esc(t("confirmT", { t: L(r.title) }))}</h4><article class="mw-card connection-facts" data-slot="card"><div class="mw-card__panel">${[["src", r.pack ? r.pack.split(" · ")[0] : ""], ["ver", r.pack || ""], ["tools", t("toolsV")]].map(([k, v]) => `<div class="settings-setting-row"><span class="setting-copy"><strong>${esc(t(k))}</strong></span><span class="setting-value">${esc(v)}</span></div>`).join("")}</div></article>${K.renderRadioGroup({ legend: t("how"), name: "how-" + r.id, items: [{ value: "auto", label: t("auto"), checked: true }, { value: "manual", label: t("manual") }] })}<div class="settings-connector-actions">${btn(t("confirmBtn"), { variant: "primary", attrs: { "data-act": "confirm", "data-v": r.id } })}${btn(t("cancel"), { variant: "ghost", attrs: { "data-act": "cancel", "data-v": r.id } })}</div></div>`;
-    } else if (st === "failed") {
-      foot = K.renderAlert({ tone: "warning", title: t("failedT"), body: t("failedB"), actions: [{ label: t("keep"), variant: "secondary", size: "sm" }, { label: t("connect"), variant: "ghost", size: "sm" }] });
-    } else {
-      const menu = { id: "nm-" + r.id, label: t("notThis"), icon: "more", items: ["ignore", "already", "never"].map((k) => K.renderMenuItem({ label: t(k), attrs: { "data-act": "pref", "data-v": r.id } })).join("") };
-      foot = K.renderNowBlock({ status: "", actions: btn(adoptLabel(r), { variant: "primary", icon: r.next === "connection" ? "link" : "check", attrs: { "data-act": "adopt", "data-v": r.id } }), menu, className: "b61-now" });
-    }
-    return `<p class="b61-why">${esc(L(r.why))}</p>${ev}${meta}${foot}`;
+  /* ---------- ③ suggestions, reached by the assistant (round 2, user 2026-11-18: "通过个人助理对话主动式触达") ---------- */
+  // Interaction cards are drawn the way design-system interaction.ts draws them (renderInteractionOperation / Question / NextSteps);
+  // the kit has their styles (.mw-ix-*) but not the functions, so the three helpers below copy their markup.
+  const R = (a) => K.renderButton({ label: a.label, variant: a.variant || "secondary", size: a.size, icon: a.icon, iconOnly: a.iconOnly, attrs: a.attrs });
+  const actRow = (list, end) => (list && list.length ? `<div class="mw-ix-actions${end ? " mw-ix-actions--end" : ""}">${list.map(R).join("")}</div>` : "");
+  const dl = (rows) => rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  const ixHead = (id, kicker, title, glyph, badgeHtml = "", about = "") => `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${ic(glyph)}<span>${esc(kicker)}</span></span><h3 id="${id}-title">${esc(title)}</h3>${about ? `<p class="mw-ix-about">${esc(about)}</p>` : ""}</div>${badgeHtml || '<span class="mw-ix-badge"></span>'}</header>`;
+  const ixBadge = (label, tone) => `<span class="mw-ix-badge" data-tone="${tone}">${K.renderStateRing({ state: { quiet: "idle", waiting: "answer", progress: "doing", done: "done", failed: "failed" }[tone] })}${esc(label)}</span>`;
+  const evid = (label, rows) => `<details class="mw-ix-evidence"><summary>${esc(label)}</summary><dl>${dl(rows)}</dl></details>`;
+  const option = (r, picked) => `<button type="button" class="mw-ix-option" aria-pressed="${picked}" data-act="toggle" data-v="${r.id}"><span class="mw-ix-option__top"><span class="mw-ix-option__title">${ic(r.next === "connection" ? "link" : r.next === "role" ? "user" : "sparkles")} ${esc(L(r.title))}</span>${r.conf === "high" ? `<span class="mw-ix-tag">${esc(t("conf_high"))}</span>` : ""}<span class="mw-ix-option__check" aria-hidden="true">${ic("check")}</span></span><span class="mw-ix-option__desc">${esc(L(r.why))} · ${r.evidence.map((p) => esc(p)).join(" ")}</span></button>`;
+  const top3 = () => D.rec.filter((r) => ["skill-test", "conn-github", "role-review"].includes(r.id));
+  const me = (txt) => `<div class="b61-msg b61-msg--me"><p class="b61-bubble">${esc(txt)}</p></div>`;
+  const ai = (html) => `<div class="b61-msg"><span class="b61-av" aria-hidden="true">${ic("sparkles")}</span><div class="b61-msgbody">${html}</div></div>`;
+  const say = (txt) => `<p class="b61-say">${esc(txt)}</p>`;
+  const evRows = (list) => list.map((r) => [L(r.title), r.evidence.join("、") + " · " + L(r.why)]);
+  const quiet = () => `<p class="b61-quiet">${ic("info")}<span>${esc(t("quietNote"))}</span></p>`;
+  function confirmRows(list) {
+    return list.map((r) => [L(r.title), r.next === "connection" ? t("cf_conn") : r.next === "role" ? `${r.pack} · ${t("cf_role")}` : `${r.pack} · ${t("auto")}`]);
   }
-  function recCard(r) {
-    return `<article class="mw-card b61-rec${ui.adopt[r.id] === "done" ? " is-done" : ""}" aria-labelledby="rc-${r.id}"><header><h4 id="rc-${r.id}">${esc(L(r.title))}</h4>${badge(t("conf_" + r.conf), r.conf === "high" ? "success" : "neutral")}</header>${recDetail(r)}</article>`;
+  function resultCard(list, failed) {
+    const ok = list.filter((r) => !(failed && r.next === "connection"));
+    const body = failed ? t("res_partial") : t("res_body");
+    const conn = list.find((r) => r.next === "connection");
+    const connCard = conn && !failed ? `<article class="mw-ix-card mw-ix-operation b61-conncard" aria-labelledby="cc-title">${ixHead("cc", t("conn_kicker"), t("conn_title"), "link", ixBadge(t("waiting"), "waiting"))}<p class="mw-ix-impact">${ic("info")}<span>${esc(t("conn_body"))}</span></p>${actRow([{ label: t("conn_go"), variant: "primary", icon: "external", attrs: { "data-act": "sim" } }, { label: t("cancel"), variant: "ghost", attrs: { "data-act": "sim" } }])}</article>` : "";
+    return `<section class="mw-ix-result" tabindex="-1"><span class="mw-ix-result__mark">${K.renderStateRing({ state: failed ? "failed" : "done" })}</span><div class="mw-ix-result__body"><h4>${esc(t(failed ? "res_title_partial" : "res_title", { n: ok.length }))}</h4><p>${esc(body)}</p>${actRow([{ label: t("undo"), variant: "secondary", icon: "undo", attrs: { "data-act": "undoall" } }, { label: t("seeIt"), variant: "ghost", attrs: { "data-act": "sim" } }])}</div></section>${connCard}`;
   }
-  function scanSummary() {
-    const found = `<p class="b61-chips"><span>${esc(t("found"))}</span>${D.scan.found.map((f) => badge(L(f))).join("")}</p>`;
-    const have = `<p class="b61-chips b61-chips--muted"><span>${esc(t("have"))}</span>${D.scan.have.map((f) => `<code>${esc(L(f))}</code>`).join("")}</p>`;
-    const gaps = P.st === "partial" ? K.renderAlert({ tone: "warning", title: t("gapsT"), body: t("gapsB"), actions: [{ label: P.l === "zh" ? "给权限" : "Allow folder", variant: "secondary", size: "sm" }] }) : "";
-    return `<div class="b61-scan">${found}${have}${gaps}</div>`;
+  function bundleCard() {
+    // A: one message on arrival, one operation card holding the picks.
+    const list = top3(), picked = list.filter((r) => !ui.unpicked.includes(r.id));
+    const kicker = t("kicker_rec");
+    if (P.st === "scanning") return `<article class="mw-ix-card mw-ix-operation" aria-labelledby="bd-title">${ixHead("bd", kicker, t("scanTitle"), "sparkles", ixBadge(t("reading"), "progress"))}<p class="mw-ix-status" role="status"><span class="mw-spinner" aria-hidden="true"></span>${esc(t("scanStep"))}</p>${actRow([{ label: t("stop"), variant: "ghost", attrs: { "data-act": "sim" } }])}</article>`;
+    const banner = P.st === "partial" ? `<div class="mw-ix-banner" data-tone="waiting"><p>${esc(t("gapsB"))}</p>${actRow([{ label: t("allowFolder"), attrs: { "data-act": "sim" } }])}</div>` : "";
+    if (ui.stage === "done" || ui.stage === "failed") return `<article class="mw-ix-card mw-ix-operation" aria-labelledby="bd-title">${ixHead("bd", kicker, t("bundleTitle", { n: picked.length }), "sparkles", ixBadge(ui.stage === "failed" ? t("partDone") : t("doneBadge"), ui.stage === "failed" ? "failed" : "done"))}${resultCard(picked, ui.stage === "failed")}</article>`;
+    const preview = ui.stage === "confirm" ? `<section class="mw-ix-preview" tabindex="-1" aria-labelledby="bd-preview"><h4 id="bd-preview">${esc(t("previewT"))}</h4><dl>${dl(confirmRows(picked))}</dl><p class="mw-ix-hint">${esc(t("previewNote"))}</p>${actRow([{ label: t("confirmBtn"), variant: "primary", attrs: { "data-act": "confirmall" } }, { label: t("back2"), variant: "ghost", attrs: { "data-act": "backpick" } }], true)}</section>` : "";
+    const pick = ui.stage === "confirm" ? "" : `<div class="mw-ix-options" role="group" aria-labelledby="bd-title">${list.map((r) => option(r, !ui.unpicked.includes(r.id))).join("")}</div>${actRow([{ label: t("adoptPicked", { n: picked.length }), variant: "primary", attrs: { "data-act": "reviewpick", disabled: !picked.length || undefined } }, { label: t("later"), variant: "ghost", attrs: { "data-act": "sim" } }])}`;
+    return `<article class="mw-ix-card mw-ix-operation" aria-labelledby="bd-title">${ixHead("bd", kicker, t("bundleTitle", { n: list.length }), "sparkles", ixBadge(t("waitYou"), "waiting"), t("bundleAbout"))}${banner}${pick}${preview}${evid(t("evidence"), evRows(list))}</article>`;
   }
-  function recGroups(cards = true) {
-    const cats = ["skills", "connections", "roles", "hooks", "commands"];
-    return cats.map((c) => {
-      const rows = visibleRecs().filter((r) => r.cat === c);
-      const body = rows.length ? rows.map(cards ? recCard : (r) => r).join("") : `<p class="b61-nosource">${ic("info")}<span>${esc(L(D.noSource[c] || { zh: "", en: "" }))}</span></p>`;
-      return `<section class="b61-cat"><h3>${esc(t("cat_" + c))}${rows.length ? ` <span class="b61-count">${rows.length}</span>` : ""}</h3>${body}</section>`;
-    }).join("") + (ui.prefs.length ? `<details class="mw-collapsible b61-prefs" data-slot="collapsible"><summary>${esc(t("hidden", { n: ui.prefs.length }))}</summary><div class="mw-collapsible__body">${ui.prefs.map((id) => `<p class="b61-prefline"><span>${esc(L(D.rec.find((r) => r.id === id).title))}</span>${btn(t("showAgain"), { variant: "ghost", attrs: { "data-act": "unpref", "data-v": id } })}</p>`).join("")}</div></details>` : "");
+  function oneByOne() {
+    // B: one question card at a time; answered cards fold to a line.
+    const list = top3();
+    const done = list.slice(0, ui.step).map((r, i) => `<div class="mw-ix-card mw-ix-question b61-answered"><div class="mw-ix-answered"><dl>${dl([[L(r.title), ui.answers[i] || t("ans_on")]])}</dl>${actRow([{ label: t("undo"), variant: "ghost", attrs: { "data-act": "sim" } }])}</div></div>`).join("");
+    if (P.st === "scanning") return bundleCard();
+    if (ui.step >= list.length) return `${done}${say(t("allAsked"))}`;
+    const r = list[ui.step];
+    const failedHere = P.st === "failed" && r.next === "connection";
+    const banner = P.st === "partial" && ui.step === 0 ? `<div class="mw-ix-banner" data-tone="waiting"><p>${esc(t("gapsB"))}</p></div>` : failedHere ? `<div class="mw-ix-banner" data-tone="failed"><p>${esc(t("failedB"))}</p>${actRow([{ label: t("retry"), attrs: { "data-act": "sim" } }])}</div>` : "";
+    const how = r.next === "skill" ? `<fieldset class="mw-ix-fields"><legend class="mw-sr-only">${esc(t("how"))}</legend><div class="mw-ix-row"><span class="mw-ix-label" id="q-how-label">${esc(t("how"))}</span><div class="mw-choice-group mw-ix-choices" role="radiogroup" aria-labelledby="q-how-label">${[["auto", true], ["manual", false]].map(([k, on]) => `<button type="button" class="mw-choice" role="radio" aria-checked="${on}"><span class="mw-choice__check" aria-hidden="true">${ic("check")}</span><span class="mw-choice__label">${esc(t(k))}</span></button>`).join("")}</div></div></fieldset>` : "";
+    const facts = `<dl class="b61-ixfacts">${dl([[t("src"), r.pack || t("cf_conn")], [t("effect"), L(r.effect)], [t("risk"), L(r.risk)]])}</dl>`;
+    return `${done}<article class="mw-ix-card mw-ix-question" aria-labelledby="q-title">${ixHead("q", t("kicker_one", { i: ui.step + 1, n: list.length }), t("ask_" + r.next, { t: L(r.title) }), "sparkles", ixBadge(t("waitYou"), "waiting"), L(r.why))}${banner}<form class="mw-ix-form" novalidate>${facts}${how}<footer class="mw-ix-foot"><p class="mw-ix-note">${esc(t("oneNote"))}</p>${actRow([{ label: t("adopt_" + r.next), variant: "primary", attrs: { "data-act": "answer", "data-v": "on" } }, { label: t("notNow"), attrs: { "data-act": "answer", "data-v": "skip" } }, { label: t("never"), variant: "ghost", attrs: { "data-act": "answer", "data-v": "never" } }])}</footer></form>${evid(t("evidence"), evRows([r]))}</article>`;
   }
-  function recStateBody() {
-    if (P.st === "scanning") return `<div class="b61-scanning" role="status">${K.renderStatusMark({ label: t("scanning"), tone: "progress", state: "running" })}<p class="b61-lead">${esc(t("scanStep"))}</p>${K.renderSkeleton ? K.renderSkeleton({ lines: 4 }) : ""}</div>`;
-    if (P.st === "empty") return K.renderEmpty({ icon: "check", title: t("emptyT"), body: t("emptyB"), action: `<div class="settings-connector-actions">${btn(t("again"), { attrs: { "data-act": "sim" } })}</div>` });
-    if (P.st === "noworkspace") return K.renderEmpty({ icon: "folder", title: t("noWsT"), body: t("noWsB"), action: `<div class="settings-connector-actions">${btn(t("chooseFolder"), { variant: "primary", attrs: { "data-act": "sim" } })}</div>` });
-    return null;
+  function inContext() {
+    // C: nothing on arrival; when a request touches it, the reply ends with next steps; picking one opens its confirm card.
+    const first = me(t("c_ask"));
+    const reply = say(t("c_reply"));
+    if (P.st === "scanning") return first + ai(reply + `<p class="mw-ix-status" role="status"><span class="mw-spinner" aria-hidden="true"></span>${esc(t("c_scan"))}</p>`);
+    const steps = `<div class="mw-ix-steps" role="group" aria-label="${esc(t("nextSteps"))}"><button type="button" class="mw-ix-step" data-act="ctx" data-v="skill-test"><span class="mw-ix-step__glyph" aria-hidden="true">${ic("arrow")}</span><span>${esc(t("c_step1"))}</span></button><button type="button" class="mw-ix-step" data-secondary data-act="ctx" data-v="conn-github"><span class="mw-ix-step__glyph" aria-hidden="true">${ic("arrow")}</span><span>${esc(t("c_step2"))}</span></button></div>`;
+    let card = "";
+    const r = D.rec.find((x) => x.id === ui.ctx);
+    if (r && ui.stage === "confirm") card = `<article class="mw-ix-card mw-ix-operation" aria-labelledby="cx-title">${ixHead("cx", t("kicker_rec"), t("ask_" + r.next, { t: L(r.title) }), "sparkles", ixBadge(t("waitYou"), "waiting"), L(r.why))}<p class="mw-ix-target">${ic("target")}<span>${esc(t("forProject"))}</span><strong>${esc(L(D.project))}</strong><span class="mw-ix-version">${esc(r.pack || "")}</span></p>${P.st === "partial" ? `<div class="mw-ix-banner" data-tone="waiting"><p>${esc(t("gapsB"))}</p></div>` : ""}<section class="mw-ix-preview" aria-labelledby="cx-preview"><h4 id="cx-preview">${esc(t("previewT"))}</h4><dl>${dl(confirmRows([r]))}</dl>${actRow([{ label: t("confirmBtn"), variant: "primary", attrs: { "data-act": "confirmctx" } }, { label: t("cancel"), variant: "ghost", attrs: { "data-act": "cancelctx" } }], true)}</section>${evid(t("evidence"), evRows([r]))}</article>`;
+    if (r && (ui.stage === "done" || ui.stage === "failed")) card = `<article class="mw-ix-card mw-ix-operation" aria-labelledby="cx-title">${ixHead("cx", t("kicker_rec"), L(r.title), "sparkles", ixBadge(ui.stage === "failed" ? t("partDone") : t("doneBadge"), ui.stage === "failed" ? "failed" : "done"))}${resultCard([r], ui.stage === "failed")}</article>`;
+    const more = `<p class="b61-more">${K.renderButton({ label: t("c_more", { n: D.rec.length }), variant: "link", attrs: { "data-act": "sim" } })}</p>`;
+    return first + ai(reply + steps + card + more);
   }
-  const projectBackdrop = (inner) => `<div class="b61-project"><header class="b61-project__bar"><strong>${esc(L(D.project))}</strong><span>${esc(t("projHome"))}</span></header><div class="b61-project__paper">${inner}</div></div>`;
-  function recDialog() {
-    const special = recStateBody();
-    const body = special ?? `${scanSummary()}${recGroups()}`;
-    const footer = special ? btn(t("done"), { variant: "primary", attrs: { "data-act": "sim" } }) : `${ui.saved ? K.renderStatusMark({ label: t("saved"), tone: "done", icon: "check" }) : btn(t("save"), { variant: "secondary", icon: "save", attrs: { "data-act": "save" } })}${btn(t("done"), { variant: "primary", attrs: { "data-act": "sim" } })}`;
-    return `<div class="b61-cover"><dialog open class="mw-dialog mw-dialog--form b61-dialog" aria-labelledby="rdT"><form method="dialog" class="mw-form mw-dialog__shell"><header class="mw-form__header"><div><h2 id="rdT">${esc(t("recTitle", { p: L(D.project) }))}</h2><p>${esc(t("recLead"))}</p></div>${btn(t("cancel"), { variant: "ghost", icon: "x", iconOnly: true, className: "mw-dialog__close", attrs: { "data-act": "sim" } })}</header><div class="mw-form__body">${body}</div><footer class="mw-form__footer">${footer}</footer></form></dialog></div>`;
+  function emptyThread() {
+    const asked = me(t("ask_what"));
+    const answer = P.st === "empty" ? say(t("emptyB")) : `${say(t("noWsB"))}${actRow([{ label: t("chooseFolder"), variant: "primary", attrs: { "data-act": "sim" } }])}`;
+    return quiet() + asked + ai(answer);
   }
   function recPage() {
-    if (P.s === "A") return projectBackdrop(`<p class="b61-lead">${esc(P.l === "zh" ? "（项目首页，被对话框盖住）" : "(Project home, under the dialog)")}</p>`) + recDialog();
-    if (P.s === "B") {
-      const special = recStateBody();
-      if (special) return frame("kit", t("h_rec"), t("lead_rec"), special);
-      const list = `<section class="mw-list-detail__list b61-reclist" aria-label="${esc(t("h_rec"))}">${["skills", "connections", "roles", "hooks", "commands"].map((c) => { const rows = visibleRecs().filter((r) => r.cat === c); return `<div class="b61-listgroup"><h3>${esc(t("cat_" + c))}</h3>${rows.length ? `<ul class="mw-items">${rows.map((r) => K.renderPickRow({ glyph: r.next === "connection" ? "link" : r.next === "role" ? "user" : "sparkles", name: L(r.title), sub: L(r.why), end: ui.adopt[r.id] === "done" ? K.renderStatusMark({ label: P.l === "zh" ? "已启用" : "On", tone: "done", icon: "check" }) : badge(t("conf_" + r.conf), r.conf === "high" ? "success" : "neutral"), current: ui.recOpen === r.id, attrs: { "data-act": "recopen", "data-v": r.id } })).join("")}</ul>` : `<p class="b61-nosource">${esc(L(D.noSource[c]))}</p>`}</div>`; }).join("")}</section>`;
-      const r = D.rec.find((x) => x.id === ui.recOpen) || visibleRecs()[0];
-      const detail = `<section class="mw-list-detail__detail b61-recdetail" aria-labelledby="rc-${r.id}"><h2 id="rc-${r.id}" class="b61-h2">${esc(L(r.title))} ${badge(t("conf_" + r.conf), r.conf === "high" ? "success" : "neutral")}</h2>${recDetail(r)}</section>`;
-      return frame("kit", t("h_rec"), t("lead_rec"), `${scanSummary()}<div class="mw-list-detail b61-ld" data-detail><div class="mw-list-detail__body">${list}${detail}</div></div><div class="settings-connector-actions">${ui.saved ? K.renderStatusMark({ label: t("saved"), tone: "done", icon: "check" }) : btn(t("save"), { icon: "save", attrs: { "data-act": "save" } })}</div>`);
-    }
-    // C: three things inline on arrival; the rest behind "see all"
-    const special = recStateBody();
-    const top = visibleRecs().slice(0, 3);
-    const rows = top.map((r) => {
-      const st = ui.adopt[r.id];
-      const end = st === "done" ? `${K.renderStatusMark({ label: P.l === "zh" ? "已启用" : "On", tone: "done", icon: "check" })}${btn(t("undo"), { variant: "ghost", attrs: { "data-act": "undo", "data-v": r.id } })}` : btn(adoptLabel(r), { variant: st ? "secondary" : "primary", attrs: { "data-act": "adopt", "data-v": r.id } });
-      const open = st === "confirm" || st === "failed" ? `<div class="b61-inline">${recDetail(r)}</div>` : "";
-      return `<li class="mw-item mw-item--stack b61-three"><span class="mw-mark" aria-hidden="true">${ic(r.next === "connection" ? "link" : r.next === "role" ? "user" : "sparkles")}</span><span><strong>${esc(L(r.title))}</strong><small>${esc(L(r.why))} · <code>${esc(r.evidence[0])}</code></small>${open}</span><span class="mw-item__end">${end}</span></li>`;
-    }).join("");
-    const card = special ? `<section class="mw-card b61-threecard">${special}</section>` : `<section class="mw-card b61-threecard" aria-labelledby="thT"><header><h2 id="thT">${ic("sparkles")} ${esc(t("threeT", { n: top.length }))}</h2><p>${esc(D.scan.read[P.l])}</p></header>${P.st === "partial" ? K.renderAlert({ tone: "warning", title: t("gapsT"), body: t("gapsB") }) : ""}<ul class="mw-items b61-items">${rows}</ul><div class="settings-connector-actions">${btn(t("seeAll", { n: visibleRecs().length }), { variant: "ghost", icon: "chevron-right", attrs: { "data-act": "seeall" } })}</div></section>`;
-    return projectBackdrop(isNew(card, P.l === "zh" ? "到达页上的建议卡（到达页已有卡片，这里是新的一张）" : "Suggestion card on arrival (new card)")) + (ui.all ? recDialog() : "");
+    const earlier = me(t("earlier_me")) + ai(say(t("earlier_ai")));
+    let thread;
+    if (P.st === "empty" || P.st === "noworkspace") thread = earlier + emptyThread();
+    else if (P.s === "A") thread = earlier + ai(say(t("a_intro")) + bundleCard());
+    else if (P.s === "B") thread = earlier + ai(say(t("b_intro")) + oneByOne());
+    else thread = earlier + inContext();
+    const dot = P.s !== "C" && !["empty", "noworkspace"].includes(P.st);
+    const pane = `<aside class="b61-assist" aria-label="${esc(t("assistant"))}"><header class="b61-assist__head">${ic("sparkles")}<strong>${esc(t("assistant"))}</strong><span>${esc(L(D.project))}</span>${K.renderButton({ label: t("assistOff"), variant: "ghost", icon: "settings", iconOnly: true, attrs: { "data-act": "sim" } })}</header><div class="b61-thread">${thread}</div><footer class="b61-compose">${K.renderInput({ placeholder: t("composer") })}</footer></aside>`;
+    const home = `<div class="b61-project"><header class="b61-project__bar"><strong>${esc(L(D.project))}</strong><span>${esc(t("projHome"))}</span><span class="b61-dock">${ic("sparkles")}${esc(t("assistant"))}${dot ? '<span class="b61-dot" aria-label="1"></span>' : ""}</span></header><div class="b61-project__paper"><p class="b61-lead">${esc(t("homeNote"))}</p></div></div>`;
+    return `<div class="b61-work">${home}${pane}</div>`;
   }
 
   /* ---------- prototype strip (not product) ---------- */
@@ -351,7 +388,15 @@
       case "unpref": ui.prefs = ui.prefs.filter((x) => x !== v); break;
       case "recopen": ui.recOpen = v; break;
       case "save": ui.saved = true; toast(t("saved")); break;
-      case "seeall": ui.all = true; break;
+      case "toggle": ui.unpicked = ui.unpicked.includes(v) ? ui.unpicked.filter((x) => x !== v) : [...ui.unpicked, v]; break;
+      case "reviewpick": ui.stage = "confirm"; break;
+      case "backpick": ui.stage = "pick"; break;
+      case "confirmall": ui.stage = "done"; toast(t("res_title", { n: top3().filter((r) => !ui.unpicked.includes(r.id)).length })); break;
+      case "undoall": ui.stage = "pick"; toast(t("undo")); break;
+      case "answer": ui.answers[ui.step] = v === "on" ? t("ans_on") : v === "skip" ? t("notNow") : t("never"); ui.step += 1; break;
+      case "ctx": ui.ctx = v; ui.stage = "confirm"; break;
+      case "confirmctx": ui.stage = "done"; break;
+      case "cancelctx": ui.ctx = null; ui.stage = "pick"; break;
       default: toast(t("pv_note", { x: a.textContent.trim() || a.getAttribute("aria-label") || "" })); return;
     }
     render();

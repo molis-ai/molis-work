@@ -317,7 +317,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) | 正文已记录第29批补齐①②③、后续修⑥ | 完成子项移到来源 spec 的证据段，BL 只留④⑤等当前残余；不因列表里有已做项删整条 |
 | [BL-115](../backlog/BL-115.md) | 正文记录离线备份/恢复/续接已在 main，真实 Home 2026-11-07 已做 | 将已完实施转为来源说明；只保留登记覆盖核对与 C 端在线定时备份，避免再次立离线备份实现 |
 | [BL-117](../backlog/BL-117.md) | 策略、版本检查与0.3.0候选已有；公开发布资格仍在发布记录 | 与发行检查单保持一个剩余清单入口，不删除 Developer ID/公证/公开发布待办 |
-| [BL-943](../backlog/BL-943.md) | 第06批有70→66、68→64的历史探针；仍未到原预算 | 与 Inbox 性能项关联同一目录 owner 代次方案；合并技术实施，不删原验收约束、不删权限复核。本轮未重测这些绝对数字 |
+| [BL-943](../backlog/BL-943.md) | 现行双 Goal 窗格探针 main 为 47/48，候选为 35/36，低于原预算 60/58。候选逐次授权及拒绝后的实际读写已复验 | 列为组合验收后可清理项。继续用同一个门禁检验，删除目录代次作为本事项的假定依赖。Inbox 的实际等待另见 QF-51 |
 | [BL-inbox-update-blocks-host](../backlog/BL-inbox-update-blocks-host.md) | 当前 scene→availability→安装记录链仍存在；旧实测10秒级，不是本轮新测 | 保留高优先，先复测/剖析，再做一次操作内有失效代次的复用与让出事件循环；不通过放宽 UI 超时消账 |
 | BL-360（main 第39批已归档） | 最新主干已实现 owner 的 `decisions/readMany`、版本与持久决定；本轮旧投影被覆盖 | 接受主干删除，迁移并保留 QEA-21/22 的撤权、重启及三个界面反证；合并交集复验中，不复活重复待办 |
 | [BL-search-query-abort](../backlog/BL-search-query-abort.md) | 第五批已补 HTTP/个人空间/引用 signal，真实取消与共享索引测试通过，见 QF-08 | 已改正文去除“每次查询把所有来源跑完”的错误前提；待最终 CI 后按原流程关闭 |
@@ -996,3 +996,17 @@ QEA-139 从本人设置发出真实停用和启用，原确认返回同一安装
 第 67 批补验 QF-69 的真实跨项目签名界面。Workbench 通过 `apps/workbench/src/scripts/client/deferred-plugin-client.ts:38` 读取原项目的投影地址，再由 `apps/workbench/src/browser/plugin-frame/parent.ts:163,224` 装入隔离 iframe。干净主干同样已使用现行投影，旧测试选择器等不到工作台的隔离子页。测试现在用真实工作区插件入口、隔离子页及原项目投影继续验证。专用浏览器的入口覆盖实际输入、刷新、文件升级、许可增加重审、撤回、切项目及 Home 开启，3/3 通过。独立 Home 能力开关经真实设置开启，项目同意仍逐项目验证，复制控制以及原页撤回都不能写入。项目 A 的实际 Goals 写入和项目 B 原事实保留已有断言。1440、390 像素的设置截图已核，项目、能力效果及操作按钮可读。证据 `quality-audit-b67-opaque-project-reach.log`，截图在 `.impeccable/qa/review/quality-audit-signed-reach/`。
 
 实操同时测见新增动作在「它声明的动作」和「新增声明的动作」各出现一行（`apps/workbench/src/settings-plugins.ts:174`）。作为后续呈现事项，可在完整列表中就地标出新增项，保留真实差集、费用说明和需重新同意的边界。
+
+### 第 68 批双 Goal 窗格预算与逐次授权
+
+BL-943 引用的 66 次目录读取、64 次开库来自第 06 批。用现行 Home 路由复测后，原结论和拟议的目录提交代次都需要更新。 `tests/call-budget.test.ts:204` 在同一个隔离 Home 中并发读取两个已有 Goal 的正文，各返回 200 和自己的正文标识。三个样本以中位数结算。探针包装真实 SQLite 构造与 `apps/local-host/src/project-catalog.ts:337` 的目录读取，原方法照常执行。
+
+| 同一口径 | 项目插件目录读取 | SQLite 开库 |
+| --- | ---: | ---: |
+| 最初验收上限 | 60 | 58 |
+| 已重建的 main `dbcf562a67` | 47 | 48 |
+| 审查候选 `fe52722a63` | 35 | 36 |
+
+主干和候选的 15 个探针场景逐项都在现行预算内。候选也按原门禁模式跑过完整预算，合计 5 文件 43 项通过。正常启用变化及时生效。原 MCP 调用者撤权后下一次 native、沙箱或流水账读取无结果，拒绝的写入没有开启事务、没有新记录，另一获准调用者继续读取。回归在 `tests/security-invariants-plugin-read-original-caller.test.ts` 和 `tests/security-invariants-plugin-project-database.test.ts`。
+
+已有目录、读协作和授权合同足以满足双窗格目标。目录提交代次从本事项的依赖移除。候选相对当前主干在两项各少 12 次调用，用户照常打开两个 Goal。计数反映宿主工作量，实际等待通过各自的端到端体验用例衡量。日志 `quality-audit-b68-{main-call-budget,current-call-budget,budget-acceptance}.log`。原 BL 保留至组合验收结算。

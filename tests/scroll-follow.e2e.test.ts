@@ -53,6 +53,7 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await wheel(-120);
   await page.wait(`document.getElementById("thread").dataset.follow === "detached"`);
   await sleep(200);
+  assert.ok(await distance() > 1, "the first upward wheel moves the native scroller");
   const reading = await page.evaluate<number>(`document.getElementById("thread").scrollTop`);
   await page.evaluate(`window.grow()`); await frames();
   assert.equal(await page.evaluate<number>(`document.getElementById("thread").scrollTop`), reading, "detached, new content does not move the reader");

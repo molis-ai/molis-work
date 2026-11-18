@@ -33,6 +33,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
     if (state === next) return;
     state = next;
     scroller.dataset.follow = next;
+    listenForWheel();
     options.onChange?.(next);
   };
   const input = () => { lastInput = performance.now(); };
@@ -45,7 +46,13 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   };
   const listening = new AbortController(), signal = listening.signal, passive = { passive: true, signal };
 
-  scroller.addEventListener("wheel", (event) => { if (event.deltaY < 0) leave(); else input(); }, passive);
+  const wheel = (event: WheelEvent) => { if (event.deltaY < 0) leave(); else input(); };
+  function listenForWheel() {
+    scroller.removeEventListener("wheel", wheel);
+    // Stop our trip before the browser applies the wheel. Detached readers keep compositor scrolling.
+    scroller.addEventListener("wheel", wheel, { passive: state === DETACHED, signal });
+  }
+  listenForWheel();
   scroller.addEventListener("touchmove", input, passive);
   // Keep the pressed target still until the browser can deliver its click. Only a scrollbar press owns the scroll itself.
   scroller.addEventListener("pointerdown", event => {

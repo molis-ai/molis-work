@@ -341,11 +341,14 @@ export const CRAFT_BAR_STYLES = `
     ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { --control-h: min(44px, calc(var(--bar-row) - 4px)); }
     ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box .mw-btn--primary { min-height: var(--control-h); }
   }
-  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
+  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")}
+    /* Reserve the 44px input plus its inline padding; the receiver's name gives way when the More button needs a column. */
+    ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { grid-template-columns: auto minmax(0, max-content) minmax(58px, 1fr) auto auto; }
+  }
   /* The receiver's name opens its conversation (the island's click). At rest, one row, a long name (a session titled by its task)
      gives way to the hint beside it: about nine characters, the rest under the pointer. */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
-  ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: 9em; }
+  ${SHELL} .assistant-composer > .mw-composer[data-rest] .mw-composer__to .mw-tag { max-width: min(100%, 9em); }
   /* 「发给」 (one input, O4): the platform's menu in the top layer, risen from the tag (the island places it), the receiver now on the nav's active wash. */
   ${SHELL} .assistant-send-to:popover-open { position: fixed; inset: auto; margin: 0; max-height: min(440px, 60vh); overflow-y: auto; animation-name: craft-rise-from-bar; }
   ${SHELL} .assistant-send-to .mw-menu__item[aria-checked="true"] { background: var(--nav-active); }

@@ -12,6 +12,7 @@ import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ASSISTANT_STORE_BASELINE, PROJECT_DATABASE_BASELINE, assistantCardHtml, pluginSyncDatabaseDeclaration, upgradePluginLibrary } from "@molis-ai/molis-work-app-local-host";
 import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import { registration as workBrief } from "@molis-ai/molis-work-plugin-work-brief/registration";
+import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
 import { workBriefActions, type BriefRefreshed } from "@molis-ai/molis-work-plugin-work-brief";
 import { pagePack, pageText, pluginIdOf, withPageText } from "./fixtures/page-text.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -133,14 +134,17 @@ test("BL-action-card-outcome-text: the project library 4 → 5 rewrites only Cod
   t.after(() => db.close());
   db.exec(PROJECT_DATABASE_BASELINE.schema);
   const install = db.prepare("INSERT INTO plugin_runtime_installs(install_id, record_json, publisher_trust) VALUES (?, ?, 'host')");
-  install.run("install-coding", JSON.stringify({ install_id: "install-coding", plugin_id: "io.molis.work.coding" }));
-  install.run("install-other", JSON.stringify({ install_id: "install-other", plugin_id: "io.example.other" }));
+  const official = { plugin_id: codingRegistration.manifest.plugin_id, publisher_signature: codingRegistration.manifest.publisher.signature, publisher_trust: "host" };
+  install.run("install-coding", JSON.stringify({ install_id: "install-coding", ...official }));
+  install.run("install-copy", JSON.stringify({ install_id: "install-copy", ...official, publisher_signature: "another-signature" }));
+  install.run("install-other", JSON.stringify({ install_id: "install-other", plugin_id: "io.example.other", publisher_trust: "host" }));
   const value = (outcomes: Array<string | undefined>) => JSON.stringify({ cards: outcomes.map((outcome, index) => ({ card_id: `c${index}`, offer_id: "o", run_id: "r", status: "failed", ...(outcome === undefined ? {} : { outcome }) })) });
   const put = db.prepare("INSERT INTO plugin_private_values(install_id, item_key, item_value) VALUES (?, ?, ?)");
   put.run("install-coding", "cards:s1", value(["后台没有完成", undefined, ""]));
   put.run("install-coding", "cards:s2", value([undefined]));
   put.run("install-coding", "session:s1", JSON.stringify({ outcome: "不是卡" }));
   put.run("install-other", "cards:s1", value(["别人的数据"]));
+  put.run("install-copy", "cards:s1", value(["不是官方安装"]));
   db.exec("PRAGMA user_version = 4");
   runSqliteUpgrade(db, path, PROJECT_DATABASE_BASELINE);
   assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
@@ -150,6 +154,7 @@ test("BL-action-card-outcome-text: the project library 4 → 5 rewrites only Cod
   assert.deepEqual(read("install-coding", "cards:s2"), JSON.parse(value([undefined])));
   assert.deepEqual(read("install-coding", "session:s1"), { outcome: "不是卡" }, "a value that is not a session's cards is left");
   assert.deepEqual(read("install-other", "cards:s1"), JSON.parse(value(["别人的数据"])), "another plugin's value is left");
+  assert.deepEqual(read("install-copy", "cards:s1"), JSON.parse(value(["不是官方安装"])), "only the exact official install's values are Coding's");
 });
 
 test("BL-work-brief-source-name-text: the Work Brief library 1 → 2 keeps names and outcomes already written as their words", t => {

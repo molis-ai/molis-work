@@ -154,6 +154,11 @@ export interface PluginRegistration {
         readonly prefixes: readonly string[];
         convert(key: string, value: string): string | null;
     };
+    readonly private_value_upgrades?: readonly {
+        readonly project_from: number;
+        readonly prefixes: readonly string[];
+        convert(key: string, value: string): string | null;
+    }[];
     readonly runtime?: {
         readonly create: () => PluginDefinition;
         readonly package_name: string;

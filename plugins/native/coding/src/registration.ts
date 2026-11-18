@@ -3,6 +3,7 @@ import { createCodingPlugin, CODING_PROJECT_PLUGIN_ID, CODING_STYLES, CODING_WOR
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 import { codingBoardSpecimens } from "./board-specimens.js";
 import { adoptCodingPrivateValue } from "./material-adoption.js";
+import { storedCardOutcomesAsText } from "./stored-card-outcomes.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -14,6 +15,8 @@ export const registration: PluginRegistration = {
   project_runtime: { create: createCodingPlugin, package_name: "@molis-ai/molis-work-plugin-coding", factory_export: "createCodingPlugin" },
   // The next round's draft and a queued round, written before pieces had exact references, converted once by the project's adoption.
   private_value_adoption: { prefixes: ["materials:", "queued:"], convert: adoptCodingPrivateValue },
+  // A session's cards kept their outcome as a sentence until the project library's 4 → 5 step, which keeps it as the words it was.
+  private_value_upgrades: [{ project_from: 4, prefixes: ["cards:"], convert: storedCardOutcomesAsText }],
   workbench: {
     order: 20,
     // The stage as the shell draws it when no instance runs (no session directory); a running instance draws its own (plugin.ts).

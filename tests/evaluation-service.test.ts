@@ -1185,6 +1185,31 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
     { ...expectation, expectation_id: "metric", rule: { ...base, required_evidence_terms: ["量化指标"] } },
   ] });
   const run = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: sample.sample_id }) as EvaluationRunView;
+  const ownerCriterion = { expectation_id: "owner", stage: "delivery", source: "deterministic", description: "核对跟进人",
+    rule: { check: "evidence_text", fact: "agent.reply", contains_all: ["下一步负责人"] } } as const;
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "mixed-criteria",
+    allowed_variations: ["下一步责任人"], expectations: [ownerCriterion,
+      { ...expectation, rule: { ...base, required_evidence_terms: ["量化指标"] } }] });
+  const criteria = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "mixed-criteria" }) as EvaluationRunView;
+  assert.deepEqual(criteria.expectation_results.map(result => result.automated_verdict), ["passed", "unknown"]);
+
+  // Create the historical rule in its previously accepted shape. A new execution must validate it before reading or holding records.
+  sink.record({ fact: "agent.model_request", outcome: "succeeded", work: { work_ref: "alias-case" },
+    evidence: [{ role: "request", ref: { kind: "content", media_type: "text/plain", text: "量化指标" } }] });
+  fx.layer.flush();
+  await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "old-input", expectations: [
+    { ...ownerCriterion, stage: "execution", rule: { check: "evidence_text", fact: "agent.model_request", evidence_role: "request", contains_all: ["量化指标"] } },
+  ] });
+  const old = await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "old-input" }) as EvaluationRunView;
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.prepare("UPDATE evaluation_samples SET spec_json = json_set(spec_json, '$.expectations[0].stage', 'delivery') WHERE sample_id = ?")
+      .run("old-input");
+  } finally { db.close(); }
+  await assert.rejects(fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "old-input" }), /用新版本/);
+  const original = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: old.run_id }) as EvaluationRunView;
+  assert.equal(original.effective_verdict, "passed");
+
   await fx.service.invoke(person(), evaluationActions.samplesPut, { ...sample, sample_id: "det-reply", expectations: [
     { expectation_id: "metric", stage: "delivery", source: "deterministic", description: "核对正文", rule: {
       check: "evidence_text", fact: "agent.reply", contains_all: ["量化指标"] } },

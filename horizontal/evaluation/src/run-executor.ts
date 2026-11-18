@@ -162,8 +162,13 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const observedConditions = extractObservedConditions(records);
   const outcomeCounts = countWorkOutcomes(records);
 
-  const sampleTextTermCount = sample.expectations.reduce((count, exp) =>
-    count + (exp.source === "evaluator" ? exp.rule.required_evidence_terms?.length ?? 0 : 0), 0);
+  const sampleTextTermCount = sample.expectations.reduce((count, exp) => {
+    if (exp.source === "evaluator") return count + (exp.rule.required_evidence_terms?.length ?? 0) + (exp.rule.forbidden_evidence_terms?.length ?? 0);
+    if (exp.source === "deterministic" && (exp.rule.check === "evidence_text" || exp.rule.check === "evidence_absent")) {
+      return count + (exp.rule.contains_all?.length ?? 0) + (exp.rule.forbids_any?.length ?? 0);
+    }
+    return count;
+  }, 0);
   const expectationResults = sample.expectations.map((expectation) =>
     evaluateExpectation(expectation, {
       records,

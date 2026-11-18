@@ -95,7 +95,7 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
     const judgesReply = requiresReply || facts.some(fact => fact.startsWith("agent.")
       || (input.work_mode === "assistant" && platformPrefixes.some(prefix => fact.startsWith(prefix + "."))));
     if (judgesReply && ((role !== undefined && role !== "reply") || facts.some(fact => fact !== "agent.reply"))) {
-      throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文");
+      throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文。已冻结的样本请用新版本登记正确来源。");
     }
   }
 }
@@ -225,6 +225,7 @@ export class EvaluationService {
           : `评测样本 ${input.sample_id} 不存在`,
       );
     }
+    validateDeliverySources(sample);
     const origin = originOf(caller, evaluationActions.runsExecute);
     const holdId = input.hold_records ? `eval:${sample.sample_id}:v${sample.version}` : null;
     let holdCommitted = false;

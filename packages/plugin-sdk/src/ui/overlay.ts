@@ -1,4 +1,5 @@
 import { renderButton } from "./button.js";
+import { renderBadge } from "./feedback.js";
 import { cx, escapeHtml, renderAttrs, type AttrValue } from "./html.js";
 import { icon } from "./icon.js";
 
@@ -76,6 +77,8 @@ export function renderMenuItem(options: {
   shortcut?: string;
   disabled?: boolean;
   checked?: boolean;
+  /** A short state beside the label (「读不了」), drawn as the board's badge before the shortcut. */
+  badge?: { label: string; tone: "warning" | "neutral" };
   attrs?: Record<string, AttrValue>;
 }): string {
   const checkable = options.checked !== undefined;
@@ -87,6 +90,8 @@ export function renderMenuItem(options: {
   return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger", options.description && "mw-menu__item--described")}" role="${checkable ? "menuitemcheckbox" : "menuitem"}"${
     checkable ? ` aria-checked="${options.checked}"` : ""
   }${options.description ? ` aria-labelledby="${ident}-label" aria-describedby="${ident}-desc"` : ""}${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${label}</span>${
+    options.badge ? renderBadge({ label: options.badge.label, tone: options.badge.tone }) : ""
+  }${
     options.shortcut ? `<span class="mw-menu__shortcut">${escapeHtml(options.shortcut)}</span>` : ""
   }</button>`;
 }

@@ -44,7 +44,7 @@ export function pluginEntryIdentity() {
         if (owned) ownerFiles.set(entry.definition, Object.freeze({
           declaration: Object.freeze({ ...owned, entries: Object.freeze(owned.entries.map(item => Object.freeze({ ...item }))) }),
         }));
-        const config = entry.definition.manifest.model_configuration;
+        const config = entry.definition.manifest.settings_entries?.model_configuration;
         if (config) configurations.set(entry.definition, Object.freeze({
           preference: Object.freeze({ ...config.preference }), custom_provider: Object.freeze({ ...config.custom_provider }),
           actions: Object.freeze({ read: Object.freeze({ ...config.actions.read }), save: Object.freeze({ ...config.actions.save }) }),

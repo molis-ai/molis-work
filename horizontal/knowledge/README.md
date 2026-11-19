@@ -41,6 +41,7 @@ read/outline/grep/locate、显式 subject、旧 ref 及本次有界 list/search/
   - 卡片只有标题、来源和命中附近不超过 160 字的一小段，不当作原文；原文只经 `knowledge.read` 返回，并标明 `layer: "original"` 和实际读到的版本。
   - 逐行查找只认字面文字，不接受正则，一次最多 20 份资料，每行最多 400 字。
   - 不保存任何正文或读取结果。
+- 目录只对完整列过一遍的来源下「不在了」的结论：Search 的 `unsettled()` 列出的来源（Home 恢复后索引为空、首遍未完、同步失败）里的卡原样保留，不删、不标 missing、不重新整理；没有目录可依（无所有者授权、正在关闭）时整轮不判。完整列过且条目确实不在时，原有清理照旧。打开卡片与后台整理两个入口都经 `reconcile`，回归见 `tests/knowledge-cards.test.ts`、`tests/knowledge-fresh-catalog.test.ts` 的 BL-knowledge-restore-partial-catalog。
 - 后台整理的可信目录由宿主经 Search 的公开 indexedCatalog 注入，Knowledge 不读取 Search 实现。每份材料保留原来源同步检查，模型返回后重新读取当前目录和 revision，再复核原检查；撤权、停用或重新登记后都不提交旧草稿或业务失败账。
 - 后台整理逐份读取当前来源和排除状态；项目删除先取消整理，再由存储清除记录，晚到目录和模型结果不写回。同轮 read/grep 在授权复核后同步分配额度并保存回执，拒绝的调用不花额度。交错回归见 `tests/knowledge-cards.test.ts`、`tests/knowledge-reads.test.ts`、`tests/security-invariants-knowledge-lifecycle.test.ts`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/knowledge-service.test.ts tests/security-invariants-knowledge.test.ts tests/knowledge-locate-budget.test.ts`

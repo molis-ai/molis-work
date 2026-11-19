@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
@@ -80,24 +81,29 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
   return connection;
 }
 
-test("configured image input requires declared vision and refuses a late result after vision is disabled", async () => fixture(async f => {
+test("configured image input goes to an unmarked or vision model, is refused for a model marked as not seeing, and refuses a late result after vision is disabled (decision 51)", async () => fixture(async f => {
   configure(f);
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
   await writeFile(join(f.home, "original.png"), png);
   const options = { images: [{ root_path: f.home, relative_path: "original.png" }] };
   const complete = hostCompleteText({ homeDirectory: f.home, selection: { provider_id: "configured", model_id: "configured-model" } })!;
-  await assert.rejects(complete("Describe the original.", options), /已声明支持图片/); assert.equal(f.requests.length, 0);
   const setVision = (vision: boolean) => {
     const provider = f.catalog.models.list().find(value => value.provider_id === "configured")!;
     f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, vision })) });
   };
+  // Unmarked: the picture goes, as it does to an Agent round, with the line telling the model not to guess (decision 51).
+  await complete("Describe the original.", options); assert.equal(f.requests.length, 1);
+  assert.ok(JSON.stringify(f.requests[0]!.body).includes(UNMARKED_IMAGES_NOTE), "an unmarked model is told to say so rather than guess");
+  setVision(false);
+  await assert.rejects(complete("Describe the original.", options), /标为不能看图/); assert.equal(f.requests.length, 1, "nothing was sent to a model marked as not seeing");
   setVision(true);
   await complete("Describe the original.", options);
+  assert.ok(!JSON.stringify(f.requests.at(-1)!.body).includes(UNMARKED_IMAGES_NOTE), "a model marked as seeing images is not told");
   const parts = f.requests.at(-1)!.body.messages.at(-1).content;
   assert.equal(parts.find((part: any) => part.type === "image_url").image_url.url, `data:image/png;base64,${png.toString("base64")}`);
   f.answer(async () => { setVision(false); return { choices: [{ message: { content: "late answer" } }] }; });
   await assert.rejects(complete("Describe the original.", options), { code: "actions.configuration_changed" });
-  assert.equal(f.requests.length, 2);
+  assert.equal(f.requests.length, 3);
 }));
 
 test("RAC-1880 the configured-model entrance counts a prompt in characters too: 180000 two-unit characters reach the model, a prompt over the limit and a blank one are refused", async () => fixture(async f => {

@@ -156,7 +156,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await waitFor("window.trashResponseReady === true");
   assert.ok(goal().trashed_at, "the production endpoint has already saved the original Goal");
   assert.equal(await evaluate("document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy')"), "true");
-  // ASC-40: deliberately press a disabled cancel control while the real response is held.
+  // 服务接入 §10.6 ASC-40: deliberately press a disabled cancel control while the real response is held.
   const pendingCancel = '[data-goal-trash-dialog] footer [data-close-goal-trash]';
   await evaluate(`(() => {
     window.pendingCancelPointerDowns = 0;

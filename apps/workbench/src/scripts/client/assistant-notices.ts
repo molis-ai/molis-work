@@ -1,3 +1,5 @@
+import { AUTOMATION_OFFER_INTERVAL_MS } from "@molis-ai/molis-work-contracts/services/automation-recommender";
+
 /** What deserves the person's attention: the notices, their count, the quiet rules, model readiness and plugin events. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves the person's attention (their rules decide where it stays quiet) ─────────────────────── */
   const noticeBtn = island.querySelector("[data-assistant-attention]");
@@ -162,13 +164,21 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
     loadNotices();
   };
-  // The Assistant's own look at the project's automation (specs/automation-recommender §7): asked once as a project opens. The Host decides
-  // whether there is anything not said before; if so its card is in the project's conversation, and the Dock lights from the next read.
-  if (project) setTimeout(() => {
-    if (document.hidden) return;
-    molisWorkRequest(host.route("/api/automation/recommendations/offer"), { method: "POST", body: {} })
-      .then((result) => { if (result && result.offered) loadNotices(); }, () => { /* nothing to say is said by saying nothing */ });
-  }, 1500);
+  if (project) {
+    let looking = false;
+    const look = async () => {
+      if (looking || document.hidden || !island.isConnected) return;
+      looking = true;
+      try {
+        const result = await molisWorkRequest(host.route("/api/automation/recommendations/offer"), { method: "POST", body: {} });
+        if (result?.offered) loadNotices();
+      } catch { /* The next look can retry without interrupting the project. */ }
+      finally { looking = false; }
+    };
+    setTimeout(look, 1500);
+    const interval = setInterval(() => { if (island.isConnected) void look(); else clearInterval(interval); }, ${AUTOMATION_OFFER_INTERVAL_MS});
+    document.addEventListener("visibilitychange", look);
+  }
   noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden));
   document.addEventListener("molis-work:attention-refresh", () => readBadge());
   document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });

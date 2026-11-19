@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { adoptProjectDatabase, captureProcessItemsRecovery, HomeConsentLedger, inspectProjectAdoption, LocalProjectDatabase, retireFilesConsents, verifyProcessItemsRecovery } from "@molis-ai/molis-work-app-local-host";
+import { adoptProjectDatabase, captureProcessItemsRecovery, HomeConsentLedger, inspectProjectAdoption, LocalProjectDatabase, PROJECT_DATABASE_BASELINE, retireFilesConsents, verifyProcessItemsRecovery } from "@molis-ai/molis-work-app-local-host";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -44,6 +44,7 @@ function toOriginalLayout(db: Db): void {
   }
   for (const { name } of db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'plugin_sync_%'").all() as { name: string }[]) db.exec(`DROP TABLE "${name}"`);
   db.exec("DELETE FROM plugin_project_databases WHERE plugin_id = 'io.molis.work.goals'; PRAGMA foreign_keys = ON");
+  db.exec("DROP TABLE project_runtime_setting_receipts; DROP TABLE project_runtime_settings");
   db.exec("DROP TABLE surface_corrections; DROP TABLE project_review_decisions; DROP TABLE project_approval_rules; PRAGMA user_version = 2");
   for (const { name } of db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'project_approvals_replica_%'").all() as { name: string }[]) db.exec(`DROP TABLE ${name}`);
   const triggers = db.prepare("SELECT name, sql FROM sqlite_schema WHERE type='trigger' AND name LIKE 'process_items_sync_%'").all() as { name: string; sql: string }[];
@@ -94,7 +95,9 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.ok((originalJournal.changes as unknown[]).length >= 4, "the original journal recorded the Files-era writes");
   db.close();
   // An ordinary open refuses the old layout (version 2 before this build's 4, batch 39); it never repairs it in place.
-  assert.throws(() => new LocalProjectDatabase(h.path), /的结构版本是 2，这个版本的 Molis Work 用 5，升级完成之前不能打开/u);
+  assert.throws(() => new LocalProjectDatabase(h.path), {
+    code: "storage.upgrade_pending", message: new RegExp(`的结构版本是 2，这个版本的 Molis Work 用 ${PROJECT_DATABASE_BASELINE.version}，升级完成之前不能打开`, "u"),
+  });
   const unsent = /process item change\(s\) not yet uploaded from the original journal/u;
   const inspected = inspectProjectAdoption(h.path);
   assert.deepEqual({ ...inspected, refused: [], unsettled: [] }, { layout: "original", items: 3, versions: 4, outputs: 2, bindings: 1, private_values: 0, positions: 0, installs: 0, cursors: 0, carried: 0, refused: [], unsettled: [] });
@@ -138,8 +141,8 @@ test("BSH-14-F an original library is adopted once: lines, outputs and default b
   assert.deepEqual(journal(db, "process_items"), originalJournal, "the original journal is kept as it was, as recovery evidence");
   const adopted = journal(db, "process_items_adopted");
   assert.deepEqual([adopted.changes, adopted.heads, adopted.outbox, adopted.conflicts], [[], [], [], []], "the adopted journal starts empty: the move is no new business write");
-  // Adoption also takes the project upgrade's later steps (upgradeAdoptedOriginal), so the library ends current: 5 since the stored card outcomes became text references.
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
+  // Adoption runs the remaining project upgrades before the library can open normally.
+  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, PROJECT_DATABASE_BASELINE.version);
   // Later writes mark the adopted journal only.
   db.prepare("UPDATE process_item_versions SET lifecycle_state='archived', archived_at='2026-11-03T00:00:00Z', archived_by='user' WHERE artifact_id='files-selection'").run();
   assert.deepEqual(rows(db, "SELECT key FROM process_items_adopted_replica_changes"), [{ key: JSON.stringify([h.projectId, "process_item", "files-selection"]) }]);

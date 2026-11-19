@@ -424,7 +424,7 @@ export class MolisWorkProjectCatalog {
   changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories {
     return notifyAfter(this.homeDirectory, this.projects.commands.changeDirectories(input));
   }
-  async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.projectFiles.createProject(input)); }
+  async createProject(input: CreateMolisWorkProjectInput, beforeEffect?: () => void): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.projectFiles.createProject(input, false, beforeEffect)); }
   /** The personal space exists once it is first used; creating it again returns the same one. */
   async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.personalProjects.ensurePersonalSpace(actorId)); }
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.ensureDemoProject(input)); }

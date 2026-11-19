@@ -560,34 +560,6 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.blueprints.adoption.apply",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.preview",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.read",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.remove",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.revert",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.drafts.read",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.drafts.save",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
     "entry": "action.blueprints.packs.save",
     "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
   },

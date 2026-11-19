@@ -25,6 +25,7 @@ export interface RecommendationEntry {
 }
 const door = webEntryDoor<RecommendationEntry>("automation-recommendations", () => "请从当前项目的本机页面打开建议");
 const a = automationRecommendationActions;
+const offering = new Set<string>();
 const subject = (entry: RecommendationEntry, caller: ActionExecutionContext) => ({
   actor: caller.actor_id, project: entry.project.project_id, incarnation: entry.incarnation,
 });
@@ -52,11 +53,15 @@ export const automationRecommendationProvider = () => webEntryProvider(AUTOMATIO
     if (!entry.assistant) return { offered: false, reason: "no-assistant" };
     if (offersQuiet(entry.home, caller.actor_id)) return { offered: false, reason: "off" };
     const who = subject(entry, caller);
-    if (lookedRecently(entry.home, who)) return { offered: false, reason: "recent" };
-    const report = await scanAs(entry, caller);
-    await caller.beforeEffect();
-    control(entry, caller).assertCurrent();
-    return offerProjectAutomation(entry.home, who, report, entry.assistant);
+    const key = JSON.stringify([entry.home, who.actor, who.project, who.incarnation]);
+    if (offering.has(key) || lookedRecently(entry.home, who)) return { offered: false, reason: "recent" };
+    offering.add(key);
+    try {
+      const report = await scanAs(entry, caller), guard = control(entry, caller);
+      await guard.beforeEffect();
+      if (offersQuiet(entry.home, caller.actor_id)) return { offered: false, reason: "off" };
+      return await offerProjectAutomation(entry.home, who, report, entry.assistant, guard.assertCurrent);
+    } finally { offering.delete(key); }
   }),
   door.bind(a.offers, (entry, _input, caller) => ({ enabled: !offersQuiet(entry.home, caller.actor_id) })),
   door.bind(a.setOffers, async (entry, input, caller) => {

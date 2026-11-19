@@ -12,7 +12,8 @@ import type { AssistantJobs } from "./assistant-jobs.js";
 import { declaredUndo } from "../action-undo.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
-import type { PersonActions } from "./assistant-executor.js";
+import { assertPersonDecisionProject, type AssistantPersonDecision, type PersonActions } from "./assistant-executor.js";
+import { AUTOMATION_ADOPTION_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { exactRevision } from "./assistant-inputs.js";
 import { ownerOf } from "./assistant-round-start.js";
 import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, roundAfterParkedAnswer } from "./assistant-parked-answer.js";
@@ -22,6 +23,7 @@ import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import type { AssistantStepGate } from "./assistant-step-gate.js";
+import { isAccountQuestionId } from "../agent-definitions/skill-connector-categories.js";
 
 export type AssistantOutcomesLinks = Pick<AssistantDispatch, "executorOf" | "dispatch"> & Pick<AssistantWorkReads, "latestRun"> & { read(workId: string): Promise<AssistantWorkView>; jobs: Pick<AssistantJobs, "follow">; stepGate?: Pick<AssistantStepGate, "answer"> };
 export interface AssistantAnswerExecution {
@@ -76,10 +78,22 @@ export class AssistantOutcomes {
     // A late answer to a question that is already closed or replaced starts nothing; one parked at a restart ends its round.
     if (!question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
     if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
+    let commitChoice: (() => void) | undefined;
+    if (question.questions?.some(item => isAccountQuestionId(item.id))) {
+      if (!caller.allowConnectionChoice || caller.project_ref?.project_id !== work.project_ref?.project_id)
+        throw assistantErrors.scope("请在这项工作所在的项目里本人选择账号");
+      if (!question.answerable || exactRevision(input.pending_revision, question.pending_revision) !== question.pending_revision)
+        throw assistantErrors.stale("这张账号选择卡已更新，请刷新后再选");
+      if (!adapter.withEffect || !this.ports.prepareConnectionAnswer)
+        throw assistantErrors.state("当前宿主无法保存这项工作的账号选择");
+      commitChoice = await this.ports.prepareConnectionAnswer(work, question.questions, input.answers);
+    }
     await beforeEffect(); execution?.handed();
-    await inAssistantWorkEffect(adapter, { beforeEffect, assertCurrent }, () => adapter.control(run.ref, { kind: "answer", pending_id: input.pending_id,
+    const sendAnswer = () => adapter.control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
-      ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) }));
+      ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
+    if (commitChoice && adapter.withEffect) await adapter.withEffect({ beforeEffect, assert_current: () => { assertCurrent(); commitChoice!(); } }, sendAnswer);
+    else await inAssistantWorkEffect(adapter, { beforeEffect, assertCurrent }, sendAnswer);
     if (execution) { execution.accepted(); return this.link.read(workId); }
     return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.link.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, beforeEffect, assertCurrent, { byHost: true, ...(caller.reply_locale ? { reply_locale: caller.reply_locale } : {}) }), async () => adapter.recovery?.inspect(sessionRef(work))) : undefined, await this.link.read(workId));
   }
@@ -192,32 +206,40 @@ export class AssistantOutcomes {
   }
 
   /** A change that declares how it is undone leaves that undo on its work, with the exact input its output gives. */
-  private recordUndo(work: StoredWork, view: ActionView, output: unknown): void {
+  recordUndo(work: StoredWork, view: ActionView, output: unknown): void {
     const undo = declaredUndo(view, output);
     if (!undo) return;
-    this.store.saveUndo(this.actorId, { undo_id: randomUUID(), work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "available",
+    const adoptionId = view.provider.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID ? undo.input.adoption_id : undefined;
+    const undoId = typeof adoptionId === "string" ? adoptionId : randomUUID();
+    if (adoptionId && this.store.undos(this.actorId, work.work_id).some(record => record.undo_id === undoId)) return;
+    this.store.saveUndo(this.actorId, { undo_id: undoId, work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "available",
       created_at: this.now().toISOString(), ...undo });
   }
 
   #undoing = new Map<string, Promise<AssistantWorkView>>();
 
   /** The person takes a change back: the owner's own undo, run once as the person's choice; the next round is told. */
-  async undo(workId: string, undoId: string): Promise<AssistantWorkView> {
+  async undo(workId: string, undoId: string, decision?: AssistantPersonDecision): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     const record = this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId);
     if (!record) throw assistantErrors.invalid("这项修改不能在这里撤销");
+    if (record.reference.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID) assertPersonDecisionProject(work.project_ref?.project_id ?? null, decision);
     if (record.state === "undone") throw assistantErrors.state("这项修改已经撤销过了");
     // Claimed before anything is sent: a second request while the owner's undo runs (another tab, a retry) gets this one's outcome and sends nothing.
     const claimed = this.#undoing.get(undoId);
     if (claimed) return claimed;
     const running = (async () => {
       let actions: PersonActions | null = null;
-      try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { actions = null; }
+      try { actions = await this.ports.scopeActions?.(work, decision) ?? null; } catch { actions = null; }
       if (!actions) throw assistantErrors.unsupported("现在不能撤销，请到原处修改");
       try {
-        await actions.invoke(record.reference, record.input);
-        this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: undefined });
+        const outcome = await actions.invoke(record.reference, record.input);
+        decision?.assertCurrent();
+        const summary = record.reference.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID && outcome && typeof outcome === "object"
+          && "summary" in outcome && typeof outcome.summary === "string" ? outcome.summary.slice(0, 600) : undefined;
+        this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: summary });
       } catch (error) {
+        decision?.assertCurrent();
         const detail = (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_.]+:\s*/, "").slice(0, 300);
         // Spent meanwhile (the round made that very change itself): it is undone, whatever the owner said to this call.
         if (this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId)?.state === "undone") return this.link.read(workId);

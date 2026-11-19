@@ -63,7 +63,7 @@ export async function modelRuntimeFixture(t: TestContext, format: "openai-chat-c
   const save = async (enabled = true, vision = true) => {
     const response = await f.request("/api/settings/models/shm", { method: "POST", body: { display_name: "SHM", base_url: `http://127.0.0.1:${address.port}/v1`,
       api_format: format, prompt_cache: "off", enabled, connection_id: connection.connection_id, check_connection: false,
-      models: [{ model_id: "vision", enabled: true, vision }, { model_id: "text", enabled: true }] } });
+      models: [{ model_id: "vision", enabled: true, vision }, { model_id: "text", enabled: true, vision: false }] } });
     assert.equal(response.status, 200, await response.text());
   };
   await save();

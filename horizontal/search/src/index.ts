@@ -607,6 +607,12 @@ async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | 
   };
   // Metadata pages keep the raw cursor even when every entry on a page is hidden.
   return { sources: () => { assertCurrent(); return sources; }, assertCurrent,
+    /**
+     * Sources the owner lists now whose complete pass the index does not hold: never listed yet (an empty index after a Home
+     * restore or a rebuild), still on their first pass, or failed since. What the catalog lacks from them says nothing about
+     * what their owner removed.
+     */
+    unsettled: () => { assertCurrent(); return current.filter(live => !sources.some(record => record.source_key === live.key)).map(live => live.key); },
     get views() { assertCurrent(); return currentViews; },
     catalog: (projectId: string, cursor?: string) => {
       assertCurrent();

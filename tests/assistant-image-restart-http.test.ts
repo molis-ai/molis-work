@@ -10,8 +10,9 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 
-// W3-02-G3-04: close the actual Home Host and reopen the same Home, rather than clearing an image Map.
-test("the same Home reopens its Assistant work while an image's old runtime handle answers 404 without a call number", { timeout: 60_000 }, async t => {
+// W3-02-G3-04: close the actual Home Host and reopen the same Home, rather than clearing an image Map. Since batch 35 (platform
+// capability audit §6) a picture is a conversation attachment kept by the platform: after the restart it is still shown and can go again.
+test("the same Home reopens its Assistant work and still shows the picture it carried, which can be sent again after the restart", { timeout: 60_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-image-restart-"));
@@ -62,15 +63,19 @@ test("the same Home reopens its Assistant work while an image's old runtime hand
   assert.equal(image.status, 200); assert.deepEqual(await image.json(), { image: { media_type: "image/png", data } });
   assert.ok(server && host); await server.close(); await host.close();
   await start();
-  const expired = await request(imagePath);
-  assert.equal(expired.status, 404);
-  const body: Record<string, unknown> = await expired.json();
-  assert.equal(body.code, "assistant.expired"); assert.match(String(body.error), /重新添加/);
-  assert.equal(Object.hasOwn(body, "call_id"), false); assert.equal(expired.headers.has("x-molis-work-call-id"), false);
+  const again = await request(imagePath);
+  assert.equal(again.status, 200, "the picture is still kept after the Host restarted");
+  assert.deepEqual(await again.json(), { image: { media_type: "image/png", data } });
   const reopened: AssistantWorkView = await (await request(path)).json();
   assert.equal(reopened.work.work_id, before.work.work_id);
   assert.equal(reopened.rounds[0]?.run_id, before.rounds[0]?.run_id);
   assert.equal(reopened.rounds[0]?.materials[0]?.material_id, material.material_id);
-  const kept = reopened.rounds[0]?.materials[0]; assert.ok(kept && "expired" in kept);
-  assert.equal(kept.expired, true, "the persisted material remains and explains why it must be added again");
+  assert.equal(reopened.rounds[0]?.materials[0]?.expired, undefined, "the persisted material is not marked as gone");
+  // The same picture goes with a new round after the restart; the model call carries it.
+  const calls = model.requests.length;
+  const resent = await request("/api/assistant/send", { text: "再看一眼", request_id: "image-restart-send-2", work_id: started.work.work_id, materials: [material] });
+  assert.equal(resent.status, 200, await resent.clone().text());
+  const until = Date.now() + 10_000;
+  while (Date.now() < until && model.requests.length === calls) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(model.bodies.slice(calls).some(body => body.includes(data)), "the resent round carries the picture");
 });

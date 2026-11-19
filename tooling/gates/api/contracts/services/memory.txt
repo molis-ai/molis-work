@@ -365,6 +365,7 @@ export interface MemoryLedgerPort {
     saveChange(record: MemoryChangeRecord): void;
     prefs(actorId: string, key: string): Partial<MemoryPrefs> | null;
     savePrefs(actorId: string, key: string, prefs: MemoryPrefs): void;
+    deleteProjectPrefs(actorId: string, projectId: string): void;
     countSignal(input: {
         actor_id: string;
         key: string;
@@ -1024,6 +1025,8 @@ export declare const memoryLearningActions: {
     run: ActionDefinition<MemoryLearningTaskRequest, MemoryLearningResult>;
     form: ActionDefinition<MemoryLearningTaskRequest, MemoryLearningResult>;
 };
+
+export declare const memoryPreferenceMarkerPrefix: (profile: string) => string;
 
 export declare const servicesMemoryContract: {
     readonly contractId: "io.molis.work.service.memory.v1";

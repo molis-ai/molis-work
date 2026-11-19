@@ -71,6 +71,12 @@ async function installedAlready(directory: string, spec: ToolInstallSpec, option
   } catch { return false; }
 }
 
+/** The executable of a complete install already in the tools root, or undefined; never downloads (a restart's check, CLS-03). */
+export async function installedTool(spec: ToolInstallSpec, options: Pick<ToolFetcherOptions, "toolsRoot" | "registry">): Promise<string | undefined> {
+  const directory = directoryFor(options as ToolFetcherOptions, spec);
+  return await installedAlready(directory, spec, options as ToolFetcherOptions) ? binPath(directory, spec.bin) : undefined;
+}
+
 /**
  * The tool at `spec`, from the isolated tools root, downloading it once if it is not there yet.
  *

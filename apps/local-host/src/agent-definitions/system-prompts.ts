@@ -10,13 +10,13 @@ const promptBody = (id: string) => readLocalizedMarkdown(new URL("../../prompts/
 export const ONBOARDING_OWNER = "system:onboarding";
 
 export const ONBOARDING_NOTES = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: /* @version prompt.onboarding.notes */ 2, title: "分批读材料",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: /* @version prompt.onboarding.notes */ 3, title: "分批读材料",
   purpose: "导入的材料较多时，逐批提取与工作有关的主题、日期、进展、待办、冲突和缺失信息", used_by: ["项目上手"],
   ...promptBody("onboarding.notes"),
 });
 
 export const ONBOARDING_PROPOSAL = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 2, title: "项目建议",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 3, title: "项目建议",
   purpose: "把已有材料整理成一个能继续工作的项目建议：背景、进展、下一步与待确认事项", used_by: ["项目上手"],
   ...promptBody("onboarding.proposal"),
 });

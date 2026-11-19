@@ -210,9 +210,9 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 ### 原图输入
 
-可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
+可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。只有模型设置里标了 `vision: false` 的模型拒绝带图；没标注的照发，并在说明里告诉模型看不到就直说、不要猜（决定 51③，`UNMARKED_IMAGES_NOTE`，Agent 起跑与单次补全同一口径）；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
 
-Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 50 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
+Agent Host 的一轮只收图片引用（`image_materials` 的 `attachment: MaterialRef`），字节由调用方自己的对话附件读取器取回（平台对话附件服务，[S-conversation-attachments](../system/security-invariants/S-conversation-attachments.md)），重启后照样能发。按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 5 MiB，一轮最多 6 张（`RUN_IMAGES_MAX`），还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
 
 读取前、异步等待后及网络派出前保留原授权检查，成功、失败、取消都撤销附件并销毁 Host 暂存字节，输入原件不变。取消可先释放调用方，关闭执行 owner 仍等待资源清理。任务材料如何选择、PDF/目录如何组织、结果何时写入仍归消费者；SDK 支持附件并不代表某个插件已完成迁移。真实协议和字节回归见 `tests/prologue-inference-images.test.ts`，模型视觉声明与变更见 `tests/host-configured-text.test.ts`。
 

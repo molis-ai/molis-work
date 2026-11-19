@@ -7,10 +7,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
+import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { shelfActions as a, shelfAiPorts, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions as a, shelfAiPorts, shelfManifest, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { createExtractablePdf, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -23,6 +25,7 @@ type Request = { model: string; messages: any[] };
 async function fixture(run: (f: {
   home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   host: MolisWorkLocalHost; actions: ReturnType<typeof bindActionClient>;
+  setPreference(key: string, value: SandboxJson): Promise<void>;
   requests: Request[]; answer(handler: (request: Request) => string | Promise<string>): void;
 }) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "shelf-ai-host-")), old = process.env.MOLIS_WORK_SECRET_BACKEND;
@@ -51,9 +54,19 @@ async function fixture(run: (f: {
   });
   try { await withCatalog({ homeDirectory: home }, async catalog => {
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
-      models: [{ model_id: "text", enabled: true }, { model_id: "vision", enabled: true, vision: true }] });
-    const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
-    await run({ home, catalog, host, actions, requests, answer(next) { handler = async request => next(request); } });
+      // "text" is marked as not reading pictures: only that mark refuses an image; an unmarked model gets it with a note (decision 51 ③).
+      models: [{ model_id: "text", enabled: true, vision: false }, { model_id: "vision", enabled: true, vision: true }] });
+    const client = host.homeActionClient();
+    const caller = { actor_id: "owner", project_id: null, audience: "user" as const, permissions: SHELF_ACTION_PERMISSIONS };
+    const actions = bindActionClient(client, () => caller);
+    async function setPreference(key: string, value: SandboxJson) {
+      const settings = shelfManifest.settings_entries!;
+      const { values } = await client.invoke(caller, settings.read, { keys: [key] }) as SettingsValues;
+      assert.equal(values[0]?.key, key);
+      await client.invoke(caller, settings.write, { key, layer: "personal", expected_revision: values[0]!.revision,
+        request_id: crypto.randomUUID(), change: { set: value } });
+    }
+    await run({ home, catalog, host, actions, setPreference, requests, answer(next) { handler = async request => next(request); } });
   }); }
   finally {
     await host.close(); await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
@@ -101,7 +114,9 @@ test("every recipe reaches its registered instruction; JSON alone uses JSON file
       if (option === "json") assert.deepEqual(JSON.parse(openTestShelfStore(f.home).readFile(out.result!.item_id).bytes.toString()), { amount: 120000 });
     }
   }
-  await f.actions.invoke(a.saveSettings, { shortcuts: [{ id: "custom", name: "提炼", prompt: "CUSTOM_USER_TASK", kinds: ["markdown", "text"] }] });
+  const bar = await f.actions.invoke(a.settings, {});
+  await f.setPreference("shelf.action_bar", { shortcuts: [{ id: "custom", name: "提炼", prompt: "CUSTOM_USER_TASK", kinds: ["markdown", "text"] }],
+    action_order: [...bar.action_order, "shortcut:custom"], hidden_actions: [...bar.hidden_actions] });
   await f.actions.invoke(a.generate, { recipe: "shortcut", item_id: item.item_id, shortcut_id: "custom" });
   const messages = f.requests.at(-1)!.messages;
   assert.ok(messages.some(message => message.role === "user" && JSON.stringify(message.content).includes("CUSTOM_USER_TASK")));
@@ -119,9 +134,9 @@ test("every recipe reaches its registered instruction; JSON alone uses JSON file
 test("original images require the selected vision model; folder and PDF contents keep their source identity", async () => fixture(async f => {
   const bytes = readFileSync(new URL("./fixtures/shelf-ocr-text.png", import.meta.url));
   const image = (await f.actions.invoke(a.admit, { filename: "original.png", mime: "image/png", bytes_base64: bytes.toString("base64") })).item;
-  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id }), /支持图片/);
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id }), /标为不能看图，原图未发送/);
   assert.equal(f.requests.length, 0);
-  await f.actions.invoke(a.saveSettings, { model_selection: { provider_id: "fixture", model_id: "vision" } });
+  await f.setPreference("shelf.model", { provider_id: "fixture", model_id: "vision" });
   const out = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id });
   assert.equal(out.job.execution?.configuredModel, "vision");
   const parts = f.requests.at(-1)!.messages.at(-1).content;
@@ -133,7 +148,8 @@ test("original images require the selected vision model; folder and PDF contents
   await f.actions.invoke(a.generate, { recipe: "summarize", item_id: folder.item_id });
   const prompt = JSON.stringify(f.requests.at(-1)!.messages);
   assert.match(prompt, /sources\/nested\/code.ts/); assert.match(prompt, /amount = 12/); assert.match(prompt, /PDF facts/);
-  await f.actions.invoke(a.saveSettings, { model_selection: { provider_id: "missing", model_id: "missing" } });
+  const provider = f.catalog.models.get("fixture")!;
+  f.catalog.models.upsert({ ...provider, models: provider.models.filter(model => model.model_id !== "vision") });
   const count = f.requests.length;
   await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: folder.item_id }), { code: "actions.connection_required" });
   assert.equal(f.requests.length, count);

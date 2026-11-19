@@ -542,6 +542,54 @@ test("RAC-2442 a page without install_id cancels its in-flight requests when the
   }
 });
 
+// RAC-2442 BL-1006: the same page with two requests in flight. Each request ends with its own reason and its own error object, for the
+// person leaving (with or without a closing action) and for a withdrawal alike, so one request's handler cannot see or change the other's.
+test("RAC-2442 BL-1006 two in-flight requests of one page each take their own cancellation on leave and their own refusal on a withdrawal", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-work-page-authority-"));
+  try {
+    const authority = pluginPagesFor(home);
+    const reference = { capability_id: "io.example.registered.save", version: 1 };
+    const manifest = { plugin_id: "io.example.registered", ui: {}, routes: [],
+      actions: [{ ...reference, action: { permissions: [] } }] } as PluginManifest;
+    const invoked: unknown[] = [];
+    const activation = () => ({ manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true,
+      invoke: async (call: unknown) => { invoked.push(call); } });
+    const requestOf = async (pageId: string) => {
+      const request = { headers: { "x-molis-plugin-page": pageId }, method: "GET" } as IncomingMessage;
+      await authority.bind(request, new URL("http://127.0.0.1/api/anything"));
+      return pluginPageRequest(request)!.signal;
+    };
+    const twoOpen = async () => {
+      const page = authority.open("io.example.registered", null, "web-user", undefined, activation());
+      const signals = [await requestOf(page.page_id), await requestOf(page.page_id)] as const;
+      assert.ok(signals.every(signal => !signal.aborted), "both requests are still in flight before the page ends");
+      return { page, signals };
+    };
+    const assertEach = (signals: readonly [AbortSignal, AbortSignal], code: string, label: string) => {
+      for (const [index, signal] of signals.entries()) {
+        assert.ok(signal.aborted, `${label}: request ${index + 1} is aborted`);
+        assert.equal((signal.reason as { code?: string } | undefined)?.code, code, `${label}: request ${index + 1} ends as ${code}`);
+      }
+      assert.notEqual(signals[0].reason, signals[1].reason, `${label}: the two requests do not share one error object`);
+    };
+
+    const left = await twoOpen();
+    await authority.finish(left.page.page_id, undefined);
+    assertEach(left.signals, "actions.cancelled", "leave");
+
+    const leftWithAction = await twoOpen();
+    await authority.finish(leftWithAction.page.page_id, { reference, input: {} });
+    assert.equal(invoked.length, 1, "the page's own closing action ran once");
+    assertEach(leftWithAction.signals, "actions.cancelled", "leave with a closing action");
+
+    const revoked = await twoOpen();
+    authority.close(revoked.page.page_id);
+    assertEach(revoked.signals, "actions.forbidden", "withdrawal");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 // RAC-2412 (S-47): the workbench keeps only the address parameters and fragments the settings page being opened reads. A page can push any
 // address into a settings page through `molis-work:open-settings-path`; undeclared query parameters and an undeclared fragment must not
 // reach it, while what the page reads stays. The same table is injected into the shell and into the standalone Home model settings dialog.

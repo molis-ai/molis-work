@@ -447,15 +447,18 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
   await surface.waitFor("document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
   const defaults = defaultShelfHotKeys().toggle;
-  const shelfRoot = "/api/plugins/io.molis.work.shelf/settings";
-  await b.web.post(shelfRoot, { hotkeys: { toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } });
+  const prefs = "/api/plugins/io.molis.work.shelf/preferences/", key = "shelf.hotkeys";
+  const { values: [initial] } = await b.web.post<{ values: {revision: string; value: ReturnType<typeof defaultShelfHotKeys>}[] }>(prefs + "read", { keys: [key] });
+  await b.web.post(prefs + "write", { key, layer: "personal", expected_revision: initial!.revision, request_id: "seed-shortcuts",
+    change: { set: { ...initial!.value, toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } } });
   surface = await settingsSurface(b, "/settings/shelf?project=" + b.projectId, mode === "B");
   const shelfApi = await surface.evaluate<string>("(document.body.dataset.routePrefix || '') + '/api/plugins/io.molis.work.shelf/settings'");
   assert.equal(await surface.evaluate("typeof globalThis.__TAURI__?.core?.invoke"), "undefined", "the fixture cannot change desktop hotkeys");
   const reset = '[data-shelf-hotkey-slot="toggle"] [data-shelf-hotkey-reset]';
   await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===false`);
   await surface.click(reset); await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===true`);
-  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi.replace(/settings$/, "preferences/write"), surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 0, "the settings page used the same owner action as a scene");
   const shelf = await b.web.get<{ hotkeys: { toggle: typeof defaults } }>(shelfApi);
   assert.deepEqual(shelf.hotkeys.toggle, defaults);
   await settingsShot(b, mode + "-shelf");

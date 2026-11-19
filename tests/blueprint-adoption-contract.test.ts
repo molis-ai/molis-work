@@ -102,6 +102,13 @@ test("SPC-C07: preview separates verified bundled candidates from installed owne
   };
   const validate = validateResult(preview);
   assert.equal(validate(result), true, JSON.stringify(validate.errors));
+  const part = result.parts[0]!;
+  const withPart = (fields: object) => validate({ ...result, parts: [{ ...part, ...fields }] });
+  assert.equal(withPart({ candidates: [{ ...installed, current: { ...installed.current, setting_source: "personal" } }] }), true);
+  assert.equal(withPart({ candidates: [{ ...installed, current: { ...installed.current, setting_source: "unknown" } }] }), false);
+  assert.equal(withPart({ decision: "skip", reason: "owner_unavailable" }), true);
+  assert.equal(withPart({ decision: "skip" }), false);
+  assert.equal(withPart({ decision: "reuse", reason: "unsupported" }), false);
   assert.equal(validate({ ...result, parts: [{ ...result.parts[0], candidates: [{ ...bundled, install_id: "fake-install", action }] }] }), false);
   assert.equal(validate({ ...result, upgrade: { ...result.upgrade, parts: [{ ...result.upgrade!.parts[0], before: null, after: null }] } }), false);
 });
@@ -113,12 +120,13 @@ test("SPC-C07: apply, read and undo keep original writes separate from later res
     { part_id: "capability", state: "applied", outcome: "reused" },
     { part_id: "skill", state: "needs_install", preview_id: "install-preview" },
     { part_id: "home", state: "needs_approval", page_id: "week-home", version: 2, approval_request_id: "approve-week-home" },
-    { part_id: "writer", state: "pending_verification", request_id: "weekly-adoption:writer" },
+    { part_id: "writer", state: "pending_verification", request_id: "weekly-adoption:writer", current: "owner_unavailable" },
+    { part_id: "settings", state: "pending_verification", request_id: "weekly-adoption:settings" },
   ] satisfies BlueprintAdoptionReadResult["apply_steps"];
   const undo: UndoResult = { operation: "revert", request_id: "undo-weekly", steps: [
     { part_id: "note", state: "skipped", reason: "revision_changed" },
     { part_id: "capability", state: "detached" },
-    { part_id: "writer", state: "pending_verification", request_id: "undo-weekly:writer" },
+    { part_id: "writer", state: "pending_verification", request_id: "undo-weekly:writer", current: "owner_replaced" },
     { part_id: "home", state: "needs_approval", page_id: "old-home", version: 1, approval_request_id: "restore-old-home" },
   ] };
   assertActionInput(apply.action.input_schema, { preview_id: "preview-4", part_ids: ["note", "home"], request_id: "apply-weekly" });
@@ -127,6 +135,7 @@ test("SPC-C07: apply, read and undo keep original writes separate from later res
   assert.equal(validateResult(read)({ ...adoption, apply_steps: steps, latest_undo: undo }), true);
   assert.equal(validateResult(read)({ ...adoption, apply_steps: steps, latest_undo: null }), true);
   assert.equal(validateResult(apply)({ ...adoption, steps: [{ ...steps[3], preview_id: "also-installing" }] }), false);
+  assert.equal(validateResult(apply)({ ...adoption, steps: [{ ...steps[4], current: "changed" }] }), false);
   assert.equal(validateResult(read)({ ...adoption, apply_steps: [{ ...steps[0], receipt: { ...receipt, revision: null } }], latest_undo: undo }), false);
   for (const [definition, operation] of [[revert, "revert"], [remove, "remove"]] as const) {
     assertActionInput(definition.action.input_schema, { adoption_id: adoption.adoption_id, request_id: undo.request_id });

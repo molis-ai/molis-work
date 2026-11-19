@@ -240,7 +240,7 @@ hooks 的 allow/deny/rewrite 能放行、拒绝或改写工具调用，是信任
 
 ### S4 LSP 声明
 
-插件 Manifest 可以声明 `lsp_servers`：`command`、`args`、`extensionToLanguage`、启动/请求超时。**（第 31 批状态：用户 2026-11-12 定代码理解先走宿主侧、由人配置 `language-servers.json`；这份声明式合同还没做，记 BL-lsp-servers-declaration。）** 宿主按扩展名懒启动、初始化、didOpen/didChange、definition/references/hover/documentSymbol/workspaceSymbol/diagnostics，会话结束关闭；只允许本机已安装的 server，不自动下载。语言支持因此是一个插件声明，不是宿主里每加一种语言就改一次代码。
+插件 Manifest 可以声明 `lsp_servers`：`command`、`args`、`extensionToLanguage`、启动/请求超时。**（第 31 批状态：用户 2026-11-12 定代码理解先走宿主侧、由人配置 `language-servers.json`；这份声明式合同还没做，记 BL-lsp-servers-declaration。）** 宿主按扩展名懒启动、初始化、didOpen/didChange、definition/references/hover/documentSymbol/workspaceSymbol/diagnostics，会话结束关闭；先用项目或本机已有的适用版本，缺少时按 [Coding Q5](../coding-plugin/next-requirements.md)（2026-10-28 定）下载到平台管理的隔离工具目录，遵守人给的下载开关与联网限制，不改项目、全局和个人环境（原句「只允许本机已安装的 server，不自动下载」与 Q5 冲突，第 35 批改）。语言支持因此是一个插件声明，不是宿主里每加一种语言就改一次代码。
 
 ### S5 作者工具
 
@@ -255,7 +255,7 @@ hooks 的 allow/deny/rewrite 能放行、拒绝或改写工具调用，是信任
 | PLP-03 | 目录条目能显示 displayName/category/tags/homepage/license/icon；`name` 改名通过 `renames` 迁移，旧安装不失效 |
 | PLP-04 | 安装前能看到 commands/skills/agents/hooks/MCP/LSP 与需要的权限；来源固定到 ref/sha，未审核来源不能静默安装 |
 | PLP-05 | Manifest 的 hooks 与项目 `.molis/hooks/*.md` 注册到同一条 hook bus；warn/block/ask、超时、失败即挡、启停与日志可验证 |
-| PLP-06 | 一个 LSP 声明插件能让宿主按扩展名启动 server、返回定义/引用/诊断，卸载后 server 退出；缺 server 时提示而不自动下载 |
+| PLP-06 | 一个 LSP 声明插件能让宿主按扩展名启动 server、返回定义/引用/诊断，卸载后 server 退出；缺 server 且不允许下载时说明原因而不悄悄联网，允许时装进隔离工具目录 |
 | PLP-07 | `validate` 能拒绝坏 manifest/hook/agent/skill/LSP 声明；`eval` 能跑用例并给出可复查的评分/报告 |
 | PLP-08 | `[人工]` 安装一个内容包与一个 LSP 插件，在助理和 Coding 各用一次；再卸载两者，确认没有残留进程、业务事实或权限 |
 

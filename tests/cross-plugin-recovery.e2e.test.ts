@@ -121,7 +121,7 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value"), '第二轮交互检查');
   await child.click('[data-schedule-create-form] [type=submit]');
   await waitFor('Boolean(window.releaseScheduleResponse)');
-  // ASC-40: cancellation is deliberately attempted while the real save response is held.
+  // 服务接入 §10.6 ASC-40: cancellation is deliberately attempted while the real save response is held.
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form] footer [data-schedule-create-close]').disabled"), true);
   const closeBox=await child.evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-schedule-create-form] footer [data-schedule-create-close]').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()");
   const frameBox=await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('iframe[data-plugin-frame=schedule]').getBoundingClientRect();return{x:r.x,y:r.y}})()");

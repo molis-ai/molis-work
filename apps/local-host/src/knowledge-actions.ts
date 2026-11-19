@@ -23,7 +23,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { searchSourceKey, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
 import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeLocateData, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
-  type KnowledgeLocator, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, knowledgeCardSource } from "@molis-ai/molis-work-service-knowledge";
+  type KnowledgeCatalogSnapshot, type KnowledgeLocator, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, knowledgeCardSource } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
@@ -178,21 +178,23 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const store = openKnowledgeCards({ homeDirectory: ports.homeDirectory });
   // The catalog is the search index as its owner authorizes now; a subject whose owner reports state is listed only while that owner
   // still recognizes it, and its revision follows the text the index holds, so a changed state-owning subject is organized again.
-  const catalog = async (projectId: string) => {
-    if (!ports.ownerContext || closed) return [];
+  // Sources the index does not hold completely yet (after a Home restore it holds none) are named, so their cards are not judged.
+  const catalog = async (projectId: string): Promise<KnowledgeCatalogSnapshot | null> => {
+    if (!ports.ownerContext || closed) return null;
     const caller = await ports.ownerContext(projectId), client = ports.clientFor(caller);
     const current = await ports.search.indexedCatalog({ caller, client: {
       invoke: client.invoke,
       discover: caller => matchingActions(client, caller, ({ action }) => isSearchEntriesSource(action) || isSubjectReader(action)
         || action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_STATE_TYPE),
     } });
-    if (closed) return [];
+    if (closed) return null;
+    const unsettled = new Set(current.unsettled());
     const pieces = knowledgeCatalog(current, projectId).map(piece => { piece.assertCurrent = current.assertCurrent; return piece; });
-    return pieces.flatMap(piece => {
+    return { unsettled, pieces: pieces.flatMap(piece => {
       const owner = subjectOwner(current.views, projectId, piece.subject, piece), previous = store.get(projectId, piece.subject);
       if (!owner || !owner.state && previous && knowledgeCardSource(previous).state_required) return [];
       return [owner.state ? { ...piece, revision: `content-v1:${searchRevisionOf([piece.title, piece.summary, piece.content])}` } : piece];
-    });
+    }) };
   };
   const organizer = new KnowledgeOrganizer({ store, catalog,
     sourceState: async (projectId, source, subject) => {

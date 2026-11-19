@@ -1,3 +1,5 @@
+import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions as a, projectPluginActions, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -190,4 +192,17 @@ function materialHandlers(projectId: string, materials: ProjectMaterialPorts,
       return { items: await origins(caller, materialOriginActions.read, items as MaterialOriginQuery[], true) };
     } },
   ];
+}
+
+
+/** The project settings page uses the catalog for directories and each material owner for its own version. */
+export function openProjectWorkspaceProvider(runtime: MolisWorkProjectRuntime, catalogOwner: ProjectCatalogOwner,
+  client: ActionClient, clock: () => Date, readOnly: Parameters<typeof projectWorkspaceActionProvider>[4]) {
+  return projectWorkspaceActionProvider(runtime.project_id, catalogOwner,
+    workspaceId => announceWorkspaceSettingsChange(runtime.store, runtime.project_id, workspaceId), {
+      client, db: runtime.store.db, now: clock,
+      versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
+        .getArtifactVersion(runtime.project_id, pin.version)?.availability === "available",
+      imported: version => runtime.artifacts.query.getArtifactVersion(runtime.project_id, version)?.origin.kind === "imported",
+    }, readOnly);
 }

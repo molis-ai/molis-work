@@ -14,7 +14,7 @@ import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@moli
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
-import { createPrologueDocuments } from "./prologue-documents.js";
+import { createPrologueImageIntake } from "./prologue-images.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
@@ -65,7 +65,6 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     // Each request a round's loop sends, as the runtime handed it to the Host, for the round's work record (observation, batch 28).
     onModelRequest: request => { for (const listen of modelRequests) { try { listen(request); } catch { /* a listener's fault stays its own */ } } },
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
       ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
@@ -695,7 +694,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     background: deps.waitsPort.background,
     projectWork: projectWorkPort(deps),
-    documents: createPrologueDocuments(runtime, deps.options.storageRoot),
+    images: createPrologueImageIntake(runtime, deps.options.storageRoot),
     memory: deps.platformMemory.capability,
     schedule: deps.schedule.port(runtime, deps.index, deps.effects),
     recovery: deps.recovery.port,
@@ -703,7 +702,6 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     workspaceNone: true,
     workspaceBusiness: true,
     inlineMethods: true,
-    imageAttachments: true,
     compaction: true,
     ...(deps.checkpoints ? { checkpoints: deps.checkpoints } : {}),
     async saveRunTiming(run, timing) {

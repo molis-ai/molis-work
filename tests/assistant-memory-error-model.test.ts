@@ -52,6 +52,11 @@ test("Memory's scope and stale preview keep their owner codes; Assistant managem
 
   const prompt = await answer(home, "/api/agent-definitions/prompt?key=not-registered");
   assert.deepEqual([prompt.status, prompt.body.code], [404, "agent_definitions.not_found"]);
+  const daily = (await answer(home, "/api/assistant/usage")).body.daily_tokens;
+  const oldBudget = await answer(home, "/api/assistant/budget", { daily_tokens: 5000 });
+  assert.deepEqual([oldBudget.status, oldBudget.body.code], [400, "assistant.setting_invalid"]);
+  assert.match(String(oldBudget.body.error), /\/api\/assistant\/preferences/);
+  assert.equal((await answer(home, "/api/assistant/usage")).body.daily_tokens, daily);
   for (const path of ["/api/assistant/budget", "/api/memory/items", "/api/agent-definitions/prompt"]) {
     const malformed = await answer(home, path, "{");
     assert.deepEqual([malformed.status, malformed.body.code, malformed.body.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);

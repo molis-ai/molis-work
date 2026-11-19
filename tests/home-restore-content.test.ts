@@ -5,16 +5,47 @@ import { join } from "node:path";
 import test from "node:test";
 import { createHomeSnapshot, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
+import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ensureStorageSpace, personalStorageSpace, inspectMemoryLedger, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { populatedSnapshotHome, snapshotSdk, snapshotMemoryCaller } from "./fixtures/home-snapshot-fixture.js";
-import { assertSnapshotFact } from "./fixtures/home-snapshot-facts.js";
+import { assertSnapshotFact, snapshotBlueprint, snapshotDraftId } from "./fixtures/home-snapshot-facts.js";
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { restoreCli, restoreFixture } from "./fixtures/home-restore.js";
+import { serveTestHost } from "./fixtures/test-home.js";
+
+test("RAC-2914, AUT-06: restoring an offline Home returns the project's suggestion switch to its captured value", async t => {
+  const f = await restoreFixture(t);
+  const original = await serveTestHost(t, { home: f.home });
+  const project = await original.createProject("Weekly review");
+  const path = `/projects/${project.project_id}/api/automation/recommendations/offers`;
+  assert.deepEqual(await original.web.post(path, { enabled: false }), { enabled: false });
+  await original.close();
+
+  const file = "config/automation-offers.json", lock = file + ".lock.sqlite";
+  assert.ok(lstatSync(join(f.home, lock)).isFile());
+  const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
+  assert.equal(captured.code, 0, captured.stderr);
+  const manifest = JSON.parse(readFileSync(join(f.snapshot, "manifest.json"), "utf8")) as HomeSnapshotManifest;
+  assert.equal(manifest.stores.find(store => store.path === file)?.owner, "horizontal/automation-recommender");
+  assert.equal(lstatSync(join(f.snapshot, "data", lock), { throwIfNoEntry: false }), undefined);
+
+  const later = await serveTestHost(t, { home: f.home });
+  assert.deepEqual(await later.web.post(path, { enabled: true }), { enabled: true });
+  await later.close();
+  const restored = await restoreCli(t, ["restore", "--home", f.home, "--from", f.snapshot, "--json"]);
+  assert.equal(restored.code, 0, restored.stderr);
+  const reopened = await serveTestHost(t, { home: f.home });
+  const response = await fetch(reopened.origin + path, { headers: { "x-molis-work-control-token": reopened.controlToken } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { enabled: false });
+  await reopened.close();
+});
 
 test("RAC-2914: actual restore CLI replaces later facts, retains original keys/modes and supports real Host continuation", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), source = readFileSync(join(f.home, "plugin-files", "original.bin")), key = randomBytes(32);
@@ -109,6 +140,9 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(captured.code, 0, captured.stderr);
   await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.renameProject(project.project_id, "Later changed project", LOCAL_PERSON_ACTOR_ID, project.display_name));
+  const changed = new AdoptionStore(f.home).saveDraft({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id },
+    { draft_id: snapshotDraftId, expected_revision: 2, blueprint: { ...snapshotBlueprint, title: { literal: "Later review" } } }, "en");
+  assert.equal(changed.draft.source.revision, 3);
   const later = openMemoryLedger({ homeDirectory: f.home });
   try { later.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", { ...prefs, task_recall: true }); } finally { later.close(); }
   const receiptBytes = readFileSync(receipt);
@@ -127,7 +161,11 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   try {
     const withCatalog = host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
     await withCatalog({ homeDirectory: f.home }, catalog => { assert.equal(catalog.getProject(project.project_id).display_name, project.display_name); });
-    const snapshot = await managementGoals(host.actionClient(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })), project.project_id).invoke(goalsActions.snapshot, {});
+    const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+    const caller = await host.localPersonContext(reference), actions = bindActionClient(host.actionClient(reference), () => caller);
+    const { draft } = await actions.invoke(blueprintActions.draftRead, { draft_id: snapshotDraftId });
+    assert.deepEqual(draft, { source: { kind: "draft", draft_id: snapshotDraftId, revision: 2 }, locale: "en", blueprint: snapshotBlueprint });
+    const snapshot = await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {});
     assert.ok(snapshot.goals.some(goal => goal.goal_id === "snapshot-goal"));
   } finally { await host.close(); }
   const sdk = snapshotSdk(f.sdkRoot, "snapshot-person");

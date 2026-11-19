@@ -13,6 +13,7 @@ import { hostLog } from "../host-log.js";
 import type { WebLocale } from "../web-locale.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantActionDelegation } from "./assistant-action-delegation.js";
+import type { assistantWorkConnections } from "./assistant-work-connections.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -66,6 +67,8 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
   return offered.some(row => row.capability_id === undo.capability_id && row.version === undo.version && row.provider.provider_id === view.provider.provider_id && row.availability.available);
 }
 
+const invokeDirectly: ReturnType<typeof assistantWorkConnections> = (_action, _input, invoke) => invoke();
+
 /**
  * What the Assistant may call for a work: every action this Home offers to agents in the work's own scope (its
  * project's and the person's own), less the ones the person switched off for the Assistant. The person decided this
@@ -94,7 +97,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** A delegated work's report of what it delivers against the requirements it was handed (absent when it was handed none). */
   delivery?: AgentDelivery,
   /** False when the person asked for this round without automatic Skills (「这次不用技能」): only the named ones can be read. */
-  autoSkills = true, holdActionPolicy?: (key: string, automatic?: boolean) => () => void): AgentStartAuthority {
+  autoSkills = true, holdActionPolicy?: (key: string, automatic?: boolean) => () => void, accountChoice = invokeDirectly): AgentStartAuthority {
   const reference = work.project_ref;
   // This round's number: the request that sent the message when there is one, else a new one. The tools run later, in the Runtime's loop,
   // outside any scope, so the number goes into every call's context.
@@ -215,7 +218,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         const assertCurrent: NonNullable<ActionCallContext["assert_authority_current"]> = (ref, required) => {
           memorySelection?.assert_current(); review?.assertCurrent(); caller.assert_authority_current?.(ref, required);
         };
-        const call = service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: assertCurrent }, action, input);
+        const call = accountChoice(action, input, () => service().invoke({ ...caller, ...(memorySelection ? { memory_context_selection: memorySelection } : {}), assert_authority_current: assertCurrent }, action, input));
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         observeUnsettledCommand(view, call, signal, unsettled);
         const output = await call;

@@ -4,7 +4,7 @@ import type { createNodeHost } from "@prologue/sdk/node";
 import type { McpDispatch } from "./prologue-mcp-dispatch.js";
 import type { RoundMcp } from "./prologue-round-mcp.js";
 import type { AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentWriteChecks } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
 import { agentErrors } from "../errors.js";
@@ -26,8 +26,6 @@ import type { PrologueWorkDelegation } from "./prologue-work-delegation.js";
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** App taxonomy and live memory authority; absent means memory is unavailable. */
   memory?: import("./prologue-memory-authority.js").PrologueMemoryOptions;
-  /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
-  documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
@@ -104,6 +102,8 @@ export interface RoundState {
   readonly gatewayOffered: Map<string, Set<string>>;
   readonly gatewayHooks: Set<string>;
   readonly actionReviews: Map<string, PrologueActionReviews>;
+  /** What the check before review found for a proposed write, by session, path and the exact text (prologue-write-checks.ts). */
+  readonly writeChecks: Map<string, AgentWriteChecks>;
   /** Why each held ending was held, in order (the runtime's event does not say). */
   readonly heldLabels: Map<string, Array<{ target: string; summary: string }>>;
   /** Per business session, what the round now running really kept and forgot, and whether it could: switched off, or given without the tool that keeps (or forgets), as a work handed down by another work is. */
@@ -146,7 +146,7 @@ export interface RoundState {
 export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
-    gatewayHooks: new Set(), actionReviews: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
+    gatewayHooks: new Set(), actionReviews: new Map(), writeChecks: new Map(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), sessionRuns: new Set(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(), childAdmissions: new Map(), subagentListeners: new Set(), childActionControllers: new Map(), modelRequests: new Set(),

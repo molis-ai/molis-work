@@ -2,6 +2,8 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 
 /** Observation error codes: write admission (§4) and read/management gates (§16). */
 export const observationErrors = defineErrorCodes("observation", {
+  setting_invalid: "invalid",
+  setting_conflict: "conflict",
   /** The fact's prefix is not the caller's own (a plugin's `plugin_id`, the shell's `ui`). */
   fact_not_owned: "forbidden",
   /** The caller cannot report at all: only the shell and plugins report. */

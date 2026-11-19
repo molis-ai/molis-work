@@ -23,6 +23,8 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
 export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale; draftCurrent?: () => boolean;
   /** False: the person asked for this round without automatic Skills (`AssistantSendInput.auto_skills`). */
   auto_skills?: false;
+  /** Only categories from Skill bodies the original Assistant read as the person. */
+  connector_categories?: ReadonlySet<string>;
   subtask?: AssistantSendInput["subtask"];
   resume_answer?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStartRequest["resume_answer"];
   /** Entering an execution owner may have an effect even if its response is lost. */

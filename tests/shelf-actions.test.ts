@@ -18,8 +18,14 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
   const client = host.homeActionClient(), bound = bindActionClient(client, () => user);
   try {
     const directory = (await client.discover(user)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "home");
-    assert.deepEqual(directory.map(row => row.capability_id).sort(), SHELF_ACTIONS.map(row => row.capability_id).sort());
-    assert.ok(directory.every(row => row.action.scope === "home" && row.action.scheduling === "concurrent"));
+    const panel = directory.filter(row => !row.capability_id.startsWith("shelf.preferences."));
+    assert.deepEqual(panel.map(row => row.capability_id).sort(), SHELF_ACTIONS.map(row => row.capability_id).sort());
+    assert.ok(panel.every(row => row.action.scheduling === "concurrent"));
+    const preferences = directory.filter(row => row.capability_id.startsWith("shelf.preferences."));
+    assert.deepEqual(preferences.map(row => row.capability_id).sort(), ["shelf.preferences.read", "shelf.preferences.write"]);
+    for (const action of preferences) {
+      await assert.rejects(client.invoke({ ...user, audience: "agent" }, action, { keys: ["shelf.hotkeys"] }), { code: "actions.forbidden" });
+    }
 
     // The panel's writes and an Agent's writes land in the same store the HTTP panel reads.
     const { item } = await bound.invoke(a.admit, { text: "会议纪要：周三前定稿", title: "纪要"});

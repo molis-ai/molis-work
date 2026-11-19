@@ -1,5 +1,8 @@
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { holdsInstalledEdition, pluginManifestDigest, readPluginReleaseManifest, type DeclarationOwner, type DeclarationOwners } from "@molis-ai/molis-work-plugin-runtime";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { installedManifestMatches } from "./installed-stage-identity.js";
+import { systemSettingOwners } from "./system-setting-owners.js";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -7,9 +10,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 const settingKeys = (manifest: PluginManifest): string[] => manifest.settings_entries?.entries.map(entry => entry.key) ?? [];
 
 function exactDefinition(manifest: PluginManifest | undefined, record: PluginInstanceRecord): PluginManifest | undefined {
-  return manifest?.plugin_id === record.plugin_id && manifest.version === record.version
-    && manifest.publisher.publisher_id === record.publisher_id && manifest.publisher.signature === record.publisher_signature
-    && pluginManifestDigest(manifest) === record.manifest_digest ? manifest : undefined;
+  return installedManifestMatches(record, manifest) ? manifest : undefined;
 }
 
 /** Old keys still needed if a candidate version in this Home fails to start. Each change releases its own entry after commit or restoration. */
@@ -36,8 +37,12 @@ const shippedOwners = (): DeclarationOwner[] => [...PLATFORM_PLUGIN_REGISTRATION
   ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
 
 /** A development run has only its own installation and the artifact names the build reserves (S-82). */
+const systemSettings = (): DeclarationOwner[] => systemSettingOwners.map(owner => ({
+  plugin_id: owner.provider_id, settings: owner.settings_entries.entries.map(entry => entry.key),
+}));
+
 export function developmentDeclarationOwners() {
-  const shipped = shippedOwners();
+  const shipped = [...shippedOwners(), ...systemSettings()];
   return (): readonly DeclarationOwner[] => shipped;
 }
 
@@ -46,12 +51,21 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
   running: (pluginId: string) => PluginManifest | undefined = () => undefined, versions = createSettingsVersionClaims()): DeclarationOwners {
   const shipped = shippedOwners();
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));
+  const packages = home ? new SandboxPackageStore(home) : undefined;
+  const dual = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.dual_instance);
+  function ownsSettings(manifest: PluginManifest, scope: InstallScope) {
+    const entry = dual.find(item => item.manifest.plugin_id === manifest.plugin_id);
+    const ref = manifest.settings_entries?.read;
+    if (!ref || !entry || pluginManifestDigest(entry.manifest) !== pluginManifestDigest(manifest)) return true;
+    const action = manifest.actions?.find(item => item.capability_id === ref.capability_id && item.version === ref.version);
+    return action?.action.scope === scope.kind;
+  }
   const projectSettings = current.scope.kind === "project" ? { home: true, projects: new Set([current.scope.project_id]) } : undefined;
   const unreadable = (record: PluginInstanceRecord) => new Error(`读不到已装插件 ${record.plugin_id} 的 Manifest`);
 
   const owners: DeclarationOwners = (manifest, installId, onlySettings) => {
     const artifacts = !onlySettings && !shippedIds.has(manifest.plugin_id) && (manifest.artifacts.produces.length > 0 || !!manifest.artifacts.links?.length);
-    const settings = !!manifest.settings_entries?.entries.length;
+    const settings = !!manifest.settings_entries?.entries.length && ownsSettings(manifest, current.scope);
     const artifactOwner = (record: PluginInstanceRecord) => artifacts && !shippedIds.has(record.plugin_id) && record.plugin_id !== manifest.plugin_id;
     const settingOwner = (record: PluginInstanceRecord, scope: InstallScope) => settings && record.state !== "uninstalled"
       && (scope.kind === "home" || current.scope.kind === "home" || sameInstallScope(scope, current.scope))
@@ -59,12 +73,14 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
     try {
       const held = artifacts || settings ? heldInstalls(home, current, artifacts ? undefined : projectSettings,
         (record, scope) => artifactOwner(record) || settingOwner(record, scope)) : [];
-      return [...onlySettings ? [] : shipped, ...held.map(item => {
-        const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined);
+      return [...onlySettings ? [] : shipped, ...settings ? systemSettings() : [], ...held.map(item => {
+        // Signed packages keep their manifest in their verified bundle, including before their supervisor starts.
+        const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined)
+          ?? exactDefinition(packages?.installedManifest(item.record), item.record);
         if (!readable) throw unreadable(item.record);
         return { plugin_id: item.record.plugin_id,
           ...(artifactOwner(item.record) ? { artifacts: readable.artifacts } : {}),
-          ...(settingOwner(item.record, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
+          ...(settingOwner(item.record, item.scope) && ownsSettings(readable, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
         };
       })];
     } catch (error) {

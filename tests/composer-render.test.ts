@@ -118,7 +118,7 @@ test("UIC-13: the board's #composer specimens are renderComposer's structure, pl
   const starts = [...section.matchAll(/<div class="mw-composer" data-slot="composer"/g)].map((match) => match.index!);
   // Ten states plus the two at rest in one row (user 11-08): a phone's and a short window's; and the five with the line above the box
   // (batch12-design §2.3).
-  assert.equal(starts.length, 17, "sixteen AI specimens and one plain");
+  assert.equal(starts.length, 18, "seventeen AI specimens and one plain");
   const states = new Set<string>();
   for (const start of starts) {
     let specimen = divAt(section, start);

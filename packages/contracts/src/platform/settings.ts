@@ -13,6 +13,8 @@ export type SettingSource = (typeof SETTINGS_SOURCES)[number];
 export type SettingConsequence = (typeof SETTINGS_CONSEQUENCES)[number];
 export type SettingLayers = Partial<Record<SettingSource, SandboxJson>>;
 
+export type SettingLayerRevisions = Partial<Record<SettingLayer, string>>;
+
 export interface SettingEntryDeclaration {
   /** A stable name. The declaring installation or system provider owns it. */
   key: string;
@@ -21,9 +23,12 @@ export interface SettingEntryDeclaration {
   layers: SettingLayer[];
   schema: SandboxSchema;
   consequence?: SettingConsequence[];
+  device_only?: true;
 }
 
 export interface SettingsDeclaration {
+  /** Storage and separate connection-management actions for the plugin's declared personal model choice. */
+  model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration & { key: string };
   entries: SettingEntryDeclaration[];
   read: Pick<ActionReference, "capability_id" | "version">;
   write: Pick<ActionReference, "capability_id" | "version">;
@@ -36,16 +41,21 @@ export const SETTINGS_READ_OUTPUT_TYPE = /* @version type.molis.settings.values 
 export interface SettingsReadInput { keys: string[] }
 
 export type EffectiveSetting = { key: string; revision: string } & (
-  | { state: "ok"; value: SandboxJson; source: SettingSource; layers?: SettingLayers }
+  | { state: "ok"; value_unavailable?: string; value: SandboxJson; source: SettingSource; layers?: SettingLayers; layer_revisions?: SettingLayerRevisions }
   | { state: "unavailable"; reason: string }
 );
 
 export interface SettingsValues { values: EffectiveSetting[] }
 
+type LayerChange<T> = { set: T } | { inherit: true };
+type SettingRecovery<T> = { previous: LayerChange<T> } | { undo_of: string };
+
 export interface SettingsWriteInput {
   key: string;
   layer: SettingLayer;
-  change: { set: SandboxJson } | { inherit: true };
+  change: LayerChange<SandboxJson>;
+  /** An original write binds the observed layer. Its undo names that verified request. */
+  recovery?: SettingRecovery<SandboxJson>;
   expected_revision: string;
   request_id: string;
 }
@@ -60,19 +70,23 @@ export const SETTINGS_READ_INPUT_SCHEMA = inputSchemaFor<SettingsReadInput>()(cl
 }));
 
 // The gateway checks the envelope. The SDK checks bounded JSON and the setting's value schema.
-type SettingsWriteEnvelope = Omit<SettingsWriteInput, "change"> & { change: { set: InferActionInput<typeof json> } | { inherit: true } };
+type JsonEnvelope = InferActionInput<typeof json>;
+type SettingsWriteEnvelope = Omit<SettingsWriteInput, "change" | "recovery"> & { change: LayerChange<JsonEnvelope>; recovery?: SettingRecovery<JsonEnvelope> };
+const change = { oneOf: [closedObjectSchema({ set: json }), closedObjectSchema({ inherit: { const: true } })] } as const;
 export const SETTINGS_WRITE_INPUT_SCHEMA = inputSchemaFor<SettingsWriteEnvelope>()(closedObjectSchema({
   key: SETTING_KEY_SCHEMA,
   layer: { type: "string", enum: SETTINGS_LAYERS },
-  change: { oneOf: [closedObjectSchema({ set: json }), closedObjectSchema({ inherit: { const: true } })] },
+  change,
+  recovery: { oneOf: [closedObjectSchema({ previous: change }), closedObjectSchema({ undo_of: nonblank })] },
   expected_revision: nonblank,
   request_id: nonblank,
-}));
+}, ["key", "layer", "change", "expected_revision", "request_id"]));
 
 const observation = { key: SETTING_KEY_SCHEMA, revision: nonblank };
 const layers = closedObjectSchema({ project: json, personal: json, provider_default: json }, []);
 const available = closedObjectSchema({
-  ...observation, state: { const: "ok" }, value: json, source: { type: "string", enum: SETTINGS_SOURCES }, layers,
+  ...observation, state: { const: "ok" }, value_unavailable: nonblank, value: json, source: { type: "string", enum: SETTINGS_SOURCES }, layers,
+  layer_revisions: closedObjectSchema({ project: nonblank, personal: nonblank }, []),
 }, ["key", "revision", "state", "value", "source"]);
 const unavailable = closedObjectSchema({ ...observation, state: { const: "unavailable" }, reason: nonblank });
 

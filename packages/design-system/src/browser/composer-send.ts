@@ -119,9 +119,13 @@ export function composerSender(c: Composer, drafts: ComposerDrafts, sentByKey: (
     catch (error) { done = { state: "failed", reason: error instanceof Error ? error.message : String(error) }; retry = true; }
     if (signal.aborted || !c.items.includes(item) || item.state !== "reading") return;
     if (done.state === "attached") {
-      Object.assign(item, { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title } });
+      Object.assign(item, { state: "attached", title: done.title, material: { kind: "attachment", ref: done.ref, title: done.title }, ...(done.meta ? { meta: done.meta } : {}) });
       if (file.type.startsWith("image/")) item.thumb = URL.createObjectURL(file);
-    } else Object.assign(item, { state: "failed", reason: done.reason, retry });
+    } else {
+      Object.assign(item, { state: "failed", reason: done.reason, retry });
+      // A row of pictures shows a refused one too, so the person sees which picture it is (scheme A's 「超过 5 MB」 row).
+      if (take.pictures && file.type.startsWith("image/")) item.thumb = URL.createObjectURL(file);
+    }
     c.paint();
   }
 }

@@ -131,6 +131,9 @@ export type {
   AgentReviewRecoveryView,
   AgentReviewRecoveryInput,
   AgentReviewQueueApi,
+  AgentWriteCheckCause,
+  AgentWriteCheckError,
+  AgentWriteChecks,
 } from "./agent-host-reviews.js";
 export type {
   AgentCheckpoint,
@@ -166,7 +169,7 @@ export type {
   InferenceTokenCount,
 } from "./agent-host-builder.js";
 
-export type { AgentStartExecution, AgentRunInstructions } from "./agent-host-start.js";
+export type { AgentStartExecution, AgentRunCodeIntelligence, AgentRunInstructions } from "./agent-host-start.js";
 export type { AgentMemoryFormationSlot, AgentMemoryFormationContext, AgentMemoryFormationInput, AgentMemoryExtractionUsage,
   AgentMemoryFormationResult, AgentMemoryExtractionDraft, AgentMemoryExtractionRequest, AgentMemoryExtractor } from "./agent-host-memory-formation.js";
 
@@ -175,7 +178,7 @@ export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, ty
 export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore, type AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
-export type { AgentMemoryClassPolicy, AgentMemoryExecutionControl, AgentMemoryPageQuery, AgentMemoryPage, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability,
+export type { AgentMemoryClassPolicy, AgentMemoryExecutionControl, AgentMemoryPageQuery, AgentMemoryPage, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentMemoryUseReceipt, AgentMemoryCapability, AgentMemoryCandidateCapability,
   AgentMemoryCaller, AgentMemoryMutation, AgentMemoryChange, AgentMemoryPreviewMutation, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemorySourceRequest, AgentMemoryPromotionIdentity, AgentMemoryPromotionRequest, AgentMemoryPromotionPreparation, AgentMemoryPromotionApplied, AgentMemoryPromotionReceipt, AgentMemoryPromotion, AgentMemoryPromotionPendingError, AgentMemoryDecisionReceipt, AgentMemoryScopePreview, AgentMemoryBatchPreview, AgentMemoryClearResult } from "./agent-host-memory.js";
 
 export const servicesAgentHostContract = {

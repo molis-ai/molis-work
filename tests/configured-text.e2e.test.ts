@@ -95,7 +95,10 @@ for (const width of [1440, 390]) {
     await click('[data-lingguang-chat] [type=submit]');
     await waitFor("document.querySelector('[data-lingguang-messages]').textContent.includes('从同一角度再拍一张窗边的照片')");
     assert.deepEqual(received, ["a-model"]);
-    await jelly("/model-settings", { provider_id: "a", model_id: "a-model" });
+    const key = "jelly.model_selection";
+    const { values } = await jelly<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>("/preferences/read", { keys: [key] });
+    await jelly("/preferences/write", { key, layer: "personal", expected_revision: values[0]!.revision, request_id: "choose-model-a",
+      change: { set: { provider_id: "a", model_id: "a-model" } } });
     withConnectorConnections(home, store => store.disconnect(firstConnection));
     active = browser;
     await click('[data-plugin-strip] [data-plugin-id=jelly]');

@@ -1,3 +1,4 @@
+import { jellyPreferenceActions } from "./model-configuration.js";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -32,6 +33,8 @@ export function jellyRoutes(context: PluginStartContext): PluginRouteBinding[] {
       return result.status === 200 ? { ...result, body: { occurrences: (result.body as { items: unknown }).items } } : result;
     } },
     route(jellyActions.progress, "jelly.progress", ({ query }) => ({ start: query.start ?? "", end: query.end ?? "", today: query.today ?? "", ...(query.category_id ? { category_ids: [query.category_id] } : {}) })),
+    route(jellyPreferenceActions.read, "jelly.preference.read", body),
+    route(jellyPreferenceActions.write, "jelly.preference.write", body),
     route(jellyServiceActions.modelSettings, "jelly.model.read", () => ({})),
     route(jellyServiceActions.saveModelSettings, "jelly.model.save", body),
     route(jellyActions.exportNote, "jelly.note.export", request => ({ id: request.params.id, format: request.query.format === "html" ? "html" : "markdown" })),

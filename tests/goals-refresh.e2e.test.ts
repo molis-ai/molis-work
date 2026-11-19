@@ -370,7 +370,7 @@ test("QEA-113 QEA-114 QEA-161 QEA-172 QEA-199 PG094-TITLE-01 BL-140 ASC-41 T01-G
     await waitFor("window.__refreshes > 0", 10_000);
   });
 
-  await t.test("ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async () => {
+  await t.test("服务接入 §10.6 ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async () => {
     const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
     const prefix = `/projects/${projectId}`;
     const goalId = "REFRESH-SAVING";

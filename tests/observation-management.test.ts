@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -12,6 +12,7 @@ import {
   observationKeys,
   readCoverageGaps,
   readRecords,
+  RETENTION_KEY, retentionActions,
   withObservationSource,
   type ExitAction,
   type ExitObservation,
@@ -65,7 +66,15 @@ function createFixture(t: test.TestContext, options: { now?: () => Date; platfor
     rmSync(home, { recursive: true, force: true });
   });
 
+  async function changePreference(key: string, value: string | number) {
+    const caller = person(), { values: [current] } = await service.invoke(caller, retentionActions.read, { keys: [key] });
+    assert.ok(current);
+    await service.invoke(caller, retentionActions.write, { key, layer: "personal", change: { set: typeof value === "number" ? { bytes: value } : value },
+      expected_revision: current.revision, request_id: crypto.randomUUID() });
+    return service.invoke(caller, observationActions.settingsGet, {});
+  }
   return {
+    changePreference,
     home,
     secrets,
     projects,
@@ -118,6 +127,64 @@ const exitDone = (startedAt: number, endedAt: number, input: unknown, result: un
   outcome: { ok: true },
   aborted: false,
   ...extra,
+});
+
+test("ONB-22/30 OCL-12: adopting retention commits cleanup and receipt together, and undo preserves the actual remaining records", async t => {
+  const f = createFixture(t);
+  const user = () => bindActionClient(f.service, person);
+  const read = async () => (await user().invoke(retentionActions.read, { keys: [RETENTION_KEY] })).values[0]!;
+  await assert.rejects(f.service.invoke(person(), observationActions.settingsSet, { paused: true, space_reminder_bytes: 1000 }), /observation.preferences.write/);
+  assert.equal((await f.service.invoke(person(), observationActions.settingsGet, {})).recording.state, "recording");
+  await f.changePreference("observation.space_reminder", 1000);
+  const initial = await read();
+  assert.ok(initial.state === "ok" && initial.source === "provider_default");
+  await f.service.invoke(pluginCaller("notes", "notes-install"), observationActions.report, {
+    facts: [{ fact: "notes.older", outcome: "succeeded", occurred_at: "2026-10-01T12:00:00.000Z" }],
+  });
+  f.layer.flush();
+  const write = { key: RETENTION_KEY, layer: "personal" as const, expected_revision: initial.revision, request_id: "scene-retention", change: { set: "30" } };
+  f.db().exec("CREATE TRIGGER refuse_retention_receipt BEFORE INSERT ON writer_state WHEN NEW.key LIKE 'settings.receipt:%' BEGIN SELECT RAISE(ABORT,'simulated storage failure'); END");
+  await assert.rejects(user().invoke(retentionActions.write, write));
+  assert.deepEqual(await read(), initial);
+  assert.ok(readRecords(f.db()).some(r => r.fact === "notes.older"), "cleanup rolled back with the unsuccessful receipt");
+  f.db().exec("DROP TRIGGER refuse_retention_receipt");
+  const saved = await user().invoke(retentionActions.write, write);
+  assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
+  f.reopen();
+  assert.deepEqual(await f.service.invoke(person({ project_id: null }), retentionActions.write, write), saved);
+  const restored = (await user().invoke(retentionActions.write, { ...write, request_id: "undo-retention",
+    expected_revision: saved.values[0]!.revision, change: { inherit: true } })).values[0]!;
+  assert.ok(restored.state === "ok" && restored.source === "provider_default" && restored.value === "keep");
+  assert.equal(readRecords(f.db()).some(r => r.fact === "notes.older"), false);
+});
+
+test("ONB-22/30 OCL-15: adopting a space reminder preserves records and an intervening manual choice", async t => {
+  const f = createFixture(t);
+  const key = "observation.space_reminder";
+  const user = () => bindActionClient(f.service, person);
+  const read = async () => (await user().invoke(retentionActions.read, { keys: [key] })).values[0]!;
+  const before = await read();
+  assert.ok(before.state === "ok" && before.source === "provider_default");
+  await f.changePreference("observation.retention", "manual");
+  assert.deepEqual(await read(), before, "retention has its own revision");
+  const request = { key, layer: "personal" as const, expected_revision: before.revision, request_id: "warn-now", change: { set: { bytes: 0 } } };
+  const saved = await user().invoke(retentionActions.write, request);
+  assert.equal((await user().invoke(observationActions.spaceGet, {})).reminder_status, "exceeded");
+  await f.service.invoke(pluginCaller("notes", "notes-install"), observationActions.report, {
+    facts: [{ fact: "notes.kept", outcome: "succeeded" }],
+  });
+  f.layer.flush();
+  await f.changePreference("observation.space_reminder", 9999);
+  f.reopen();
+  assert.deepEqual(await user().invoke(retentionActions.write, request), saved);
+  await assert.rejects(user().invoke(retentionActions.write, { ...request, request_id: "undo-space",
+    expected_revision: saved.values[0]!.revision, change: { inherit: true } }), { kind: "conflict" });
+  const manual = await read();
+  assert.ok(manual.state === "ok" && manual.source === "personal");
+  assert.deepEqual(manual.value, { bytes: 9999 });
+  assert.ok(readRecords(f.db()).some(r => r.fact === "notes.kept"));
+  await user().invoke(retentionActions.write, { ...request, request_id: "clear-space", expected_revision: manual.revision, change: { inherit: true } });
+  assert.equal((await user().invoke(observationActions.spaceGet, {})).reminder_status, "none");
 });
 
 test("OCL-01 OCL-02 OCL-04 OCL-06 OCL-14: records.query filters by work, subject+version, platform_version, kinds and window, paginates cleanly and marks late, coalesced and clock_adjusted", async t => {
@@ -459,7 +526,7 @@ test("OCL-12 PWA-111 PWA-112: retention shortfalls are reported without silent e
   ]);
 
   // Setting 30 days reports shortfalls (`kept: false`) for 60d and 120d without silently extending retention!
-  const set30 = await f.service.invoke(person(), observationActions.settingsSet, { retention_mode: "30" });
+  const set30 = await f.changePreference("observation.retention", "30");
   assert.equal(set30.retention.mode, "30", "user's choice is kept verbatim, never silently lengthened");
   assert.equal(set30.retention.shortfall, true);
   assert.deepEqual(set30.retention.requirements.map(r => [r.consumer, r.kept]), [
@@ -467,14 +534,14 @@ test("OCL-12 PWA-111 PWA-112: retention shortfalls are reported without silent e
     ["cross_period_compare", false],
     ["evaluation_samples", false],
   ]);
-  const set90 = await f.service.invoke(person(), observationActions.settingsSet, { retention_mode: "90" });
+  const set90 = await f.changePreference("observation.retention", "90");
   assert.equal(set90.retention.shortfall, true);
   assert.deepEqual(set90.retention.requirements.map(r => [r.consumer, r.kept]), [
     ["weekly_report", true],
     ["cross_period_compare", true],
     ["evaluation_samples", false],
   ]);
-  await f.service.invoke(person(), observationActions.settingsSet, { retention_mode: "keep" });
+  await f.changePreference("observation.retention", "keep");
 
   // Seed old (45 days ago) and recent (2 days ago) records, sharing one common snapshot and holding one old-only snapshot.
   const oldIso = "2026-09-30T12:00:00.000Z";
@@ -531,7 +598,7 @@ test("OCL-12 PWA-111 PWA-112: retention shortfalls are reported without silent e
   });
   f.layer.flush();
   assert.ok(readRecords(f.db()).some(r => r.fact === "notes.auto_swept"));
-  const sweptSettings = await f.service.invoke(person(), observationActions.settingsSet, { retention_mode: "30" });
+  const sweptSettings = await f.changePreference("observation.retention", "30");
   assert.ok(!readRecords(f.db()).some(r => r.fact === "notes.auto_swept"), "automatic retention sweep removes records past cutoff");
   assert.equal(typeof sweptSettings.retention.last_cleanup_at, "string");
 
@@ -588,13 +655,13 @@ test("OCL-12 OCL-15: space.get breaks down 5 record kinds, files and projects, a
   assert.ok(spaceNone.by_project.some(row => row.project_id === "p1") && spaceNone.by_project.some(row => row.project_id === "p2"));
 
   // Configure `space_reminder_bytes` above, near, and below `total_bytes`, and confirm reopen + writes still work when exceeded!
-  await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: spaceNone.total_bytes * 10 });
+  await f.changePreference("observation.space_reminder", spaceNone.total_bytes * 10);
   assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "ok");
 
-  await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: Math.ceil(spaceNone.total_bytes * 1.1) });
+  await f.changePreference("observation.space_reminder", Math.ceil(spaceNone.total_bytes * 1.1));
   assert.equal((await f.service.invoke(person(), observationActions.spaceGet, {})).reminder_status, "near");
 
-  await f.service.invoke(person(), observationActions.settingsSet, { space_reminder_bytes: Math.max(1, Math.floor(spaceNone.total_bytes / 2)) });
+  await f.changePreference("observation.space_reminder", Math.max(1, Math.floor(spaceNone.total_bytes / 2)));
   f.reopen();
   const spaceExceeded = await f.service.invoke(person(), observationActions.spaceGet, {});
   assert.equal(spaceExceeded.reminder_status, "exceeded");

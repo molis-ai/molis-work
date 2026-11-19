@@ -9,6 +9,7 @@ import { projectDirectoryActions, projectSettingsCapabilities, type ProjectDirec
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability,
   workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -48,8 +49,14 @@ test("W3-07-9-01: the assembled Host registers no typed entry and exposes Goals 
     for (const definition of [...workspaceEntries, ...directoryEntries]) {
       assert.ok(workspaceDirectory.some(row => row.capability_id === definition.capability_id && row.availability.available), definition.capability_id);
     }
-    assert.deepEqual(workspaceDirectory.filter(row => row.capability_id.startsWith("projects.settings.") && !runtimeEntries.some(entry => entry.capability_id === row.capability_id)), [],
-      "no project setting says where a panel browses (SSC-05)");
+    const settings = workspaceDirectory.filter(row => row.capability_id.startsWith("projects.settings."));
+    assert.deepEqual(settings.map(row => row.capability_id).sort(),
+      [...runtimeEntries.map(row => row.capability_id), "projects.settings.read", "projects.settings.write"].sort());
+    const readSettings = settings.find(row => row.capability_id === "projects.settings.read")!;
+    const { values } = await host.actionClient(ref).invoke(user, readSettings, { keys: ["projects.runtime"] }) as SettingsValues;
+    assert.deepEqual(values.map(row => row.key), ["projects.runtime"]);
+    await assert.rejects(host.actionClient(ref).invoke(user, readSettings, { keys: ["projects.browsing-workspace"] }),
+      { code: "host.setting_invalid" }, "no project setting says where a panel browses (SSC-05)");
     // A change of the project's folders is made and read back through the actions, as the browsing choice once was.
     const folder = join(home, "output");
     await mkdir(folder);

@@ -1,6 +1,6 @@
 {
   "reason": "第 61 批定样选定的三件界面：服务连接页「按服务／按用途」切换与对照表（窄屏改分组列表）、设置里单独的「网页搜索」页、助理建议卡的多选项与说明。样式复用设置行与组件板已有的表格、勾选与标签，只补对照表格子、来源行与多选项的布局；脚本只加用途视图切换、网页搜索页的读写与项目页打开后的一次建议请求。Feed 脚本加「其他服务的账号」一处选服务（BL-917）：选了服务就换来源名与设置链接。",
-  "review": "第 61 批 PR 评审（定样 docs/design/service-coverage-automation，选定 c5f24c7165；用户 11-18 选 ①B ②B 与 ③ 一张卡勾选）；首屏对照 main e5e565411b 隔离构建实测（node scripts/gates/first-screen.mjs --base origin/main，2026-11-18）",
+  "review": "第 61 批 PR 评审（定样 docs/design/service-coverage-automation，选定 c5f24c7165；用户 11-18 选 ①B ②B 与 ③ 一张卡勾选）；首屏对照 main f5efe316a2 隔离构建实测（node scripts/gates/first-screen.mjs --base origin/main，2026-11-18）",
   "assets": {
     "/assets/molis-work-settings.css": 3740,
     "/assets/molis-work-workbench.css": 3740,
@@ -38,7 +38,7 @@
       "warm": 1100
     },
     "arrival-empty/en": {
-      "cold": 6000,
+      "cold": 6200,
       "warm": 1100
     },
     "chooser/zh": {
@@ -46,23 +46,23 @@
       "warm": 1400
     },
     "chooser/en": {
-      "cold": 6300,
+      "cold": 6500,
       "warm": 1400
     },
     "workbench-default/zh": {
-      "cold": 9700,
+      "cold": 9800,
       "warm": 1500
     },
     "workbench-default/en": {
-      "cold": 9400,
+      "cold": 9600,
       "warm": 1500
     },
     "workbench-all-plugins/zh": {
-      "cold": 14200,
+      "cold": 14300,
       "warm": 6000
     },
     "workbench-all-plugins/en": {
-      "cold": 14100,
+      "cold": 14200,
       "warm": 6100
     }
   }

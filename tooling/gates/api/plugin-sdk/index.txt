@@ -32,6 +32,7 @@ export interface ActionCard {
         revision: string;
         title: string;
     };
+    choices?: Record<string, AssistantCardChoice[]>;
     created_at: string;
     updated_at: string;
 }
@@ -830,7 +831,9 @@ export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/pla
 
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
 
-export declare function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[], ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard>;
+export declare function draftActionCard(cardId: string, offer: AgentActionOffer & {
+    readonly choices?: Record<string, AssistantCardChoice[]>;
+}, views: readonly ActionView[], ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard>;
 
 export declare function effectsFromContract(contract: SandboxPluginContract): SandboxEffects;
 

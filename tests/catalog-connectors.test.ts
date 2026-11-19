@@ -17,7 +17,8 @@ test("VG-21 every catalog connector provides the same two types it always did, n
 });
 
 test("every catalog connector has a valid Integration Manifest and identity URL", () => {
-  assert.equal(CATALOG_CONNECTORS.length, 39);
+  // 39 services plus the three web search services of batch 61 (Brave Search, DeepSeek Search, Tavily; ASC-54).
+  assert.equal(CATALOG_CONNECTORS.length, 42);
   const ids = new Set<string>();
   for (const spec of CATALOG_CONNECTORS) {
     assert.equal(ids.has(spec.id), false, spec.id);

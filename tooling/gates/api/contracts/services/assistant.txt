@@ -73,7 +73,9 @@ export interface AssistantCard {
         options?: Array<{
             value: string;
             label: string;
+            description?: string;
         }>;
+        multiple?: boolean;
         input?: "date" | "datetime";
     }>;
     missing: Array<{
@@ -95,6 +97,12 @@ export interface AssistantCard {
     };
     created_at: string;
     updated_at: string;
+}
+
+export interface AssistantCardChoice {
+    value: string;
+    label: string;
+    description?: string;
 }
 
 export interface AssistantCharacter {
@@ -460,6 +468,7 @@ export interface AssistantPreparedCard {
         title: string;
         text: string;
     }>;
+    choices?: Record<string, AssistantCardChoice[]>;
 }
 
 export interface AssistantRecovery {

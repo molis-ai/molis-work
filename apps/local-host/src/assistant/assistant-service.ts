@@ -110,8 +110,8 @@ export class AssistantService {
       start: (work, text, current, continued_from) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from })),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.reads.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notices.notice(current, state); void this.delegations.roundEnded(current).catch(() => undefined); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
-    this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs,
+    this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}), ...(ports.scopeActions ? { personActions: ports.scopeActions } : {}),
+      readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs, personRan: (work, view, input, output) => this.outcomes.recordResult(work, view, input, output, false),
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,

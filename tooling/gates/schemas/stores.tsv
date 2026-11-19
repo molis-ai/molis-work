@@ -45,5 +45,6 @@ projects/catalog.db	apps/local-host	4	f704641f25a9cbb2	1,2,3
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-
+web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-
 work-brief/work-brief.db	io.molis.work.work-brief	2	57259b770650ee22	1
 workflows/workflows.db	io.molis.work.native.workflows	1	4bf4b5a14a13db76	-

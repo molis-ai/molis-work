@@ -29,6 +29,8 @@
       "group_id": "code",
       "summary": { "key": "github.connection.summary" },
       "auth_kind": "github",
+      "categories": ["source-control", "project-tracker"],
+      "project_hints": { "git_hosts": ["github.com"], "files": [".github/"] },
       "auth": {
         "methods": [
           {

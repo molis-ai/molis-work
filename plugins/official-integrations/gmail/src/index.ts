@@ -50,6 +50,7 @@ export const gmailIntegrationManifest = {
     group_id: "mail",
     summary: { key: "gmail.connection.summary" },
     auth_kind: "oauth",
+    categories: ["email"],
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",

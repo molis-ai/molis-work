@@ -727,8 +727,14 @@ test("RAC-1024 an account source nobody bound an account to needs the person: th
 
 test("RAC-1025 the Home's account status says only whether there is an account, and an item's material is read while its source's account still works", async t => {
   const f = await connecting(t);
-  const status = () => f.client.invoke(caller([...READ, "sources:pull_connector"]).context, feedQueryActions.connections, {}) as Promise<unknown>;
+  type Status = { github: unknown; gmail: unknown; others?: { service_id: string; title: string; bound: boolean }[] };
+  const full = () => f.client.invoke(caller([...READ, "sources:pull_connector"]).context, feedQueryActions.connections, {}) as Promise<Status>;
+  const status = async () => { const { github, gmail } = await full(); return { github, gmail }; };
   assert.deepEqual(await status(), { github: { bound: false }, gmail: { bound: false } });
+  // BL-917: every other service the Home can pull by account, by the name the person reads, and nothing of any account.
+  const others = (await full()).others ?? [];
+  assert.ok(others.some(row => row.service_id === "linear" && row.title === "Linear" && row.bound === false), JSON.stringify(others.slice(0, 3)));
+  assert.ok(others.every(row => Object.keys(row).sort().join() === "bound,service_id,title" && row.service_id !== "github" && row.service_id !== "gmail"));
   const account = f.connect();
   f.bind(account.connection_id);
   assert.deepEqual(await status(), { github: { bound: true }, gmail: { bound: false } });
@@ -757,15 +763,19 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
 });
 
 // T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
-test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
+test("RAC-2665 BL-917 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
   const f = await connecting(t);
   const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
   const added = await add({ service: "github", name: "Work GitHub" });
   assert.deepEqual([added.registered, added.source.sync_kind, added.source.config, added.source.status], [true, "github", {}, "active"]);
   const again = await add({ service: "github", name: "Work GitHub" });
   assert.deepEqual([again.registered, again.source.source_id], [false, added.source.source_id]);
-  // Only the services Feed declares an account slot and an integration for, a name, and nothing that names an account.
-  for (const input of [{ service: "notion", name: "Docs" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
+  // BL-917: any service Feed has an account slot for is a source: GitHub and Gmail by their own kinds, the rest as a `connector` source
+  // of the service, its account bound the same way (the slot is the service, the record the source).
+  const notion = await add({ service: "notion", name: "Docs" });
+  assert.deepEqual([notion.registered, notion.source.sync_kind, (notion.source as { kind?: string }).kind, notion.source.config, notion.source.status], [true, "connector", "notion", {}, "active"]);
+  // Only the services Feed declares an account slot for, a name, and nothing that names an account.
+  for (const input of [{ service: "brave-search", name: "Search" }, { service: "not-a-service", name: "X" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
     await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));
   }
   const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: added.source.source_id, idempotency_key: key }) as Promise<{ created: number; run: { outcome: string } }>;

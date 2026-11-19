@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.deepseek-search",
+  "locale": "en",
+  "messages": {
+    "deepseek-search.connection.auth-help": "Use an API key from the DeepSeek platform (the same key as for its models). Each successful search is charged to your balance; with no balance, searches are refused. Connecting only reads the balance to check the key, at no charge.",
+    "deepseek-search.connection.inbound": "Web search (when it is the default)",
+    "deepseek-search.connection.summary": "DeepSeek’s web search, including documents. Paid per successful request.",
+    "deepseek-search.connection.token-label": "DeepSeek API key",
+    "deepseek-search.setup.open-deepseek-api-keys": "Open DeepSeek API keys"
+  }
+}

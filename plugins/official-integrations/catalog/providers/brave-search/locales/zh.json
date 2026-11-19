@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.brave-search",
+  "locale": "zh",
+  "messages": {
+    "brave-search.connection.auth-help": "在 Brave Search API 控制台建一把 API Key（需要绑卡，每月有 5 美元额度）。连接时会搜一次来核对密钥，算一次查询。",
+    "brave-search.connection.inbound": "网页搜索（设为默认后使用）",
+    "brave-search.connection.summary": "Brave 自己的网页索引，按次计费，要绑卡。",
+    "brave-search.connection.token-label": "Brave Search API Key",
+    "brave-search.setup.open-brave-search-api-keys": "打开 Brave Search API 密钥"
+  }
+}

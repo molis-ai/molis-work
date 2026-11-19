@@ -1,3 +1,4 @@
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginSourcePullClient, RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
@@ -61,9 +62,13 @@ export interface UpdateFeedSourceInput {
   feed_url?: string;
 }
 
-/** The services an account source can be added for: each is a `per_record` slot of Feed's Manifest and an integration the platform pulls. */
-export const FEED_ACCOUNT_SERVICES = ["github", "gmail"] as const;
-export interface AddFeedAccountSourceInput { service: typeof FEED_ACCOUNT_SERVICES[number]; name: string }
+/**
+ * The services an account source can be added for: each is a `per_record` slot of Feed's Manifest (one per service a plugin's slot may
+ * name), pulled through the Home's source integration of that service. GitHub and Gmail are their own sync kinds; every other one is a
+ * `connector` source of that service (BL-917). A service the Home has no source integration for is refused when it is pulled.
+ */
+export const FEED_ACCOUNT_SERVICES: readonly string[] = Object.keys(CONNECTOR_REQUEST_SERVICES);
+export interface AddFeedAccountSourceInput { service: string; name: string }
 
 export type ConfigureFeedSourceScheduleInput =
   | { mode: "manual" }

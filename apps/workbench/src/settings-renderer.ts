@@ -1,4 +1,5 @@
 import { renderKitSettings } from "./settings-kit.js";
+import { renderWebSearchSettings } from "./settings-web-search.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
 import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
@@ -96,6 +97,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? "MCP"
       : view.section === "connectors"
         ? "Connectors"
+        : view.section === "web-search"
+        ? uiText.text("workbench.settings-web-search.title")
         : view.section === "projects"
         ? uiText.text("workbench.settings-renderer.project-settings")
         : view.section === "diagnostics"
@@ -130,6 +133,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           ? renderMcpSettings(view, desktopShell, primitives)
           : view.section === "connectors"
             ? renderConnectorsSettings(view, { readText, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "en" ? "en" : "zh"] })
+          : view.section === "web-search" ? renderWebSearchSettings(view.web_search)
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell, primitives)
           : view.section === "diagnostics"

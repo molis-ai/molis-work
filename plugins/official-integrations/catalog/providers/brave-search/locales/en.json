@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.brave-search",
+  "locale": "en",
+  "messages": {
+    "brave-search.connection.auth-help": "Create an API key in the Brave Search API dashboard (a card is required; there is a $5 monthly credit). Connecting runs one search to check the key, which counts as one query.",
+    "brave-search.connection.inbound": "Web search (when it is the default)",
+    "brave-search.connection.summary": "Brave’s own web index. Paid per query; a card is required.",
+    "brave-search.connection.token-label": "Brave Search API key",
+    "brave-search.setup.open-brave-search-api-keys": "Open Brave Search API keys"
+  }
+}

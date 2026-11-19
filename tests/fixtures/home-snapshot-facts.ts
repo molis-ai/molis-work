@@ -49,6 +49,8 @@ function libraryFacts(project: string): Record<string, Seed> {
       frozen_digest: "snapshot-digest", spec_json: JSON.stringify({ title }), hold_id: null, held_record_count: 0, created_at: at }, field: "spec_json" },
     // An item a person named on their mainline (the store keeps names, references and order; batch 36).
     mainline: { table: "mainline_items", values: { item_id: id, owner_actor_id: actor, project_id: project, name: title, created_at: at }, field: "name" },
+    // The Home's default web search source and its last use (batch 61, §13.7): names and ids only, never a key.
+    "web-search": { table: "web_search_last_use", values: { id: 1, source_id: id, title, account_label: null, audience: "user", used_at: at }, field: "title" },
     "external-sessions": { table: "external_sessions", values: { session_key: id, entry_id: "claude-code", location_key: "local", native_id: id, seen_via: "file", title, activity: "idle", last_activity_at: at }, field: "title" },
   };
 }

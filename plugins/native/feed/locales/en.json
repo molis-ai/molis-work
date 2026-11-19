@@ -443,6 +443,10 @@
     "feed.sources.pull-failed-reason": "Pull failed. {reason}",
     "feed.sources.source-added": "The source was added.",
     "feed.sources.source-added-pull-schedule-wasn-t-saved": "The source was added. Its pull schedule wasn’t saved.",
-    "feed.runs.source-title": "Feed sources"
+    "feed.runs.source-title": "Feed sources",
+    "feed.add-source.other-account": "Another service account",
+    "feed.add-source.other-account-hint": "Other accounts from Service connections",
+    "feed.ui.other-account-explain": "Accounts are managed in Settings › Service connections. Create the source, then choose which account it uses in its settings. Only services Feed can pull by account are listed.",
+    "feed.ui.account-service": "Service"
   }
 }

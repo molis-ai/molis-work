@@ -129,6 +129,8 @@ export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> 
     options: { switcherClass: string; manageHref: string; directoryToggle: boolean; globalSearch?: boolean }): string;
   renderProjectSwitcher(project: ShellProject | null, projects: readonly ShellProject[],
     desktop: boolean, className: string, manageHref: string): string;
+  /** The top strip's first place, 「项目 › 项目主页」, and its list of projects and pages. */
+  renderProjectCorner(project: ShellProject | null, projects: readonly ShellProject[], desktop: boolean, manageHref: string): string;
   /** The model a plugin's declared stage is drawn with, from this page's view. */
   stageModel(projectPluginId: string, view: TView): unknown;
   appearance?: WorkbenchAppearancePorts;
@@ -149,7 +151,7 @@ export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPag
 ) {
   const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, prefixLocalLinks, renderWorkbenchDocument,
-    renderDesktopProjectChrome,
+    renderDesktopProjectChrome, renderProjectCorner,
     stageModel } = owners;
 
 function renderMolisWorkWeb(
@@ -227,9 +229,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderImmersiveHeader(primitives, desktopShell, sideTabs, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
+        corner: renderProjectCorner(view.project ?? null, projectOptions, desktopShell, "__PROJECT_INDEX__"),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
       })}
-      ${renderWorkbenchBar(primitives, { head: view.project?.display_name, sideTabs })}
+      ${renderWorkbenchBar(primitives, { sideTabs })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}

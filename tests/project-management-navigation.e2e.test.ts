@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
+/** 全部项目 in the first place's list (§4「底栏第十三版」第 1 条). */
+const MANAGE = "[data-top-corner-list] .top-corner-manage:not([data-corner-new])";
+
 test("Manage projects leaves a Coding session and returns from a responsive directory", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
@@ -24,9 +27,10 @@ test("Manage projects leaves a Coding session and returns from a responsive dire
     await child.waitFor("!!document.querySelector('[data-coding-session][aria-current=\"true\"]')");
     const codingSessionId = await child.evaluate<string>("document.querySelector('[data-coding-session][aria-current=\"true\"]').dataset.codingSession");
     t.diagnostic("Coding session ready, desktop=" + desktop);
-    const href = await evaluate<string>("document.querySelector('.titlebar-end .navigator-project-manage').getAttribute('href')");
+    // 全部项目 closes the first place's projects (POLISH-05 as rewritten: from 960px the right end has no project).
+    const href = await evaluate<string>(`document.querySelector('${MANAGE}').getAttribute('href')`);
     assert.equal(href, desktop ? "/?desktop=1" : "/");
-    await navigate(() => click(".titlebar-end .navigator-project-manage"));
+    await navigate(() => click(MANAGE));
     t.diagnostic("manage projects navigated, desktop=" + desktop);
     await waitFor("document.body.classList.contains('arrival-page') && !!document.querySelector('.chooser-dir [role=option]')");
     assert.equal(await evaluate("location.pathname"), "/");

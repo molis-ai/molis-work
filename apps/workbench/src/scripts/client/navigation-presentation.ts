@@ -1,5 +1,5 @@
-import { dockDefaultPins } from "../../plugin-catalog.js";
 import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
+import { TOP_CORNER_PART } from "./top-corner.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -22,24 +22,15 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
     const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target?.nodeType === 1 && event.target.closest(selector));
     for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
       const inside = path.includes(menu) || menu.contains(event.target);
-      // Ticking a plugin for the Dock is a setting, not a destination: the menu stays for the next one.
-      if (inside && along('a, button') && !along('summary, [data-dock-choice]')) menu.open = false;
+      if (inside && along('a, button') && !along('summary')) menu.open = false;
     }
   };
   document.addEventListener('click', dismiss);
 }`;
 
-/** The bottom bar in three zones (07-1 S4b). Left: the switcher as its glyph alone, whose name says what the work area shows
- * (one plugin, or one per pane when split), then the Dock: 项目首页 and the project's plugins chosen to stay. Centre: the
- * resident Assistant. Right: the person's own plugins chosen to stay (those the directory marks `personal`), then the project
- * with its menu. One list of kept plugins feeds both trays; every button opens its plugin through the switcher's own entry, so
- * navigation has one path. A plugin that did not start carries the amber point here and in the switcher. Choices here are
- * per-viewer conveniences.
- *
- * What a tray folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
- * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
- * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
- * lost. */
+/** The top strip's script (specs/screen-polish §3 方案 C, §4「底栏第十三版」第 1 条): its first place, 「项目 › 项目主页」, stands as
+ * the ear on its sheet while the project home shows (top-corner.ts). Any other plugin is reached from ＋ (the start page) or ⌘K,
+ * and its own page is a tab like any other. A plugin that did not start carries the amber point in the start page and on its tab. */
 export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
@@ -99,10 +90,18 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     });
     box.replaceChildren(title, rows);
   };
+  // POLISH-04: the start page hangs under ＋, its left edge at ＋'s, moved in only as far as the window needs.
+  const placeStart = () => {
+    const plus = pickerToggle.getBoundingClientRect();
+    pickerPopover.style.setProperty('--start-left', Math.round(Math.max(8, Math.min(plus.left, innerWidth - 8 - pickerPopover.offsetWidth))) + 'px');
+  };
+  addEventListener('resize', () => { if (pickerPopover && !pickerPopover.hidden) placeStart(); });
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
-    if (open) dressStart();
+    // One list at a time: the start page closes the first place's.
+    if (open) { setCorner(false); dressStart(); }
     pickerPopover.hidden = !open;
+    if (open) placeStart();
     toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
     if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
@@ -125,19 +124,19 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     chip.append(name);
     return chip;
   };
-  // The label is rebuilt only when what it shows changed: a press that lands on it while the Dock refits still ends on the
-  // node it started on, so it is a click.
+  // The label is rebuilt only when what it shows changed: a press that lands on it while it repaints still ends on the node it
+  // started on, so it is a click.
   const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
-  let paintQueued = false;
-  // 项目首页 never folds and never shrinks: its tray is at least as wide as it is (with its name while it is the current one),
-  // and the tabs beside the tray give the room. Set after the pin is painted, outside the refit, and only when it changed.
+  let paintQueued = false, tabsWait = 0;
+  // The first place never shrinks: its tray is at least as wide as it is, and the tabs beside it give the room. Set after it is
+  // painted, and only when it changed.
   const holdHome = () => {
-    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-dock-pin]');
+    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-top-corner-toggle]');
     if (!home) return;
     const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
     if (tray.style.minWidth !== need) tray.style.minWidth = need;
   };
-  // The strip shows once its kept plugins are drawn and the current one named (work-line.ts holds it unseen until then).
+  // The strip shows once 项目首页 is drawn and the current one named (work-line.ts holds it unseen until then).
   const drawn = () => { if (dockPainted && !dock.hasAttribute('data-dock-drawn')) dock.setAttribute('data-dock-drawn', ''); };
   const paintCurrent = () => {
     if (!current) { drawn(); return; }
@@ -145,6 +144,9 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
+      // The tab workspace starts after this script: until it is up, which page shows is not known, so the strip waits (a
+      // little, then draws anyway should the workspace not start).
+      if (host.tabsReady && !host.tabsReady() && tabsWait++ < 100) { setTimeout(paintCurrent, 50); return; }
       // A cover (settings, the market) is what the person looks at: the switcher names it and no
       // Dock entry claims to be current underneath it.
       const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
@@ -153,8 +155,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
         nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
         current.parentElement?.classList.remove('is-split');
-        dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
-        trays.forEach((tray) => tray.more.classList.remove('has-current'));
+        paintCorner(false, false);
         holdHome(); drawn();
         return;
       }
@@ -162,145 +163,27 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
       put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
       nameSwitcher(entries.map((entry) => nameOf(entry.plugin)));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
-      dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
-        const id = button.dataset.dockPin;
-        const on = entries.some((entry) => entry.plugin === id && entry.focused);
-        if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
-      });
-      trays.forEach((tray) => tray.more.classList.toggle('has-current', [...tray.pins.querySelectorAll('[data-dock-pin][hidden]')].some((pin) => pin.hasAttribute('aria-current'))));
+      // The project home has no tab of its own in the strip: the first place is that tab, and grows on the sheet while it shows.
+      const home = entries.some((entry) => entry.plugin === 'home' && entry.focused);
+      paintCorner(home, host.pagePlugin?.() === 'home');
       holdHome(); drawn();
     });
   };
 
-  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher; those in the
-     switcher's 个人 group (the tile says its group) sit in the right tray instead. */
-  const PINS_KEY = 'molis-work:dock-pins';
-  const DEFAULT_PINS = ${JSON.stringify(dockDefaultPins())};
-  const pins = dock.querySelector('[data-dock-pins]'), own = dock.querySelector('[data-bar-own]');
-  const personal = new Set([...dock.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile));
-  // A plugin that did not start keeps its place and its stage says why; wherever it is named here it carries the amber point.
-  const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]${UNAVAILABLE_STAGE}'));
-  // A pin says so in its own name; an entry that reads its plugin's name aloud gets the words on the point (say).
-  const warn = (node, id, say) => {
-    if (!failed(id) || node.querySelector(':scope > .nav-warn-dot')) return;
-    const dot = document.createElement('span'); dot.className = 'nav-warn-dot';
-    if (say) { dot.setAttribute('role', 'img'); dot.setAttribute('aria-label', globalThis.t.text("workbench.navigation-presentation.didn-t-start")); } else dot.setAttribute('aria-hidden', 'true');
-    node.append(dot);
-  };
-  rail().forEach((item) => warn(item, item.dataset.pluginId, true));
-  const readPins = () => {
-    try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}
-    return DEFAULT_PINS.slice();
-  };
-  const makePin = (id, fixed, arriving = false) => {
-    const source = railItem(id);
-    if (!source) return null;
-    const pin = document.createElement('button');
-    pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
-    if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
+${TOP_CORNER_PART}
+  // A plugin that did not start keeps its place and its stage says why; its entry in the start page carries the amber point
+  // (and its tab, tab-workspace-strip.ts).
+  rail().forEach((item) => {
+    const stage = '[data-work-surface="' + CSS.escape(item.dataset.pluginId) + '"]';
+    if (!document.querySelector(stage + '${UNAVAILABLE_STAGE}') || item.querySelector(':scope > .nav-warn-dot')) return;
     // A plugin stopped because its data was not upgraded did start; it is only unavailable for now (U3 §2.4).
-    const held = failed(id) && document.querySelector('[data-work-surface="' + CSS.escape(id) + '"] [data-owner-unavailable]');
-    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + (held ? globalThis.t.text("workbench.navigation-presentation.unavailable-for-now") : globalThis.t.text("workbench.navigation-presentation.didn-t-start")) : ''));
-    const glyph = glyphOf(id); if (glyph) pin.append(glyph);
-    // The current one reads its name in the top strip (specs/work-line §4.2); the others are their glyph.
-    const name = document.createElement('span'); name.className = 'dock-pin-name'; name.textContent = labelOf(source); pin.append(name);
-    warn(pin, id);
-    return pin;
-  };
-  /* What does not fit in a tray folds into one button at its end; its list opens above it. */
-  const makeTray = (container, label) => {
-    if (!container) return null;
-    const more = document.createElement('button'), overflow = document.createElement('div');
-    more.type = 'button'; more.className = 'dock-pin dock-pin-more'; more.dataset.dockMore = '';
-    more.setAttribute('aria-haspopup', 'true'); more.setAttribute('aria-expanded', 'false');
-    overflow.className = 'dock-overflow'; overflow.dataset.dockOverflow = ''; overflow.hidden = true;
-    container.parentElement?.append(overflow);
-    const tray = { pins: container, more, overflow };
-    tray.setOverflow = (open) => {
-      if (open) {
-        overflow.replaceChildren(...[...container.querySelectorAll('[data-dock-pin][hidden]:not(.is-leaving)')].map((pin) => {
-          const row = document.createElement('button');
-          row.type = 'button'; row.className = 'dock-overflow-item'; row.dataset.dockPin = pin.dataset.dockPin;
-          if (pin.hasAttribute('aria-current')) row.setAttribute('aria-current', 'page');
-          const glyph = glyphOf(pin.dataset.dockPin); if (glyph) row.append(glyph);
-          const name = document.createElement('span'); name.textContent = pin.getAttribute('aria-label') || ''; row.append(name);
-          warn(row, pin.dataset.dockPin);
-          return row;
-        }));
-        const origin = container.parentElement?.getBoundingClientRect() ?? { left: 0, right: 0 }, at = more.getBoundingClientRect();
-        // The right tray's list opens toward the middle of the window, as the left one's does.
-        if (container === own) { overflow.style.left = 'auto'; overflow.style.right = Math.max(0, origin.right - at.right - 6) + 'px'; }
-        else overflow.style.left = Math.max(0, at.left - origin.left - 6) + 'px';
-      }
-      overflow.hidden = !open;
-      more.setAttribute('aria-expanded', String(open));
-      if (open) overflow.querySelector('button')?.focus();
-    };
-    tray.fit = () => {
-      const all = [...container.querySelectorAll('[data-dock-pin]:not(.is-leaving)')];
-      all.forEach((pin) => { pin.hidden = false; });
-      more.remove();
-      if (container.scrollWidth <= container.clientWidth + 1) { tray.setOverflow(false); return; }
-      container.append(more);
-      // 项目首页 never folds; the right tray has no such pin and can fold every one of its own.
-      const keep = container === pins ? 1 : 0;
-      for (let index = all.length; --index >= keep && container.scrollWidth > container.clientWidth + 1;) all[index].hidden = true;
-      if (container.scrollWidth > container.clientWidth + 1) more.remove();
-      const count = all.filter((pin) => pin.hidden).length;
-      more.textContent = '+' + count;
-      more.title = label; more.setAttribute('aria-label', label + ' ' + count);
-      if (!overflow.hidden) tray.setOverflow(more.isConnected);
-    };
-    return tray;
-  };
-  const trays = [makeTray(pins, globalThis.t.text("workbench.navigation-presentation.more-pinned-plugins")), makeTray(own, globalThis.t.text("workbench.navigation-presentation.own"))].filter(Boolean);
-  const fit = () => { trays.forEach((tray) => tray.fit()); paintCurrent(); };
-  const closeOverflows = (except) => trays.forEach((tray) => { if (tray !== except && !tray.overflow.hidden) tray.setOverflow(false); });
-  // The trays keep the buttons they have: one that is kept stays where it is, a new one lands, one that goes lets go.
+    const held = document.querySelector(stage + ' [data-owner-unavailable]');
+    const dot = document.createElement('span'); dot.className = 'nav-warn-dot';
+    dot.setAttribute('role', 'img'); dot.setAttribute('aria-label', globalThis.t.text(held ? "workbench.navigation-presentation.unavailable-for-now" : "workbench.navigation-presentation.didn-t-start"));
+    item.append(dot);
+  });
   let dockPainted = false;
-  const paintTray = (container, wanted) => {
-    const have = new Map([...container.querySelectorAll('[data-dock-pin]:not(.is-leaving)')].map((pin) => [pin.dataset.dockPin, pin]));
-    const next = [];
-    for (const id of wanted) {
-      if (!railItem(id)) continue;
-      const pin = have.get(id) || makePin(id, id === 'home', dockPainted);
-      if (pin) next.push(pin);
-    }
-    for (const [, pin] of have) if (!next.includes(pin)) {
-      pin.classList.add('is-leaving'); pin.setAttribute('aria-hidden', 'true'); pin.tabIndex = -1;
-      setTimeout(() => pin.remove(), 260);
-    }
-    next.forEach((pin, index) => { if (container.children[index] !== pin) container.insertBefore(pin, container.children[index] || null); });
-  };
-  const paintDock = () => {
-    if (!pins) return;
-    const kept = readPins().filter((id) => id !== 'home');
-    paintTray(pins, ['home', ...kept.filter((id) => !personal.has(id))]);
-    if (own) {
-      const mine = kept.filter((id) => personal.has(id) && railItem(id));
-      paintTray(own, mine);
-      // The bar's columns read this mark (navigation-flow.ts), not a :has() over the whole bar (VUX-36).
-      dock.toggleAttribute('data-own-kept', mine.length > 0);
-    }
-    dockPainted = true;
-    fit();
-  };
-  // The pin at the end of each entry says whether its plugin is in the Dock: graphite while it is, grey while not.
-  const markKept = (button, on) => {
-    button.setAttribute('aria-pressed', String(on));
-    button.classList.toggle('mw-btn--primary', on);
-    button.classList.toggle('mw-btn--secondary', !on);
-    button.closest('.plugin-rail-tile')?.classList.toggle('is-kept', on);
-  };
-  const paintPins = () => {
-    if (!pins) return;
-    // The choice itself is this browser's.
-    const chosen = readPins();
-    dock.querySelectorAll('[data-dock-choice]:not(:disabled)').forEach((button) => markKept(button, chosen.includes(button.dataset.dockChoice)));
-    paintDock();
-  };
-  // A plugin was added to or removed from this project in place: the Dock follows what the project has.
-  document.addEventListener('molis-work:plugins-changed', () => paintPins());
+  const paintDock = () => { dockPainted = true; paintCurrent(); };
 
   /* Removing asks once, in the tile's own second line, and gives up by itself. */
   let asking = null;
@@ -339,29 +222,6 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     tile.classList.add('is-confirming');
     asking = { tile, button: toggle, label, title, timer: setTimeout(stopAsking, 3200) };
   });
-  dock.addEventListener('click', (event) => {
-    const row = event.target?.nodeType === 1 ? event.target.closest('[data-dock-choice]') : null;
-    if (!row || row.disabled) return;
-    const order = rail().map((node) => node.dataset.pluginId);
-    const next = new Set(readPins());
-    const on = row.getAttribute('aria-pressed') !== 'true';
-    if (on) next.add(row.dataset.dockChoice); else next.delete(row.dataset.dockChoice);
-    // The choice is the browser's, not the project's: a plugin this project does not have keeps its place for the ones that do.
-    const away = [...next].filter((id) => !order.includes(id));
-    try { localStorage.setItem(PINS_KEY, JSON.stringify([...order.filter((id) => next.has(id)), ...away])); } catch {}
-    // The button changes in place, so focus and the list stay where the person is.
-    markKept(row, on);
-    paintDock();
-  });
-  // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
-  // group and the strip's end too: a directory button joins the end after the first fit. And the switcher, whose name (a long plugin name) takes room
-  // from the pins.
-  // The refit waits for the next frame: what it folds moves the tabs it is watching, and a change made while the sizes are being
-  // delivered would be reported as a loop.
-  let refitting = false;
-  const refit = () => { if (refitting) return; refitting = true; requestAnimationFrame(() => { refitting = false; fit(); }); };
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(refit); for (const node of [dock, dock.querySelector('.titlebar-end'), dock.querySelector('[data-titlebar-tabs]'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
-
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
@@ -376,18 +236,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const beside = target.closest('[data-rail-beside]'), reopen = target.closest('[data-rail-reopen]');
     if (beside) { setPicker(false); host.openBeside?.(beside.dataset.railBeside); return; }
     if (reopen) { setPicker(false); host.startPage?.()?.reopen(Number(reopen.dataset.railReopen)); return; }
-    const moreOf = target.closest('[data-dock-more]'), tray = moreOf && trays.find((candidate) => candidate.more === moreOf);
-    if (tray) { closeOverflows(tray); tray.setOverflow(tray.overflow.hidden); return; }
-    const pin = target.closest('[data-dock-pin]');
-    if (pin) {
-      closeOverflows();
-      const id = pin.dataset.dockPin;
-      // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
-      if (host.leavePlugin?.(id)) return;
-      host.open?.(id, railItem(id));
-      return;
-    }
-    // Choosing a plugin in the switcher (or the market or studio at its head) closes it; the Dock buttons keep it open.
+    // Choosing a plugin in the switcher (or the market or studio at its head) closes it.
     if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .plugin-picker-extend [data-plugin-id]')) requestAnimationFrame(() => setPicker(false));
   });
   // Search heads the switcher's list, so the list stays behind it while it is open. Dismissed (×, Esc, ⌘K), you are back
@@ -407,7 +256,6 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   document.addEventListener('click', (event) => {
     const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
     if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
-    if (!(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) closeOverflows();
   });
   // ⌥↵ on a tile opens its plugin beside what is showing (PFG-23).
   pickerPopover?.addEventListener('keydown', (event) => {
@@ -419,12 +267,14 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     if (event.target?.nodeType === 1 && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
-    const opened = trays.find((tray) => !tray.overflow.hidden);
-    if (opened) { event.preventDefault(); opened.setOverflow(false); opened.more.focus(); return; }
     const active = document.activeElement;
     if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
+  // What shows can change with nothing below to see it (the workspace coming up after the first paint, the side opening):
+  // the strip's size changing, or the side saying so, paints the current one again (paintCurrent waits for the next frame).
+  if ('ResizeObserver' in window) new ResizeObserver(paintCurrent).observe(dock);
+  document.addEventListener('molis:side-shown', paintCurrent);
   new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });
   new MutationObserver(paintCurrent).observe(dock.querySelector('.plugin-rail-items') || dock, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
-  paintPins();
+  paintDock();
 }`;

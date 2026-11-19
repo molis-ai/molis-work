@@ -249,6 +249,31 @@ const pages: Record<string, Draw> = {
 // (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
 // hash and length exactly; the other 36 records did not change. Checked again on the merges of main 6359987103 (batch 34's records)
 // and of a717e44284, bdfcc36454 and 43a3c3fa2f (the copywriting polish) after it, and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
+// Screen polish P1 (specs/screen-polish §3 方案 C, the top strip as tabs on paper), on main 0dceaca09: the 16 page-* records grew
+// by 627 zh / 647 en characters and the 50 fragment records did not change. It is the shell's top strip alone, in three places:
+// the person's tray (`data-bar-own`) gave way to the side sheet's own tab (`data-side-ear data-ear`), the side's glyph row became the list
+// of its views (`side-strip side-views`, `data-side-menu hidden`), and the layout button is preceded by the side's switch
+// (`data-side-toggle`). Each of the 16 candidate normalized draws, with only those three put back as they were, had its prior hash
+// and length exactly; the new expectations are those draws' own. Candidate RECORD mode was not used; no Goals markup or JSON changed.
+// On the merges of main 4aa5496e3f (batch 34's records above) and then eafff2b526 the same 16 stood 627 zh / 647 en over main's
+// records, every one by that constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// The directory's two buttons in the top strip (collapse and show) changed their glyph from `panel`, the right-hand panel the side's
+// switch now carries, to `sidebar`: the 16 page-* records grew by 4 characters each (`#icon-panel` to `#icon-sidebar`, twice) in both
+// languages and the other 36 did not change; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main 77954f0100 the 16 stood 631 zh / 651 en over main's records (the strip and the glyph above), every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// After the review of P1 the side sheet's tab lost `aria-haspopup="true"` (21 characters) and the side's switch's tooltip gained
+// ` ⌘\` (3): on the merge of main e56bd6701a the 16 page-* records stood 613 zh / 633 en over main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// The top keeps no plugin (specs/screen-polish §3 方案 C, confirmed by the user 2026-11-18「确认，拿掉」): the start page's
+// entries lost their keep pin and kept mark, the Dock's holder its role and label, and the shell its kept-plugin glyphs. The 16
+// page-* records shrank by 9931 zh / 10430 en characters, every one by that constant, and the other 36 did not change; they then
+// stood 9318 zh / 9797 en under main's records (on main e56bd6701a), every one by that constant, and the 16 were recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main f1e875d11e (P0's records above) the 16 stood 9318 zh / 9797 en under main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// On the merge of main e5e565411b (P5's records above) the 16 again stood 9318 zh / 9797 en under main's records, every one by that
+// constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 // QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
 // `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.

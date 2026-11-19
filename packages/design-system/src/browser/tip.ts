@@ -10,7 +10,7 @@
  * - It goes on leaving, a press, a scroll that moves what it is about (not another box following its output), Escape or the
  *   window losing focus. A native `title` is held back while it shows.
  */
-const TIP_TARGETS = ":is(.workbench-bar, .workbench-header) :is(.dock-pin, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
+const TIP_TARGETS = ":is(.workbench-bar, .workbench-header) :is(.top-corner-cell, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
 /** What may hold a cut name: something one presses or moves to, or a row of a list. */
 const HOLDERS = "a[href], button, summary, [role=button], [role=tab], [role=option], [role=menuitem], [role=treeitem], [role=row], [tabindex]:not([tabindex=\"-1\"]), li";
 const HOLD_MS = 500;

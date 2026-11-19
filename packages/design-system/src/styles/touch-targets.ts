@@ -43,7 +43,7 @@ export const TOUCH_TARGET_STYLES = `
     ${ASSIST} .assistant-attention { min-width: 44px; } ${ASSIST} .assistant-attention::after { content: ""; position: absolute; inset: -12px 0; }
     ${ASSIST} .assistant-strip-chip { height: 44px; }
     ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
-    ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
+    ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
     ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
     ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }

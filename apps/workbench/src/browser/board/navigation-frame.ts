@@ -2,8 +2,8 @@
  * The 工作台导航 frame's behaviour (apps/workbench/src/navigation-specimens.ts), only as far as a specimen needs to be tried:
  * tabs answer ←→ Home End and a click; a glyph-only tab widens after resting on it about 0.14s, and moving along the row hands
  * the width over at once; a menu button opens and closes its menu, ↑↓ move in it, Esc closes it and gives the focus back to its
- * button; a menu's search field narrows its rows; the pane switch and the undo chip answer. The product's own behaviour
- * arrives with the slices that adopt the parts.
+ * button; a menu's search field narrows its rows; the side's switch and the undo chip answer; the side's tab drops its list of
+ * views, where ↑↓ move and a press chooses. The product's own behaviour is side-panel.ts and the strip's scripts.
  */
 import { installWorkLineLayout } from "../work-line-layout.js";
 
@@ -15,6 +15,7 @@ const UNDO_MS = 6000;
 const target = (event: Event) => (event.target instanceof Element ? event.target : null);
 const tabsOf = (list: Element) => [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
 const menuOf = (button: Element) => document.getElementById(button.getAttribute("aria-controls") ?? "");
+const opensFrom = (menu: Element | null) => Boolean(menu?.closest(".mw-navs__anchor, [data-nav-titlebar]"));
 const itemsOf = (menu: Element) => [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemcheckbox"]')].filter((item) => !item.disabled && !item.closest("[hidden]"));
 
 function choose(trigger: HTMLElement): void {
@@ -32,13 +33,13 @@ function setMenu(button: Element, open: boolean): void {
   const menu = menuOf(button);
   if (!menu) return;
   menu.hidden = !open; button.setAttribute("aria-expanded", String(open));
-  if (open) (menu.querySelector<HTMLElement>("[data-nav-find]") ?? itemsOf(menu)[0])?.focus();
+  if (open) (menu.querySelector<HTMLElement>("[data-nav-find]") ?? menu.querySelector<HTMLElement>('[aria-selected="true"]') ?? itemsOf(menu)[0])?.focus();
 }
 
-/** Close the menus that open from a button (the ones drawn open as specimens stay). */
+/** Close the menus that open from a button, in an anchor or in the strip's specimen (the ones drawn open as specimens stay). */
 function closeAll(scope: Element, except?: Element): void {
   for (const button of scope.querySelectorAll('[data-nav-menu-for][aria-expanded="true"]')) {
-    if (button !== except && menuOf(button)?.closest(".mw-navs__anchor")) setMenu(button, false);
+    if (button !== except && opensFrom(menuOf(button))) setMenu(button, false);
   }
 }
 
@@ -83,13 +84,21 @@ if (board) {
     if (toggle) { closeAll(board, toggle); setMenu(toggle, toggle.getAttribute("aria-expanded") !== "true"); return; }
     const chip = node.closest<HTMLElement>("[data-nav-undo]");
     if (chip) { undo(chip); return; }
-    const segment = node.closest(".tab-pane-switch .mw-toggle");
-    if (segment?.parentElement) {
-      for (const other of segment.parentElement.querySelectorAll(".mw-toggle")) { const on = other === segment; other.classList.toggle("is-current", on); other.setAttribute("aria-pressed", String(on)); }
+    const sideSwitch = node.closest("[data-nav-side-switch]");
+    if (sideSwitch) { sideSwitch.setAttribute("aria-pressed", String(sideSwitch.getAttribute("aria-pressed") !== "true")); return; }
+    const trigger = node.closest<HTMLElement>('[role="tab"]');
+    if (trigger) {
+      choose(trigger);
+      // Chosen from the side's list: the list closes and the side's tab names the view, as side-panel.ts does.
+      const list = trigger.closest<HTMLElement>("[data-side-menu]"), ear = list && board.querySelector<HTMLElement>(`[aria-controls="${list.id}"]`);
+      if (list && ear && opensFrom(list)) {
+        const name = ear.querySelector(".side-ear-name"), glyph = ear.querySelector(".side-ear-glyph"), svg = trigger.querySelector("svg");
+        if (name) name.textContent = trigger.querySelector(".tab-item-name")?.textContent ?? "";
+        if (glyph && svg) glyph.replaceChildren(svg.cloneNode(true));
+        setMenu(ear, false); ear.focus();
+      }
       return;
     }
-    const trigger = node.closest<HTMLElement>('[role="tab"]');
-    if (trigger) { choose(trigger); return; }
     if (!node.closest("[data-nav-popover]")) closeAll(board);
   });
 
@@ -97,17 +106,19 @@ if (board) {
     const node = target(event);
     const trigger = node?.closest<HTMLElement>('[role="tab"]');
     const list = trigger?.closest('[role="tablist"]');
-    if (trigger && list && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    // A vertical list (the side's views) takes ↑↓, a strip ←→.
+    const vertical = list?.getAttribute("aria-orientation") === "vertical";
+    if (trigger && list && [vertical ? "ArrowUp" : "ArrowLeft", vertical ? "ArrowDown" : "ArrowRight", "Home", "End"].includes(event.key)) {
       const all = tabsOf(list);
       if (event.key === "Home" || event.key === "End") { all[event.key === "Home" ? 0 : all.length - 1]?.focus(); event.preventDefault(); return; }
-      step(event, all, all.indexOf(trigger), event.key === "ArrowRight");
+      step(event, all, all.indexOf(trigger), event.key === "ArrowRight" || event.key === "ArrowDown");
       return;
     }
     const menu = node?.closest<HTMLElement>("[data-nav-popover]");
     if (!menu) { if (event.key === "Escape") closeAll(board); return; }
     if (event.key === "Escape") {
       const button = board.querySelector<HTMLElement>(`[aria-controls="${menu.id}"]`);
-      if (button && menu.closest(".mw-navs__anchor")) { setMenu(button, false); button.focus(); }
+      if (button && opensFrom(menu)) { setMenu(button, false); button.focus(); }
       event.preventDefault(); return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {

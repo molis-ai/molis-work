@@ -7,7 +7,6 @@ import { createPositionPeek } from "./project-position-peek.js";
 
 interface HomeHost {
   read<Output>(suffix: string, body: unknown, signal: AbortSignal): Promise<Output>;
-  order(): string[];
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
   market(): void;
   projectKey: string;
@@ -159,17 +158,14 @@ function createHomeLead(root: HTMLElement, host: HomeHost) {
   return { show, toggle };
 }
 
-/** When the home is shown, hidden or has to read again: the page, its holder, the plugin list, the place and the Dock. */
-function watchHome(holder: Element | null, visibility: () => void, reload: () => void, reread: () => void, leave: () => void) {
+/** When the home is shown, hidden or has to read again: the page, its holder, the plugin list and the place. */
+function watchHome(holder: Element | null, visibility: () => void, reload: () => void, leave: () => void) {
   const observer = new MutationObserver(visibility);
   observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
   if (holder) observer.observe(holder, { attributes: true, attributeFilter: ["hidden"] });
   document.addEventListener("visibilitychange", visibility);
   document.addEventListener("molis-work:plugins-changed", reload);
   document.addEventListener("molis-work:place-changed", visibility);
-  document.addEventListener("click", event => {
-    if (event.target instanceof Element && event.target.closest("[data-dock-choice]")) queueMicrotask(reread);
-  });
   window.addEventListener("pagehide", leave);
   window.addEventListener("pageshow", visibility);
   queueMicrotask(visibility);
@@ -185,7 +181,7 @@ export function mountHome(host: HomeHost) {
   const peekControls = new Map<string, HomeControl>();
   const rowMarkup = new WeakMap<Element, string>();
   const corrections = createPositionCorrections(groups, { note: host.receipt, changed: host.changed,
-    send: (correct, signal) => host.read("", { home_order: host.order(), correct }, signal) });
+    send: (correct, signal) => host.read("", { correct }, signal) });
   let inspected: SurfaceHomeRowDisplay | null = null;
   let inspecting: AbortController | null = null;
   const offers = host.offers({ root: peek, current: () => inspected, projectKey: host.projectKey, translate: host.translate,
@@ -226,7 +222,7 @@ export function mountHome(host: HomeHost) {
     const request = reading = new AbortController();
     if (!display) caption("loading");
     try {
-      const result = await host.read<SurfaceHomeDisplay>("", { home_order: host.order() }, request.signal);
+      const result = await host.read<SurfaceHomeDisplay>("", {}, request.signal);
       if (request.signal.aborted || reading !== request || !visible()) { releaseText(result); return; }
       // Without the owners' words the drawing falls back to the unavailable mark; the response itself stays good.
       if (result.surface_text?.length) await host.words(result.surface_text, request.signal).catch(() => undefined);
@@ -318,6 +314,6 @@ export function mountHome(host: HomeHost) {
     if (shown && needsRead) void sync();
     else if (!shown) cancel(true);
   };
-  watchHome(holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { void sync(); }, () => { shown = false; cancel(true); });
+  watchHome(holder, visibility, () => { cancel(true); if (visible()) void sync(); }, () => { shown = false; cancel(true); });
   return { sync };
 }

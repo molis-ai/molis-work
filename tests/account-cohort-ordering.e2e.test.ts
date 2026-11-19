@@ -35,7 +35,7 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice' && window.cohortOrdering.events");
-  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await click('[data-personal-action=switch]');
   await waitFor("window.cohortOrdering.acks.includes('old-preparation')");
   await evaluate(`{
@@ -75,7 +75,7 @@ test('ASR-04 a current start failure still reports its original error and does n
   }`},sessionId);
   await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice'");
-  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('.bar-account [data-account-link]');
   await click('[data-personal-action=switch]');
   // The existing request owner turns a failed POST delivery into this outcome-unknown error; begin must propagate it unchanged.
   await waitFor("document.querySelector('#mw-account-menu [role=alert]')?.textContent==='不知道这次操作有没有完成，请刷新后核对' && !document.querySelector('[data-personal-action=switch]').disabled");

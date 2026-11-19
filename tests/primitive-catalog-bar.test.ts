@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dockDefaultPins, pluginMarketCards, renderMolisWorkBarSpecimen } from "@molis-ai/molis-work-app-workbench";
+import { builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen } from "@molis-ai/molis-work-app-workbench";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
 installHostUiText();
 
 // W5-06 余项第一片（PG-060，RAC-80～84）：/__ui/catalog 的底栏样张（/__ui/catalog/bar）用同一个构建期插件目录画插件格，
-// 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（现行 Dock 默认插件加个人插件），灰格是目录里其余插件；
+// 并像新项目那样分亮格与灰格。亮格是样例项目默认启用的插件（骨干插件加个人插件），灰格是目录里其余插件；
 // 格子数随目录增减，不再写插件名单。developer 插件（Text Stats）不进目录，也就不进样张。
 // PG-077 / BL-177: the platform Artifact and Sessions tiles are always available to open and have no Plugin membership toggle.
 
-// The Dock's default pins are what the Manifests declare (`pinned_default`, W5-02 PG-074), the plugins a new project starts with,
-// before any personal plugin is added.
-const DOCK_DEFAULT_PINS = dockDefaultPins();
+// The backbone is what the Manifests declare (`rail: "core"`, W5-02 PG-074), the plugins a new project starts with, before any
+// personal plugin is added.
+const BACKBONE = railEntries(builtinPluginDirectory().map(entry => entry.id)).filter(entry => entry.rail === "core").map(entry => entry.id);
 
 const tiles = (html: string) => [...html.matchAll(/data-plugin-tile="([^"]+)"/g)].map(match => match[1]!);
 const toggles = (html: string) => [...html.matchAll(/data-plugin-toggle="([^"]+)"[^>]*data-state="(added|available)"/g)]
@@ -24,10 +24,11 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   const states = toggles(html);
   const bright = states.filter(toggle => toggle.state === "added").map(toggle => toggle.id);
   const grey = states.filter(toggle => toggle.state === "available").map(toggle => toggle.id);
-  const enabled = new Set(shownProjectPlugins([...DOCK_DEFAULT_PINS]));
+  const enabled = new Set(shownProjectPlugins([...BACKBONE]));
   const directory = pluginMarketCards().map(card => card.id);
 
-  for (const pin of DOCK_DEFAULT_PINS) assert.ok(bright.includes(pin), `${pin} is a Dock default pin and stays bright`);
+  assert.ok(BACKBONE.length > 0, "the Manifests declare a backbone");
+  for (const id of BACKBONE) assert.ok(bright.includes(id), `${id} is the backbone and stays bright`);
   for (const id of bright) assert.ok(enabled.has(id), `${id} is bright because the sample project has it enabled`);
   // The plugin studio is a personal plugin, so the sample project has it enabled — but the rail draws it as the switcher's
   // own 创作台 button (renderPickerExtend), not as a tile: the mechanism a real new project uses, not a hand-written name.
@@ -42,7 +43,7 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
     assert.deepEqual(tiles(html).filter(id => id === surface), [surface], `the platform ${surface} surface is present once`);
     assert.equal(directory.includes(surface), false, `the platform ${surface} surface is not in the Plugin market`);
     assert.doesNotMatch(html, new RegExp(`data-plugin-toggle="${surface}"`), `the platform ${surface} surface cannot be added or removed as a Plugin`);
-    assert.match(html, new RegExp(`class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="${surface}"`), `the platform ${surface} surface is available to open, not a grey unavailable Plugin`);
+    assert.match(html, new RegExp(`class="plugin-rail-tile" data-plugin-tile="${surface}"`), `the platform ${surface} surface is available to open, not a grey unavailable Plugin`);
     assert.match(html, new RegExp(`data-plugin-id="${surface}"[^>]*data-work-surface-open="${surface}"`), `the ${surface} tile opens the existing platform work surface`);
   }
   for (const id of tiles(html).filter(id => id !== "artifacts" && id !== "sessions")) assert.ok(bright.includes(id) || grey.includes(id), `${id} is drawn as bright or grey`);

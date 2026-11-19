@@ -69,7 +69,7 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
  * The side's tabs, for the right end of the title bar: one glyph each, its name written out beside it while it is rested on or
  * focused. The background tasks' glyph carries how many are not done.
  */
-export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
+export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}, options: { menu?: boolean } = {}): string {
   const { icon, escapeHtml } = primitives;
   // A Home tool with a chord says it where it is named, as its titlebar button did before 07-1 S4b moved it here: ⌘⇧I in the
   // name a pointer rests on (rewritten to Ctrl+Shift+I off a Mac in the page), and the chord for a screen reader.
@@ -77,6 +77,8 @@ export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: rea
     ? { title: `${entry.label} ${entry.plugin.keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥")}`, attrs: ` aria-keyshortcuts="${escapeHtml(entry.plugin.keys.replace("Mod+", "Meta+"))}"` }
     : { title: entry.label, attrs: "" };
   const tab = (entry: SideEntry, { title, attrs } = keyed(entry)) => `<div class="tab-item" data-glyph-only title="${escapeHtml(title)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${attrs}${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
+  // The workbench's strip (specs/screen-polish §3 方案 C): the views are a list that opens from the name on the side sheet, every one with its name.
+  if (options.menu) return `<div class="side-strip side-views" id="side-views" role="tablist" aria-orientation="vertical" aria-label="${uiText("workbench.side-panel.right")}" data-side-tabs data-side-menu hidden>${sideEntries(primitives, pluginTabs, views).map(entry => tab(entry)).join("")}</div>`;
   return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${uiText("workbench.side-panel.right")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(entry => tab(entry)).join("")}</div>`;
 }
 
@@ -103,12 +105,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
 // layout script marks it on the root (data-side-shared, assistant-layout.ts), so no rule here re-checks the whole page (VUX-36).
 const SHARED_BROWSER = "html body.immersive-workbench[data-side-shared]";
 
-/* 760 and under (--side-sheet-h below) the sheet stands over the lower half of the work. In a short window, with the title bar's
- * two rows above and the line below, half the window would leave the work no height at all (700×420), so the sheet takes the
+/* 760 and under (--side-sheet-h below) the sheet stands over the lower half of the work. In a short window, with the title bar
+ * above and the line below, half the window would leave the work no height at all (700×420), so the sheet takes the
  * smaller of 52dvh and what is left over 160px for the work, but never less than half of the room between the title bar and the line. */
-/* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
- * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
- * is left out there, so the bar keeps two rows. */
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
 html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
@@ -149,35 +148,21 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:var(--side-sheet-h);transform:translateY(12px)}
  body[data-side-open=true] .side-strip{min-width:0}
  .side-strip{max-width:100%;padding-block:2px;overflow-x:auto;justify-content:safe flex-end}
- .immersive-titlebar>.side-strip{flex:1 0 100%}
- .immersive-titlebar:has(>.titlebar-layout)>.side-strip{flex-basis:calc(100% - 80px)}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-/* On a phone the strip shares the title bar's first row with the history buttons and the layout button, and takes the room left
-   between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
-   three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
-   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. The drag
-   line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out.
-   A Home tool with a chord (Issue) is the always-there entry the person keeps at the top right (ISSUE-30, decided 10-12): here it
-   leads the glyphs, so it is in view without scrolling the row; the arrow keys walk the glyphs in the order they are drawn. */
+/* On a phone the way in draws its row of glyphs with a Home tool with a chord (Issue) leading it: the always-there entry the
+   person keeps at the top right (ISSUE-30, decided 10-12); the arrow keys walk the glyphs in the order they are drawn. The
+   workbench's strip has no such row: its views are the list that opens from the side's name (styles/top-strip.ts). */
 @media(max-width:600px){
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
- /* A Home tool with a chord is the always-there entry (ISSUE-30, decided 10-12): it leads the glyphs. On the project page's
-    phone titlebar the row scrolls to reveal a later glyph (07-AUDIT), so there it also sticks to the row's edge; the strip's
-    edge fade masks the whole row including it, so on a phone the side strip keeps its glyphs legible in place of that one
-    fade. The way-in page draws the same glyphs without that row, so it keeps only the order. */
- .side-strip>.tab-item:has(>[data-side-keys]){order:-1}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip>.tab-item:has(>[data-side-keys]){position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip[data-more]{mask-image:none}
+ .side-strip.tab-glyph-row>.tab-item:has(>[data-side-keys]){order:-1}
 }
-/* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
-   titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
-   strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
+/* Between 601 and 760 the title bar's row takes the height of its one 44px row (over craft-finish's fixed titlebar row, which
+   names the directory states), and the work and the side sheet start below it. The sheet keeps 28px clear: 8px over the foot,
+   and the rest as air under the title bar. */
 @media(min-width:601px) and (max-width:760px){
  html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
- html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
+ html body.immersive-workbench .immersive-titlebar{height:auto}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
  ${SHARED_BROWSER}{
    --assistant-float-width:calc((100% - 24px)*.44);
@@ -242,6 +227,25 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.t.text("workbench.side-panel.resize-side-panel"));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
   let open=false,closing=null,trigger=null;
+  // The workbench's top strip (specs/screen-polish §3 方案 C): the side's switch at the right end, and over the side sheet the name
+  // of the view it shows, which opens the list of views (the strip itself, drawn as a list). The way in has neither and keeps its row of glyphs.
+  const ear=strip.hasAttribute('data-side-menu')?document.querySelector('[data-side-ear]'):null,switchButton=document.querySelector('[data-side-toggle]');
+  const setMenu=(next,focus)=>{
+    if(!ear)return;const on=Boolean(next)&&open;strip.hidden=!on;ear.setAttribute('aria-expanded',on);
+    if(on){strip.style.left=Math.max(8,Math.min(ear.getBoundingClientRect().left-ear.parentElement.getBoundingClientRect().left,innerWidth-strip.offsetWidth-8))+'px';if(focus!==false)(strip.querySelector('[data-side-tab][aria-selected="true"]')??strip.querySelector('[data-side-tab]'))?.focus({preventScroll:true});}
+    else if(focus===true)ear.focus({preventScroll:true});
+  };
+  // Where the focus goes when the side is named: the name on its sheet, or (the way in) the current glyph.
+  const focusTab=()=>(ear&&strip.hidden?ear:strip.querySelector('[data-side-tab][aria-selected="true"]:not([data-side-closed])'))?.focus({preventScroll:true});
+  const drawEar=()=>{
+    switchButton?.setAttribute('aria-pressed',open);
+    if(!ear)return;const button=buttons().find(node=>node.getAttribute('aria-selected')==='true');
+    ear.hidden=!open||!button;if(ear.hidden){if(!strip.hidden)setMenu(false);return;}
+    const name=button.querySelector('.tab-item-name')?.textContent||'',id=button.dataset.sideTab,icon=button.querySelector('svg');
+    if(ear.dataset.sideEar!==id){ear.dataset.sideEar=id;ear.querySelector('[data-side-ear-glyph]').replaceChildren(...(icon?[icon.cloneNode(true)]:[]));}
+    const words=ear.querySelector('[data-side-ear-name]');if(words.textContent!==name)words.textContent=name;
+    const label=globalThis.t.text("workbench.side-panel.side-view-name",{name});if(ear.title!==label){ear.title=label;ear.setAttribute('aria-label',label);}
+  };
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
   const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion'&&!frame.hidden},location.origin);
@@ -281,6 +285,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const expanded=()=>{
     for(const button of buttons()){const item=button.parentElement;if(open&&button.getAttribute('aria-selected')==='true')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
+    drawEar();
   };
   // A strip narrower than its tabs (a phone) scrolls by itself; the current tab is kept in view.
   const reveal=()=>{const item=strip.querySelector('[data-side-tab][aria-selected="true"]')?.parentElement;if(!item||strip.scrollWidth<=strip.clientWidth)return;
@@ -333,13 +338,15 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       if(!was)trigger=document.activeElement;
       panel.hidden=false;panel.inert=false;paint();void panel.offsetWidth;document.body.dataset.sideOpen='true';
       select(options.tab??current(),options.target);
-      if(options.focus===true)strip.querySelector('[data-side-tab][aria-selected="true"]')?.focus({preventScroll:true});
+      if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
       if(inner)ready(inner,()=>inner.focus());
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
-      if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:switchButton??strip.querySelector('[data-side-tab][aria-selected="true"]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      // The side's name and its list go with it: a focus there goes to the switch that opens it again.
+      else if(ear&&[ear,strip].some(node=>node.contains(document.activeElement)))switchButton?.focus({preventScroll:true});
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:null,open:false}}));
     }
     expanded();
@@ -366,7 +373,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     remember?.(record,()=>reopen(record));
     if(open&&!side().open)setOpen(false);else if(record.active&&open)select(current());else draw();
     save();
-    strip.querySelector('[data-side-tab][aria-selected="true"]:not([data-side-closed])')?.focus({preventScroll:true});
+    focusTab();
   };
   const summon=(id,toggle)=>offered(id)&&(open&&current()===id&&toggle?setOpen(false):setOpen(true,{tab:id,focus:'content'}),save(),1);
   const keyed=keys=>{const tab=[...strip.querySelectorAll('[data-side-keys]')].find(button=>button.dataset.sideKeys===keys);return tab&&summon(tab.dataset.sideTab,panel.contains(document.activeElement));};
@@ -389,17 +396,29 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     // and Enter on the strip keep the focus where it is.
     if(button.hasAttribute('data-side-keys')&&event.detail>0)setOpen(true,{tab:button.dataset.sideTab,focus:'content'});
     else if(open)select(button.dataset.sideTab);else setOpen(true,{tab:button.dataset.sideTab});
+    // Chosen from the list, a view closes it; the name on the sheet says which one shows.
+    if(ear&&!strip.hidden)setMenu(false,!(button.hasAttribute('data-side-keys')&&event.detail>0));
     save();
   });
+  ear?.addEventListener('click',()=>setMenu(strip.hidden));
+  ear?.addEventListener('keydown',event=>{if(event.key==='ArrowDown'&&strip.hidden){event.preventDefault();setMenu(true);}});
+  switchButton?.addEventListener('click',()=>toggle());
+  if(ear){
+    addEventListener('pointerdown',event=>{if(!strip.hidden&&!strip.contains(event.target)&&!ear.contains(event.target))setMenu(false,false);},true);
+    addEventListener('blur',()=>setMenu(false,false));
+  }
   strip.addEventListener('keydown',event=>{
     // In the order the glyphs are drawn: a phone draws a Home tool with a chord first (the styles above). That is their flex order,
     // then the document's: on a phone the Home tool sticks to the row's start while the rest scroll under it, so where they stand
     // on screen is not their order.
     const list=tabs().sort((a,b)=>(+getComputedStyle(a.parentElement).order)-(+getComputedStyle(b.parentElement).order)||(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1)),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
+    if(ear&&event.key==='Escape'){event.preventDefault();event.stopPropagation();setMenu(false,true);return;}
+    if(ear&&event.key==='Tab'){setMenu(false,false);return;}
     if(event.key==='Delete'){event.preventDefault();close(list[at]);return;}
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();menuFor(list[at]);return;}
-    const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
-    if(!next)return;event.preventDefault();next.focus();if(open){select(next.dataset.sideTab);save();}
+    const next=event.key==='ArrowRight'||ear&&event.key==='ArrowDown'?list[(at+1)%list.length]:event.key==='ArrowLeft'||ear&&event.key==='ArrowUp'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
+    // In the list the keys only move the focus; Enter, Space or a click chooses (a view that loads a page is not opened on the way past).
+    if(!next)return;event.preventDefault();next.focus();if(open&&!ear){select(next.dataset.sideTab);save();}
   });
   let growTimer=0;
   // A tab widens in place (VUX-07): where the strip runs short, by as little as a fraction of a pixel (which already turns its
@@ -414,6 +433,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const keep=()=>{if(!anchor||!anchor.button.isConnected||!grown(anchor.button))return;nudge(anchor.button,0);const moved=iconLeft(anchor.button)-anchor.at;if(Math.abs(moved)>0.01)strip.scrollLeft+=moved;
     const rest=iconLeft(anchor.button)-anchor.at;if(Math.abs(rest)>0.01&&Math.abs(rest)<1)nudge(anchor.button,rest);};
   const grow=button=>{
+    if(ear)return; // the list names every view
     anchor=button&&!grown(button)?{button,at:iconLeft(button)}:button?anchor:null;
     strip.querySelectorAll('[data-side-tab]').forEach(node=>{node.parentElement.classList.toggle('is-grown',node===button);if(node!==button)nudge(node,0);});
     keep();
@@ -482,7 +502,9 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   settle();
   (${SIDE_CONTEXT_FACTORY})({panel,strip,select,current});
   document.addEventListener('molis-work:plugins-changed',()=>{settle();draw();save();});
-  new MutationObserver(()=>draw()).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
+  // A view that comes or goes (its tab's hidden) is drawn again; the list itself opening or closing is not, so the undo chip a
+  // press lands on is still the one that takes the click.
+  new MutationObserver(records=>{if(records.some(record=>record.target!==strip))draw();}).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
   paint();select(current());
   (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A

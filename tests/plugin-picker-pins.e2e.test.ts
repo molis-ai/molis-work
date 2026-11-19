@@ -8,11 +8,10 @@ import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-// The switcher's grid in a real browser (specs/archive/plugin-picker-dock): buttons that appear when an entry is looked at, a pin
-// that keeps a plugin in the Dock, a plus (a red trash can once the plugin is in) that adds or removes it without bringing the
-// page back, and at the head of the list the market and the studio.
-
-type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+// The switcher's grid in a real browser (specs/archive/plugin-picker-dock): buttons that appear when an entry is looked at (在旁边打开,
+// and a plus, a red trash can once the plugin is in, that adds or removes it without bringing the page back), and at the head of
+// the list the market and the studio. The pin that kept a plugin in the Dock is gone: the top strip holds 项目首页 alone
+// (specs/screen-polish §3 方案 C).
 
 const tile = (id: string) => `[data-plugin-tile="${id}"]`;
 const quiet = (ms = 40) => new Promise(resolve => setTimeout(resolve, ms));
@@ -26,7 +25,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");
-  await evaluate("window.__stayed = true; localStorage.removeItem('molis-work:dock-pins'); true");
+  await evaluate("window.__stayed = true");
   await b.click("[data-plugin-picker-toggle]");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
   const centre = (selector: string) => evaluate<{ x: number; y: number }>(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) throw new Error('missing ' + ${JSON.stringify(selector)}); e.scrollIntoView({ block: 'nearest' }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
@@ -44,29 +43,29 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
     await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: name, code: name, windowsVirtualKeyCode: code }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, sessionId);
   };
-  const state = (id: string) => evaluate<{ grey: boolean; opens: boolean; pinned: boolean | null; pinDisabled: boolean; toggle: string; kept: boolean; busy: boolean; asking: boolean }>(`(() => {
-    const t = document.querySelector(${JSON.stringify(tile(id))}); const pin = t.querySelector('[data-dock-choice]');
-    return { grey: t.classList.contains('is-available'), opens: Boolean(t.querySelector(':scope > .plugin-rail-item').dataset.pluginId), pinned: pin ? pin.getAttribute('aria-pressed') === 'true' : null, pinDisabled: Boolean(pin?.disabled),
-      toggle: t.querySelector('[data-plugin-toggle]').dataset.state, kept: t.classList.contains('is-kept'), busy: t.classList.contains('is-busy'), asking: t.classList.contains('is-confirming') };
+  const state = (id: string) => evaluate<{ grey: boolean; opens: boolean; besideDisabled: boolean; toggle: string; busy: boolean; asking: boolean }>(`(() => {
+    const t = document.querySelector(${JSON.stringify(tile(id))}); const beside = t.querySelector('[data-rail-beside]');
+    return { grey: t.classList.contains('is-available'), opens: Boolean(t.querySelector(':scope > .plugin-rail-item').dataset.pluginId), besideDisabled: Boolean(beside?.disabled),
+      toggle: t.querySelector('[data-plugin-toggle]').dataset.state, busy: t.classList.contains('is-busy'), asking: t.classList.contains('is-confirming') };
   })()`);
   const settled = (id: string) => waitFor(`(() => { const t = document.querySelector(${JSON.stringify(tile(id))}); return t && !t.classList.contains('is-busy'); })()`);
   const stayed = () => evaluate<boolean>("window.__stayed === true");
-  const dock = () => evaluate<string[]>("[...document.querySelectorAll('[data-dock-pins] [data-dock-pin]:not(.is-leaving)')].map(pin => pin.dataset.dockPin)");
+  const dock = () => evaluate<string[]>("[...document.querySelectorAll('[data-dock-pins] > *')].map(node => node.className)");
   return { ...b, centre, hover, press, away, key, state, settled, stayed, dock, frames };
 }
 
-test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its three, and its text gives up the room", async t => {
+test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its two, and its text gives up the room", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, hover, away } = b;
-  const probe = () => evaluate<{ ops: string; events: string; pin: string; padding: number; opsCount: number }>(`(() => {
+  const probe = () => evaluate<{ ops: string; events: string; padding: number; opsCount: number }>(`(() => {
     const t = document.querySelector(${JSON.stringify(tile("pages"))}); const ops = t.querySelector('.plugin-rail-ops');
-    return { ops: getComputedStyle(ops.querySelector('button')).opacity, events: getComputedStyle(ops).pointerEvents, pin: getComputedStyle(t.querySelector('.plugin-rail-mark')).opacity,
+    return { ops: getComputedStyle(ops.querySelector('button')).opacity, events: getComputedStyle(ops).pointerEvents,
       padding: parseFloat(getComputedStyle(t.querySelector(':scope > .plugin-rail-item')).paddingRight), opsCount: ops.querySelectorAll('button').length };
   })()`);
   await away();
   const rest = await probe();
-  assert.equal(rest.opsCount, 3, "open beside (PFG-23), a pin and a plus");
+  assert.equal(rest.opsCount, 2, "open beside (PFG-23) and a plus");
   assert.equal(rest.ops, "0", "no buttons while nobody looks");
   assert.equal(rest.events, "none", "and nothing to hit");
   assert.ok(rest.padding < 20, "the entry has the whole row");
@@ -74,67 +73,43 @@ test("DOCK-03 at rest an entry shows no buttons; looked at, it shows its three, 
   const looked = await probe();
   assert.equal(looked.ops, "1");
   assert.equal(looked.events, "auto");
-  assert.ok(looked.padding >= 104, `the entry yields the room of three buttons (${looked.padding}px)`);
+  assert.ok(looked.padding >= 76, `the entry yields the room of two buttons (${looked.padding}px)`);
   await away();
   assert.equal((await probe()).ops, "0", "and takes them back when the look goes");
 });
 
-test("DOCK-03 a kept plugin carries a small pin at rest; looked at, the buttons take its place", async t => {
-  const b = await openPicker(t);
-  if (!b) return;
-  const { evaluate, hover, away, press, frames } = b;
-  const mark = (id: string) => evaluate<number>(`parseFloat(getComputedStyle(document.querySelector(${JSON.stringify(tile(id))} + ' .plugin-rail-mark')).opacity)`);
-  await away();
-  assert.equal(await mark("goals"), 1, "Goals is kept by default");
-  assert.equal(await mark("pages"), 0, "Pages is not");
-  await press(`${tile("pages")} [data-dock-choice]`); await frames();
-  await away();
-  assert.equal(await mark("pages"), 1, "once kept it shows");
-  await hover(tile("goals"));
-  assert.equal(await mark("goals"), 0, "looked at, the pin gives way to the buttons");
-});
-
-test("DOCK-02 a plugin the project does not have is grey, opens nothing, and cannot be kept", async t => {
+test("DOCK-02 a plugin the project does not have is grey, opens nothing, and cannot be opened beside", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, state, centre, command, sessionId, frames } = b;
   const grey = await state("schedule");
-  assert.deepEqual({ grey: grey.grey, opens: grey.opens, pinDisabled: grey.pinDisabled, toggle: grey.toggle }, { grey: true, opens: false, pinDisabled: true, toggle: "available" });
+  assert.deepEqual({ grey: grey.grey, opens: grey.opens, besideDisabled: grey.besideDisabled, toggle: grey.toggle }, { grey: true, opens: false, besideDisabled: true, toggle: "available" });
   const surface = await evaluate<string>("document.body.dataset.desktopSurface");
   const point = await centre(`${tile("schedule")} > .plugin-rail-item`);
   await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
   await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
   await frames();
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), surface, "pressing it goes nowhere");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"schedule\"]'))"), false, "and it is not in the Dock");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-pins] [data-plugin-id=\"schedule\"], [data-dock-pin]'))"), false, "and it is not in the Dock");
   // Colour: the name is the faint ink, a plugin the project has is the full one.
   const ink = await evaluate<{ grey: string; have: string }>(`({ grey: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("schedule")} .plugin-rail-item > span`)})).color, have: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("pages")} .plugin-rail-item > span`)})).color })`);
   assert.notEqual(ink.grey, ink.have, "grey is not the colour of a plugin in the project");
   void press;
 });
 
-test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; 灵光's pin is an ordinary one and Shelf has none", async t => {
+test("DOCK-04 方案 C: the top strip holds the first place alone (⌂ inside it), the switcher keeps nothing for it, and nothing is kept in the browser; Shelf has no entry", async t => {
   const b = await openPicker(t);
   if (!b) return;
-  const { press, state, dock, evaluate, waitFor, navigate, command, sessionId, origin, projectId, frames } = b;
-  assert.ok(!(await dock()).includes("pages"));
-  await press(`${tile("pages")} [data-dock-choice]`); await frames();
-  assert.deepEqual({ ...(await state("pages")), busy: undefined, asking: undefined }, { grey: false, opens: true, pinned: true, pinDisabled: false, toggle: "added", kept: true, busy: undefined, asking: undefined });
-  assert.ok((await dock()).includes("pages"), "the Dock has it at once");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "choosing for the Dock keeps the list open");
-  await press(`${tile("pages")} [data-dock-choice]`); await frames();
-  await waitFor("!document.querySelector('[data-dock-pins] [data-dock-pin=\"pages\"]')");
-  // Shelf is a 常开插件 in the side panel, so it has no entry here. 灵光's pin is like any other: not pinned at first,
-  // pressed it goes into the Dock.
+  const { press, dock, evaluate, frames, hover } = b;
+  assert.deepEqual(await dock(), ["top-corner"]);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-choice], .dock-keep, .plugin-rail-mark, .plugin-rail-tile.is-kept, [data-dock-more]'))"), false, "no pin, no kept mark, no +N");
+  // Opening a plugin from the switcher puts it in a tab, not in the Dock.
+  await hover(tile("pages"));
+  await press(`${tile("pages")} > .plugin-rail-item`); await frames();
+  assert.deepEqual(await dock(), ["top-corner"], "the Dock is still the first place alone");
+  assert.equal(await evaluate("localStorage.getItem('molis-work:dock-pins')"), null, "nothing is written for the Dock");
+  // Shelf is a 常开插件 in the side panel, so it has no entry here.
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(tile("shelf"))}))`), false, "Shelf is not in the switcher");
-  const spark = await state("lingguang");
-  assert.deepEqual({ pinned: spark.pinned, pinDisabled: spark.pinDisabled, kept: spark.kept }, { pinned: false, pinDisabled: false, kept: false }, "lingguang");
-  await press(`${tile("lingguang")} [data-dock-choice]`); await frames();
-  assert.ok((await dock()).includes("lingguang"), "lingguang: the Dock has it once pinned");
-  // Kept in this browser: they are there again after the page is.
-  await press(`${tile("form")} [data-dock-choice]`); await frames();
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  for (const id of ["form", "lingguang"]) await waitFor(`Boolean(document.querySelector('[data-dock-pins] [data-dock-pin="${id}"]'))`);
 });
 
 test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {
@@ -145,7 +120,7 @@ test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the tr
   await press(`${tile("schedule")} [data-plugin-toggle]`);
   await settled("schedule");
   const added = await state("schedule");
-  assert.deepEqual({ grey: added.grey, opens: added.opens, toggle: added.toggle, pinDisabled: added.pinDisabled }, { grey: false, opens: true, toggle: "added", pinDisabled: false });
+  assert.deepEqual({ grey: added.grey, opens: added.opens, toggle: added.toggle, besideDisabled: added.besideDisabled }, { grey: false, opens: true, toggle: "added", besideDisabled: false });
   assert.equal(await stayed(), true, "no reload");
   assert.equal(await evaluate("document.querySelector(" + JSON.stringify(`${tile("schedule")} [data-plugin-toggle] .mw-sr-only`) + ").textContent.startsWith('移除')"), true, "the button now says what it does");
   // The entry is the real one: pressing it opens the plugin in the work area, its client loads.
@@ -155,12 +130,11 @@ test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the tr
   assert.equal(await stayed(), true, "and still no reload");
 });
 
-test("DOCK-06 removing asks once, then takes the plugin out in place; the pane showing it goes back and its Dock pin goes", async t => {
+test("DOCK-06 removing asks once, then takes the plugin out in place; the pane showing it goes back", async t => {
   const b = await openPicker(t);
   if (!b) return;
-  const { evaluate, press, state, settled, stayed, waitFor, dock, click, frames } = b;
-  // pages is in the project and kept in the Dock, and open.
-  await press(`${tile("pages")} [data-dock-choice]`); await frames();
+  const { evaluate, press, state, settled, stayed, waitFor, click } = b;
+  // pages is in the project, and open.
   await click(`${tile("pages")} > .plugin-rail-item`);
   await waitFor("document.body.dataset.desktopSurface === 'pages'");
   await b.surfaceReady("pages");
@@ -174,8 +148,7 @@ test("DOCK-06 removing asks once, then takes the plugin out in place; the pane s
   await press(`${tile("pages")} [data-plugin-toggle]`);
   await waitFor(`document.querySelector(${JSON.stringify(tile("pages"))}).classList.contains('is-available') && !document.querySelector(${JSON.stringify(tile("pages"))}).classList.contains('is-busy')`);
   const gone = await state("pages");
-  assert.deepEqual({ grey: gone.grey, opens: gone.opens, pinDisabled: gone.pinDisabled, asking: gone.asking, toggle: gone.toggle }, { grey: true, opens: false, pinDisabled: true, asking: false, toggle: "available" });
-  assert.ok(!(await dock()).includes("pages"), "its pin leaves the Dock");
+  assert.deepEqual({ grey: gone.grey, opens: gone.opens, besideDisabled: gone.besideDisabled, asking: gone.asking, toggle: gone.toggle }, { grey: true, opens: false, besideDisabled: true, asking: false, toggle: "available" });
   assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "pages", "the pane that showed it went back");
   assert.equal(await stayed(), true, "no reload");
   await settled("pages");
@@ -192,7 +165,7 @@ test("DOCK-06 the question is dropped when nothing follows: Escape, a press else
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "and leaves the list open");
   await press(`${tile("form")} [data-plugin-toggle]`);
   assert.equal((await state("form")).asking, true);
-  await press(`${tile("dataset")} [data-dock-choice]`);
+  await press(".plugin-picker-popover .plugin-rail-group");
   assert.equal((await state("form")).asking, false, "a press elsewhere takes it back");
   await hover(tile("ppt"));
   await press(`${tile("ppt")} [data-plugin-toggle]`);
@@ -387,25 +360,22 @@ test("DOCK-08 Coding comes in place: its page and its row in the settings list, 
   assert.equal(await stayed(), true, "no reload at all");
 });
 
-test("DOCK-10 PFG-23 the keyboard reaches the buttons: → into them (在旁边打开, the pin, the plus), ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
+test("DOCK-10 PFG-23 the keyboard reaches the buttons: → into them (在旁边打开, the plus), ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, key, state, waitFor } = b;
-  const focused = () => evaluate<string>("(() => { const e = document.activeElement; return e ? (e.dataset.dockChoice ? 'pin:' + e.dataset.dockChoice : e.dataset.railBeside ? 'beside:' + e.dataset.railBeside : e.dataset.pluginToggle ? 'toggle:' + e.dataset.pluginToggle : e.dataset.pluginId ? 'entry:' + e.dataset.pluginId : e.className) : ''; })()");
+  const focused = () => evaluate<string>("(() => { const e = document.activeElement; return e ? (e.dataset.railBeside ? 'beside:' + e.dataset.railBeside : e.dataset.pluginToggle ? 'toggle:' + e.dataset.pluginToggle : e.dataset.pluginId ? 'entry:' + e.dataset.pluginId : e.className) : ''; })()");
   await evaluate("document.querySelector('[data-plugin-tile=\"pages\"] > .plugin-rail-item').focus()");
   assert.equal(await focused(), "entry:pages");
   await key("ArrowRight", 39); assert.equal(await focused(), "beside:pages");
-  await key("ArrowRight", 39); assert.equal(await focused(), "pin:pages");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-plugin-tile=\"pages\"] .plugin-rail-ops button')).opacity"), "1", "focus shows the buttons as a look does");
   await key("ArrowRight", 39); assert.equal(await focused(), "toggle:pages");
-  await key("ArrowLeft", 37); await key("ArrowLeft", 37); await key("ArrowLeft", 37); assert.equal(await focused(), "entry:pages");
+  await key("ArrowLeft", 37); await key("ArrowLeft", 37); assert.equal(await focused(), "entry:pages");
   await key("ArrowRight", 39); await key("ArrowDown", 40);
   assert.match(await focused(), /^beside:/, "↓ from 在旁边打开 goes to the next one");
-  await key("ArrowRight", 39);
-  assert.match(await focused(), /^pin:/);
-  await key("ArrowDown", 40);
-  assert.match(await focused(), /^pin:/, "↓ from a pin goes to the next pin");
   await key("ArrowRight", 39); assert.match(await focused(), /^toggle:/);
+  await key("ArrowDown", 40);
+  assert.match(await focused(), /^toggle:/, "↓ from a toggle goes to the next toggle");
   await evaluate("document.activeElement.click()");
   const id = (await focused()).replace("toggle:", "");
   assert.equal((await state(id)).asking, true, "the trash can asks");
@@ -545,9 +515,10 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, command, sessionId, waitFor } = b;
-  await waitFor("typeof window.molisRailShortcuts === 'function' && document.querySelector('.dock-pins [data-dock-pin]')");
+  await waitFor("typeof window.molisRailShortcuts === 'function' && document.querySelector('.dock-pins [data-corner-home]')");
   const candidates = () => evaluate<Array<{ id: string; dock: boolean; extension: boolean }>>(`window.molisRailShortcuts().map(node => ({
-    id: node.dataset.dockPin || node.dataset.pluginId, dock: node.hasAttribute('data-dock-pin'), extension: Boolean(node.closest('.plugin-picker-extend'))
+    // ⌥1 is the project home, the row of the first place's list (§4「底栏第十三版」第 1 条).
+    id: node.hasAttribute('data-corner-home') ? 'home' : node.dataset.pluginId, dock: Boolean(node.closest('.top-corner')), extension: Boolean(node.closest('.plugin-picker-extend'))
   }))`);
   const controls = await evaluate<string[]>("[...document.querySelectorAll('.plugin-picker-extend [data-plugin-id]')].map(node => node.dataset.pluginId)");
   assert.ok(controls.length, "the real switcher renders platform extension controls");
@@ -557,8 +528,8 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
 
   // Observe the original click route; the keyboard handler must select the same node as a pointer click.
   await evaluate(`document.addEventListener('click', event => {
-    const node = event.target.closest('.dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]');
-    if (node) window.__shortcutClick = node.dataset.dockPin || node.dataset.pluginId;
+    const node = event.target.closest('.top-corner [data-corner-home], .plugin-rail-items [data-plugin-id]');
+    if (node) window.__shortcutClick = node.hasAttribute('data-corner-home') ? 'home' : node.dataset.pluginId;
   }, true)`);
   const press = async (digit: number) => {
     for (const type of ["rawKeyDown", "keyUp"]) await command("Input.dispatchKeyEvent", {

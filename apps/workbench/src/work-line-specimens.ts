@@ -2,7 +2,7 @@ import { escapeHtml, icon, renderButton, renderComposer, t as uiText } from "@mo
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import type { WebLocale } from "./i18n.js";
 import {
-  renderEventCard, renderLineEvent, renderLineHead, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
+  renderEventCard, renderLineEvent, renderLineHead, renderListEarlier, renderStackCard, renderStackEmpty, renderLineUnreadable, renderOwnerMark, renderReplyCarried, renderReplyMini, renderReplyPeek, renderReplyPlaced,
   renderReplyReturned, renderReplyWaiting, renderReplyWho, renderTabUnread, renderTaskCard, renderTaskFloat, renderTaskMark, renderTaskPanel, renderTaskRow, renderTaskSteps, renderWorkLine,
   type LineEventState, type LineEventView, type LineOwnerView, type TaskRowView,
 } from "./work-line-parts.js";
@@ -73,15 +73,20 @@ function composer(to: { readonly name: string; readonly character?: boolean }): 
 const assistant = () => ({ name: uiText.text("workbench.assistant-dock.assistant") });
 const linxia = () => ({ name: say("linxia"), character: true });
 
+/** The foot as the page draws it before its script runs (specs/screen-polish §4「底栏第十三版」): with something waiting, the stack's front card. */
 function line(kind: "ok" | "wait" | "empty" | "unreadable", above = "", mini = ""): string {
-  const e = events(), waiting = kind === "wait";
-  const head = renderLineHead({ menu: "", name: nav("website-revamp"), waiting: waiting ? 1 : 0 });
   const slot = `${above ? `<div class="mw-wls__above">${above}</div>` : ""}${composer(assistant())}`;
-  if (kind === "empty") return renderWorkLine({ head, past: [], active: [], next: [], slot, mini });
-  return renderWorkLine({
-    head, past: kind === "unreadable" ? [e.plan] : [e.weekly, e.plan, e.exported, e.merge], active: waiting ? [e.talk, e.fix, e.quote] : [e.fix], next: [e.upgrade, e.review, e.brand],
-    unreadable: kind === "unreadable" ? ["Feed"] : [], slot, mini,
-  });
+  const foot = renderWorkLine({ slot, mini });
+  const e = events();
+  // A source that cannot be read (WLN-37): 办完 open above the stack, the source in its fixed strip above the rows, 更早 N at the end.
+  if (kind === "unreadable") return foot
+    .replace('data-work-list="done" data-zero aria-expanded="false"', 'data-work-list="done" aria-expanded="true"')
+    .replace(' data-work-lists hidden>', ' data-work-lists>')
+    .replace("data-work-lists-title></strong>", `data-work-lists-title>${escapeHtml(uiText.text("workbench.work-line.list-done"))}</strong>`)
+    .replace("data-work-lists-sources></div>", `data-work-lists-sources>${renderLineUnreadable("Feed")}</div>`)
+    .replace("data-work-lists-body></div>", `data-work-lists-body><div class="work-list" data-work-list-rows="done">${[e.plan, e.weekly, e.exported].map(event => `<div class="work-list-item">${renderLineEvent(event)}</div>`).join("")}${renderListEarlier(5)}</div></div>`);
+  if (kind !== "wait") return foot;
+  return foot.replace(renderStackEmpty(), renderStackCard({ id: e.talk.id, title: e.talk.title, owner: e.talk.owner, more: 2, ask: e.talk.note || e.talk.stateLabel }));
 }
 
 /** One round in the dialog's thread, in the product's markup: what the person said, then the reply with what stands above and under it. */

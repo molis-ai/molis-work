@@ -21,8 +21,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
     ${SHELL} .dock-pins { gap: 0; margin-left: 0; }
     ${SHELL} .dock-pins::before { left: -1px; }
-    ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
-    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
     html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-side) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,

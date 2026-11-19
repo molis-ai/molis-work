@@ -35,7 +35,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), false);
   await click("[data-workspace-history=forward]");
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
-  await click("[data-dock-pin=home]");
+  await click("[data-corner-home]");
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // 07-S2: the project home left the tabs for the kept plugins; ＋ (the start page, beside the tabs since the work line took the
   // foot: specs/work-line §6.5) stays fully right of the history buttons.

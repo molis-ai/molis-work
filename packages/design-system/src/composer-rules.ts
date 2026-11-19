@@ -15,13 +15,16 @@ export function composing(event: { isComposing?: boolean; keyCode?: number }): b
 }
 
 /**
- * What a key does in the text area (§1 item 2, user 10-27): Enter breaks the line (the browser's own), ⌘/Ctrl+Enter sends (a
- * supplement while a turn runs), ⌘/Ctrl+Shift+Enter is for the next turn; nothing else is the composer's (Esc closes its own menu,
- * Tab moves focus). Interrupting has no key. `submitKeys: false` (a decision's reason) leaves every key to writing.
+ * What a key does in the text area (specs/unified-input-voice §10.5, user 2026-11-16): Enter sends (a supplement while a turn
+ * runs), Shift+Enter breaks the line (the browser's own), nothing sends while an input method is composing. ⌘/Ctrl+Enter still
+ * sends and ⌘/Ctrl+Shift+Enter is still for the next turn, until the shell's batch settles them; nothing else is the composer's
+ * (Esc closes its own menu, Tab moves focus). Interrupting has no key. `submitKeys: false` (a decision's reason) leaves every
+ * key to writing.
  */
 export function composerKey(event: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; isComposing?: boolean; keyCode?: number }, submitKeys = true): "send" | "after-run" | null {
-  if (!submitKeys || composing(event) || event.key !== "Enter" || event.altKey || !(event.metaKey || event.ctrlKey)) return null;
-  return event.shiftKey ? "after-run" : "send";
+  if (!submitKeys || composing(event) || event.key !== "Enter" || event.altKey) return null;
+  if (event.metaKey || event.ctrlKey) return event.shiftKey ? "after-run" : "send";
+  return event.shiftKey ? null : "send";
 }
 
 /** Where the one-time hint remembers it was shown (UIC-06): per browser profile (per plugin inside a frame, whose storage is its own). */

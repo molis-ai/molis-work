@@ -11,8 +11,11 @@ import { COMPOSER_AI_LABELS } from "./fixtures/composer-labels.js";
 
 const key = (over: Partial<KeyboardEvent> = {}) => ({ key: "Enter", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, isComposing: false, keyCode: 13, ...over });
 
-test("UIC-05 UIV-01: Enter writes a line, ⌘/Ctrl+Enter sends, ⌘/Ctrl+Shift+Enter is for the next turn; interrupting has no key", () => {
-  assert.equal(composerKey(key()), null, "Enter is the browser's own new line");
+test("UIC-05 UIV-01 POLISH-52: Enter sends, Shift+Enter writes a line (UIV §10.5); ⌘/Ctrl+Enter still sends, ⌘/Ctrl+Shift+Enter is for the next turn; interrupting has no key", () => {
+  assert.equal(composerKey(key()), "send", "Enter sends (UIV §10.5, user 2026-11-16)");
+  assert.equal(composerKey(key({ isComposing: true })), null, "an Enter that ends an input method's composition does not send");
+  assert.equal(composerKey(key({ keyCode: 229 })), null, "nor WebKit's, which says so by keyCode 229");
+  assert.equal(composerKey(key({ altKey: true })), null);
   assert.equal(composerKey(key({ metaKey: true })), "send");
   assert.equal(composerKey(key({ ctrlKey: true })), "send");
   assert.equal(composerKey(key({ metaKey: true, shiftKey: true })), "after-run");
@@ -20,8 +23,9 @@ test("UIC-05 UIV-01: Enter writes a line, ⌘/Ctrl+Enter sends, ⌘/Ctrl+Shift+E
   assert.equal(composerKey(key({ metaKey: true, altKey: true })), null, "no key chord interrupts");
   assert.equal(composerKey(key({ key: "Escape" })), null, "Esc is only the open menu's");
   assert.equal(composerKey(key({ key: "Tab" })), null);
-  assert.equal(composerKey(key({ shiftKey: true })), null);
+  assert.equal(composerKey(key({ shiftKey: true })), null, "Shift+Enter is the browser's own new line");
   // A decision's reason (`submitKeys: false`): the send keys only write.
+  assert.equal(composerKey(key(), false), null);
   assert.equal(composerKey(key({ metaKey: true }), false), null);
   assert.equal(composerKey(key({ metaKey: true, shiftKey: true }), false), null);
 });

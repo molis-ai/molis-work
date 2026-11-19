@@ -36,21 +36,12 @@ export const NAVIGATION_FLOW_STYLES = `
   }
   /* The left column never gets narrower than its tray's least content — the switcher's glyph, 项目首页 and the +N
      fold, with the tray's padding and the gaps between them — so what folds stays inside the tray instead of sliding
-     under the composer. With the person's own tray on the right (07-1 S4b), that side folds too: the two share what the
-     composer leaves, half and half, instead of the right one taking its whole width and the Dock folding to 项目首页. */
+     under the composer. */
   /* --bar-l, --bar-m and --bar-r: the least width of the left, middle and right columns. */
   @media (min-width: 601px) {
     ${BAR} { --bar-l:calc(var(--dock-btn) * 2 + 84px); grid-template-columns: minmax(var(--bar-l), 1fr) minmax(200px, var(--bar-m, 660px)) minmax(var(--bar-r, max-content), 1fr); }
   }
   @media (min-width: 601px) and (max-width: 1100px) { ${BAR} { --bar-m:560px; } }
-  /* The bar is marked when the person's own tray holds a plugin (navigation-presentation.ts), not found by a :has() over it (VUX-36). */
-  ${BAR}[data-own-kept] { --bar-r:var(--bar-l); }
-  /* On a phone the Dock and the person's own tray share the second row half and half, so each folds what it cannot hold
-     into its own +N instead of the right one taking the row and leaving the Dock only 项目首页. */
-  @media (max-width: 600px) {
-    ${BAR}[data-own-kept] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    ${BAR}[data-own-kept] .bar-end { justify-self: stretch; justify-content: flex-end; }
-  }
   /* The switcher is its glyph alone at every width (07-1 S4b): the tab strip above names where you are, and the
      switcher's own name says it to a screen reader. A hairline (.plugin-picker::after) sets it apart from the Dock. */
   ${BAR} .bar-start :is(.plugin-picker-current, .plugin-picker-trigger > svg:last-child) { display: none; }

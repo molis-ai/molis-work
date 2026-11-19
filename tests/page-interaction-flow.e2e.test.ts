@@ -16,28 +16,24 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
-  // A Dock entry pressed twice returns to where the pane was.
-  await click('[data-dock-pin="goals"]');
+  // A plugin opens from the start page (＋) as a tab; the top strip keeps only 项目首页 (specs/screen-polish §3 方案 C).
+  await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await waitFor(shows("goals"));
   // PIF-ESC-01: wait for the real board's open groups before leaving; its retained state must not consume Escape.
   await waitFor("!!document.querySelector('[data-goal-kanban] details[open][data-layer-open]')");
-  await click('[data-dock-pin="inbox"]');
-  await waitFor(`${shows("inbox")} && document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current') === 'page'`);
-  assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
-  await click('[data-dock-pin="inbox"]');
-  await waitFor(shows("goals"));
-  await click('[data-dock-pin="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
-  // Home is where panes start: pressing it again changes nothing.
-  await click('[data-dock-pin="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
+  await click('[data-plugin-picker-popover] [data-plugin-id="inbox"]');
+  await waitFor(shows("inbox"));
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-dock-pins] > *')].map((node) => node.className)"), ["top-corner"], "the Dock is the project's first place alone");
+  // 项目主页 in that place's list takes the pane home, and the place is then the current one (§4「底栏第十三版」第 1 条).
+  await click('[data-corner-home]');
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]') && document.querySelector('[data-top-corner-toggle]').getAttribute('aria-current') === 'page'");
 
   // Settings: named in the switcher and the title, not claimed by the Dock underneath.
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings' && !!document.querySelector('[data-cover-close]')`);
   await waitFor("document.querySelector('[data-plugin-picker-current] .is-cover')?.textContent.includes('设置')");
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pins] [aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
   await waitFor("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))"), true,
@@ -82,14 +78,13 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click("[data-cover-close]");
   await waitFor(`${exclusive} === ''`);
 
-  // The strip and the line (specs/work-line §4.1): at every width what the kept plugins fold stays inside their tray, nothing in the
-  // strip or on the line lies over its neighbour, and both stay inside the window.
+  // The strip and the line (specs/work-line §4.1): at every width nothing in the strip or on the line lies over its neighbour, and
+  // both stay inside the window.
   for (const width of [601, 825, 1041, 1100, 1440]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerWidth === " + width);
-    const geometry = await evaluate<{ fold: number; tray: number; over: string[]; out: string[]; scroll: boolean }>(`new Promise(resolve => setTimeout(() => {
+    const geometry = await evaluate<{ over: string[]; out: string[]; scroll: boolean }>(`new Promise(resolve => setTimeout(() => {
       const shown = node => node.getClientRects().length > 0, name = node => node.className.split(' ')[0] || node.tagName.toLowerCase();
-      const pins = [...document.querySelectorAll('[data-dock-pins] :is([data-dock-pin]:not([hidden]), [data-dock-more])')].filter(shown).map(node => node.getBoundingClientRect().right);
       const rows = [[...document.querySelector('.workbench-header[data-dock]').children], [...document.querySelectorAll('[data-work-line] .work-line-wing, [data-work-line] .work-line-slot')]];
       const over = [], out = [];
       for (const row of rows) {
@@ -99,9 +94,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
           if (Math.min(one.right, other.right) - Math.max(one.left, other.left) > 0.5 && Math.min(one.bottom, other.bottom) - Math.max(one.top, other.top) > 0.5) over.push(a + ' × ' + b);
         }));
       }
-      resolve({ fold: Math.max(...pins), tray: document.querySelector('[data-dock-pins]').getBoundingClientRect().right, over, out, scroll: document.documentElement.scrollWidth > innerWidth });
+      resolve({ over, out, scroll: document.documentElement.scrollWidth > innerWidth });
     }, 250))`);
-    assert.ok(geometry.fold <= geometry.tray + 0.5, `${width}: the last kept plugin shown stays inside its tray (${geometry.fold} > ${geometry.tray})`);
     assert.deepEqual(geometry.over, [], `${width}: nothing in the strip or on the line lies over its neighbour`);
     assert.deepEqual(geometry.out, [], `${width}: the strip and the line stay inside the window`);
     assert.equal(geometry.scroll, false, `${width}: the page does not scroll sideways`);
@@ -207,7 +201,7 @@ test("QEA-143 a plugin's page keeps what was open in it across switches and a re
   await write("第一条灵光");
   await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
-  await click('[data-dock-pin="goals"]');
+  await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
   await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");

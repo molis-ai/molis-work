@@ -79,27 +79,67 @@ export function renderLineHead(head: { readonly name: string; readonly waiting: 
     + `${head.ring ? ring(head.ring) : icon("folder")}${text("work-line-head-name", head.name)}${waiting}${head.menu !== undefined ? icon("chevron-down") : ""}</button>`;
 }
 
+/** The three lists the input carries while the dialog is closed (§4「底栏第十三版」第 4 条): the wing each holds and its glyph. */
+export const WORK_LISTS = [
+  { id: "done", glyph: "status-done" },
+  { id: "now", glyph: "status-progress" },
+  { id: "next", glyph: "status-todo" },
+] as const satisfies readonly { id: WorkLineWing; glyph: PluginIconName }[];
+export type WorkLineWing = "done" | "now" | "next";
+export type WorkListId = WorkLineWing;
+/** 办完 shows this many events, newest first; 更早 N brings the rest. */
+export const EARLIER_AFTER = 8;
+
 /**
- * The whole line. `past` are the events that happened, `active` the ones being worked on or waiting for the person (they sit
- * next to now, at the end of the left wing), `next` what comes after; `slot` is what stands in the middle (the composer and
- * what floats above it), drawn by the caller. When the left wing cannot hold its events the oldest go out of sight first, and
- * the button after the head says how many (and whether one of them asks for attention) and brings them back; the layout script
- * counts and shows it. The head and any unreadable source are the line's lead: they stay put while the rest scrolls.
+ * The foot of the window (specs/screen-polish §4「底栏第十三版」; specs/work-line §16): the account bar on the left (`account`,
+ * drawn by the shell), the one input in the middle (`slot`) with 办完, 在办 and 接下来 and their counts inside its top right, and
+ * the card stack of what waits for the person on the right. The lists those three open stand where the info bar will stand,
+ * right above the stack. The page draws the counts, the lists and the cards from the line read (browser/work-bar.ts), so it is
+ * served with empty ones.
  */
-export function renderWorkLine(line: {
-  readonly head: string; readonly past: readonly LineEventView[]; readonly active: readonly LineEventView[]; readonly next: readonly LineEventView[];
-  readonly unreadable?: readonly string[]; readonly slot: string; readonly mini?: string;
-}): string {
-  const run = (events: readonly LineEventView[]) => events.map(renderLineEvent).join("");
-  const earlier = `<button type="button" class="work-line-earlier" data-work-line-earlier aria-label="${uiText("workbench.work-line.earlier-events")}" hidden>`
-    + `${icon("chevron-left")}<span data-count></span><span class="work-line-earlier-attn" data-attn-count hidden>${icon("circle-alert")}<span data-n></span></span></button>`;
-  const latest = `<button type="button" class="work-line-earlier work-line-latest" data-work-line-latest aria-label="${uiText("workbench.work-line.back-to-now")}" title="${uiText("workbench.work-line.back-to-now")}" hidden>${icon("chevron-right")}</button>`;
-  return `<div class="work-line" data-work-line${line.mini ? " data-mini" : ""} role="region" aria-label="${uiText("workbench.work-line.work-line")}">`
-    + `<div class="work-line-row"><div class="work-line-track" data-work-line-track><div class="work-line-wing" data-wing="past"><div class="work-line-lead">${line.head}${(line.unreadable ?? []).map(renderLineUnreadable).join("")}</div>${earlier}`
-    + `<div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.done-and-in-progress")}">${run(line.past)}${run(line.active)}</div>${latest}</div>`
-    + `<span class="work-line-now" aria-hidden="true">${uiText("workbench.work-line.now")}</span>`
-    + `<div class="work-line-wing" data-wing="next"><div class="work-line-run" role="group" aria-label="${uiText("workbench.work-line.next")}">${run(line.next)}</div><span class="work-line-label" aria-hidden="true">${uiText("workbench.work-line.next")}</span></div></div>`
-    + `<div class="work-line-slot" data-work-line-slot>${line.slot}</div>${line.mini ?? ""}</div></div>`;
+export function renderWorkLine(line: { readonly slot: string; readonly account?: string; readonly mini?: string }): string {
+  const keys = WORK_LISTS.map(({ id, glyph }) => {
+    const name = uiText.text(`workbench.work-line.list-${id}`);
+    return `<button type="button" class="work-count" data-work-list="${id}" data-zero aria-expanded="false" aria-controls="work-lists" aria-label="${escapeHtml(uiText.text("workbench.work-line.list-count", { name, n: 0 }))}" title="${escapeHtml(name)}">${icon(glyph)}<span data-n>0</span></button>`;
+  }).join("");
+  return `<div class="work-line" data-work-line${line.mini ? " data-mini" : ""} role="region" aria-label="${uiText("workbench.work-line.foot")}"><div class="work-line-row">${line.account ?? ""}`
+    + `<div class="work-line-slot" data-work-line-slot>${line.slot}<div class="work-counts" data-work-counts role="group" aria-label="${uiText("workbench.work-line.lists")}"><button type="button" class="work-count work-your-turn" data-work-stack-toggle aria-expanded="false" hidden>${icon("status-needs-you")}<span data-n>0</span></button>${keys}${line.mini ?? ""}</div></div>`
+    + `<div class="work-side"><section class="work-lists" id="work-lists" data-work-lists aria-labelledby="work-lists-title" hidden><header class="work-lists-head"><strong id="work-lists-title" data-work-lists-title></strong>`
+    + `${iconButton("x", uiText.text("workbench.work-line.close-list"), { "data-work-lists-close": "" })}</header><div class="work-lists-sources" data-work-lists-sources></div><div class="work-lists-body" data-work-lists-body></div></section>`
+    + `<div class="work-stack" data-work-stack role="region" aria-label="${uiText("workbench.work-line.stack")}" aria-live="polite">${renderStackEmpty()}</div></div></div></div>`;
+}
+
+/** The end of 办完 when more than `EARLIER_AFTER` are done: the rest, on a press. */
+export const renderListEarlier = (n: number) => `<button type="button" class="work-lists-earlier" data-work-lists-earlier>${uiText("workbench.work-line.earlier-n", { n })}</button>`;
+
+/** The stack with nothing in it: the same block, one quiet line. */
+export const renderStackEmpty = () => `<p class="work-stack-empty">${icon("check")}<span>${uiText("workbench.work-line.stack-empty")}</span></p>`;
+
+export interface StackCardView {
+  readonly id: string; readonly title: string; readonly owner: LineOwnerView;
+  /** How many more wait behind this card. */
+  readonly more: number;
+  /** What is asked: a task's question, or the owner's word on why the event waits. */
+  readonly ask: string;
+  /** The question a task asks, answered on the card: at most two answers (POLISH-44); anything more opens the event. */
+  readonly decision?: { readonly task: string; readonly id: string; readonly busy: boolean; readonly answers: readonly ("approve" | "reject")[] };
+}
+
+/**
+ * The card in front of the stack (§4「底栏第十三版」第 5 条; prototype helm.html, screen 34): the owner's mark and the event's
+ * name, 该你 · 还有 N 件 › (the next card to the front), what is asked with its answers, and 打开 › (the event's own place). An
+ * answer is the same decision as on the event's card (WLN-10): the page's one handler for `[data-task-decision]` sends it.
+ */
+export function renderStackCard(card: StackCardView): string {
+  const more = card.more > 0
+    ? `<button type="button" class="work-stack-more" data-work-stack-next>${uiText("workbench.work-line.your-turn-more", { n: card.more })}${icon("chevron-right")}</button>`
+    : `<span class="work-stack-more">${uiText("workbench.work-line.your-turn")}</span>`;
+  const answers = card.decision?.answers.map(role => renderButton({ variant: "secondary", size: "sm", label: uiText.text(`workbench.work-line.decision-${role}`), attrs: { "data-decision-answer": role, ...(card.decision?.busy ? { disabled: "" } : {}) } })).join("") ?? "";
+  const ask = `<p class="work-stack-ask" title="${escapeHtml(card.ask)}">${escapeHtml(card.ask)}</p>`;
+  return `<article class="work-stack-card" data-work-stack-card="${escapeHtml(card.id)}"${card.more > 0 ? ` data-behind="${Math.min(card.more, 2)}"` : ""} aria-label="${escapeHtml(card.title)}">`
+    + `<div class="work-stack-head">${renderOwnerMark(card.owner)}<strong title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</strong>${more}</div>`
+    + `<div class="work-stack-body"${card.decision ? ` data-task-decision="${escapeHtml(card.decision.id)}" data-task="${escapeHtml(card.decision.task)}"${card.decision.busy ? ' aria-busy="true"' : ""}` : ""}>${ask}${answers}`
+    + `<button type="button" class="work-stack-open" data-work-stack-open="${escapeHtml(card.id)}">${uiText("workbench.work-line.open")}${icon("chevron-right")}</button></div></article>`;
 }
 
 /** Who a reply is from: the Assistant's glyph, or a Character's initial. */

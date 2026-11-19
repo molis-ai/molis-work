@@ -1,6 +1,6 @@
 # 逐屏打磨 P4 前半：Coding 逐屏里不依赖壳层的六处
 
-状态：已实现并提交在分支 `feat/screen-polish-p4-coding`（2026-11-18），没有推送、没有开 PR，等用户看过结果再定。
+状态：已实现，分支 `feat/screen-polish-p4-coding`（2026-11-18）；用户看过结果后同意推送并开 PR，等评审。
 
 这一片属于[逐屏打磨第一轮](spec.md)第六节和第九节的 P4。方案写明 P4 不需要用户另外拍板；样稿是 `docs/design/screen-polish/` 第 1 屏（`?only=coding`）。
 
@@ -70,7 +70,7 @@ P0（molis-ai/molis-work#2110）已经做掉的四处不重做：琥珀徽标改
 
 ## 验证
 
-2026-11-18 在本机，对照 merge-base `afaeabdd4a`（P0 合入后的 main）。
+2026-11-18 在本机，对照 merge-base `afaeabdd4a`（P0 合入后的 main）。随后合并了 main `e5e565411b`（P5 已合入，没有冲突），整体构建后把下面的用例和门禁重跑了一遍：单元 97 个文件全过，浏览器 26 个里 25 个过（失败的是下面说的那个文件），体积数字和合并前一样。
 
 - **用例。** 新增 `tests/coding-screen-polish.test.ts`（8 条，POLISH-23、24、26、27 各有）和 `tests/coding-screen-polish.e2e.test.ts`（1 条，真实浏览器里量目录列、准备行、回合结束卡、头部、结果面板、任务图空状态）。`node scripts/affected-tests.mjs` 选出的 97 个单元文件和 22 个浏览器文件，加上英文界面、语言切换、插件页工作区、Coding 入门四个浏览器文件，都跑过。
 - **改到的现有断言（都是预期变化，没有放宽）。**

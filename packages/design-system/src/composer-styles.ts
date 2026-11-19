@@ -3,14 +3,14 @@ import { COMPOSER_PATTERN_STYLES } from "./primitives/catalog-patterns.js";
 // The attachment strip's picture layout (Coding A3): one row of 40px previews that scrolls sideways rather than growing the box;
 // each preview is the button that opens the picture (44px under a coarse pointer); a refusal wraps to a second line, never cut.
 export const COMPOSER_PICTURES_STYLES = `
-  .mw-composer__files.is-pictures { display: flex; gap: 8px; width: auto; overflow-x: auto; scrollbar-width: thin; }
+  .mw-composer__files.is-pictures { display: flex; gap: 8px; width: auto; overflow-x: auto; }
   .mw-composer__files.is-pictures > .mw-upload { flex: none; gap: 8px; max-width: 240px; min-height: 0; padding: 4px 0 4px 4px; background: var(--surface-soft); }
-  .mw-composer__files.is-pictures .mw-mark { width: 40px; height: 40px; flex: none; border-radius: calc(var(--r-row) - 2px); box-shadow: 0 0 0 1px var(--line); background: var(--wash); }
+  .mw-composer__files.is-pictures .mw-mark { width: 40px; height: 40px; border-radius: calc(var(--r-row) - 2px); box-shadow: 0 0 0 1px var(--line); background: var(--wash); }
   .mw-composer__files.is-pictures .mw-upload > span:nth-child(2) { gap: 2px; font-size: 12px; }
   .mw-composer__files.is-pictures .mw-composer__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
   .mw-composer__files.is-pictures small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
   .mw-composer__files.is-pictures .is-failed .mw-mark { box-shadow: 0 0 0 1.5px var(--red); }
-  .mw-composer__open { padding: 0; border: 0; cursor: zoom-in; transition: box-shadow var(--dur-hover) var(--ease-quint); }
+  .mw-composer__open { all: unset; place-self: stretch; border-radius: inherit; cursor: zoom-in; transition: box-shadow var(--dur-hover) var(--ease-quint); }
   .mw-composer__open:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
   .mw-composer__open:focus-visible { outline: var(--focus-stroke) solid var(--accent); outline-offset: 2px; }
   @media (pointer: coarse) { .mw-composer__files.is-pictures .mw-mark { width: 44px; height: 44px; } }

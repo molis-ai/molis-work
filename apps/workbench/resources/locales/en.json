@@ -3937,12 +3937,24 @@
     "workbench.context-onboarding.sessions-permit-off": "This project’s AI can’t read external sessions yet. Until you allow it, this step doesn’t organize them.",
     "workbench.context-onboarding.sessions-permit-allow": "Allow this project’s AI to read its external sessions",
     "workbench.context-onboarding.sessions-permit-note": "Only you can turn this on. It stays on until you turn it off in External sessions › Read scope; what is already in an answer is not taken back.",
-    "workbench.context-onboarding.sessions-readable": "This project’s AI can read {n} sessions",
+    "workbench.context-onboarding.sessions-readable": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "This project’s AI can read {n} session",
+        "other": "This project’s AI can read {n} sessions"
+      }
+    },
     "workbench.context-onboarding.sessions-reported": "{n} more were reported by the tool; they count once you confirm them in External sessions",
     "workbench.context-onboarding.sessions-blocked": "{n} more are in tools you haven’t allowed",
     "workbench.context-onboarding.sessions-none": "No sessions filed to this project can be read by its AI yet. File some to it in External sessions first.",
     "workbench.context-onboarding.sessions-use": "Read these sessions",
-    "workbench.context-onboarding.sessions-n": "{n} sessions",
+    "workbench.context-onboarding.sessions-n": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} session",
+        "other": "{n} sessions"
+      }
+    },
     "workbench.context-onboarding.continue-from-tools": "Pick up from your AI tools",
     "workbench.context-onboarding.continue-from-tools-sub": "Reads the sessions filed to “{project}” and anything you add into background, decisions, results and open items, each with its source and yours to correct.",
     "workbench.context-onboarding.name-summary-existing": "Title this summary",

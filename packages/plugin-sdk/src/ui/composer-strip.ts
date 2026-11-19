@@ -29,9 +29,9 @@ export function renderComposerStrip(labels: MwComposerLabels, items: readonly Co
       : item.state === "failed" ? `<small class="is-failed">${escapeHtml(item.reason ?? "")}</small>` : item.meta ?? item.from ? `<small>${escapeHtml((item.meta ?? item.from)!)}</small>` : "";
     const remove = fill(labels.remove, { name: item.title }), again = fill(labels.retryFile, { name: item.title });
     const picture = item.thumb ? `<img class="mw-composer__thumb" src="${escapeHtml(item.thumb)}" alt="">` : icon(item.from ? "package" : "file");
-    const mark = item.thumb && item.open
-      ? `<button type="button" class="mw-mark mw-composer__open" aria-label="${escapeHtml(item.open)}" data-composer-open="${escapeHtml(item.key)}">${picture}</button>`
-      : `<span class="mw-mark">${picture}</span>`;
+    // The preview opens from inside its frame: a picture, not a peer of the row's remove and 重试.
+    const mark = `<span class="mw-mark">${item.thumb && item.open
+      ? `<button type="button" class="mw-composer__open" aria-label="${escapeHtml(item.open)}" data-composer-open="${escapeHtml(item.key)}">${picture}</button>` : picture}</span>`;
     const retry = item.state === "failed" && item.retry
       ? renderButton({ label: labels.retry, variant: "ghost", size: "sm", attrs: { "aria-label": again, title: again, "data-composer-retry": item.key } }) : "";
     return `<li class="mw-upload${item.state === "attached" ? "" : ` is-${item.state}`}" data-composer-file="${escapeHtml(item.key)}"${item.state === "reading" ? ' aria-busy="true"' : ""}>${mark}<span><span class="mw-composer__name" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>${note}</span>${retry}${

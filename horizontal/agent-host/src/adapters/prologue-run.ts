@@ -11,7 +11,7 @@ import { agentTextMaterialContent, type AgentFrozenStart } from "@molis-ai/molis
 import { agentErrors } from "../errors.js";
 import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
-import { SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { packToDynamicTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import { FIND_SYMBOL_HOST_TOOL } from "../code-intelligence/coding-tools.js";
 import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -685,8 +685,9 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const afterWrite = await roundChecks(deps, input, index, mode, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite || symbolTool);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
-  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
-    executors: { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
+  const dynamicTools = bindActions ? packToDynamicTools(actionTools!.pack,
+    { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, parameterBranches) : undefined;
+  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, dynamicTools ? { tools: dynamicTools } : undefined);
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });

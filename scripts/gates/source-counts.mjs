@@ -58,6 +58,8 @@ import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 const CATCH_SHAPE = /catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
 const OLD_PRODUCT_NAME = /goalboard/gi;
 const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])BoardIds?(?![a-z])|(?<![A-Z])BOARD_IDS?(?![A-Z])/g;
+// PG-097: retired platform env/storage names that carried plugin names (formerly guarded by tests/platform-naming-pg097.test.ts).
+const OLD_PLATFORM_NAME = /MOLIS_JELLY_|resolveFeedSecurityDirectory/g;
 
 const SCRIPT_NAME = /_SCRIPT$/;
 const ELLIPSIS_START = /^\s*(?:…|\.{3})/u;
@@ -94,7 +96,7 @@ function startsWithEllipsis(expression) {
 export const countFile = (file, text, { inSource = false } = {}) => {
   const counts = { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0 };
   if (!inSource) return counts;
-  counts.oldNames = (text.match(OLD_PRODUCT_NAME) ?? []).length + (text.match(OLD_ID_NAME) ?? []).length;
+  counts.oldNames = (text.match(OLD_PRODUCT_NAME) ?? []).length + (text.match(OLD_ID_NAME) ?? []).length + (text.match(OLD_PLATFORM_NAME) ?? []).length;
   // Parse only the files whose text can hold one of the shapes.
   const catches = /\bcatch\b/.test(text), scripts = text.includes("_SCRIPT"), slices = text.includes("slice");
   if (!catches && !scripts && !slices) return counts;
@@ -118,8 +120,9 @@ export const countFile = (file, text, { inSource = false } = {}) => {
   return counts;
 };
 
-// One pass over a snapshot serves the counters above.
+// One pass over a snapshot serves the counters above; identical file text across head and merge-base parses once.
 const passes = new WeakMap();
+const fileCountCache = new Map();
 const measureSnapshot = (snapshot, { isSource }) => {
   let result = passes.get(snapshot);
   if (result) return result;
@@ -128,7 +131,10 @@ const measureSnapshot = (snapshot, { isSource }) => {
     if (!isSource(file)) continue;
     const text = snapshot.read(file);
     if (text === null) continue;
-    for (const [rule, count] of Object.entries(countFile(file, text, { inSource: true }))) if (count) result[rule][file] = count;
+    const cached = fileCountCache.get(file);
+    const counts = cached && cached.text === text ? cached.counts : countFile(file, text, { inSource: true });
+    if (!cached || cached.text !== text) fileCountCache.set(file, { text, counts });
+    for (const [rule, count] of Object.entries(counts)) if (count) result[rule][file] = count;
   }
   passes.set(snapshot, result);
   return result;

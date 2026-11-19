@@ -13,8 +13,6 @@ import { isTestFile, isUnderSourceRoots, markerAtEnd, REPOSITORY, SOURCE_ROOTS, 
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 import { contentVersionChanges } from "./content-versions.mjs";
 import { goldenManifests } from "../golden/formats.mjs";
-import { goldenHolds } from "./store-schemas.mjs";
-import { GOALS_APPROVAL_TRANSFER, hasGoalsApprovalTransfer } from "./goals-approval-transfer.mjs";
 import { collectHost, loadManifests, withIsolatedHome } from "./action-contract-host.mjs";
 
 // Persistent formats (specs/upgrade-continuity/upgrade-chain-design.md §11.1, CONTRACT-CHANGES.md §3): after the unified origin these
@@ -66,11 +64,9 @@ export const PERSISTENT_FORMAT_ENTRIES = Object.freeze(Object.fromEntries([...PE
 
 /** The other direction: a marker's entry name, back to the definition whose chain and old goldens it has to have. */
 export const PERSISTENT_DEFINITION_BY_ENTRY = Object.freeze(Object.fromEntries(Object.entries(PERSISTENT_FORMAT_ENTRIES).map(([definition, entry]) => [entry, definition])));
-const goalsSync = GOALS_APPROVAL_TRANSFER;
-const goalsSyncDefinition = `${goalsSync.syncManifest}#${goalsSync.syncEntry}`;
 
 function persistentEntryDefinition(entry) {
-  return entry === goalsSync.syncEntry ? goalsSyncDefinition : PERSISTENT_DEFINITION_BY_ENTRY[entry];
+  return PERSISTENT_DEFINITION_BY_ENTRY[entry];
 }
 
 /** Whether `froms` are the steps a chain to `version` needs: 1 to version - 1, each once. Empty when they are. */
@@ -162,14 +158,6 @@ export function registeredUpgradeChains({ files = [], read }) {
     for (let older = 1; older < chain.version; older += 1) if (!versions.has(older)) unheld.push(older);
     chains.set(definition, { ...chain, replay_passed: chain.version > 1 && unheld.length === 0, unheld });
   }
-  if (hasGoalsApprovalTransfer(read)) {
-    // project_goals@1 has its own namespace. The project upgrade verifies its objects and rebuilds @2 from the owner facts.
-    // Replay restores both original versions before it opens the project, so merely listing either version is insufficient.
-    const holds = goldenHolds(`${goalsSync.projectStore}#${goalsSync.pluginId}`, goalsSync.from);
-    const replay_passed = goldenManifests({ files, read }).some(({ manifest }) => Array.isArray(manifest?.stores)
-      && manifest.stores.some(store => store.schema_version === goalsSync.from && holds(store)));
-    chains.set(goalsSyncDefinition, { version: 2, froms: [1], replay_passed, unheld: replay_passed ? [] : [1] });
-  }
   return chains;
 }
 
@@ -212,7 +200,7 @@ export function initialVersionProblems({ manifests, hostViews, registrations, ve
     const kind = /^(prompt|method)\./.exec(key)?.[1];
     if (kind && !currentContent) check("tooling/versions.json", kind, key, version);
     else if (kind && (!Number.isSafeInteger(version) || version < 1)) problems.add(`tooling/versions.json: ${key} must be a positive integer`);
-    const definition = key === goalsSync.syncEntry ? goalsSyncDefinition : PERSISTENT_ENTRIES.get(key);
+    const definition = PERSISTENT_ENTRIES.get(key);
     if (definition && version !== 1) for (const problem of persistentVersionProblems(definition, version, chains)) problems.add(problem);
     if (key === importedDocument.entry && version !== importedDocument.current) problems.add(`tooling/versions.json: ${key} = ${String(version)} (expected ${importedDocument.current})`);
   }
@@ -277,7 +265,7 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
     if (entry === undefined) return;
     const value = markedNumber(node);
     if (value === undefined) return;
-    const definition = entry === goalsSync.syncEntry && file !== goalsSync.syncManifest ? undefined : persistentEntryDefinition(entry);
+    const definition = persistentEntryDefinition(entry);
     if (definition !== undefined) {
       if (value !== 1) problems.push(...persistentVersionProblems(definition, value, chains));
     } else if (libraryEntry(entry)) return;
@@ -315,7 +303,7 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
     try { return parse(text); } catch (error) { problems.push(`${file} cannot be read: ${error.message}`); return empty; }
   };
   const listed = table("tooling/versions.json", text => JSON.parse(text).versions ?? {}, {});
-  const versionEntries = Object.fromEntries(Object.entries(listed).filter(([key]) => PERSISTENT_ENTRIES.has(key) || key === goalsSync.syncEntry || key === importedDocument.entry));
+  const versionEntries = Object.fromEntries(Object.entries(listed).filter(([key]) => PERSISTENT_ENTRIES.has(key) || key === importedDocument.entry));
   const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
   problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));

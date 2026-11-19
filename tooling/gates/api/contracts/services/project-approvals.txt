@@ -154,19 +154,6 @@ export interface ProjectApprovalRules {
     readonly rules: readonly ProjectApprovalRule[];
 }
 
-export interface ProjectDecisionHistory {
-    readonly kind: "history";
-    readonly decision_id: string;
-    readonly project_id: string;
-    readonly owner: Extract<ApprovalRuleOwner, {
-        kind: "plugin";
-    }>;
-    readonly subject: "event" | "proposal-item";
-    readonly recorded_at: string;
-    readonly original: Readonly<Record<string, string | number | null>>;
-    readonly outcome_digest?: string;
-}
-
 export interface ProjectReviewCoverage {
     readonly target: ReviewTarget;
     readonly requirements: readonly (Pick<ReviewRequirement, "id" | "version" | "target" | "evidence"> & {

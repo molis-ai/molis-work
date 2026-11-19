@@ -1,5 +1,6 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueError } from "@prologue/sdk";
+import type { CommandDispatchGuard } from "@prologue/sdk/node";
 import { agentErrors } from "../errors.js";
 import type { DispatchControl, DispatchGuards, NodeHost } from "./prologue-node-kit.js";
 
@@ -20,6 +21,30 @@ export async function prepareDispatchFence(control: DispatchControl | undefined)
   if (control.prepareDispatch) return control.prepareDispatch();
   await control.beforeEffect();
   return () => requireSynchronous(control.assertCurrent());
+}
+
+/** NodeHost `beforeCommandDispatch` port: gates foreground, background, and stdio MCP spawns with a final sync fence. */
+export function createCommandDispatchGuard(guards: DispatchGuards): CommandDispatchGuard {
+  return async (context) => {
+    if (context.kind === "run" && !context.commandId) {
+      throw agentErrors.review_not_permitted("命令缺少原调用标识或正在准备同一条命令");
+    }
+    const control = guards.getStore();
+    if (context.kind === "interactive") {
+      const transport = control?.mcp?.maintenance;
+      if (transport?.kind !== "stdio") return;
+      requireSynchronous(control?.assertCurrent());
+      requireSynchronous(transport.control.assertCurrent());
+      return () => {
+        requireSynchronous(control?.assertCurrent());
+        requireSynchronous(transport.control.assertCurrent());
+      };
+    }
+    if (!control) throw agentErrors.review_not_permitted("执行缺少原调用的授权检查");
+    requireSynchronous(control.assertCurrent());
+    await control.beforeEffect();
+    return () => requireSynchronous(control.assertCurrent());
+  };
 }
 
 /** The existing Node Host owns each command. Its spawn path has no await after this final check. */

@@ -61,7 +61,7 @@ export const LINT_ROOTS = ["apps", "horizontal", "modules", "packages", "plugins
 const LINT_FILE = new RegExp(`^(?:${LINT_ROOTS.join("|")})/.+\\.(?:ts|mts|mjs)$`);
 export const isLintFile = (file) => LINT_FILE.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(?:node_modules|dist)\//.test(file);
 /** The files a merge-base snapshot has to hold for the gate to measure it. */
-export const lintWantsText = (file) => isLintFile(file) || file === CONFIG_FILE;
+export const lintWantsText = (file) => isLintFile(file) || file === CONFIG_FILE || /^tooling\/gates\/lint\/[^/]+\.grit$/.test(file);
 
 // A suppression comment as Biome reads it: the word biome-ignore (also with -all or -start) and then a rule category.
 const SUPPRESSION = /biome-ignore(?:-all|-start)?[ \t]+(?:lint|plugin|syntax|assist)\b/g;
@@ -396,6 +396,88 @@ export const lintTexts = (root, texts) => {
 /** Tracked files that look like a second Biome configuration: the gate reads the root one only, so they would be ignored. */
 const nestedConfigs = (files) => files.filter((file) => /(^|\/)biome\.jsonc?$/.test(file) && file !== CONFIG_FILE).sort();
 
+// ---- scoped comparison for --base ---------------------------------------------------------------------------------------
+const RELATIVE_SPECIFIER = /(?:\bfrom\s+|(?:^|[^\w$])(?:import|require)\s*\(?\s*)["'](\.\.?\/[^"'\n]*|\.\.?)["']/gm;
+const JS_EXT = /\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/;
+
+const resolveRelativeLintTargets = (fromFile, specifier, allFiles) => {
+  const normalized = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier));
+  const stem = normalized.replace(JS_EXT, "");
+  const out = [];
+  for (const candidate of [normalized, `${stem}.ts`, `${stem}.mts`, `${stem}.mjs`, `${normalized}/index.ts`, `${normalized}/index.mts`, `${normalized}/index.mjs`]) {
+    if (allFiles.has(candidate)) out.push(candidate);
+  }
+  return out;
+};
+
+/**
+ * When comparing `headSnapshot` against `baseSnapshot` with identical `biome.jsonc` and GritQL plugins, Biome's only
+ * cross-file rule (`noFloatingPromises`) flows along directed relative imports (`importer -> callee`). Every file outside
+ * `affected` (changed/added/deleted/renamed lint files plus their transitive reverse importers) has bit-for-bit identical text
+ * and transitive dependencies on both sides, so its diagnostics cannot change. Including `affected` plus its transitive forward
+ * dependencies (`context`) guarantees identical diagnostics for every affected file on both sides.
+ * Returns the set of files to lint (possibly empty when no lint file changed), or `null` when a full lint is required.
+ */
+export const scopedLintFiles = (headSnapshot, baseSnapshot) => {
+  if (!headSnapshot || !baseSnapshot) return null;
+  const headConfigText = headSnapshot.read(CONFIG_FILE), baseConfigText = baseSnapshot.read(CONFIG_FILE);
+  if (headConfigText === null || baseConfigText === null || headConfigText !== baseConfigText) return null;
+  let plugins;
+  try { plugins = configPluginsOf(parseConfig(headConfigText, CONFIG_FILE)); } catch { return null; }
+  for (const plugin of plugins) {
+    const normalized = path.posix.normalize(plugin);
+    const headPlugin = headSnapshot.read(normalized), basePlugin = baseSnapshot.read(normalized);
+    if (headPlugin === null || basePlugin === null || headPlugin !== basePlugin) return null;
+  }
+  const allFiles = new Set();
+  for (const file of headSnapshot.files) if (isLintFile(file)) allFiles.add(file);
+  for (const file of baseSnapshot.files) if (isLintFile(file)) allFiles.add(file);
+  const changed = new Set();
+  for (const file of allFiles) {
+    if (headSnapshot.read(file) !== baseSnapshot.read(file)) changed.add(file);
+  }
+  if (!changed.size) return changed;
+  const forward = new Map();
+  const reverse = new Map();
+  const link = (importer, callee) => {
+    if (importer === callee) return;
+    let out = forward.get(importer); if (!out) { out = new Set(); forward.set(importer, out); } out.add(callee);
+    let rev = reverse.get(callee); if (!rev) { rev = new Set(); reverse.set(callee, rev); } rev.add(importer);
+  };
+  for (const file of allFiles) {
+    const headText = headSnapshot.read(file);
+    const baseText = changed.has(file) ? baseSnapshot.read(file) : null;
+    const seen = new Set();
+    for (const text of [headText, baseText]) {
+      if (!text || (!text.includes("./") && !text.includes("../") && !text.includes('"."') && !text.includes("'.'") && !text.includes('".."') && !text.includes("'..'"))) continue;
+      RELATIVE_SPECIFIER.lastIndex = 0;
+      let match;
+      while ((match = RELATIVE_SPECIFIER.exec(text)) !== null) {
+        const spec = match[1];
+        if (seen.has(spec)) continue;
+        seen.add(spec);
+        for (const target of resolveRelativeLintTargets(file, spec, allFiles)) link(file, target);
+      }
+    }
+  }
+  const bfs = (seeds, graph) => {
+    const visited = new Set(seeds);
+    const queue = [...seeds];
+    for (let index = 0; index < queue.length; index++) {
+      const edges = graph.get(queue[index]);
+      if (!edges) continue;
+      for (const next of edges) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+    return visited;
+  };
+  const affected = bfs(changed, reverse);
+  return bfs(affected, forward);
+};
+
 // ---- the metrics --------------------------------------------------------------------------------------------------------
 const lineDetails = new WeakMap(); // the { file: count } object a rule measured -> { file: [line…] }
 const passes = new WeakMap();      // snapshot -> its measurement
@@ -403,8 +485,10 @@ const passes = new WeakMap();      // snapshot -> its measurement
 /**
  * The metrics for scripts/check-health-gates.mjs. `required` says that this repository must have a configuration (the
  * scratch repositories of the other gate tests have none and are left alone). `helpers` are the entry's own comparison tools.
+ * When `lintScope` returns a Set of files for a snapshot (merge-base comparison with identical config/plugins, outside --report
+ * and --update), only those files are copied and linted.
  */
-export const createLintMetrics = ({ root, required, fail, perFile, rekey, rekeyFile, sumOf, requireShape }) => {
+export const createLintMetrics = ({ root, required, fail, perFile, rekey, rekeyFile, sumOf, requireShape, lintScope }) => {
   const configPath = path.join(root, CONFIG_FILE);
   const configured = () => existsSync(configPath);
   const empty = () => ({ counts: Object.fromEntries(LINT_RULES.map((rule) => [rule.id, {}])), lines: Object.fromEntries(LINT_RULES.map((rule) => [rule.id, {}])) });
@@ -412,13 +496,18 @@ export const createLintMetrics = ({ root, required, fail, perFile, rekey, rekeyF
     let result = passes.get(snapshot);
     if (result) return result;
     if (configured()) {
-      const texts = new Map();
-      for (const file of snapshot.files) {
-        if (!isLintFile(file)) continue;
-        const text = snapshot.read(file);
-        if (text !== null) texts.set(file, text);
+      const scope = lintScope?.(snapshot) ?? null;
+      if (scope && scope.size === 0) {
+        result = empty();
+      } else {
+        const texts = new Map();
+        const candidates = scope ? snapshot.files.filter((file) => scope.has(file)) : snapshot.files.filter(isLintFile);
+        for (const file of candidates) {
+          const text = snapshot.read(file);
+          if (text !== null) texts.set(file, text);
+        }
+        try { result = lintTexts(root, texts); } catch (error) { fail(`static checks: ${error.message}`); }
       }
-      try { result = lintTexts(root, texts); } catch (error) { fail(`static checks: ${error.message}`); }
     } else result = empty();
     for (const rule of LINT_RULES) lineDetails.set(result.counts[rule.id], result.lines[rule.id]);
     passes.set(snapshot, result);

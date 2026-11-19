@@ -78,20 +78,8 @@ const SCHEDULE_MISSED_RUNS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${SCHEDULE_M
  */
 export const SCHEDULE_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "schedule",
-  version: /* @version database.schedule_project_database */ 3,
-  // 1 → 2 (2026-11-11, resident runtime): the missed runs. A new table only; the step makes exactly what `schema` makes.
-  // A step names its table plainly (no IF NOT EXISTS: the platform knows the table is not there yet).
-  // 2 → 3 (2026-11-13, batch 17): one-off tasks about an object (a risk's review). Four columns at the end of the task table;
-  // existing tasks are daily and about nothing.
-  upgrades: [
-    { from: 1, sql: `CREATE TABLE ${SCHEDULE_MISSED_RUNS_COLUMNS};` },
-    { from: 2, sql: `
-      ALTER TABLE schedule_conversation_tasks ADD COLUMN repeat TEXT NOT NULL DEFAULT 'daily';
-      ALTER TABLE schedule_conversation_tasks ADD COLUMN run_at TEXT;
-      ALTER TABLE schedule_conversation_tasks ADD COLUMN subject_kind TEXT;
-      ALTER TABLE schedule_conversation_tasks ADD COLUMN subject_id TEXT;
-    ` },
-  ],
+  version: /* @version database.schedule_project_database */ 1,
+  upgrades: [],
   schema: [SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL, SCHEDULE_MISSED_RUNS_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",

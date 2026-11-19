@@ -2,7 +2,9 @@
 
 作者用了不合适的目录，或漏了本地试跑参数，现在都可能被告知「插件说明写错了」，会去修错地方。
 
-预计 **3–6 工时**。维护范围为C1／合同与 SDK，工具维护人。正式交付项为 [48-1](../../batches/48.md#batch-48-item-1)。[原始待办](../../../../backlog/BL-plugin-cli-dev-uncoded-errors.md) · [派工总表](../README.md)
+预计 **3–6 工时**。维护范围为C1／合同与 SDK，工具维护人。正式交付项为 [48-1](../../batches/48.md#batch-48-item-1)。[原始待办](../../../../../docs/backlog-removed.md) · [派工总表](../README.md)
+
+**已完成，不再派发**：2026-11-19 由 [#2152](https://github.com/molis-ai/molis-work/pull/2152)（`517c2c6716`）合入，BL 已删除，结清记录见 [docs/backlog-removed.md](../../../../../docs/backlog-removed.md)。下面的 Prompt 只留作记录。
 
 ## 可复制的开工 Prompt
 

@@ -74,6 +74,9 @@ export const scheduleActions = {
   readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", /* @version action.schedule.tasks.readiness */ 1, "定时任务就绪情况",
     "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
     object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
+  getTask: define<{ task_id: string }, { task: ScheduleConversationTaskView }>("tasks.get", /* @version action.schedule.tasks.get */ 1, "读取一项定时任务",
+    "按编号读取当前项目的一项对话任务：设置、下一次时间与每一轮的对话（含没跑成的那一轮及原因）；已归档或不在本项目的答不存在", "query",
+    object({ task_id: id }), object({ task }), read),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", /* @version action.schedule.tasks.create */ 1, "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
     object(fields, ["title", "instructions"]), object({ task }), write),
@@ -190,6 +193,11 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
     bind(scheduleActions.readiness, () => {
       if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
       return ports.readiness();
+    }),
+    bind(scheduleActions.getTask, input => {
+      const task = ports.getTask(input.task_id);
+      if (!task) throw scheduleErrors.task_not_found("定时任务不存在");
+      return { task };
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => {

@@ -35,6 +35,11 @@ export interface SchedulePage {
   created: string;
   /** Whether the project has a workspace, once read: a task that reads files only needs one. */
   ready?: Readiness;
+  /** Counts the waits for an open task's round (round.ts), so an answer for a task no longer open is dropped. */
+  following: number;
+  followTimer?: ReturnType<typeof setTimeout>;
+  /** The read a hidden page put off, made when it shows again. */
+  followPending: (() => void) | null;
   /** The platform's reads area in the open task's detail (area.ts): its element, and what closes it. */
   area: { readonly element: HTMLElement; readonly control: AbortController } | null;
   /** What the person last changed in the area, by task, with the read of the list under way then (newer than that read's answer). */
@@ -55,7 +60,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
     recoveryError: required(workbench, "[data-schedule-recovery-error]"),
     operationDialog: required<HTMLDialogElement>(workbench, "[data-schedule-operation-dialog]"),
     operationForm: required<HTMLFormElement>(workbench, "[data-schedule-operation-form]"),
-    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, created: "",
+    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, created: "", following: 0, followPending: null,
     area: null, changes: new Map(),
   };
 }

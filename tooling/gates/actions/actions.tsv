@@ -551,6 +551,7 @@ schedule.task.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	ope
 schedule.tasks.archive	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	c5014bc04947	56f934900c61	-
 schedule.tasks.create	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	2a5fafe33f20	1217676e52ef	-
 schedule.tasks.enabled	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	cced437a0c98	1217676e52ef	-
+schedule.tasks.get	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	c5014bc04947	1217676e52ef	-
 schedule.tasks.list	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	60196c0a4790	92d2f96cea4f	-
 schedule.tasks.open	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	c5014bc04947	1217676e52ef	-
 schedule.tasks.readiness	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	d746974fa9af	67b85d7e1440	-

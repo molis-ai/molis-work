@@ -3,6 +3,7 @@ import { wireForm } from "./form.js";
 import { wireOperation } from "./operation.js";
 import { createPage } from "./page.js";
 import { wireReads } from "./reads.js";
+import { wireFollowing } from "./round.js";
 import { wireRecovery } from "./recovery.js";
 import { detailOf } from "./dom.js";
 import { select } from "./stage.js";
@@ -22,6 +23,7 @@ export function scheduleClient(host: ScheduleHost): void {
   wireOperation(page);
   wireForm(page);
   wireReads(page);
+  wireFollowing(page);
   list.addEventListener("click", event => {
     const target = event.target as Element;
     if (target.closest("[data-schedule-new]")) return;

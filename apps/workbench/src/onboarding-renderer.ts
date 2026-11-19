@@ -4,11 +4,13 @@ import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION
 import { ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderContextOnboarding } from "./context-onboarding-renderer.js";
+import { renderSceneOnboardingContent } from "./scene-onboarding-renderer.js";
 import { createArrivalShell } from "./arrival/shell.js";
 import type { WorkbenchAppearancePorts } from "./appearance-document.js";
 
 type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
+  catalogTextPacks: import("./project-settings-pages.js").ProjectSettingsPagePorts["catalogTextPacks"];
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
   readText(text: string, values?: Record<string, string | number>): string;
@@ -22,7 +24,8 @@ export interface OnboardingRenderPrimitives {
 }
 
 export interface MolisWorkOnboardingRenderOptions {
-  mode: "first_run" | "new_project" | "update";
+  mode: "first_run" | "new_project" | "update" | "scene";
+  projectId?: string;
   currentVersion: string | null;
   controlToken?: string;
   desktopShell?: boolean;
@@ -37,12 +40,17 @@ function miniWorkbench(icon: (name: OnboardingIcon) => string): string {
 
 export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPrimitives) {
   const { escapeHtml, withDesktopQuery } = primitives;
+  const shell = createArrivalShell({ ...primitives, themeBootstrapScript: `${primitives.nativeDesktopBootstrapScript}${THEME_BOOTSTRAP_SCRIPT}`, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT });
   return function renderMolisWorkOnboarding(options: MolisWorkOnboardingRenderOptions): string {
   const desktopShell = Boolean(options.desktopShell);
   const href = (target: string) => desktopShell ? withDesktopQuery(target) : target;
+  if (options.mode === "scene") {
+    const { start, ...content } = renderSceneOnboardingContent(options, primitives);
+    return shell.document({ ...content, screen: "onboard", desktopShell, controlToken: options.controlToken ?? "",
+      titlebar: shell.titlebar(desktopShell, {}), bar: shell.bar({ kind: "onboard", start }) });
+  }
   if (options.mode === "update") {
     // After an update: what is new, in the arrival frame, with one way on.
-    const shell = createArrivalShell({ ...primitives, themeBootstrapScript: `${primitives.nativeDesktopBootstrapScript}${THEME_BOOTSTRAP_SCRIPT}`, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT });
     const version = options.currentVersion ? ` ${escapeHtml(options.currentVersion)}` : "";
     const stage = `<main class="arrival-stage" aria-labelledby="onboarding-update-title"><div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="update">
       <section class="welcome-q onboarding-update-copy"><h1 id="onboarding-update-title" tabindex="-1">${uiText("workbench.onboarding-renderer.molis-work-has-been-updated")}${version}</h1><p>${uiText("workbench.onboarding-renderer.projects-materials-work-records-still-device")}</p>

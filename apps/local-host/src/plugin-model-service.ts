@@ -1,3 +1,4 @@
+import { modelPreferenceOwner } from "./model-preference-settings.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeInstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginModelConfigurationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -29,7 +30,9 @@ export function pluginModelFor(home: PluginPlatformHome | null | undefined, defi
   if (declaration && sandboxProviderName(declaration.custom_provider.provider_id)) throw modelConfigurationInvalid("这个供应商名保留给沙箱插件，不能声明");
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
-    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
+    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate,
+      definition.manifest.settings_entries?.model_configuration ? modelPreferenceOwner(home.directory, declaration, definition.manifest.settings_entries.model_configuration.key,
+        JSON.stringify([context.install_id, context.installation_generation])) : undefined) } : {}),
   });
 }
 
@@ -54,18 +57,19 @@ export function createPluginModelPort(home: PluginPlatformHome, carried: readonl
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true, vision: true };
       // Every model action of every plugin asks this within one directory: read the settings once per Home and selection there.
       return rememberInDirectoryPass(createPluginModelPort, JSON.stringify([home.directory, selection ?? null]), () => {
-        let label: string | undefined, vision = false;
+        let label: string | undefined, vision: boolean | undefined;
         const state = textModelAvailability(() => {
           if (!configured(selection)) return false;
           const catalog = openConfiguredModels(home.directory);
           try {
             const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
             // What a plugin may show the person: the connection and model they configured, not the runtime underneath (F-01).
-            if (selected) { label = `${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
+            if (selected) { label = `${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision; }
             return true;
           } finally { catalog?.storage.close(); }
         });
-        return state.available && label ? { ...state, runtime_label: label, vision } : state;
+        // What the person marked, as it is: absent when unmarked (decision 51 ③), as `choices()` gives it.
+        return state.available && label ? { ...state, runtime_label: label, ...(vision === undefined ? {} : { vision }) } : state;
       });
     },
     complete(owner, prompt, dispatch) {

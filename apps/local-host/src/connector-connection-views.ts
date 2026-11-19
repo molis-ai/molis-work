@@ -1,13 +1,14 @@
 import { agentMcpEndpoint } from "./agent-connector-ports.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
+import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import { withConnectorObservations } from "./connector-observations.js";
 import { REPLACED_OAUTH_NOTE, replacedOAuthShape } from "./connector-oauth-shape.js";
 
-export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
+function connectionViews(homeDirectory: string, rows: (store: ConnectorConnectionStore) => readonly ConnectorConnectionRecord[]) {
   // One read of the last checks for the whole list, not one per connection.
-  return withConnectorConnections(homeDirectory, (store) => withConnectorObservations(homeDirectory, (observations) => store.list(serviceId).map((row) => {
+  return withConnectorConnections(homeDirectory, (store) => withConnectorObservations(homeDirectory, (observations) => rows(store).map((row) => {
     const endpoint = row.auth_method === "mcp" ? agentMcpEndpoint(homeDirectory, row.connection_id) : null;
     const view = { ...store.view(row), state: shownState(homeDirectory, row, store.state(row), observations.read(row.connection_id).check ?? null), ...(row.auth_method === "mcp" ? { agent_available: Boolean(endpoint), ...(endpoint ? { mcp_endpoint: endpoint } : {}) } : {}),
       ...(replacedOAuthShape(row) ? { reauth_note: REPLACED_OAUTH_NOTE } : {}) };
@@ -18,3 +19,10 @@ export function listConnectorConnectionViews(homeDirectory: string, serviceId?: 
   })), true) ?? [];
 }
 
+export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
+  return connectionViews(homeDirectory, store => store.list(serviceId));
+}
+
+export function readConnectorConnectionView(homeDirectory: string, connectionId: string) {
+  return connectionViews(homeDirectory, store => { const row = store.get(connectionId); return row ? [row] : []; })[0];
+}

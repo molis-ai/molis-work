@@ -1,3 +1,4 @@
+import { PROJECT_RUNTIME_KEY, runtimeSettingsActions } from "./project-runtime-setting-actions.js";
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
@@ -57,6 +58,7 @@ import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type P
 import type { WebRoute } from "./web-route-table.js";
 import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { handleObservationHttp } from "./observation-http.js";
+import { handleBlueprintHttp } from "./blueprint-http.js";
 
 // The project's own platform routes (specs/archive/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
@@ -102,17 +104,30 @@ export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "proje
   if (url.pathname !== "/api/project-settings/runtime" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
   const actions = bindLocalWebActions(localHost, hostReference, ["projects:settings"]);
   try {
-    if (request.method === "POST") {
-      const { runtime_id: runtimeId } = await readBody(request);
-      if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
-      await actions.invoke(projectSettingsCapabilities.selectRuntime, [runtimeId]);
-    }
-    // The directory is the Host's own (`agent.runtimes` is for plugins); the person's pick is the registered project setting.
     await agentReady();
-    const runtimes = agentHost.descriptors(), selected = await actions.invoke(projectSettingsCapabilities.runtime, []);
+    const read = async () => (await actions.invoke(runtimeSettingsActions.read, { keys: [PROJECT_RUNTIME_KEY] })).values[0]!;
+    let setting;
+    if (request.method === "POST") {
+      const { runtime_id: runtimeId, expected_revision, request_id } = await readBody(request);
+      if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
+      if (expected_revision === undefined && request_id === undefined) {
+        // Older pickers can remember an offline runtime and show its name until it returns.
+        await actions.invoke(projectSettingsCapabilities.selectRuntime, [runtimeId]);
+        setting = await read();
+      } else {
+        if (typeof expected_revision !== "string" || typeof request_id !== "string") throw new ActionError("actions.input_invalid", "保存需要已查看的版本和请求编号");
+        const result = await actions.invoke(runtimeSettingsActions.write, { key: PROJECT_RUNTIME_KEY, layer: "project",
+          change: runtimeId === null ? { inherit: true } : { set: runtimeId }, expected_revision, request_id });
+        setting = result.values[0]!;
+      }
+    } else {
+      setting = await read();
+    }
+    const runtimes = agentHost.descriptors();
+    const selected = setting.state === "ok" && typeof setting.layers?.project === "string" ? setting.layers.project : null;
     const resolved = resolveProjectRuntime(runtimes, selected);
     sendJson(response, 200, { runtimes: runtimes.filter(hostsAgentSessions).map(({ runtime_id, display_name }) => ({ runtime_id, display_name })),
-      selected, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });
+      selected, revision: setting.revision, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });
   } catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); }
   return true;
 } };
@@ -295,6 +310,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** This project's memories (and the person's own), the Assistant scoped to this project, and what needs the person's attention. */
 export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+  { id: "blueprints", handle: ({ request, response, url, hostReference, localHost, controlToken, composition, serverOptions }) =>
+    handleBlueprintHttp(request, response, url, localHost, controlToken, composition, hostReference, serverOptions.assertAccountCurrent) },
   { id: "memory", handle: async context => {
     const { request, response, url, serverOptions, localHost, hostReference } = context, assistant = projectAssistant(context);
     return Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url,
@@ -310,7 +327,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     if (!assistant || context.url.pathname !== "/api/automation/recommendations/offer") return false;
     const ports = assistant;
     return await handleAutomationRecommendationsHttp(context, {
-      place: input => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference }),
+      place: (input, assertBeforeStart) => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference, assertBeforeStart }),
       notify: (work, count, dedupe) => { assistantServiceFor(ports).store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "result", work_id: work.work_id, work_title: work.title,
         text: assistantWords("workbench.assistant-notice.automation-found", { count }) }, dedupe); },
     });

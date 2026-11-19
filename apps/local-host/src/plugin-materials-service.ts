@@ -4,6 +4,7 @@ import { extractHomeMaterial } from "./material-home.js";
 import { readMaterialUploads } from "./material-documents.js";
 import { readMaterialLocalPage } from "./material-local-page.js";
 import { materialImageTextAvailable } from "./material-native.js";
+import { attachConversationFile, readConversationAttachment } from "./material-attachments.js";
 import { readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 import { readMaterialSource } from "./material-source-providers.js";
 import type { PluginPlatformHome } from "./home-side.js";
@@ -32,5 +33,7 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
     readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
     readOriginalRange: (key, options) => readOriginalRange(home.directory, key, { offset: options.offset, length: options.length, revision: options.revision, signal: options.signal }),
     releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
+    attach: (owner, upload, options) => attachConversationFile(home.directory, owner, upload, { signal: options.signal, beforeEffect: options.beforeEffect }),
+    readAttachment: (owner, ref, request, options) => readConversationAttachment(home.directory, owner, ref, { ...request, signal: options.signal }),
   }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

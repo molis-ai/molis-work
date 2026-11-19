@@ -32,7 +32,7 @@ test("new material that shares a Goal with a live work raises one merged notice;
   let clock = new Date("2026-09-29T09:00:00.000Z");
   const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
-    scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }) }, "web-user", () => clock);
+    scopeActions: async () => ({ discover: async () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }) }, "web-user", () => clock);
   const item = (id: string, title: string, at: string, goalIds: string[]): WorkEvent & { goal_ids: string[] } => ({ event_id: `feed:${id}`, subject: { kind: "feed_item", id }, occurred_at: at,
     placement: "occurred", category: "personal", title, summary: "", content: "", facts: [], needs_attention: false, open: null, goal_ids: goalIds });
   try {
@@ -89,5 +89,14 @@ test("new material that shares a Goal with a live work raises one merged notice;
     clock = new Date("2026-10-07T09:30:00.000Z");
     feed.push(item("g", "Q4 迟到的消息", "2026-10-07T09:29:00.000Z", ["g-q4"]));
     assert.equal(await service.notices.scanNewMaterial(), 0);
+
+    // PWA-36: widening the actual scan finds earlier evidence, while shortening it leaves the work and its history intact.
+    store.setSetting("web-user", "lookback", JSON.stringify({ count: 2, unit: "weeks" }));
+    feed.push(item("early", "上周的 Q4 结论", "2026-09-26T08:30:00.000Z", ["g-q4"]));
+    assert.equal(await service.notices.scanNewMaterial(), 2, "both the earlier evidence and the recent item for the older work are found");
+    store.setSetting("web-user", "lookback", JSON.stringify({ count: 2, unit: "hours" }));
+    feed.push(item("outside", "昨天的记录", "2026-10-06T07:30:00.000Z", ["g-q4"]));
+    assert.equal(await service.notices.scanNewMaterial(), 0);
+    assert.equal(store.get("web-user", work.work_id).archived, false);
   } finally { await local.close(); }
 });

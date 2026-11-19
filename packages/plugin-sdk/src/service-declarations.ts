@@ -10,7 +10,7 @@ import { PLUGIN_LOCAL_TOOLS_LIMITS, PLUGIN_LOCAL_TOOLS_PERMISSION } from "@molis
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
 const PREFERENCE_FILE = /^[a-z][a-z0-9-]*\.json$/u;
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
-const MODEL_FIELDS = new Set(["preference", "custom_provider", "actions"]);
+const MODEL_FIELDS = new Set(["key", "preference", "custom_provider", "actions"]);
 const LOCAL_TOOLS_FIELDS = new Set(["tools", "directories", "custom_executables"]);
 const LOCAL_TOOL_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 /** A bare file name: no separator, no leading dot, no spaces. */

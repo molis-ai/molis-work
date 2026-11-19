@@ -125,7 +125,7 @@ export function modelCall(value: SandboxJson | undefined, known: readonly Instru
 }
 
 /** The answers cross as what the sandbox's declarations promise: a Host reply that no longer fits `SandboxModel*` fails to compile here. */
-export const choicesJson = (choices: readonly SandboxModelChoice[]): SandboxJson => plainJson(choices.map(({ provider_id, model_id, label, vision, reasoning_effort }) => ({ provider_id, model_id, label, vision, reasoning_effort })));
+export const choicesJson = (choices: readonly SandboxModelChoice[]): SandboxJson => plainJson(choices.map(({ provider_id, model_id, label, vision, reasoning_effort }) => ({ provider_id, model_id, label, ...(vision === undefined ? {} : { vision }), reasoning_effort })));
 
 export function availabilityJson(availability: PluginModelAvailability): SandboxJson {
   const shown = { ...(availability.runtime_label !== undefined ? { runtime_label: availability.runtime_label } : {}), ...(availability.vision !== undefined ? { vision: availability.vision } : {}) };

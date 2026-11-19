@@ -5,7 +5,6 @@ import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import test, { after, type TestContext } from "node:test";
@@ -16,7 +15,7 @@ import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, ProjectDeletionService, createWebCatalogAccess, createMolisWorkLocalHost, installHostUiText, molisWorkHostProjectReference, runWithLocale, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, LocalProjectDatabase, ProjectDeletionService, createWebCatalogAccess, createMolisWorkLocalHost, installHostUiText, molisWorkHostProjectReference, runWithLocale, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
@@ -109,9 +108,10 @@ test("the service lets go of the project's runtime before the directory moves, a
   assert.deepEqual(ports.released, [], "an unconfirmed request does not touch the runtime");
 
   // The project's Runtime pick (BL-372) is a row in the project's own database: deleting the project takes it with the file, and the Home keeps no copy.
-  const database = new DatabaseSync(project.database_path);
-  database.exec(`CREATE TABLE project_runtime_settings (project_id TEXT PRIMARY KEY, runtime_id TEXT); INSERT INTO project_runtime_settings VALUES ('${project.project_id}', 'picked-engine')`);
-  database.close();
+  const database = new LocalProjectDatabase(project.database_path);
+  try {
+    database.db.prepare("INSERT INTO project_runtime_settings (project_id, runtime_id) VALUES (?, ?)").run(project.project_id, "picked-engine");
+  } finally { database.close(); }
 
   const result = await service.deleteProject(home, deletion(project.project_id));
   assert.equal(result.deletion.cleanup_state, "complete");

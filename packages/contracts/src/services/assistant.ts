@@ -228,9 +228,9 @@ export interface AssistantMaterial {
   reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
   /** For `method`: the Skill or role material the person chose with “/” for this round; the Host reads its body from its owner. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
-  /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
-  image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
-  /** In a work's view: an image the runtime no longer holds (the app restarted); it cannot be shown or sent again. */
+  /** For `image`: the picture the person added, kept by the platform's material service as a conversation attachment (only its reference here). */
+  image?: { attachment: MaterialRef; media_type: string; byte_length: number };
+  /** In a work's view: an image whose bytes are no longer kept (removed, or brought before attachments were kept); it cannot be shown or sent again. */
   expired?: boolean;
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;

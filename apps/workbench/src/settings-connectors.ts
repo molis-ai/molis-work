@@ -65,7 +65,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
     if (card.connector_id === "model-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-model-settings-then-pick-model-check"), label: uiText.text("workbench.settings-connectors.open-model-settings"), href: "/settings/models" });
     else if (card.connector_id === "image-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), href: "/", plugin: "images" });
     else if (card.connector_id === "typesafe") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-account-functions"), label: uiText.text("workbench.settings-connectors.see-functions"), href: "/capabilities/library" });
-    else if (card.feed_available) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
+    else if (card.uses?.includes("feed_source")) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
     else if (card.connector_id !== "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.can-check-account-s-authorization-api-connection-doesn") });
   }
   if (!instructions.length) return "";
@@ -105,14 +105,13 @@ function renderServiceBody(card: ConnectorSettingsCardView, connections: readonl
  * what the services' declarations say, never a list kept here. A service with an enabled account can do it now; one without, once
  * connected. A service not in yet has no row: there is nothing to connect.
  */
-function renderUseView(cards: readonly ConnectorSettingsCardView[], connected: (serviceId: string) => boolean, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
+function renderUseView(cards: readonly ConnectorSettingsCardView[], escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
   const order = (card: ConnectorSettingsCardView) => DISPLAY_GROUPS.findIndex(group => group.id === displayGroup(card));
   const rows = cards.map((card, index) => ({ card, index })).filter(({ card }) => card.uses?.length && card.availability !== "placeholder")
-    .sort((a, b) => Number(connected(b.card.connector_id)) - Number(connected(a.card.connector_id)) || order(a.card) - order(b.card) || a.index - b.index)
+    .sort((a, b) => Number(Boolean(b.card.ready_uses?.length)) - Number(Boolean(a.card.ready_uses?.length)) || order(a.card) - order(b.card) || a.index - b.index)
     .map(({ card }) => {
-      const cell: ConnectionUseCell = connected(card.connector_id) ? "ready" : "connect";
       return { id: card.connector_id, mark: renderConnectorMark(card.connector_id, escapeHtml), name: connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS),
-        cells: Object.fromEntries(card.uses!.map(use => [use, cell])) };
+        cells: Object.fromEntries<ConnectionUseCell>(card.uses!.map(use => [use, card.ready_uses?.includes(use) ? "ready" : "connect"])) };
     });
   if (!rows.length) return "";
   const uses = CONNECTOR_USES.map(id => ({ id, label: uiText.text(`workbench.connection-uses.${id.replace("_", "-")}`) }));
@@ -142,8 +141,7 @@ export function renderConnectorsSettings(
       attrs: { "data-connector-item": card.connector_id, "data-connector-search": `${card.title} ${card.connector_id} ${purpose}`.toLowerCase() },
     }, readText);
   };
-  const connected = (serviceId: string) => of(serviceId).some(connection => connection.state === "connected" && connection.enabled !== false);
-  const useView = renderUseView(cards, connected, escapeHtml);
+  const useView = renderUseView(cards, escapeHtml);
   const viewSwitch = useView ? renderToggleGroup({ label: uiText.text("workbench.connection-uses.view"), className: "settings-connector-view", items: [
     { value: "service", label: uiText.text("workbench.connection-uses.by-service"), current: true, attrs: { "data-connectors-view": "service" } },
     { value: "use", label: uiText.text("workbench.connection-uses.by-use"), attrs: { "data-connectors-view": "use" } },

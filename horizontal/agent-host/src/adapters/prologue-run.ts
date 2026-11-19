@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentTextMaterialContent, type AgentFrozenStart } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { projectPeerNotice } from "./prologue-peer-notices.js";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
@@ -656,6 +656,9 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   };
   const mcp = input.mcp_tools?.length || input.mcp_sources?.length ? roundMcp(runtime, deps.mcpLibrary, index.owner, input) : undefined;
   const { actionController, actionTools, reviews: actionReviews, parameterBranches, codeIntelligence, symbolTool, symbolToolName } = roundGateway(deps, input, mode.none, () => stopping.current !== undefined || aborted, work, mcp);
+  // Which languages this round can understand (A4), looked up while it starts: a directory listing and PATH, nothing started or fetched.
+  const codeProblem = deps.options.codeIntelligence?.problem;
+  const codeReadiness = codeIntelligence && (codeProblem !== undefined ? Promise.resolve({ problem: codeProblem, languages: [] }) : codeIntelligence.readiness().catch(() => undefined));
   const assertDispatchCurrent = () => {
     if (stopping.current !== undefined || aborted) throw new Error("原轮次正在停止");
     for (const check of appliedPolicies.values()) check();
@@ -754,16 +757,16 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
       hasActions: Boolean(actionTools?.names.length), none: mode.none,
       project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined || aborted });
-    // Report the files the SDK actually packed and persist only the successful owner update.
-    const packed = roundInstructions(input, started.pack);
-    const instructions = packed && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen.instructions = structuredClone(packed); })
-      .then(() => packed, () => undefined);
+    // Recorded once with the round, and reported only when the owner update succeeded: the files the SDK actually packed, and which languages it can understand (A4).
+    const freeze = async <K extends "instructions" | "code_intelligence">(key: K, value: AgentFrozenStart[K] | undefined) => value
+      && await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.frozen[key] = structuredClone(value); }).then(() => value, () => undefined);
+    const instructions = await freeze("instructions", roundInstructions(input, started.pack)), code_intelligence = await freeze("code_intelligence", await codeReadiness);
     work?.assertCurrent();
     const desktopTargets = [...new Set([...index.attempts.flatMap(item => item.desktop_target ? [item.desktop_target] : []),
       ...(surface.desktop_target ? [surface.desktop_target] : [])])];
     return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, stopping, onAborted, actionReviews, work }),
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}),
-      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}) };
+      ...(desktopTargets.length ? { desktop_targets: desktopTargets } : {}), ...(instructions ? { instructions } : {}), ...(code_intelligence ? { code_intelligence } : {}) };
   } catch (error) {
     onAborted(); actionController.abort();
     const failures: unknown[] = [error];

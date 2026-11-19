@@ -1,6 +1,6 @@
 import type { ConnectorCheckObservation, ConnectorConnectionRecord, ConnectorConnectionState } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { replacedOAuthShape } from "./connector-oauth-shape.js";
-import { REFRESH_REFUSED, rememberConnectorCheck, withConnectorObservations } from "./connector-observations.js";
+import { REFRESH_REFUSED, SEARCH_AUTH_REFUSED, rememberConnectorCheck, withConnectorObservations } from "./connector-observations.js";
 
 // Connections whose token endpoint refused a refresh (S-70; slice s57-connections-extension X3, hub ruling 2026-10-24; kept across a restart
 // since batch 13, ASC-49). The mark is the connection's last check, remembered like any other: `failed`, authorization `required`, code
@@ -43,5 +43,6 @@ export function refreshRefused(home: string, connection: Revisioned, check?: Con
  */
 export function shownState(home: string, connection: Pick<ConnectorConnectionRecord, "connection_id" | "updated_at" | "auth_method" | "service_id" | "credential_ref">,
   state: ConnectorConnectionState, check?: ConnectorCheckObservation | null): ConnectorConnectionState {
-  return state === "connected" && (replacedOAuthShape(connection) || connection.auth_method === "oauth" && refreshRefused(home, connection, check)) ? "reauth_required" : state;
+  return state === "connected" && (replacedOAuthShape(connection) || connection.auth_method === "oauth" && refreshRefused(home, connection, check)
+    || check?.code === SEARCH_AUTH_REFUSED && check.revision === connection.updated_at) ? "reauth_required" : state;
 }

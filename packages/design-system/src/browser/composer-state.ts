@@ -18,7 +18,7 @@ export type Request = <T>(url: string, init: { body?: unknown; signal?: AbortSig
  * added, kept for 重试 (`retry`: the page could not read it this time, so trying again may help); `thumb` is a picture's own preview.
  */
 export type Item = { key: string; title: string; state: "reading" | "attached" | "failed"; reason?: string; material?: ComposerMaterial; from?: string;
-  file?: File; retry?: boolean; thumb?: string };
+  file?: File; retry?: boolean; thumb?: string; meta?: string };
 let keys = 0;
 /** A new row's key, unique in the document. */
 export const itemKey = () => `f${++keys}`;
@@ -78,4 +78,5 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
 export const attached = (c: Composer) => c.items.filter((item) => item.state === "attached" && item.material).map((item) => item.material!);
 export const blocked = (c: Composer) => c.items.some((item) => item.state !== "attached");
 export const busy = (c: Composer) => c.phase === "sending" || c.phase === "unknown";
-export const sendable = (c: Composer) => !c.held && !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0);
+/** Words, a read attachment, or a command chip (its prompt is the task, even with nothing typed after it). */
+export const sendable = (c: Composer) => !c.held && !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0 || Boolean(c.options.chip?.()));

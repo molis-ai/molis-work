@@ -53,6 +53,11 @@ export function newDocumentState<T>(spaceId: string, data: T): DocumentState<T> 
 export function parseDocumentState<T>(source: string, spaceId: string, validate: (value: unknown) => T): DocumentState<T> {
   let value: unknown;
   try { value = JSON.parse(source); } catch { throw syncError('invalid', '同步目录格式无效，原文件已保留'); }
+  return parseSyncDocumentValue(value, spaceId, validate);
+}
+
+/** Validate the same replication envelope when an owner upgrades its physical file. */
+export function parseSyncDocumentValue<T>(value: unknown, spaceId: string, validate: (value: unknown) => T): DocumentState<T> {
   const row = record(value);
   if (Object.keys(row).sort().join(',') !== 'changes,conflicts,cursor,data,device,heads,history,outbox,seq,spaceId,version'
     || row.version !== /* @version format.sync.document-state */ 1 || typeof row.device !== 'string' || !row.device || !integer(row.seq) || !integer(row.cursor)) throw syncError('invalid', '同步目录格式版本无效');

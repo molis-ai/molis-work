@@ -1,5 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionView, type BoundActionClient, type ExactActionReference,
+import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionExecutionContext, type ActionUserAction, type ActionView, type BoundActionClient, type ExactActionReference,
   type WorkExecutorCalls, type WorkExecutorRole, type WorkExecutorRunControl, type WorkExecutorSession, type WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -12,6 +12,23 @@ import { assistantErrors } from "./assistant-errors.js";
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
+}
+
+/** An authenticated click in the workbench, held only while that request still counts. */
+export interface AssistantPersonDecision {
+  readonly project_id: string | null;
+  readonly entry: ActionUserAction | undefined;
+  readonly signal: AbortSignal | undefined;
+  readonly receipt?: { record(adoptionId: string): void; clear(adoptionId: string): void };
+  beforeEffect(): Promise<void>;
+  assertCurrent(): void;
+}
+
+export function assertPersonDecisionProject(projectId: string | null, decision?: AssistantPersonDecision): void {
+  if (!projectId || projectId !== decision?.project_id || !decision.entry) {
+    throw assistantErrors.scope("请在建议所属的项目里本人确认操作");
+  }
+  decision.assertCurrent();
 }
 
 /**

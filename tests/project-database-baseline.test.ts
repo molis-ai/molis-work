@@ -7,9 +7,10 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, bindDatabaseSpace, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, isSqliteVersionRefusal } from "@molis-ai/molis-work-storage";
 import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
+import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, pluginSyncDatabaseDeclaration, PROJECT_DATABASE_VERSION_2_SCHEMA, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, pluginSyncDatabaseDeclaration, PROJECT_DATABASE_VERSION_3_SCHEMA, PROJECT_DATABASE_VERSION_2_SCHEMA, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -75,23 +76,41 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
 // Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1). Version 5 changes no table: it keeps
 // Coding's stored card outcomes as references (BL-action-card-outcome-text).
-test("RAC-2360 APR-19 the project database baseline is version 5 and includes the platform's approvals", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 5);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")));
+test("RAC-2360 APR-19 the project database baseline is version 6 and includes project approvals and runtime settings", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 6);
+  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql") + fixture("project-runtime-settings-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 5", () => {
+test("ONB-30 upgrading a v5 project preserves explicit, reset and never-selected runtimes", () => {
+  for (const oldPick of ["engine-a", null, undefined]) {
+    const db = new DatabaseSync(":memory:");
+    try {
+      db.exec(PROJECT_DATABASE_VERSION_3_SCHEMA + PROJECT_APPROVALS_SCHEMA_SQL + "PRAGMA user_version=5");
+      if (oldPick !== undefined) {
+        db.exec("CREATE TABLE project_runtime_settings (project_id TEXT PRIMARY KEY, runtime_id TEXT)");
+        db.prepare("INSERT INTO project_runtime_settings VALUES (?, ?)").run("p", oldPick);
+      }
+      assert.deepEqual(runSqliteUpgrade(db, ":memory:", PROJECT_DATABASE_BASELINE), { from: 5, to: 6 });
+      assert.deepEqual(describeSqliteSchema(db), shape(PROJECT_DATABASE_BASELINE.schema));
+      const selections = db.prepare("SELECT runtime_id, revision FROM project_runtime_settings WHERE project_id='p'").all().map(row => ({ ...row }));
+      assert.deepEqual(selections, oldPick === undefined ? [] : [{ runtime_id: oldPick, revision: 0 }]);
+      assert.deepEqual(db.prepare("SELECT * FROM project_runtime_setting_receipts").all(), []);
+    } finally { db.close(); }
+  }
+});
+
+test("RAC-2360 an existing empty file initializes the complete current library at 6", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 5); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 6); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RAC-2360 the 1→5 upgrade preserves the adopted journal and includes the surface and approval tables", () => {
+test("RAC-2360 the 1→6 upgrade preserves the adopted journal and includes the surface and approval tables", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-v1-upgrade-")), file = join(directory, "project.db");
   try {
     const v1 = `${PROJECT_DATABASE_VERSION_2_SCHEMA.replace(PROJECT_REPLICATION_SCHEMA_SQL, ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL)
@@ -100,8 +119,8 @@ test("RAC-2360 the 1→5 upgrade preserves the adopted journal and includes the 
     const db = new DatabaseSync(file);
     db.exec(v1); db.exec("PRAGMA user_version = 1");
     const result = runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE);
-    assert.deepEqual(result, { from: 1, to: 5 });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 5);
+    assert.deepEqual(result, { from: 1, to: 6 });
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 6);
     assert.equal(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='project_browsing_settings'").get(), undefined,
       "the old browsing setting is gone");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='material_recent_uses'").get(), "the recent-use table is created");

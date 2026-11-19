@@ -18,7 +18,7 @@ export function bindShortcutForm(page: SettingsPage, scope: ParentNode, reload: 
     const current = page.settings || await refreshSettings(page, scope);
     const id = fieldOf(form, "[data-shelf-shortcut-id]")?.value || "";
     const kinds = [...form.querySelectorAll<HTMLInputElement>("[data-shelf-shortcut-kind]")].filter((box) => box.checked).map((box) => box.dataset.shelfShortcutKind as ShelfItemKind);
-    const action: ShelfShortcutAction = { id, name: fieldOf(form, "[data-shelf-shortcut-name]")?.value?.trim() || "", prompt: fieldOf(form, "[data-shelf-shortcut-prompt]")?.value?.trim() || "", kinds };
+    const action: ShelfShortcutAction = { id: id || crypto.randomUUID(), name: fieldOf(form, "[data-shelf-shortcut-name]")?.value?.trim() || "", prompt: fieldOf(form, "[data-shelf-shortcut-prompt]")?.value?.trim() || "", kinds: kinds.length ? kinds : ["pdf", "markdown", "text", "website"] };
     const existing = current?.shortcuts || [];
     const next = id && existing.some((entry) => entry.id === id) ? existing.map((entry) => entry.id === id ? action : entry) : [...existing, action];
     try {

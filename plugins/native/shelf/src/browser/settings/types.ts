@@ -13,6 +13,7 @@ export interface HotkeyTables {
 }
 declare global {
   var __TAURI__: { core?: { invoke?: (name: string, payload?: unknown) => Promise<unknown> } } | undefined;
+  var molisWorkRefreshShelfPreferences: (() => Promise<void>) | undefined;
   var __molisWorkShelfHotkeyRecorder: boolean | undefined;
   var molisWorkBindShelfSettings: ((root?: ParentNode) => void) | undefined;
 }
@@ -28,5 +29,6 @@ export interface SettingsPage {
   readonly api: string;
   readonly tables: HotkeyTables;
   settings: Settings | null;
+  readonly preferences: Map<string, import("@molis-ai/molis-work-contracts/platform/settings").EffectiveSetting>;
   recording: Recording | null;
 }

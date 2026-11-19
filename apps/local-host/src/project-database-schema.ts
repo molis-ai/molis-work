@@ -10,6 +10,7 @@ import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resu
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
+import { PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL, RUNTIME_RECEIPTS_SCHEMA_SQL } from "./project-runtime-settings.js";
 import { projectApprovalUpgradeReductions, transferProjectApprovals } from "./project-approval-upgrade.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
@@ -78,7 +79,10 @@ const pluginPrivateValueUpgrades = (from: number) => (db: SqliteBaselineDatabase
   }
 };
 
-const PROJECT_DATABASE_UPGRADES = [
+export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
+  version: /* @version database.project_database_baseline */ 6,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}\n${PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL}`,
+  upgrades: [
     // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
     // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
     // the same trigger names now mark the new journal, the original journal stays untouched. Structure only; business rows are not converted.
@@ -91,12 +95,11 @@ const PROJECT_DATABASE_UPGRADES = [
     // 4 → 5: what the built-in plugins keep in this library's private values in the old shape (a card's outcome as a sentence, user
     // 2026-11-17), each converted by its own declared step.
     { from: 4, run: pluginPrivateValueUpgrades(4) },
-] satisfies readonly SqliteUpgradeStep[];
-
-export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES[2]!;
-
-export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 5,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
-  upgrades: PROJECT_DATABASE_UPGRADES,
+    // v5 created the two-column selection table only after the first pick. Both old shapes reach the same baseline.
+    { from: 5, sql: `CREATE TABLE IF NOT EXISTS project_runtime_settings (project_id TEXT PRIMARY KEY, runtime_id TEXT);
+      ALTER TABLE project_runtime_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+      ${RUNTIME_RECEIPTS_SCHEMA_SQL}` },
+  ],
 };
+
+export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_BASELINE.upgrades![2]!;

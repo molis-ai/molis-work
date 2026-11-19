@@ -770,7 +770,7 @@ function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>
   }
 }
 
-export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";
+export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey, type PluginAttachmentOwner } from "./materials-service.js";
 export { createPluginConnectionsClient, createCallConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate,
   type CallConnection, type CallConnectionsPort } from "./connections-service.js";
 export { createPluginSourcePullClient, createPluginConnectorSourceClient, type PluginConnectorPort, type PluginSourcePullPort, type PluginSourcePullRun, type PluginSourcePullGate } from "./source-pull-service.js";

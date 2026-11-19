@@ -73,7 +73,7 @@ test("Manifest gates the project's directories; host scopes them to the call's p
   } finally { store.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("RAC-454 the project's Runtime pick is the person's own setting: Coding reads it by its declaration, nothing else picks it, a project that never picked has no table, and another project does not see it", async () => {
+test("RAC-454 the project's Runtime pick is the person's own setting: Coding reads it by its declaration, nothing else picks it, a project that never picked has no selection row, and another project does not see it", async () => {
   const home = await mkdtemp(join(tmpdir(), "project-runtime-pick-"));
   const host = new MolisWorkLocalHost({ workspacesFor: id => [workspace(id)] });
   const reference = (projectId: string) => molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), projectId });
@@ -88,17 +88,17 @@ test("RAC-454 the project's Runtime pick is the person's own setting: Coding rea
     return plugin.actions(projectId);
   };
   const control = { beforeEffect: async () => {} };
-  const hasTable = (projectId: string) => {
+  const hasSelection = (projectId: string) => {
     const database = new DatabaseSync(join(home, projectId + ".db"), { readOnly: true });
-    try { return database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_runtime_settings'").all().length === 1; } finally { database.close(); }
+    try { return database.prepare("SELECT 1 FROM project_runtime_settings WHERE project_id = ?").all(projectId).length === 1; } finally { database.close(); }
   };
   try {
     const coding = await consumer("coding", codingManifest, "a"), codingOfB = await consumer("coding-b", codingManifest, "b");
     assert.equal(await coding.invoke(settings.runtime, [], control), null, "no pick is the Home default");
-    assert.equal(hasTable("a"), false, "reading leaves the project's database as it was");
+    assert.equal(hasSelection("a"), false, "reading leaves the project's database as it was");
     assert.equal(await host.actionClient(a).invoke(user, settings.selectRuntime, ["engine-b"]), "engine-b");
     assert.equal(await coding.invoke(settings.runtime, [], control), "engine-b");
-    assert.equal(hasTable("a"), true);
+    assert.equal(hasSelection("a"), true);
     assert.equal(await codingOfB.invoke(settings.runtime, [], control), null, "another project does not see it");
     await assert.rejects((await consumer("diff", diffManifest, "a")).invoke(settings.runtime, [], control), /没有声明/);
     await assert.rejects(coding.invoke(settings.selectRuntime, ["engine-c"], control), { code: "plugin.grant_denied" }, "Coding has no grant to choose the person's Runtime");

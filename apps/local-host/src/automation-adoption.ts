@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionHandler, type ActionCallContext, type ActionClient, type ActionExecutionContext,
+import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext,
   type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AUTOMATION_ADOPTION_PROVIDER_ID, automationAdoptionActions as actions, type AutomationAdoptInput, type AutomationAdoptResult,
   type AutomationUndoResult } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { CONNECTOR_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import { changeOfferRecord, hideAutomationSuggestions, readOfferRecord, type AdoptedSkill, type OfferedItem } from "@molis-ai/molis-work-service-automation-recommender";
 import { connectorSetupAction } from "./connector-setup.js";
+import { connectorManagementActions } from "./connector-management-actions.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
+import { takeAutomationCardDecision } from "./automation-adoption-authority.js";
+import { withSkillSettingReceipt } from "./agent-definitions/skill-setting-receipt.js";
 
 /**
  * Turning on what the Assistant's card offered (specs/automation-recommender §7, AUT-06, AUT-08). Only the person calls it — the card
@@ -27,6 +30,7 @@ export interface AutomationAdoptionPorts {
 const skillsRef = { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version, provider_id: SKILLS_PROVIDER_ID };
 const setStateRef = { capability_id: skillCatalogActions.setState.capability_id, version: skillCatalogActions.setState.version, provider_id: SKILLS_PROVIDER_ID };
 const setupRef = { capability_id: connectorSetupAction.capability_id, version: connectorSetupAction.version, provider_id: CONNECTOR_PROVIDER_ID };
+const cancelSetupRef = { capability_id: connectorManagementActions.cancel.capability_id, version: connectorManagementActions.cancel.version, provider_id: CONNECTOR_PROVIDER_ID };
 
 /** Only the person, acting for themselves in a project: never a delegated call, a plugin's or one without a project. */
 function person(caller: ActionCallContext): string {
@@ -43,8 +47,13 @@ async function subjectOf(ports: AutomationAdoptionPorts, caller: ActionCallConte
 
 const sameSkill = (row: SkillCatalogEntry, item: { install_id: string; skill_id: string }) => row.ref.install_id === item.install_id && row.ref.skill_id === item.skill_id;
 const listOf = (titles: readonly string[]) => titles.join(uiText.text("common.list.separator"));
+const assertCurrent = (caller: ActionExecutionContext) => {
+  caller.signal?.throwIfAborted();
+  requireSynchronous(caller.assert_authority_current?.());
+};
 
 async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput, caller: ActionExecutionContext): Promise<AutomationAdoptResult> {
+  const decision = takeAutomationCardDecision(caller, { capability_id: actions.adopt.capability_id, version: actions.adopt.version, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID }, input);
   const subject = await subjectOf(ports, caller);
   const record = readOfferRecord(ports.home, subject);
   const offered = new Map(record.offered.map(item => [item.id, item]));
@@ -76,65 +85,99 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
   const method = options.find(option => option.kind === "oauth" && option.login_ready) ?? options.find(option => option.kind === "token");
   if (service && !method) throw new ActionError("actions.conflict", `「${service.title}」现在不能在这里接入，请到服务连接页接入`);
 
-  await caller.beforeEffect();
-  // All of it or none of it: a step that fails after skills were turned on (a connection the Host refuses now, a skill changed meanwhile,
-  // preferences that cannot be written) turns those skills back off before the failure is reported, so a failed card has left nothing on.
   const adopted: AdoptedSkill[] = [];
-  let authorization_id: string | undefined, adoption_id: string | undefined;
+  const adoptionId = randomUUID(), at = new Date().toISOString();
+  let prepared: { authorization_id: string; created: boolean } | undefined;
+  const saveReceipt = (skills: readonly AdoptedSkill[]) => changeOfferRecord(ports.home, subject, previous => ({ result: undefined,
+    next: { ...previous, adoptions: [...previous.adoptions.filter(row => row.adoption_id !== adoptionId),
+      ...(skills.length ? [{ adoption_id: adoptionId, at, skills, undone: false }] : [])] } }));
   try {
     for (const { item, row } of current) {
       if (row.state !== "off") continue; // Already on (the person did it meanwhile): nothing of ours to undo.
-      const after = await client.invoke(caller, setStateRef, { scope: "project", install_id: item.install_id, skill_id: item.skill_id,
-        state: input.skill_state, expected_revision: row.settings_revision }) as SkillCatalogEntry;
-      adopted.push({ install_id: item.install_id, skill_id: item.skill_id, title: item.title, revision: after.settings_revision });
+      const update: SkillSettingsSetRequest = { scope: "project", install_id: item.install_id, skill_id: item.skill_id,
+        state: input.skill_state, expected_revision: row.settings_revision };
+      // Record the exact revision in the successful local write, before the next await can observe cancellation or revocation.
+      await withSkillSettingReceipt({ actor_id: caller.actor_id, project_id: caller.project_id, input: update, record: after => {
+        const skill = { install_id: item.install_id, skill_id: item.skill_id, title: item.title, revision: after.settings_revision };
+        saveReceipt([...adopted, skill]);
+        try { decision.receipt?.record(adoptionId); }
+        catch (error) { saveReceipt(adopted); throw error; }
+        adopted.push(skill);
+      } }, () => client.invoke(caller, setStateRef, update));
     }
     if (service && method) {
-      const prepared = await client.invoke(caller, setupRef, { service_id: service.service_id, method: method.kind, display_name: service.title, expected_revision: null }) as { authorization_id: string };
-      authorization_id = prepared.authorization_id;
+      prepared = await client.invoke(caller, setupRef, { service_id: service.service_id, method: method.kind, display_name: service.title, expected_revision: null }) as NonNullable<typeof prepared>;
     }
-    if (never.length) hideAutomationSuggestions(ports.home, subject, never.map(item => ({ id: item.id, title: item.title })));
-    // Recorded only when skills were turned on: that is all undo takes back.
-    if (adopted.length) {
-      const id = randomUUID();
-      changeOfferRecord(ports.home, subject, record => ({ result: undefined,
-        next: { ...record, adoptions: [...record.adoptions, { adoption_id: id, at: new Date().toISOString(), skills: adopted, undone: false }] } }));
-      adoption_id = id;
+    if (never.length) {
+      await caller.beforeEffect();
+      hideAutomationSuggestions(ports.home, subject, never.map(item => ({ id: item.id, title: item.title })), () => assertCurrent(caller));
     }
   } catch (error) {
-    for (const skill of adopted.reverse()) {
-      await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id, state: "off", expected_revision: skill.revision })
-        .catch(() => undefined); // Changed again since: the person's state, left as it is.
+    if (!adopted.length && !prepared?.created) throw error;
+    let needsSkillUndo = adopted.length > 0;
+    try {
+      await caller.beforeEffect();
+      for (const skill of [...adopted].reverse()) {
+        try {
+          await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id,
+            state: "off", expected_revision: skill.revision });
+        } catch (restoreError) {
+          if (!(restoreError instanceof ActionError) || !["skills.settings_conflict", "skills.not_found"].includes(restoreError.code)) throw restoreError;
+        }
+      }
+      await caller.beforeEffect();
+      if (adopted.length) {
+        saveReceipt([]);
+        decision.receipt?.clear(adoptionId);
+        needsSkillUndo = false;
+      }
+      if (prepared?.created) await client.invoke(caller, cancelSetupRef, { authorization_id: prepared.authorization_id, expected_status: "prepared" });
+    } catch {
+      const key = needsSkillUndo ? "workbench.automation-adoption.reconcile-skills" : "workbench.automation-adoption.reconcile-connection";
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ActionError(error instanceof ActionError ? error.code : "actions.outcome_unknown", `${message} ${uiText.text(key)}`);
     }
     throw error;
   }
-  const enabled = adopting.map(item => ({ id: item.id, title: item.title }));
+  const enabled = current.filter(({ row }) => row.state === "off").map(({ item }) => ({ id: item.id, title: item.title }));
+  const alreadyOn = current.filter(({ row }) => row.state !== "off").map(({ item }) => item.title);
   const parts = [
-    ...(skills.length ? [uiText.text(input.skill_state === "auto" ? "workbench.automation-adoption.skills-auto" : "workbench.automation-adoption.skills-manual", { names: listOf(skills.map(item => item.title)) })] : []),
+    ...(enabled.length ? [uiText.text(input.skill_state === "auto" ? "workbench.automation-adoption.skills-auto" : "workbench.automation-adoption.skills-manual", { names: listOf(enabled.map(item => item.title)) })] : []),
+    ...(alreadyOn.length ? [uiText.text("workbench.automation-adoption.already-on", { names: listOf(alreadyOn) })] : []),
     ...(service ? [uiText.text("workbench.automation-adoption.connect-next", { name: service.title })] : []),
     ...(never.length ? [uiText.text("workbench.automation-adoption.never-again", { names: listOf(never.map(item => item.title)) })] : []),
   ];
-  return { ...(adoption_id ? { adoption_id } : {}), summary: parts.join(" "), enabled, hidden: never.map(item => ({ id: item.id, title: item.title })), ...(authorization_id ? { authorization_id } : {}) };
+  return { ...(adopted.length ? { adoption_id: adoptionId, kit_section: "kit" as const } : {}), summary: parts.join(" "), enabled, hidden: never.map(item => ({ id: item.id, title: item.title })),
+    ...(prepared ? { authorization_id: prepared.authorization_id } : {}) };
 }
 
 async function undo(ports: AutomationAdoptionPorts, input: { adoption_id: string }, caller: ActionExecutionContext): Promise<AutomationUndoResult> {
+  takeAutomationCardDecision(caller, { capability_id: actions.undo.capability_id, version: actions.undo.version, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID }, input);
   const subject = await subjectOf(ports, caller);
   const adoption = readOfferRecord(ports.home, subject).adoptions.find(row => row.adoption_id === input.adoption_id);
   if (!adoption) throw new ActionError("actions.missing", "找不到这次开启");
-  if (adoption.undone) throw new ActionError("actions.conflict", "这次开启已经撤销过了");
+  if (adoption.undone) return { adoption_id: adoption.adoption_id, restored: [], kept: [],
+    summary: uiText.text("workbench.automation-adoption.already-undone") };
   const client = ports.clientFor(caller);
-  await caller.beforeEffect();
+  const { skills } = await client.invoke(caller, skillsRef, {}) as { skills: SkillCatalogEntry[] };
   const restored: string[] = [], kept: { title: string; reason: string }[] = [];
   for (const skill of adoption.skills) {
+    const live = skills.find(row => sameSkill(row, skill));
+    // The person may have already turned it off, or a previous undo may have got this far.
+    if (live?.state === "off") { kept.push({ title: skill.title, reason: uiText.text("workbench.automation-adoption.already-off") }); continue; }
     try {
       await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id, state: "off", expected_revision: skill.revision });
       restored.push(skill.title);
     } catch (error) {
       if (!(error instanceof ActionError)) throw error;
-      kept.push({ title: skill.title, reason: error.code === "actions.conflict" ? uiText.text("workbench.automation-adoption.changed-since") : error.message });
+      if (error.code === "skills.settings_conflict") kept.push({ title: skill.title, reason: uiText.text("workbench.automation-adoption.changed-since") });
+      else if (error.code === "skills.not_found") kept.push({ title: skill.title, reason: uiText.text("workbench.automation-adoption.skill-removed") });
+      else throw error;
     }
   }
+  await caller.beforeEffect();
   changeOfferRecord(ports.home, subject, record => ({ result: undefined,
-    next: { ...record, adoptions: record.adoptions.map(row => row.adoption_id === adoption.adoption_id ? { ...row, undone: true } : row) } }));
+    next: { ...record, adoptions: record.adoptions.map(row => row.adoption_id === adoption.adoption_id ? { ...row, undone: true } : row) } }), () => assertCurrent(caller));
   const summary = [
     restored.length ? uiText.text("workbench.automation-adoption.undone", { names: listOf(restored) }) : uiText.text("workbench.automation-adoption.nothing-undone"),
     ...kept.map(row => uiText.text("workbench.automation-adoption.kept", { name: row.title, reason: row.reason })),

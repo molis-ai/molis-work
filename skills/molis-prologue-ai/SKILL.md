@@ -49,7 +49,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 ## 步骤
 
-原图输入使用共享 `hostTextGeneration` 的 `images: [{ root_path, relative_path, label? }]`：路径须由可信 Host 从已授权材料解析，不能从模型或请求 JSON 直接授权。模型目录须声明 `vision: true`，环境变量配置的模型（只给开发与测试）不推定视觉能力、不自动换模型。Agent Host 复用 SDK Node Host intake/Session attachments，真实格式限 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 50 张/128 MiB，并受共享资源限额约束；超限拒绝、不静默截断或替换为 OCR。成功/失败/取消撤销资源及 Host 暂存字节，关闭 owner 等清理；原 Action 的 signal/beforeEffect、模型快照和业务提交检查仍须保留。PDF/目录组织和领域结果由消费者负责，不把 SDK 已支持当成插件已迁移。
+原图输入使用共享 `hostTextGeneration` 的 `images: [{ root_path, relative_path, label? }]`：路径须由可信 Host 从已授权材料解析，不能从模型或请求 JSON 直接授权。只有模型目录标了 `vision: false` 的模型拒绝带图；没标注的照发，并在说明里告诉模型看不到就直说、不要猜（[决定 51](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-51)③，`UNMARKED_IMAGES_NOTE`）；环境变量配置的模型（只给开发与测试）不推定视觉能力、不自动换模型。Agent Host 一轮只收图片引用（`image_materials` 的 `attachment: MaterialRef`，至多 6 张），字节由调用方自己的对话附件读取器取回（平台对话附件服务，见 S-conversation-attachments），按实际字节识别 PNG/JPEG/GIF/WebP，单图 5 MiB，并受共享资源限额约束；超限拒绝、不静默截断或替换为 OCR。成功/失败/取消撤销资源及 Host 暂存字节，关闭 owner 等清理；原 Action 的 signal/beforeEffect、模型快照和业务提交检查仍须保留。PDF/目录组织和领域结果由消费者负责，不把 SDK 已支持当成插件已迁移。
 
 1. **选用法**（手册第 2 节）：单次有界调用 → Host 端口；多轮带工具 → Agent 角色；专门编排 → 新适配器。不要为统一而套 Agent 循环。
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。

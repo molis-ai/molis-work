@@ -50,7 +50,7 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   const probes = [materialsProbe("onlyread", { permissions: ["materials:read"] }), materialsProbe("onlyfetch", { permissions: ["materials:fetch"] }), materialsProbe("nomaterials", { permissions: [] })];
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: probes.map(probe => probe.definition) } });
   for (const probe of probes) await grantMaterials(host, probe);
-  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments", "imageTextAvailable"]);
+  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments", "imageTextAvailable", "attach", "readAttachment"]);
   assert.deepEqual(Object.keys(probes[1]!.contexts.at(-1)!.services!.materials!), ["readSource"]);
   assert.equal(probes[2]!.contexts.at(-1)!.services!.materials, undefined);
   const probe = probes[0]!, client = host.homeActionClient(), caller = person(probe.permissions);
@@ -91,15 +91,15 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     await platform.start([{ definition: reads.definition, grants: reads.permissions }]);
     assert.equal(reads.contexts.length, 1);
     const materials = reads.contexts[0]!.services!.materials!;
-    assert.deepEqual(Object.keys(materials).sort(), ["extract", "imageTextAvailable", "readDocuments"]);
+    assert.deepEqual(Object.keys(materials).sort(), ["attach", "extract", "imageTextAvailable", "readAttachment", "readDocuments"]);
     // A page on this machine and the saved original files are given (S-65): the Host's client has the methods that are declared, the broker forwards them.
     const local = materialsProbe("boxedlocal", { execution: "sandbox", permissions: ["materials:read", "materials:fetch_local", "materials:original"] });
     await platform.start([{ definition: local.definition, grants: local.permissions }]);
-    assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["claimOriginal", "extract", "imageTextAvailable", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);
+    assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["attach", "claimOriginal", "extract", "imageTextAvailable", "readAttachment", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);
     // A package that asks to read a public page is started too: its client has the page reader, the broker the host check (S-93).
     const pages = materialsProbe("boxedpages", { execution: "sandbox", permissions: ["materials:read", "materials:fetch"] });
     await platform.start([{ definition: pages.definition, grants: pages.permissions }]);
-    assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["extract", "imageTextAvailable", "readDocuments", "readSource"]);
+    assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["attach", "extract", "imageTextAvailable", "readAttachment", "readDocuments", "readSource"]);
   } finally {
     for (const installed of platform.runtime.list()) if (installed.state === "running") await platform.runtime.stop(installed.install_id);
     store.close();

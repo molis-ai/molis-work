@@ -6,8 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { attachMolisWorkBrowserSocket } from "../apps/local-host/dist/browser/browser-socket.js";
-import { BrowserHost, BrowserPage, type BrowserListener } from "../apps/local-host/dist/browser/browser-host.js";
+import { attachMolisWorkBrowserSocket, BrowserHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
 
 /*
@@ -23,6 +22,9 @@ function deferred<T>() {
   const promise = new Promise<T>(done => { resolve = done; });
   return { promise, resolve };
 }
+
+type BrowserPage = ReturnType<BrowserHost["page"]>;
+type BrowserListener = Parameters<BrowserPage["watch"]>[0];
 
 /** What the socket hung on one project's page, in order. */
 interface Recorded { readonly listeners: Set<BrowserListener>; readonly calls: string[] }
@@ -43,14 +45,22 @@ async function harness(t: TestContext, immediate: Record<string, boolean> = {}):
   t.after(() => rm(home, { recursive: true, force: true }));
   const host = new BrowserHost({ homeDirectory: home, locate: () => null });
   const pages = new Map<string, Recorded>();
-  const record = (page: BrowserPage) => { let found = pages.get(page.projectId); if (!found) pages.set(page.projectId, found = { listeners: new Set(), calls: [] }); return found; };
-  const hang = (kind: string) => function (this: BrowserPage, listener: BrowserListener) {
-    const page = record(this); page.calls.push(kind); page.listeners.add(listener);
+  const record = (projectId: string) => { let found = pages.get(projectId); if (!found) pages.set(projectId, found = { listeners: new Set(), calls: [] }); return found; };
+  const hang = (projectId: string, kind: string) => (listener: BrowserListener) => {
+    const page = record(projectId); page.calls.push(kind); page.listeners.add(listener);
     return () => { page.calls.push("detach"); page.listeners.delete(listener); };
   };
-  t.mock.method(BrowserPage.prototype, "watch", hang("watch"));
-  t.mock.method(BrowserPage.prototype, "attach", hang("attach"));
-  t.mock.method(BrowserPage.prototype, "setVisible", function (this: BrowserPage, _listener: BrowserListener, visible: boolean) { record(this).calls.push(`visible:${visible}`); });
+  // Each page the socket asks for records its bindings; pages the socket never asks for are never created.
+  const create = host.page.bind(host);
+  t.mock.method(host, "page", (projectId: string) => {
+    const known = host.existingPage(projectId);
+    if (known) return known;
+    const page = create(projectId);
+    t.mock.method(page, "watch", hang(projectId, "watch"));
+    t.mock.method(page, "attach", hang(projectId, "attach"));
+    t.mock.method(page, "setVisible", (_listener: BrowserListener, visible: boolean) => { record(projectId).calls.push(`visible:${visible}`); });
+    return page;
+  });
   const checks = new Map<string, ReturnType<typeof deferred<boolean>>>();
   const asked = new Map<string, ReturnType<typeof deferred<void>>>();
   const askedFor = (projectId: string) => { let found = asked.get(projectId); if (!found) asked.set(projectId, found = deferred<void>()); return found; };

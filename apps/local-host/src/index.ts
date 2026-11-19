@@ -385,6 +385,7 @@ export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./attention-changes.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
+export { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";

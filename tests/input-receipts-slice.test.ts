@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { PassThrough } from "node:stream";
+import { finished } from "node:stream/promises";
+import { accumulateText, onFirstLine } from "../scripts/input-receipts-slice/child-output.mts";
 import { composerTargets, renderPage } from "../scripts/input-receipts-slice/page.ts";
 import { COMPOSER_TARGET } from "../scripts/input-receipts-slice/labels.ts";
 import { renderStage } from "../scripts/input-receipts-slice/render.ts";
@@ -250,5 +253,27 @@ test("RCPT-R0-03 two checkpoints that share one place in the ledger (the queue c
     assert.equal(queue?.queued.length, 0, `${flavor}: after the withdrawal nothing waits`);
     assert.ok(queue !== undefined && queue.settled.length > 0 && queue.settled.every(one => one.outcome === "withdrawn"), `${flavor}: the settled items say withdrawn`);
     assert.equal(U.view(rec, U.restart(withdrawn)).queue, undefined, `${flavor}: playing from the start forgets the jump`);
+  }
+});
+
+// BL-1000 (the restart recorder's path, scripts/input-receipts-slice/record-restart.mts): a pipe cuts the child's output anywhere,
+// also inside a character. Fed one byte at a time, every Chinese character and emoji is cut; the text read back is the text sent, and
+// the JSON line handshake still takes the first line, once.
+test("BL-1000 the restart recorder reads a child's output whole when chunks cut through characters, and its JSON line handshake still works", async () => {
+  const handshake = { session: { kind: "session", id: "会话-🙂", revision: 1 }, run: { kind: "run", id: "第一轮🚀", revision: 2 } };
+  const sent = JSON.stringify(handshake) + "\n" + "第二行：被强杀前的输出🙂\n";
+  const bytes = Buffer.from(sent, "utf8");
+  // The way it was read before: each chunk made a string on its own. Cut this way, the characters come back broken.
+  assert.notEqual(Array.from(bytes, byte => String(Buffer.of(byte))).join(""), sent, "the byte-by-byte feed really cuts characters");
+  for (const size of [1, 2, 5]) {
+    const out = new PassThrough(), text: string[] = [], lines: string[] = [];
+    accumulateText(out, soFar => text.push(soFar));
+    onFirstLine(out, line => lines.push(line));
+    for (let at = 0; at < bytes.length; at += size) out.write(bytes.subarray(at, at + size));
+    out.end();
+    await finished(out);
+    assert.equal(text.at(-1), sent, `chunks of ${size} byte(s): the text read back is exactly the text sent`);
+    assert.equal(lines.length, 1, `chunks of ${size} byte(s): the handshake is taken once`);
+    assert.deepEqual(JSON.parse(lines[0]!), handshake);
   }
 });

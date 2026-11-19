@@ -106,7 +106,7 @@ test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "config/mcp-client-credentials", "sync", "projects", "outputs", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "blueprints", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "memory-forgetting-v2.json", "observation", "evaluation", "external-sessions", "mainline", "web-search", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "work-brief", "acceptance", "artifacts", "agent-runtime", "runtime-config-backups",
-    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/automation-recommendations.json", "config/onboarding.json", "config/plugin-publisher.json",
+    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/automation-recommendations.json", "config/automation-offers.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/ui-locale.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "config/external-mcp-actions.json", "config/connector-mcp-actions.json", "computer", "directory-access", "interface", "upgrade", "run", "config/desktop.json"].sort());
 });
 

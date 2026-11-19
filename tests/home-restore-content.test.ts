@@ -17,6 +17,35 @@ import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { restoreCli, restoreFixture } from "./fixtures/home-restore.js";
+import { serveTestHost } from "./fixtures/test-home.js";
+
+test("RAC-2914, AUT-06: restoring an offline Home returns the project's suggestion switch to its captured value", async t => {
+  const f = await restoreFixture(t);
+  const original = await serveTestHost(t, { home: f.home });
+  const project = await original.createProject("Weekly review");
+  const path = `/projects/${project.project_id}/api/automation/recommendations/offers`;
+  assert.deepEqual(await original.web.post(path, { enabled: false }), { enabled: false });
+  await original.close();
+
+  const file = "config/automation-offers.json", lock = file + ".lock.sqlite";
+  assert.ok(lstatSync(join(f.home, lock)).isFile());
+  const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
+  assert.equal(captured.code, 0, captured.stderr);
+  const manifest = JSON.parse(readFileSync(join(f.snapshot, "manifest.json"), "utf8")) as HomeSnapshotManifest;
+  assert.equal(manifest.stores.find(store => store.path === file)?.owner, "horizontal/automation-recommender");
+  assert.equal(lstatSync(join(f.snapshot, "data", lock), { throwIfNoEntry: false }), undefined);
+
+  const later = await serveTestHost(t, { home: f.home });
+  assert.deepEqual(await later.web.post(path, { enabled: true }), { enabled: true });
+  await later.close();
+  const restored = await restoreCli(t, ["restore", "--home", f.home, "--from", f.snapshot, "--json"]);
+  assert.equal(restored.code, 0, restored.stderr);
+  const reopened = await serveTestHost(t, { home: f.home });
+  const response = await fetch(reopened.origin + path, { headers: { "x-molis-work-control-token": reopened.controlToken } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { enabled: false });
+  await reopened.close();
+});
 
 test("RAC-2914: actual restore CLI replaces later facts, retains original keys/modes and supports real Host continuation", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), source = readFileSync(join(f.home, "plugin-files", "original.bin")), key = randomBytes(32);

@@ -238,6 +238,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
+| `config/automation-offers.json` | `horizontal/automation-recommender/src/offers.ts` 保存本人的主动建议开关，以及各项目已展示的建议与采用记录 | JSON · `schema_version` = 1 | 备份业务文件，排除同名的 `.lock.sqlite` 写锁 | purge（已登记的业务文件） |
 | `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 2（`modules/shelf/src/catalog.ts#CATALOG_VERSION`；现行条目不带原件路径，旧目录转换取消） | 必备份 | purge（`installer/uninstall.ts:52`） |
 | `computer/settings.json` | `apps/local-host/src/computer/computer-settings.ts`：助理能否用这台 Mac 的总开关、人加的禁用应用 | JSON · `version` = 1 | 必备份 | purge（`computer` 已登记） |
 | `computer/records/<id>/record.json`、`computer/records/<id>/<序号>.png` | `apps/local-host/src/computer/computer-records.ts`：每一轮用电脑的目标、步骤与回执，步骤的脱敏截图（结束 30 天后删截图，文字留下） | JSON · `version` = 1；截图是文件 | 必备份（截图是屏幕内容，只留在这个 Home 和它自己的快照里） | purge（`computer` 已登记） |

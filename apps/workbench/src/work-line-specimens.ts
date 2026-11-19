@@ -81,7 +81,7 @@ function line(kind: "ok" | "wait" | "empty" | "unreadable", above = "", mini = "
   // A source that cannot be read (WLN-37): 办完 open above the stack, the source in its fixed strip above the rows, 更早 N at the end.
   if (kind === "unreadable") return foot
     .replace('data-work-list="done" data-zero aria-expanded="false"', 'data-work-list="done" aria-expanded="true"')
-    .replace(' data-work-lists hidden>', ' data-work-lists>')
+    .replace(' data-work-lists aria-labelledby="work-lists-title" hidden>', ' data-work-lists aria-labelledby="work-lists-title">')
     .replace("data-work-lists-title></strong>", `data-work-lists-title>${escapeHtml(uiText.text("workbench.work-line.list-done"))}</strong>`)
     .replace("data-work-lists-sources></div>", `data-work-lists-sources>${renderLineUnreadable("Feed")}</div>`)
     .replace("data-work-lists-body></div>", `data-work-lists-body><div class="work-list" data-work-list-rows="done">${[e.plan, e.weekly, e.exported].map(event => `<div class="work-list-item">${renderLineEvent(event)}</div>`).join("")}${renderListEarlier(5)}</div></div>`);

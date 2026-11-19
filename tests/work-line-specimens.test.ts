@@ -74,7 +74,8 @@ test("WLN-37 (as specs/work-line §16 rewrote it): a source that cannot be read 
     assert.deepEqual([...line.matchAll(/data-work-list="([a-z]+)"/g)].map(match => match[1]), ["done", "now", "next"]);
   }
   const shown = lines[3]!;
-  assert.doesNotMatch(shown, / data-work-lists hidden>/u, "the unreadable specimen shows its list open");
+  assert.match(shown, /<section class="work-lists"[^>]*\bdata-work-lists\b[^>]*>/u, "the unreadable specimen draws its list");
+  assert.doesNotMatch(shown, /<section class="work-lists"[^>]*\bhidden>/u, "the unreadable specimen shows its list open");
   const sources = shown.indexOf("data-work-lists-sources"), retry = shown.indexOf("data-work-line-retry"), body = shown.indexOf("data-work-lists-body");
   assert.ok(sources > 0 && retry > sources && body > retry, "an unreadable source stands in the strip above what scrolls, not among the rows");
   assert.ok((shown.slice(body).match(/class="work-event"/g) ?? []).length >= 3, "the rest of the list reads as usual");

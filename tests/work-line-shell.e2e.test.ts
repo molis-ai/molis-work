@@ -18,10 +18,11 @@ const pad = (value: number) => String(value).padStart(2, "0");
 const today = () => { const at = new Date(); return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`; };
 
 type Box = { top: number; bottom: number; left: number; right: number; height: number };
-type Shell = { row: Box; wings: Box[]; slot: Box; parts: Array<{ name: string; box: Box }> };
-/** The line's row and wings, the composer's slot, and what stands above the line (the work surface, the side, the divider between them). */
+type Shell = { row: Box; blocks: Box[]; slot: Box; parts: Array<{ name: string; box: Box }> };
+/** The foot's row, the two blocks beside the input (the account bar, the card stack: 底栏第十三版第 2、5 条, where the wings were), the
+ * composer's slot, and what stands above the foot (the work surface, the side, the divider between them). */
 const SHELL = `(() => { const box = node => { const at = node.getBoundingClientRect(); return { top: Math.round(at.top), bottom: Math.round(at.bottom), left: Math.round(at.left), right: Math.round(at.right), height: Math.round(at.height) }; };
-  return { row: box(document.querySelector('.work-line-row')), wings: [...document.querySelectorAll('.work-line-wing')].map(box), slot: box(document.querySelector('.work-line-slot')),
+  return { row: box(document.querySelector('.work-line-row')), blocks: [...document.querySelectorAll('[data-work-line] :is(.bar-account, .work-stack)')].map(box), slot: box(document.querySelector('.work-line-slot')),
     parts: [...document.querySelectorAll('[data-plugin-stage], [data-side-panel], .side-panel-divider')].filter(node => node.getBoundingClientRect().width > 0).map(node => ({ name: node.className.split(' ')[0], box: box(node) })) }; })()`;
 
 /** The rise the shell has measured is the input's overflow above the line (0 at one line). */
@@ -35,7 +36,8 @@ async function rises(evaluate: <T>(expression: string) => Promise<T>, waitFor: (
   await waitFor(`document.querySelector('.work-line-slot').offsetHeight > document.querySelector('.work-line-row').clientHeight + 40 && ${SETTLED}`, 10_000);
   const tall = await evaluate<Shell>(SHELL);
   assert.deepEqual(tall.row, rest.row, `${width}: the line's row stays where it was, at its height`);
-  assert.deepEqual(tall.wings, rest.wings, `${width}: the wings do not move`);
+  assert.equal(tall.blocks.length, 2, `${width}: the account bar and the card stack stand beside the input`);
+  assert.deepEqual(tall.blocks, rest.blocks, `${width}: the account bar and the card stack do not move or grow (WLN-01 as §16 rewrote it)`);
   const rise = tall.row.top - tall.slot.top;
   assert.ok(rise > 40, `${width}: the input grew up out of the line (${rise}px)`);
   for (const part of tall.parts) {
@@ -60,20 +62,23 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   await waitFor(`Boolean(${INPUT}) && Boolean(document.querySelector('.work-line-row'))`, 20_000);
   await rises(evaluate, waitFor, 1440);
 
-  await waitFor("document.querySelector('.work-line-row[data-slot-placed]') && document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]')");
-  const placements = await evaluate<number>(`new Promise(resolve => requestAnimationFrame(() => {
-    const row = document.querySelector('.work-line-row'), body = document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]');
-    const detail = document.createElement('span'); detail.hidden = true;
+  // The input keeps the window's centre whatever the panes hold (UIV-19 as specs/unified-input-voice §10.5 rewrote it): a change in a
+  // pane's content writes nothing on the foot and moves nothing in it.
+  await waitFor("Boolean(document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]'))");
+  const placements = await evaluate<{ writes: number; moved: boolean; centre: number }>(`new Promise(resolve => requestAnimationFrame(() => {
+    const row = document.querySelector('.work-line-row'), slot = document.querySelector('.work-line-slot'), body = document.querySelector('[data-tab-pane].is-focused [data-tab-pane-body]');
+    const at = slot.getBoundingClientRect(), detail = document.createElement('span'); detail.hidden = true;
     let writes = 0;
     const observe = new MutationObserver(records => { writes += records.length; });
-    observe.observe(row, { attributeFilter: ['data-slot-placed'] });
+    for (const node of [row, slot]) observe.observe(node, { attributeFilter: ['style', 'data-slot-placed'] });
     body.append(detail); detail.className = 'sample-detail';
     requestAnimationFrame(() => {
       writes += observe.takeRecords().length;
-      observe.disconnect(); detail.remove(); resolve(writes);
+      const now = slot.getBoundingClientRect();
+      observe.disconnect(); detail.remove(); resolve({ writes, moved: now.left !== at.left || now.width !== at.width, centre: Math.round(now.left + now.width / 2 - innerWidth / 2) });
     });
   }))`);
-  assert.equal(placements, 0, "a change in pane content does not reposition the input");
+  assert.deepEqual(placements, { writes: 0, moved: false, centre: 0 }, "a change in pane content does not reposition the input, which stands in the window's centre");
 
   // The task panel floats beside the dialog: opening it moves neither the line nor what stands above it.
   const before = await evaluate<Shell>(SHELL);
@@ -101,7 +106,7 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 });
 
-test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the head and colours the mark, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
+test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack and colours the mark, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {
   // The event is a todo planned for today; the task that stops is another plugin's, done for it (its `serves`).
   let served = { kind: "todo_item", id: "" }, waiting = false;
   const task = () => ({ subject: { kind: "homebg_task", id: "t1" }, title: "核对报价单", state: waiting ? "answer" : "running", details: [], waiting,
@@ -145,7 +150,8 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   // WLN-06: the task stops for the person. Focus is in the input with words being written; the dialog's tabs are what they were.
   await evaluate(type("还没写完的一句"));
   const tabs = await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')");
-  const head = "document.querySelector('[data-work-line-head] .work-line-count')";
+  // WLN-06 as §16 rewrote it: the number is the first place's amber count (POLISH-15), and the event goes into the card stack.
+  const head = "document.querySelector('[data-top-corner-toggle] .top-corner-count')";
   const count = `(${head} && !${head}.hidden ? Number(${head}.textContent) : 0)`;
   const before = await evaluate<number>(count);
   assert.notEqual(await evaluate(`${EVENT}.dataset.state`), "wait");
@@ -153,6 +159,7 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${EVENT}?.dataset.state === 'wait' && ${count} === ${before + 1} && Boolean(document.querySelector('[data-task-mark][data-needs-you]'))`, 20_000);
   assert.equal(await evaluate(`${EVENT}.textContent.includes('等你')`), true, "the state is said in words, not by colour alone");
+  await waitFor("(document.querySelector('[data-work-stack] [data-work-stack-card]')?.textContent ?? '').includes('报价单')", 10_000).catch(async (error) => { console.log("DIAG", await evaluate("JSON.stringify({ stack: document.querySelector('[data-work-stack]').outerHTML.slice(0, 600), rows: [...document.querySelectorAll('[data-work-line] [data-work-event]')].map(n => n.dataset.workEvent + ':' + n.dataset.state), hover: document.querySelector('[data-work-stack]').matches(':hover'), active: document.activeElement?.className })")); throw error; });
   // WLN-39: the composer's 「等你」 takes the head's number for the objects that wait, not a count of its own (nothing waits off the line here).
   await waitFor(`document.querySelector('[data-assistant-attention-count]')?.textContent === '等你 ' + ${count}`, 10_000);
   assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')"), tabs, "no tab is opened for it");

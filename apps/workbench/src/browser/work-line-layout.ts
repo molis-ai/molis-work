@@ -82,14 +82,16 @@ const ABOVE = ":scope>:is([data-plugin-stage],[data-side-panel],.side-panel-divi
 
 /**
  * The line keeps its height (WLN-01): an input written past one line grows up out of it, and what it then lies over (the work
- * surface, the side, the divider between them) gives up the same height at its foot (WLN-02). Where the line is one row the
- * sheet holds it at the bar's height and the composer's slot stands out above it; where the line stands above the composer the
- * row grows with it and the shell makes the room itself, so nothing rises there.
+ * surface, the side, the divider between them) gives up the same height at its foot (WLN-02). The foot's row holds the input's
+ * height at rest, so the account bar and the stack stay as they are and the input stands out above the row (WLN-01 as §16
+ * rewrote it).
  */
 function installRise(slot: HTMLElement): void {
   const bar = slot.closest<HTMLElement>("[data-work-bar]"), shell = bar?.parentElement, row = slot.parentElement;
   if (!bar || !shell || !row) return;
   const measure = () => {
+    // The row keeps the input's height at rest (74px; taller where its rows are a finger's): a longer input stands out above it.
+    if (slot.querySelector(".mw-composer[data-rest]")) row.style.setProperty("--foot-rest", `${slot.offsetHeight}px`);
     const rise = Math.max(0, Math.round(slot.offsetHeight - row.clientHeight)), box = slot.getBoundingClientRect();
     shell.style.setProperty("--line-rise", `${rise}px`);
     for (const part of shell.querySelectorAll<HTMLElement>(ABOVE)) {

@@ -52,9 +52,9 @@ test('PCSYNC-14 a newer head retires a deferred download rather than reviving st
  assert.equal(f.client.status().collections[0]!.failures.length,1);f.events.push({operationId:'a:2',key:'broken',base:1,revision:2,value:'current'});f.setUnavailable(false);f.replica.receive(f.events[1]!);await f.client.run();
  assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken')?.value,'current');assert.equal(f.client.status().collections[0]!.failures.length,0);assert.equal(f.replica.next(),null);
 });
-test('PCSYNC-12 deferred-replay schema refuses an old v3 sync library intact',t=>{
- const home=mkdtempSync(join(tmpdir(),'molis-sync-v3-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const db=openBaselineHomeSqlite(home,'sync',{version:3,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync-v3.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
+test('PCSYNC-12 deferred-replay schema refuses a newer v2 sync library intact',t=>{
+ const home=mkdtempSync(join(tmpdir(),'molis-sync-v2-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+ const db=openBaselineHomeSqlite(home,'sync',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
  assert.throws(()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',registrations:[],authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){throw new Error('Must not authenticate');}},fetch:async()=>{throw new Error('Must not connect');}}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
 });
 

@@ -14,7 +14,7 @@ const classification = { scenes: ["common"], lifecycle: "long-term" };
 const evidence = [{ kind: "external-note", text: "A historical observation", ref: "external:note-7" },
   { kind: "object", ref: '{ "kind": "document", "id": "doc-1" }' }];
 
-/** RAC-2375: a current SDK shape 8 record with absent facts, written through its public storage owner. */
+/** RAC-2375: a current SDK shape 1 record with absent facts, written through its public storage owner. */
 async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
   await f.close();
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
@@ -27,7 +27,7 @@ async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
     host = createNodeHost({ storageRoot: join(f.home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" });
     runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host });
     await runtime.store.commit({ kind: "memories", id: "owner.project-project-a.historical.v1", expectedVersion: 0,
-      metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 8 },
+      metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 1 },
       secureBody: new TextEncoder().encode(JSON.stringify({ id: "historical", scope: "project", owner: "project-a", version: 1,
         text: "Historical publication convention", origin: "Imported record", tags: [], tombstoned: false,
         meta: { kind: "convention", source: "auto", classification, evidence }, createdAtMs: 0, updatedAtMs: 0 })) });

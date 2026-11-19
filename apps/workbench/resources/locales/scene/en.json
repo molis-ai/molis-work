@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "owner": "workbench",
+  "locale": "en",
+  "messages": {
+    "workbench.scene.pending-owner-unavailable": "The original settings provider is unavailable. You can continue verification when it is available again.",
+    "workbench.scene.pending-owner-replaced": "The settings provider’s installation has changed. Only the original installation can verify this request."
+  }
+}

@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -160,16 +160,35 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
         ["--disable-warning=ExperimentalWarning", appCli, "plugin", "dev", source, target, permissions, flag],
         { encoding: "utf8" },
       );
+    // 48-1 BL-plugin-cli-dev-uncoded-errors: each refusal that is not the Manifest names its own code, not plugin.manifest_invalid.
+    const refusal = (run: ReturnType<typeof dev>) => JSON.parse(run.stderr) as { developed: boolean; code: string; message: string; details?: Record<string, unknown> };
     const unauthorized = dev(state, grants, "--not-authorized");
     assert.equal(unauthorized.status, 1, unauthorized.stderr);
+    assert.equal(unauthorized.stdout, "");
+    assert.equal(refusal(unauthorized).code, "plugin.unsigned_development_required");
+    assert.equal(refusal(unauthorized).developed, false);
     assert.equal(existsSync(state), false, "missing execution authority must not create development data");
     const ordinary = join(directory, "ordinary-project");
     mkdirSync(ordinary);
     writeFileSync(join(ordinary, "user-data.txt"), "keep me");
     const refusedDirectory = dev(ordinary, grants);
     assert.equal(refusedDirectory.status, 1, refusedDirectory.stderr);
+    assert.equal(refusedDirectory.stdout, "");
+    assert.equal(refusal(refusedDirectory).code, "host.plugin_development_directory_occupied");
+    assert.match(refusal(refusedDirectory).message, /非空的普通目录/);
     assert.deepEqual(readdirSync(ordinary), ["user-data.txt"]);
     assert.equal(readFileSync(join(ordinary, "user-data.txt"), "utf8"), "keep me");
+    // A Manifest that really is wrong still says so, and the empty state directory it was given stays empty.
+    const brokenSource = join(directory, "broken-manifest");
+    cpSync(project, brokenSource, { recursive: true });
+    writeFileSync(join(brokenSource, "manifest.json"), JSON.stringify({ ...JSON.parse(readFileSync(join(project, "manifest.json"), "utf8")), version: "01.0.0" }));
+    const brokenState = join(directory, "broken-state");
+    mkdirSync(brokenState);
+    const broken = dev(brokenState, grants, "--allow-unsigned-development", brokenSource);
+    assert.equal(broken.status, 1, broken.stderr);
+    assert.equal(broken.stdout, "");
+    assert.equal(refusal(broken).code, "plugin.manifest_invalid", broken.stderr);
+    assert.deepEqual(readdirSync(brokenState), [], "a Manifest refusal comes before the state directory is written");
     const denied = dev(state, "");
     assert.equal(denied.status, 1, denied.stderr);
     assert.equal(JSON.parse(denied.stderr).code, "plugin.grant_denied");

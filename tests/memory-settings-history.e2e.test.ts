@@ -152,7 +152,7 @@ test("an existing missing-snapshot ledger revision offers only confirmed text ad
     seedRuntime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: seedHost });
     const nowMs = Date.now(), scopeKey = `owner.project-${project.project_id}`;
     await seedRuntime.store.commit({ kind: "memories", id: `${scopeKey}.${initial.memory_id}.v1`, expectedVersion: 0,
-      metadata: { scope: scopeKey, rowId: initial.memory_id, version: 1, state: "active", shape: 8 },
+      metadata: { scope: scopeKey, rowId: initial.memory_id, version: 1, state: "active", shape: 1 },
       secureBody: new TextEncoder().encode(JSON.stringify({ id: initial.memory_id, scope: "project", owner: project.project_id, version: 1,
         text: initial.text, origin: "明确的边界来源", tags: [], tombstoned: false,
         meta: { kind: "convention", source: "manual", approvedBy: { by: "person" } }, createdAtMs: nowMs, updatedAtMs: nowMs })) });

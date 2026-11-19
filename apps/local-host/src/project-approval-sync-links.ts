@@ -5,7 +5,7 @@ import type { ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { decisionOwnerMatches, projectReviewDecisions, readProjectReviewDecision } from "@molis-ai/molis-work-service-project-approvals";
 import type { ReplicaDatabase, SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome, verifyTreeItemDecisionHistory } from "./goal-callers.js";
+import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "./goal-callers.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 
 type Collection = PluginSyncIdentity & { readonly collection_id: string; readonly schema_version: number };
@@ -45,13 +45,7 @@ export function verifyGoalsApprovalLinks(db: ReplicaDatabase, project: string, o
     const record = readProjectReviewDecision(db, project, id);
     if (!record) return pendingApproval();
     if (!decisionOwnerMatches(record, originalOwner) || record.outcome_digest !== outcome.digest) throw incompatible();
-    if ("kind" in record) {
-      if (record.subject !== "event" || outcome.kind !== "goal" || record.original.goal_id !== outcome.id) throw incompatible();
-    } else {
-      const subject = record.review.target.subject;
-      if (subject.kind !== outcome.kind || subject.id !== outcome.id) throw incompatible();
-    }
+    const subject = record.review.target.subject;
+    if (subject.kind !== outcome.kind || subject.id !== outcome.id) throw incompatible();
   }
-  const history = projectReviewDecisions(db as SqliteDatabase, project).transferred(originalOwner, "proposal-item");
-  verifyTreeItemDecisionHistory(facts.governance!, history, pendingApproval);
 }

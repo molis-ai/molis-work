@@ -1068,3 +1068,21 @@ test("SSC-23 the demo's default output directory keeps its files through a reset
     }
   });
 });
+
+test("project catalog rejects retired GoalBoard owner metadata", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const home = join(directory, "home");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    catalog.close();
+    const db = openTestSqlite(join(home, "projects", "catalog.db"));
+    try {
+      db.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'owner'").run("goalboard-project-catalog-v1");
+    } finally {
+      db.close();
+    }
+    await assert.rejects(
+      () => openMolisWorkProjectCatalog({ homeDirectory: home }),
+      (error: unknown) => error instanceof Error && error.message.includes("不会复用未知项目目录数据库"),
+    );
+  });
+});

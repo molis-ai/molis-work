@@ -320,8 +320,8 @@ test('PCSYNC-20 Todo preserves deleted project scope across restart and protects
  replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(replica.hasProjectChanges!('project-b'),false);
 });
 
-test('PCSYNC-20 frozen Todo v2 is refused without changing original rows or bytes',t=>{
- const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/todo-v2.sql',import.meta.url),'utf8')});
+test('PCSYNC-20 newer Todo v2 is refused without changing original rows or bytes',t=>{
+ const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/todo.sql',import.meta.url),'utf8')});
  old.prepare("INSERT INTO todo_source_memory VALUES('source','original','keep',NULL,'preserve original','2026-10-19T00:00:00Z')").run();old.close();
  const file=join(home,'todo','todo.db'),before=readFileSync(file);
  assert.throws(()=>openTodoSyncStore(home),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);

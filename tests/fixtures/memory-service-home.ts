@@ -111,7 +111,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   const close = async () => { alive = false; await adapter?.close(); adapter = undefined; ledger?.close(); ledger = undefined;
     storageOwner?.release(); storageOwner = undefined; };
   t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
-  // RAC-2375: seed current SDK shape 8 via its public storage owner; unknown facts need no historical conversion or online exception.
+  // RAC-2375: seed current SDK shape 1 via its public storage owner; unknown facts need no historical conversion or online exception.
   const seedUnclassified = async (scope: "user" | "project", ownerId: string, id: string, text: string) => {
     await close();
     const requireSdk = createRequire(new URL("../../horizontal/agent-host/package.json", import.meta.url));
@@ -125,7 +125,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
       host = createNodeHost({ storageRoot: join(home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" });
       runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host });
       await runtime.store.commit({ kind: "memories", id: `owner.${memoryOwner}.${id}.v1`, expectedVersion: 0,
-        metadata: { scope: `owner.${memoryOwner}`, rowId: id, version: 1, state: "active", shape: 8 },
+        metadata: { scope: `owner.${memoryOwner}`, rowId: id, version: 1, state: "active", shape: 1 },
         secureBody: new TextEncoder().encode(JSON.stringify({ id, scope, owner: ownerId, version: 1, text, origin: "别处写入", tags: [],
           tombstoned: false, meta: {}, createdAtMs: 100, updatedAtMs: 100 })) });
     } finally { await runtime?.shutdown(); await host?.closeStorage(); seedOwner.release(); }

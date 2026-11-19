@@ -8,7 +8,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
-import { expiredSeenThrough, markExpiredSeen } from "./runs-expired-seen.js";
+import { expiredSeen, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -34,7 +34,7 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
     now: () => new Date(), online: hasNetwork,
     model: () => hostHasTextModel({ homeDirectory }),
     gaps: () => currentHostPresence()?.gaps() ?? [],
-    expiredSeen: () => expiredSeenThrough(homeDirectory),
+    expiredSeen: () => expiredSeen(homeDirectory),
   };
 }
 
@@ -43,10 +43,20 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
  * `POST /api/runtime/runs/decide`: 「现在做」 or 「跳过」 on one missed run, handed to its owner.
  * `POST /api/runtime/expired/seen`: the person read the summary of runs skipped on their own; it is not said again (`runs-expired-seen.ts`).
  */
+/**
+ * The owners that answered each recent summary, by its `through`: 「知道了」 names only the summary, and the Host moves the marks of the
+ * owners it heard from. A summary this Host did not make (it was restarted since) moves none, so it is said once more rather than lost.
+ */
+const told = new Map<string, { home: string; owners: readonly string[] }>();
+const TOLD_KEPT = 32;
+
 export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
   if (!homeDirectory) return false;
   if (request.method === "GET" && url.pathname === "/api/runtime/overview") {
-    sendLocalWebJson(response, 200, await runtimeOverview(runtimeOverviewPorts(host, homeDirectory)));
+    const { expired: { owners, ...expired }, ...overview } = await runtimeOverview(runtimeOverviewPorts(host, homeDirectory));
+    told.set(expired.through, { home: homeDirectory, owners });
+    for (const through of told.keys()) { if (told.size <= TOLD_KEPT) break; told.delete(through); }
+    sendLocalWebJson(response, 200, { ...overview, expired });
     return true;
   }
   if (request.method === "POST" && url.pathname === "/api/runtime/runs/decide") {
@@ -56,7 +66,9 @@ export async function handleRuntimeOverviewHttp(request: IncomingMessage, respon
   }
   if (request.method === "POST" && url.pathname === "/api/runtime/expired/seen") {
     const { through } = runtimeExpiredSeenRequest(await readLocalWebBody(request));
-    sendLocalWebJson(response, 200, { seen_through: markExpiredSeen(homeDirectory, through, new Date()) });
+    const summary = told.get(through), now = new Date();
+    markExpiredSeen(homeDirectory, through, summary?.home === homeDirectory ? summary.owners : [], now);
+    sendLocalWebJson(response, 200, { seen_through: new Date(Math.min(Date.parse(through), now.getTime())).toISOString() });
     return true;
   }
   return false;

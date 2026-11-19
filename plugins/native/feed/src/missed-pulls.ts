@@ -34,7 +34,7 @@ export function feedRunsOverview(feed: FeedApplication, projectId: string, windo
   const bounds = runsExpiryBounds(window);
   const missed = feed.sources.missed.list(projectId, RUNS_MISSED_LIMIT, bounds.listed_after).map(entry => ({ run_id: entry.run_id, title: entry.title, due_at: entry.due_at,
     project_id: projectId, open: { surface: FEED_SURFACE, id: entry.source_id }, needs: ["network" as const], missed_at: entry.missed_at }));
-  const expired = feed.sources.missed.expired(projectId, bounds.counted_after, bounds.listed_after);
+  const expired = feed.sources.missed.expired(projectId, bounds);
   // The host page shows this label; the plugin's own words follow the action caller's language, with the old Chinese as a fallback for
   // direct calls that install no text context.
   let title = "Feed 来源";

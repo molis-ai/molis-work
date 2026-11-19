@@ -6,10 +6,10 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
-  runHasExpired, runsExpiryBounds, withinRunsWindow, type ActionView,
+  runHasExpired, runExpiredUntold, runsExpiryBounds, withinRunsWindow, type ActionView,
   type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
-import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
@@ -447,7 +447,7 @@ export function sameLocalTimeLater(at: number, days: number, timeZone: string | 
 /** The follow-ups' runs in a window: the queued times in it, the missed ones still waiting, and how many ran out their seven days. */
 function followUpRuns(all: readonly AssistantFollowUp[], window: RunsWindow): RunsOverview {
   assertRunsWindow(window);
-  const bounds = runsExpiryBounds(window), listed = Date.parse(bounds.listed_after), counted = bounds.counted_after === null ? -Infinity : Date.parse(bounds.counted_after);
+  const bounds = runsExpiryBounds(window), listed = Date.parse(bounds.listed_after);
   const run = (followUp: AssistantFollowUp, dueAt: string): ScheduledRun => ({ run_id: missedRunId(followUp.followup_id, dueAt), title: followUp.label,
     due_at: dueAt, project_id: null, open: { surface: "assistant", id: followUp.work_id }, needs: ["model"] });
   const upcoming = all.filter(item => item.enabled && item.next_at && withinRunsWindow(item.next_at, window)).map(item => run(item, item.next_at!))
@@ -455,7 +455,10 @@ function followUpRuns(all: readonly AssistantFollowUp[], window: RunsWindow): Ru
   const times = all.flatMap(item => (item.missed ?? []).map(entry => ({ item, entry, due: Date.parse(entry.due_at) })));
   const missed: MissedRun[] = times.filter(({ due }) => due > listed).map(({ item, entry }) => ({ ...run(item, entry.due_at), missed_at: entry.missed_at }))
     .sort((a, b) => b.due_at.localeCompare(a.due_at)).slice(0, RUNS_MISSED_LIMIT);
-  return { source: { surface: "assistant", title: "助理定时" }, upcoming, missed, expired: times.filter(({ due }) => due <= listed && due > counted).length };
+  // The host page shows this label in the caller's language; a direct call with no text context keeps the Chinese word.
+  let title = "助理定时";
+  try { const word = uiText.text("workbench.runtime-panel.assistant-source"); if (word !== "workbench.runtime-panel.assistant-source") title = word; } catch { /* no text context */ }
+  return { source: { surface: "assistant", title }, upcoming, missed, expired: times.filter(({ entry }) => runExpiredUntold(entry, bounds)).length };
 }
 
 /** `followup:<followup id>:<due time in ms>`: stable for one missed time of one follow-up. */

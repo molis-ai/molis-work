@@ -76,12 +76,16 @@ export async function noteMissedWakeup(db: ScheduleTaskDatabase, projectId: stri
   return { detail: "missed" };
 }
 
-/** A one-time reminder or operation left behind a missed run that is over (skipped, by the person or on its own), ended as 跳过 ends it. */
-function endOnce(db: ScheduleTaskDatabase, projectId: string, kind: MissedKind, ref: string): void {
-  if (kind === "reminder" && getScheduleReminder(db, ref)?.repeat === "none") db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(ref);
+/**
+ * A one-time reminder or operation left behind a missed run that is over (skipped, by the person or on its own), ended as 跳过 ends it.
+ * Only while it is still set for the time that was missed: one the person has moved to another time is theirs to keep.
+ */
+function endOnce(db: ScheduleTaskDatabase, projectId: string, kind: MissedKind, ref: string, dueAt: string): void {
+  const due = Date.parse(dueAt), still = (item: { repeat: string; at: string } | null | undefined) => item?.repeat === "none" && Date.parse(item.at) === due;
+  if (kind === "reminder" && still(getScheduleReminder(db, ref))) db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(ref);
   if (kind === "operation") {
     const run = getScheduledOperation(db, projectId, ref);
-    if (run?.repeat === "none" && run.state === "enabled") saveScheduledOperation(db, { ...run, state: "completed", detail: "错过后跳过" });
+    if (run && still(run) && run.state === "enabled") saveScheduledOperation(db, { ...run, state: "completed", detail: "错过后跳过" });
   }
 }
 
@@ -90,9 +94,9 @@ function endOnce(db: ScheduleTaskDatabase, projectId: string, kind: MissedKind, 
  * Schedule's own write (the reconcile round), whatever Molis Work was doing on the seventh day. The rows themselves stay undecided.
  */
 export function endExpiredOnce(db: ScheduleTaskDatabase, projectId: string, now: number): void {
-  const rows = db.prepare(`SELECT kind, ref FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL AND kind IN ('reminder', 'operation') AND due_at <= ?`)
-    .all(projectId, new Date(now - RUN_MISSED_KEPT_MS).toISOString()) as Array<Pick<MissedRow, "kind" | "ref">>;
-  for (const { kind, ref } of rows) endOnce(db, projectId, kind, ref);
+  const rows = db.prepare(`SELECT kind, ref, due_at FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL AND kind IN ('reminder', 'operation') AND due_at <= ?`)
+    .all(projectId, new Date(now - RUN_MISSED_KEPT_MS).toISOString()) as Array<Pick<MissedRow, "kind" | "ref" | "due_at">>;
+  for (const { kind, ref, due_at } of rows) endOnce(db, projectId, kind, ref, due_at);
 }
 
 interface DecisionScheduler {
@@ -106,7 +110,7 @@ export function decideMissedRun(db: ScheduleTaskDatabase, schedule: DecisionSche
   const missed = row(db, projectId, input.run_id);
   if (!missed || missed.decision) return { state: "gone" };
   // Its seven days ran out before the click: it was skipped on its own and stays counted as that.
-  if (runHasExpired(missed.due_at, now.getTime())) { endOnce(db, projectId, missed.kind, missed.ref); return { state: "gone" }; }
+  if (runHasExpired(missed.due_at, now.getTime())) { endOnce(db, projectId, missed.kind, missed.ref, missed.due_at); return { state: "gone" }; }
   const mark = (decision: "run_now" | "skip") => db.prepare("UPDATE schedule_missed_runs SET decision = ?, decided_at = ? WHERE project_id = ? AND run_id = ?")
     .run(decision, now.toISOString(), projectId, input.run_id);
   const jobId = missed.kind === "task" ? getScheduleConversationTask(db, missed.ref)?.job_id
@@ -118,7 +122,7 @@ export function decideMissedRun(db: ScheduleTaskDatabase, schedule: DecisionSche
   if (input.decision === "skip") {
     mark("skip");
     // A one-time reminder or operation that was missed and is skipped is over: it is not left looking as if it might still come.
-    if (job.recurrence.kind === "once") endOnce(db, projectId, missed.kind, missed.ref);
+    if (job.recurrence.kind === "once") endOnce(db, projectId, missed.kind, missed.ref, missed.due_at);
     return { state: "skipped" };
   }
   if (schedule.isExecuting(job.job_id)) throw scheduleErrors.job_invalid("这项正在运行，等它跑完再试");
@@ -150,8 +154,8 @@ export function scheduleRunsOverview(db: ScheduleTaskDatabase, jobs: readonly Sc
   // direct calls that install no text context.
   let title = "定时任务";
   try { const word = uiText.text("schedule.runs.source-title"); if (word !== "schedule.runs.source-title") title = word; } catch { /* direct call has no text context */ }
-  const expired = Number((db.prepare(`SELECT COUNT(*) AS n FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ?)`)
-    .get(projectId, bounds.listed_after, bounds.counted_after, bounds.counted_after) as { n: number }).n);
+  const expired = Number((db.prepare(`SELECT COUNT(*) AS n FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL AND due_at <= ?
+    AND (? IS NULL OR due_at > ? OR missed_at > ?)`).get(projectId, bounds.listed_after, bounds.told_at, bounds.counted_after, bounds.told_at) as { n: number }).n);
   return { source: { surface: SCHEDULE_PROJECT_PLUGIN_ID, title }, upcoming, missed, expired };
 }
 

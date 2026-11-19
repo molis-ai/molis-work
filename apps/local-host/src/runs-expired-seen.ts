@@ -1,32 +1,50 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
 import { RUN_DIRECTORY } from "./host-presence.js";
 
 /**
- * How far the person has been told about missed runs skipped on their own (scheduled-runs.ts, seven days from `due_at`): the panel says
- * once how many were skipped, and 「知道了」 moves this mark to the moment that summary was made. Owners count only what ran out after
- * it, so the same summary is not said again after a restart. One instant in `run/expired-seen.json`; a missing or unreadable file means
- * nothing was told yet, and every expired run the owners still keep is counted once.
+ * How far the person has been told about missed runs skipped on their own (scheduled-runs.ts, seven days from `due_at`), owner by
+ * owner: the panel says once how many were skipped, and 「知道了」 moves the mark of each owner that answered that summary to the moment
+ * it was made. An owner that did not answer (its project was closed, it timed out) keeps its mark, so what ran out there meanwhile is
+ * still said once. Owners count only what is expired and not told since (`RunsWindow.expired_after`), so the same summary is not said
+ * again after a restart. One instant per owner in `run/expired-seen.json`; a missing or unreadable file means nothing was told yet.
  */
 const FILE = "expired-seen.json";
 const SCHEMA_VERSION = /* @version format.home.run.expired-seen */ 1;
+/** A mark older than this is the same as none: every row it could still hold back is gone (owners keep an ended row a month). */
+const MARK_KEPT_MS = RUN_MISSED_KEPT_MS + 30 * 86_400_000;
+const OWNERS_KEPT = 1_000;
+
+export type ExpiredSeen = Readonly<Record<string, string>>;
+
+/** One owner of runs: the project its provider runs in (null: the Home) and the provider. */
+export const expiredOwnerKey = (scopeProjectId: string | null, providerId: string) => `${scopeProjectId ?? ""}\u0000${providerId}`;
 
 const instant = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 
-export function expiredSeenThrough(homeDirectory: string): string | null {
+export function expiredSeen(homeDirectory: string): ExpiredSeen {
   try {
-    const record = JSON.parse(readFileSync(join(homeDirectory, RUN_DIRECTORY, FILE), "utf8")) as { schema_version?: unknown; seen_through?: unknown } | null;
-    return record?.schema_version === SCHEMA_VERSION && instant(record.seen_through) ? record.seen_through : null;
-  } catch { return null; /* nothing told yet, or a torn file: counted again once */ }
+    const record = JSON.parse(readFileSync(join(homeDirectory, RUN_DIRECTORY, FILE), "utf8")) as { schema_version?: unknown; seen?: unknown } | null;
+    if (record?.schema_version !== SCHEMA_VERSION || !record.seen || typeof record.seen !== "object" || Array.isArray(record.seen)) return {};
+    return Object.fromEntries(Object.entries(record.seen).filter((entry): entry is [string, string] => instant(entry[1])));
+  } catch { return {}; /* nothing told yet, or a torn file: counted again once */ }
 }
 
-/** The person has read the summary made at `through`: the mark moves there, never back and never past `now`. Returns the mark kept. */
-export function markExpiredSeen(homeDirectory: string, through: string, now: Date): string {
-  const at = Math.min(Date.parse(through), now.getTime()), previous = expiredSeenThrough(homeDirectory);
-  if (previous !== null && Date.parse(previous) >= at) return previous;
-  const seen = new Date(at).toISOString();
+/**
+ * The person has read the summary made at `through`, which these owners answered: their marks move there, never back and never past
+ * `now`. Marks too old to hold anything back are dropped. Returns the marks kept.
+ */
+export function markExpiredSeen(homeDirectory: string, through: string, owners: readonly string[], now: Date): ExpiredSeen {
+  const at = Math.min(Date.parse(through), now.getTime()), seen: Record<string, string> = { ...expiredSeen(homeDirectory) };
+  for (const owner of owners) {
+    const previous = seen[owner];
+    if (previous === undefined || Date.parse(previous) < at) seen[owner] = new Date(at).toISOString();
+  }
+  const kept = Object.entries(seen).filter(([, mark]) => now.getTime() - Date.parse(mark) < MARK_KEPT_MS)
+    .sort((a, b) => b[1].localeCompare(a[1])).slice(0, OWNERS_KEPT);
   mkdirSync(join(homeDirectory, RUN_DIRECTORY), { recursive: true, mode: 0o700 });
-  atomicWriteFileSync(join(homeDirectory, RUN_DIRECTORY, FILE), `${JSON.stringify({ schema_version: SCHEMA_VERSION, seen_through: seen })}\n`, { mode: 0o600 });
-  return seen;
+  atomicWriteFileSync(join(homeDirectory, RUN_DIRECTORY, FILE), `${JSON.stringify({ schema_version: SCHEMA_VERSION, seen: Object.fromEntries(kept) })}\n`, { mode: 0o600 });
+  return Object.fromEntries(kept);
 }

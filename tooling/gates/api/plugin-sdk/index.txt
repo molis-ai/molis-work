@@ -441,6 +441,7 @@ export type { RunDecided } from "@molis-ai/molis-work-contracts/platform/actions
 export type { RunDecision } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunDecisionChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunNeed } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunsOverview } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunsOwnerScope } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -1007,6 +1008,7 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
     values: Record<string, string>;
 }, ports: ActionCardPorts<Card>): Promise<Card>;
 
+export { runExpiredUntold } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runIsMissed } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";

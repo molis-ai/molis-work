@@ -116,8 +116,9 @@ export class SourcesModule implements SourcesApi {
     }),
     list: (projectId, limit, keptAfter) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND decision IS NULL AND due_at > ? ORDER BY due_at DESC LIMIT ?",
       projectId, keptAfter, limit) as Row[]).map(missedPull),
-    expired: (projectId, countedAfter, keptAfter) => Number((this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM feed_missed_pulls
-      WHERE project_id = ? AND decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ?)`, projectId, keptAfter, countedAfter, countedAfter))?.n ?? 0),
+    expired: (projectId, bounds) => Number((this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM feed_missed_pulls
+      WHERE project_id = ? AND decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ? OR missed_at > ?)`,
+    projectId, bounds.listed_after, bounds.told_at, bounds.counted_after, bounds.told_at))?.n ?? 0),
     get: (projectId, runId) => {
       const row = this.db.get("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND run_id = ?", projectId, runId) as Row | undefined;
       return row ? missedPull(row) : null;

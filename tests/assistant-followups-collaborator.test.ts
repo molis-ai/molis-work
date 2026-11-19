@@ -268,3 +268,14 @@ test("BL-missed-runs-never-expire a missed follow-up time waits seven days from 
   assert.equal(h.sent.length, 0, "nothing expired is sent");
   assert.equal(h.followUps.runsOverview(window(back, back)).expired, 0, "once told, not said again");
 });
+
+test("BL-missed-runs-never-expire a follow-up time written down only after the person was last told is still counted once", async () => {
+  const h = harness("2026-11-11T08:00:00.000Z");
+  const late = await h.followUps.save({ work_id: "w1", text: "汇总", at: "2026-11-11T09:00:00.000Z", label: "晚记下的" });
+  // Its seven days ran out on the 18th; the summary of the 19th could not hold it, because the run only came up on the 20th.
+  h.at("2026-11-20T09:00:00.000Z");
+  await h.run(`fu-${late.followup_id}-${Date.parse("2026-11-11T09:00:00.000Z")}`);
+  const window = (now: string, expiredAfter: string | null) => ({ now, upcoming_until: now, expired_after: expiredAfter });
+  assert.equal(h.followUps.runsOverview(window("2026-11-20T09:01:00.000Z", "2026-11-19T09:00:00.000Z")).expired, 1, "said once");
+  assert.equal(h.followUps.runsOverview(window("2026-11-20T09:02:00.000Z", "2026-11-20T09:01:00.000Z")).expired, 0, "and not again");
+});

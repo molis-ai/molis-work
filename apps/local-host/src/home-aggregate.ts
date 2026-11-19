@@ -55,6 +55,11 @@ export async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (
   finally { lifetime.dispose(); }
 }
 
+/** An input made for each provider apart: `of` is given only the project and the provider it is for. Any other input goes to all alike. */
+export class HomeAggregateInputEach {
+  constructor(readonly of: (projectId: string, source: Required<ActionReference>) => unknown) {}
+}
+
 export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, outputType: string, input: unknown, signal?: AbortSignal): Promise<HomeAggregateResult<Output>> {
   signal?.throwIfAborted();
   const projects = await Promise.all(ports.openProjects().map(async reference => {
@@ -97,7 +102,7 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
                 ? { answers: [], issues: [{ project_id, source, code: view.availability.code }] } : empty;
             }
             try {
-              const output = await beforeDeadline(collection.signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input)) as Output;
+              const output = await beforeDeadline(collection.signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input instanceof HomeAggregateInputEach ? input.of(project_id, source) : input)) as Output;
               return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, subject_kinds: view.action.subject_kinds ?? [], output }], issues: [] };
             } catch (error) {
               signal?.throwIfAborted();

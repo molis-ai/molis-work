@@ -25,8 +25,9 @@ export const RUN_MISSED_GRACE_MS = 10 * 60 * 1000;
 export const RUN_MISSED_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * `expired_after`: count the runs whose seven days ran out after this instant (null: every expired run the owner still keeps). The
- * Host passes the last moment the person was told about, so a summary is not said twice.
+ * `expired_after`: the last moment this owner's summary was told (null: never). An expired run is counted when the person could not
+ * have been told about it by then: its seven days ran out after it, or it was written down after it. So a summary is not said twice,
+ * and a run an owner writes down late (it was not running) is still said once.
  */
 export interface RunsWindow { now: string; upcoming_until: string; expired_after: string | null }
 /** What one run needs besides Molis Work running; the platform marks a run as waiting when one of them is not there. */
@@ -44,7 +45,7 @@ export interface ScheduledRun {
   needs: RunNeed[];
 }
 export interface MissedRun extends ScheduledRun { missed_at: string }
-/** `expired`: how many missed runs nobody decided on had their seven days run out after `expired_after` and by `now`. */
+/** `expired`: how many missed runs nobody decided on are expired by `now` and not yet told (`RunsWindow.expired_after`). */
 export interface RunsOverview { source: { surface: string; title: string }; upcoming: ScheduledRun[]; missed: MissedRun[]; expired: number }
 export type RunDecisionChoice = "run_now" | "skip";
 export interface RunDecision { run_id: string; decision: RunDecisionChoice }
@@ -109,11 +110,18 @@ export function runHasExpired(dueAt: string | number, now: number): boolean {
   return Number.isFinite(due) && now - due >= RUN_MISSED_KEPT_MS;
 }
 /**
- * The `due_at` bounds an owner keeps in its own query: a run is still listed when `due_at > listed_after`; it is counted in `expired`
- * when `counted_after < due_at <= listed_after`. Both are ISO instants, so owners that keep `due_at` as ISO text compare them as text.
+ * The bounds an owner keeps in its own query, all ISO instants (owners that keep `due_at` and `missed_at` as ISO text compare them as
+ * text): a run is still listed when `due_at > listed_after`; it is counted in `expired` when `due_at <= listed_after` and either
+ * `told_at` is null, `due_at > counted_after`, or `missed_at > told_at` (`runExpiredUntold`).
  */
-export function runsExpiryBounds(window: RunsWindow): { listed_after: string; counted_after: string | null } {
-  const now = Date.parse(window.now);
+export interface RunsExpiryBounds { listed_after: string; counted_after: string | null; told_at: string | null }
+export function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds {
+  const now = Date.parse(window.now), told = window.expired_after === null ? null : Date.parse(window.expired_after);
   return { listed_after: new Date(now - RUN_MISSED_KEPT_MS).toISOString(),
-    counted_after: window.expired_after === null ? null : new Date(Date.parse(window.expired_after) - RUN_MISSED_KEPT_MS).toISOString() };
+    counted_after: told === null ? null : new Date(told - RUN_MISSED_KEPT_MS).toISOString(), told_at: told === null ? null : new Date(told).toISOString() };
+}
+/** The same rule for an owner that keeps its missed runs in memory: expired by now, and not yet told. */
+export function runExpiredUntold(run: { due_at: string; missed_at: string }, bounds: RunsExpiryBounds): boolean {
+  const due = Date.parse(run.due_at), told = bounds.told_at === null ? null : Date.parse(bounds.told_at);
+  return due <= Date.parse(bounds.listed_after) && (told === null || due > told - RUN_MISSED_KEPT_MS || Date.parse(run.missed_at) > told);
 }

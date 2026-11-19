@@ -18,16 +18,19 @@ function harness(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-missed-"));
   const databasePath = join(directory, "molis-work.sqlite");
   seedDemoBoard(databasePath);
-  const clock = { now: new Date("2026-11-10T09:00:00.000Z") }, pulls: string[] = [];
+  const clock = { now: new Date("2026-11-10T09:00:00.000Z") }, pulls: string[] = [], failing = { next: false };
   let store = new LocalProjectDatabase(databasePath);
   const open = () => ({
     service: createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => clock.now),
-    scheduler: createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (source, key) => { pulls.push(`${source.source_id}:${key}`); }, () => clock.now),
+    scheduler: createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (source, key) => {
+      if (failing.next) { failing.next = false; throw new Error("the feed did not answer"); }
+      pulls.push(`${source.source_id}:${key}`);
+    }, () => clock.now),
   });
   let current = open();
   t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
   const h = {
-    clock, pulls,
+    clock, pulls, failing,
     get feed() { return current.service.feed; },
     source(catalogIndex = 0) {
       const source = current.service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[catalogIndex]!.id }).source;
@@ -41,8 +44,8 @@ function harness(t: TestContext) {
     decide: (run_id: string, decision: "run_now" | "skip") => decideMissedPull(current.service.feed, DEMO_PROJECT_ID, { run_id, decision }, clock.now),
     overview: (expiredAfter: string | null = null) => feedRunsOverview(current.service.feed, DEMO_PROJECT_ID,
       { now: clock.now.toISOString(), upcoming_until: new Date(clock.now.getTime() + 2 * 86_400_000).toISOString(), expired_after: expiredAfter }),
-    record: (sourceId: string, dueAt: string) => current.service.feed.sources.missed.record(DEMO_PROJECT_ID,
-      { run_id: `pull:${sourceId}:${dueAt}`, source_id: sourceId, title: "来源", due_at: dueAt, missed_at: new Date(Date.parse(dueAt) + 3_600_000).toISOString() }),
+    record: (sourceId: string, dueAt: string, missedAt = new Date(Date.parse(dueAt) + 3_600_000).toISOString()) => current.service.feed.sources.missed.record(DEMO_PROJECT_ID,
+      { run_id: `pull:${sourceId}:${dueAt}`, source_id: sourceId, title: "来源", due_at: dueAt, missed_at: missedAt }),
     restart() { store.close(); store = new LocalProjectDatabase(databasePath); current = open(); },
     later(ms: number) { clock.now = new Date(clock.now.getTime() + ms); },
   };
@@ -161,4 +164,67 @@ test("BL-missed-runs-never-expire more expired pulls than one page are all count
   assert.equal(view.expired, RUNS_MISSED_LIMIT + 10, "every expired one, past the first page");
   assert.deepEqual(view.missed.map(run => run.due_at), [...waiting].reverse(), "the waiting ones are not pushed off the page by expired ones");
   assert.equal(h.overview("2026-10-27T00:00:00.000Z").expired, RUNS_MISSED_LIMIT + 10 - 1, "the first one ran out at the very moment of the last summary: not counted again");
+});
+
+test("BL-feed-run-now-missed-again 现在做 whose pull then fails: the slot is spent once and the source goes back to its own interval, not asked again", async t => {
+  const h = harness(t), sourceId = h.source();
+  h.clock.now = new Date("2026-11-10T10:00:00.000Z");
+  await h.tick();
+  const [missed] = h.missed();
+  assert.deepEqual(h.decide(missed!.run_id, "run_now"), { state: "started" });
+  h.later(RUN_MISSED_GRACE_MS + 7 * MINUTE);
+  h.failing.next = true;
+  const failed = await h.tick();
+  assert.deepEqual([failed.failed, failed.skipped, h.pulls.length], [1, 0, 0], "tried once on the person's word, and it failed");
+  assert.equal(h.next(sourceId), "2026-11-10T10:30:00.000Z", "the next time is the source's own interval again");
+  assert.deepEqual(h.missed(), [], "a failed pull is not put back to the person as missed");
+  h.restart();
+  await h.tick();
+  assert.equal(h.pulls.length, 0, "and the failed slot is not tried again after a restart");
+});
+
+test("BL-feed-run-now-missed-again a source set for a time with an offset is written down as that instant, and 现在做 on it is carried out once", async t => {
+  const h = harness(t), sourceId = h.source();
+  const source = h.feed.sources.get(DEMO_PROJECT_ID, sourceId);
+  assert.equal(source.schedule.mode, "interval");
+  h.feed.sources.upsert({ ...source, schedule: { ...source.schedule, next_pull_at: "2026-11-10T17:15:00+08:00" } as typeof source.schedule });
+  h.clock.now = new Date("2026-11-10T10:00:00.000Z");
+  await h.tick();
+  const [missed] = h.missed();
+  assert.equal(missed?.due_at, "2026-11-10T09:15:00.000Z", "kept as the same instant in one form, so its seven days compare as text");
+  assert.deepEqual(h.decide(missed!.run_id, "run_now"), { state: "started" });
+  h.later(RUN_MISSED_GRACE_MS + MINUTE);
+  await h.tick();
+  assert.equal(h.pulls.length, 1);
+  assert.deepEqual(h.missed(), [], "not written down a second time");
+});
+
+test("BL-missed-runs-never-expire a pull written down only after the person was last told (Feed was not running) is still counted once", async t => {
+  const h = harness(t), sourceId = h.source();
+  h.clock.now = new Date("2026-11-20T09:00:00.000Z");
+  const told = "2026-11-18T09:00:00.000Z";
+  // Due on the 2nd, so its seven days ran out on the 9th, before the summary of the 18th; but Feed only came back on the 19th to write it down.
+  h.record(sourceId, "2026-11-02T09:00:00.000Z", "2026-11-19T09:00:00.000Z");
+  h.record(sourceId, "2026-11-03T09:00:00.000Z", "2026-11-04T09:00:00.000Z");
+  const view = h.overview(told);
+  assert.equal(view.missed.length, 0);
+  assert.equal(view.expired, 1, "the one written down after the summary is said; the one already in it is not said again");
+  assert.equal(h.overview("2026-11-20T09:00:00.000Z").expired, 0, "once told, neither is");
+});
+
+test("BL-missed-runs-never-expire Feed keeps each ended row a month: a decision from the decision, an expired one from its seventh day", async t => {
+  const h = harness(t), sourceId = h.source();
+  h.record(sourceId, "2026-09-01T09:00:00.000Z");
+  h.record(sourceId, "2026-09-10T09:00:00.000Z");
+  h.record(sourceId, "2026-09-20T09:00:00.000Z");
+  h.record(sourceId, "2026-10-01T09:00:00.000Z");
+  h.feed.sources.missed.decide(DEMO_PROJECT_ID, `pull:${sourceId}:2026-09-01T09:00:00.000Z`, "skip", "2026-10-15T09:00:00.000Z");
+  h.feed.sources.missed.decide(DEMO_PROJECT_ID, `pull:${sourceId}:2026-09-20T09:00:00.000Z`, "skip", "2026-09-21T09:00:00.000Z");
+  // Written on Nov 1: a month back is Oct 2; an undecided row ends seven days after it is due, so one due before Sep 25 is gone.
+  h.record(sourceId, "2026-11-01T08:00:00.000Z", "2026-11-01T09:00:00.000Z");
+  const kept = h.feed.sources.missed;
+  assert.equal(kept.get(DEMO_PROJECT_ID, `pull:${sourceId}:2026-09-01T09:00:00.000Z`)?.decision, "skip", "decided on Oct 15: kept, however old its time");
+  assert.equal(kept.get(DEMO_PROJECT_ID, `pull:${sourceId}:2026-09-20T09:00:00.000Z`), null, "decided on Sep 21: gone");
+  assert.equal(kept.get(DEMO_PROJECT_ID, `pull:${sourceId}:2026-09-10T09:00:00.000Z`), null, "nobody decided, ran out on Sep 17: gone");
+  assert.equal(kept.get(DEMO_PROJECT_ID, `pull:${sourceId}:2026-10-01T09:00:00.000Z`)?.decision, null, "ran out on Oct 8: kept");
 });

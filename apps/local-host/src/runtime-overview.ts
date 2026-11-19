@@ -1,7 +1,8 @@
 import { networkInterfaces } from "node:os";
 import { ActionError, RUN_DECISION_INPUT_TYPE, RUN_DECISION_OUTPUT_TYPE, RUNS_OVERVIEW_INPUT_TYPE, RUNS_OVERVIEW_OUTPUT_TYPE, type ActionReference, type ActionView,
   type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
-import { beforeDeadline, collectHomeAggregate, type HomeAggregatePorts } from "./home-aggregate.js";
+import { beforeDeadline, collectHomeAggregate, HomeAggregateInputEach, type HomeAggregatePorts } from "./home-aggregate.js";
+import { expiredOwnerKey, type ExpiredSeen } from "./runs-expired-seen.js";
 import type { RuntimeGap } from "./host-presence.js";
 
 /**
@@ -16,10 +17,12 @@ export interface RuntimeRunSource { readonly scope_project_id: string | null; re
 export interface RuntimeUpcomingRun extends ScheduledRun { readonly source: RuntimeRunSource; readonly waiting: boolean }
 export interface RuntimeMissedRun extends MissedRun { readonly source: RuntimeRunSource }
 /**
- * Missed runs nobody decided on whose seven days ran out since the person was last told (`through` of the summary they read), all owners
- * together and by owner title. The panel says it once; 「知道了」 sends `through` back (`markExpiredSeen`).
+ * Missed runs nobody decided on that are expired and not yet told, all owners together and by owner title. The panel says it once;
+ * 「知道了」 sends `through` back, and the marks of the owners that answered (`owners`, kept by the Host, not sent) move there.
  */
-export interface RuntimeExpiredRuns { readonly count: number; readonly through: string; readonly sources: Array<{ readonly title: string; readonly count: number }> }
+export interface RuntimeExpiredRuns {
+  readonly count: number; readonly through: string; readonly sources: Array<{ readonly title: string; readonly count: number }>; readonly owners: readonly string[];
+}
 export interface RuntimeOverview {
   readonly state: "running";
   readonly waiting: { readonly network: boolean; readonly model: boolean };
@@ -42,8 +45,8 @@ export interface RuntimeOverviewPorts {
   /** Whether a text model is set to run with; false is written as 「没有可用的模型」. */
   model(): boolean;
   gaps(): readonly RuntimeGap[];
-  /** The moment the person was last told about runs skipped on their own, or null (`runs-expired-seen.ts`). */
-  expiredSeen(): string | null;
+  /** Owner by owner, the moment the person was last told about its runs skipped on their own (`runs-expired-seen.ts`). */
+  expiredSeen(): ExpiredSeen;
 }
 
 /** The runs the panel lists: what comes in the next two days, and what the next day holds for the quit confirmation (the desktop asks for 24 hours). */
@@ -87,24 +90,25 @@ const referenceOf = (view: ActionView): Required<ActionReference> => ({ capabili
 const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "actions.execution_failed";
 
 export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: AbortSignal): Promise<RuntimeOverview> {
-  const now = ports.now(), window: RunsWindow = { now: now.toISOString(), upcoming_until: new Date(now.getTime() + UPCOMING_HOURS * 3_600_000).toISOString(),
-    expired_after: ports.expiredSeen() };
-  const upcoming: Array<ScheduledRun & { source: RuntimeRunSource }> = [], missed: RuntimeMissedRun[] = [], expired = new Map<string, number>();
+  const now = ports.now(), seen = ports.expiredSeen();
+  const window = (scope: string | null, providerId: string): RunsWindow => ({ now: now.toISOString(),
+    upcoming_until: new Date(now.getTime() + UPCOMING_HOURS * 3_600_000).toISOString(), expired_after: seen[expiredOwnerKey(scope, providerId)] ?? null });
+  const upcoming: Array<ScheduledRun & { source: RuntimeRunSource }> = [], missed: RuntimeMissedRun[] = [], expired = new Map<string, number>(), owners: string[] = [];
   const unavailable: RuntimeOverview["unavailable_sources"] = [];
   const take = (output: unknown, scope: string | null, providerId: string) => {
     const rows = rowsOf(output, scope, providerId);
     if (!rows) { unavailable.push({ project_id: scope, provider_id: providerId, code: "actions.output_invalid" }); return; }
-    upcoming.push(...rows.upcoming); missed.push(...rows.missed);
+    upcoming.push(...rows.upcoming); missed.push(...rows.missed); owners.push(expiredOwnerKey(scope, providerId));
     if (rows.expired) expired.set(rows.title, (expired.get(rows.title) ?? 0) + rows.expired);
   };
   // The project owners, in every open project (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
   const [projects] = await Promise.all([
-    collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, window, signal),
+    collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, new HomeAggregateInputEach((projectId, source) => window(projectId, source.provider_id)), signal),
     ports.within(null, async client => {
       const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home" && !view.action.home_aggregate);
       await Promise.all(views.map(async view => {
         if (!view.availability.available) { unavailable.push({ project_id: null, provider_id: view.provider.provider_id, code: view.availability.code }); return; }
-        try { take(await beforeDeadline(signal, async () => client.invoke(referenceOf(view), window)), null, view.provider.provider_id); }
+        try { take(await beforeDeadline(signal, async () => client.invoke(referenceOf(view), window(null, view.provider.provider_id))), null, view.provider.provider_id); }
         catch (error) { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: view.provider.provider_id, code: codeOf(error) }); }
       }));
     }).catch((error: unknown) => { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: null, code: codeOf(error) }); }),
@@ -117,8 +121,8 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
     upcoming: upcoming.sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, UPCOMING_SHOWN)
       .map(run => ({ ...run, waiting: run.needs.some(need => need === "network" ? waiting.network : waiting.model) })),
     missed: missed.sort((a, b) => b.due_at.localeCompare(a.due_at)),
-    expired: { count: [...expired.values()].reduce((sum, count) => sum + count, 0), through: window.now,
-      sources: [...expired].map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count || a.title.localeCompare(b.title)) },
+    expired: { count: [...expired.values()].reduce((sum, count) => sum + count, 0), through: now.toISOString(),
+      sources: [...expired].map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count || a.title.localeCompare(b.title)), owners: owners.sort() },
     unavailable_sources: unavailable,
   };
 }

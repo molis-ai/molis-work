@@ -8302,6 +8302,7 @@
     "workbench.runtime-panel.all-handled": "错过的都处理了",
     "workbench.runtime-panel.expired": "有 {count} 件错过的事 7 天没处理，已自动跳过",
     "workbench.runtime-panel.expired-source": "{title} {count} 件",
+    "workbench.runtime-panel.assistant-source": "助理定时",
     "workbench.runtime-panel.expired-seen": "知道了",
     "workbench.runtime-panel.run-now": "现在做",
     "workbench.runtime-panel.skip": "跳过",

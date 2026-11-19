@@ -5705,6 +5705,12 @@ export type RunDecisionChoice = "run_now" | "skip";
 
 export type RunNeed = "network" | "model";
 
+export interface RunsExpiryBounds {
+    listed_after: string;
+    counted_after: string | null;
+    told_at: string | null;
+}
+
 export interface RunsOverview {
     source: {
         surface: string;
@@ -8187,14 +8193,16 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
+export declare function runExpiredUntold(run: {
+    due_at: string;
+    missed_at: string;
+}, bounds: RunsExpiryBounds): boolean;
+
 export declare function runHasExpired(dueAt: string | number, now: number): boolean;
 
 export declare function runIsMissed(dueAt: string | number, now: number): boolean;
 
-export declare function runsExpiryBounds(window: RunsWindow): {
-    listed_after: string;
-    counted_after: string | null;
-};
+export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

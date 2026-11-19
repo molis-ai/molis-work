@@ -44,14 +44,16 @@ export class FeedSourceScheduler {
       // Far past its time (Molis Work was not running, or the computer slept): written down for the person, not pulled now; the next
       // time comes as usual (resident runtime §2.1). 「现在做」 puts the source back at the time it missed with the decision kept on that
       // row, so that slot is pulled whenever the next tick comes, however late, and is never written down a second time.
-      if (runIsMissed(schedule.next_pull_at, at.getTime())
-        && service.feed.sources.missed.get(this.projectId, missedPullRunId(source.source_id, schedule.next_pull_at))?.decision !== "run_now") {
+      // The row keeps the time as an ISO instant (a connector may set the next pull with an offset), so its seven days compare as text.
+      const due = Date.parse(schedule.next_pull_at), dueAt = Number.isFinite(due) ? new Date(due).toISOString() : schedule.next_pull_at;
+      if (runIsMissed(dueAt, at.getTime())
+        && service.feed.sources.missed.get(this.projectId, missedPullRunId(source.source_id, dueAt))?.decision !== "run_now") {
         const plannedAt = schedule.next_pull_at, guard = createFeedSourceSyncGuard(service.feed, source, authority);
         await guard();
         await this.write(service, () => {
           guard.check();
-          service.feed.sources.missed.record(this.projectId, { run_id: missedPullRunId(source.source_id, plannedAt), source_id: source.source_id,
-            title: [...source.name].slice(0, 300).join("") || source.source_id, due_at: plannedAt, missed_at: at.toISOString() });
+          service.feed.sources.missed.record(this.projectId, { run_id: missedPullRunId(source.source_id, dueAt), source_id: source.source_id,
+            title: [...source.name].slice(0, 300).join("") || source.source_id, due_at: dueAt, missed_at: at.toISOString() });
           return service.advanceSchedule(source.source_id, plannedAt, at);
         });
         result.skipped += 1;

@@ -8879,6 +8879,7 @@
       }
     },
     "workbench.runtime-panel.expired-source": "{title}: {count}",
+    "workbench.runtime-panel.assistant-source": "Assistant follow-ups",
     "workbench.runtime-panel.expired-seen": "Got it",
     "workbench.runtime-panel.run-now": "Run now",
     "workbench.runtime-panel.skip": "Skip",

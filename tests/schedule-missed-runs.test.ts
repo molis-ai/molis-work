@@ -3,7 +3,7 @@ import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
-  bindScheduleConversationJob, createScheduleConversationTask, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
+  bindScheduleConversationJob, createScheduleConversationTask, getScheduledOperation, saveScheduledOperation, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
   endExpiredOnce, noteMissedWakeup, registerConversationJob, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
 } from "@molis-ai/molis-work-plugin-schedule";
@@ -180,4 +180,43 @@ test("BL-missed-runs-never-expire the computer off across the seventh day: the f
   await h.schedule.tick();
   assert.equal(h.overview(48, told).expired, 0, "once told, the same summary is not said again");
   assert.equal(h.delivered.length, 1, "and nothing is delivered twice");
+});
+
+test("BL-missed-runs-never-expire on the seventh day a one-time operation is ended only while it is still set for the time it missed and on", async t => {
+  const h = harness(t), due = at, later = new Date(Date.parse(at) + 10 * DAY).toISOString();
+  const operation = (id: string, when: string, state: "enabled" | "paused") => {
+    saveScheduledOperation(h.db, { id, projectId, pluginId: "io.molis.work.test.ops", installationId: "installed", installationGeneration: "first", pluginTitle: "测试",
+      operationId: "tidy", operationTitle: "整理", input: {}, inbox: false, link: "/o", jobId: `job-${id}`, jobOwner: SCHEDULE_PLUGIN_ID, repeat: "none", at: when, state, detail: null });
+    h.db.prepare("INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'operation', ?, ?, ?, ?)")
+      .run(projectId, `operation:${id}:${due}`, id, id, due, new Date(Date.parse(due) + 3_600_000).toISOString());
+  };
+  operation("left", due, "enabled");
+  operation("moved", later, "enabled");
+  operation("paused", due, "paused");
+  h.clock.now = Date.parse(due) + RUN_MISSED_KEPT_MS;
+  h.reconcile();
+  assert.deepEqual([getScheduledOperation(h.db, projectId, "left")?.state, getScheduledOperation(h.db, projectId, "left")?.detail], ["completed", "错过后跳过"],
+    "left as it was: ended as 跳过 ends it");
+  assert.equal(getScheduledOperation(h.db, projectId, "moved")?.state, "enabled", "moved by the person to another time: theirs to keep");
+  assert.equal(getScheduledOperation(h.db, projectId, "paused")?.state, "paused", "paused: left for the person");
+  h.reconcile();
+  assert.equal(getScheduledOperation(h.db, projectId, "moved")?.at, later, "and every later round leaves it alone");
+  assert.equal(h.overview().expired, 3, "all three rows are still counted: nobody decided on them");
+});
+
+test("BL-missed-runs-never-expire a run Schedule writes down only after the person was last told is still counted once; Schedule keeps each ended row a month", async t => {
+  const h = harness(t);
+  h.remind("新的一次");
+  const row = (id: string, dueAt: string, missedAt: string) => h.db.prepare(
+    "INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)").run(projectId, id, id, id, dueAt, missedAt);
+  row("late", "2026-10-25T09:00:00.000Z", "2026-11-12T09:00:00.000Z");
+  row("told", "2026-10-26T09:00:00.000Z", "2026-10-26T10:00:00.000Z");
+  row("old", "2026-09-01T09:00:00.000Z", "2026-09-01T10:00:00.000Z");
+  h.clock.now = Date.parse("2026-11-12T10:00:00.000Z");
+  assert.equal(h.overview(48, "2026-11-10T09:00:00.000Z").expired, 1, "only the one written down after the summary of the 10th; the others were in it");
+  // A wakeup that writes a new row (the reminder above, three hours late) also drops what ended more than a month ago.
+  h.clock.now = Date.parse(at) + 3 * 3_600_000;
+  await h.schedule.tick();
+  assert.deepEqual(h.missedRows().map(entry => entry.run_id).filter(id => ["late", "told", "old"].includes(id)).sort(), ["late", "told"],
+    "the one that ran out in early September is gone; the October ones are kept");
 });

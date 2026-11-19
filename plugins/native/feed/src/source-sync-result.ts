@@ -1,20 +1,19 @@
 import type { FeedApplication } from "./application.js";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import type { RssFetchReceipt, SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord } from "./projection.js";
-import type { IntelligenceCollectResult } from "./source-ports.js";
 export function sourceDedupeScope(source: FeedSourceRecord): string {
   return source.kind === "rss" ? (source.definition_id ?? source.source_id) : source.source_id;
 }
 
-export function cursorForMaterials(current: unknown, materials: IntelligenceCollectResult["materials"]): unknown {
+export function cursorForMaterials(current: unknown, materials: SourcePullResult["materials"]): unknown {
   if (materials.length === 0) return current;
-  const newest = [...materials].sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))[0]!;
+  const newest = [...materials].sort((left, right) => right.captured_at.localeCompare(left.captured_at))[0]!;
   return {
     ...(current && typeof current === "object" && !Array.isArray(current) ? current : {}),
-    lastCapturedAt: newest.capturedAt,
-    ...(newest.publishedAt ? { lastPublishedAt: newest.publishedAt } : {}),
-    lastCandidateId: newest.candidateId,
+    lastCapturedAt: newest.captured_at,
+    ...(newest.published_at ? { lastPublishedAt: newest.published_at } : {}),
+    lastCandidateId: newest.candidate_id,
   };
 }
 
@@ -42,13 +41,13 @@ export function safeRssReceipt(receipt: RssFetchReceipt): Record<string, unknown
   };
 }
 
-export function terminalErrorCode(result: IntelligenceCollectResult): string | null {
+export function terminalErrorCode(result: SourcePullResult): string | null {
   if (!["failed", "cancelled", "reconciliation_required"].includes(result.outcome)) return null;
   const receiptCode = result.receipts
-    .map((receipt) => "errorCode" in receipt ? receipt.errorCode : undefined)
+    .map((receipt) => receipt && typeof receipt === "object" && "errorCode" in receipt ? receipt.errorCode : undefined)
     .find(isSafeCode);
   if (receiptCode) return receiptCode;
-  const stopReason = "stopReason" in result.budget ? result.budget.stopReason : undefined;
+  const stopReason = result.budget && typeof result.budget === "object" && "stopReason" in result.budget ? result.budget.stopReason : undefined;
   if (isSafeCode(stopReason)) return stopReason;
   return "feed." + (result.outcome === "failed" ? "provider_failed" : result.outcome);
 }

@@ -5,16 +5,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
+import { createTestSourcePull, completedSourcePull } from "./fixtures/source-pull.js";
 
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
 const gmailSource = (db: LocalProjectDatabase["db"], project_id = DEMO_PROJECT_ID) => createLocalFeedApplication(db).sources.upsert(accountSourceRecord("gmail", { project_id }));
 
-import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -36,55 +34,22 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       let runtimeCreated = 0;
       let executeCount = 0;
       let retained = "";
-      const runtimeFactory = (): SourcePullRuntime => {
+      const runtimeFactory = (db: typeof store.db) => {
         runtimeCreated += 1;
-        return {
-          intelligenceCollect: {
-            async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-              executeCount += 1;
-              const base = createCompletedIntentResultFixtureV1(request);
-              retained = "# Full retained article\n\nEvidence body.";
-              return {
-                ...base,
-                materials: [{
-                  id: "material:molis-work-feed-source-test",
-                  candidateId: "candidate:test-1",
-                  canonicalUrl: "https://example.com/article",
-                  title: "公开材料",
-                  sourceName: "Example",
-                  preview: "可核对摘要",
-                  contentRef: "molis-work-feed/sha256/" + "a".repeat(64),
-                  contentHash: `sha256:${"a".repeat(64)}`,
-                  contentHashProfile: "search-markdown-v1",
-                  contentType: "text/markdown",
-                  characterCount: retained.length,
-                  capturedAt: "2026-08-29T08:00:00.000Z",
-                  provenance: {
-                    operationId: request.operationId,
-                    providerId: "rss",
-                    providerVersion: "1.0.0",
-                    bindingRevision: 1,
-                    retrievedAt: "2026-08-29T08:00:00.000Z",
-                    matchedLaneIds: ["intent:exact"],
-                    rankProfile: "feed-v1",
-                    transportProfileFingerprint: `sha256:${"b".repeat(64)}`,
-                  },
-                  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
-                  truncated: false,
-                  availability: "available",
-                }],
-              } as IntelligenceCollectResult;
-            },
-            async shutdown() {},
-          },
-          content: {
-            write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
-            read() { return retained; },
-            has() { return true; },
-            inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
-          },
-          async shutdown() {},
-        };
+        const client = createTestSourcePull({ db });
+        return { ...client, async pull(request, options) {
+          executeCount += 1;
+          retained = "# Full retained article\n\nEvidence body.";
+          return completedSourcePull(client, request, options, [{
+            id: "material:molis-work-feed-source-test", candidate_id: "candidate:test-1", canonical_url: "https://example.com/article",
+            title: "公开材料", source_name: "Example", preview: "可核对摘要", content_ref: "molis-work-feed/sha256/" + "a".repeat(64),
+            content_hash: `sha256:${"a".repeat(64)}`, content_type: "text/markdown", character_count: retained.length,
+            captured_at: "2026-08-29T08:00:00.000Z", content_available: true,
+            provenance: { operationId: request.operation_id, providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
+              retrievedAt: "2026-08-29T08:00:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
+              transportProfileFingerprint: `sha256:${"b".repeat(64)}` },
+          }]);
+        } } satisfies typeof client;
       };
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
       const definition = listTestFeedSourceCatalog()[0]!;
@@ -157,15 +122,13 @@ test("public Feed interruption preserves current owner failures and an uncoded r
   const store = new LocalProjectDatabase(databasePath);
   try {
     let failure: unknown = Object.assign(new Error("Source needs authorization"), { code: "connector.needs_auth" });
-    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
-      intelligenceCollect: { async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => {
+      const client = createTestSourcePull({ db });
+      return { ...client, async pull(request, options) {
         if (failure) throw failure;
-        return createCompletedIntentResultFixtureV1(request);
-      }, async shutdown() {} },
-      content: { write() { throw new Error("this empty result writes no content"); }, read() { return ""; }, has() { return false; },
-        inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; }, delete() { return false; },
-        collect() { return { deleted: [], kept: [] }; } }, async shutdown() {},
-    }));
+        return completedSourcePull(client, request, options);
+      } };
+    });
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     for (const [error, expected, operation] of [
       [failure, "connector.needs_auth", "owner-code-1"],
@@ -256,10 +219,9 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
     try {
       const seenHeaders: Headers[] = [];
       let fetchCount = 0;
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) =>
-        createSourcePullRuntime({
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db =>
+        createTestSourcePull({
           db,
-          sourceCursor: source?.cursor,
           async fetch(_input, init) {
             fetchCount += 1;
             const headers = new Headers(init?.headers);
@@ -334,22 +296,13 @@ test("RSS transient failures preserve history and become actionable only after t
     const store = new LocalProjectDatabase(databasePath);
     try {
       let recover = false;
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
-        intelligenceCollect: {
-          async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-            if (!recover) throw Object.assign(new Error("temporary provider failure"), { code: "feed_unavailable" });
-            return createCompletedIntentResultFixtureV1(request) as IntelligenceCollectResult;
-          },
-          async shutdown() {},
-        },
-        content: {
-          write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
-          read() { return ""; },
-          has() { return true; },
-          inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; },
-        },
-        async shutdown() {},
-      }));
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => {
+        const client = createTestSourcePull({ db });
+        return { ...client, async pull(request, options) {
+          if (!recover) throw Object.assign(new Error("temporary provider failure"), { code: "feed_unavailable" });
+          return completedSourcePull(client, request, options);
+        } };
+      });
       const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         await assert.rejects(
@@ -389,36 +342,14 @@ test("RSS parse failures immediately create a configuration recovery reference",
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
-        intelligenceCollect: {
-          async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-            const base = createCompletedIntentResultFixtureV1(request);
-            return {
-              ...base,
-              outcome: "failed",
-              requirementMet: false,
-              materials: [],
-              receipts: [{
-                kind: "lane",
-                laneId: "exact-1",
-                state: "failed",
-                itemCount: 0,
-                errorCode: "feed_parse_failed",
-              }],
-              warnings: ["feed_parse_failed"],
-              budget: { ...base.budget, stopReason: "internal_failure" },
-            } as IntelligenceCollectResult;
-          },
-          async shutdown() {},
-        },
-        content: {
-          write() { return { contentRef: "molis-work-feed/sha256/" + "a".repeat(64) }; },
-          read() { return ""; },
-          has() { return true; },
-          inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; },
-        },
-        async shutdown() {},
-      }));
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => {
+        const client = createTestSourcePull({ db });
+        return { ...client, async pull(request, options) {
+          return { ...(await completedSourcePull(client, request, options)), outcome: "failed", requirement_met: false,
+            receipts: [{ kind: "lane", laneId: "exact-1", state: "failed", itemCount: 0, errorCode: "feed_parse_failed" }],
+            warnings: ["feed_parse_failed"], budget: { stopReason: "internal_failure" } };
+        } };
+      });
       const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const result = await service.sync(source.source_id, { idempotencyKey: "rss-parse-fault-0001" });
       assert.equal(result.run.error_code, "feed_parse_failed");

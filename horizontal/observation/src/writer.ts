@@ -158,7 +158,8 @@ export class ObservationWriter {
     tally.truncated += resolved.truncated + (record.cut ? 1 : 0); tally.redacted += resolved.redacted; tally.by_rule += resolved.by_rule;
     tallies.set(keyId(record.coverage), tally);
     if (resolved.unavailable) this.gaps.push({ key: record.coverage, state: "unavailable", reason: "evidence_key", started: now, ended: now, count: resolved.unavailable });
-    if (record.coalesce_key) {
+    // Missing content has no equality proof: two unknown reads must remain independent metadata records.
+    if (record.coalesce_key && resolved.digests.length === record.evidence.length) {
       const fold = createHash("sha256").update(record.coalesce_key).update(resolved.digests.join(",")).digest("hex");
       const at = Date.parse(record.row.occurred_at), held = this.folds.get(fold);
       if (held && at - held.at <= COALESCE_MS) {

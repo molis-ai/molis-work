@@ -1,4 +1,3 @@
-import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { buildEnvironmentChecklistHtml, buildRoundMaterialsHtml, environmentAttention, roundMaterialCount } from "../../recovery-parts.js";
 import { el } from "../dom.js";
@@ -37,7 +36,7 @@ function card(fold: HTMLElement, className: string, mark: "codingEnvChecklist" |
     // The environment comes before the materials, as the round met them.
     if (mark === "codingEnvChecklist") fold.querySelector(":scope > summary")!.after(box); else fold.append(box);
   }
-  if (box.dataset.html !== html) { box.dataset.html = html; setContentHtml(box, html); }
+  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
 }
 
 function draw(fold: HTMLDetailsElement, line: string, attention: number, open: boolean, env: string, materials: string) {
@@ -54,14 +53,18 @@ function draw(fold: HTMLDetailsElement, line: string, attention: number, open: b
 
 const workspaceName = (readiness: NonNullable<Readiness>) => readiness.canonical_path?.split("/").filter(Boolean).at(-1) ?? "";
 
+/** What the line says when the environment asks for something: the inspection could not be finished, or how many rows wait. */
+const asks = (readiness: NonNullable<Readiness>, attention: number) =>
+  readiness.status === "unavailable" ? uiText.text("coding.env.unavailable") : uiText.text("coding.env.status.attention", { count: attention });
+
 /** The welcome of a session with no round yet: the environment the first round would start in. */
 export function drawWelcomePrep(page: Page, readiness: Readiness, matches: boolean): void {
   const { turns } = page, html = matches ? buildEnvironmentChecklistHtml(readiness) : "";
   if (!html || !readiness) { turns.querySelector(":scope > [data-coding-prep]")?.remove(); return; }
   const fold = foldOf(turns), attention = environmentAttention(readiness);
   if (!fold.isConnected) turns.append(fold);
-  const line = attention > 0
-    ? uiText.text("coding.env.title") + " · " + uiText.text("coding.env.status.attention", { count: attention })
+  const line = readiness.status === "unavailable" || attention > 0
+    ? uiText.text("coding.env.title") + " · " + asks(readiness, attention)
     : [uiText.text("coding.prep.env-ready"), workspaceName(readiness), readiness.deps_installed ? uiText.text("coding.prep.deps-ready") : ""].filter(Boolean).join(" · ");
   draw(fold, line, attention, false, html, "");
 }
@@ -84,16 +87,28 @@ export function runPrep(page: Page, block: HTMLElement, run: RunView, last: bool
   const env = shown ? buildEnvironmentChecklistHtml(shown) : "", materials = buildRoundMaterialsHtml(run);
   if (!env && !materials) { block.querySelector(":scope > [data-coding-prep]")?.remove(); return null; }
   const fold = foldOf(block), attention = env && shown ? environmentAttention(shown) : 0, count = roundMaterialCount(run);
-  const parts = [...(env ? [uiText.text(shown?.is_git_repo ? "coding.prep.repo" : "coding.prep.folder"), ...(shown?.deps_manager ? [uiText.text("coding.prep.deps")] : [])] : []), ...(count ? [uiText.text("coding.prep.materials", { count })] : [])];
-  const line = uiText.text("coding.prep.title") + " · " + (attention > 0 ? uiText.text("coding.env.status.attention", { count: attention }) : parts.join(uiText.text("common.list.separator")));
+  const facts = shown && shown.status !== "unavailable" ? shown : null;
+  const parts = [...(env ? [uiText.text(facts?.is_git_repo ? "coding.prep.repo" : "coding.prep.folder"), ...(facts?.deps_manager ? [uiText.text("coding.prep.deps")] : [])] : []), ...(count ? [uiText.text("coding.prep.materials", { count })] : [])];
+  const line = uiText.text("coding.prep.title") + " · " + (shown && attention > 0 ? asks(shown, attention) : parts.join(uiText.text("common.list.separator")));
   const answered = terminal(run.phase) || (run.turns ?? []).some(turn => turn.kind === "assistant" && turn.text.trim() !== "");
   draw(fold, line, attention, !answered, env, materials);
   return fold;
 }
 
-/** The environment was read again: the newest round's fold says what it says now, where it already stands. */
+/**
+ * The environment was read again. The newest round's fold says what it says now, and is made right under the task when the
+ * round had nothing to fold until this read; a round that is no longer the newest gives the environment up (it is the
+ * session's environment now, not that round's).
+ */
 export function refreshRunPrep(page: Page): void {
-  const { s, turns } = page, run = s.lastRun;
-  const block = run && [...turns.querySelectorAll<HTMLElement>(":scope > [data-run]")].find(node => node.dataset.run === run.ref.run_id);
-  if (run && block?.querySelector(":scope > [data-coding-prep]")) runPrep(page, block, run, true);
+  const { s, turns } = page, newest = s.lastRun?.ref.run_id;
+  for (const block of turns.querySelectorAll<HTMLElement>(":scope > [data-run]")) {
+    const last = block.dataset.run === newest, had = block.querySelector(":scope > [data-coding-prep]");
+    if (!last && !had?.querySelector(":scope > [data-coding-env-checklist]")) continue;
+    const run = last ? s.lastRun : s.allRuns.find(one => one.ref.run_id === block.dataset.run);
+    const fold = run ? runPrep(page, block, run, last) : null;
+    if (!fold || had) continue;
+    const task = block.querySelector(":scope > [data-kind=user]");
+    if (task) task.after(fold); else block.prepend(fold);
+  }
 }

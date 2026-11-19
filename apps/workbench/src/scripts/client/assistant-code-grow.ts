@@ -46,9 +46,9 @@ declare function requestAnimationFrame(step: () => void): number;
 /**
  * The figure's fold button, `molisStreamText`'s `grow` for it, and `paint` for a large block. Injected into the page with
  * `toString()`, so it stays self-contained. A block past a slice comes as its text and a map of its pieces (`data-paint`,
- * from the Host's `assistantPaintMap`): its text shows at once and is coloured a slice of pieces a frame, the first where it
- * is bound, a later one only while it is in the page, so no frame builds the nodes of the whole block (about a millisecond
- * per thousand characters). A block that grows keeps the coloured pieces that did not change and goes on from there.
+ * from the Host's `assistantPaintMap`): its text shows at once, with a frame for its first layout before colouring starts.
+ * Later frames each colour a slice while the block is in the page. A block that grows keeps the coloured pieces that did
+ * not change and goes on from there.
  */
 export function createAssistantCodeGrow(readText: (key: string, values?: Record<string, string | number>) => string) {
   type Mark = [string, number];
@@ -89,7 +89,9 @@ export function createAssistantCodeGrow(readText: (key: string, values?: Record<
     if (code.lastChild?.nodeName === "BR") code.lastChild.remove();
     code.append(job.rest);
     if (/[\r\n]$/.test(text)) code.append(document.createElement("br"));
-    jobs.set(code, job); step(code, job, true);
+    jobs.set(code, job);
+    if (from === figure) requestAnimationFrame(() => requestAnimationFrame(() => step(code, job)));
+    else step(code, job, true);
   };
   // Folding is the person's once they used it: a block still being written does not fold again past them.
   const bindMore = (figure: GrowElement) => figure.querySelector(".assistant-code-more")?.addEventListener("click", (event) => {

@@ -704,6 +704,7 @@ export interface ActionResultView {
     readonly link?: {
         readonly label: string;
         readonly href_template: string;
+        readonly home_href_template?: string;
     };
     readonly pending_connection?: {
         readonly authorization_pointer: string;

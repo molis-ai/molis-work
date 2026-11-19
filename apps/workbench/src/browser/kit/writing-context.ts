@@ -9,13 +9,22 @@ import type { View } from "./view.js";
 // What the parts of the Skill drafts on the 「能力包」 page share (batch 42): the page they draw on, which Skills are the person's,
 // and what is kept between draws. writing.ts builds it once; draft-editing.ts, draft-turns.ts and skill-actions.ts work on it.
 
-export type WritingFocus = "au" | "au-error" | "au-failure" | "au-applies" | "au-scope" | "sk-title" | "sk-ask" | "sk-replay" | "sk-confirm" | "sk-case" | "sk-side" | "sk-tab";
+export type WritingFocus = "au" | "au-error" | "au-failure" | "au-applies" | "au-scope" | "sk-title" | "sk-ask" | "sk-replay" | "sk-confirm" | "sk-case" | "sk-side" | "sk-tab" | "sk-conflict";
 export type SkillEntry = Extract<KitEntry, { kind: "skill" }>;
 export type FieldName = Exclude<keyof Fields, "applies_to">;
+
+/** The settings shell owns the loaded page's address and the lifetime of its cached editor. */
+export interface KitSettingsPage {
+  address(): URL;
+  replace(next: URL, options?: { history: "replace" }): void;
+  retain(lifetime: { beforeReplace(): Promise<boolean>; dispose(): void }): void;
+}
 
 export interface WritingPage {
   root: HTMLElement;
   project: string;
+  address: Pick<KitSettingsPage, "address" | "replace">;
+  active(): boolean;
   view: View;
   kit(): Kit | undefined;
   load(): Promise<void>;
@@ -51,7 +60,7 @@ export function writingContext(page: WritingPage): WritingContext {
   const skills = () => (page.kit()?.catalog.entries ?? []).flatMap(entry => entry.kind === "skill" ? [entry] : []);
   const ownSkills = (scope: SkillScope) => skills().filter(entry => isMine(entry.skill) && entry.skill.pack.scope === scope);
   const context: WritingContext = {
-    root, project, view: page.view, kit: () => page.kit(), load: () => page.load(), draw: focus => page.draw(focus), say: (text, tone, next) => page.say(text, tone, next), show: entry => page.show(entry),
+    root, project, address: page.address, active: page.active, view: page.view, kit: () => page.kit(), load: () => page.load(), draw: focus => page.draw(focus), say: (text, tone, next) => page.say(text, tone, next), show: entry => page.show(entry),
     limits: JSON.parse(root.dataset.skillLimits ?? "{}") as SkillWritingLimits, pageScope: project ? "project" : "home",
     isMine, skills, ownSkills,
     skillOf: key => { const entry = key ? page.kit()?.byKey.get(key) : undefined; return entry?.kind === "skill" ? entry : undefined; },

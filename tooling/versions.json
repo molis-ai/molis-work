@@ -1115,7 +1115,7 @@
     "action.workflows.update": 1,
     "action.workflows.usages": 1,
     "artifact.io.molis.work.dataset.table": 1,
-    "artifact.io.molis.work.document": 1,
+    "artifact.io.molis.work.document": 2,
     "artifact.io.molis.work.form.questionnaire": 1,
     "artifact.io.molis.work.pages.document": 1,
     "artifact.io.molis.work.ppt.deck": 1,
@@ -1251,7 +1251,6 @@
     "format.cursor.github.notifications": 1,
     "format.feed.capture": 1,
     "format.feed.portable": 1,
-    "format.git.drafts": 1,
     "format.gmail.gmail_live_cursor": 1,
     "format.home.installation": 1,
     "format.home.onboarding": 1,
@@ -1353,8 +1352,6 @@
     "plugin.integration-github": "1.5.0",
     "plugin.integration-gmail": "1.3.0",
     "plugin.integration-rss": "1.0.0",
-    "plugin.integration-web-query": "1.0.0",
-    "plugin.integration-youtube": "1.0.0",
     "policy.github.direct-attention": 1,
     "policy.gmail.attention": 1,
     "policy.memory.config": 1,
@@ -1533,8 +1530,6 @@
     "type.connector.driver.github": 1,
     "type.connector.driver.gmail": 1,
     "type.connector.driver.rss": 1,
-    "type.connector.driver.web-query": 1,
-    "type.connector.driver.youtube": 1,
     "type.connector.host": 1,
     "type.diff.changeset": 1,
     "type.discovery.brainstorm": 1,
@@ -1640,8 +1635,6 @@
     "type.signal.adapter.github": 1,
     "type.signal.adapter.gmail": 1,
     "type.signal.adapter.rss": 1,
-    "type.signal.adapter.web-query": 1,
-    "type.signal.adapter.youtube": 1,
     "type.signals.command": 1,
     "type.workspace.ref": 1,
     "action.work-brief.briefs.list": 1,
@@ -1895,86 +1888,6 @@
     },
     {
       "file": "plugins/official-integrations/rss/manifest.json",
-      "key": "type.signals.command",
-      "pattern": "(\"signals\\.command\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "plugin.integration-web-query",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "manifest.schema",
-      "pattern": "(^  \"schema_version\": )\\d+(,?)"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "host.api",
-      "pattern": "(^  \"host_api_version\": )\\d+(,?)"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "type.connector.driver.web-query",
-      "pattern": "(\"connector\\.driver\\.web-query\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "type.signal.adapter.web-query",
-      "pattern": "(\"signal\\.adapter\\.web-query\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "type.connector.host",
-      "pattern": "(\"connector\\.host\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "type.listener.host",
-      "pattern": "(\"listener\\.host\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/web-query/manifest.json",
-      "key": "type.signals.command",
-      "pattern": "(\"signals\\.command\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "plugin.integration-youtube",
-      "pattern": "(^  \"version\": \")[^\"]+(\",?)"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "manifest.schema",
-      "pattern": "(^  \"schema_version\": )\\d+(,?)"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "host.api",
-      "pattern": "(^  \"host_api_version\": )\\d+(,?)"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "type.connector.driver.youtube",
-      "pattern": "(\"connector\\.driver\\.youtube\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "type.signal.adapter.youtube",
-      "pattern": "(\"signal\\.adapter\\.youtube\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "type.connector.host",
-      "pattern": "(\"connector\\.host\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
-      "key": "type.listener.host",
-      "pattern": "(\"listener\\.host\\.v?)\\d+(\"[,\\]\\s])"
-    },
-    {
-      "file": "plugins/official-integrations/youtube/manifest.json",
       "key": "type.signals.command",
       "pattern": "(\"signals\\.command\\.v?)\\d+(\"[,\\]\\s])"
     },

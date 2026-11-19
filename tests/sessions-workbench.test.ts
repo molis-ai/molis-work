@@ -10,6 +10,7 @@ import type {
   ExternalSessionListOutput,
   ExternalSessionProjectAiReadSetOutput,
   ExternalSessionScopeView,
+  ExternalSessionAttributionSuggestOutput,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import type { SessionToolMetaEntry } from "@molis-ai/molis-work-app-local-host";
 import type { SessionsListReadiness } from "@molis-ai/molis-work-service-sessions";
@@ -17,6 +18,52 @@ import { openTestHome } from "./fixtures/test-home.js";
 
 type ScopeHttpView = ExternalSessionScopeView & { readonly tool_meta: readonly SessionToolMetaEntry[] };
 type DirectoriesHttpView = ProjectDirectories & { readonly page: ProjectDirectoryPage & { readonly tool_brought_ids?: readonly string[] } };
+
+test("QEA-29: real HTTP scope withdrawal during Host model preparation refuses dispatch, persists nothing and recovers", { timeout: 60_000 }, async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "sessions-dispatch-scope-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const userHome = path.join(root, "user"), source = path.join(userHome, ".claude", "projects", "fixture");
+  await mkdir(source, { recursive: true });
+  await writeFile(path.join(source, "withdrawn.jsonl"), `${JSON.stringify({ sessionId: "withdrawn", timestamp: "2026-11-10T10:00:00Z",
+    message: { role: "user", content: "Do not dispatch this after withdrawal" } })}\n`);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  t.signal.addEventListener("abort", () => release.resolve(), { once: true });
+  let dispatched = 0;
+  const home = await openTestHome(t, { host: { sessions: { homeRoot: userHome, env: {}, textGeneration: () => async (_prompt, request) => {
+    entered.resolve(); await release.promise;
+    assert.ok(request?.beforeDispatch, "the production suggester carries the owner fence to the dispatch boundary");
+    await request.beforeDispatch();
+    dispatched++;
+    return { value: "{}", structured: { items: [{ group: 0, project: 0, alternatives: [], reason: "Fixture match", evidence: [] }] },
+      run_ref: { kind: "run", id: "fixture", revision: 1 } as never, state: "completed", configuredModel: "fixture", reportedModels: [], usage: [], validateResult() {} };
+  } } } });
+  await home.createProject("Suggestion candidate");
+  try {
+    const first = await home.web.get<ScopeHttpView>("/api/sessions/scope");
+    const enabled = await home.web.post<ScopeHttpView>("/api/sessions/scope", { expected_revision: first.scope_revision,
+      sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] });
+    await home.host.sessions!.service.waitForDiscoveryIdle();
+    const key = (await home.web.get<ExternalSessionListOutput>("/api/sessions/list?view=unfiled")).sessions[0]!.session_key;
+    const pending = home.web.post<ExternalSessionAttributionSuggestOutput>("/api/sessions/suggest", { session_keys: [key] });
+    const outcome = pending.then(value => ({ value, error: null }), error => ({ value: null, error }));
+    await Promise.race([entered.promise, outcome.then(() => { throw new Error("Host preparation was not reached"); })]);
+    const disabled = await home.web.post<ScopeHttpView>("/api/sessions/scope", { expected_revision: enabled.scope_revision,
+      sources: [{ entry_id: "claude-code", allowed: false, directories: { mode: "all" } }] });
+    release.resolve();
+    const result = await outcome;
+    assert.equal(dispatched, 0, "withdrawal wins before the model transport sends");
+    assert.equal(result.error?.code, "sessions.scope_changed");
+    await home.web.post("/api/sessions/scope", { expected_revision: disabled.scope_revision,
+      sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] });
+    await home.host.sessions!.service.waitForDiscoveryIdle();
+    const restored = (await home.web.get<ExternalSessionListOutput>("/api/sessions/list?view=unfiled")).sessions[0]!;
+    assert.equal(restored.attribution.state, "unfiled");
+    if (restored.attribution.state === "unfiled") assert.equal(restored.attribution.suggestion, null);
+    const recovered = await home.web.post<ExternalSessionAttributionSuggestOutput>("/api/sessions/suggest", { session_keys: [key] });
+    assert.equal(recovered.suggestions[0]?.suggestion.status, "ready");
+    assert.equal(dispatched, 1);
+  } finally { release.resolve(); }
+});
 
 // SRB-01..SRB-16: Workbench HTTP surface for `system.sessions`, readiness projection, 50-row tool_meta grouping,
 // cross-project AI read permits, and Project Settings tool-brought directory distinction & promotion.
@@ -106,6 +153,7 @@ test("SRB-01 SRB-07 SRB-12: /api/sessions/scope projects 50-tool groups, readine
     `/projects/${alpha.project_id}/api/sessions/history?session_key=${encodeURIComponent(alphaKey)}&query=contrast`,
   );
   assert.equal(hist.read_state, "complete");
+  assert.deepEqual(hist.session, projList.sessions[0], "QEA-30: history returns the authorized person metadata without listing pages");
   assert.equal(hist.entries.length, 2);
   assert.equal(hist.matches.length, 2);
 

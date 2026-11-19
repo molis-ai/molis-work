@@ -157,10 +157,18 @@ export function bindSkillRedo(page: Page) {
   });
 }
 
-function handleEnvAction(page: Page, target: HTMLButtonElement) {
+async function handleEnvAction(page: Page, target: HTMLButtonElement) {
   const kind = target.dataset.codingEnvAction;
+  if (kind === "retry") {
+    target.disabled = true;
+    try { await refreshState(page); } finally { target.disabled = false; }
+    return;
+  }
   if (kind === "open-files") {
-    page.directory.querySelector<HTMLButtonElement>("[data-coding-face=files]")?.click();
+    const files = page.q<HTMLButtonElement>("[data-coding-face=files]");
+    if (!files.checkVisibility()) page.root.dataset.codingDetail = "false";
+    files.click();
+    files.focus({ preventScroll: true });
     return;
   }
   if (kind === "open-workspace") {

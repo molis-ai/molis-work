@@ -121,7 +121,7 @@ function orphaned(home: string): Record<string, number> {
 }
 const nothing = (left: Record<string, number>) => Object.fromEntries(Object.keys(left).map(key => [key, 0]));
 
-test("RAC-2648 project deletion revokes all Home installation consents through their owner, and absence does not create a Runtime library", async () => {
+test("QEA-146 RAC-2648 project deletion revokes all Home installation consents through their owner, including known subjects with damaged approval details", async () => {
   await withHome(async ({ home, catalog, gone, kept }) => {
     const file = homeSqlitePath(home, "plugin-runtime"); assert.equal(existsSync(file), false);
     const owner = projectDeletedHooksFor(home).owners().find(item => item.id === "plugin-project-reach")!;
@@ -130,11 +130,32 @@ test("RAC-2648 project deletion revokes all Home installation consents through t
     const grant = (project_id: string, install_id: string) => ledger.grantProjectReach({ plugin_id: "io.molis.work.example." + install_id, publisher_signature: "publisher", manifest_digest: "digest",
       project_id, install_id, approved_capability_ids: ["goals.state"], at: "then" });
     const a = grant(gone, "first"), second = grant(gone, "second"), b = grant(kept, "first");
-    const result = await catalog.deleteProject(deletion(gone));
-    assert.equal(result.deletion.owner_steps.find(item => item.owner_id === owner.id)?.state, "complete");
-    assert.ok(ledger.consent(a.consent_id)!.revoked_at); assert.ok(ledger.consent(second.consent_id)!.revoked_at);
-    assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
-    const history = ledger.consents(a.plugin_id); await owner.clear(gone); assert.deepEqual(ledger.consents(a.plugin_id), history);
+    const damaged = grant(gone, "damaged"), neighbour = grant(kept, "neighbour");
+    const db = openTestSqlite(file);
+    try {
+      const update = db.prepare("UPDATE plugin_consents SET approved_capability_ids = ? WHERE consent_id = ?");
+      const invalidIds = "[7]";
+      update.run(invalidIds, damaged.consent_id);
+      update.run(invalidIds, neighbour.consent_id);
+      assert.throws(() => ledger.consent(neighbour.consent_id), /项目同意的动作集合/u);
+      const read = db.prepare("SELECT approved_capability_ids, revoked_at FROM plugin_consents WHERE consent_id = ?");
+      const stored = (id: string) => read.get(id) as { approved_capability_ids: string; revoked_at: string | null };
+
+      const result = await catalog.deleteProject(deletion(gone));
+      assert.equal(result.deletion.cleanup_state, "complete");
+      assert.equal(result.deletion.owner_steps.find(item => item.owner_id === owner.id)?.state, "complete");
+      assert.ok(ledger.consent(a.consent_id)!.revoked_at); assert.ok(ledger.consent(second.consent_id)!.revoked_at);
+      assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
+      const revoked = stored(damaged.consent_id);
+      assert.ok(revoked.revoked_at);
+      assert.equal(revoked.approved_capability_ids, invalidIds);
+      assert.equal(stored(neighbour.consent_id).revoked_at, null);
+      assert.equal(stored(neighbour.consent_id).approved_capability_ids, invalidIds);
+      const history = ledger.consents(a.plugin_id);
+      await owner.clear(gone);
+      assert.deepEqual(ledger.consents(a.plugin_id), history);
+      assert.deepEqual(stored(damaged.consent_id), revoked);
+    } finally { db.close(); }
   });
 });
 

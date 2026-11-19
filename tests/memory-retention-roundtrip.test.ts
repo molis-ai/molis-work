@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
@@ -109,6 +110,119 @@ test("expiry while current authority waits produces no new formal write", async 
   await entered; t.mock.timers.setTime(START + 15 * DAY); release();
   await assert.rejects(accept); f.beforeProject();
   assert.deepEqual(await f.raw().list("project", "project-a"), []);
+});
+
+for (const [days, elapsed] of [[1, 1], [14, 14], [14, 15]] as const) {
+  test(`QEA-51 · a ${days}-day candidate at day ${elapsed} is unavailable without a query writing SDK or ledger`, async t => {
+    const f = await fixture(t), expires = new Date(START + days * DAY).toISOString();
+    const pending = await f.service.propose(caller("proposal"), proposal("Use a temporary afternoon schedule"), { formal_expires_at: expires });
+    const snapshot = async () => ({ canonical: await f.raw().candidates.list("project", "project-a"),
+      notes: f.ledger.candidates(LOCAL_PERSON_ACTOR_ID),
+      markers: f.ledger.listMarkers(LOCAL_PERSON_ACTOR_ID, { prefix: "memory-operation:", limit: 100 }) });
+    const before = await snapshot();
+    assert.equal(before.canonical[0]!.state, "pending");
+    assert.equal((await f.service.candidates(caller("before"), { scope: "project" }))[0]!.candidate_id, pending.candidate_id);
+    t.mock.timers.setTime(START + elapsed * DAY);
+    const read = await f.service.candidates(caller("at-deadline"), { scope: "project" });
+    assert.deepEqual(await snapshot(), before, "reading cannot settle a candidate or open a write operation");
+    assert.deepEqual(read, [], "the exact deadline already ends the available decision");
+    assert.equal((await f.service.list(caller("overview"), { scope: "project" })).counts.pending, 0);
+    assert.deepEqual(await snapshot(), before, "the overview's pending count is also read-only");
+  });
+}
+
+test("QEA-51 · expired candidates release duplicate and per-work limits without requiring an earlier read or upkeep", async t => {
+  const f = await fixture(t), work = { work_id: "candidate-limits", title: "Candidate limits" };
+  const texts = ["午间散步", "周五整理账目", "周日检查花盆"];
+  for (const [index, text] of texts.entries()) await f.service.propose(caller(`proposal-${index}`, { work }), proposal(text));
+  await assert.rejects(f.service.propose(caller("fourth-before", { work }), proposal("新年出游")), { code: "memory.limit" });
+  t.mock.timers.setTime(START + 15 * DAY);
+  const repeated = await f.service.propose(caller("repeat-after", { work }), proposal(texts[0]!));
+  assert.equal(repeated.text, texts[0]);
+  await f.service.propose(caller("new-after", { work }), proposal("新年出游"));
+  const current = await f.service.candidates(caller("list"), { scope: "project" });
+  assert.equal(current.length, 2);
+  const raw = await f.raw().candidates.list("project", "project-a");
+  assert.equal(raw.length, 5);
+  assert.ok(raw.every(item => item.state === "pending" && item.version === 1), "neither proposal checks nor reads settle old candidates");
+});
+
+test("QEA-52 · upkeep settles candidate-only scopes with use disabled and does not report formal-memory changes", async t => {
+  const f = await fixture(t);
+  await f.service.propose(caller("personal"), { ...proposal("临时个人安排"), scope: "personal" });
+  await f.service.propose(caller("project"), proposal("临时项目安排"));
+  await f.service.propose(caller("character", { person: false, consumer: "assistant", character: { id: "reviewer", title: "Reviewer" } }),
+    { ...proposal("临时角色安排"), scope: "character" });
+  assert.deepEqual(f.ledger.owners("project-a"), [], "a candidate must not invent a formal owner record");
+  for (const scope of ["personal", "project"] as const) f.service.savePrefs(caller(`disable-${scope}`), scope, { enabled: false });
+  t.mock.timers.setTime(START + 15 * DAY);
+  const result = await f.service.upkeep(caller("upkeep"), { projects: ["project-a"] });
+  assert.equal(result.expired, 0, "candidate decisions are not formal memory changes");
+  const notes = f.ledger.candidates(LOCAL_PERSON_ACTOR_ID);
+  assert.equal(notes.length, 3);
+  assert.ok(notes.every(note => note.state === "expired" && note.version === 2));
+  for (const note of notes) {
+    const raw = await f.raw().candidates.get({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id });
+    assert.equal(raw.state, "expired"); assert.equal(raw.version, 2);
+  }
+  await f.reopen();
+  await f.service.upkeep(caller("next-upkeep"), { projects: ["project-a"] });
+  assert.deepEqual(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID), notes, "a new maintenance run after restart cannot settle twice");
+  assert.deepEqual(f.ledger.changes(LOCAL_PERSON_ACTOR_ID, 100), []);
+});
+
+test("QEA-52 · upkeep repairs an expired canonical candidate after ledger failure and restart without another SDK write", async t => {
+  const f = await fixture(t);
+  const pending = await f.service.propose(caller("proposal"), proposal("过期后不再提醒的安排"));
+  t.mock.timers.setTime(START + 15 * DAY);
+  const save = f.ledger.saveCandidate.bind(f.ledger);
+  const broken = t.mock.method(f.ledger, "saveCandidate", note => {
+    if (note.candidate_id === pending.candidate_id && note.state === "expired") throw new Error("fixture candidate projection failure");
+    return save(note);
+  });
+  await assert.rejects(f.service.upkeep(caller("upkeep"), { projects: ["project-a"] }), /fixture candidate projection failure/);
+  broken.mock.restore();
+  const raw = (await f.raw().candidates.list("project", "project-a"))[0]!;
+  assert.equal(raw.state, "expired"); assert.equal(raw.version, 2);
+  assert.equal(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID)[0]!.state, "pending");
+  await f.reopen();
+  assert.deepEqual(await f.service.candidates(caller("query")), []);
+  assert.equal(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID)[0]!.state, "pending", "the query does not repair a partial write");
+  await f.service.upkeep(caller("later-upkeep"), { projects: ["project-a"] });
+  assert.deepEqual((await f.raw().candidates.list("project", "project-a"))[0], raw);
+  assert.equal(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID)[0]!.state, "expired");
+  assert.equal(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID)[0]!.version, 2);
+});
+
+test("QEA-52 · a new upkeep pass resumes the reserved SDK expiry decision after an interrupted terminal write and restart", async t => {
+  const f = await fixture(t);
+  const pending = await f.service.propose(caller("proposal"), proposal("只保留到本周的候选"));
+  t.mock.timers.setTime(START + 15 * DAY);
+  let candidateWrites = 0;
+  const prepare = DatabaseSync.prototype.prepare;
+  const broken = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
+    const statement = prepare.call(this, sql);
+    if (sql === "INSERT INTO records(kind,id,envelope) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET envelope=excluded.envelope") {
+      const run = statement.run;
+      t.mock.method(statement, "run", function (this: typeof statement, ...values: Parameters<typeof run>) {
+        if (values[0] === "io.molis.work~memory-candidates" && ++candidateWrites === 2) throw new Error("fixture terminal candidate write interrupted");
+        return run.apply(this, values);
+      });
+    }
+    return statement;
+  });
+  await assert.rejects(f.service.upkeep(caller("first-upkeep"), { projects: ["project-a"] }));
+  broken.mock.restore();
+  assert.equal(candidateWrites, 2, "the first SDK decision write happened before the terminal write failed");
+  const stillPending = (await f.raw().candidates.list("project", "project-a"))[0]!;
+  assert.equal(stillPending.state, "pending"); assert.equal(stillPending.version, 1);
+  await assert.rejects(f.raw().candidates.expire({ scope: "project", owner: "project-a", candidate_id: pending.candidate_id,
+    expected_version: 1, operation_id: "a-different-decision" }), { code: "MEMORY_NOT_ACCEPTED" }, "the original SDK reservation really exists");
+  await f.reopen();
+  await f.service.upkeep(caller("new-upkeep-after-restart"), { projects: ["project-a"] });
+  const current = (await f.raw().candidates.list("project", "project-a"))[0]!;
+  assert.equal(current.state, "expired"); assert.equal(current.version, 2);
+  assert.equal(f.ledger.candidates(LOCAL_PERSON_ACTOR_ID)[0]!.version, 2);
 });
 
 test("v2 export and import retain classification, namespace, repeated basis and the absolute deadline", async t => {

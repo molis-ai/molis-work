@@ -517,3 +517,25 @@ test("invalid execution policies cannot enter the action directory", () => {
     assert.deepEqual(service.discover(context), []);
   }
 });
+
+test("QEA-90 a fixed-result scene executes without asking unrelated providers and still rejects a changed judgment", async () => {
+  const service = new ActionService(), bindings = new Map<string, ActionSceneBinding>();
+  let unrelatedReads = 0, accepted = 0, enabled = true, during: (() => void) | undefined;
+  service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment,
+    availability: () => enabled ? { available: true } : { available: false, code: "actions.forbidden", reason: "revoked" },
+    handle: () => { during?.(); return { follow_up: true }; } }] });
+  const unrelated: ActionDefinition = { ...judgment, capability_id: "unrelated.judgment" };
+  service.registerProvider({ provider: { provider_id: "unrelated", title: "Unrelated", kind: "system" }, definitions: [unrelated],
+    handlers: [{ ...unrelated, availability: () => { unrelatedReads++; return { available: true }; }, handle: () => assert.fail("not a dependency") }] });
+  service.registerProvider({ provider: { provider_id: "feedback", title: "反馈", kind: "system" }, definitions: [], handlers: [], scenes: [scene],
+    scene_handlers: [consumer(bindings, async c => { await c.beforeEffect(); accepted++; return { accepted }; })] });
+  await service.bind(context, binding);
+  unrelatedReads = 0;
+  assert.deepEqual(await service.runScene(context, scene, binding.binding_id, { text: "real input" }), { accepted: 1 });
+  assert.equal(unrelatedReads, 0, "only this fixed result's actual judgment and its dependencies have availability work");
+  during = () => { enabled = false; };
+  await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "revoked while judging" }), { code: "actions.forbidden" });
+  assert.equal(accepted, 1, "narrowing discovery does not cache authority across the judgment");
+  enabled = true; during = undefined;
+  assert.deepEqual(await service.runScene(context, scene, binding.binding_id, { text: "retry" }), { accepted: 2 });
+});

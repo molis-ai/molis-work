@@ -166,7 +166,7 @@ test("S2 W4-2-08 contextual Pages: the bar recommends another plugin's entry and
 // W4-2-08 (specs/context-program §21.10): 「拆成目标步骤」 is a proposal, so it never goes straight in and rules alone do not put it on a
 // slot of the bar (decision D-1); it waits under 「更多」 (decision D-4), where it is chosen. What it proves is the whole way from there: a
 // draft and no write, a card that refuses and runs again, and the exact proposal approved through its completion link (W4-2-13).
-for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Goals (${goalId ?? "independent"}): selection → draft → refusal → one proposal → completion link → approve persists Goals`, { timeout: 150_000 }, async t => {
+for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 QEA-163 contextual Goals (${goalId ?? "independent"}): selection → draft → refusal → one proposal → completion link → approve persists Goals`, { timeout: 150_000 }, async t => {
   const browser = await openPagesSelection(t, [paragraph(PLAN), paragraph(SECOND)], goalId, "秋季发布笔记：新手引导改版、二十位用户试用与反馈整理的完整计划");
   if (!browser) return;
   const { evaluate, waitFor, click, navigate, reloadPage, command, sessionId, origin, projectId, source, select, store } = browser;
@@ -270,13 +270,16 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
     assert.equal(after.goals.filter(goal => goal.goal_id === item.payload.goal_id && goal.title === item.payload.title).length, 1);
     assert.equal(after.relations.filter(relation => relation.from_goal_id === item.payload.goal_id && relation.to_goal_id === goalId && relation.type === "part_of" && relation.state === "active").length, goalId ? 1 : 0);
   }
+  const collectionApplied = "Number.isSafeInteger(document.querySelector('#molis-work-data')?.boardCursor)";
+  const otherOpen = `document.getElementById(${JSON.stringify(other.proposal_id)})?.open`;
   await reloadPage();
+  await waitFor(collectionApplied, 15_000);
+  assert.equal(await evaluate(otherOpen), true, "the saved proposal stays expanded after the reloaded collection is updated");
   assert.deepEqual(boardSnapshot(store, projectId!).goals, after.goals, "approved Goals survive reload without repetition");
   assert.deepEqual(boardSnapshot(store, projectId!).relations, after.relations);
-  const openBeforeMissing = await evaluate(`document.querySelector('#${other.proposal_id}').open`);
   await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/?openPlugin=goals#missing-proposal` }, sessionId));
-  await waitFor(`document.readyState === "complete" && Boolean(document.querySelector('#${other.proposal_id}'))`);
-  assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), openBeforeMissing, "a missing target preserves the existing disclosure state");
+  await waitFor(collectionApplied, 15_000);
+  assert.equal(await evaluate(otherOpen), true, "a missing target preserves the expanded proposal after the collection is updated");
   assert.deepEqual(boardSnapshot(store, projectId!).goal_tree_proposals, after.goal_tree_proposals);
 
 });

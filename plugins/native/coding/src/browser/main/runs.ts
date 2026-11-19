@@ -11,7 +11,7 @@ import type { RunView } from "./shapes.js";
 
 /** An empty session shows the welcome with its suggestions and current workspace readiness; the first round takes it away. */
 function welcome(page: Page, all: readonly RunView[]) {
-  const { input, q, root, s, turns } = page;
+  const { input, q, root, turns } = page;
   const showWelcome = !all.length && !turns.querySelector("[data-coding-saved-history]");
   turns.toggleAttribute("data-coding-welcoming", showWelcome);
   if (!showWelcome) {
@@ -23,7 +23,6 @@ function welcome(page: Page, all: readonly RunView[]) {
       const name = root.dataset.codingWorkspaceName;
       if (name) turns.querySelectorAll("[data-coding-welcome-workspace]").forEach(node => { node.textContent = name; });
     }
-    drawEnvironmentReadiness(page, s.state.environment_readiness);
   }
   turns.querySelectorAll<HTMLButtonElement>("[data-coding-prompt]").forEach(button => { button.disabled = Boolean(input.value.trim()); });
 }
@@ -61,6 +60,7 @@ export function renderRuns(page: Page, runs: readonly RunView[], all: readonly R
   renderOutcomes(page, all);
   s.lastRun = all.at(-1) || null;
   renderChanged(page);
+  drawEnvironmentReadiness(page, s.state.environment_readiness);
   renderFacts(page, all);
   renderPill(page);
   if (pinNow) s.follow.pin();

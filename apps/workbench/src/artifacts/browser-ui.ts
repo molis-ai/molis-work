@@ -1,6 +1,6 @@
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { t as uiText, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { OwnedTextRef, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { t as uiText, icon, say } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { artifactSubjectId, isImportedDocumentVersion } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactVersionPath, type ArtifactBrowserView, type ArtifactPluginInput } from "./browser-view.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
 
@@ -16,6 +16,7 @@ export interface ArtifactBrowserUiModel {
   readonly presentation?: { readonly notice?: string; readonly body_html: string; readonly source_href: string; readonly source_label: string; readonly plugin_id: string; readonly item_id: string };
   /** The name from this version's own producer (A4). */
   readonly typeTitle?: (version: ArtifactBrowserView["versions"][number]) => string | undefined;
+  readonly importedDocumentWarnings?: (version: NonNullable<ArtifactBrowserView["selected"]>) => readonly OwnedTextRef[];
   /** A language preparation reads the same controls without copying the held version's original content. */
   readonly languagePreview?: boolean;
   readonly relationship?: "input" | "output";
@@ -87,9 +88,9 @@ function directory({ view, routePrefix, primitives: p, typeTitle, languagePrevie
   return `<nav aria-label="${uiText("workbench.browser-ui.artifact-versions")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
-function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], routePrefix: string, ownerPreview = false, languagePreview = false): string {
-  if (artifact.artifact_type_id !== "io.molis.work.document" || artifact.schema_version !== /* @version artifact.io.molis.work.document */ 1
-    || artifact.availability !== "available" || artifact.content_kind !== "inline") return "";
+function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, model: ArtifactBrowserUiModel): string {
+  const { primitives: p, routePrefix, languagePreview } = model;
+  if (!isImportedDocumentVersion(artifact) || artifact.availability !== "available" || artifact.content_kind !== "inline") return "";
   const payload = artifact.payload;
   if (!payload || typeof payload !== "object" || Array.isArray(payload) || typeof payload.content !== "string") return "";
   // Every imported version can be taken back as a file; a raster image also shows here (A3, full previews in A4).
@@ -107,11 +108,13 @@ function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>,
       }
     } catch { /* Imported metadata must never become an executable link. */ }
   }
-  const warnings = Array.isArray(payload.warnings) ? payload.warnings.filter((warning): warning is string => typeof warning === "string") : [];
+  const warnings = model.importedDocumentWarnings?.(artifact) ?? [];
+  const warningRows = warnings.filter(warning => !languagePreview || "key" in warning)
+    .map(warning => `<li${"literal" in warning ? ' translate="no"' : ""}>${say(warning)}</li>`).join("");
   return `<section class="artifact-document-preview" aria-label="${uiText("workbench.browser-ui.document-body")}">
     ${sourceLink ? `<p class="artifact-document-source">${sourceLink}</p>` : ""}
-    ${warnings.length ? `<aside class="artifact-document-warnings"><h2>${uiText("workbench.browser-ui.import-notes")}</h2>${languagePreview ? "" : `<ul translate="no">${warnings.map(warning => `<li>${p.escape(warning)}</li>`).join("")}</ul>`}</aside>` : ""}
-    ${actions}${ownerPreview ? "" : `${image}${payload.content ? `<h2>${uiText("workbench.browser-ui.document-body")}</h2>${languagePreview ? "" : `<div class="artifact-document-body" translate="no">${p.escape(payload.content)}</div>`}` : ""}`}
+    ${warnings.length ? `<aside class="artifact-document-warnings"><h2>${uiText("workbench.browser-ui.import-notes")}</h2>${warningRows ? `<ul>${warningRows}</ul>` : ""}</aside>` : ""}
+    ${actions}${model.presentation ? "" : `${image}${payload.content ? `<h2>${uiText("workbench.browser-ui.document-body")}</h2>${languagePreview ? "" : `<div class="artifact-document-body" translate="no">${p.escape(payload.content)}</div>`}` : ""}`}
   </section>`;
 }
 
@@ -127,7 +130,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   const href = routePrefix + artifactVersionPath(artifact);
   const title = languagePreview ? "" : artifact.title;
   const rawJson = (value: unknown) => languagePreview ? "" : `<pre translate="no">${p.escape(JSON.stringify(value, null, 2))}</pre>`;
-  const preview = documentPreview(artifact, p, routePrefix, Boolean(model.presentation), languagePreview);
+  const preview = documentPreview(artifact, model);
   const notice = model.presentation && artifact.lifecycle_state !== "archived" ? "workbench.browser-ui.pinned-version-later-changes-original-do-not-change" : view.compatibility?.reason === "artifact_unavailable"
     ? "workbench.browser-ui.version-s-content-unavailable-its-reference-source-information"
     : view.compatibility?.reason === "artifact_archived"
@@ -211,14 +214,15 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   return `<section class="artifact-links" data-artifact-links><h2>${uiText("workbench.browser-ui.referenced")}</h2>${linked}${!linked && !referrers ? `<p>${uiText("workbench.browser-ui.nothing-refers-version-yet")}</p>` : ""}${referrers ? `<h3 class="artifact-links-heading">${uiText("workbench.browser-ui.page")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }
 
-function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
+function renderArtifactFrameBlock(model: ArtifactBrowserUiModel): string {
+  const { view, primitives: p } = model;
   const artifact = view.selected;
   if (!artifact) {
     return `<article class="frame-reading" data-frame-reading="artifact"><p>${uiText(view.requested ? "workbench.browser-ui.artifact-version-not-found" : view.versions.length ? "workbench.browser-ui.choose-result-version" : "workbench.browser-ui.no-project-results-yet")}</p></article>`;
   }
   return `<article class="frame-reading" data-frame-reading="artifact" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     <p class="frame-reading-meta">v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</p>
-    ${documentPreview(artifact, p, routePrefix)}
+    ${documentPreview(artifact, { ...model, presentation: undefined })}
     <div class="artifact-facts">
       <p>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version} · ${p.escape(artifact.producer_plugin_id)} ${p.escape(artifact.producer_plugin_version)} · ${p.escape(p.formatDate(artifact.created_at))}</p>
     </div>

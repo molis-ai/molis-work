@@ -18,6 +18,8 @@ export function createEditorPopup(options: PagesEditorMountOptions) {
 
   let view!: EditorView;
   const state = { token: null as string | null, request: 0, docked: false };
+  let placement: { anchor: FloatingAnchor; mode: "above" | "below" } | undefined;
+  const reflow = () => { if (!pop.hidden && !state.docked && placement) placeOverlay(pop, placement.anchor, placement.mode); };
   const backToStage = () => {
     const stage = overlayRoot();
     if (pop.parentElement !== stage) stage.append(pop);
@@ -27,6 +29,7 @@ export function createEditorPopup(options: PagesEditorMountOptions) {
     pop.hidden = true;
     pop.replaceChildren();
     state.request += 1;
+    placement = undefined;
     if (state.token) { releasePagesFrozen(view, state.token); state.token = null; }
     if (state.docked) { state.docked = false; pop.classList.remove("is-docked"); if (!fromPanel) options.openPanel?.({ node: null }); }
     backToStage();
@@ -37,7 +40,8 @@ export function createEditorPopup(options: PagesEditorMountOptions) {
   const showPop = () => {
     hidePop();
     let fromPanel = false;
-    const stop = ownPagesTransient(view, () => clearPop(fromPanel));
+    window.addEventListener("resize", reflow);
+    const stop = ownPagesTransient(view, () => { window.removeEventListener("resize", reflow); clearPop(fromPanel); });
     end = (panel = false) => { fromPanel = panel; stop(); };
     pop.hidden = false;
   };
@@ -50,7 +54,8 @@ export function createEditorPopup(options: PagesEditorMountOptions) {
     pop.hidden = false;
     state.docked = Boolean(options.openPanel?.({ node: pop, label, keep, onClose: () => hidePop(true) }));
     pop.classList.toggle("is-docked", state.docked);
-    if (!state.docked) placeOverlay(pop, anchor, mode);
+    placement = { anchor, mode };
+    reflow();
   };
   // A form that belongs to a block, not to a selection, takes the popup back to the stage.
   const reclaimPop = () => {

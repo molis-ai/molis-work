@@ -74,6 +74,7 @@ export function listen(page: TodoPage): void {
   el.bench.addEventListener("molis-work:select-item", (event) => {
     const id = (event as CustomEvent<{ itemId?: unknown }>).detail?.itemId;
     if (!id) return;
+    event.preventDefault();
     const name = String(id);
     if (name.startsWith("batch:")) {
       void page.closeDetail().then(() => { state.focusBatch = name.slice(6); state.view = "review"; return page.load(); }, () => undefined).catch((error: Error) => page.showNote(error.message, { error: true }));

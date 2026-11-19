@@ -5,12 +5,14 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import {
   renderCodingRoundMaterials,
+  renderAlert,
   renderEnvChecklist,
   type MwCodingRoundMaterialItem,
   type MwEnvCheckRowOptions,
   t as uiText,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { insertedAcceptance } from "./inserted-step.js";
+import type { CodingEnvironmentFacts, CodingEnvironmentReadiness } from "./environment-state.js";
 
 export type CodingBoardProgressSummary = AgentStepProgressSummary;
 
@@ -45,27 +47,7 @@ export interface CodingPlanLookup {
   };
 }
 
-export interface CodingEnvironmentReadinessInput {
-  readonly workspace_id: string;
-  readonly canonical_path?: string;
-  readonly status: "ready" | "attention";
-  readonly branch: string | null;
-  readonly head_commit: string | null;
-  readonly dirty_count: number;
-  readonly git_conflicted_count: number;
-  readonly git_merging: boolean;
-  readonly is_git_repo: boolean;
-  readonly deps_manager: string | null;
-  readonly deps_installed: boolean;
-  readonly script_names: readonly string[];
-  readonly ports: readonly number[];
-  readonly package_json_invalid?: boolean;
-  readonly env_template: string | null;
-  readonly env_keys: readonly string[];
-  readonly has_local_env: boolean;
-  readonly worktrees: { readonly active: number; readonly problem_count: number; readonly cleanup_count: number };
-  readonly checked_at: string;
-}
+export type CodingEnvironmentReadinessInput = CodingEnvironmentReadiness;
 
 export interface CodingRoundMaterialsRunInput {
   readonly frozen?: {
@@ -205,7 +187,7 @@ export function formatBoardProgressSummary(
   ].filter(Boolean).join(" · ");
 }
 
-function gitReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheckRowOptions {
+function gitReadinessRow(readiness: CodingEnvironmentFacts): MwEnvCheckRowOptions {
   const label = uiText.text("coding.env.row.git");
   const branch = readiness.branch || uiText.text("coding.env.git.detached");
   if (!readiness.is_git_repo) {
@@ -244,7 +226,7 @@ function gitReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheck
   };
 }
 
-function depsReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvCheckRowOptions {
+function depsReadinessRow(readiness: CodingEnvironmentFacts): MwEnvCheckRowOptions {
   const label = uiText.text("coding.env.row.deps");
   const readyStatus = { label: uiText.text("coding.env.badge.ready"), tone: "done" as const };
   if (!readiness.deps_manager) {
@@ -282,7 +264,7 @@ function depsReadinessRow(readiness: CodingEnvironmentReadinessInput): MwEnvChec
   };
 }
 
-function scriptsAndBaselineRows(readiness: CodingEnvironmentReadinessInput): {
+function scriptsAndBaselineRows(readiness: CodingEnvironmentFacts): {
   readonly rows: MwEnvCheckRowOptions[];
   readonly baselineCmd: string;
   readonly canRunBaseline: boolean;
@@ -331,7 +313,7 @@ function scriptsAndBaselineRows(readiness: CodingEnvironmentReadinessInput): {
   return { rows, baselineCmd, canRunBaseline: hasBaselineTest && !blockedByDeps };
 }
 
-function envTemplateAndWorktreeRows(readiness: CodingEnvironmentReadinessInput): MwEnvCheckRowOptions[] {
+function envTemplateAndWorktreeRows(readiness: CodingEnvironmentFacts): MwEnvCheckRowOptions[] {
   const rows: MwEnvCheckRowOptions[] = [];
   if (readiness.env_template) {
     const shownKeys = readiness.env_keys.length > 5
@@ -390,7 +372,7 @@ function envTemplateAndWorktreeRows(readiness: CodingEnvironmentReadinessInput):
 }
 
 /** The rows of the environment checklist, and what its footer needs to offer the baseline run. */
-function environmentRows(readiness: CodingEnvironmentReadinessInput) {
+function environmentRows(readiness: CodingEnvironmentFacts) {
   const { rows: scriptRows, baselineCmd, canRunBaseline } = scriptsAndBaselineRows(readiness);
   const rows: MwEnvCheckRowOptions[] = [
     gitReadinessRow(readiness),
@@ -401,13 +383,21 @@ function environmentRows(readiness: CodingEnvironmentReadinessInput) {
   return { rows, baselineCmd, canRunBaseline, attentionCount: rows.filter(row => row.state === "failed" || row.state === "verify").length };
 }
 
-/** How many rows of the environment checklist wait on the person: 0 when the workspace is ready to work in. */
+/**
+ * How many things in the environment wait on the person: 0 when the workspace is ready to work in. An inspection that could
+ * not be finished counts as one: it asks to be run again.
+ */
 export function environmentAttention(readiness: CodingEnvironmentReadinessInput | null | undefined): number {
-  return readiness?.workspace_id ? environmentRows(readiness).attentionCount : 0;
+  if (!readiness?.workspace_id) return 0;
+  return readiness.status === "unavailable" ? 1 : environmentRows(readiness).attentionCount;
 }
 
 export function buildEnvironmentChecklistHtml(readiness: CodingEnvironmentReadinessInput | null | undefined): string {
   if (!readiness || !readiness.workspace_id) return "";
+  if (readiness.status === "unavailable") return renderAlert({
+    title: uiText.text("coding.env.unavailable"), body: uiText.text("coding.env.unavailable-detail"), tone: "warning",
+    actions: [{ label: uiText.text("coding.env.retry"), variant: "secondary", attrs: { "data-coding-env-action": "retry" } }],
+  });
   const { rows, baselineCmd, canRunBaseline, attentionCount } = environmentRows(readiness);
   return renderEnvChecklist({
     title: uiText.text("coding.env.title"),

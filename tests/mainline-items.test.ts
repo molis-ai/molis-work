@@ -4,6 +4,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallCo
 import { MAINLINE_ARRANGE_PERMISSION, MAINLINE_LIMITS, MAINLINE_PLACE_PERMISSION, MAINLINE_READ_PERMISSION, WORK_ITEM_KIND, mainlineActions, mainlineItemActions, type Mainline,
   type WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
 import { MainlineStore, openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { observationKeys, readRecords, snapshotText } from "@molis-ai/molis-work-service-observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import { backgroundPlugin, type BackgroundPlugin } from "./fixtures/home-background-plugin.js";
@@ -13,6 +14,8 @@ import { mainlineRig, notesPlugin } from "./fixtures/mainline-items-plugin.js";
  * Work items on the mainline (specs/work-mainline/contract-design.md §9, MLC-01–MLC-14): one person's container of work in one
  * project. The page, the Assistant and MCP call the same actions; a source is any plugin that declares `item` on a kind, here an
  * installed-style notes plugin the Host has never heard of.
+ * QEA-148 checks the current public actions and the same store used by the merged Host.
+ * QEA-194 covers default and explicit groups in create, convert, and complete/reopen.
  */
 
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
@@ -88,6 +91,32 @@ test("MLC-04 a stale revision is refused with the current mainline; adding an it
       && ((error as ActionError).details!.current as Mainline).revision === current.revision);
   }
   assert.deepEqual((await me.invoke(mainlineItemActions.read, {})).mainline, current, "nothing changed");
+});
+
+test("QEA-149 a stale conversion creates no Goal, and retry with the current arrangement creates it once", { timeout: 60_000 }, async t => {
+  const { me, notes } = await rigged(t);
+  const original = await me.invoke(mainlineItemActions.create, { name: "旧名字" });
+  notes.state.notes.set("held-note", { id: "held-note", title: "相关笔记", status: "open" });
+  const held = { kind: "note", id: "held-note" };
+  await me.invoke(mainlineItemActions.holdsBind, { subject: held, target: { kind: WORK_ITEM_KIND, id: original.item.item_id } });
+  const { mainline: current } = await me.invoke(mainlineItemActions.rename, {
+    expected_revision: original.mainline.revision, item_id: original.item.item_id, name: "当前事项的名字",
+  });
+  const request = { item_id: original.item.item_id, kind: "goal", request_id: "qea149-same-conversion" };
+  const before = (await me.invoke(goalsActions.list, {})).goals;
+  await assert.rejects(me.invoke(mainlineItemActions.convert, { ...request, expected_revision: original.mainline.revision }),
+    (error: unknown) => error instanceof ActionError && error.code === "mainline.conflict"
+      && (error.details?.current as Mainline | undefined)?.revision === current.revision);
+  assert.deepEqual((await me.invoke(mainlineItemActions.read, {})).mainline, current);
+  assert.deepEqual((await me.invoke(goalsActions.list, {})).goals, before, "an already-stale request cannot write a Goal");
+
+  const converted = await me.invoke(mainlineItemActions.convert, { ...request, expected_revision: current.revision });
+  assert.equal(converted.item.item_id, original.item.item_id);
+  assert.equal(converted.item.source?.kind, "goal");
+  const after = (await me.invoke(goalsActions.list, {})).goals;
+  assert.equal(after.length, before.length + 1);
+  assert.equal(after.find(goal => goal.goal_id === converted.item.source?.id)?.title, "当前事项的名字");
+  assert.deepEqual((await me.invoke(mainlineItemActions.contents, { item_id: original.item.item_id })).held, [held]);
 });
 
 test("MLC-05 an object becomes an item read as the caller, once; 「建成」 asks its source; a kind without a declared source offers neither", { timeout: 60_000 }, async t => {
@@ -340,10 +369,21 @@ test("MLC-13 a 「建成」 retried under the same request makes one object; two
   const operation = as(person(projectId, { call_id: "one-operation" }));
   const a = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "甲" } }), b = await operation.invoke(mainlineItemActions.create, { create_as: { kind: "note", name: "乙" } });
   assert.notEqual(a.item.source!.id, b.item.source!.id);
-  // A converted item retried after a conflict: the same note.
+  // A conversion whose source has already committed can race a later arrangement edit.
   const light = await me.invoke(mainlineItemActions.create, { name: "先记下" });
-  await me.invoke(mainlineItemActions.rename, { expected_revision: light.mainline.revision, item_id: light.item.item_id, name: "先记下" });
-  await assert.rejects(me.invoke(mainlineItemActions.convert, { expected_revision: light.mainline.revision, item_id: light.item.item_id, kind: "note", request_id: "c-1" }), code("mainline.conflict"));
+  const beforeConversion = notes.state.made.size;
+  const created = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
+  notes.state.afterCreate = () => { created.resolve(); return finish.promise; };
+  const pending = me.invoke(mainlineItemActions.convert, { expected_revision: light.mainline.revision, item_id: light.item.item_id, kind: "note", request_id: "c-1" });
+  try {
+    await Promise.race([created.promise, pending.then(() => assert.fail("the source must be held before the arrangement changes"))]);
+    assert.equal(notes.state.made.size, beforeConversion + 1);
+    await me.invoke(mainlineItemActions.move, { expected_revision: light.mainline.revision, item_id: light.item.item_id, group_id: "next", index: 0 });
+  } finally {
+    notes.state.afterCreate = undefined;
+    finish.resolve();
+  }
+  await assert.rejects(pending, code("mainline.conflict"));
   const current = (await me.invoke(mainlineItemActions.read, {})).mainline.revision, made = notes.state.made.size;
   const converted = await me.invoke(mainlineItemActions.convert, { expected_revision: current, item_id: light.item.item_id, kind: "note", request_id: "c-1" });
   assert.equal(notes.state.made.size, made, "the note the conflicted call made is the one the item became");

@@ -114,12 +114,14 @@ function parseListQuery(url: URL, hasProject: boolean): ExternalSessionListInput
     .map((item) => item.trim())
     .filter(Boolean);
   const cursor = url.searchParams.get("cursor");
+  const query = url.searchParams.get("query");
   const rawLimit = url.searchParams.get("limit");
   const limit = rawLimit ? Number.parseInt(rawLimit, 10) : undefined;
   return {
     view,
     ...(rawEntries.length > 0 ? { entry_ids: rawEntries as ExternalSessionListInput["entry_ids"] } : {}),
     ...(cursor ? { cursor } : {}),
+    ...(query ? { query } : {}),
     ...(Number.isFinite(limit) ? { limit } : {}),
   };
 }
@@ -180,7 +182,7 @@ export async function handleSessionsHttp(
         const out = method === "POST"
           ? await invokeBody(client, sessionsActions.historyRead, await readBody(request))
           : await client.invoke(sessionsActions.historyRead, parseHistoryQuery(url));
-        sendJson(response, 200, out);
+        sendJson(response, 200, { ...out, session: localizeSessionRow(out.session) });
         return true;
       }
       case "/api/sessions/scope": {

@@ -10,6 +10,7 @@ interface CompanionBrowser {
   refresh?(): Promise<void> | void;
   /** Shows another of the project's folders: which one Coding's panel shows is the page's own state. */
   browse?(workspaceId: string): void;
+  offerCommitDraft(workspaceId: string, message: string): Promise<"applied" | "suggested">;
   show?(face: string): boolean | void;
 }
 
@@ -62,26 +63,26 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   const showReviews = (element: Element, refs: readonly { readonly run_id: string }[], sessionId?: string | null, workspaceId?: string | null,
     query?: { runSession?: string; limit?: number }, control?: { signal?: AbortSignal }) => host.reviews.show(element,
     { runIds: refs.map(ref => ref.run_id), sessionId, workspaceId, ...query }, { signal: control?.signal });
-  const openCompanionResult = (name: string) => {
-    if (codingRoot) { codingRoot.dataset.codingDetail = "true"; codingRoot.dataset.codingResults = "true"; }
-    codingRoot?.querySelector("[data-coding-tools]")?.setAttribute("data-companion-open", "true");
-    for (const kind of ["git"]) { const panel = codingRoot?.querySelector<HTMLElement>(`[data-${kind}-results]`); if (panel) panel.hidden = kind !== name; }
+  const openCompanionResult = () => {
+    codingRoot.dataset.codingResults = "true";
+    codingRoot.dataset.companionOpen = "true";
   };
   const closeCompanionResult = () => {
-    codingRoot?.querySelector("[data-coding-tools]")?.removeAttribute("data-companion-open");
-    if (codingRoot) {
-      codingRoot.dataset.codingResults = "false";
-      if (!codingRoot.querySelector('[data-coding-session][aria-current="true"]')) codingRoot.dataset.codingDetail = "false";
-    }
+    delete codingRoot.dataset.companionOpen;
+    codingRoot.dataset.codingResults = "false";
   };
-  const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ root: codingRoot,
-    openResult: () => openCompanionResult("git"), closeResult: closeCompanionResult }) ?? null : null;
+  const gitBrowser: CompanionBrowser | null = clients.git?.({ root: codingRoot,
+    openResult: openCompanionResult, closeResult: closeCompanionResult }) ?? null;
   mountCoding({ ...lent, view: host.view, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { gitBrowser?.show?.(face); },
     showReviews,
     addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
     readInstructions: () => host.workspaces.readInstructions(),
+    offerCommitDraft: (id, message) => {
+      if (!gitBrowser) return Promise.reject(new Error(globalThis.t.text("coding.commit.git-unavailable")));
+      return gitBrowser.offerCommitDraft(id, message);
+    },
     selectWorkspace: async (id: string) => { gitBrowser?.browse?.(id); }, invokeAction: host.invokeAction,
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),

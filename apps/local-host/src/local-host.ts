@@ -71,7 +71,7 @@ export class LocalHost<Runtime> {
       assertRunning: () => this.assertRunning(),
       authorityCurrent: project => this.state === "running" && (!project || !this.line.isClosing(project.storage_key)) && !this.line.scopeClosing(),
       withRuntime: (project, operation) => this.withRuntime(project, operation),
-      discoverActions: caller => this.availability.discover(caller),
+      discoverActions: (caller, select) => this.availability.discover(caller, select),
       checkActionAvailability: (caller, capability) => this.availability.check(caller, capability),
       queueScene: (project, id, version, operation) => project
         ? this.line.enqueue(project, { capability_id: `scene.${id}`, version }, operation, true)

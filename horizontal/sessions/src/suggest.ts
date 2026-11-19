@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { EXTERNAL_TOOLS, type ExternalToolEntry, type ExternalToolId } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
@@ -49,7 +49,7 @@ interface PreparedGroup {
 interface InitialSuggestionPlan {
   inScopeOrder: string[];
   uncachedGroups: PreparedGroup[];
-  cachedResults: Map<string, ExternalSessionSuggestion>;
+  cachedKeys: Set<string>;
   projectMaterials: SessionSuggestProjectMaterial[];
   projectIdsByRef: string[];
   scopeMap: Map<string, ExternalSessionReadScope>;
@@ -68,6 +68,8 @@ function computeGroupInputDigest(
         directory,
         tools: [...tools].sort(),
         titles,
+        // Invalidate suggestions made from the old newest-page sample without rereading transcripts on every cache hit.
+        opening_sample: "first-user-messages",
         projects: projects.map(p => ({ name: p.name, directories: [...p.directories].sort() })),
         prompt_version: promptVersion,
       }, "null"),
@@ -118,7 +120,7 @@ async function readOpeningMessages(
     tool, entry_id: session.entry_id, location_key: session.location_key, root, connection_id: scopeConnectionId, ports,
   };
   try {
-    const out = await adapter.readHistory(ctx, session.native_id, { limit: 100 }, signal);
+    const out = await adapter.readHistory(ctx, session.native_id, { opening: true, limit: OPENING_MAX_MESSAGES }, signal);
     const messages: string[] = [];
     for (const entry of out.entries) {
       if (entry.role !== "you") continue;
@@ -140,7 +142,7 @@ function prepareSuggestionGroups(
   ports: SessionsPorts,
 ): Promise<InitialSuggestionPlan> {
   return ports.projects.read(snapshot => {
-    const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
+    const { dirMap, workspaces } = resolveDerivedSnapshot(snapshot, store, ports);
     const { materials: projectMaterials, projectIdsByRef } = buildProjectMaterials(snapshot, workspaces);
     const scopeMap = new Map(store.decisions.readScopes().map(s => [`${s.entry_id}\0${s.location_key}`, s]));
 
@@ -162,7 +164,7 @@ function prepareSuggestionGroups(
       throw sessionsErrors.too_many_groups(`一次最多请求 ${EXTERNAL_SESSION_SUGGEST_MAX_GROUPS} 个目录组的归属建议`);
     }
 
-    const cachedResults = new Map<string, ExternalSessionSuggestion>();
+    const cachedKeys = new Set<string>();
     const uncachedGroups: PreparedGroup[] = [];
     for (const [groupKey, rows] of groupMap.entries()) {
       rows.sort((a, b) => (a.last_activity_at > b.last_activity_at ? -1 : a.last_activity_at < b.last_activity_at ? 1 : 0));
@@ -184,16 +186,13 @@ function prepareSuggestionGroups(
         const existing = store.decisions.getSuggestion(row.session_key);
         return Boolean(existing && existing.status !== "failed" && existing.input_digest === digest && existing.prompt_version === promptVersion);
       })) {
-        for (const row of rows) {
-          const materialized = materializeSuggestion(store.decisions.getSuggestion(row.session_key), projectMap);
-          if (materialized) cachedResults.set(row.session_key, materialized);
-        }
+        for (const row of rows) cachedKeys.add(row.session_key);
         continue;
       }
       uncachedGroups.push(group);
     }
 
-    return { inScopeOrder: inScopeRows.map(r => r.session_key), uncachedGroups, cachedResults, projectMaterials, projectIdsByRef, scopeMap };
+    return { inScopeOrder: inScopeRows.map(r => r.session_key), uncachedGroups, cachedKeys, projectMaterials, projectIdsByRef, scopeMap };
   });
 }
 
@@ -232,7 +231,7 @@ async function queryModelForGroups(
     const draft = await suggester.suggest(suggestInput, signal, beforeDispatch);
     return { draft, modelFailed: false };
   } catch (error) {
-    if (signal.aborted) throw error;
+    if (signal.aborted || (error instanceof ActionError && error.code === "sessions.scope_changed")) throw error;
     return { draft: null, modelFailed: true };
   }
 }
@@ -297,15 +296,24 @@ export async function runAttributionSuggest(
   const initial = await prepareSuggestionGroups(input, promptVersion, store, ports);
   if (initial.inScopeOrder.length === 0) return { suggestions: [] };
 
-  if (initial.uncachedGroups.length === 0) {
-    return {
-      suggestions: initial.inScopeOrder
-        .map(key => ({ session_key: key, suggestion: initial.cachedResults.get(key) }))
-        .filter((item): item is { session_key: string; suggestion: ExternalSessionSuggestion } => item.suggestion !== undefined),
-    };
-  }
-
-  const { draft, modelFailed } = await queryModelForGroups(suggester ?? null, initial, ports, signal, () => caller.beforeEffect?.());
+  const beforeDispatch = async () => {
+    await caller.beforeEffect?.();
+    await ports.projects.read(snapshot => {
+      signal.throwIfAborted();
+      caller.assert_authority_current?.();
+      const { dirMap, workspaces } = resolveDerivedSnapshot(snapshot, store, ports, { allowDiskIdentify: false });
+      const scopes = new Map(store.decisions.readScopes().map(scope => [`${scope.entry_id}\0${scope.location_key}`, scope]));
+      for (const group of initial.uncachedGroups) for (const row of group.sessions) {
+        const live = store.getSession(row.session_key);
+        if (!live || !isSessionInScopeWithMaps(live, scopes, dirMap, workspaces, ports, false)) {
+          throw sessionsErrors.scope_changed("读取范围在生成建议前已变化，请按当前范围重试");
+        }
+      }
+    });
+  };
+  const { draft, modelFailed } = initial.uncachedGroups.length
+    ? await queryModelForGroups(suggester ?? null, initial, ports, signal, beforeDispatch)
+    : { draft: null, modelFailed: false };
 
   await caller.beforeEffect?.();
   const nowIso = (ports.clock ?? (() => new Date()))().toISOString();
@@ -324,7 +332,11 @@ export async function runAttributionSuggest(
       }
     }
 
-    const freshByKey = new Map<string, ExternalSessionSuggestion>(initial.cachedResults);
+    const freshByKey = new Map<string, ExternalSessionSuggestion>();
+    for (const key of initial.cachedKeys) {
+      const suggestion = materializeSuggestion(store.decisions.getSuggestion(key), projectMap);
+      if (suggestion) freshByKey.set(key, suggestion);
+    }
     store.inTransaction(() => {
       for (let idx = 0; idx < initial.uncachedGroups.length; idx++) {
         const group = initial.uncachedGroups[idx]!;

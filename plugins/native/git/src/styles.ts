@@ -34,7 +34,7 @@ export const GIT_STYLES = `
 .git-sc-conflicts { display:grid; gap:8px; padding:8px 0; border-top:1px solid var(--line); }
 .git-sc-conflict-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
 .git-sc-conflict-editor { display:grid; gap:8px; }
-.git-sc-conflict-text { width:100%; min-height:12rem; font-family:var(--font-mono, ui-monospace, monospace); font-size:12px; line-height:1.5; white-space:pre; overflow:auto; }
+.git-sc-conflict-text { width:100%; min-width:0; box-sizing:border-box; min-height:12rem; resize:vertical; font-family:var(--font-mono, ui-monospace, monospace); font-size:12px; line-height:1.5; white-space:pre; overflow:auto; }
 .git-sc-picks { display:grid; gap:4px; }
 .git-sc-pick { display:flex; flex-wrap:wrap; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
 .git-sc-log li[data-outcome=succeeded] { color:var(--green); }

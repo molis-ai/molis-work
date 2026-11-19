@@ -1,5 +1,5 @@
 import { arraySchema, createActionDefinition, nullableSchema, objectSchema } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionAvailability, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
 import type { CogniaStore, CogniaStores } from "./store.js";
@@ -57,7 +57,6 @@ export interface CogniaActionPorts extends CogniaStores {
   scan(grantId: string, path: string, signal?: AbortSignal): Promise<Scan>;
 }
 export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const model = () => { try { return ports.model(); } catch { return {}; } };
   const available = (): ActionAvailability => { const ai = model(); return ai.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: ai.unavailableReason ?? "尚未配置可用的文字模型，请检查模型设置和服务连接" }; };
   const summarize = (material: Material, query?: string): Summary => { const { body, frontmatter: _, ...rest } = material; const term = query?.trim().split(/\s+/u)[0], index = term ? body.toLocaleLowerCase().indexOf(term.toLocaleLowerCase()) : -1; return { ...rest, excerpt: query === undefined ? body.slice(0, 600) : index < 0 ? "" : body.slice(Math.max(0, index - 60), index + 120) }; };
@@ -79,8 +78,8 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.previewDirectory, async (input, caller) => { const scanned = await invokeNested(ports.actions, cogniaActions.scan, { grant_id: input.grant_id, path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); const name = directoryLocatorName(input.locator, scanned.name); return invokeNested(ports.actions, cogniaActions.preview, { ...scanned, name, ...(input.locator === undefined ? {} : { locator: input.locator }), kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
     bind(cogniaActions.commit, (input, caller) => ports.write(caller, store => ({ receipt: store.commit(input.preview_id) }))),
     bind(cogniaActions.cancel, (input, caller) => ports.write(caller, store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
-    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
-    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
+    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), { availability: available }),
+    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), { availability: available }),
     bind(cogniaActions.draft, input => ports.read(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", cogniaErrors.not_found); return { draft }; })),
     bind(cogniaActions.saveDraft, (input, caller) => ports.write(caller, store => ({ material: store.saveDraft(input.id) }))),
     bind(cogniaActions.archiveDraft, (input, caller) => ports.write(caller, store => { store.archiveDraft(input.id); return { deleted: true }; })),

@@ -40,7 +40,7 @@ export function showWorkspace(page: Page, path: string | null | undefined, fallb
   const label = q("[data-coding-workspace-label]"), name = path ? path.split("/").filter(Boolean).at(-1) ?? "" : fallback;
   // The header says where in two words: the repository's folder and the branch it is on (screen-polish §6.4).
   const readiness = page.s.state.environment_readiness;
-  const branch = path && readiness?.is_git_repo && readiness.branch && (!readiness.canonical_path || readiness.canonical_path === path) ? readiness.branch : "";
+  const branch = path && readiness && readiness.status !== "unavailable" && readiness.is_git_repo && readiness.branch && (!readiness.canonical_path || readiness.canonical_path === path) ? readiness.branch : "";
   label.innerHTML = (path ? `<svg aria-hidden="true"><use href="#icon-${branch ? "git-branch" : "folder"}"></use></svg>` : "") + "<span></span>";
   const text = label.lastChild;
   if (text) text.textContent = branch ? name + " · " + branch : name;

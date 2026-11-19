@@ -1,11 +1,14 @@
+import { currentResult, selectResult } from "./result-selection.js";
+import { rememberOperation, reconcileEdits, forgetUnsentOperation } from "./draft-operations.js";
+import { loadForm, rememberForm, updateDraftButton } from "./form-drafts.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { setOptions } from "./dom.js";
-import { installConflicts, renderConflicts } from "./conflicts.js";
+import { installConflicts, renderConflicts, openConflict } from "./conflicts.js";
 import { refresh } from "./list.js";
-import { active, inFolder, request, reveal, sayRefusal, showReviews } from "./page.js";
+import { active, inFolder, request, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults, outcomeLabel } from "./results.js";
-import type { DecisionOutcome, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
+import type { DecisionOutcome, ResultsAnswer, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
 
 const uiText = globalThis.t;
 
@@ -23,19 +26,6 @@ export function operationLabel(_L: Translate, name: string): string | undefined 
     case "merge-abort": return uiText.text("git.op.merge-abort");
     default: return undefined;
   }
-}
-
-const draftKey = (workspace: string) => `molis-commit-draft:${workspace}`;
-
-/** A commit message handed over from a Coding round, or nothing. */
-function handedDraft(workspace: string): string {
-  try { return sessionStorage.getItem(draftKey(workspace)) ?? ""; }
-  catch { /* storage is blocked here: there is no handed-over message to keep */ return ""; }
-}
-
-function forgetDraft(workspace: string): void {
-  try { sessionStorage.removeItem(draftKey(workspace)); }
-  catch { /* storage is blocked here: nothing was kept */ }
 }
 
 /** The text of an operation's record; an address in it (the PR that was opened) becomes a link. */
@@ -59,7 +49,7 @@ function recordItem(page: GitPage, op: OperationRecord): HTMLElement {
 
 /** Read the operation list and reconcile only the operation this page prepared. A notification is merely a read hint. */
 async function loadOperations(page: GitPage): Promise<boolean> {
-  const { readText, message, scStatus, diffNotice } = page;
+  const { readText, scStatus, diffNotice } = page;
   const epoch = page.generation, workspace = page.workspace, prepared = page.lastPrepared;
   const current = () => active(page, epoch) && page.workspace === workspace && page.lastPrepared === prepared && !page.busy;
   const reason = uiText.text("git.decision.details");
@@ -67,15 +57,15 @@ async function loadOperations(page: GitPage): Promise<boolean> {
     const value = await request<{ workspace: { workspace_id: string }; operations: OperationRecord[] }>(page, inFolder("/operations", workspace));
     if (!current() || value.workspace.workspace_id !== workspace) return false;
     page.operations.replaceChildren(...value.operations.slice(0, 6).map((op) => recordItem(page, op)));
-    if (!prepared) return false;
+    await reconcileEdits(page, value.operations);
+    if (!current() || !prepared) return false;
     const record = value.operations.find(operation => operation.review_id === prepared.reviewId);
     if (!record || record.outcome === "pending" || record.outcome === "running") return false;
     const done = record.outcome === "succeeded", label = operationLabel(readText, prepared.action) || uiText.text("git.op.other");
-    if (prepared.action === "commit" && done && message.value === prepared.message) { message.value = ""; forgetDraft(page.scWorkspace); }
     scStatus.textContent = record.outcome === "unknown" ? uiText.text("git.decision.uncertain", { reason }) : record.outcome === "denied" ? uiText.text("git.op.rejected", { op: label })
       : record.outcome === "failed" ? uiText.text("git.op.failed", { op: label, reason }) : done ? uiText.text("git.op.done", { op: label }) : `${label} · ${outcomeLabel(readText, record.outcome)}`;
     if (record.outcome !== "unknown") page.lastPrepared = null;
-    diffNotice.textContent = scStatus.textContent;
+    if (page.resultSelection?.kind === "review" && page.resultSelection.operationId === prepared.operationId) diffNotice.textContent = scStatus.textContent;
     return true;
   } catch {
     if (prepared && current()) scStatus.textContent = uiText.text("git.op.no-receipt", { reason });
@@ -85,28 +75,25 @@ async function loadOperations(page: GitPage): Promise<boolean> {
 
 /** The block for branch, commit, push and PR: read from the repository's summary. */
 export async function loadSource(page: GitPage): Promise<void> {
-  const { sc, s, message, scStatus } = page, epoch = page.generation;
+  const { sc, s, scStatus } = page, epoch = page.generation;
   try {
     const value = await request<SummaryAnswer>(page, inFolder("/summary", page.workspace));
     if (!active(page, epoch)) return;
     const summary = value.summary;
     page.summary = summary;
     page.scWorkspace = value.workspace.workspace_id;
-    sc.hidden = !summary;
-    if (!summary) { scStatus.textContent = (value.message || ""); return; }
+    sc.hidden = true;
+    if (!summary) { renderConflicts(page); scStatus.textContent = (value.message || ""); return; }
+    sc.hidden = false;
+    if (!await loadForm(page, page.scWorkspace, epoch)) return;
     page.draft = value.draft || "";
-    // A commit message handed over from a Coding round arrives once, to be edited before anything runs.
-    // It stays until that commit is made, so a reload keeps it, and it never replaces what the person has typed.
-    const handed = handedDraft(page.scWorkspace);
-    if (handed && !message.value.trim()) { message.value = handed; scStatus.textContent = uiText.text("git.commit.handed"); }
     s("[data-git-branch]").textContent = summary.branch || uiText.text("git.branch.detached", { commit: (summary.head_commit || "").slice(0, 8) });
     const hasRemote = summary.remotes.length > 0;
     s("[data-git-sync]").textContent = !hasRemote ? uiText.text("git.sync.no-remote") : summary.upstream
       ? `↑${summary.ahead} ↓${summary.behind} · ${summary.upstream}` : uiText.text("git.pull.no-upstream");
     const staged = summary.staged.length, commit = s<HTMLButtonElement>("[data-git-commit]");
-    const draft = s<HTMLButtonElement>("[data-git-commit-draft]");
     commit.hidden = commit.disabled = !staged && !summary.merging;
-    draft.hidden = draft.disabled = !page.draft;
+    updateDraftButton(page);
     s("[data-git-commit-state]").hidden = !commit.hidden;
     if (!commit.hidden) commit.textContent = staged ? uiText.text("git.commit.staged", { count: staged }) : uiText.text("git.commit.merge");
 
@@ -135,48 +122,56 @@ export async function loadSource(page: GitPage): Promise<void> {
     // The PR target follows the repository's main branch unless the person picked one; a value left over from the
     // branch previously checked out is not a choice.
     const base = s<HTMLSelectElement>("[data-git-pr-base]");
-    setOptions(base, others, base.dataset.chosen === "true" && others.includes(base.value) ? base.value : ["main", "master"].find((branch) => others.includes(branch)));
+    setOptions(base, others, page.formDraft?.entry.value?.prBase && others.includes(page.formDraft.entry.value.prBase) ? page.formDraft.entry.value.prBase : ["main", "master"].find((branch) => others.includes(branch)));
     if (summary.conflicted.length) scStatus.textContent = uiText.text("git.conflict.count", { count: summary.conflicted.length });
     await loadOperations(page);
-  } catch { if (active(page, epoch)) sc.hidden = true; }
+  } catch (error) { if (active(page, epoch)) { sc.hidden = !page.summary; scStatus.textContent = messageOf(error); } }
 }
 
 /** Asks the Host to review one operation against the repository as shown, and opens the review. */
-export async function prepare(page: GitPage, operation: { action: string } & Record<string, unknown>, label: string, source: HTMLElement): Promise<void> {
+export async function prepare(page: GitPage, operation: { action: string } & Record<string, unknown>, label: string, source: HTMLElement, revision = page.summary?.revision): Promise<void> {
   const { scStatus, diffNotice, q } = page;
   if (!page.summary || page.busy || !page.lifetime.visible) return;
-  const epoch = page.generation;
+  const workspace = page.scWorkspace, operationId = crypto.randomUUID(), form = page.formDraft;
+  let selection = page.resultSelection;
+  const signal = page.viewSignal;
+  const stillShowing = () => page.lifetime.alive && page.lifetime.visible && !signal?.aborted
+    && page.viewSignal === signal && page.workspace === workspace && page.resultSelection === selection;
   page.busy = true;
   scStatus.textContent = uiText.text("git.op.preparing", { op: label });
   let answer: { review_id: string };
+  let dispatched = false;
   try {
-    answer = await request(page, "/operations", "POST", { workspace_id: page.scWorkspace, operation_id: crypto.randomUUID(), revision: page.summary.revision, operation });
+    await rememberOperation(page, operationId, operation);
+    dispatched = true;
+    answer = await request(page, "/operations", "POST", { workspace_id: workspace, operation_id: operationId, revision, operation });
   } catch (error) {
-    if (active(page, epoch)) {
+    if (!dispatched || (error as { code?: string } | null)?.code === "projects.directory_input_only") forgetUnsentOperation(page, form, operationId);
+    if (stillShowing()) {
       await loadSource(page);
-      // Said after the reload, which writes its own status. Once the person makes the folder the output, the same review is asked for.
-      if (active(page, epoch)) sayRefusal(page, scStatus, error, page.scWorkspace, () => { void prepare(page, operation, label, source); });
+      if (stillShowing() && operation.action === "resolve" && typeof operation.path === "string") selection = await openConflict(page, operation.path);
+      // Say the refusal after reload. A conflict must be reread after permission changes, before the person submits it again.
+      if (stillShowing()) sayRefusal(page, selection?.kind === "conflict" ? page.q("[data-git-conflict-state]") : scStatus, error, workspace, () => {
+        if (!stillShowing()) return;
+        if (operation.action === "resolve" && typeof operation.path === "string") void openConflict(page, operation.path);
+        else void prepare(page, operation, label, source, revision);
+      });
     }
     return;
   } finally {
     page.busy = false;
   }
-  if (!active(page, epoch)) return;
-  const prepared = { action: operation.action, reviewId: answer.review_id,
+  const prepared = { operationId, action: operation.action, reviewId: answer.review_id,
     ...(typeof operation.message === "string" ? { message: operation.message } : {}) };
-  page.lastPrepared = prepared;
-  const current = () => active(page, epoch) && page.lastPrepared === prepared && !page.busy;
+  if (page.workspace === workspace && page.lifetime.alive) page.lastPrepared = prepared;
+  if (!stillShowing()) return;
+  const reviewSelection = selectResult(page, { kind: "review", operationId }, source);
+  const current = () => currentResult(page, reviewSelection) && page.lastPrepared === prepared && !page.busy;
   try {
     scStatus.textContent = uiText.text("git.op.review", { op: label });
-    page.ticket++;
-    page.displayed = null;
-    page.action.hidden = true;
-    page.resultPanel.hidden = true;
-    reveal(page, source);
     q("[data-git-title]").textContent = label;
     q("[data-git-kind]").textContent = uiText.text("git.op.review-kind");
     q("[data-git-scope]").textContent = "";
-    q("[data-git-diff]").replaceChildren();
     diffNotice.textContent = uiText.text("git.op.review-note");
     await showReviews(page);
     if (current()) await afterDecision(page, { workspaceId: page.workspace, state: "pending" });
@@ -185,24 +180,10 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   }
 }
 
-/** What a decided review says to the person who decided it, by how it ended. */
-function decisionNotice(_L: Translate, state: string, reason: string): string {
-  switch (state) {
-    case "unavailable": return uiText.text("git.decision.no-receipt", { reason });
-    case "uncertain": return uiText.text("git.decision.uncertain", { reason });
-    case "rejected": return uiText.text("git.decision.rejected", { reason });
-    case "reconciled": return uiText.text("git.decision.reconciled", { reason });
-    case "failed": return uiText.text("git.decision.failed", { reason });
-    case "settled": return uiText.text("git.decision.settled", { reason });
-    default: return uiText.text("git.decision.pending", { reason });
-  }
-}
-
 /** A review of this workspace was decided: say how it ended and read the repository again. */
 export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Promise<void> {
-  const { readText, diffNotice, result, action } = page;
+  const { readText, diffNotice, result } = page;
   if (page.busy || !page.lifetime.visible || !outcome.workspaceId || outcome.workspaceId !== page.workspace) return;
-  const state = outcome.state, reason = uiText.text("git.decision.details");
   // A delayed decision can belong to an earlier index review. Read this operation's own result.
   const prepared = page.lastPrepared;
   if (prepared) {
@@ -211,10 +192,19 @@ export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Pr
     return;
   }
   if (result.getAttribute("aria-busy") === "true") return;
-  if (action.hidden) { page.displayed = null; diffNotice.textContent = `${decisionNotice(readText, state, reason)} ${uiText.text("git.decision.reopen")}`; }
+  const selection = page.resultSelection;
+  if (selection?.kind === "diff" && selection.preparation.phase === "review") {
+    const { reviewId } = selection.preparation;
+    try {
+      const settled = await request<ResultsAnswer>(page, inFolder("/results", page.workspace));
+      if (!currentResult(page, selection)) return;
+      const own = settled.results.find(row => row.result.review.review_id === reviewId);
+      if (own) diffNotice.textContent = `${outcomeLabel(readText, own.result.outcome)} ${uiText.text("git.decision.reopen")}`;
+    } catch (error) { if (currentResult(page, selection)) diffNotice.textContent = messageOf(error); }
+  }
   const signal = page.viewSignal;
   await refresh(page);
-  if (signal && !signal.aborted && !page.resultPanel.hidden) await loadResults(page);
+  if (signal && !signal.aborted && page.resultSelection?.kind === "history") await loadResults(page);
 }
 
 const toggle = (page: GitPage, button: HTMLElement, form: HTMLElement): void => {
@@ -254,6 +244,7 @@ function installPullRequest(page: GitPage): void {
     const lines = message.value.trim().split("\n"), title = s<HTMLInputElement>("[data-git-pr-title]"), body = s<HTMLTextAreaElement>("[data-git-pr-body]");
     if (!title.value) title.value = lines[0] || page.summary?.branch || "";
     if (!body.value) body.value = lines.slice(1).join("\n").trim();
+    rememberForm(page);
     try {
       const support = await request<PrSupportAnswer>(page, inFolder("/pr-support", page.workspace));
       if (!active(page, epoch)) return;
@@ -282,7 +273,10 @@ export function installSource(page: GitPage): void {
   toggle(page, s("[data-git-branch-toggle]"), s("[data-git-branch-form]"));
   installPullRequest(page);
   lifetime.listen(s("[data-git-commit-draft]"), "click", () => {
-    message.value = page.draft;
+    const entry = page.formDraft?.entry;
+    message.value = entry?.value?.suggestion || page.draft;
+    if (entry?.value) entry.value = { ...entry.value, suggestion: "" };
+    rememberForm(page); updateDraftButton(page);
     message.focus();
   });
   lifetime.listen(s("[data-git-commit]"), "click", (event) => {

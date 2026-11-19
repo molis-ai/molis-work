@@ -677,19 +677,11 @@ jobs:
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
           echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
-      - name: Cache CJK font
-        id: cjk-font-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/fonts/wqy-zenhei
-          key: cjk-font-wqy-zenhei-v1-${{ runner.os }}
-
       # The pages are Chinese first and the layout tests measure Chinese text; the runner image has no CJK font, so without one a
       # page that does not load the product's own Chinese face (a test page from a file) has no real glyphs and wraps differently
       # from a development machine. WenQuanYi, because the product's font stack does not name it: a font it names before the
       # bundled Inter (Noto Sans CJK SC) would also take over Latin text and change its width.
       - name: CJK font for the browser files
-        if: ${{ steps.cjk-font-cache.outputs.cache-hit != 'true' }}
         run: |
           # Keep the runner's signed repositories first. If their mirror cannot be reached,
           # install the same font from Ubuntu's signed Kernel.org mirror using isolated apt lists.
@@ -709,16 +701,6 @@ jobs:
             sudo apt-get "${font_options[@]}" install -y -qq --no-install-recommends fonts-wqy-zenhei
           fi
           fc-list :lang=zh family | sort -u
-
-      - name: Activate CJK font cache
-        run: |
-          if [ "${{ steps.cjk-font-cache.outputs.cache-hit }}" != "true" ]; then
-            mkdir -p ~/.local/share/fonts/wqy-zenhei
-            cp -a /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc ~/.local/share/fonts/wqy-zenhei/
-          else
-            fc-cache -f ~/.local/share/fonts/wqy-zenhei
-            fc-list :lang=zh family | sort -u
-          fi
 
       - name: Download build outputs
         uses: actions/download-artifact@v4

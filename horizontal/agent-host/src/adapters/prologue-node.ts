@@ -3,7 +3,7 @@ import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prolog
 import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isAbsolute } from "node:path";
-import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
+import { isSupportedProtocol, listBuiltInProtocols } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { endedOnPromise } from "./prologue-stop-guard.js";
@@ -13,11 +13,11 @@ import { createPrologueConditionCheckers } from "./prologue-checkers.js";
 import { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { PrologueCredentialBridge } from "./prologue-credentials.js";
 import { prologueEffects } from "./prologue-effects.js";
-import { guardNodeDispatch, prepareDispatchFence, withDispatchControl } from "./prologue-dispatch.js";
+import { createCommandDispatchGuard, prepareDispatchFence, withDispatchControl } from "./prologue-dispatch.js";
 import type { PrologueGitReviewPort } from "./prologue-git.js";
 import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
-import { guardMcpDispatch } from "./prologue-mcp-dispatch.js";
+import { createMcpRequestGuard } from "./prologue-mcp-dispatch.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
@@ -71,21 +71,15 @@ export function prologueProtocolFacts(): ReadonlyArray<{
   readonly protocol: string;
   readonly prompt_cache: boolean;
 }> {
-  return BUILT_IN_ADAPTERS.map((adapter) => ({
-    protocol: adapter.protocol,
-    prompt_cache: adapter.supportsPromptCache === true,
+  return listBuiltInProtocols().map((descriptor) => ({
+    protocol: descriptor.protocol,
+    prompt_cache: descriptor.supportsPromptCache === true,
   }));
 }
 
-/** Whether Prologue would accept this protocol name. Throwing is its own answer. */
+/** Whether Prologue accepts this protocol name. */
 export function prologueAcceptsProtocol(protocol: string): boolean {
-  const select = createAdapterRegistry(BUILT_IN_ADAPTERS);
-  try {
-    select(protocol);
-    return true;
-  } catch {
-    return false;
-  }
+  return isSupportedProtocol(protocol);
 }
 
 /**
@@ -159,17 +153,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     storageRoot: options.storageRoot, exclusiveOwner: true, memoryStorageFormat: "indexed-v1",
     resolveHost: resolveModelHostname,
     beforeNetworkDispatch: () => prepareDispatchFence(dispatchGuards.getStore()),
+    beforeCommandDispatch: createCommandDispatchGuard(dispatchGuards),
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
   const state = createRoundState();
   let runtime: Awaited<ReturnType<typeof createNodeRuntime>>;
-  const receiptBridge = actionDispatchReceipts(guardMcpDispatch(guardNodeDispatch(node, dispatchGuards), dispatchGuards), state, () => runtime);
+  const receiptBridge = actionDispatchReceipts(node, state, () => runtime);
   const host = receiptBridge.host;
   onFailureClose(() => host.closeStorage(), true);
   const closeReceipts = onFailureClose(receiptBridge.close);
-  const effects = prologueEffects(host, options.app.appId);
+  const effects = prologueEffects(host);
   const closeEffects = onFailureClose(() => effects.close());
   const decisions = createPrologueReviewDecisions(effects, options.app.appId);
   const delegations = createPrologueDelegations(effects, options.app.appId);
@@ -186,7 +181,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   // Who starts a continuation that may go on by itself: the starter the composition root serves, asked per session owner.
   const starts = createContinuationStarts(async id => (await index.read(id).catch(() => undefined))?.owner);
-  runtime = await createNodeRuntime(options, effects.host, task => dispatchGuards.exit(() => schedule.run(task)), () => surfaceHost, {
+  runtime = await createNodeRuntime(options, host, effects.storageGuard, task => dispatchGuards.exit(() => schedule.run(task)), () => surfaceHost, {
     forRun: runId => state.dispatchChecks.get(runId),
     onAdmitted: async request => {
       const { parentRunId, parentSessionId, childSessionId, node } = request;
@@ -221,6 +216,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => withDispatchControl(dispatchGuards, guard, operation),
+    requestGuard: transport => createMcpRequestGuard(transport, dispatchGuards),
     directoryAuthorized: options.checks?.directoryAuthorized,
     holdDirectory: options.checks?.holdWorkspaceDirectory,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,

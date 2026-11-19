@@ -17,6 +17,8 @@ export interface ImageConnection {
 }
 export interface ImageConnectionInput {
   id?: string;
+  /** Stable UUID for retrying creation after a lost response or an incomplete binding. */
+  create_id?: string;
   name: string;
   api_format: ImageApiFormat;
   base_url: string;

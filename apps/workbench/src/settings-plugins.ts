@@ -20,28 +20,28 @@ export function renderPluginTrustSettings({ projectId, chevron, kinds }: { readT
     <header class="settings-page-heading"><h1 id="plugin-trust-title">${uiText("workbench.settings-plugins.plugin")}</h1>
       <p>${uiText("workbench.settings-plugins.plugins-installed-project-who-signed-them-what-they")}</p></header>
     <p class="settings-form-error" data-plugin-trust-error role="alert" hidden></p>
-    <section class="settings-section" aria-labelledby="plugin-trust-install-title">
-      <h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</p>
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${uiText("workbench.settings-plugins.choose-package")}</button>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-install-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2></header><div class="mw-settings-section__rows">
+      <div class="settings-setting-row"><span class="setting-copy"><span>${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</span></span>
+        <div class="setting-value"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${uiText("workbench.settings-plugins.choose-package")}</button></div></div>
       <input type="file" accept=".json,application/json" hidden data-plugin-trust-pick>
       <div data-plugin-trust-bundled hidden></div>
       <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-list-title">
-      <h2 id="plugin-trust-list-title">${uiText("workbench.settings-plugins.installed-plugins")}</h2>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-list-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-list-title">${uiText("workbench.settings-plugins.installed-plugins")}</h2></header><div class="mw-settings-section__rows">
       <ul class="plugin-trust-list" data-plugin-trust-list><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-home-title">
-      <h2 id="plugin-trust-home-title">${uiText("workbench.settings-plugins.plugins-personal-space")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-home-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-home-title">${uiText("workbench.settings-plugins.plugins-personal-space")}</h2></header><div class="mw-settings-section__rows">
+      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>
       <ul class="plugin-trust-list" data-plugin-trust-home><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-publishers-title">
-      <h2 id="plugin-trust-publishers-title">${uiText("workbench.settings-plugins.publishers-trust")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-publishers-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-publishers-title">${uiText("workbench.settings-plugins.publishers-trust")}</h2></header><div class="mw-settings-section__rows">
+      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>
       <ul class="plugin-trust-list" data-plugin-trust-publishers><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
+    </div></section>
     <template data-plugin-trust-chevron>${chevron}</template>
     ${Object.entries(kinds).map(([kind, mark]) => `<template data-plugin-trust-kind="${kind}">${mark}</template>`).join("")}
   </section>`;

@@ -19,7 +19,7 @@ interface JobRun extends ImagesServiceOptions {
   write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T>;
 }
 
-export async function runImageJob(run: JobRun): Promise<void> {
+export async function runImageJob(run: JobRun): Promise<"recorded" | "interrupted"> {
   const { job, connection, control } = run;
   const target = { slot_id: connection.id, base_url: connection.base_url };
   let resultRevision: string | undefined;
@@ -56,18 +56,20 @@ export async function runImageJob(run: JobRun): Promise<void> {
     try {
       check();
       const state = run.imageGeneration.inspect(target);
-      if (state.revision !== (resultRevision ?? run.revision)) return;
+      if (state.revision !== (resultRevision ?? run.revision)) return "interrupted";
       resultRevision = state.revision;
-    } catch { return; }
+    } catch { return "interrupted"; }
     await run.write(guarded, store => store.finish(job.project_id, job.id, "failed", [], failureMessage(error)));
   } finally { lifetime.dispose(); }
   // Unreferenced files from a partial write are reclaimed during the next authorized plugin start.
+  return "recorded";
 }
 
 function failureMessage(error: unknown): string {
   if (isImagesFailure(error)) return error.message;
   if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && "message" in error && typeof error.message === "string") {
-    if ("kind" in error && error.kind === "timeout") return "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。";
+    if (error.code === "host.image_timeout") return error.message;
+    if ("kind" in error && error.kind === "timeout") return "等待厂商响应超时。厂商可能仍在生成或计费，请检查用量后再手动重试。";
     if (["host.image_runtime_unavailable", "host.image_provider_failed"].includes(error.code)) return error.message;
   }
   return "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。";

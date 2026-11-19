@@ -16,6 +16,8 @@
 
 ## 在做的
 
+- [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
+
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
 - [quality-experience-audit](quality-experience-audit/spec.md) 涵盖六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。第 122 批 `94d9c58ede` 的本轮实施与验收已完成，Verify 与 Full 48 片通过，草稿待评审。 [报告](quality-experience-audit/report.md) · [覆盖记录](quality-experience-audit/coverage.md) · [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)

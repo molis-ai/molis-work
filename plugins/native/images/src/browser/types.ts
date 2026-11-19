@@ -64,6 +64,7 @@ export interface ImagesState {
   cid: string;
   jobId: string;
   editingId: string;
+  creatingId?: string;
   editingFormat: ImageApiFormat;
   editingAuth: string;
   pending: Pending | null;

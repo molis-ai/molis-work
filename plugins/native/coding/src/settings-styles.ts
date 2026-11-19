@@ -3,4 +3,5 @@ export const CODING_SETTINGS_STYLES = `
   .coding-settings details { margin-block: 12px; }
   .coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }
   .coding-settings .mw-select { max-width: 100%; }
+  .coding-settings .coding-mcp-fields:not([hidden]) { display: grid; gap: 12px; }
 `;

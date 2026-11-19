@@ -19,6 +19,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // Goals package) has to give the same bytes, in both interface languages. Batch 39 (#2105) re-recorded golden.json for the intentional
 // trusted-decision `data-review-version` attributes, unified authorization settings navigation, and retired `policy_bindings` removal.
 // QEA-83 combines those changes with QEA-06 import batch guidance and its action label; the underlying frozen business view is unchanged.
+// Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
+// checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
+// section became a title over one card.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
@@ -253,6 +256,8 @@ const pages: Record<string, Draw> = {
 // including both languages of Copywriting polish. All 52 match exactly; 24 expectations change.
 // QEA-196: adding back only the next-wing attribute restores all 52 accepted records of 811e28f368.
 // Sixteen whole pages change by 19 characters each. The other 36 records are unchanged.
+// QEA-204 applies those four independently checked audit edits to the accepted P5 main drawings.
+// The settings appearance and project maintenance changes follow main, and the comparison covers every original record.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

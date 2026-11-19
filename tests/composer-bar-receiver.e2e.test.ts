@@ -252,7 +252,7 @@ test("QEA-45: same-id frame shape remount preserves the draft and selections acr
 // session's name and showed the session's line above the input (settings hides every page without touching one, so nothing
 // told the bar); the settings chip in the title bar read 「设…」 (it was measured with its name already cut); and the empty
 // state of 对外接入 ran its two sentences together.
-test("UIV-21: settings over the pages hands the bar back to the Assistant and returns it when closed; the settings chip keeps its name whole; 对外接入's empty state is two lines", { timeout: 180_000 }, async (t) => {
+test("UIV-21: settings over the pages hands the bar back to the Assistant and returns it when closed; the settings chip keeps its name whole; 对外接入's first step is a name over its own sentence", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "lingguang");
@@ -277,8 +277,12 @@ test("UIV-21: settings over the pages hands the bar back to the Assistant and re
   assert.equal(await browser.evaluate(`${CHIP}.textContent`), "设置");
 
   await browser.evaluate("document.querySelector('[data-directory-panel=settings] [data-settings-section=access]').click()");
-  await browser.waitFor("Boolean(document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty'))", 15_000);
-  assert.deepEqual(await browser.evaluate(`(() => { const empty = document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty'), title = empty.querySelector('strong').getBoundingClientRect(), note = empty.querySelector('span').getBoundingClientRect();
+  // POLISH-30: before a client is chosen 对外接入 draws no empty card; the last row of its one card says what to do next (the
+  // sentence the empty card used to carry), and that sentence still starts on a line of its own under the row's name.
+  const STEP = "[data-work-surface=settings] .mcp-access-scope div.mw-setting-row > .mw-setting-row__copy";
+  await browser.waitFor(`Boolean(document.querySelector('${STEP} > span'))`, 15_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=settings] .mcp-access .settings-empty')"), null, "no empty card before a client is chosen");
+  assert.deepEqual(await browser.evaluate(`(() => { const step = document.querySelector('${STEP}'), title = step.querySelector('strong').getBoundingClientRect(), note = step.querySelector('span').getBoundingClientRect();
     return [title.width > 0 && note.width > 0, note.top >= title.bottom - 0.5]; })()`), [true, true], "the sentence under the title starts on a line of its own");
 
   await browser.evaluate("document.querySelector('[data-cover-close]').click()");

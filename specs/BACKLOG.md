@@ -16,6 +16,8 @@
 
 优先级：**高**＝影响正在用的功能或对外开放；**中**＝下一轮该做；**低**＝有需要再做。负责人按[轨道分工](post-anticorruption-roadmap/reference/tracks.md)及[事实主人](../docs/SSOT-MATRIX.md)注明维护职责。已有认领保留到实际交接；只确定了负责范围的写「执行会话待分配」。创作台、Sessions 和团队仍可整体待分配，相关轨道是协作者。
 
+2026-11-18 确认的 22 条独立工作中，7 条并入原有交付，15 条进入第 92～99 批。见[逐条归属、估时与开工 Prompt](post-anticorruption-roadmap/reference/backlog-dispatch-2026-11-18/README.md)与[第一轮三个会话的开工 Prompt](post-anticorruption-roadmap/reference/backlog-dispatch-2026-11-18/first-round.md)。
+
 ## 1. 待你验收
 
 第 38 批场景设置的采用范围、部分成功后继续和撤销见 [BL-b38-settings-adoption-acceptance](backlog/BL-b38-settings-adoption-acceptance.md)。

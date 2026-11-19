@@ -488,7 +488,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(jobBlock("build"), /run: pnpm build$/m, "the shared build job builds the workspace packages");
   assert.match(job, /^    needs: \[test-selection, queue-check, build\]$/m, "product-subset consumes the shared build job");
-  assert.ok(job.includes("name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}"), "product-subset downloads the shared build archive");
+  assert.ok(job.includes("name: ${{ needs.build.outputs.dist-artifact }}"), "product-subset downloads the shared build archive via build job output so --failed reruns work");
   assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");
   const timeout = Number(/^    timeout-minutes: (\d+)$/m.exec(job)?.[1]);
   const budget = Number(/--budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);
@@ -514,5 +514,24 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
 test("ci.yml: a blocking job runs the subset's own rules", () => {
   for (const file of ["tests/ci-product-subset.test.ts", "tests/ci-product-subset-plan.test.ts"]) {
     assert.ok(blockingTestRuns().some((words) => words.includes(file)), `a job that verify needs (${blockingJobs().join(", ")}) runs ${file}`);
+  }
+});
+
+test("workflows: shared dist build artifacts are passed via build job outputs so --failed reruns resolve attempt-1 outputs", () => {
+  for (const [file, prefix, expectedDownloads] of [
+    ["ci.yml", "ci-dist", 6],
+    ["full-suite.yml", "full-suite-dist", 1],
+    ["visual-audit.yml", "visual-audit-dist", 1],
+  ] as const) {
+    const text = readFileSync(path.join(repoRoot, ".github/workflows", file), "utf8");
+    assert.match(text, /^    outputs:\n(?:      #.*\n)*      dist-artifact: \$\{\{ steps\.pack\.outputs\.artifact-name \}\}$/m, `${file}: build exports dist-artifact output`);
+    assert.ok(text.includes(`printf 'artifact-name=${prefix}-%s-%s\\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"`), `${file}: pack step emits attempt-scoped artifact name`);
+    assert.ok(text.includes("name: ${{ steps.pack.outputs.artifact-name }}"), `${file}: upload step uses pack output name`);
+    const downloads = [...text.matchAll(/- name: Download build outputs\n\s+uses: actions\/download-artifact@v4\n\s+with:\n\s+name: (.+)/g)].map((m) => m[1]!.trim());
+    assert.equal(downloads.length, expectedDownloads, `${file}: expected ${expectedDownloads} build artifact download(s)`);
+    for (const name of downloads) {
+      assert.equal(name, "${{ needs.build.outputs.dist-artifact }}", `${file}: download must read needs.build.outputs.dist-artifact, not github.run_attempt`);
+    }
+    assert.doesNotMatch(text, /download-artifact@[\s\S]{0,120}github\.run_attempt/, `${file}: download-artifact must never interpolate github.run_attempt`);
   }
 });

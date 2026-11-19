@@ -1,6 +1,6 @@
 # 在这个仓库里工作
 
-Molis Work：本地优先的插件基座加多插件工作平台。平台是一个 Home 的常驻宿主、统一动作服务与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归插件，每项事实只有一个主人（`docs/SSOT-MATRIX.md`）。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
+Molis Work：本地优先的插件基座加多插件工作平台。平台是一个 Home 的常驻宿主、统一动作服务与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归各自 Module 或插件，每项事实只有一个主人（`docs/SSOT-MATRIX.md`）。Goals 与其他项目插件同等地位（新项目不默认安装，可按需添加与移除，移除后数据保留），拥有 Goal 的事实；项目指导、可信决定、要求与认可、对象工作终端归平台能力。
 
 ## 先读哪里
 

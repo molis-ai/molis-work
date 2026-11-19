@@ -37,7 +37,7 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 插件的 `sync` 集合声明、SDK 快照/增量合同、空间配置身份与未实现边界见 [同步接入规范](../../skills/molis-plugin-dev/sync.md)。当前 Pages 已有显式启用的本机 Rust/D1 同步试点，未部署公网，也不代表其他插件已接入。新增插件按同一合同提供 owner 适配并由可信 Host 注册，不向 Server 添加业务 payload 分支。
 
-正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。
+正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；外部 Runtime 只经 MCP 接入并按动作目录发现能力（原 `goal-advance` Skill 已于第 44 批删除）。
 
 安装到自己的 Agent 后才能在别的仓库里用；命令、`release_path` 的取法与 npm 包路径见 [Skill「安装」](../../skills/molis-plugin-dev/SKILL.md#安装)。Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plugin-dev`。本仓库里 `.cursor/skills/molis-plugin-dev` 已指向这份正文。
 

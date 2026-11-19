@@ -6,7 +6,7 @@
 
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
-Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
+Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 与其他项目插件同等地位（新项目不默认安装、可移除，移除后数据保留），拥有 Goal 的事实；项目指导、可信决定、要求与认可、对象工作终端归平台能力。
 
 Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `modules/goals`、`modules/governance-collaboration` 的代码已并入该包，S9-3），按[事件工作流需求书](../specs/archive/goal-event-workflow-cleanup/spec.md)收敛：事件是唯一工作协议；事件之前的 Claim/Run/Evidence/Review 历史连同表与展示已于 2026-10-05 删除（#268）。真实 Session／终端归 Work 与 Runtime Host。本索引的相关 owner 行已同步；早期迁移报告保留当时的实现和验收记录。
 
@@ -101,11 +101,11 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 目标 package | 事实 owner | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
-| `modules/projects` | Project 身份、Catalog、workspace membership（输入、输出两种角色）、默认输出目录、「最近用过」与说明文件读取开关（`project_instruction_settings`） | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
+| `modules/projects` | Project 身份、Catalog、workspace membership（输入、输出两种角色）、默认输出目录、「最近用过」、说明文件读取开关（`project_instruction_settings`）与项目指导（`guidance_entries`、`guidance_revisions`，第 44 批自 Goals 迁入平台） | 正式 Project/Catalog 与项目指导事实；Host 编排文件生命周期，Desktop 提供平台 | `production` | AP1/AP2/Cutover；旧 Catalog 已删除；第 44 批 44-2 | Module：@yijunw0212 |
 | `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现；缺片：未来 publication / 异步 materialization；后续：补未来能力时另立 Goal（AR2 已验收主路径） | `slice` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
 | `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，默认关闭 | `slice` | F2；`specs/personal-cloud-sync/plugin-replication.md` | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
-| `modules/acceptance` | 挂在任何插件对象上的要求、交付版本、核对报告与层级、用户本人的认可与退回、各轮记录（平台能力，不经 Goals） | `openAcceptance` 给出的服务（`set`、`deliver`、`report`、`read`、`decide`）、`acceptanceView`；系统动作 `acceptance.requirements.set`、`acceptance.deliveries.record`、`acceptance.reports.submit`、`acceptance.read`、`acceptance.decide` 由 Host 装配为 `system.acceptance`；Home 库 `acceptance/acceptance.db`。缺片：个人范围、另一会话复查这一层级；Goals 到 44-3 才改为消费 | `slice` | `specs/proactive-assistant/spec.md` §7.3.1、`specs/agent-approval/spec.md` §3.5 | Module：@yijunw0212 |
+| `modules/acceptance` | 挂在任何插件对象上的要求、交付版本、核对报告与层级（含复查档）、用户本人的认可与退回、各轮记录（平台能力，不经 Goals） | `openAcceptance` 给出的服务（`set`、`deliver`、`report`、`read`、`decide`）、`acceptanceView`；系统动作 `acceptance.requirements.set`、`acceptance.deliveries.record`、`acceptance.reports.submit`、`acceptance.read`、`acceptance.decide` 由 Host 装配为 `system.acceptance`；五张表存在项目库中，与可信决定同库同事务，Goals 与助理后台任务均为消费方（第 44 批 44-3 迁入并接管存量）。缺片：个人范围 | `slice` | `specs/proactive-assistant/spec.md` §7.3.1、`specs/agent-approval/spec.md` §3.5；第 44 批 44-3 | Module：@yijunw0212 |
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；旧 Inbox 转发已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177；缺片：Sessions 下线后的重做；后续：BL-177 | `slice` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用、原件与 provenance | 唯一正式事实；平台提供方和生产者声明由 Host 装配，工作台成果界面走动作消费；原件 Home 存储由本模块声明 | `production` | AR1 已迁 Core；AR3 切换现有结果入口 | Module：@yijunw0212 |
@@ -123,7 +123,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- | --- | --- | --- |
 | `horizontal/connector-host` | Provider 连接、凭据引用和调用 Receipt | Provider-neutral 连接/Receipt；Integration contribution 提供 Driver | `production` | FD1/FD3/AP2/Cutover | 横向服务：@yijunw0212 |
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `production` | `specs/archive/schedule-plugin/spec.md` | 横向服务：@yijunw0212 |
-| `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放 | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177；缺片：Sessions 重做（Codex 会话适配器已随 Sessions 下线删除）；后续：BL-177 | `slice` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 | 横向服务：@yijunw0212 |
+| `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放；按插件 `work_terminals` 声明提供对象工作终端与提示组装（第 44 批 44-4） | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177；缺片：Sessions 重做（Codex 会话适配器已随 Sessions 下线删除）；后续：BL-177 | `slice` | WK2 已迁 Host/Adapter；WK3 已迁产品编排；第 44 批 44-4 | 横向服务：@yijunw0212 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），没有第二个执行引擎（`claude` 命令行适配器已于 2026-10 删除，外部 Agent 运行时按口径暂缓）；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `production` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
 | `horizontal/appearance` | 一个 Home 的外观选择与最近使用语言 | `interface/state.json` 的精确选择、修订、恢复组合及本人操作回执；`config/ui-locale.json` 给没有页面的工作。定义由 Design System 发布，动作合同在 `platform/ui` | `slice` | [第 16 批 B1](../specs/font-and-skin-system/bc-runtime-contract.md) | 横向服务：@yijunw0212 |
 | `horizontal/account` | 中央账号协议与 Host 会话适配；身份和商业事实由 Auth 持有，本地身份与 Home 不变 | 固定中央客户端、可信环境、持久会话、邮箱/手机认证及 Google/GitHub 回跳；资料与商业管理页面待后续任务 | `slice` | `specs/unified-account/spec.md` | 横向服务：@yijunw0212 |
@@ -137,7 +137,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `horizontal/blueprints` | 场景草稿、采用预览、逐项记录与撤销 | `system.blueprints`；`blueprints/blueprints.db` 保存原请求和主人回执，设置值归声明它的主人 | `slice` | `specs/scene-and-page-contract/spec.md` §7 | 横向服务：@yijunw0212 |
 | `horizontal/evaluation` | 端到端工作评测：消费采集层公开动作读取真实工作记录、证据快照、覆盖与样本留存，运行冻结样本判定、六阶段对比、隔离回放、人工复查追加与按调优／独立验证分桶的指标汇总 | `EvaluationService`；系统动作 `evaluation.samples.put/list/remove@1`、`evaluation.runs.execute/get/list/compare@1`、`evaluation.reviews.record@1`、`evaluation.metrics.summarize@1` 由 Host 装配；自己的库 `<Home>/evaluation/evaluation.db`（v1），只经公开 `observation.*@1`（`use: "evaluation"`）读取采集层、不回写历史记录与业务表 | `slice` | `specs/observation-collection/evaluation-path-design.md` | 横向服务：@yijunw0212 |
 | `horizontal/project-approvals` | 平台可信决定、项目审批规则 | 项目库内的原决定与规则历史；由 Host 在受保护入口提供权限和同库事务；原动作 owner 负责实际提交及结果 | `slice` | [授权需求 §3.6](../specs/agent-approval/spec.md#36-可信决定) | 横向服务：@yijunw0212 |
-| `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `production` | `specs/archive/work-placement/spec.md` | 横向服务：@yijunw0212 |
+| `horizontal/placement` | 放在哪里：对象的位置、访问范围、按插件 `placement_relation` 声明的通用挂接关联与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/attach.*` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `production` | `specs/archive/work-placement/spec.md`；第 44 批 44-1 | 横向服务：@yijunw0212 |
 | `horizontal/surfaces` | 确定呈现组合与本人的位置纠正 | 第 15 批已交：组合只引用主人字段和动作，纠正表在项目库，Host 装配与拒绝路径，项目首页、插件挂载位、讨论与「等你」接入；还缺「接着做」（第 21／28 批）、助理组合（第 64 批）与 `task` 规则，见对应批次与 [BL-surface-composition-review-followups](../specs/backlog/BL-surface-composition-review-followups.md)；本人验收见 [BL-surface-home-acceptance](../specs/backlog/BL-surface-home-acceptance.md)，IUI-20 复测见 [BL-surface-home-performance](../specs/backlog/BL-surface-home-performance.md) | `slice` | `specs/surface-composition/spec.md` §2、§3、§14 | 横向服务：@yijunw0212 |
 | `horizontal/sessions` | 外部会话：在用户打开的读取范围内发现本机与已连接远端 AI 开发工具的会话，只读历史正文、归属到项目、供个人搜索与个人助理单轮受控读取，不导入正文、不发消息、不托管运行 | `SessionsService`；系统动作 `sessions.*`（`system.sessions`）由 Host 装配；自己的库 `<Home>/external-sessions/external-sessions.db` 只存索引、目录缓存、读取范围、项目 AI 读取开关、归属决定与归属建议；不存对话全文，标题/建议短引文除外；十个来源适配器（Codex、Claude Code、Gemini CLI、Pi、GitHub Copilot Coding Agent、Droid、Qwen Code、Qoder、Kimi Code、MiniMax Code），其余登记表条目如实报未实现或工具未提供；本人验收见 [BL-b34-sessions-acceptance](../specs/backlog/BL-b34-sessions-acceptance.md) | `slice` | `specs/sessions-rebuild/spec.md`；`specs/sessions-rebuild/contract-design.md` | 横向服务：@yijunw0212 |
 
@@ -151,7 +151,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；逐项依据也归这里（每条判断核对的确切交付版本、方法、证据引用与 Goals 核出的可信层级，用户结论针对的版本；第 24-3 批，不另建任务中心或验收事实库；命令回执的事实仍归 `horizontal/agent-host`，成果版本仍归 `modules/artifacts`，Goals 只存引用）；目录直接读当前状态；页面（项目页、片段、设置）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
+| `plugins/native/goals` | Goals 内置插件（普通项目插件，新项目不默认安装、可按需添加与移除，移除后数据保留）：拥有 Goal、关系与工作事件历史；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告及事件与 Journal 组成的历史；项目指导、可信决定与审批规则、要求与认可、对象工作终端均已归平台能力，Goals 仅作消费方；目录直接读当前状态；页面与按需样式（`goals.css`）由包内绘制，Workbench 只交通用外壳端口，不按插件名开私路 | `production` | GW/DD/EX/Cutover；事件工作流收敛；第 44 批收口插件同等地位 | 内置插件：@yijunw0212 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料；缺片：Inbox/Feed 拆插件切片 2–3；后续：切片 2–3 计划 | `slice` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/archive/feed-inbox-pages-loop/validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/risk` | 项目风险：记录、关联、进展与总览 | 风险记录、关联对象、进展时间线，列表、读取器、搜索、呈现与首页概况；复查由 Schedule 的一次性对象任务承载，风险不调 AI；Goal 的顾虑可引用风险。缺片：RISK-06 的历次结果与采纳（[BL-risk-review-history-adopt](../specs/backlog/BL-risk-review-history-adopt.md)）；RISK-05/06/09 的本人验收 | `experimental` | `specs/risk-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/work-brief` | 项目简报与个人简报：现在怎么样、要你处理什么、下一步 | 简报及其版本、每句的依据、人工修改、待处理的提案、下一步的处置、固定版本（发成成果）、个人事项汇总；别的插件的内容只经它们公开的概况、读取器和动作读，不存副本；首页主区内容（`presentation.overview.lead`）；缺片：决定卡（39-2 的受保护入口已就位，卡本身待做）、定时刷新走 Schedule、周期报告／living page／使用回顾／交互式报告页等后续片 | `experimental` | `specs/work-brief/spec.md` | 内置插件：@yijunw0212 |
@@ -184,7 +184,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/official-integrations/rss` | 官方目录与自定义 RSS provider adapter | 目录/custom RSS/正文分类/HTTP adapter；Host 提供运行上下文 | `production` | FD3/Cutover；真实公开 RSS 拉取 | 官方集成：@yijunw0212 |
 | `plugins/official-integrations/youtube` | YouTube Channel 标识与地址工具 | 频道标识/公开 Feed 地址规则；Host SourcePull 执行受控拉取，Feed 拥有来源与同步事实 | `production` | FD3/Cutover；未接入工厂退役见 quality-experience-audit §28 | 官方集成：@yijunw0212 |
 
-所有内置插件都由 molis 发布、带官方签名；其中只有 Goals 是每个项目都带、工作台里不能移除的插件。Plugin 之间不依赖 implementation：能力经共同动作目录调用；人要留存、引用的固定版本进成果库（`artifacts.produces`），交给别的插件的数据是生产方自己的过程项（`process_items.produces`），经端口与动作交换；其余事实留在各自插件的库里。
+所有内置插件都由 molis 发布、带官方签名；常开插件仅剩 Shelf，Goals 与其余项目插件同等地位（新项目不默认安装，可按需添加或移除，移除后数据保留）。Plugin 之间不依赖 implementation：能力经共同动作目录调用；人要留存、引用的固定版本进成果库（`artifacts.produces`），交给别的插件的数据是生产方自己的过程项（`process_items.produces`），经端口与动作交换；其余事实留在各自插件的库里。
 
 ### 已删除的接入
 
@@ -232,7 +232,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | --- | --- | --- |
 | 本人在项目里的事项、分组、顺序、当前事项、装进的引用 | `horizontal/mainline` | `mainline/mainline.db`；引用对象仍由其主人读取 |
 | 事项线怎样读：按类型发现项目里的事件登记方、逐个现问，事件在哪一翼、排第几、线上显示什么状态 | `horizontal/mainline` | `mainline.line.read@1` 现读事件和状态；事项本身的容器与排列存在主线库 |
-| 一件工作的各项要求、每次交付的版本、逐项核对的结果与层级、用户本人的认可与退回（平台能力；Goals 自己的要求与认可到 44-3 才搬过来） | `modules/acceptance` | Home 库 `acceptance/acceptance.db`，按项目隔离，除对象表外只追加；每项此刻的状态由 `acceptance.read@1` 从记录现算，不另存；对象归它的插件，证据正文归成果库与 Agent Host，这里只存引用 |
+| 一件工作的各项要求、每次交付的版本、逐项核对的结果与层级（含复查档）、用户本人的认可与退回（平台能力，Goals 与助理后台任务均消费） | `modules/acceptance` | 项目库内的五张认可表，与可信决定同库同事务，除对象表外只追加；每项此刻的状态由 `acceptance.read@1` 从记录现算，不另存；对象归它的插件，证据正文归成果库与 Agent Host，这里只存引用 |
 | 任务为哪个事件办 | 任务的主人（用 `defineTaskServesAction` 写的部分，`placement_relation` 关联 `serves`） | 主人自己的记录。带 `to` 时 `mainline.place@1` 只按声明找到主人并让它记下，自己不记；带 `item` 时主线库写自己的装进关系 |
 | 后台任务总表怎样读：按类型发现项目里的任务提供方、逐个现问、核对每一行；命令执行前重读提供方、只认它仍给出的那一条 | `horizontal/mainline` | 不存任何东西，每次由 `background.tasks.read@1` 现读；任务的事实在各提供方 |
 | 能力包怎样拼：三种包（插件安装、Molis Work 自带、你的角色）、给条目盖来源与所属的包、算包的状态 | `horizontal/kit` | 不存任何东西，每次由 `kit.catalog.list@1` 现算；不建注册表 |

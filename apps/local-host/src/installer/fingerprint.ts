@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+/** The desktop reads this file too (`apps/desktop/adapters/tauri/src/web_service.rs`, `read_build_time`): a new version of it changes both. */
 export interface MolisWorkBuildManifest {
   schema_version: /* @version format.build.manifest */ 1;
   source_digest: string;

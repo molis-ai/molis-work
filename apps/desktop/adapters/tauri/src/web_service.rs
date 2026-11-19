@@ -180,7 +180,7 @@ fn read_rollback_hold(home: &Path) -> Option<Version> {
 }
 
 /// A program the desktop compares: its version, and when it was built. Development builds all share a version, so
-/// between two of them only the build time tells which is newer (BL-desktop-same-version-install).
+/// between two of them only the build time tells which is newer (batch 94-1, DSV-01～05).
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Program {
     version: Version,
@@ -219,25 +219,21 @@ fn read_build_time(program: &Path) -> Option<String> {
 #[derive(Deserialize)]
 struct Installation {
     version: String,
-    release_path: String,
+    release_path: Option<String>,
 }
 
-/// The program `config/installation.json` names. Its release path counts only as a plain path inside the Home, as
-/// the rollback record's does (owner-isolation-and-rollback-design §5.1).
+/// The program `config/installation.json` names. Its build time is read only when its release path is the one the
+/// installer gives that version, `releases/molis-work-<version>` (`safeReleaseName`); any other path, or none, leaves
+/// the version without a build time.
 fn read_installed_program(home: &Path) -> Option<Program> {
     let path = home.join("config").join("installation.json");
     let installation = serde_json::from_slice::<Installation>(&fs::read(path).ok()?).ok()?;
-    let release = Path::new(&installation.release_path);
-    let inside = release.components().next().is_some()
-        && release
-            .components()
-            .all(|part| matches!(part, std::path::Component::Normal(_)));
-    Some(Program {
-        version: Version::parse(installation.version.trim()).ok()?,
-        built: inside
-            .then(|| read_build_time(&home.join(release)))
-            .flatten(),
-    })
+    let version = Version::parse(installation.version.trim()).ok()?;
+    let release = format!("releases/molis-work-{}", installation.version.trim());
+    let built = (installation.release_path.as_deref() == Some(release.as_str()))
+        .then(|| read_build_time(&home.join(&release)))
+        .flatten();
+    Some(Program { version, built })
 }
 
 fn embedded_is_upgrade(
@@ -606,7 +602,7 @@ mod embedded_runtime_version_tests {
         assert!(!embedded_is_upgrade(&old, Some(&current), None));
     }
 
-    /// BL-desktop-same-version-install DSV-01, DSV-02, DSV-04, DSV-05.
+    /// Batch 94-1: DSV-01, DSV-02, DSV-04, DSV-05.
     #[test]
     fn dsv_a_later_build_of_the_same_version_installs_once_and_nothing_else_does() {
         let a = program("0.1.0", Some(A));
@@ -703,8 +699,31 @@ mod embedded_runtime_version_tests {
         assert!(!embedded_runtime_upgrade_available(&root, &home), "DSV-03");
         fs::remove_file(home.join("config").join("rollback-hold.json")).unwrap();
 
-        // A release path that leaves the Home, or a manifest this build cannot read, gives no build time.
-        for outside in ["../outside", "/tmp/outside", ""] {
+        // DSV-03 holds a later build of the same version too, until the person lifts the hold (settings › Update
+        // 「Install … again」), which installs it on the next start.
+        write_build(&payload, "2026-11-20T00:00:00.000Z");
+        fs::write(
+            home.join("config").join("rollback-hold.json"),
+            r#"{"schema_version":1,"held_version":"0.1.0","rolled_back_from":{"version":"0.1.0","content_digest":"x"},"at":"t"}"#,
+        )
+        .unwrap();
+        assert!(!embedded_runtime_upgrade_available(&root, &home), "DSV-03");
+        fs::remove_file(home.join("config").join("rollback-hold.json")).unwrap();
+        assert!(
+            embedded_runtime_upgrade_available(&root, &home),
+            "hold lifted"
+        );
+        write_build(&payload, B);
+
+        // Only the installer's own path for the version gives a build time; a missing one is still installed.
+
+        for outside in [
+            "../outside",
+            "/tmp/outside",
+            "",
+            "releases/./molis-work-0.1.0",
+            "releases/other",
+        ] {
             write_build(&root.join("outside"), A);
             write_installation(&home, outside);
             assert_eq!(
@@ -717,6 +736,13 @@ mod embedded_runtime_version_tests {
                 "{outside}"
             );
         }
+        fs::write(
+            home.join("config").join("installation.json"),
+            r#"{"schema_version":1,"version":"0.1.0"}"#,
+        )
+        .unwrap();
+        assert_eq!(read_installed_program(&home), Some(program("0.1.0", None)));
+        assert!(!embedded_runtime_upgrade_available(&root, &home));
         write_installation(&home, "releases/molis-work-0.1.0");
         fs::write(
             release.join("dist").join(".molis-work-build.json"),

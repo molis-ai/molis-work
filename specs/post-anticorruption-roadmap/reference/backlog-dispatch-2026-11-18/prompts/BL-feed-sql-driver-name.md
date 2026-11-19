@@ -2,12 +2,12 @@
 
 Feed 已换过数据库驱动，函数名还写着旧驱动。把名字和调用处一起对齐，行为照旧。
 
-预计 **1.5–3 工时**。维护范围为Feed。正式交付项为 [95-1](../../batches/95.md#batch-95-item-1)。[原始待办](../../../../backlog/BL-feed-sql-driver-name.md) · [派工总表](../README.md)
+预计 **1.5–3 工时**。维护范围为Feed。正式交付项为 [95-1](../../batches/95.md#batch-95-item-1)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-feed-sql-driver-name.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 
 ```text
-在 goalboard 仓库完成 BL-feed-sql-driver-name。正式交付项为 95-1，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 specs/backlog/BL-feed-sql-driver-name.md。产品决定与验收按该 BL 的现行记录。
+在 goalboard 仓库完成 BL-feed-sql-driver-name。正式交付项为 95-1，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-feed-sql-driver-name.md（已完成删除）。产品决定与验收按该 BL 的现行记录。
 
 目标
 把 Feed 连数据库的旧函数名改准确。Feed 已换过数据库驱动，函数名还写着旧驱动。把名字和调用处一起对齐，行为照旧。

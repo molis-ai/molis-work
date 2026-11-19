@@ -201,8 +201,8 @@ interface RuntimeOverview {
 
 - **退出被拦住时的系统注销与关机**：桌面在 `ExitRequested` 上先问，macOS 注销或关机时也会先等这一问；系统会提示应用没退出。系统发起的退出不问直接退，另立事项 [BL-desktop-quit-on-system-logout](../backlog/BL-desktop-quit-on-system-logout.md)。**接受、不修**；重看条件：第 26 批做退出与更新体验时一并看 Tauri 能否分辨系统发起的退出。
 - **换端口后旧端口的授权**：Tauri 运行时加上的能力不撤下，留到桌面退出；两个端口都只在本机回环、都要过核身份才会被用到。**接受、不修**；重看条件：Tauri 支持按窗口撤下能力时再看。
-- ~~**Feed 的「现在做」**~~：第 95 批（95-2）已改：照 Schedule 的做法把来源放回错过的那一刻、决定留在那一行，调度见到带 `run_now` 的那一刻照常拉一次，不论晚了多久，也不再记错过（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。
-- ~~**没决定的错过不过期**~~：第 95 批（95-3）已改：用户 2026-11-18 定从 `due_at` 起算留七天，到期没人决定的自动跳过，菜单栏面板与首页提示说一次「有 n 件 7 天没处理、已自动跳过」（按主人分开数），「知道了」后不再说（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）。做法见 §10.2。
+- ~~**Feed 的「现在做」**~~：第 95 批（95-2）已改：照 Schedule 的做法把来源放回错过的那一刻、决定留在那一行，调度见到带 `run_now` 的那一刻照常拉一次，不论晚了多久，也不再记错过（[BL-feed-run-now-missed-again](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-feed-run-now-missed-again.md)）。
+- ~~**没决定的错过不过期**~~：第 95 批（95-3）已改：用户 2026-11-18 定从 `due_at` 起算留七天，到期没人决定的自动跳过，菜单栏面板与首页提示说一次「有 n 件 7 天没处理、已自动跳过」（按主人分开数），「知道了」后不再说（[BL-missed-runs-never-expire](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-missed-runs-never-expire.md)）。做法见 §10.2。
 
 ### 10.2 七天到期（第 95 批）
 

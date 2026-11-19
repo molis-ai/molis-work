@@ -92,9 +92,13 @@ function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHan
       later("hold")(reason);
     },
     materials: () => handle ? handle.materials() : [],
+    files: () => handle ? handle.files() : [],
     focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
     destroy,
   };
 }
 
 window.molisComposer ??= molisComposer;
+// A picture larger (`window.molisPicture`) is drawn by the composer's program; a page or frame that shows sent pictures without a
+// composer of its own (the composer of a plugin's frame lives in the parent) fetches the program first. Nothing opens if it cannot.
+window.molisPicture ??= (opener, picture) => { void load().then(() => globalThis.molisPictureProgram?.(opener, picture), () => undefined); };

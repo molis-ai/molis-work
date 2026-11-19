@@ -34,11 +34,11 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 
 ## 2. 总览
 
-Home 里有 35 种 SQLite 文件：权威库 31 种（Home 级 28 种，按项目 3 种）、派生库 1 种、锁库 3 种。31 种权威库按版本方案分：
+Home 里有 37 种 SQLite 文件：权威库 33 种（Home 级 30 种，按项目 3 种）、派生库 1 种、锁库 3 种。33 种权威库按版本方案分：
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 31 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、web-search、plugin-originals、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions（1）、mainline（1） |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 32 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、web-search、plugin-originals、conversation-attachments（1）、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions（1）、mainline（1） |
 | 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
@@ -76,6 +76,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `web-search/web-search.db` | 宿主；`apps/local-host/src/web-search-store.ts` 的 `WEB_SEARCH_BASELINE`（第 61 批，§13.7） | SQLite 带版本 · 1 | 可重建：只存默认来源的号和上一次搜索用的来源，不存密钥 | 不按项目清（Home 级设置） |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时在数据库提交后按 `project_id` 清登记，原始文件本身不动） |
+| `conversation-attachments/conversation-attachments.db` 与 `conversation-attachments/blobs/` | 宿主；`apps/local-host/src/material-attachments.ts` 打开并套用基线（`attachments`，主键 plugin_id + install_id + 项目（Home 级为空串）+ sha256，记名字、种类、类型、大小与附上时读出的文字）；字节按 sha256 在 `blobs/` 只存一份、不改，没有行再指时删除；只经平台素材服务的附件接口读写（S-conversation-attachments） | SQLite 带版本 · 1 | 必备份（人带进对话的文件） | purge（`conversation-attachments` 已登记；删项目、卸载插件时按主人清行，没人再指的字节一并删） |
 | `plugin-directories/plugin-directories.db` | 宿主；`apps/local-host/src/plugin-directory-store.ts` 打开并套用基线（`plugin_directory_grants`：人经系统选择器授权给插件读的本机目录，一条绑定插件、安装、项目（Home 级激活为空串）与人，记目录的真实路径和设备号、inode；`plugin_directory_reads`：每次读的时间、发起来源、调用者与结果，不记文件名和内容，每条授权留最近 200 条）；只由 `apps/local-host/src/plugin-directory-service.ts` 读写，插件只拿到授权 id（PG-049，用户 2026-10-25） | SQLite 带版本 · 1 | 必备份（人给出的授权，撤回之前一直有效） | purge（`plugin-directories` 已登记；删项目时按 `project_id` 删授权与记录，卸载时按安装删，目录本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/judgment-rules/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/judgment-rules/src/store.ts:284`），基线 `modules/judgment-rules/src/store-schema.ts:7`；`function_judgments.install_id` 记是哪个插件安装经 `services.judgments` 记的（宿主自己记的为空），插件只读、只丢自己的（S-90） | SQLite 带版本 · 1；现行结构保留install_id，旧Home整体搬开后新建，不升级旧库 | 必备份 | purge（卸载且不保留数据时，按安装和项目删它记的判断） |
 | `characters/characters.sqlite` | `modules/characters/src/open.ts` 的 `openCharacters` 和 `openCharacterRuns`。角色动作由 `apps/local-host/src/characters-host.ts` 装配，原生执行由 `apps/local-host/src/character-native-execution.ts` 使用同一库 | SQLite 带版本 · 2（`CHARACTERS_STORE_BASELINE`）。正式升级 1 → 2 只建六张空表，草稿与运行记录原样保留；没有版本的原件在下次保存时得到第 1 版。普通打开只认现行结构 | 必备份 | purge |
@@ -357,7 +358,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；主线服务的 `mainline`；横向与存储层的 `memory`、`observation`、`evaluation`、`external-sessions`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
+`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现行条目以登记为准（退役Sessions不再登记）：`projects/`、`logs/`、`backups/`、`shelf/`；宿主的库 `plugin-runtime`、`plugin-libraries`（装进来的插件的库账本，账本里每个库名的目录也一起清）、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`connectors`、`context-onboarding`、`plugin-originals`、`conversation-attachments` 与 `alchemist/` 目录；模块的 `functions`、`characters`；主线服务的 `mainline`；横向与存储层的 `memory`、`observation`、`evaluation`、`external-sessions`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`plugin-files/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`、`desktop.json`，宿主这一次运行的 `run/`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、符合当前完整 release 元数据形状的 `releases/*`（`installer/uninstall-files.ts`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
 
 测试覆盖到哪里：
 

@@ -42,6 +42,14 @@
       "reason": "安装器写的收据，生成在构建好的工作区上跑，没有运行安装器；快照也排除它"
     },
     {
+      "path": "conversation-attachments/blobs/",
+      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.6 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
+    },
+    {
+      "path": "conversation-attachments/conversation-attachments.db",
+      "reason": "第 35 批新建的库（从版本 1 起），现有金样 0.1.1-dev.6 生成时还没有；回放时由 tests/golden-writes/conversation-attachments.ts 写入并读回，下次重铸金样后纳入快照"
+    },
+    {
       "path": "mainline/mainline.db",
       "reason": "第 36 批新增的主线 Home 库；现有金样（0.1.1-dev.4）生成于第 36 批之前。回放时由 tests/golden-writes/mainline.ts 建一件事项、移到别的分组并读回；下次重铸金样后纳入快照。"
     },
@@ -246,6 +254,16 @@
     },
     "alchemist/projects/<编码后的 project_id>/search.sqlite": {
       "none": "行来自联网搜索，金样不联网，是空库（清单 imports）"
+    },
+    "conversation-attachments/conversation-attachments.db": {
+      "cases": [
+        "conversation-attachments.ts"
+      ]
+    },
+    "conversation-attachments/blobs/": {
+      "cases": [
+        "conversation-attachments.ts"
+      ]
     }
   },
   "other_writes": {

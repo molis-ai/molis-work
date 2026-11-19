@@ -51,7 +51,8 @@ async function fixture(run: (f: {
   });
   try { await withCatalog({ homeDirectory: home }, async catalog => {
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
-      models: [{ model_id: "text", enabled: true }, { model_id: "vision", enabled: true, vision: true }] });
+      // "text" is marked as not reading pictures: only that mark refuses an image; an unmarked model gets it with a note (decision 51 ③).
+      models: [{ model_id: "text", enabled: true, vision: false }, { model_id: "vision", enabled: true, vision: true }] });
     const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
     await run({ home, catalog, host, actions, requests, answer(next) { handler = async request => next(request); } });
   }); }
@@ -119,7 +120,7 @@ test("every recipe reaches its registered instruction; JSON alone uses JSON file
 test("original images require the selected vision model; folder and PDF contents keep their source identity", async () => fixture(async f => {
   const bytes = readFileSync(new URL("./fixtures/shelf-ocr-text.png", import.meta.url));
   const image = (await f.actions.invoke(a.admit, { filename: "original.png", mime: "image/png", bytes_base64: bytes.toString("base64") })).item;
-  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id }), /支持图片/);
+  await assert.rejects(f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id }), /标为不能看图，原图未发送/);
   assert.equal(f.requests.length, 0);
   await f.actions.invoke(a.saveSettings, { model_selection: { provider_id: "fixture", model_id: "vision" } });
   const out = await f.actions.invoke(a.generate, { recipe: "summarize", item_id: image.item_id });

@@ -846,6 +846,11 @@ export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions
 
 export declare function fillMessage(text: string, values?: Readonly<Record<string, string | number>>): string;
 
+export declare function fillPromptCommand(command: {
+    readonly text: string;
+    readonly takes_arguments: boolean;
+}, words: string): string;
+
 export declare function hostBoundSession(caller: {
     readonly audience?: string;
     readonly delegated_audience?: string;
@@ -905,6 +910,8 @@ export declare function matchPageRoute(routes: readonly UiPageRouteDeclaration[]
     get(name: string): string | null;
 }): PageRouteMatch | null;
 
+export declare function mergePromptCommands<Command extends PromptCommandFile>(...lists: readonly (readonly Command[])[]): Command[];
+
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function nullableSchema<const S>(schema: S): {
@@ -954,6 +961,8 @@ export declare function pollingIntegrationBinding({ manifest, provider, presentA
 
 export declare function projectRouteFields(request: PluginRouteRequest, projectId: PluginStartContext["project_id"], mismatch: string): Record<string, unknown>;
 
+export declare function promptCommandName(path: string): string | null;
+
 export declare function questionAnswer(values: unknown): {
     answers: Array<{
         question: number;
@@ -983,6 +992,13 @@ export declare function questionSetFlaw(questions: readonly AgentQuestion[]): st
 export declare function readLocalizedMarkdown(directory: URL, id: string, locales: readonly string[], read: (file: URL) => string): LocalizedAgentBody;
 
 export declare function readPackagedSkills(methods: readonly AgentSkillDeclaration[], files: ReadonlyMap<string, Uint8Array>): PackagedSkills;
+
+export declare function readPromptCommand(file: {
+    readonly location: PromptCommandLocation;
+    readonly path: string;
+    readonly text: string | null;
+    readonly bytes: number;
+}): PromptCommandFile | null;
 
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;

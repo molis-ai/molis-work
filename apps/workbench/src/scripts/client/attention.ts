@@ -14,7 +14,9 @@
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
  * A failed read leaves what the page last showed: each part is a convenience. Only the Host's word that the project is gone (a 404
  * with `catalog.project_not_found`) stops the reads and the stream of that address, until it names another project (the chooser's); any
- * other 404 (a Host restarting, say) is a failure like the rest, and the stream connects again (BL-attention-404-by-code). A lost stream is said once
+ * other 404 (a Host restarting, say) is a failure like the rest, and the stream connects again (BL-attention-404-by-code). Gone is kept by
+ * address (N54): the chooser's route follows the project chosen, and another one is asked. A stream told it lets go of itself and the shared
+ * lock, as a read told it does, so another window can listen. A lost stream is said once
  * (`molis-work:attention-unreachable`, as of the last read) and connected again, twice as long after each loss (up to two minutes);
  * a hidden page keeps no stream (N54).
  */
@@ -106,10 +108,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     if (next !== key || commandChanged) { key = next; background = value; render(); }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
-  // The Host said the project this address reads is gone: an old tab stops asking it (N54). It is kept by address: the project
-  // chooser's route follows the project chosen, and another one is asked. A 404 without that code (a Host starting again) is not this.
-  const gone = new Set();
-  const GONE = "catalog.project_not_found";
+  const gone = new Set(), GONE = "catalog.project_not_found";
   const LONGEST = 120000;
   // A stream that spoke and was lost connects again at once; one the Host never answered waits 30 s, then twice as long each time (N54).
   let heard = null, stream = null, listening = false, retry = 0, delay = 1000, lost = false, spoke = false;
@@ -168,12 +167,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     try {
       const reply = await molisWorkRequest(eventsPath, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
       if (stream !== connection || !listening) return;
-      if (reply.status === 404) {
-        const refusal = await reply.json().catch(() => null);
-        if (stream !== connection || !listening) return;
-        // Gone like a read told it: let go of the stream and the shared lock too, so another window's own address can listen.
-        if (refusal && refusal.code === GONE) { gone.add(route("/api/attention")); discardRead(); close(); return; }
-      }
+      if (reply.status === 404 && (await reply.json().catch(() => null))?.code === GONE) { if (stream === connection) { gone.add(route("/api/attention")); discardRead(); close(); } return; }
       if (reply.status !== 200 || !reply.body) throw new Error("no stream");
       const reader = reply.body.getReader(), decoder = new TextDecoder();
       let buffer = "";

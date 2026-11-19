@@ -72,7 +72,7 @@ export async function resolveWebRequest(
     } catch (error) {
       // Only the catalog's own word that it holds no such project is a missing project (BL-attention-404-by-code): an open page stops
       // reading it on that. Any other failure (the catalog cannot be read while the Host restarts, say) is not a 404.
-      if ((error as { code?: unknown } | null)?.code === "catalog.project_not_found") return { kind: "project_not_found" };
+      if ((error as { code?: unknown } | null)?.code === "catalog.project_not_found") return { kind: "project_not_found", gone: true };
       throw error;
     }
     return {

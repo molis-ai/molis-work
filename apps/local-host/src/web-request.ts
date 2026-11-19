@@ -108,9 +108,10 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     if (resolved.kind === "project_not_found") {
-      // The catalog's code, so a page can tell this from a 404 that is not about the project (an open tab stops reading only on it).
+      // Only a project the catalog said it does not hold carries the catalog's code: an open tab stops reading on it, not on an address
+      // that names no project at all (BL-attention-404-by-code).
       const missing = catalogErrors.project_not_found(uiText.text("workbench.request.that-molis-work-project-was-not-found"));
-      sendJson(response, 404, { error: missing.message, code: missing.code });
+      sendJson(response, 404, resolved.gone ? { error: missing.message, code: missing.code } : { error: missing.message });
       return;
     }
     url.pathname = resolved.pathname;

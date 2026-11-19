@@ -176,10 +176,10 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-right.is-empty { display: grid; justify-items: center; gap: 16px; background: none; box-shadow: none; }
   .scene-sheet { display: grid; padding: clamp(28px, 6vh, 80px) clamp(22px, 5vw, 80px); }
   .scene-columns { width: min(100%, 1080px); margin: auto; display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.35fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
-  .scene-columns h1 { font-size: clamp(28px, 3.25vw, 44px); font-weight: var(--weight-title); line-height: 1.18; letter-spacing: -.03em; }
+  .scene-columns h1 { font-size: 30px; font-weight: var(--weight-title); line-height: 1.18; letter-spacing: -.03em; }
   .scene-columns header p { color: var(--muted); line-height: 1.6; margin-block: 10px; overflow-wrap: anywhere; }
   .scene-review { min-width: 0; overflow-wrap: anywhere; }
-  .scene-review h2 { font-size: 19px; margin: 0 0 12px; }
+  .scene-review h2 { font-size: 20px; margin: 0 0 12px; }
   .scene-review dl { margin: 12px 0; display: grid; grid-template-columns: minmax(85px, .6fr) minmax(0, 1.4fr); gap: 8px 18px; padding-block: 14px; border-block: 1px solid var(--line); }
   .scene-review dt { color: var(--muted); }
   .scene-review dd { margin: 0; white-space: pre-wrap; }

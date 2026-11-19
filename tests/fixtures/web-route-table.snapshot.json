@@ -119,6 +119,7 @@
       "labels",
       "last_upkeep",
       "pairs",
+      "preference_setting",
       "prefs",
       "project_id",
       "scanned",
@@ -721,6 +722,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "action_bar_revision",
       "ai",
       "clipboard",
       "current_clip_id",
@@ -755,6 +757,7 @@
       "labels",
       "last_upkeep",
       "pairs",
+      "preference_setting",
       "prefs",
       "project_id",
       "scanned",

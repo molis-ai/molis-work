@@ -24,7 +24,9 @@ const MOVE = "var(--dur-move) var(--ease-quint)";
 const ELLIPSIS = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
 const PRESSABLE = ":is(.work-event,.work-task-mark)";
 const BUTTON_GROUNDS = ":is(.work-reply-placed,.work-reply-waiting,.work-reply-actions,.work-task-row,.work-task-banner,.work-task-facts,.work-card-actions)";
-const ANIMATED = ":is(.work-event[data-fresh],.work-task-panel,.work-reply-placed,.work-reply-waiting[data-waiting=\"open\"],.work-reply-peek,.work-reply-mini)";
+const ANIMATED = ":is(.work-event[data-fresh],.work-lists,.work-task-panel,.work-reply-placed,.work-reply-waiting[data-waiting=\"open\"],.work-reply-peek,.work-reply-mini)";
+/** Four class weights beat craft-finish-bar's resting composer rules in half the bytes of repeating SHELL. */
+const REST_COMPOSER = ".work-line-slot.work-line-slot.work-line-slot.work-line-slot .assistant-composer";
 
 const SHEET = `
 /* The shell's foot (WLN-16 as specs/work-line §16 rewrote it): the account bar, the input and the card stack; the way to every
@@ -44,12 +46,15 @@ ${SHELL}:is(body,.mw-catalog-bar-stage){--dock-min:98px;--foot-input:640px}
 ${SHELL} .work-line-slot{--bar-row:74px}
 ${SHELL} .work-line-slot>.bar-center>.assistant-composer{padding-block:0}
 ${SHELL} .work-line-slot .mw-composer__box{border-radius:20px}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) auto minmax(0,1fr) auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:6px 4px 4px}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-composer__text{grid-area:1/1/2/-1;padding:0 var(--counts-room,176px) 0 8px}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-compose__anchor{grid-area:2/1}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-composer__to{grid-area:2/2}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] :is(.mw-composer__more,.mw-composer__controls){grid-area:2/3}
-${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-composer__end{grid-area:2/5}
+${REST_COMPOSER}>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:6px 4px 4px}
+${REST_COMPOSER}:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
+${REST_COMPOSER}:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
+${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{grid-area:1/1/2/-1;padding:0 var(--counts-room,176px) 0 8px}
+${REST_COMPOSER}>.mw-composer[data-rest] .mw-compose__anchor{grid-area:2/1}
+${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__to{grid-area:2/2;anchor-name:--assistant-receiver}
+${REST_COMPOSER}>.mw-composer[data-rest] :is(.mw-composer__more,.mw-composer__controls){grid-area:2/4}
+${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__end{grid-area:2/5}
+${REST_COMPOSER}>.mw-composer[data-rest]~.assistant-attention{position:absolute;position-anchor:--assistant-receiver;top:anchor(center);right:auto;left:calc(anchor(right) + 6px);translate:0 -50%}
 /* The words stop before the counts: the room is the text's column, so the input itself never lies under them. */
 ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px)}
 /* The account bar: who you are (sync is a dot on the avatar), then 通知, 插件 and 设置 as round keys; no ink-blue solid here. */
@@ -89,34 +94,35 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 .work-counts>.work-event{height:28px;padding:0 8px 0 6px;font-size:11px}
 /* The right column: the lists open where the info bar will stand, right above the stack and as wide (§4「底栏第十三版」第 4 条). */
 .work-side{grid-column:3;grid-row:1;justify-self:start;position:relative;width:100%;max-width:400px;min-width:0}
-.work-stack{position:relative;height:74px;min-width:0}
+.work-stack{position:relative;isolation:isolate;height:74px;min-width:0}
 .work-stack-empty{display:flex;align-items:center;gap:8px;height:100%;margin:0;padding:0 16px;box-sizing:border-box;border-radius:20px;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px}
-.work-stack-empty>svg{flex:none;width:14px;height:14px}
-.work-stack-card{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;height:100%;padding:0 12px 0 14px;box-sizing:border-box;border-radius:20px;background:var(--popover);box-shadow:0 0 0 1px var(--amber),var(--lift-1,0 1px 2px rgb(0 0 0/.06))}
-.work-stack-card[data-behind]::before,.work-stack-card[data-behind="2"]::after{content:"";position:absolute;z-index:-1;top:-5px;left:14px;right:14px;height:12px;border-radius:12px 12px 0 0;background:var(--popover);box-shadow:0 0 0 1px var(--line)}
-.work-stack-card[data-behind="2"]::after{top:-9px;left:28px;right:28px;z-index:-2}
+.work-stack-empty>svg{flex:none;width:14px;height:14px;color:var(--green)}
+.work-stack-card{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;height:100%;padding:0 12px 0 14px;box-sizing:border-box;border-radius:20px;background:var(--popover);box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 52%,var(--line)),var(--lift-2,0 4px 12px rgb(0 0 0/.08));cursor:pointer;transition:transform ${HOVER},box-shadow ${HOVER}}
+.work-stack-card:hover{transform:translateY(-2px)}
+.work-stack-card[data-behind]::before,.work-stack-card[data-behind="2"]::after{content:"";position:absolute;z-index:-1;top:-5px;left:14px;right:14px;height:12px;border-radius:12px 12px 0 0;background:color-mix(in srgb,var(--popover) 74%,var(--desk));box-shadow:0 0 0 1px var(--line-strong)}
+.work-stack-card[data-behind="2"]::after{top:-9px;left:28px;right:28px;z-index:-2;background:color-mix(in srgb,var(--popover) 46%,var(--desk))}
 .work-stack-head,.work-stack-body{display:flex;align-items:center;gap:6px;min-width:0}
 .work-stack-head>strong{flex:1 1 auto;min-width:0;${ELLIPSIS};color:var(--ink);font-size:13px;font-weight:600}
-.work-stack-more{flex:none;display:inline-flex;align-items:center;gap:1px;padding:0 2px;border:0;border-radius:6px;background:none;color:var(--amber);font:inherit;font-size:12px;white-space:nowrap}
+.work-stack-more{flex:none;display:inline-flex;align-items:center;gap:1px;padding:0 5px;border:0;border-radius:6px;background:none;color:var(--amber);font:inherit;font-size:12px;white-space:nowrap;transition:background-color ${HOVER}}
 button.work-stack-more{cursor:pointer}
+button.work-stack-more:hover{background:var(--amber-soft)}
 .work-stack-more>svg,.work-stack-open>svg{width:12px;height:12px}
 .work-stack-ask{flex:1 1 auto;min-width:0;margin:0;${ELLIPSIS};color:var(--ink-soft);font-size:12px}
 .work-stack-body>.mw-btn{flex:none}
-.work-stack-open{flex:none;display:inline-flex;align-items:center;gap:1px;padding:0 2px;border:0;border-radius:6px;background:none;color:var(--muted);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
-.work-stack-open:hover,button.work-stack-more:hover{color:var(--ink)}
-.work-lists{position:absolute;z-index:40;left:0;right:0;bottom:calc(100% + 12px);display:flex;flex-direction:column;max-height:min(520px,calc(100vh - 180px));border-radius:16px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-2)}
+.work-stack-open{flex:none;display:inline-flex;align-items:center;gap:1px;padding:0 2px;border:0;border-radius:6px;background:none;color:var(--muted);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:color ${HOVER}}
+.work-stack-card:hover .work-stack-open,.work-stack-open:hover{color:var(--accent)}
+.work-lists{position:absolute;z-index:40;left:0;right:0;bottom:calc(100% + 12px);display:flex;flex-direction:column;max-height:min(520px,calc(100vh - 180px));border-radius:16px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--lift-2);animation:craft-rise ${MOVE}}
 .work-lists[hidden]{display:none}
 .work-lists-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 8px 4px 14px;font-size:13px}
 .work-lists-sources{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px 6px}
 .work-lists-sources:empty{display:none}
 .work-lists-body{min-height:0;overflow:auto;padding:0 6px 8px}
 .work-lists .work-list[hidden]{display:none}
-.work-lists .work-event{display:flex;width:100%;max-width:none;height:34px;border-radius:9px;background:none;box-shadow:none}
+.work-lists .work-event{display:flex;justify-content:flex-start;width:100%;max-width:none;height:34px;border-radius:9px;background:none;box-shadow:none;text-align:start}
 .work-lists .work-event:hover{background:var(--surface-soft)}
 .work-lists .work-event[aria-current]{background:var(--surface-soft);box-shadow:inset 0 0 0 1.5px var(--ink)}
-.work-lists .work-event{justify-content:flex-start;text-align:start}
 .work-lists .work-event-name{flex:1 1 auto;text-align:start}
-.work-list-item[data-suggested]>.work-event{box-shadow:inset 0 0 0 1px var(--line-strong);border:1px dashed var(--line-strong);box-shadow:none}
+.work-list-item[data-suggested]>.work-event{border:1px dashed var(--line-strong);box-shadow:none}
 .work-list-task{display:flex;align-items:center;gap:6px;min-width:0;margin:0;padding:2px 8px 2px 32px;color:var(--ink-soft);font-size:12px}
 .work-list-task>span{flex:0 1 auto;min-width:0;${ELLIPSIS}}
 .work-list-task>small{flex:0 4 auto;min-width:0;${ELLIPSIS};color:var(--muted);font-size:11px}
@@ -137,8 +143,11 @@ button.work-stack-more{cursor:pointer}
 @media (min-width:960px){.work-your-turn{display:none}}
 @media (max-width:760px),(pointer:coarse){
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
+  .work-stack,.work-stack-card{height:auto;min-height:74px}
+  .work-stack-card{padding:6px 12px 6px 14px}
   .work-counts{top:4px;height:44px}
   .work-counts>.work-reply-mini{height:44px}
+  .work-counts>.work-reply-mini::before{top:12px;bottom:12px}
   .work-counts>.work-reply-mini :is(.work-task-mark,.mw-btn.mw-btn--icon-only){height:44px;min-height:44px;min-width:44px}
   .bar-account-key{width:44px;height:44px}
   .work-lists .work-event,.work-lists-earlier{height:44px}
@@ -146,7 +155,7 @@ button.work-stack-more{cursor:pointer}
 /* 540px and under the three keys and the task mark, 44px each, take most of the input's width: they stand in a row of their own
    above the words, which keep the input's whole width (a 320px window left the words 32px beside them). */
 @media (max-width:540px){
-  ${SHELL} .work-line-slot .mw-composer__text,${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
+  ${SHELL} .work-line-slot .mw-composer__text,${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
 }
 ${SHELL} [data-line-yield]{margin-bottom:var(--line-rise,0px)}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}
@@ -155,7 +164,6 @@ ${PRESSABLE}:hover{background:var(--surface-soft)}
 ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
 .work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:999px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
-.work-event[data-cut]{opacity:0;pointer-events:none}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .work-event[data-fresh]{animation:craft-rise-from-bar var(--dur-move) var(--ease-spring,var(--ease-quint))}
 .work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
@@ -337,8 +345,9 @@ ${SHELL} .work-reply-peek-body :is(ul,ol){padding-inline-start:1.4em}
 .work-reply-mini{display:inline-flex;align-items:center;gap:4px;animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
-@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
+@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}.work-stack-card:hover{transform:none}}
 html[data-craft-still] ${ANIMATED}{animation:none}
+html[data-craft-still] .work-stack-card:hover{transform:none}
 @media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}

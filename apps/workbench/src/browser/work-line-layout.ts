@@ -92,7 +92,7 @@ function installRise(slot: HTMLElement): void {
   const measure = () => {
     // The row keeps the input's height at rest (74px; taller where its rows are a finger's): a longer input stands out above it.
     if (slot.querySelector(".mw-composer[data-rest]")) row.style.setProperty("--foot-rest", `${slot.offsetHeight}px`);
-    const rise = Math.max(0, Math.round(slot.offsetHeight - row.clientHeight)), box = slot.getBoundingClientRect();
+    const box = slot.getBoundingClientRect(), rise = Math.max(0, Math.round(row.getBoundingClientRect().top - box.top));
     shell.style.setProperty("--line-rise", `${rise}px`);
     for (const part of shell.querySelectorAll<HTMLElement>(ABOVE)) {
       const at = part.getBoundingClientRect();

@@ -40,7 +40,7 @@ test("the top strip holds tabs only: the current one is an ear on its sheet and 
   assert.equal(home.samePaper, true, "and is the sheet's colour");
   assert.equal(home.focusLine, true, "with the accent line while its column has the focus");
   assert.ok(home.plusGap >= 0 && home.plusGap <= 12, `POLISH-03: ＋ is within 12px of the hairline when there is no tab (${home.plusGap}px)`);
-  assert.deepEqual(home.right, ["side", "layout", "project"], "POLISH-05: the right end is the side's switch, the layout button and the project");
+  assert.deepEqual(home.right, ["side", "layout"], "POLISH-05, POLISH-71: from 960px the right end is the side's switch and the layout button alone");
   assert.equal(home.history, 2, "one pair of back and forward");
 
   // A plugin that is not kept: its own page is a tab with its name, and that tab is the ear.
@@ -150,7 +150,7 @@ test("at 390px the top strip is one row (POLISH-07)", { timeout: 180_000 }, asyn
     const has = ['[data-workspace-history=back]', '[data-top-corner-toggle]', '[data-plugin-picker-toggle]', '[data-side-toggle]', '.titlebar-end'].filter((selector) => shown(header.querySelector(selector)));
     const place = header.querySelector('[data-top-corner-toggle]');
     return { height: box(header).height, rows: new Set(parts.map((part) => box(part).top + box(part).height / 2)).size, overflow: document.documentElement.scrollWidth > innerWidth || parts.some((part) => box(part).right > innerWidth),
-      has, stageTop: box(document.querySelector('[data-plugin-stage]')).top, place: { width: box(place).width, text: [...place.children].filter(shown).map((node) => node.textContent.trim()).join('') } };
+      has, stageTop: box(document.querySelector('[data-plugin-stage]')).top, place: { width: box(place).width, text: [...place.children].filter((node) => shown(node) && !node.classList.contains('top-corner-count')).map((node) => node.textContent.trim()).join('') } };
   })()`);
   // POLISH-07, §4 第 6 条: at 540px and under the row has no way back (the first place takes its 44px; the mock has none).
   const whole = ["[data-top-corner-toggle]", "[data-plugin-picker-toggle]", "[data-side-toggle]", ".titlebar-end"];
@@ -164,9 +164,10 @@ test("at 390px the top strip is one row (POLISH-07)", { timeout: 180_000 }, asyn
   await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages]')");
   const tabbed = await read();
   assert.deepEqual({ height: tabbed.height, rows: tabbed.rows, overflow: tabbed.overflow }, { height: 44, rows: 1, overflow: false }, "POLISH-07: still one row with a tab open");
-  // The first place stays in the row; while a tab is current the tab names the page, and the place is its ⌂ alone, a 44px target.
+  // The first place stays in the row; while a tab is current the tab names the page, and the place is its ⌂ alone (plus any waiting count), at least a 44px target.
   assert.deepEqual(tabbed.has, whole);
-  assert.deepEqual(tabbed.place, { width: 44, text: "" });
+  assert.equal(tabbed.place.text, "");
+  assert.ok(tabbed.place.width >= 44, `the collapsed first place stays a 44px target (${tabbed.place.width}px)`);
   const current = await evaluate<{ shown: boolean; others: number; all: boolean }>(`(() => {
     const { header, shown } = ${READ};
     return { shown: shown(header.querySelector('[data-titlebar-tabs] .tab-item[aria-current]')), others: [...header.querySelectorAll('[data-titlebar-tabs] .tab-item:not([aria-current])')].filter(shown).length, all: shown(header.querySelector('[data-tab-all]')) };

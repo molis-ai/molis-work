@@ -60,7 +60,7 @@ ${TOP} .top-corner-page-name{color:var(--ink);font-weight:500}
 /* How many wait for the person (POLISH-15): amber, only while something waits; the Assistant's bell reads the same number. */
 ${TOP} .top-corner-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 ${TOP} .top-corner-count[hidden]{display:none}
-${TOP} .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--lift-2);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
+${TOP} .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:1px solid var(--line);border-radius:14px;background:var(--popover);box-shadow:var(--lift-3);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
 ${TOP} .top-corner-list[hidden]{display:none}
 ${TOP} .top-corner-projects{display:flex;flex-direction:column;min-height:0;padding:8px;border-right:1px solid var(--line);background:var(--desk)}
 ${TOP} .top-corner-right{min-height:0;padding:8px;overflow:auto}
@@ -73,7 +73,7 @@ ${TOP} :is(.top-corner-project[aria-pressed="true"],.top-corner-page[aria-curren
 ${TOP} :is(.top-corner-project,.top-corner-page)>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 ${TOP} :is(.top-corner-project,.top-corner-page)>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ${TOP} .top-corner-project>small{color:var(--muted);font-size:11px}
-${TOP} .top-corner-foot{display:flex;flex-direction:column;margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}
+${TOP} .top-corner-foot{display:flex;flex-direction:column;margin-top:auto;padding-top:6px;border-top:1px solid var(--line)}
 ${TOP} .top-corner-manage{display:flex;align-items:center;gap:8px;min-height:32px;box-sizing:border-box;padding:6px 8px;border-radius:8px;color:var(--muted);font-size:12px;text-decoration:none}
 ${TOP} .top-corner-manage>svg{flex:none;width:14px;height:14px}
 ${TOP} .top-corner-manage:hover{background:var(--nav-hover);color:var(--ink)}
@@ -257,8 +257,8 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP} .top-corner-project-name,${TOP} .top-corner-cell>svg:nth-of-type(2){display:none}
   ${TOP} .top-corner-list{grid-template-columns:minmax(0,1fr)}
   ${TOP} .top-corner-projects{border-right:0;border-bottom:1px solid var(--line)}
-  /* While another page shows, the current tab names it: the place is its ⌂ alone, a 44px target that still opens the list. */
-  ${TOP} .top-corner-cell:not([aria-current]){justify-content:center;width:44px;padding:0}
+  /* While another page shows, the current tab names it: the place is its ⌂ alone (plus any amber waiting count), at least a 44px target. */
+  ${TOP} .top-corner-cell:not([aria-current]){justify-content:center;min-width:44px;padding:0 6px;gap:4px}
   ${TOP} .top-corner-cell:not([aria-current])>:not(svg:first-child,.top-corner-count){display:none}
 }
 /* Under 340px the row gives up its side margins and its hairline and the current tab is its 98px, no wider: the 44px targets,

@@ -44,7 +44,24 @@ export const TOP_CORNER_PART = `
     if (cornerList && !cornerList.hidden && !(event.target?.nodeType === 1 && corner.contains(event.target))) setCorner(false);
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || !cornerList || cornerList.hidden) return;
-    event.preventDefault(); setCorner(false); cornerToggle?.focus();
+    if (!cornerList || cornerList.hidden || event.defaultPrevented) return;
+    if (event.key === 'Escape') { event.preventDefault(); setCorner(false); cornerToggle?.focus(); return; }
+    if (!cornerList.contains(document.activeElement)) return;
+    const col = document.activeElement.closest('.top-corner-projects,.top-corner-right');
+    if (!col) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const rows = [...col.querySelectorAll('button:not([hidden]),a[href]:not([hidden])')].filter((node) => !node.closest('[hidden]'));
+      const at = rows.indexOf(document.activeElement);
+      const next = rows[at + (event.key === 'ArrowDown' ? 1 : -1)];
+      if (next) { event.preventDefault(); next.focus(); }
+    } else if (event.key === 'ArrowRight' && col.classList.contains('top-corner-projects')) {
+      const id = document.activeElement.dataset.cornerProject;
+      if (id) showPages(id);
+      const first = cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page');
+      if (first) { event.preventDefault(); first.focus(); }
+    } else if (event.key === 'ArrowLeft' && col.classList.contains('top-corner-right')) {
+      const active = cornerList.querySelector('[data-corner-project][aria-pressed="true"]') || cornerList.querySelector('[data-corner-project]');
+      if (active) { event.preventDefault(); active.focus(); }
+    }
   });
 `;

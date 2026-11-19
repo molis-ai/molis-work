@@ -256,13 +256,12 @@ test('T405-17B5-UI-01: a real Feed refresh preserves retained menu focus and nev
     await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
     assert.equal((await state()).control, 'summary');
     await refresh(async () => {
-      // A shell control outside the Feed document: the side's switch at the strip's right end (from 960px the project's mark is not
-      // shown there, POLISH-05 as rewritten, POLISH-71).
-      await b.click('[data-side-toggle]');
-      assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('[data-side-toggle]')"), true);
+      // At 390×640 the project's mark is still shown at the strip's right end (<960px, POLISH-05 as rewritten, POLISH-71) and keeps focus on press.
+      await b.click('.navigator-project-selector');
+      assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true);
       assert.equal((await state()).documentFocused, false, 'The user moved focus out of the pending Feed document');
     });
-    assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('[data-side-toggle]')"), true, 'The resolved read must not steal focus from the owner');
+    assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true, 'The resolved read must not steal focus from the owner');
     assert.equal((await state()).documentFocused, false); assert.equal((await snapshot(b)).menuOpen, true);
   } catch (error) { failures.push(error); try { await shot(b, 'focus-refresh-failed'); } catch (captureError) { failures.push(captureError); } }
   finally { try { await stopPage(b); } catch (error) { failures.push(error); } }

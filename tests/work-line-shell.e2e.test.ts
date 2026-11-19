@@ -25,8 +25,8 @@ const SHELL = `(() => { const box = node => { const at = node.getBoundingClientR
   return { row: box(document.querySelector('.work-line-row')), blocks: [...document.querySelectorAll('[data-work-line] :is(.bar-account, .work-stack)')].map(box), slot: box(document.querySelector('.work-line-slot')),
     parts: [...document.querySelectorAll('[data-plugin-stage], [data-side-panel], .side-panel-divider')].filter(node => node.getBoundingClientRect().width > 0).map(node => ({ name: node.className.split(' ')[0], box: box(node) })) }; })()`;
 
-/** The rise the shell has measured is the input's overflow above the line (0 at one line). */
-const SETTLED = "(() => { const slot = document.querySelector('.work-line-slot'), over = Math.max(0, slot.offsetHeight - slot.parentElement.clientHeight); return getComputedStyle(document.querySelector('[data-work-bar]').parentElement).getPropertyValue('--line-rise') === over + 'px'; })()";
+/** The rise the shell has measured is the input's overflow above the line's row (0 at one line). */
+const SETTLED = "(() => { const slot = document.querySelector('.work-line-slot'), over = Math.max(0, Math.round(slot.parentElement.getBoundingClientRect().top - slot.getBoundingClientRect().top)); return getComputedStyle(document.querySelector('[data-work-bar]').parentElement).getPropertyValue('--line-rise') === over + 'px'; })()";
 /** WLN-01 and WLN-02 at one width: the line stays where it was; the input rises out of it; what it lies over gives up that much. */
 async function rises(evaluate: <T>(expression: string) => Promise<T>, waitFor: (expression: string, timeout?: number) => Promise<void>, width: number): Promise<void> {
   await evaluate(type(""));
@@ -159,7 +159,7 @@ test("WLN-04 WLN-06: the input takes the next request at once while the first is
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor(`${EVENT}?.dataset.state === 'wait' && ${count} === ${before + 1} && Boolean(document.querySelector('[data-task-mark][data-needs-you]'))`, 20_000);
   assert.equal(await evaluate(`${EVENT}.textContent.includes('等你')`), true, "the state is said in words, not by colour alone");
-  await waitFor("(document.querySelector('[data-work-stack] [data-work-stack-card]')?.textContent ?? '').includes('报价单')", 10_000).catch(async (error) => { console.log("DIAG", await evaluate("JSON.stringify({ stack: document.querySelector('[data-work-stack]').outerHTML.slice(0, 600), rows: [...document.querySelectorAll('[data-work-line] [data-work-event]')].map(n => n.dataset.workEvent + ':' + n.dataset.state), hover: document.querySelector('[data-work-stack]').matches(':hover'), active: document.activeElement?.className })")); throw error; });
+  await waitFor("(document.querySelector('[data-work-stack] [data-work-stack-card]')?.textContent ?? '').includes('报价单')", 10_000);
   // WLN-39: the composer's 「等你」 takes the head's number for the objects that wait, not a count of its own (nothing waits off the line here).
   await waitFor(`document.querySelector('[data-assistant-attention-count]')?.textContent === '等你 ' + ${count}`, 10_000);
   assert.deepEqual(await evaluate<string[]>("[...document.querySelectorAll('.assistant-tab')].map(tab => tab.dataset.tab ?? '')"), tabs, "no tab is opened for it");

@@ -155,7 +155,10 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
     open = id;
     if (id !== "done") earlier = false;
     lists.hidden = !open; line.toggleAttribute("data-list-open", Boolean(open));
-    if (open) heading.textContent = uiText.text(`workbench.work-line.list-${open}`);
+    if (open) {
+      heading.textContent = uiText.text(`workbench.work-line.list-${open}`);
+      line.removeAttribute("data-stack-open"); counts.querySelector("[data-work-stack-toggle]")?.setAttribute("aria-expanded", "false");
+    }
     for (const rows of body.querySelectorAll<HTMLElement>("[data-work-list-rows]")) rows.hidden = rows.dataset.workListRows !== open;
     for (const key of counts.querySelectorAll<HTMLElement>("[data-work-list]")) key.setAttribute("aria-expanded", String(key.dataset.workList === open));
     if (give && open) rowsShown()[0]?.focus();
@@ -178,7 +181,7 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
     if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); show("", true); }
     else if (event.key === "ArrowDown" && open && event.target instanceof Element && event.target.closest("[data-work-list]")) { event.preventDefault(); rowsShown()[0]?.focus(); }
   });
-  return { draw, focus };
+  return { draw, focus, close: () => { if (open) show(""); } };
 }
 
 /**
@@ -186,15 +189,21 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
  * under 960px it is 该你 N inside the input, and its card opens above the input (第 6 条). A card the person is on is not swapped
  * under them (POLISH-42).
  */
-function installStack({ line, counts, stack }: FootParts & { readonly stack: HTMLElement }, read: { waiting(): WorkLineEvent[]; card(event: WorkLineEvent, more: number): string }) {
+function installStack({ line, counts, stack }: FootParts & { readonly stack: HTMLElement }, read: { waiting(): WorkLineEvent[]; card(event: WorkLineEvent, more: number): string; closeLists(): void }) {
   let front = "";
-  const paint = () => {
+  const close = (give = false) => {
+    if (!line.hasAttribute("data-stack-open")) return;
+    line.removeAttribute("data-stack-open");
+    const chip = counts.querySelector<HTMLElement>("[data-work-stack-toggle]");
+    chip?.setAttribute("aria-expanded", "false");
+    if (give) chip?.focus();
+  };
+  const paint = (prefer?: string) => {
     const all = read.waiting(), chip = counts.querySelector<HTMLElement>("[data-work-stack-toggle]");
     if (chip) { chip.hidden = !all.length; chip.querySelector("[data-n]")!.textContent = String(all.length); chip.setAttribute("aria-label", uiText.text("workbench.work-line.your-turn-n", { n: all.length })); }
-    if (!all.length) { line.removeAttribute("data-stack-open"); chip?.setAttribute("aria-expanded", "false"); }
+    if (!all.length) { front = ""; close(); stack.innerHTML = renderStackEmpty(); stack.removeAttribute("data-count"); return; }
     const held = stack.contains(document.activeElement) || stack.matches(":hover");
-    const event = all.find(one => one.id === front) ?? (held && front ? undefined : all[0]);
-    if (!all.length || !event) { front = ""; stack.innerHTML = renderStackEmpty(); stack.removeAttribute("data-count"); return; }
+    const event = (!held && prefer ? all.find(one => one.id === prefer) : undefined) ?? all.find(one => one.id === front) ?? all[0]!;
     front = event.id;
     const onButton = document.activeElement instanceof HTMLElement && stack.contains(document.activeElement) ? [...stack.querySelectorAll("button")].indexOf(document.activeElement as HTMLButtonElement) : -1;
     stack.innerHTML = read.card(event, all.length - 1); stack.dataset.count = String(all.length);
@@ -202,13 +211,23 @@ function installStack({ line, counts, stack }: FootParts & { readonly stack: HTM
   };
   line.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null, toggle = target?.closest("[data-work-stack-toggle]");
-    if (toggle) { const on = !line.hasAttribute("data-stack-open"); line.toggleAttribute("data-stack-open", on); toggle.setAttribute("aria-expanded", String(on)); }
-    else if (target?.closest("[data-work-stack-next]")) {
+    if (toggle) {
+      const on = !line.hasAttribute("data-stack-open");
+      if (on) read.closeLists();
+      line.toggleAttribute("data-stack-open", on); toggle.setAttribute("aria-expanded", String(on));
+    } else if (target?.closest("[data-work-stack-next]")) {
       const all = read.waiting(), at = all.findIndex(one => one.id === front);
       front = all[(at + 1) % all.length]?.id ?? ""; paint(); stack.querySelector<HTMLElement>("[data-work-stack-next]")?.focus();
     }
   });
-  return { paint };
+  document.addEventListener("click", event => {
+    const path = event.composedPath(), target = event.target instanceof Element ? event.target : null;
+    if (line.hasAttribute("data-stack-open") && !path.includes(stack) && !target?.closest("[data-work-stack-toggle]")) close();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !event.defaultPrevented && line.hasAttribute("data-stack-open")) { event.preventDefault(); close(true); }
+  });
+  return { paint, close };
 }
 
 export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
@@ -260,7 +279,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       ask: ask?.ask ?? (said.stateLabel || event.summary || uiText.text("workbench.work-line.waiting-for-you")),
       ...(ask ? { decision: { task: ask.task, id: ask.id, busy: ask.busy, answers: ask.answers.filter(role => role !== "revise").slice(0, 2) } } : {}) });
   };
-  const cardStack = installStack({ line, counts, stack }, { waiting: waitingEvents, card: cardOf });
+  const cardStack = installStack({ line, counts, stack }, { waiting: waitingEvents, card: cardOf, closeLists: list.close });
 
   const draw = (result: WorkLineReadResult) => {
     const before = events;
@@ -273,9 +292,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     shown = drawn;
     list.draw(event => !first && !before.has(event.id));
     paintWaiting(result.events.filter(event => stateOf(event) === "wait").length);
-    cardStack.paint();
+    const arrived = first ? [] : result.events.filter(event => stateOf(event) === "wait" && (!before.get(event.id) || stateOf(before.get(event.id)!) !== "wait"));
+    cardStack.paint(arrived[0]?.id);
     // An event that came to wait for the person since the last read says so once (the shared "your turn" ring) on the stack.
-    if (!first && result.events.some(event => stateOf(event) === "wait" && (!before.get(event.id) || stateOf(before.get(event.id)!) !== "wait"))) craft?.ask?.(stack);
+    if (arrived.length) craft?.ask?.(stack);
   };
 
   // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
@@ -295,14 +315,18 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     if (!target) return;
     if (target.closest("[data-work-line-retry]")) { again(); return; }
     if (target.closest("[data-work-line-checking]")) { again(); return; }
-    const pressed = events.get(target.closest<HTMLElement>("[data-work-event],[data-work-stack-open]")?.dataset[target.closest("[data-work-stack-open]") ? "workStackOpen" : "workEvent"] ?? "");
-    if (pressed) host.openEvent(press(pressed));
+    const openId = target.closest<HTMLElement>("[data-work-event]")?.dataset.workEvent
+      ?? target.closest<HTMLElement>("[data-work-stack-open]")?.dataset.workStackOpen
+      ?? (!target.closest("button,a,input,textarea") ? target.closest<HTMLElement>("[data-work-stack-card]")?.dataset.workStackCard : undefined);
+    const pressed = events.get(openId ?? "");
+    if (pressed) { if (target.closest("[data-work-stack]")) cardStack.close(); host.openEvent(press(pressed)); }
   });
   // Keyboard (WLN-17 as §16 rewrote it): Alt+L puts focus on the card in front, else on the first of the three (the lists' keys: installLists).
   document.addEventListener("keydown", event => {
     if (event.code !== "KeyL" || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || (event.target instanceof Element && event.target.closest(".xterm"))) return;
     event.preventDefault();
-    (stack.querySelector<HTMLElement>("button") ?? counts.querySelector<HTMLElement>("[data-work-list]"))?.focus();
+    const stackButton = stack.offsetParent ? stack.querySelector<HTMLElement>("button") : null;
+    (stackButton ?? counts.querySelector<HTMLElement>("[data-work-stack-toggle]:not([hidden])") ?? counts.querySelector<HTMLElement>("[data-work-list]"))?.focus();
   });
   // A part the read could not get is null: what the bar shows stays.
   document.addEventListener("molis-work:attention", event => {

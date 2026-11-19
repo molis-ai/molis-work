@@ -139,16 +139,19 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13: an event of the line opens as a tab of
   assert.equal(await evaluate(`${EVENT}.hasAttribute('aria-current')`), false);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
 
-  // WLN-17 (as §16 rewrote it): Alt+L puts the focus on the first of 办完 · 在办 · 接下来 when no card waits in the stack; ↓ from an
-  // open list's key goes to its first row, ↑ ↓ move between rows, Enter opens the event, and Esc closes the list and gives the focus
-  // back to its key.
+  // WLN-17 (as §16 rewrote it): Alt+L puts the focus on the front card in the stack (or the first of 办完 · 在办 · 接下来 when
+  // no card waits); ↓ from an open list's key goes to its first row, ↑ ↓ move between rows, Enter opens the event, and Esc closes
+  // the list and gives the focus back to its key.
   const key = (init: string) => `(document.activeElement && document.activeElement !== document.body ? document.activeElement : document).dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ${init} }))`;
-  assert.equal(await evaluate("document.querySelector('[data-work-stack] [data-work-stack-card]') === null"), true, "nothing waits in the stack here");
+  const hasCard = await evaluate<boolean>("document.querySelector('[data-work-stack] [data-work-stack-card]') !== null");
   // A press on the event above left its list open: close it, so the keys start from a closed list.
   if (!await evaluate<boolean>("document.querySelector('[data-work-lists]').hidden")) await evaluate("document.querySelector('[data-work-lists-close]').click()");
   await waitFor("document.querySelector('[data-work-lists]').hidden");
   await evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyL', key: 'l', altKey: true }))`);
-  assert.equal(await evaluate("document.activeElement === document.querySelector('[data-work-counts] [data-work-list]')"), true, "Alt+L lands on the first of the three");
+  assert.equal(await evaluate(hasCard
+    ? "document.activeElement === document.querySelector('[data-work-stack] [data-work-stack-card] button')"
+    : "document.activeElement === document.querySelector('[data-work-counts] [data-work-list]')"), true,
+    hasCard ? "Alt+L lands on the front card in the stack" : "Alt+L lands on the first of the three");
   const list = await evaluate<string>(`${EVENT}.closest('[data-work-list-rows]').dataset.workListRows`);
   await evaluate(`document.querySelector('[data-work-counts] [data-work-list="${list}"]').focus()`);
   await evaluate("document.activeElement.click()");

@@ -185,10 +185,11 @@ flowchart LR
   IN --> POLISH[36A 逐屏打磨与底栏十三版]
   HB --> CA35[35-2 Coding A 期]
   POLISH --> ML1
-  POLISH --> CUI[91 对话与执行流式丝滑化]
+  POLISH --> CUI[91/91A 体验底座、流式与开发指引]
   CA35 --> CUI
   ML1 --> CUI
   W1 --> CUI
+  CUI --> UXP[91B 全产品表面收口与三层门禁]
   CUI -.上游换包可选并入.-> W2
   CUI -.流式与滚动底座.-> DISPATCH
   CUI -.流式与滚动底座.-> QA
@@ -408,7 +409,8 @@ flowchart LR
 | 84 | 加 44-5；C3 接记忆并入 84-1 | [84](batches/84.md) |
 | 85 | 84 改为 84-2 | [85](batches/85.md) |
 | 86 | 加 63（实验跑在评测路径上） | [86](batches/86.md) |
-| 91（新） | 按最大号追加（[决定 54](decisions.md#decision-54)），**不等 38～89**：91-1 等 36A-7；91-2 等 31（已合，若不跨窗口换包则上游包随 62 换入）；91-3 等 91-1、91-2、36A 壳层（1～3）与 37-2；91-4 等 91-1、91-2、35-2 与 36A-4 | [91](batches/91.md)、[对话与执行流式体验](../../conversation-execution-ui/spec.md) |
-| 90 | 保持为整条路线最终交付对账，前置包含按最大号追加的 91 | [90](batches/90.md) |
+| 91（91A） | 按最大号追加并合并全站体验底座与开发指引（[决定 54](decisions.md#decision-54)、[决定 55](decisions.md#decision-55)），**不等 38～89**：91-1 等 36A-7；91-2 等 31（已合，若不跨窗口换包则上游包随 62 换入）；91-3 等 91-1、91-2、36A 壳层（1～3）与 37-2；91-4 等 91-1、91-2、35-2 与 36A-4；91-5 等 91-1 与 36A | [91](batches/91.md)、[对话与执行流式体验](../../conversation-execution-ui/spec.md)、[全产品体验打磨](../../product-experience-polish/spec.md) |
+| 91B（新） | 紧接 91（91A）合入（[决定 55](decisions.md#decision-55)），**不等 38～89**：91B-1／91B-2／91B-3 物理目录正交，均等 91-1 并可并行推进；91B-4 等 91B-1～3 | [91B](batches/91b.md)、[全产品体验打磨](../../product-experience-polish/spec.md) |
+| 90 | 保持为整条路线最终交付对账，前置包含按最大号追加的 91 与 91B | [90](batches/90.md) |
 | SRV-1、SRV-2 | 决定 13 作废；对账与补齐 main 上已有的 #1877 实现 | [SRV-1](batches/srv-1.md)、[SRV-2](batches/srv-2.md) |
 

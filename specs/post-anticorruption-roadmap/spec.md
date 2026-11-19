@@ -14,7 +14,7 @@
 
 ## 01～91
 
-2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md) 对话与执行流式丝滑化（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 54](reference/decisions.md#decision-54)）。
+2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -231,10 +231,15 @@
 |  | [回执阶段 6 的各场景](reference/batches/89.md#batch-89-item-2) |
 |  | [Skill 效果比较](reference/batches/89.md#batch-89-item-3) |
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
-| [91](reference/batches/91.md) | [Design System 流式、状态环与滚动原语](reference/batches/91.md#batch-91-item-1)（2026-11-18 加，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)） |
+| [91](reference/batches/91.md) | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（2026-11-18 加并扩为 91A，前置 35-2／36A／37-2，[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
 |  | [Coding SSE 增量流、回滚稳态与过程精修](reference/batches/91.md#batch-91-item-4) |
+|  | [后续开发指引与插件创作台规范同步更新](reference/batches/91.md#batch-91-item-5) |
+| [91B](reference/batches/91b.md) | [入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口](reference/batches/91b.md#batch-91b-item-1)（2026-11-18 加，紧接 91，不等 38～89，[决定 55](reference/decisions.md#decision-55)） |
+|  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
+|  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
+|  | [全站轻动效收口与三层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
 
 <a id="server-batch"></a>
 

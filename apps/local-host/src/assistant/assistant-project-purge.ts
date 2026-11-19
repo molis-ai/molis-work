@@ -4,6 +4,7 @@ import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-sto
 import { ProjectDeletedDeferred } from "../project-deleted-deferred.js";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
+import { workConnectionsKey } from "./assistant-work-connections.js";
 
 /** What only a running Assistant can do for a work that is going away. */
 interface AssistantProjectLive {
@@ -48,6 +49,7 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
       for (const work of works) {
         const identity = { work_id: work.work_id, project_id: work.project_ref?.project_id ?? null };
         for (const related of relations.forWork(identity)) relations.unlink(identity, related.relation, related.object, "项目已删除");
+        db.prepare("DELETE FROM assistant_settings WHERE actor_id=? AND key=?").run(work.actor_id, workConnectionsKey(work.work_id));
         for (const table of WORK_TABLES) db.prepare(`DELETE FROM ${table} WHERE work_id = ?`).run(work.work_id);
       }
       db.exec("COMMIT");

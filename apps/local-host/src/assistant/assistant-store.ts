@@ -204,6 +204,24 @@ export interface StoredCard {
   updated_at: string;
 }
 
+type UndoWrite = StoredUndo | (Pick<StoredUndo, "undo_id" | "work_id"> & { remove: true });
+
+function writeUndo(db: DatabaseSync, actorId: string, undo: UndoWrite): boolean {
+  if ("remove" in undo) {
+    return Boolean(db.prepare("DELETE FROM assistant_undos WHERE actor_id=? AND work_id=? AND undo_id=?").run(actorId, undo.work_id, undo.undo_id).changes);
+  }
+  db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
+    .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+  return true;
+}
+
+function readWorkCards(db: DatabaseSync, workId: string, latestPersonProvider: string | undefined): StoredCard[] {
+  const rows = latestPersonProvider === undefined ? db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId)
+    : db.prepare(`SELECT body FROM assistant_cards WHERE work_id=? AND json_extract(body,'$.runs_as')='person'
+      AND json_extract(body,'$.reference.provider_id')=? ORDER BY rowid DESC LIMIT 1`).all(workId, latestPersonProvider);
+  return rows.map(row => JSON.parse(String(row.body)) as StoredCard);
+}
+
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
@@ -306,8 +324,8 @@ export class AssistantStore {
     return card;
   }
 
-  cards(workId: string): StoredCard[] {
-    return this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId).map(row => JSON.parse(String(row.body)) as StoredCard);
+  cards(workId: string, latestPersonProvider?: string): StoredCard[] {
+    return readWorkCards(this.db, workId, latestPersonProvider);
   }
 
   card(workId: string, cardId: string): StoredCard {
@@ -421,9 +439,8 @@ export class AssistantStore {
     return this.db.prepare("SELECT body FROM assistant_undos WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId).map(row => JSON.parse(String(row.body)) as StoredUndo);
   }
 
-  saveUndo(actorId: string, undo: StoredUndo): void {
-    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
-    this.#changed(undo.work_id);
+  saveUndo(actorId: string, undo: UndoWrite): void {
+    if (writeUndo(this.db, actorId, undo)) this.#changed(undo.work_id);
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */

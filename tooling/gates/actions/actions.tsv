@@ -206,7 +206,7 @@ feed.runs.overview	1	io.molis.work.feed	io.molis.work.feed	query	query	project	r
 feed.search.entries	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	feed_item,source	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	fdb16a63c291
 feed.snapshot	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	evidence:read,feed:read	feed_item	-	-	aebc8614fcfa	0d7b0029e110	-
 feed.source.subject.read	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	source	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
-feed.sources.add_account	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user	feed:read,feed:write	source	-	-	175008cc50d5	8f9fcf887cf7	-
+feed.sources.add_account	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	agent,mcp,user	feed:read,feed:write,sources:pull_connector	source	-	-	175008cc50d5	8f9fcf887cf7	-
 feed.sources.delete	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	irreversible	concurrent	agent,mcp,user	attention:write,connections:use,context-ledger:write,feed:read,feed:write,sources:pull_feed	source	-	-	503bef0aa5f3	09d0f6895b6a	-
 feed.sources.disconnect	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	user	connections:use,feed:read,feed:write	source	-	-	f293ae89c51f	231558c35fb0	-
 feed.sources.enabled	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user	feed:read,feed:write	source	-	-	411840cf45c1	231558c35fb0	-

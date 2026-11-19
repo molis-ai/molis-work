@@ -91,14 +91,35 @@ ${ASSISTANT_REVIEW_PART}
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
+    let approved = null;
     const client = drawn(node, card.html, { onAction: async (id, button) => {
+      const confirmation = node.querySelector("[data-assistant-adoption-confirm]");
+      if (id === "run" && confirmation) {
+        approved = client.read();
+        const rows = confirmation.querySelectorAll("[data-ix-summary] dd");
+        for (const [index, field] of card.fields.entries()) {
+          const choices = approved[field.key];
+          const options = (field.options || []).filter(option => choices.includes(option.value));
+          rows[index].textContent = options.map(option => option.description && field.key === "adopt" ? option.label + " · " + option.description : option.label).join(globalThis.t.text("common.list.separator"))
+            || globalThis.t.text("workbench.automation-adoption.review-none");
+        }
+        node.firstElementChild.hidden = true; confirmation.hidden = false;
+        confirmation.querySelector("[data-ix-preview]").focus();
+        return;
+      }
+      if (id === "edit-adoption") {
+        approved = null; confirmation.hidden = true; node.firstElementChild.hidden = false;
+        node.querySelector("[data-ix-action='run']").focus();
+        return;
+      }
+      const run = id === "run" || id === "confirm-adoption";
       // Keyboard use keeps its place: after the card redraws, focus lands on it rather than the page.
       const hadFocus = node.contains(document.activeElement), neighbour = node.nextElementSibling || node.previousElementSibling;
       const lock = (on) => node.querySelectorAll("[data-ix-action]").forEach((one) => { one.disabled = on; });
       lock(true);
       try {
         // "redo" only asks: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + id, "POST", id === "run" ? { revision: card.revision, values: client.read() } : {});
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + (run ? "run" : id), "POST", run ? { revision: card.revision, values: approved || client.read() } : {});
         if (id === "redo") { await reload(); poll(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));

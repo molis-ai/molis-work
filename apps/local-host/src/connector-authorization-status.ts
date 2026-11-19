@@ -77,8 +77,9 @@ export function assertConnectorAuthorizationPending(home: string, state: string)
   if (!connectorAuthorizationPending(home, state)) throw connectorErrors["connector.connection.invalid"]("授权已取消、过期或结束，请重新连接");
 }
 /** A cancellation is accepted only while the owner has not committed. Never undo an established connection. */
-export function cancelConnectorAuthorization(home: string, id: string) {
-  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE id=? AND (status IN ('prepared','pending') AND expires_at>=? OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL))").run(id, Date.now()));
+export function cancelConnectorAuthorization(home: string, id: string, expectedStatus?: "prepared") {
+  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE id=? AND (? IS NULL OR status=?) AND (status IN ('prepared','pending') AND expires_at>=? OR status='failed' AND (json_extract(setup_json,'$.transport')='stdio' OR json_extract(setup_json,'$.cli_setup') IS NOT NULL))")
+    .run(id, expectedStatus ?? null, expectedStatus ?? null, Date.now()));
   let cleanup;
   if (connectorAuthorizationStatus(home, id)?.status === "cancelled") { invalidateConnectorRequests(home, id); cleanup = clearConnectorAuthorizationPresentation(home, id); }
   const result = connectorAuthorizationStatus(home, id);
@@ -143,7 +144,7 @@ export function pendingConnectorAuthorizations(home: string, serviceId?: string)
 
 /** The same authority record starts before the person enters a credential or an OAuth session exists. */
 export function prepareConnectorAuthorization(home: string, setup: ConnectorSetupPlan, initiator: ConnectorSetupInitiator, now = Date.now()) {
-  const id = withAttempts(home, db => {
+  const { id, created } = withAttempts(home, db => {
     const plan = JSON.stringify(setup), owner = JSON.stringify(initiator);
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -152,10 +153,10 @@ export function prepareConnectorAuthorization(home: string, setup: ConnectorSetu
       const key = previous?.id ?? randomUUID();
       if (!previous) db.prepare("INSERT INTO connector_authorization_results (id,state_hash,connection_id,service_id,status,expires_at,setup_json,initiator_json) VALUES (?, ?, ?, ?, 'prepared', ?, ?, ?)")
         .run(key, hash(randomUUID()), setup.connection_id ?? "", setup.service_id, now + 24 * 60 * 60_000, plan, owner);
-      db.exec("COMMIT"); return key;
+      db.exec("COMMIT"); return { id: key, created: !previous };
     } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   });
-  return connectorAuthorizationStatus(home, id, now)!;
+  return { ...connectorAuthorizationStatus(home, id, now)!, created };
 }
 
 /** Reopening is safe; starting the protocol must still claim this prepared record exactly once. */

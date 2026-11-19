@@ -34,7 +34,7 @@ W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍
 
 ## 2. 总览
 
-Home 里有 35 种 SQLite 文件：权威库 31 种（Home 级 28 种，按项目 3 种）、派生库 1 种、锁库 3 种。31 种权威库按版本方案分：
+Home 里有 36 种 SQLite 文件，含 32 种权威库（Home 级 29 种，按项目 3 种）、1 种派生库和 3 种锁库。权威库按版本方案分：
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `agent-declarations/agent-declarations.db` | 宿主；`apps/local-host/src/agent-definitions/agent-declarations.ts` 的 `AgentDeclarations`（基线 `AGENT_DECLARATIONS_BASELINE`，表 `install_declarations`），由 `agentDeclarationsFor` 打开。每个安装最近一次登记的 Agent 声明（角色、Prompt、指令、方法），整份替换；Host 启动时按「未运行」恢复进登记册，只供设置里显示和本人先改，方法不给别的 Agent；卸载时删（PG-051 Q1 b） | SQLite 带版本 · 1 | 可重建（插件下次启动时重新登记），随 `agent-definitions` 一起备份 | purge |
 | `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 1 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
-| `web-search/web-search.db` | 宿主；`apps/local-host/src/web-search-store.ts` 的 `WEB_SEARCH_BASELINE`（第 61 批，§13.7） | SQLite 带版本 · 1 | 可重建：只存默认来源的号和上一次搜索用的来源，不存密钥 | 不按项目清（Home 级设置） |
+| `web-search/web-search.db` | 宿主；`apps/local-host/src/web-search-store.ts` 的 `WEB_SEARCH_BASELINE`（第 61 批，§13.7） | SQLite 带版本 · 1 | 必备份。保存用户选的默认来源及最近一次搜索来源，密钥归连接 owner | 不按项目清（Home 级设置） |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时在数据库提交后按 `project_id` 清登记，原始文件本身不动） |
 | `plugin-directories/plugin-directories.db` | 宿主；`apps/local-host/src/plugin-directory-store.ts` 打开并套用基线（`plugin_directory_grants`：人经系统选择器授权给插件读的本机目录，一条绑定插件、安装、项目（Home 级激活为空串）与人，记目录的真实路径和设备号、inode；`plugin_directory_reads`：每次读的时间、发起来源、调用者与结果，不记文件名和内容，每条授权留最近 200 条）；只由 `apps/local-host/src/plugin-directory-service.ts` 读写，插件只拿到授权 id（PG-049，用户 2026-10-25） | SQLite 带版本 · 1 | 必备份（人给出的授权，撤回之前一直有效） | purge（`plugin-directories` 已登记；删项目时按 `project_id` 删授权与记录，卸载时按安装删，目录本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/judgment-rules/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/judgment-rules/src/store.ts:284`），基线 `modules/judgment-rules/src/store-schema.ts:7`；`function_judgments.install_id` 记是哪个插件安装经 `services.judgments` 记的（宿主自己记的为空），插件只读、只丢自己的（S-90） | SQLite 带版本 · 1；现行结构保留install_id，旧Home整体搬开后新建，不升级旧库 | 必备份 | purge（卸载且不保留数据时，按安装和项目删它记的判断） |
@@ -271,6 +271,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
+| `config/automation-offers.json`、`config/automation-recommendations.json` | `horizontal/automation-recommender` 的 `offers.ts` 与 `preferences.ts` 按用户与项目身份保存已推荐记录、主动建议开关、采用的技能修订与建议偏好；助理工作的撤销入口存于 `assistant/assistant.db` | JSON · 第 1 版，Host 升级登记 `apps/local-host/src/platform-upgrade-stores.ts` | 必备份。采用记录和工作的撤销入口以同一时点备份 | 删项目时清对应项目行，purge 清除 |
 | `interface/state.json` | `horizontal/appearance/src/state.ts`：Home 的精确外观选择、修订、恢复组合及应用／撤销回执 | JSON · `schema_version` = 1 | 必备份，选择与回执同次提交 | purge（`interface` 已登记） |
 | `config/ui-locale.json` | `horizontal/appearance/src/locale-memory.ts`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1（`format.ui.last-locale`）；低版本由升级过程升（`platform-upgrade-stores.ts`），高版本或读不了时按没有记录读取且不覆盖（升级链扫描仍会把读不了/更高版本/缺版本记为 unreadable/too_new/unversioned：不阻止打开，但这次不写当前标记、下次启动再扫） | 必备份（很小） | purge |
 | `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |

@@ -1,6 +1,6 @@
-import { CONNECTOR_USES, type ConnectorDirectoryEntry, type ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_REQUEST_SERVICES, CONNECTOR_USES, type ConnectorDirectoryEntry, type ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { serviceHasRecordReader } from "./connector-record-actions.js";
-import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationKind, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
@@ -46,13 +46,12 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: C
 }
 
 /** What the service's accounts can be used for, read from what is declared, in `CONNECTOR_USES` order (§13.7). */
-function connectorUses(declarations: IntegrationDeclarationsView, declaration: PluginConnectionServiceDeclaration): Pick<ConnectorDirectoryEntry, "uses" | "categories"> {
-  const kinds = new Set(declarations.listIntegrations().filter(entry => entry.declaration.service_id === declaration.service_id).map(entry => entry.declaration.kind));
+function connectorUses(kinds: ReadonlySet<IntegrationKind> | undefined, declaration: PluginConnectionServiceDeclaration): Pick<ConnectorDirectoryEntry, "uses" | "categories"> {
   const has: Record<ConnectorUse, boolean> = {
-    feed_source: kinds.has("source"),
-    document_import: kinds.has("document_import"),
+    feed_source: kinds?.has("source") === true && Object.hasOwn(CONNECTOR_REQUEST_SERVICES, declaration.service_id),
+    document_import: kinds?.has("document_import") === true,
     assistant_read: serviceHasRecordReader(declaration.service_id),
-    web_search: kinds.has("web_search"),
+    web_search: kinds?.has("web_search") === true,
     category: Boolean(declaration.categories?.length),
   };
   return { uses: CONNECTOR_USES.filter(use => has[use]), ...(declaration.categories?.length ? { categories: [...declaration.categories] } : {}) };
@@ -61,13 +60,21 @@ function connectorUses(declarations: IntegrationDeclarationsView, declaration: P
 /** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
 export function connectorDirectory(declarations: IntegrationDeclarationsView & Partial<Pick<IntegrationRegistry, "mcpOwner">>): readonly ConnectorDirectoryEntryWithSource[] {
   installHostUiText();
+  const byService = new Map<string, Set<IntegrationKind>>();
+  for (const { declaration: { service_id, kind, integration_id } } of declarations.listIntegrations()) {
+    if (service_id === undefined || kind === "source" && integration_id !== service_id) continue;
+    const kinds = byService.get(service_id) ?? new Set<IntegrationKind>();
+    kinds.add(kind);
+    byService.set(service_id, kinds);
+  }
   return declarations.connectionServices().map(service => {
     const { declaration, owner, word } = service;
-    const entry = directoryEntry(declaration, word, owner === PLATFORM_OWNER ? undefined : declarations.hasSource(declaration.service_id));
+    const uses = owner === PLATFORM_OWNER ? {} : connectorUses(byService.get(declaration.service_id), declaration);
+    const entry = directoryEntry(declaration, word, uses.uses?.includes("feed_source"));
     const method_options = connectorMethodsOf(service, declarations.mcpOwner?.(declaration.service_id));
     return {
       ...entry,
-      ...(owner === PLATFORM_OWNER ? {} : connectorUses(declarations, declaration)),
+      ...uses,
       method_options,
       setup_links: entry.setup_links?.length ? entry.setup_links : method_options.flatMap((method) => method.links),
       // The card says which package declared it: the name its Manifest gives it, the id only when there is no name.

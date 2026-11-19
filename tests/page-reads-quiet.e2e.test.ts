@@ -60,7 +60,7 @@ test("07-2a N54: after a 404 (the project is gone) the page stops reading what w
       const url = String(input?.url ?? input);
       if (!/\\/api\\/attention/.test(url)) return real(input, init);
       window.__attention++;
-      return window.__gone ? Promise.resolve(new Response(JSON.stringify({ error: "项目不在了" }), { status: 404, headers: { "content-type": "application/json" } })) : real(input, init);
+      return window.__gone ? Promise.resolve(new Response(JSON.stringify({ error: "项目不在了", code: "catalog.project_not_found" }), { status: 404, headers: { "content-type": "application/json" } })) : real(input, init);
     };
   })()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
@@ -87,7 +87,7 @@ test("07-2a N54: on the chooser a project that answered 404 is not asked again, 
       const url = String(input?.url ?? input), at = /\\/projects\\/([^/]+)\\/api\\/attention/.exec(url);
       if (!at) return real(input, init);
       const id = decodeURIComponent(at[1]); window.__reads[id] = (window.__reads[id] || 0) + 1;
-      return id === window.__goneId ? Promise.resolve(new Response(JSON.stringify({ error: "项目不在了" }), { status: 404, headers: { "content-type": "application/json" } })) : real(input, init);
+      return id === window.__goneId ? Promise.resolve(new Response(JSON.stringify({ error: "项目不在了", code: "catalog.project_not_found" }), { status: 404, headers: { "content-type": "application/json" } })) : real(input, init);
     };
   })()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));

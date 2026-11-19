@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
@@ -25,6 +25,15 @@ export function createPrivateDevelopmentHost(): MolisWorkLocalHost {
   return host;
 }
 
+/**
+ * Why the development door refused the state directory it was given: an ordinary nonempty directory (it may be a person's own folder,
+ * so nothing is written into it), or a development marker this version does not read. Neither is the plugin's Manifest.
+ */
+const developmentErrors = defineErrorCodes("host", {
+  plugin_development_directory_occupied: "invalid",
+  plugin_development_directory_unsupported: "invalid",
+});
+
 /** Development data is explicitly separate from the user's catalog and existing projects. */
 export async function runLocalPluginDevelopment(input: {
   directory: string; state_directory: string; grants: string[]; allow_unsigned_development: true;
@@ -44,8 +53,8 @@ export async function runLocalPluginDevelopment(input: {
   if (existingNames !== null) {
     if (existingNames.includes(markerName)) {
       const existing = JSON.parse(await readFile(join(directory, markerName), "utf8")) as typeof marker;
-      if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw new Error("不是受支持的 Plugin 开发状态目录");
-    } else if (existingNames.length) throw new Error("Plugin 开发不能使用非空的普通目录或用户项目目录");
+      if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
+    } else if (existingNames.length) throw developmentErrors.plugin_development_directory_occupied("Plugin 开发不能使用非空的普通目录或用户项目目录", { state_directory: directory });
   }
   // An existing state directory is opened before the language check too: a Home that already holds unadopted files is refused
   // (memory.unavailable) before the plugin directory is read. A new or empty directory is still made only after that check, so a wrong

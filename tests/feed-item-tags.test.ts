@@ -4,10 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
+import { createTestSourcePull, completedSourcePull } from "./fixtures/source-pull.js";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/search-sources";
-import type { IntelligenceCollectRequest, IntelligenceCollectResult, SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFeedContentHandlers } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -17,17 +16,17 @@ const MARKER = "feed-source:";
 
 const MATERIAL = {
   id: "material:feed-item-tags",
-  candidateId: "candidate:feed-item-tags",
-  canonicalUrl: "https://example.com/article-tags",
+  candidate_id: "candidate:feed-item-tags",
+  canonical_url: "https://example.com/article-tags",
   title: "公开材料",
-  sourceName: "Example",
+  source_name: "Example",
   preview: "可核对摘要",
-  contentRef: "molis-work-feed/sha256/" + "a".repeat(64),
-  contentHash: `sha256:${"a".repeat(64)}`,
-  contentHashProfile: "search-markdown-v1",
-  contentType: "text/markdown",
-  characterCount: 5,
-  capturedAt: "2026-08-29T08:00:00.000Z",
+  content_ref: "molis-work-feed/sha256/" + "a".repeat(64),
+  content_hash: `sha256:${"a".repeat(64)}`,
+  content_type: "text/markdown",
+  character_count: 5,
+  captured_at: "2026-08-29T08:00:00.000Z",
+  content_available: true,
   provenance: {
     operationId: "feed-operation",
     providerId: "rss",
@@ -38,9 +37,6 @@ const MATERIAL = {
     rankProfile: "feed-v1",
     transportProfileFingerprint: `sha256:${"b".repeat(64)}`,
   },
-  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
-  truncated: false,
-  availability: "available",
 } as const;
 
 function harness() {
@@ -48,25 +44,11 @@ function harness() {
   const path = join(directory, "project.sqlite");
   seedDemoBoard(path);
   const store = new LocalProjectDatabase(path);
-  const runtimeFactory = (): SourcePullRuntime => ({
-    intelligenceCollect: {
-      async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-        const base = createCompletedIntentResultFixtureV1(request);
-        return {
-          ...base,
-          materials: [{ ...MATERIAL, provenance: { ...MATERIAL.provenance, operationId: request.operationId } }],
-        } as IntelligenceCollectResult;
-      },
-      async shutdown() {},
-    },
-    content: {
-      write() { return { contentRef: MATERIAL.contentRef }; },
-      read() { return MATERIAL.preview; },
-      has() { return true; },
-      inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
-    },
-    async shutdown() {},
-  });
+  const runtimeFactory = (db: typeof store.db) => {
+    const client = createTestSourcePull({ db });
+    return { ...client, pull: (request, options) => completedSourcePull(client, request, options,
+      [{ ...MATERIAL, provenance: { ...MATERIAL.provenance, operationId: request.operation_id } }]) } satisfies typeof client;
+  };
   const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
   const source = service.register({ kind: "custom_rss", feed_url: "https://example.com/tags-feed.xml" }).source;
   return { directory, store, service, source };
@@ -167,7 +149,7 @@ test("RAC-1187 the search summary of a pulled item keeps the visible parts and n
     // kind as the one visible tag. A dropped author (or any dropped piece) changes this string, so it cannot hide behind the projection.
     assert.equal(
       entry.summary,
-      [MATERIAL.preview, data.source.name, MATERIAL.sourceName, "custom_rss"].join(" · "),
+      [MATERIAL.preview, data.source.name, MATERIAL.source_name, "custom_rss"].join(" · "),
       "the summary keeps the preview, source name, author and visible tag",
     );
     assert.doesNotMatch(entry.summary, new RegExp(MARKER));

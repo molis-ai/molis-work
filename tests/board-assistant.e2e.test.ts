@@ -12,7 +12,7 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 const CJK = /[㐀-鿿]/;
 type Block = [title: string, badge: string, attention: boolean];
 
-test("VUX-39 the board's Assistant section drives the shipped island through several works, six groups, steps, draft and scope, partial attachment failure, in-place progress, language and width", { timeout: 180_000 }, async (t) => {
+test("VUX-39 QEA-183 the board's Assistant section drives the shipped island through several works, six groups, steps, draft and scope, partial attachment failure, in-place progress, language and width", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
@@ -56,7 +56,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   assert.deepEqual(Object.keys(plan).filter((key) => ["environment", "materials", "tools", "results", "changes", "background"].includes(key)),
     ["environment", "materials", "tools", "results", "changes", "background"]);
   assert.deepEqual([plan.environment, plan.materials, plan.tools, plan.results, plan.changes, plan.background], [
-    ["工作环境", "", false], ["上下文", "2 项有变化", true], ["连接与工具", "1 项要处理", true], ["产出", "2", false], ["变更", "1 项失败", true], ["后台任务", "1 项没有完成", true]]);
+    ["工作环境", "", false], ["参考内容", "2 项有变化", true], ["连接与工具", "1 项要处理", true], ["产出", "2", false], ["变更", "1 项失败", true], ["后台任务", "1 项没有完成", true]]);
   const groups = await inFrame<Record<string, string>>(`return Object.fromEntries(['environment', 'tools', 'results', 'changes', 'background'].map((key) => [key, d.querySelector('[data-assistant-block=' + key + ']').textContent.replace(/\\s+/g, ' ')]));`);
   assert.match(groups.environment!, /示例项目.*项目范围/);
   assert.match(groups.tools!, /你的连接.*Google Calendar.*企业微信.*需要登录授权.*可调用.*现在不能用.*通讯录/);
@@ -146,7 +146,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
   await choose("lang", "en", "board-plan");
   const english = await blocks();
   assert.deepEqual([english.materials, english.tools, english.changes, english.background].map(([title, badge]) => title + " | " + badge),
-    ["Context | 2 changed", "Connections and tools | 1 to handle", "Changes | 1 failed", "Background tasks | 1 did not finish"]);
+    ["Reference | 2 changed", "Connections and tools | 1 to handle", "Changes | 1 failed", "Background tasks | 1 did not finish"]);
   assert.equal(Object.values(english).some(([title, badge]) => CJK.test(title + badge)), false);
   assert.equal(await inFrame<string>("return d.documentElement.lang;"), "en");
 
@@ -267,7 +267,7 @@ test("VUX-39 the board's Assistant frame loads without taking the board's focus 
 // The paths that end well beside the ones that fail: sub-tasks the plan handed on and the work they report to, the bell's
 // notices (what needs the person first, news folded, one held by a rule, a reminder that opens its item), a question that
 // is answered and lets the round finish, and a round cut off by a closed window that is checked and then ended.
-test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices, an answered question and an interrupted round's recovery", { timeout: 180_000 }, async (t) => {
+test("VUX-39 QEA-173 the board's Assistant shows delegated sub-tasks, the bell's notices, an answered question and an interrupted round's recovery", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;

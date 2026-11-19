@@ -9,18 +9,19 @@ import { logPreviewFailure } from "./host-log.js";
 import { objectLinkAt, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
+  ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
-import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile, isImportedDocumentVersion, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentLocale, inLanguagePreview } from "./web-locale.js";
-import type { ReadArtifactDisplay } from "./artifact-display-words.js";
+import { importedDocumentWarnings, type ReadArtifactDisplay } from "./artifact-display-words.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
+import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 
 export interface ArtifactHttpContext {
@@ -47,6 +48,19 @@ function escape(value: string): string {
 
 /** The platform's own pages and answers use the Workbench's current dictionary. */
 const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => format.date(value, "datetime-with-seconds") };
+
+function continuersFor(version: ArtifactVersionRecord | null) {
+  if (!version || version.availability !== "available" || version.lifecycle_state === "archived") return [];
+  if (version.artifact_type_id !== IMPORTED_DOCUMENT_TYPE) return artifactContinuers(version);
+  const file = importedDocumentFile(version);
+  return file ? artifactContinuers(version).filter(item => continuerReadsFile(item, file)) : [];
+}
+
+function assertSupportedImportVersion(version: ArtifactVersionRecord | null): void {
+  if (version?.artifact_type_id === IMPORTED_DOCUMENT_TYPE && !isImportedDocumentVersion(version)) {
+    throw documentErrors.unsupported_version(uiText.text("workbench.browser-ui.import-version-unsupported"));
+  }
+}
 
 /**
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
@@ -83,7 +97,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
 export async function renderGoalArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
   const words = await readArtifactDisplay(embeds.flatMap(({ view }) => view.selected ? [view.selected] : []));
-  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, typeTitle: version => words(version)?.title });
+  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, importedDocumentWarnings, typeTitle: version => words(version)?.title });
 }
 
 /** The name the page sends with a raw original (percent-encoded UTF-8): one file name, no path. */
@@ -99,6 +113,9 @@ function offeredFilename(raw: string | undefined): string {
  * that one to the 成果库's import, which keeps it inline up to 6 MB and in its store above (onboarding limits, 2026-10-22).
  */
 async function importRawOriginal(request: IncomingMessage, response: ServerResponse, context: ArtifactHttpContext): Promise<void> {
+  const stop = new AbortController();
+  const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+  const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
   const filename = offeredFilename(requestHeader(request, "x-molis-work-filename"));
   const mime = (requestHeader(request, "content-type") ?? "application/octet-stream").split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
   const directory = await mkdtemp(join(tmpdir(), "molis-artifact-original-"));
@@ -108,10 +125,10 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
     const input: ArtifactFileImport = { source: "file", filename, original_file: { filename, mime },
       ...new URL(request.url ?? "/", "http://host").searchParams.get("allow_model_download") === "true" ? { allow_model_download: true } : {} };
     const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
-      const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, undefined, on_progress ? { on_progress } : undefined);
-      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved), warnings: saved.warnings.map(warning => warning) } };
+      const saved = await context.offeredActions({ path, install_id: ARTIFACTS_PLUGIN_ID }).invoke(artifactsActions.importFile, input, control, on_progress ? { on_progress } : undefined);
+      return { status: saved.reused ? 200 : 201, body: { ...saved, url: context.routePrefix + artifactVersionPath(saved) } };
     };
-    if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+    if (requestHeader(request, "accept")?.includes("application/x-ndjson")) await answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
     else { const result = await answer(); sendLocalWebJson(response, result.status, result.body); }
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
@@ -123,6 +140,9 @@ export function createLocalArtifactHttp() {
   ): Promise<boolean> {
     try {
       if (pathname === "/api/artifacts/import" && request.method === "POST") {
+        const stop = new AbortController();
+        const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+        const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
         const input = await readArtifactImportBody(request);
         // Preserve the established HTTP wire errors; the shared action contract
         // still validates the complete input before any business operation.
@@ -135,13 +155,13 @@ export function createLocalArtifactHttp() {
         const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
           const transport = on_progress ? { on_progress } : undefined;
           const saved = input.source === "file"
-            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, undefined, transport)
-            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, undefined, transport);
+            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
+            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
           const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => warning) } };
+          return { status: result.reused ? 200 : 201, body: result };
         };
         // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
-        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
         const result = await answer();
         sendLocalWebJson(response, result.status, result.body);
         return true;
@@ -157,7 +177,8 @@ export function createLocalArtifactHttp() {
         const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown }; plugin_id?: unknown };
         const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
         const view = await context.actions.invoke(artifactsActions.read, { reference });
-        const continuer = view.selected ? artifactContinuers().get(view.selected.artifact_type_id)?.find(item => item.plugin_id === body.plugin_id) : undefined;
+        assertSupportedImportVersion(view.selected);
+        const continuer = continuersFor(view.selected).find(item => item.plugin_id === body.plugin_id);
         if (!view.selected || !continuer || !context.ownerActions) throw artifactsErrors.continue_unavailable("这一版不能在这个插件里继续");
         const result = await context.ownerActions(continuer.action.action.permissions).invoke(continuer.action, { artifact: view.selected }) as ArtifactContinueResult;
         sendLocalWebJson(response, 201, result);
@@ -191,7 +212,8 @@ export function createLocalArtifactHttp() {
       if (route.kind === "file") {
         // A download (S7 exception list): an imported version's original file, or the text it was read into (A3).
         const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
-          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }] });
+          supported_types: IMPORTED_DOCUMENT_READ_TYPES });
+        assertSupportedImportVersion(view.selected);
         const file = importedFileOf(view.selected);
         const stream = file?.stored ? await openArtifactOriginal(context.homeDirectory, context.projectId, file.stored) : null;
         if (!file || (file.stored && !stream)) throw artifactsErrors.file_missing(uiText.text("workbench.artifact-library-http.no-file"));
@@ -212,7 +234,8 @@ export function createLocalArtifactHttp() {
         return true;
       }
       const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
-        supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }] });
+        supported_types: IMPORTED_DOCUMENT_READ_TYPES });
+      assertSupportedImportVersion(view.selected);
       // Read first, so a disabled or forbidden 成果 surface answers as before. A direct visit (address bar, refresh, a link
       // from elsewhere) then opens the workbench on the 成果 surface and, for a version, that version; only the workbench's
       // own fragment requests get the surface's HTML.
@@ -229,9 +252,7 @@ export function createLocalArtifactHttp() {
       const languagePreview = fragment === "artifact-workbench" && inLanguagePreview();
       const presentation = await ownerPreview(selected, artifactTypeDeclarations(), selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
       // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
-      const file = importedDocumentFile(selected);
-      const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
-        .filter(item => !file || continuerReadsFile(item, file)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
+      const continuers = continuersFor(selected).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title }));
       const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
       const linked = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
       // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.
@@ -245,12 +266,12 @@ export function createLocalArtifactHttp() {
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, pluginInputs,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, pluginInputs,
         languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));
       return true;
     } catch (error) {
       const failure = actionErrorResponse(error);
-      sendLocalWebJson(response, failure.status, failure.body);
+      if (!response.destroyed) sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }
   };

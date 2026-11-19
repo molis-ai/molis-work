@@ -1,0 +1,128 @@
+{
+  "reason": "本轮工作台、插件与共享能力改造的实际资源增量。首屏采用隔离 Home 实测的运行概况与 Attention 请求，Goal 后台读取沿现有周期验收。静态增量扣除本分支此前资料导入已登记的字节，首屏上限按现行门禁基线的实测补足。Linux CI 的旧 Goal 片段记录的临时目录比 macOS 短 52 B，两组全插件冷加载据实际对照计入这 52 B。",
+  "review": "specs/quality-experience-audit/report.md#第-81-批首屏验收与待确认事项",
+  "assets": {
+    "/assets/molis-work-assistant-subtasks.js": 117,
+    "/assets/molis-work-composer.js": 283,
+    "/assets/molis-work-kit.js": 3855,
+    "/assets/molis-work-knowledge.js": 1359,
+    "/assets/molis-work-pages-editor.js": 885,
+    "/assets/molis-work-plugin-frame.js": 544,
+    "/assets/molis-work-plugins/alchemist.js": 19,
+    "/assets/molis-work-plugins/coding.js": 844,
+    "/assets/molis-work-plugins/feed.js": 19,
+    "/assets/molis-work-plugins/git.css": 50,
+    "/assets/molis-work-plugins/git.js": 8403,
+    "/assets/molis-work-plugins/inbox.js": 21,
+    "/assets/molis-work-plugins/issues.js": 19,
+    "/assets/molis-work-plugins/jelly.js": 21,
+    "/assets/molis-work-plugins/lingguang.js": 195,
+    "/assets/molis-work-plugins/pages.js": 499,
+    "/assets/molis-work-plugins/plugin-builder.js": 61,
+    "/assets/molis-work-plugins/risk.js": 19,
+    "/assets/molis-work-plugins/schedule.js": 19,
+    "/assets/molis-work-plugins/sessions.js": 2020,
+    "/assets/molis-work-plugins/shelf.js": 20,
+    "/assets/molis-work-plugins/todo.js": 19,
+    "/assets/molis-work-plugins/workflows.js": 804,
+    "/assets/molis-work-workbench.css": 261,
+    "/assets/molis-work-workbench.js": 4663
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 1102,
+      "warm": 19
+    },
+    "arrival-empty/en": {
+      "cold": 1097,
+      "warm": 19
+    },
+    "chooser/zh": {
+      "cold": 1383,
+      "warm": 17
+    },
+    "chooser/en": {
+      "cold": 1373,
+      "warm": 12
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 167,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 118,
+      "warm": 0
+    }
+  },
+  "userApproval": "用户于 2026-11-17 在本审查会话（01a1e2b8-9471-7ac1-8614-76155dd934fd）对本地提交 04fb175c75 选择「批准资源、推送与 Full CI」。批准报告所列首屏请求与静态增量，首屏同口径最大冷增 8,885 B、热增 1,343 B，单静态资源最多增 8,403 B。中文词包 3fe0daf45edd25f7db45b5e7，英文词包 d7655fca1743ac25d692e8ae。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "chooser"
+      ],
+      "locale": "both",
+      "entry": "/api/runtime/overview",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "chooser"
+      ],
+      "locale": "both",
+      "entry": "/projects/<project>/api/attention?surface=&view=home",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "chooser"
+      ],
+      "locale": "both",
+      "entry": "/projects/<project>/api/attention/events?view=home",
+      "response": "sse-first-event",
+      "document": "<page>",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/projects/<project>/api/attention?surface=home",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/projects/<project>/api/attention/events",
+      "response": "sse-first-event",
+      "document": "<page>",
+      "change": "new"
+    }
+  ]
+}

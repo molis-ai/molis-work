@@ -105,7 +105,7 @@ function draw(c: Composer, controls: boolean) {
   // the split button stands in the send's place once there are words to queue, never in the one-row rest state.
   const idleDelivery = Boolean(c.ai && !c.running && c.field.value.trim() && composerDeliveries(false, c.ai.delivery?.(), c.ai.labels.unsupported)["after-run"].available);
   const pause = c.ai && c.running ? c.ai.pause?.() : null;
-  const drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(idleDelivery ? { idleDelivery: true } : {}), ...(now ? { status: now } : {}),
+  const drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery, running: c.running } : {}), ...(idleDelivery ? { idleDelivery: true } : {}), ...(now ? { status: now } : {}),
     ...(pause ? { pause: { label: pause.label, title: pause.title, busy: Boolean(pause.busy) || c.pausing } } : {}),
     // Held by the page: the first screen's own unavailable look, its reason in the status line (a send on its way says itself first).
     ...(state === "disabled" ? { disabled: { caption: c.labels.notice, reason: c.held } } : {}) } as MwComposerOptions;

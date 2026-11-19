@@ -15,7 +15,7 @@ export function createSettingsAddressHarness(pluginSections: readonly SettingsAd
     documentElement: { dataset: { uiLanguageTag: "zh" } },
     querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
     querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
-      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...rows].map((entry) => typeof entry === "string"
+      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "kit", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...rows].map((entry) => typeof entry === "string"
         ? { dataset: { settingsSection: entry } }
         : { dataset: { settingsSection: entry.id, settingsAddressQuery: entry.query, settingsAddressHash: entry.hash } })
       : [],

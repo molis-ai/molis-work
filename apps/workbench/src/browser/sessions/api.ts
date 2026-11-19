@@ -42,6 +42,10 @@ export interface PersonSessionListOutput extends Omit<ExternalSessionListOutput,
   readonly sources: ExternalSessionSource[];
 }
 
+export interface PersonSessionHistoryOutput extends Omit<ExternalSessionHistoryOutput, "session"> {
+  readonly session: ExternalSessionRow;
+}
+
 const req = (): UiRequest => molisWorkRequest;
 
 export function currentRoutePrefix(): string {
@@ -57,12 +61,12 @@ function endpoint(path: string, projectOverride?: string): string {
   return `${currentRoutePrefix()}${path}`;
 }
 
-const post = <T>(path: string, body: unknown, proj?: string): Promise<T> =>
-  req()(endpoint(path, proj), { method: "POST", body }) as Promise<T>;
+const post = <T>(path: string, body: unknown, proj?: string, signal?: AbortSignal): Promise<T> =>
+  req()(endpoint(path, proj), { method: "POST", body, signal }) as Promise<T>;
 
 export const sessionsApi = {
-  list: (input: ExternalSessionListInput) => post<PersonSessionListOutput>("/api/sessions/list", input),
-  history: (input: ExternalSessionHistoryInput) => post<ExternalSessionHistoryOutput>("/api/sessions/history", input),
+  list: (input: ExternalSessionListInput, signal?: AbortSignal) => post<PersonSessionListOutput>("/api/sessions/list", input, undefined, signal),
+  history: (input: ExternalSessionHistoryInput) => post<PersonSessionHistoryOutput>("/api/sessions/history", input),
   scopeRead: (includeCounts = true) =>
     req()(endpoint(`/api/sessions/scope${includeCounts ? "" : "?counts=0"}`), { method: "GET" }) as Promise<SessionScopeWithMeta>,
   scopeSet: (input: ExternalSessionScopeSetInput) => post<SessionScopeWithMeta>("/api/sessions/scope", input),
@@ -71,7 +75,7 @@ export const sessionsApi = {
   discoveryRun: (input: ExternalSessionDiscoveryRunInput = {}) => post<ExternalSessionDiscoveryRunOutput>("/api/sessions/discovery", input),
   attributionSet: (input: ExternalSessionAttributionInput) => post<ExternalSessionRow>("/api/sessions/attribution", input),
   attributionSuggest: (input: ExternalSessionAttributionSuggestInput) => post<ExternalSessionAttributionSuggestOutput>("/api/sessions/suggest", input),
-  toolSearch: (input: ExternalSessionToolSearchInput) => post<ExternalSessionToolSearchOutput>("/api/sessions/tool-search", input),
+  toolSearch: (input: ExternalSessionToolSearchInput, signal?: AbortSignal) => post<ExternalSessionToolSearchOutput>("/api/sessions/tool-search", input, undefined, signal),
 };
 
 export async function copyPlainText(value: string): Promise<boolean> {

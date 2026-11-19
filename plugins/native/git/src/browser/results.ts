@@ -1,5 +1,6 @@
+import { currentResult } from "./result-selection.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { active, inFolder, request } from "./page.js";
+import { inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import type { ResultRow, ResultsAnswer, Translate } from "./types.js";
 
@@ -48,11 +49,13 @@ export function clearResults(page: GitPage): void {
 
 export async function loadResults(page: GitPage): Promise<void> {
   const { readText, when, resultChoice, resultSave, resultStatus } = page;
-  const epoch = page.generation, serial = ++page.resultsTicket, id = page.workspace, selectedId = resultChoice.value;
+  const selection = page.resultSelection, serial = ++page.resultsTicket, id = page.workspace;
+  if (selection?.kind !== "history") return;
   resultSave.disabled = true;
   try {
     const data = await request<ResultsAnswer>(page, inFolder("/results", id));
-    if (!active(page, epoch) || serial !== page.resultsTicket || id !== page.workspace) return;
+    if (!currentResult(page, selection) || serial !== page.resultsTicket) return;
+    const selectedId = resultChoice.value;
     page.resultRows = data.results;
     resultChoice.replaceChildren();
     for (const row of page.resultRows) {
@@ -66,7 +69,7 @@ export async function loadResults(page: GitPage): Promise<void> {
     resultChoice.disabled = !page.resultRows.length;
     renderResult(page);
   } catch (error) {
-    if (active(page, epoch) && serial === page.resultsTicket && id === page.workspace) {
+    if (currentResult(page, selection) && serial === page.resultsTicket) {
       page.resultRows = [];
       resultChoice.replaceChildren();
       resultChoice.disabled = true;
@@ -78,24 +81,27 @@ export async function loadResults(page: GitPage): Promise<void> {
 
 /** Keeps the chosen result in the project when the person asks. */
 async function saveResult(page: GitPage): Promise<void> {
-  const { resultChoice, resultSave, resultStatus } = page;
-  const row = chosen(page);
-  if (!row || page.resultSaving) return;
-  const epoch = page.generation, id = page.workspace, reviewId = row.result.review.review_id;
+  const { resultSave, resultStatus } = page;
+  const row = chosen(page), selection = page.resultSelection;
+  if (!row || row.saved || row.unavailable || page.resultSaving || selection?.kind !== "history") return;
+  const id = page.workspace, reviewId = row.result.review.review_id;
+  const showingSaved = () => currentResult(page, selection) && chosen(page)?.result.review.review_id === reviewId;
   page.resultSaving = true;
   resultSave.disabled = true;
   resultStatus.textContent = uiText.text("git.result.saving");
+  let failure: unknown;
   try {
     const saved = await request<NonNullable<ResultRow["saved"]>>(page, "/results", "POST", { workspace_id: id, review_id: reviewId });
-    if (!active(page, epoch) || id !== page.workspace) return;
-    const current = page.resultRows.find((item) => item.result.review.review_id === reviewId);
-    if (current) current.saved = saved;
-    renderResult(page);
-  } catch (error) {
-    if (active(page, epoch) && id === page.workspace) resultStatus.textContent = uiText.text("git.result.save-failed", { reason: (messageOf(error)) });
-  } finally {
+    // An accepted save belongs to its result, even if the directory refreshed or another row is now shown.
+    if (id === page.workspace) {
+      const current = page.resultRows.find(item => item.result.review.review_id === reviewId);
+      if (current) current.saved = saved;
+    }
+  } catch (error) { failure = error; }
+  finally {
     page.resultSaving = false;
-    if (active(page, epoch) && id === page.workspace) resultSave.disabled = Boolean(page.resultRows.find((item) => item.result.review.review_id === resultChoice.value)?.saved);
+    if (page.lifetime.alive && page.lifetime.visible && page.resultSelection?.kind === "history") renderResult(page);
+    if (failure && showingSaved()) resultStatus.textContent = uiText.text("git.result.save-failed", { reason: messageOf(failure) });
   }
 }
 

@@ -7,12 +7,11 @@ import {
   sessionsErrors,
   type ExternalSessionActivity,
   type ExternalSessionEntry,
-  type ExternalSessionHistoryInput,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, type ExternalToolEntry } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { readSessionSourceFailure, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
+import { readSessionSourceFailure, type AdapterHistoryInput, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
 
 export function isValidNativeId(value: string): boolean;
 export function isValidNativeId(value: unknown): value is string;
@@ -103,9 +102,9 @@ export interface ParsedTranscriptResult {
 
 export function paginateAndSearchTranscript(
   parsed: ParsedTranscriptResult,
-  input: Omit<ExternalSessionHistoryInput, "session_key">,
+  input: AdapterHistoryInput,
 ): AdapterReadOutput {
-  const allEntries = parsed.entries;
+  const allEntries = input.opening ? parsed.entries.filter(entry => entry.role === "you").slice(0, input.limit) : parsed.entries;
   if (allEntries.length === 0) {
     if (parsed.partial_stop) {
       if (parsed.partial_stop.code === "sessions.version_unreadable") {

@@ -5,7 +5,12 @@ export interface ActionResultView {
   readonly title_pointer?: string;
   readonly text_pointer?: string;
   /** A same-origin product destination. Placeholders are {project_id} or {/output/pointer}. */
-  readonly link?: { readonly label: string; readonly href_template: string };
+  readonly link?: {
+    readonly label: string;
+    readonly href_template: string;
+    /** Used when the trusted call has no project. Only output pointers are available here. */
+    readonly home_href_template?: string;
+  };
   /**
    * A connection the person still has to finish (specs/assistant-service-connections/spec.md §13.5 C5): the JSON Pointer to the
    * authorization's id in the output. Where the result is shown, the platform draws its connection card for that authorization,
@@ -31,6 +36,13 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 const shortText = (value: unknown, limit: number): value is string => typeof value === "string" && !!value.trim() && value.length <= limit;
 const pointer = (value: unknown): value is string => typeof value === "string" && value.length <= 500 && (value === "" || value.startsWith("/")) && !/~(?![01])/u.test(value);
 const internal = (value: string): boolean => /^\/(?!\/)/u.test(value) && !/[\\\u0000-\u0020\u007f]/u.test(value);
+const TOKEN = /\{([^{}]+)\}/gu;
+
+function validTemplate(value: unknown, allowProject: boolean): boolean {
+  if (!shortText(value, 2000) || !internal(value)) return false;
+  return [...value.matchAll(TOKEN)].every(([, token]) => (allowProject && token === "project_id") || pointer(token))
+    && !/[{}]/u.test(value.replace(TOKEN, "value"));
+}
 
 export function validActionResultView(value: unknown): value is ActionResultView {
   if (!object(value) || !shortText(value.summary, 240)
@@ -39,10 +51,8 @@ export function validActionResultView(value: unknown): value is ActionResultView
     || (value.pending_connection !== undefined && !(object(value.pending_connection) && pointer(value.pending_connection.authorization_pointer)
       && value.pending_connection.authorization_pointer !== ""))) return false;
   if (value.link === undefined) return true;
-  if (!object(value.link) || !shortText(value.link.label, 80) || !shortText(value.link.href_template, 2000) || !internal(value.link.href_template)) return false;
-  const tokens = [...value.link.href_template.matchAll(/\{([^{}]+)\}/gu)];
-  return tokens.every(([, token]) => token === "project_id" || pointer(token))
-    && !/[{}]/u.test(value.link.href_template.replace(/\{([^{}]+)\}/gu, "value"));
+  return object(value.link) && shortText(value.link.label, 80) && validTemplate(value.link.href_template, true)
+    && (value.link.home_href_template === undefined || validTemplate(value.link.home_href_template, false));
 }
 
 function valueAt(result: unknown, path: string): unknown {
@@ -60,22 +70,24 @@ function scalarAt(result: unknown, path: string): string | undefined {
   return typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) ? String(value) : undefined;
 }
 
+function presentLink(link: NonNullable<ActionResultView["link"]>, result: unknown, projectId?: string): ActionResultPresentation["link"] {
+  const template = projectId === undefined ? link.home_href_template ?? link.href_template : link.href_template;
+  let complete = true;
+  const href = template.replace(TOKEN, (_match, token: string) => {
+    const value = token === "project_id" ? projectId : scalarAt(result, token);
+    if (!value || value === "." || value === "..") { complete = false; return ""; }
+    // A malformed surrogate in provider text must not invalidate its successful operation.
+    try { return encodeURIComponent(value); } catch { complete = false; return ""; }
+  });
+  if (complete && href.length <= 4000 && internal(href)) return { label: link.label, href };
+}
+
 /** Rendering cannot fail an already completed business call or expose unselected output fields. */
 export function presentActionResult(view: ActionResultView | undefined, result: unknown, projectId?: string): ActionResultPresentation | undefined {
   if (!view) return undefined;
   const title = view.title_pointer === undefined ? undefined : scalarAt(result, view.title_pointer);
   const text = view.text_pointer === undefined ? undefined : scalarAt(result, view.text_pointer);
-  let link: ActionResultPresentation["link"];
-  if (view.link) {
-    let complete = true;
-    const href = view.link.href_template.replace(/\{([^{}]+)\}/gu, (_match, token: string) => {
-      const value = token === "project_id" ? projectId : scalarAt(result, token);
-      if (!value || value === "." || value === "..") { complete = false; return ""; }
-      // A malformed surrogate in provider text must not invalidate its successful operation.
-      try { return encodeURIComponent(value); } catch { complete = false; return ""; }
-    });
-    if (complete && href.length <= 4000 && internal(href)) link = { label: view.link.label, href };
-  }
+  const link = view.link && presentLink(view.link, result, projectId);
   return { summary: view.summary, ...(title ? { title: title.slice(0, 300) } : {}),
     ...(text ? { text: text.slice(0, 4000), ...(text.length > 4000 ? { text_truncated: true as const } : {}) } : {}), ...(link ? { link } : {}),
     ...pendingConnection(view, result) };

@@ -1,7 +1,6 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
 import { feedSubjectAction, feedRuleActions, type FeedOutRuleRecord, type FeedRulePreview } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, inboxNextScene, type InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { inboxSubjectAction } from "../plugins/native/inbox/dist/content-actions.js";
@@ -19,7 +18,7 @@ import type { HomeActionOffers } from "../apps/local-host/dist/home-offer-action
 import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
-import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -116,9 +115,10 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     assert.ok(homeItem); assert.equal(homeItem.content, "真实原文传入判断");
     const navigation = { window, source: homeItem.source, event_id: homeItem.event_id, target: homeItem.open };
     assert.deepEqual(await call(homeActions.openEvent.capability_id, navigation), { target: homeItem.open });
-    const webEvents = await fetch(`${prefix}/api/home/events`, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "home-events-web-read" }, body: JSON.stringify(window) });
-    assert.equal(webEvents.status, 200, await webEvents.clone().text());
-    assert.deepEqual(((await webEvents.json()) as HomeEventsResult).events.find(event => event.id === homeItem.id), homeItem);
+    // QEA-93: the retired HTTP adapter has no caller; use the public Host client for the independent local person.
+    const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user" as const, permissions: LOCAL_OWNER_PERMISSIONS };
+    const readPersonEvents = () => host.actionClient(reference).invoke(person, homeActions.events, window) as Promise<HomeEventsResult>;
+    assert.deepEqual((await readPersonEvents()).events.find(event => event.id === homeItem.id), homeItem);
     const eventGrant = views(["inbox.events"]);
     await served.revoke(clientId, project.project_id, eventGrant);
     assert.equal((await call<HomeEventsResult>(homeActions.events.capability_id, window)).events.some(event => event.id === homeItem.id), false);
@@ -132,13 +132,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     assert.deepEqual((await call(homeActions.recommendations.capability_id, {})).judgments, result.judgments);
     const history = withFunctionsService(home, service => service.listJudgments());
     assert.equal(history.length, 1); assert.equal(history[0]!.judgment_id, result.judgments[0]!.judgment_id);
-    const readHome = async () => {
-      const response = await fetch(`${prefix}/api/home/events`, { method: "POST", headers: {
-        "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID(),
-      }, body: JSON.stringify(window) });
-      assert.equal(response.status, 200, await response.clone().text());
-      return ((await response.json()) as HomeEventsResult).events.find(event => event.id === homeItem.id)!;
-    };
+    const readHome = async () => (await readPersonEvents()).events.find(event => event.id === homeItem.id)!;
     assert.deepEqual((await readHome()).suggested_behavior_ids, [recommendation], "Home reads the same current recommendation as MCP");
     await served.revoke(clientId, project.project_id, views(["functions.published.system_pick_home_dock"]));
     assert.equal((await sdk.callTool({ name, arguments: { subjects: [{ kind: "inbox_entry", id: entry.entry_id }] } })).isError, true);

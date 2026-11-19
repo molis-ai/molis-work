@@ -12,6 +12,8 @@
 
 本人打开后台任务面板：Host 的 `background.tasks.read@1` 把调用方和它自己的客户端交给 `readBackgroundTasks`。它 `discover` 一次，按输出类型（`BACKGROUND_TASKS_OUTPUT_TYPE`）和聚合查询的规则挑出任务提供方，并行各问一次（只读、各限 2 秒），逐行检查后按更新时间排好给出；读不到的提供方只留标题和错误码。项目里自己会跑的事（定时任务、Feed 拉取等）的主人已经用运行概况的两个类型报「错过的」，总表直接读这份回答（`src/missed-runs.ts`）：错过的一次是一行等你的任务（`scheduled_run`），带「现在做一次」「跳过」两个回答，都是那个主人自己的决定动作；还没到点的不是任务，主人没有决定动作时这行只显示、没有可按的。本人点一行上的「停止」：`background.tasks.command@1` 交给 `runBackgroundTaskCommand`，它再问一遍那个提供方，命令与此刻给出的完全相同才以本人身份调用命令写明的动作。本人在事件卡或任务卡上答一项决定请求（同意、改一下、拒绝）：`background.tasks.decide@1` 交给 `decideBackgroundTask`，同样再问一遍提供方，这个任务还在问这个编号、还给这种回答才调用它写的动作；「改一下」必须带修改意见，别的回答不能带。
 
+Home 的跨项目列表复用 `backgroundTaskRows`，返回 contracts 的 `HomeBackgroundTasksReadResult`：任务行带项目，`issues` 保留不可读来源的项目、动作引用与错误码。工作台据此区分完整空列表与读取不完整；重试只重读，不发任务命令。诊断原文不进页面，任务状态仍由提供方维护。Home 选择器选中项目后仍通过同一 attention 的 `view=home` 投影读取所有已打开项目，避免叠加一次项目 Mainline 查询。停止命令进行中由页面保留，完成后的新读取再以 owner 当前命令为准。验收见 `tests/home-background-completeness.test.ts` 和对应浏览器用例。
+
 本人在主线上「建成目标」：`mainline.items.create@1` 交给 `createItem`。它 `discover` 一次，从调用方项目里已启用的安装的呈现声明（Host 给的 `declarations`）找出写了 `item` 的种类，只认这个安装自己的、形状由 `platform/work-items` 给定的动作；以调用方身份调来源的新建动作（`request_id` 由调用方的请求 id、人、项目、种类和名字派生，重试得到同一个对象），返回后先 `beforeEffect()` 再写主线。按事项读线时，`readWorkLine` 带上 `itemLineScope`：只留来源、装进的对象和来源自己的「相关」里的事件与任务，再把装进的、带时间角色的对象按主人的显示字段放上线，来源给的下一步排在「接下来」第一位。
 
 ## 从哪里读代码

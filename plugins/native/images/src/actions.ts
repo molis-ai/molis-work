@@ -1,5 +1,5 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import type { ImagesService } from "./service.js";
@@ -42,7 +42,6 @@ export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).
 export interface ImagesActionPorts { service(): ImagesService }
 export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandlerBinding[]{
   const project=(caller:ActionCallContext)=>{if(!caller.project_id)throw new ActionError("actions.project_required","请选择项目");return caller.project_id;};
-  const bind=<I,O>(definition:ActionDefinition<I,O>,run:(input:I,caller:ActionExecutionContext)=>O | Promise<O>):ActionHandlerBinding=>({capability_id:definition.capability_id,version:definition.version,handle:(caller,input)=>run(input as I,caller)});
   return [
     bind(imagesActions.connectionUsages,input=>({usages:ports.service().listConnections().filter(connection=>connection.auth_connection_id===input.connection_id).map(connection=>({
       usage_id:connection.id,title:connection.name,detail:connection.unavailable_reason??`生图模型：${connection.model}`,enabled:connection.available??connection.has_key,

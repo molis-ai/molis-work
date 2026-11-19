@@ -138,6 +138,7 @@ export function installCommands(page: LingguangPage): void {
     const detail = (event as CustomEvent<{ itemId?: string | null; quiet?: boolean } | null>).detail;
     const itemId = detail?.itemId || null;
     if (!itemId) { page.leaveOnFold(); return; }
+    event.preventDefault();
     s.wantedId = itemId;
     s.wantedByLink = detail?.quiet ? "quiet" : true;
     if (s.records.some((item) => item.id === itemId)) void page.openWanted().catch((error: unknown) => page.showNote(messageOf(error), true));

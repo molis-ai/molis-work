@@ -1,4 +1,5 @@
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import type { PlacedObject, PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -34,7 +35,7 @@ function assertAnswerDataset(home: string, project: string, formId: string, tabl
 // specs/archive/work-placement per plugin, through the real workbench: a Goal's materials create straight into its project and
 // stay bound (AC2); a form's answers become a dataset that says where it came from; a spark turns into a document and
 // a Goal; one Shelf item is used in two projects without copies, and deleting it leaves a clear, cleanable row (AC4).
-test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversions, Shelf used in two projects then deleted", { timeout: 240_000 }, async t => {
+test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang conversions, Shelf used in two projects then deleted", { timeout: 240_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage, homeDirectory } = browser;
@@ -81,8 +82,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const current = () => evaluate<{ kind: string; id: string; title: string } | null>(`(() => {
     const node = [...document.querySelectorAll('[data-assistant-context]')].find(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object);
     return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`);
-  type Description = { state: string; title: string; location: { title: string; kind: string } | null; associations: { type: string; label: string; target: { project_id: string | null } }[] };
-  const describe = (object: { kind: string; id: string; project_id: string | null }) => evaluate<Description>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
+  const describe = (object: PlacedObject) => evaluate<PlacementDescription>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
   // The project home is the Dock's first button (07-S2: not a tab); a plugin tab restored from before may be in front of it.
@@ -162,8 +162,16 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.equal(kept.state, "ok", "the spark stays");
   const labels = kept.associations.map(link => link.label).join(" | ");
   assert.match(labels, /已转成《展台改成开放式》/u);
-  // The association names the relation's declared target type.
-  assert.match(labels, /已建成 Goal《展台改成开放式》/u);
+  assert.match(labels, /已建成 Goal《展台改成开放式》/u, "the linked object's type comes from its registered placement relation");
+  const targets = kept.associations.filter(link => link.type === "derived_into").map(link => link.target);
+  assert.equal(targets.length, 2);
+  const linkedPage = targets.find(target => target.kind === "object" && target.object.kind === "pages_document");
+  const linkedGoal = targets.find(target => target.kind === "object" && target.object.kind === "goal");
+  assert.ok(linkedPage?.kind === "object" && linkedGoal?.kind === "object");
+  assert.deepEqual(linkedPage.object, { kind: "pages_document", id: page!.id, project_id: projectId });
+  assert.equal(linkedGoal.object.project_id, projectId);
+  const goal = await describe(linkedGoal.object);
+  assert.deepEqual([goal.state, goal.title, goal.object], ["ok", "展台改成开放式", linkedGoal.object]);
   await screenshot("lingguang-converted");
 
   // 4. AC4 — one Shelf item used in two projects: no copies; deleted, both projects say so and can clean the row up.

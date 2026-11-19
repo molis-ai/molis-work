@@ -297,6 +297,25 @@ test("global personal candidate management binds each ledger-owned project witho
   assert.deepEqual(await f.bound({ ...person, project_id: "b" }).list("project", "b"), []);
 });
 
+test("QEA-52 · candidate-only character management grants only the person's candidate read and deletion in the recorded project", async t => {
+  const f = await fixture(t), owner = characterOwner("a", "reviewer");
+  const pending = await f.service.propose({ ...task, character: { id: "reviewer", title: "Reviewer" }, operation_id: "role-proposal" },
+    { scope: "character", text: "审查先看实际写入", kind: "convention", basis: "inferred", why: "Review practice", from: "extraction" });
+  assert.deepEqual(f.ledger.owners("a"), []);
+  const target = { scope: "character" as const, owner, candidate_id: pending.candidate_id };
+  assert.equal((await f.bound().candidates.get(target))?.candidate_id, pending.candidate_id);
+  await assert.rejects(f.bound({ ...person, project_id: "b" }).candidates.get(target), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(f.bound({ ...task, purpose: "management" }).candidates.get(target), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(f.bound().write({ scope: "character", owner, text: "不能借候选归属写正式记忆", origin: "person", operation_id: "formal-denied", meta }), { code: "MEMORY_SCOPE_DENIED" });
+  await assert.rejects(f.bound().candidates.accept({ ...target, expected_version: 1, operation_id: "accept-denied" }), { code: "MEMORY_SCOPE_DENIED" });
+  const request = { appId: "io.molis.work", context: { consumer: "ui", currentScene: "common", purpose: "management" as const }, action: "delete" as const,
+    target: { scope: "character", owner, ref: { kind: "memory-candidate" as const, id: pending.candidate_id, revision: 1 }, version: 1, createdAtMs: 1, identityKnown: true } };
+  assert.equal(await f.options.authorize(person, [{ ...request, before: { ...request.target, owner: characterOwner("b", "reviewer") } }]), false,
+    "before and target each require their own actual project ownership");
+  const expired = await f.bound().candidates.expire({ ...target, expected_version: 1, operation_id: "expire-role" });
+  assert.equal(expired.state, "expired"); assert.equal(expired.version, 2);
+});
+
 test("an app or session scope cannot reuse a recorded character owner", async t => {
   const f = await fixture(t), owner = characterOwner("a", "reviewer");
   f.ledger.noteOwner({ scope: "character", owner, project_id: "a", title: "Reviewer", subject: "reviewer" });

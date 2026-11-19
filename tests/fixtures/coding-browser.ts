@@ -83,6 +83,9 @@ export async function openCoding(t: TestContext, before = "") {
   /** Opens a session with words in its box (a session holding nothing is reused by「新会话」) and returns its id. */
   const start = async (words = FIRST_WORDS) => {
     await click(`${coding} [data-coding-new]`);
+    // The parent may still show the previous session's enabled composer until the frame's update arrives.
+    // Wait for this creation to finish before accepting an enabled composer as the new session's.
+    await waitFor(`[...document.querySelectorAll('${coding} [data-coding-new]')].every(button=>!button.disabled)`);
     await browser.waitFor(CODING_OPEN);
     await type(words);
     return current();

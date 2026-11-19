@@ -38,8 +38,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   };
   const input = () => { lastInput = performance.now(); };
   const leave = () => {
-    // Input towards older content detaches immediately. A queued event from
-    // the trip back must no longer count as a gesture returning to the end.
+    // Leaving the tail abandons the previous gesture and any smooth trip back.
     lastInput = -Infinity;
     if (state === FOLLOWING) scroller.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
     set(DETACHED);
@@ -102,8 +101,13 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: animate ? "smooth" : "instant" });
     },
     resume() { lastInput = -Infinity; set(FOLLOWING); },
-    restore(place) { scroller.scrollTop = place; before = followDistance(scroller); top = scroller.scrollTop; set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED); },
-    release() { set(DETACHED); },
+    restore(place) {
+      lastInput = -Infinity;
+      scroller.scrollTop = place;
+      before = followDistance(scroller); top = scroller.scrollTop;
+      set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED);
+    },
+    release: leave,
     dispose() {
       listening.abort(); resizing.disconnect(); cancelAnimationFrame(frame);
       owners.delete(scroller); delete scroller.dataset.follow;

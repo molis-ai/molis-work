@@ -1,5 +1,6 @@
 /** One-time document reads. Credentials never leave the selected provider's API origin. */
 import { ActionError, createExecutionLifetime, defineErrorCodes, type ExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import type { ImportedDocumentWarning } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 export type ExternalDocumentSource = "notion" | "feishu" | "lark" | "google-docs";
 
@@ -10,7 +11,7 @@ export interface ExternalDocument {
   title: string;
   content: string;
   format: "markdown" | "text";
-  warnings: string[];
+  warnings: ImportedDocumentWarning[];
 }
 
 /**
@@ -196,8 +197,8 @@ async function notionDocument(id: string, token: string, reader: Reader) {
     title: title || "Notion 文档",
     content: data.markdown,
     format: "markdown" as const,
-    warnings: ["导入为当前正文快照；评论、权限、子页面和附件文件不会一并导入。", ...(/<unknown\b/u.test(data.markdown)
-      ? ["Notion 正文含暂不支持的块；原位置保留占位标记，请在原文核对。"] : [])],
+    warnings: [{ key: "workbench.import.warning-notion-snapshot" }, ...(/<unknown\b/u.test(data.markdown)
+      ? [{ key: "workbench.import.warning-notion-unknown-blocks" }] : [])],
   };
 }
 
@@ -231,7 +232,7 @@ async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<t
     title: string(document.title).trim() || (source === "feishu" ? "飞书文档" : "Lark 文档"),
     content: string(record(body.data).content),
     format: "text" as const,
-    warnings: ["导入为纯文本快照；原文的排版、图片、附件、评论及嵌入内容不会一并导入。"],
+    warnings: [{ key: "workbench.import.warning-lark-snapshot" }],
   };
 }
 
@@ -243,7 +244,7 @@ async function googleDocument(id: string, token: string, reader: Reader) {
   const content = await reader.text(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text%2Fplain`, { headers });
   return {
     title: string(page.name).trim() || "Google 文档", content, format: "text" as const,
-    warnings: ["导入为纯文本快照；原文的排版、图片、附件和评论不会一并导入。Google Drive 连接需具备 drive.readonly 或 drive.file 读取权限。"],
+    warnings: [{ key: "workbench.import.warning-google-docs-snapshot" }],
   };
 }
 

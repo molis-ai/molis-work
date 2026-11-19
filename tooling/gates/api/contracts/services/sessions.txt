@@ -169,6 +169,7 @@ export interface ExternalSessionHistoryInput {
 
 export interface ExternalSessionHistoryOutput {
     session_key: string;
+    session: ExternalSessionRow | ExternalSessionRowSummary;
     entries: ExternalSessionEntry[];
     older_cursor: string | null;
     newer_cursor: string | null;
@@ -199,6 +200,7 @@ export interface ExternalSessionIdentity {
 export interface ExternalSessionListInput {
     view: "project" | "unfiled" | "all";
     entry_ids?: ExternalToolId[];
+    query?: string;
     cursor?: string | null;
     limit?: number;
 }

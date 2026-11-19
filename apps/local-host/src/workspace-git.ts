@@ -49,19 +49,26 @@ async function tracksFileMode(root: string): Promise<boolean> {
   try { return (await git(root, ["config", "--bool", "--get", "core.filemode"])).toString().trim() !== "false"; }
   catch (error) { if ((error as { code?: number }).code === 1) return true; throw error; }
 }
-/**
- * `git status` that executes no repository helper. Even `status` can invoke clean/process filters for dirty files, so every
- * configured driver is disabled for this read; a submodule's work tree is not opened either, because its own config can name
- * filters this one cannot see. A submodule whose checked-out commit moved still shows: the command line outranks an `ignore`
- * the repository's `.gitmodules` or config sets. Overrides travel as `GIT_CONFIG_*`, since a driver's name may contain "=".
- */
-export async function statusWithoutHelpers(root: string, args: readonly string[]): Promise<Buffer> {
+/** Disable the currently configured content filters for a Git read or an index bookkeeping command. */
+export async function disabledContentFilters(root: string): Promise<Array<readonly [string, string]>> {
   let keys = "";
   try { keys = (await git(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"])).toString(); }
   catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
   const drivers = new Set(keys.split("\0").map(key => /^(filter\..+)\.(clean|process|required)$/i.exec(key)?.[1]).filter((item): item is string => Boolean(item)));
-  const configuration = [...drivers].flatMap(driver => [[driver + ".clean", ""], [driver + ".process", ""], [driver + ".required", "false"]] as const);
-  return git(root, ["status", "--ignore-submodules=dirty", ...args], undefined, { configuration });
+  return [...drivers].flatMap(driver => [[driver + ".clean", ""], [driver + ".process", ""], [driver + ".required", "false"]] as const);
+}
+
+/** Read a submodule's commit without inspecting its work tree, which can have its own content filters. */
+export async function statusWithoutHelpers(root: string, args: readonly string[]): Promise<Buffer> {
+  return git(root, ["status", "--ignore-submodules=dirty", ...args], undefined, { configuration: await disabledContentFilters(root) });
+}
+
+/** Match stat data in the caller's private temporary index, without changing staged blobs or invoking repository helpers. */
+export async function refreshIndexStatsWithoutHelpers(root: string, indexFile: string): Promise<void> {
+  // No path operands: --refresh updates stat data only. Other unresolved, modified or missing paths are left as they are.
+  // The temporary index's new directory contains no hooks; do not run post-index-change a second time for this bookkeeping.
+  await git(root, ["update-index", "-q", "--unmerged", "--ignore-missing", "--ignore-submodules", "--refresh"], undefined,
+    { indexFile, configuration: [...await disabledContentFilters(root), ["core.hooksPath", path.dirname(indexFile)]] });
 }
 const statusBytes = (root: string) => statusWithoutHelpers(root, ["--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
 interface Entry { mode: string; oid: string }

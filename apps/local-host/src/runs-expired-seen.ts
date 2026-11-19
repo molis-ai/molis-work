@@ -1,6 +1,5 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
 import { RUN_DIRECTORY } from "./host-presence.js";
 
@@ -13,8 +12,7 @@ import { RUN_DIRECTORY } from "./host-presence.js";
  */
 const FILE = "expired-seen.json";
 const SCHEMA_VERSION = /* @version format.home.run.expired-seen */ 1;
-/** A mark older than this is the same as none: every row it could still hold back is gone (owners keep an ended row a month). */
-const MARK_KEPT_MS = RUN_MISSED_KEPT_MS + 30 * 86_400_000;
+/** Marks are dropped only past this many owners, oldest first: an owner's rows may outlive any age, so a mark is never dropped for age alone. */
 const OWNERS_KEPT = 1_000;
 
 export type ExpiredSeen = Readonly<Record<string, string>>;
@@ -34,7 +32,7 @@ export function expiredSeen(homeDirectory: string): ExpiredSeen {
 
 /**
  * The person has read the summary made at `through`, which these owners answered: their marks move there, never back and never past
- * `now`. Marks too old to hold anything back are dropped. Returns the marks kept.
+ * `now`. Past `OWNERS_KEPT` owners the oldest marks are dropped. Returns the marks kept.
  */
 export function markExpiredSeen(homeDirectory: string, through: string, owners: readonly string[], now: Date): ExpiredSeen {
   const at = Math.min(Date.parse(through), now.getTime()), seen: Record<string, string> = { ...expiredSeen(homeDirectory) };
@@ -42,8 +40,7 @@ export function markExpiredSeen(homeDirectory: string, through: string, owners: 
     const previous = seen[owner];
     if (previous === undefined || Date.parse(previous) < at) seen[owner] = new Date(at).toISOString();
   }
-  const kept = Object.entries(seen).filter(([, mark]) => now.getTime() - Date.parse(mark) < MARK_KEPT_MS)
-    .sort((a, b) => b[1].localeCompare(a[1])).slice(0, OWNERS_KEPT);
+  const kept = Object.entries(seen).sort((a, b) => b[1].localeCompare(a[1])).slice(0, OWNERS_KEPT);
   mkdirSync(join(homeDirectory, RUN_DIRECTORY), { recursive: true, mode: 0o700 });
   atomicWriteFileSync(join(homeDirectory, RUN_DIRECTORY, FILE), `${JSON.stringify({ schema_version: SCHEMA_VERSION, seen: Object.fromEntries(kept) })}\n`, { mode: 0o600 });
   return Object.fromEntries(kept);

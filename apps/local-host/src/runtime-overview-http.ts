@@ -39,17 +39,18 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
 }
 
 /**
+ * The owners that answered each recent summary, by its `through`: 「知道了」 names only the summary, and the Host moves the marks of the
+ * owners it heard from. A summary this Host did not make (it was restarted since), or one left open past this many summaries (the menu
+ * bar reads every 30 seconds), moves none: it is said once more rather than lost.
+ */
+const told = new Map<string, { home: string; owners: readonly string[] }>();
+const TOLD_KEPT = 256;
+
+/**
  * `GET /api/runtime/overview`: what runs on its own here, for the menu-bar panel, the quit confirmation and the Home's missed notice.
  * `POST /api/runtime/runs/decide`: 「现在做」 or 「跳过」 on one missed run, handed to its owner.
  * `POST /api/runtime/expired/seen`: the person read the summary of runs skipped on their own; it is not said again (`runs-expired-seen.ts`).
  */
-/**
- * The owners that answered each recent summary, by its `through`: 「知道了」 names only the summary, and the Host moves the marks of the
- * owners it heard from. A summary this Host did not make (it was restarted since) moves none, so it is said once more rather than lost.
- */
-const told = new Map<string, { home: string; owners: readonly string[] }>();
-const TOLD_KEPT = 32;
-
 export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
   if (!homeDirectory) return false;
   if (request.method === "GET" && url.pathname === "/api/runtime/overview") {

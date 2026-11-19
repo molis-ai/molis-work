@@ -146,8 +146,8 @@ test("BL-missed-runs-never-expire the marks are kept in the Home owner by owner:
   assert.equal(markExpiredSeen(home, "2026-11-01T00:00:00.000Z", [a, b], new Date(NOW))[a], NOW, "an older summary read late does not move a mark back");
   assert.equal(expiredSeen(home)[b], "2026-11-01T00:00:00.000Z", "but gives an owner with none its first");
   assert.equal(markExpiredSeen(home, "2027-01-01T00:00:00.000Z", [a], new Date("2026-11-12T00:00:00.000Z"))[a], "2026-11-12T00:00:00.000Z", "never past now");
-  assert.deepEqual(Object.keys(markExpiredSeen(home, NOW, [], new Date("2026-12-30T00:00:00.000Z"))), [],
-    "a mark older than anything an owner still keeps is dropped: the same as none");
+  assert.equal(markExpiredSeen(home, NOW, [], new Date("2027-03-01T00:00:00.000Z"))[b], "2026-11-01T00:00:00.000Z",
+    "a mark is not dropped for its age: an owner closed for months still keeps what it was told");
   mkdirSync(join(home, "run"), { recursive: true });
   writeFileSync(join(home, "run", "expired-seen.json"), "{ torn");
   assert.deepEqual(expiredSeen(home), {}, "a torn file counts as nothing told");

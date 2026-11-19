@@ -1,11 +1,11 @@
 {
   "reason": "引导逐项显示实际设置、范围与采用进度。Jelly、工作记录和置物架的原页面复用带版本的设置读写，桌面跟随当前设备设置。",
-  "review": "批 38 只读评审核对了五项既有资源、两项中英文词包地址及四个页面的许可范围。同步 #2127 后对 e5e565411b 隔离构建重测，工作台脚本增加 6,925 字节；首屏按同轮基点与分支的实际差值登记，均在一骏批准的范围内。",
+  "review": "第 38 批复核五个既有资源、两种启动词包和四个页面。同步 #2101 后对主线 f5efe316a2 隔离构建重测，五个静态资源的额度按实测填写。词包沿用一骏确认的两种语言及四个页面。",
   "assets": {
-    "/assets/molis-work-arrival.css": 1362,
+    "/assets/molis-work-arrival.css": 1343,
     "/assets/molis-work-work-records.js": 726,
-    "/assets/molis-work-workbench.js": 6925,
-    "/assets/molis-work-plugins/jelly.js": 450,
+    "/assets/molis-work-workbench.js": 7040,
+    "/assets/molis-work-plugins/jelly.js": 435,
     "/assets/molis-work-plugins/shelf.js": 3449
   },
   "userApproval": "一骏于 2026-11-18 回复「同意」，确认中英文启动词包在这四种页面随内容换名，以及按实测登记首次和再次打开的增量。",
@@ -35,35 +35,35 @@
   ],
   "pages": {
     "arrival-empty/zh": {
-      "cold": 5067,
+      "cold": 5002,
       "warm": 2368
     },
     "arrival-empty/en": {
-      "cold": 4871,
+      "cold": 4978,
       "warm": 2368
     },
     "chooser/zh": {
-      "cold": 4934,
+      "cold": 4869,
       "warm": 2235
     },
     "chooser/en": {
-      "cold": 4738,
+      "cold": 4845,
       "warm": 2235
     },
     "workbench-default/zh": {
-      "cold": 10735,
+      "cold": 10804,
       "warm": 2473
     },
     "workbench-default/en": {
-      "cold": 10541,
+      "cold": 10782,
       "warm": 2475
     },
     "workbench-all-plugins/zh": {
-      "cold": 10735,
+      "cold": 10804,
       "warm": 2473
     },
     "workbench-all-plugins/en": {
-      "cold": 10541,
+      "cold": 10782,
       "warm": 2475
     }
   }

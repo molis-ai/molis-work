@@ -233,7 +233,7 @@
 | [BL-feed-sql-driver-name](../../backlog/BL-feed-sql-driver-name.md)、[BL-feed-run-now-missed-again](../../backlog/BL-feed-run-now-missed-again.md)、[BL-missed-runs-never-expire](../../backlog/BL-missed-runs-never-expire.md) | Feed 与错过任务 | [95-1](batches/95.md#batch-95-item-1)、[95-2](batches/95.md#batch-95-item-2)、[95-3](batches/95.md#batch-95-item-3) | 已定，前置见交付行 |
 | [BL-schedule-update-task-lookup](../../backlog/BL-schedule-update-task-lookup.md)、[BL-schedule-detail-refresh-after-failed-round](../../backlog/BL-schedule-detail-refresh-after-failed-round.md) | 定时任务编辑与刷新 | [96-1](batches/96.md#batch-96-item-1)、[96-2](batches/96.md#batch-96-item-2) | 已定，前置见交付行 |
 | [BL-report-rounds-auto-cap](../../backlog/BL-report-rounds-auto-cap.md)、[BL-work-line-report-batch](../../backlog/BL-work-line-report-batch.md) | 助理后台汇报 | [97-1](batches/97.md#batch-97-item-1)、[97-2](batches/97.md#batch-97-item-2) | 已定，前置见交付行 |
-| [BL-375](../../backlog/BL-375.md) | 多插件共用材料类型 | [98-1](batches/98.md#batch-98-item-1) | 已定，前置见交付行 |
+| [BL-375](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-375.md) | 多插件共用材料类型 | [98-1](batches/98.md#batch-98-item-1) | 98 已交（本批 PR，验收 BL375-01～07 见 [98.md](batches/98.md#batch-98-progress)） |
 | [BL-coding-changeset-deleted-kind](../../backlog/BL-coding-changeset-deleted-kind.md) | Coding 删除清单 | [99-1](batches/99.md#batch-99-item-1) | 已定，前置见交付行 |
 
 

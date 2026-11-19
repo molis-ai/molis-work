@@ -7,7 +7,7 @@ import type { AgentReviewDecisions } from "@molis-ai/molis-work-contracts/servic
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { setProjectOutputFolder } from "./fixtures/project-directories-http.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 // QEA-22: real Git preparation, project membership stop/start and Host-owned rejection in an isolated Home.
 test("QEA-22 an earlier plugin activation cannot be approved after restart; the normal Git review lets the person reject it", { timeout: 120_000 }, async t => {
@@ -46,7 +46,8 @@ test("QEA-22 an earlier plugin activation cannot be approved after restart; the 
   await switchPlugin("POST");
   assert.deepEqual((await review()).decisions, { approve: { available: false, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } }, reject: { available: true } }, "a new activation cannot inherit the original approval authority");
   assert.equal(git("diff", "--cached", "--name-only"), "");
-  const output = reviewEvidenceUrl("quality-experience-audit/"); await mkdir(output, { recursive: true });
+  const saveShots = shouldSaveReviewScreenshots();
+  const output = reviewEvidenceUrl("quality-experience-audit/"); if (saveShots) await mkdir(output, { recursive: true });
   for (const [locale, hint] of [["zh", "原授权已经失效"], ["en", "The original authority has ended"]] as const) {
     await go(`/locale?lang=${locale}&next=${encodeURIComponent(prefix + "/?openPlugin=git")}`); await b.surfaceReady("git");
     await child.click("[data-git-path]");
@@ -61,8 +62,10 @@ test("QEA-22 an earlier plugin activation cannot be approved after restart; the 
       await b.waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
       await b.waitFor(`document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect().width > 0`);
       assert.equal(await b.evaluate(`(() => { const row=document.querySelector(${JSON.stringify(selector)}), box=row.getBoundingClientRect();return box.left>=0 && box.right<=innerWidth && row.scrollWidth<=row.clientWidth; })()`), true, `${locale}/${width} review fits`);
-      const { data } = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
-      await writeFile(new URL(`review-availability-${locale}-${width}-${theme}.png`, output), Buffer.from(data, "base64"));
+      if (saveShots) {
+        const { data } = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId);
+        await writeFile(new URL(`review-availability-${locale}-${width}-${theme}.png`, output), Buffer.from(data, "base64"));
+      }
     }
   }
   await b.click("[data-host-review-slot] [data-agent-review-reject]");

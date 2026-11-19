@@ -9,6 +9,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { plan, readDurations, runQueue, writeDurations } from "../scripts/run-tests/pool.mjs";
+import { isGateMetaTest, isVisualAuditTest, VISUAL_AUDIT_TESTS } from "../scripts/run-tests/strata.mjs";
 
 const runner = fileURLToPath(new URL("../scripts/run-tests.mjs", import.meta.url));
 const scratch: string[] = [];
@@ -283,4 +284,34 @@ test("CIP-06 CIP-08 a single-file shard keeps timeout, retries, failure status a
   assert.equal(stable.status, 0, success);
   assert.match(success, /\[1\/1\] ok\s+\S*stable\.test\.mjs\s+\d+(?:\.\d+)?s\s+1\/1 tests/);
   assert.match(success, /1 of 1 files passed in/);
+});
+
+test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gate/CI self-tests, and --exclude-* flags filter before sharding", () => {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  assert.equal(VISUAL_AUDIT_TESTS.length, 13);
+  for (const file of VISUAL_AUDIT_TESTS) {
+    assert.equal(existsSync(path.join(root, file)), true, `${file} exists`);
+    assert.equal(isVisualAuditTest(file), true, file);
+    assert.equal(isGateMetaTest(file), false, `${file} is visual audit, not gate meta`);
+  }
+  for (const file of ["tests/health-gates-lint.test.ts", "tests/ci-install.test.ts", "tests/ci-font-install.test.ts", "tests/run-tests-pool.test.ts", "tests/affected-tests.test.ts", "tests/studio-replay.test.ts"]) {
+    assert.equal(isGateMetaTest(file), true, file);
+  }
+  const ciWorkflow = readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  for (const name of readdirSync(path.join(root, "tests"))) {
+    const file = `tests/${name}`;
+    if (!/\.test\.(?:ts|mjs)$/.test(name) || !isGateMetaTest(file)) continue;
+    const covered = ciWorkflow.includes(name) || (file.startsWith("tests/health-gates-") && ciWorkflow.includes("tests/health-gates-*.test.ts"));
+    assert.equal(covered, true, `${file} excluded by --exclude-gate-meta must be covered by .github/workflows/ci.yml`);
+  }
+  for (const file of ["tests/security-invariants-home-snapshot-entries.test.ts", "tests/todo.e2e.test.ts", "tests/goals-refresh.e2e.test.ts", "tests/plugin-manifest.test.ts", "tests/package-boundary-must-contain.test.mjs"]) {
+    assert.equal(isGateMetaTest(file), false, `${file} is a product/security test`);
+    assert.equal(isVisualAuditTest(file), false, `${file} stays in PR full-suite`);
+  }
+  const run = spawnSync(process.execPath, [runner, "--exclude-gate-meta", "--exclude-visual-audit", "--shard", "1/1", "tests/ci-install.test.ts", "tests/chinese-walkthrough.e2e.test.ts"], { encoding: "utf8", timeout: 60_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 0, output);
+  assert.match(output, /left out 1 gate-meta files of 2/);
+  assert.match(output, /left out 1 visual-audit files of 1/);
+  assert.match(output, /shard 1\/1 of 0 files has no file/);
 });

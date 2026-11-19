@@ -94,3 +94,19 @@ test("CIP-07 browser capacity prevents equal-total shards with very unequal comp
     }
   }
 });
+
+test("unknown browser files inherit the known browser median rather than the non-browser median", () => {
+  const entries = [
+    ...Array.from({ length: 10 }, (_, i) => ({ file: `tests/unit-${i}.test.ts`, browser: false })),
+    { file: "tests/b-known.e2e.test.ts", browser: true },
+    { file: "tests/b-new-1.e2e.test.ts", browser: true },
+    { file: "tests/b-new-2.e2e.test.ts", browser: true },
+  ];
+  const table: Record<string, number> = Object.fromEntries([
+    ...Array.from({ length: 10 }, (_, i) => [`tests/unit-${i}.test.ts`, 4]),
+    ["tests/b-known.e2e.test.ts", 80],
+  ]);
+  const plan = planShards(entries, { count: 3, jobs: 4, browserJobs: 1 }, table, (e: { file: string }) => e.file, (e: { browser: boolean }) => e.browser);
+  // Each of the 3 browser files (1 known + 2 unknown) weighs 80s and gets its own shard instead of piling onto one shard at 4s each.
+  assert.deepEqual(plan.shards.map((part: typeof entries) => part.filter(e => e.browser).length), [1, 1, 1]);
+});

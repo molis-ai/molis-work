@@ -359,13 +359,18 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (message.type === "composer-text" && typeof message.text === "string" && message.text.length <= 1024 * 1024) {
       if (field.value === message.text) return;
       text = field.value = message.text; window.molisFit?.(field); field.dispatchEvent(new Event("input", { bubbles: true }));
-    } else if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
-    else if (message.type === "composer-focus") bound.focus();
-    else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20), factsOf(message.replacing));
-    else if (message.type === "composer-send") {
-      // A page may submit its own words/files, but cannot make the person disclose another owner's selected reference.
-      if (bound.materials().some(item => item.kind === "material")) { bound.focus(); return; }
-      field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
-    }
+    } else boxAct(message, bound, field);
   };
+}
+
+/** The page's insert, focus, files and send, on the bar's box while it is the page's own and in sight. */
+function boxAct(message: ComposerUp, bound: ComposerHandle, field: HTMLTextAreaElement) {
+  if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
+  else if (message.type === "composer-focus") bound.focus();
+  else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20), factsOf(message.replacing));
+  else if (message.type === "composer-send") {
+    // A page may submit its own words/files, but cannot make the person disclose another owner's selected reference.
+    if (bound.materials().some(item => item.kind === "material")) { bound.focus(); return; }
+    field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
+  }
 }

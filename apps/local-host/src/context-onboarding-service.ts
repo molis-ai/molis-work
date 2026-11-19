@@ -293,6 +293,14 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
   await running.get(key(home, id)); return readContextJourney(home, id);
 }
 
+/** The person's AI tool sessions as a source's files, through the Host's reader of them (BL-177); refused when this Host has none. */
+async function readSessionsSource(home: string, journey: ContextJourney, ports: ContextOnboardingPorts, signal: AbortSignal) {
+  if (!ports.sessions) throw new Error("这里读不了外部会话");
+  const read = await readOnboardingSessions(await ports.sessions(home, journey.project_id, signal), signal);
+  if ("refused" in read) throw new Error(read.refused);
+  return read;
+}
+
 async function organize(home: string, journey: ContextJourney, runEpoch: number, signal: AbortSignal, ports: ContextOnboardingPorts): Promise<void> {
   const isCurrent = () => {
     const latest = withContextJourneys(home, store => store.find(journey.id));
@@ -322,16 +330,9 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
       if (source.kind === "sessions" && !journey.existing) continue;
       source.error = undefined; save();
       try {
-        let titles: Record<string, string> = {};
-        const input = source.kind === "sessions"
-          ? await (async () => {
-            if (!ports.sessions) throw new Error("这里读不了外部会话");
-            const read = await readOnboardingSessions(await ports.sessions(home, journey.project_id, signal), signal);
-            if ("refused" in read) throw new Error(read.refused);
-            titles = read.titles;
-            return read;
-          })()
-          : await (ports.readSource ?? readContextSource)(home, source);
+        const sessions = source.kind === "sessions" ? await readSessionsSource(home, journey, ports, signal) : null;
+        const titles: Record<string, string> = sessions?.titles ?? {};
+        const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source);
         signal.throwIfAborted();
         const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
         const reading = source.reading?.total === input.files.length

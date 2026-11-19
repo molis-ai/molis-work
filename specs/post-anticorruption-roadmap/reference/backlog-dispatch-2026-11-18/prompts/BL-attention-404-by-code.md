@@ -2,7 +2,9 @@
 
 开着的标签页偶遇一次 404，服务回来后也应继续收提醒。项目真的删了，才停止反复查询。
 
-预计 **4–8 工时**。维护范围为工作台外壳。正式交付项为 [56-1](../../batches/56.md#batch-56-item-1)。[原始待办](../../../../backlog/BL-attention-404-by-code.md) · [派工总表](../README.md)
+预计 **4–8 工时**。维护范围为工作台外壳。正式交付项为 [56-1](../../batches/56.md#batch-56-item-1)。[原始待办](../../../../../docs/backlog-removed.md) · [派工总表](../README.md)
+
+**已完成，不再派发**：2026-11-19 由 [#2160](https://github.com/molis-ai/molis-work/pull/2160)（`a462bf81f2`）合入，BL 已删除，结清记录见 [docs/backlog-removed.md](../../../../../docs/backlog-removed.md)。下面的 Prompt 只留作记录。
 
 ## 可复制的开工 Prompt
 

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, renderAlert, renderButton, renderCheckbox, renderChoice, renderField, renderRadioGroup, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderConnectorMark } from "./settings-connectors.js";
 import {
-  renderConnectionCard, renderConnectionItem, renderConnectionProgress, SERVICE_CONNECTION_PART_STYLES,
+  renderConnectionCard, renderConnectionItem, renderConnectionProgress, renderConnectionUseMatrix, SERVICE_CONNECTION_PART_STYLES,
   type ConnectionProgressState,
 } from "./service-connection-parts.js";
 
@@ -114,6 +114,20 @@ function cardsSpecimen(readText: Say): string {
   return `<div class="mw-conn-board__cards">${figure(uiText.text("workbench.service-connection-specimens.not-started"), ask)}${figure(uiText.text("workbench.service-connection-specimens.sign-expired"), expired)}${figure(uiText.text("workbench.service-connection-specimens.choosing-account"), choose)}${figure(uiText.text("workbench.service-connection-specimens.connecting-card"), busy)}${figure(uiText.text("workbench.service-connection-specimens.key-refused"), refused)}${figure(uiText.text("workbench.service-connection-specimens.sign-cancelled"), cancelled)}${figure(uiText.text("workbench.service-connection-specimens.connected-folded-into-one-line"), done)}</div>${figure(uiText.text("workbench.service-connection-specimens.try-card-folds-into-one-line-once-connected"), tryIt)}`;
 }
 
+/** The use matrix (§13.7 ①B) with sample services: connected ones work, the rest say 「要先连」; narrow the board to see the lists. */
+function usesSpecimen(): string {
+  const uses = ["feed_source", "document_import", "assistant_read", "web_search", "category"].map((id) => ({ id, label: uiText.text(`workbench.connection-uses.${id.replace("_", "-")}`) }));
+  const row = (id: string, name: string, connected: boolean, can: readonly string[]) => ({ id, name, mark: renderConnectorMark(id, escapeHtml),
+    cells: Object.fromEntries(can.map((use) => [use, connected ? "ready" as const : "connect" as const])) });
+  return renderConnectionUseMatrix({ label: uiText.text("workbench.connection-uses.by-use"), uses, connectHref: (id) => `#svc-${id}`, rows: [
+    row("github", "GitHub", true, ["feed_source", "assistant_read", "category"]),
+    row("notion", "Notion", true, ["feed_source", "document_import", "assistant_read", "category"]),
+    row("gmail", "Gmail", false, ["feed_source", "assistant_read", "category"]),
+    row("linear", "Linear", false, ["feed_source", "category"]),
+    row("brave-search", "Brave Search", false, ["web_search"]),
+  ] });
+}
+
 /** The section the board places after 插件行视图: three specimens, each part in its states. */
 export function renderServiceConnectionSection(readText: Say): string {
   return `<section class="mw-catalog__section" id="service-connections" data-primitive="service-connections"><h2>${escapeHtml(uiText.text("workbench.service-connection-specimens.service-connections"))}</h2>
@@ -121,12 +135,14 @@ export function renderServiceConnectionSection(readText: Say): string {
       ${figure(uiText.text("workbench.service-connection-specimens.service-row-that-opens-place-press-row-button"), rowsSpecimen(readText))}
       ${figure(uiText.text("workbench.service-connection-specimens.step-progress-which-step-how-many-doing-what"), progressSpecimen(readText))}
       ${figure(uiText.text("workbench.service-connection-specimens.place-connect-card-connect-where-connection-missing"), cardsSpecimen(readText))}
+      ${figure(uiText.text("workbench.service-connection-specimens.uses-matrix"), usesSpecimen())}
     </div>
   </section>`;
 }
 
 /** The board's own layout for the section (the parts' styles come first); the cards sit in a column as narrow as a conversation. */
 export const SERVICE_CONNECTION_SECTION_STYLES = SERVICE_CONNECTION_PART_STYLES
+  + `.mw-catalog__specimen:has(.connection-uses){grid-column:1/-1}.mw-catalog__specimen .connection-uses{max-width:860px}.mw-catalog .connection-uses .mw-table-wrap{width:100%}`
   + `.mw-conn-board__rows{max-width:760px}.mw-conn-board__rows .settings-connector-catalog{display:grid;gap:24px;padding-top:0}`
   + `.mw-conn-board__states{display:grid;gap:8px;margin:0;padding:0;list-style:none}.mw-conn-board__states>li{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:12px;min-width:0}.mw-conn-board__states>li>span:first-child{color:var(--muted);font-size:12px}`
   + `.mw-conn-board__try{display:grid;gap:12px;max-width:560px;padding:16px;border-radius:var(--r-card);background:var(--surface-soft)}`

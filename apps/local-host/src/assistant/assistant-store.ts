@@ -13,7 +13,7 @@ import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledge
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import { AssistantObservedStates } from "./assistant-observed-states.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCardChoice, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 import { attentionChanged } from "../attention-changes.js";
@@ -193,6 +193,13 @@ export interface StoredCard {
   materials?: Array<{ title: string; text: string }>;
   /** The step of the background job it started (specs/prologue-adoption §6.0o): it stays running until that job ends. */
   job_step?: { graph_id: string; node_id: string };
+  /** Choices its preparer gave editable fields (`AssistantPreparedCard.choices`): only these values run. */
+  choices?: Record<string, AssistantCardChoice[]>;
+  /**
+   * A card the Host itself prepared for the person (the project's automation suggestions): it runs as the person, through their own
+   * actions in the work's scope, never through the Assistant's. Nothing else sets it: not a page's card, not a round's suggestion.
+   */
+  runs_as?: "person";
   created_at: string;
   updated_at: string;
 }

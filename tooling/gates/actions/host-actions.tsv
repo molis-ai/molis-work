@@ -170,6 +170,11 @@ assistant.panel.works.subtask.review	1	system.assistant-panel	command	operation	
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-
+automation.adoption.adopt	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	5a8d8727efee	4ff86caad4d1	4fc9a7114184
+automation.adoption.undo	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	9823c6092f57	cf0995398edb	-
+automation.recommendations.offer	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
+automation.recommendations.offers.get	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
+automation.recommendations.offers.set	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	66e46c31ea04	a2c799262a3c	-
 automation.recommendations.preferences.set	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	44ea8f07f7ad	a2c799262a3c	-
 automation.recommendations.report.save	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	88ee376de193	a2c799262a3c	-
 automation.recommendations.scan	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
@@ -233,6 +238,9 @@ connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agen
 connectors.setup.resolve	1	system.connectors	command	operation	home	write	-	agent	connectors:management:write	connector	-	-	e3b5144a4126	a2c799262a3c	-
 connectors.usages.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	a343ab264882	5f20b95f01d0	-
 connectors.usages.switch	1	system.connectors	command	operation	home	write	concurrent	user	connectors:management:write	connector	-	-	e252a0385cf9	c74bb0f81d27	-
+connectors.web_search.default.set	1	system.connectors	command	operation	home	write	-	user	web_search:manage	connector	-	-	d13e6abac994	3e3604544117	-
+connectors.web_search.query	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	web_search:query	connector	-	-	28269eae644a	86ebe84ce3fb	-
+connectors.web_search.sources	1	system.connectors	query	query	home	read	-	agent,user	web_search:query	connector	-	-	99334726611c	3e3604544117	-
 contextual.draft_reference.issue	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	81c1bd043b3e	6cf4e7c19469	-
 contextual.draft_reference.take	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	17591f24942d	499784f3137f	-
 evaluation.metrics.summarize	1	system.evaluation	query	query	home	read	-	user	-	-	-	-	dd22a1bbffe6	86224427dae9	-

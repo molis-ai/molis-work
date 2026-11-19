@@ -219,6 +219,8 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const CONNECTOR_USES: readonly ["feed_source", "document_import", "assistant_read", "web_search", "category"];
+
 export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 
 export interface ConnectorCallControl {
@@ -364,9 +366,11 @@ export interface ConnectorDirectoryEntry {
     readonly auth_help?: string;
     readonly setup_links?: readonly ConnectorSetupLink[];
     readonly method_options?: readonly ConnectorMethodOption[];
+    readonly uses?: readonly ConnectorUse[];
+    readonly categories?: readonly string[];
 }
 
-export type ConnectorDirectoryGroupId = "mail" | "files" | "chat" | "code" | "work" | "design" | "crm" | "social";
+export type ConnectorDirectoryGroupId = "mail" | "files" | "chat" | "code" | "work" | "design" | "crm" | "social" | "search";
 
 export interface ConnectorDriver {
     readonly driver_id: string;
@@ -535,6 +539,8 @@ export interface ConnectorUsagesSwitchResult {
         code: string;
     }>;
 }
+
+export type ConnectorUse = (typeof CONNECTOR_USES)[number];
 
 export declare const connectorErrors: {
     "connector.connection.disconnected": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;

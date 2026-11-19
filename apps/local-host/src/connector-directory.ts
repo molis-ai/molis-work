@@ -1,4 +1,5 @@
-import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_USES, type ConnectorDirectoryEntry, type ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { serviceHasRecordReader } from "./connector-record-actions.js";
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
@@ -44,6 +45,19 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: C
   };
 }
 
+/** What the service's accounts can be used for, read from what is declared, in `CONNECTOR_USES` order (§13.7). */
+function connectorUses(declarations: IntegrationDeclarationsView, declaration: PluginConnectionServiceDeclaration): Pick<ConnectorDirectoryEntry, "uses" | "categories"> {
+  const kinds = new Set(declarations.listIntegrations().filter(entry => entry.declaration.service_id === declaration.service_id).map(entry => entry.declaration.kind));
+  const has: Record<ConnectorUse, boolean> = {
+    feed_source: kinds.has("source"),
+    document_import: kinds.has("document_import"),
+    assistant_read: serviceHasRecordReader(declaration.service_id),
+    web_search: kinds.has("web_search"),
+    category: Boolean(declaration.categories?.length),
+  };
+  return { uses: CONNECTOR_USES.filter(use => has[use]), ...(declaration.categories?.length ? { categories: [...declaration.categories] } : {}) };
+}
+
 /** The directory of services, in the order they were declared: built only from declarations, never from a list of names. */
 export function connectorDirectory(declarations: IntegrationDeclarationsView & Partial<Pick<IntegrationRegistry, "mcpOwner">>): readonly ConnectorDirectoryEntryWithSource[] {
   installHostUiText();
@@ -53,6 +67,7 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView & P
     const method_options = connectorMethodsOf(service, declarations.mcpOwner?.(declaration.service_id));
     return {
       ...entry,
+      ...(owner === PLATFORM_OWNER ? {} : connectorUses(declarations, declaration)),
       method_options,
       setup_links: entry.setup_links?.length ? entry.setup_links : method_options.flatMap((method) => method.links),
       // The card says which package declared it: the name its Manifest gives it, the id only when there is no name.

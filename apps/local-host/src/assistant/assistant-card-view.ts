@@ -30,7 +30,14 @@ const weekdayOf = (day: string, say: (text: string, values?: Record<string, stri
 /** One field the person may still change: picked from its choices, a day typed, a moment as a day and a time in their zone. */
 function cardField(field: AssistantCard["fields"][number], question: string | undefined, say: (text: string, values?: Record<string, string | number>) => string, zone: string | undefined): InteractionField {
   const label = question ?? field.label;
-  if (field.options) return { id: field.key, label, control: { kind: "choice", options: field.options.map(option => ({ value: option.value, label: option.label, selected: option.value === field.raw })) } };
+  if (field.options) {
+    // Several may be picked when the field takes several: what it holds now (its prepared value) starts picked.
+    let picked: unknown = field.raw;
+    if (field.multiple) { try { picked = JSON.parse(field.raw ?? "[]"); } catch { picked = []; } }
+    const on = (value: string) => Array.isArray(picked) ? picked.includes(value) : value === picked;
+    return { id: field.key, label, control: { kind: "choice", ...(field.multiple ? { multiple: true } : {}),
+      options: field.options.map(option => ({ value: option.value, label: option.label, ...(option.description ? { description: option.description } : {}), selected: on(option.value) })) } };
+  }
   if (field.input === "date") return { id: field.key, label, control: { kind: "date", value: field.raw ?? "", weekday: weekdayOf(field.raw ?? "", say) } };
   if (field.input === "datetime") {
     const at = Date.parse(field.raw ?? ""), clock = wallClockIn(Number.isFinite(at) ? at : Date.now(), zone);

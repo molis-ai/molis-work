@@ -1,4 +1,4 @@
-import { SERVICE_CONNECTION_ITEM_STYLES } from "../service-connection-parts.js";
+import { SERVICE_CONNECTION_ITEM_STYLES, SERVICE_CONNECTION_USES_STYLES } from "../service-connection-parts.js";
 
 /**
  * 设置 › 服务连接 (plan A of §13.1): one column of service rows that open in place, the account's four rows in a card, the folded 高级.
@@ -7,7 +7,12 @@ import { SERVICE_CONNECTION_ITEM_STYLES } from "../service-connection-parts.js";
  */
 const ITEM_ROW = "[data-connectors-settings] .settings-connection-item > .settings-connection-row";
 
-export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}
+export const CONNECTOR_EXPERIENCE_STYLES = `${SERVICE_CONNECTION_ITEM_STYLES}${SERVICE_CONNECTION_USES_STYLES}
+  .settings-connector-tools { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 16px; }
+  .settings-connector-tools > .settings-connector-search { flex: 1 1 240px; }
+  .settings-connector-tools > .settings-connector-view { margin-inline-start: auto; }
+  .settings-connector-uses { display: grid; gap: 12px; min-width: 0; }
+  .settings-connector-uses__lead { margin: 0; color: var(--muted); font-size: 13px; }
   [data-connectors-settings] [hidden] { display: none !important; }
   [data-connectors-settings] { --connector-width: 760px; }
   [data-connectors-settings] .settings-heading { padding-bottom: 24px; }

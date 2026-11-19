@@ -341,7 +341,7 @@ test("RAC-491 the directory is the platform's cards then each plugin's declared 
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: {} }; },
   }));
   const directory = connectorDirectory(registry);
-  assert.equal(directory.length, 4 + 2 + 39, "four platform cards, GitHub and Gmail, and the catalog's connectors");
+  assert.equal(directory.length, 4 + 2 + 42, "four platform cards, GitHub and Gmail, and the catalog's connectors");
   assert.deepEqual(directory.slice(0, 4).map(entry => entry.connector_id), ["model-api", "typesafe", "image-api", "mcp-bearer"]);
   assert.deepEqual(directory.slice(4, 6).map(entry => entry.connector_id), ["github", "gmail"]);
   const loom = directory.find(entry => entry.connector_id === "loom")!;

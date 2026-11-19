@@ -5,6 +5,7 @@ import { asList, asRecord, bearer, CatalogLiveError, nestedText, splitParts, tex
 import { setupLinksFor } from "./setup-links.js";
 import { atlassianBase, catalogCloudOrigin } from "./targets.js";
 import type { CatalogAuthContext, CatalogConnectorSpec, CatalogHttpRequest } from "./types.js";
+import { SERVICE_TRAITS, webSearchSpec } from "./service-traits.js";
 
 type CatalogConnectorDraft = Omit<CatalogConnectorSpec, "setup_links">;
 
@@ -900,7 +901,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     feed_available: false,
     feed: { async collect() { return []; } },
   }),
-
+  webSearchSpec("brave-search"), webSearchSpec("deepseek-search"), webSearchSpec("tavily"), // §13.7: written in web-search.ts
 ];
 
 function nestedTextList(record: Record<string, unknown> | null, path: string[]): unknown {
@@ -981,10 +982,7 @@ function salesforceInstance(ctx: CatalogAuthContext): string {
   return catalogCloudOrigin(ctx.extra.instance ?? "", "salesforce.com");
 }
 
-export const CATALOG_CONNECTORS: readonly CatalogConnectorSpec[] = CATALOG.map((entry) => ({
-  ...entry,
-  setup_links: setupLinksFor(entry.id),
-}));
+export const CATALOG_CONNECTORS: readonly CatalogConnectorSpec[] = CATALOG.map((entry) => ({ ...SERVICE_TRAITS[entry.id], ...entry, setup_links: setupLinksFor(entry.id) }));
 
 const BY_ID = new Map(CATALOG_CONNECTORS.map((entry) => [entry.id, entry]));
 

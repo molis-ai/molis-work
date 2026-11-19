@@ -132,7 +132,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   readonly schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
   readonly memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
-  readonly documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   readonly checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
@@ -155,7 +154,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (runtime.background) this.background = runtime.background;
     if (runtime.schedule) this.schedule = runtime.schedule;
     if (runtime.memory) this.memory = runtime.memory;
-    if (runtime.documents) this.documents = runtime.documents;
     if (runtime.subagents) this.subagents = guardedSubagents(runtime.subagents, run => this.read(run), this.#store);
     if (runtime.recovery) this.recovery = guardedRecovery(this.#store, runtime, runtime.recovery);
     if (runtime.checkpoints) this.checkpoints = guardedCheckpoints(this.#store, runtime.checkpoints);

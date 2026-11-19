@@ -1,9 +1,10 @@
 /**
  * The composer's upload for the Assistant (unified-input K3; specs/visual-ui-experience §composer-mentions, VUX-16, VUX-18): a
  * file picked, pasted or dropped on the composer comes here, and the composer's own strip says how it went (读取中, then its name,
- * a picture with its preview, or why it cannot go, with × to let it go; a read the Host could not do throws, so its row offers 重试). Text is read here and sent as the person's own material; a picture or a PDF goes to
- * the Host, which reads it (`POST /api/assistant/attachments`): the runtime takes a picture in and shows it to the model in the round
- * it is sent with, and reads a PDF's text layer with its own parser. `refused` says why a file cannot go before anything is read
+ * a picture with its preview, or why it cannot go, with × to let it go; a read the Host could not do throws, so its row offers 重试). Text is read here and sent as the person's own material; a picture, a PDF,
+ * a Word file or a recording goes to the Host (`POST /api/assistant/attachments`), which keeps it as a conversation attachment of the
+ * platform's material service: a picture is shown to the model in the round it is sent with, and a document is read once by the
+ * platform's readers (a PDF's text or its scanned pages, Word, a recording's transcript). `refused` says why a file cannot go before anything is read
  * (other binary files would reach the model as noise).
  *
  * `take` turns what the composer hands over into the Host's materials (implementation-plan §3.3): an attachment is the material
@@ -14,7 +15,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ readText, api 
   const held = new Map();
   const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
   const isImage = (file) => /^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name);
-  const isPdf = (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  const isDocument = (file) => file.type === "application/pdf" || /\.(pdf|docx|mp3|wav|m4a|aac|aiff?|flac|mp4|mov|m4v|webm)$/i.test(file.name);
   const isText = (file) => /^text\//.test(file.type) || /\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name);
   const refused = (file) => {
     if (isImage(file)) {
@@ -22,8 +23,8 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ readText, api 
       if (file.size > 5 * 1024 * 1024) return readText("workbench.assistant-attachments.image-over-5-mb-compress-crop-part-need");
       return "";
     }
-    if (isPdf(file)) return file.size > 8 * 1024 * 1024 ? readText("workbench.assistant-attachments.file-over-8-mb-bring-only-part-need") : "";
-    if (!isText(file)) return readText("workbench.assistant-attachments.only-text-files-pdfs-images-can-be-read");
+    if (isDocument(file)) return file.size > 25 * 1024 * 1024 ? readText("workbench.assistant-attachments.file-over-25-mb-bring-only-part-need") : "";
+    if (!isText(file)) return readText("workbench.assistant-attachments.only-text-documents-images-recordings-can-be-read");
     return file.size > 400000 ? readText("workbench.assistant-attachments.file-too-large-bring-only-part-need") : "";
   };
   // A pasted picture comes without a name of its own.
@@ -34,7 +35,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ readText, api 
       const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
       return { material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true };
     }
-    if (isPdf(file)) {
+    if (isDocument(file)) {
       const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
       return { material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true };
     }
@@ -42,7 +43,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`({ readText, api 
     catch { throw new Error(readText("workbench.assistant-attachments.can-t-read-file")); }
   };
   return {
-    accept: ".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp",
+    accept: ".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,.docx,.mp3,.wav,.m4a,.aac,.aif,.aiff,.flac,.mp4,.mov,.m4v,.webm,text/*,image/png,image/jpeg,image/gif,image/webp",
     async upload(file) {
       const one = named(file), why = refused(one);
       if (why) return { state: "failed", reason: why };

@@ -55,12 +55,16 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       },
       copied: text => send(ws, { type: "copied", text }),
     };
-    ws.on("close", () => { detach?.(); detach = null; });
+    let closed = false;
+    ws.on("close", () => { closed = true; detach?.(); detach = null; });
     // Binding the page (watch, attach) waits on the project check, and the panel sends what follows (visible, a queued
     // navigate) right behind it: each message waits for the bindings sent before it, so none finds no page and is dropped.
     let bound: Promise<void> = Promise.resolve();
     const bind = async (message: Extract<BrowserClientMessage, { type: "watch" | "attach" }>) => {
       if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+      // The panel closed while the project was being checked: its close already released what it held, and a binding that
+      // finishes now must not hang a listener on the page that nothing will ever release.
+      if (closed) return;
       if (!authority?.valid()) { ws.close(); return; }
       if (message.type === "watch") {
         if (page) return;

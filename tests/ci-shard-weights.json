@@ -1229,7 +1229,7 @@
  "tests/prologue-compaction-continue.test.ts": 2,
  "tests/prologue-compaction.test.ts": 2,
  "tests/prologue-credential-bridge.test.ts": 1,
- "tests/prologue-documents.test.ts": 7,
+ "tests/prologue-images.test.ts": 1,
  "tests/prologue-external-checks.test.ts": 33,
  "tests/prologue-git.test.ts": 2,
  "tests/prologue-inference-images.test.ts": 3,

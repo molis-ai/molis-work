@@ -25,7 +25,7 @@ test("an environment key configures a model only with its own endpoint and model
 
 test("legacy environment models do not imply vision or initialize inference for original images", async () => {
   const complete = hostCompleteText({ env: env(), resolveInference: async () => assert.fail("vision was not declared") })!;
-  await assert.rejects(complete("image", { images: [{ root_path: "/unread", relative_path: "image.png" }] }), /已声明支持图片/);
+  await assert.rejects(complete("image", { images: [{ root_path: "/unread", relative_path: "image.png" }] }), /标为不能看图/);
 });
 
 test("bounded text uses Prologue's native protocol, fixed model, endpoint and credential reference", async () => {

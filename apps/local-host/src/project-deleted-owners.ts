@@ -25,6 +25,7 @@ import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-word
 import { registeredBuiltinText } from "./ui-text-provider.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
+import { forgetProjectAttachments } from "./material-attachments.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
 import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -149,6 +150,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
+    // What the person brought into the project's conversations (pictures, documents): the platform's own copy of them goes with the project.
+    { id: "conversation-attachments", label: null, clear: projectId => forgetProjectAttachments(home, projectId) },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
     { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); forgetOrphanedInstallationBindings(home); } },
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },

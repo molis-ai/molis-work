@@ -26,6 +26,13 @@ export declare const SANDBOX_INTEGRATION_OPERATIONS: {
 
 export declare const SANDBOX_INTEGRATION_SOURCE_SLOT = "source";
 
+export interface SandboxAttachmentPart {
+    data_base64: string;
+    byte_length: number;
+    size: number;
+    media_type: string;
+}
+
 export interface SandboxConnectionDescription {
     bound: boolean;
     display_name?: string;
@@ -268,7 +275,7 @@ export type SandboxModelAvailability = {
 
 export interface SandboxModelChoice extends SandboxModelSelection {
     label: string;
-    vision: boolean;
+    vision?: boolean;
     reasoning_effort: boolean;
 }
 
@@ -525,6 +532,10 @@ export interface SandboxSdk {
             bytes: Uint8Array;
         }>;
         releaseOriginal(record_key: string): Promise<void>;
+        attach(file: SandboxMaterialFile): Promise<ConversationAttachment>;
+        readAttachment(ref: MaterialRef, request: {
+            as: 'text' | 'image';
+        }): Promise<ConversationAttachmentContent>;
     };
     projects: {
         exist(ids: readonly string[]): Promise<Readonly<Record<string, boolean>>>;
@@ -558,7 +569,7 @@ export interface SandboxSdk {
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

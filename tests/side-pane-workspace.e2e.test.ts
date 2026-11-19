@@ -17,17 +17,22 @@ const strip = "[data-side-tabs]";
 const current = `document.querySelector('${strip} [role=tab][aria-selected=true]')?.dataset.sideTab`;
 const stored = "JSON.parse(localStorage.getItem('molis-work-tab-workspace:' + document.body.dataset.projectId) || 'null')";
 
+// QEA-10 measures the glyph row of the Home's own pages (the project chooser), at 760px and under: since the top strip's scheme C
+// (specs/screen-polish §3) a project page's side views are a list behind the side sheet's tab, where nothing grows, and the Home's
+// glyph row scrolls sideways only at that width (side-panel.ts, `max-width:760px`). Its 后台任务 tab is the platform's own and always
+// there (the 电脑 tab the test first used is a project tool). User 2026-11-18「可以，改对象」; checked to fail with the scroll and the
+// sub-pixel nudge of keep() taken out (the glyph moves 1.125px, nothing scrolls).
 test("QEA-10 a glyph stays anchored when its expanded strip overflows by one pixel, including after refocus", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false }, sessionId);
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 700, height: 900, deviceScaleFactor: 2, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.querySelector('${strip} [data-side-tab=computer]')?.checkVisibility()`);
+  await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
+  await waitFor(`document.querySelector('${strip}:not([data-side-menu]) [data-side-tab=tasks]')?.checkVisibility()`);
   const result = await evaluate<Array<{ delta: number; overflow: number; scroll: number; folded: boolean; restored: number }>>(`(async () => {
     await document.fonts.ready;
-    const row = document.querySelector('${strip}'), trigger = row.querySelector('[data-side-tab=computer]'), icon = trigger.querySelector('.tab-item-icon');
+    const row = document.querySelector('${strip}'), trigger = row.querySelector('[data-side-tab=tasks]'), icon = trigger.querySelector('.tab-item-icon');
     const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     Object.assign(row.style, { flex: 'none', maxWidth: 'none', width: 'max-content' });
     trigger.focus({ focusVisible: true, preventScroll: true }); await frame();

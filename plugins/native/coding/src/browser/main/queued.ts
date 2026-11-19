@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import { refreshState } from "./configuration.js";
 import type { Page } from "./page.js";
@@ -12,8 +12,10 @@ export function renderPriority(page: Page, id: string, on: boolean) {
   // It is the one thing in the header's ⋯ menu (screen-polish §6.4): with no session to mark, the menu has nothing to offer.
   q("[data-coding-head-more]").hidden = !id;
   button.dataset.session = id || "";
+  // The item keeps its words; the tick in its leading slot says whether the session is marked.
   button.setAttribute("aria-checked", String(on));
-  q("[data-coding-priority-label]").textContent = on ? uiText.text("coding.priority.on") : uiText.text("coding.priority.mark");
+  const tick = button.querySelector(".mw-menu__check");
+  if (tick) tick.innerHTML = on ? icon("check") : "";
 }
 
 /** What a queued round waits for, in words. */

@@ -12,7 +12,7 @@ import {
   type DiffViewLabels,
   type DiffViewPrimitives,
 } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { codingNetChange } from "./changeset.js";
+import { codingChangedLines, codingNetChange } from "./changeset.js";
 import { CODING_PLUGIN_ID } from "./manifest.js";
 
 /**
@@ -74,7 +74,9 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
   const view = changeView(netFiles ? { ...change, files: netFiles } : change, netFiles ? 0 : index, body.reference?.version ?? 1);
   const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
   Object.assign(body, { view_mode: netFiles ? "net" : "write",
-    net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
+    // An available net change also says its lines: what the round left in that file, not the sum of its writes.
+    net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available,
+      ...(group.available ? codingChangedLines(group.before_text, group.after_text) : { reason: group.reason }) })) });
   // The reader picks unified or side by side; anything else reads as unified.
   body.html = renderDiff({ view: { ...view, mode: query.layout === "split" ? "split" : "unified" }, line_feedback: Boolean(body.reference), fold_context: 3, sides: false,
     labels: LABELS, primitives: primitives() });

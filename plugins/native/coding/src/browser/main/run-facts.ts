@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingUsageSummary } from "../../usage.js";
 import { el } from "../dom.js";
 import { terminal } from "./composer-state.js";
@@ -49,12 +49,13 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
 function drawFacts(page: Page, result: HTMLElement, run: RunView, count: number, facts: { values: Fact[]; unused: string[] }) {
   const { s } = page, phaseLabel = s.phases[run.phase] || run.phase;
   const tone = run.phase === "completed" ? "done" : run.phase === "failed" ? "failed" : terminal(run.phase) ? "idle" : "live";
-  const fold = el("details", "", "coding-run-details"), head = el("summary", "", "coding-facts-head"), phase = el("span", phaseLabel, "coding-facts-phase"), list = el("dl");
+  const fold = el("details", "", "coding-run-details mw-disclosure"), head = el("summary", "", "coding-facts-head"), phase = el("span", phaseLabel, "coding-facts-phase"), list = el("dl");
   fold.dataset.codingRunDetails = "";
   fold.open = Boolean(result.querySelector<HTMLDetailsElement>(":scope > [data-coding-run-details]")?.open);
   phase.dataset.tone = tone;
   phase.dataset.mwState = phaseRing(run.phase);
   head.append(el("h3", uiText.text("coding.results.run-details")), phase, el("span", uiText.text("coding.turn.number", { number: count }), "coding-facts-round"));
+  head.insertAdjacentHTML("beforeend", icon("chevron-down"));
   for (const [label, value, path] of facts.values) {
     list.append(el("dt", label), el("dd", value, path ? "is-path" : ""));
   }

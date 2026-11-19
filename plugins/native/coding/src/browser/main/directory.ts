@@ -91,7 +91,8 @@ function stateParts(page: Page, session: SessionRecord, visible: readonly Sessio
 
 /**
  * Writes the state into its chip without touching the ring the page mounted in it: 「优先」 (the person's own mark, always
- * shown), the short word of a state that asks for them (`data-word`, drawn by the styles), and the whole sentence, read out.
+ * shown), the short word of a state that asks for them (`data-word`, drawn by the styles and kept from screen readers: the
+ * sentence already says it), and the whole sentence, read out.
  */
 function drawState(mark: HTMLElement, parts: ReturnType<typeof stateParts>) {
   const label = (parts.before ? parts.before + " · " : "") + parts.word + parts.after, quiet = String(!parts.short && !parts.before);

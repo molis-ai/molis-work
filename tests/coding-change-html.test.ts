@@ -112,7 +112,9 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
       assert.match(write.html, /data-coding-line-side="before"/, "a saved change takes line feedback");
       assert.equal(write.patch, "--- a/cart.mjs\n+++ b/cart.mjs\n@@ -1 +1 @@\n-new\r\n+latest <script>\n");
       // The net change across both writes: offered, then drawn from the first write's before to the last write's after.
-      assert.deepEqual(write.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: true }]);
+      // Expected change (screen-polish POLISH-24): an available net change also says its lines (one line replaced here), so
+      // a round's 「+a −b」 counts what the file ended up with instead of adding up its writes.
+      assert.deepEqual(write.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: true, added_lines: 1, removed_lines: 1 }]);
       const net = await read<ChangeBody>(`${changeset}?change_index=1&net=1`, locale);
       assert.equal(net.view_mode, "net");
       const merged = { ...net.change, files: [{ ...net.change.files[1]!, kind: net.change.files[0]!.kind, review: { ...net.change.files[1]!.review!, before_text: "old\n" } }] };

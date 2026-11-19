@@ -106,14 +106,14 @@ function drawWorkspaces(page: Page, result: StateRead) {
 }
 
 /** The environment as it was just read: on the welcome of a session with no round yet, or in the newest round's fold. */
-export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"]) {
+export function drawEnvironmentReadiness(page: Page, readiness: StateRead["environment_readiness"], drawn?: ReadonlySet<string>) {
   const { s, turns } = page;
   if (turns.hasAttribute("data-coding-welcoming")) {
     drawWelcomePrep(page, readiness, Boolean(readiness) && !s.worktree && (!s.workspaceId || readiness?.workspace_id === s.workspaceId));
     return;
   }
   turns.querySelector(":scope > [data-coding-prep]")?.remove();
-  refreshRunPrep(page);
+  refreshRunPrep(page, drawn);
 }
 
 async function readState(page: Page) {

@@ -60,7 +60,7 @@ export function renderRuns(page: Page, runs: readonly RunView[], all: readonly R
   renderOutcomes(page, all);
   s.lastRun = all.at(-1) || null;
   renderChanged(page);
-  drawEnvironmentReadiness(page, s.state.environment_readiness);
+  drawEnvironmentReadiness(page, s.state.environment_readiness, new Set(runs.map(run => run.ref.run_id)));
   renderFacts(page, all);
   renderPill(page);
   if (pinNow) s.follow.pin();

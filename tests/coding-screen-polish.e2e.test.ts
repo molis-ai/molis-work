@@ -170,3 +170,55 @@ test("POLISH-23 POLISH-24 POLISH-26 POLISH-27: 目录列让名字说话，准备
   await click(`${coding} [data-coding-view=dialogue]`);
   await waitFor(`document.querySelector('${coding} [data-coding-board]').hidden`);
 });
+
+test("POLISH-26: 环境有要处理的事时准备行展开并上琥珀；人收起后同一件事不再自动打开；处理完收回一行，新的事再打开", { timeout: 240_000 }, async t => {
+  const opened = await openCoding(t); if (!opened) return;
+  const { evaluate, waitFor, start, click, afterAStateRead } = opened;
+  await start("先看看环境");
+  // The environment is what the page's state read says. The test turns one row on and off in that answer: the folder
+  // names a package manager and its dependencies are not installed, which waits on the person.
+  await evaluate(`(()=>{const real=window.fetch;window.envAsks=false;
+    window.fetch=async(input,init)=>{const path=String(input?.url||input);
+      if((init?.method||'GET')!=='GET'||!/\\/state(\\?|$)/.test(path))return real(input,init);
+      const res=await real(input,init);if(!res.ok)return res;const data=await res.json();
+      if(window.envAsks&&data.environment_readiness)Object.assign(data.environment_readiness,{status:'attention',deps_manager:'pnpm',deps_installed:false});
+      return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}});};})()`);
+  const fold = `document.querySelector('${coding} [data-coding-turns] > [data-coding-prep]')`;
+  // `tall`: the fold takes more than its one line, so the checklist under it is on show (it opens to its natural height).
+  const look = () => evaluate<{ open: boolean; attention: string; text: string; wash: string; tall: boolean; chevron: number }>(`(()=>{const fold=${fold},line=fold.querySelector(':scope > summary');
+    return {open:fold.open,attention:fold.dataset.attention,text:fold.querySelector('.coding-prep-text').textContent,wash:getComputedStyle(line).backgroundColor,
+      tall:fold.getBoundingClientRect().height>line.getBoundingClientRect().height+40,chevron:line.querySelector(':scope > svg:last-child')?.getBoundingClientRect().width??0};})()`);
+  await waitFor(`!!${fold}`, 20_000);
+  const calm = await look();
+  assert.deepEqual([calm.open, calm.attention, calm.tall], [false, "false", false], "没有要处理的事：一行，不上琥珀");
+  assert.equal(calm.chevron, 12, "折叠行的箭头和别处的折叠一样是 12px");
+
+  await evaluate("window.envAsks=true");
+  await waitFor(`${fold}?.dataset.attention==='true'`, 20_000);
+  await waitFor(`${fold}.getBoundingClientRect().height>${fold}.querySelector(':scope > summary').getBoundingClientRect().height+40`, 10_000);
+  const asking = await look();
+  assert.equal(asking.open, true, "POLISH-26 有要处理的事就展开");
+  assert.equal(asking.tall, true, "要处理的那一行就在下面");
+  assert.match(asking.text, /^本轮环境准备 · 1 项待处理$/, "这一行说出有几项要处理");
+  assert.notEqual(asking.wash, calm.wash, "POLISH-26 这一行上琥珀");
+
+  // The person closes it. The same thing still waiting does not open it again, read after read; the line stays amber.
+  await click(`${coding} [data-coding-turns] > [data-coding-prep] > summary`);
+  await waitFor(`!${fold}.open`);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  await afterAStateRead();
+  await afterAStateRead();
+  const closed = await look();
+  assert.deepEqual([closed.open, closed.attention, closed.wash], [false, "true", asking.wash], "人收起以后，同一件事不再自动打开；琥珀还在");
+
+  // Handled: the line is the quiet one again, and stays as the person left it.
+  await evaluate("window.envAsks=false");
+  await waitFor(`${fold}?.dataset.attention==='false'`, 20_000);
+  const done = await look();
+  assert.deepEqual([done.open, done.wash], [false, calm.wash], "处理完收回一行，琥珀退掉");
+  assert.match(done.text, /^环境就绪/);
+
+  // Something to handle again is news: it opens once more.
+  await evaluate("window.envAsks=true");
+  await waitFor(`${fold}?.dataset.attention==='true'&&${fold}.open`, 20_000);
+});

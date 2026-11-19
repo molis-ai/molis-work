@@ -11,12 +11,15 @@ interface ChangeFile {
   readonly review: { readonly decision: string; readonly execution: string };
 }
 
+/** A file a round wrote several times: whether its writes read as one net change, and that change's lines when they do. */
+interface NetGroup { readonly path: string; readonly available: boolean; readonly reason?: string; readonly indices: readonly number[]; readonly added_lines?: number; readonly removed_lines?: number }
+
 /** A round's changes, as `GET …/changeset` answers them. */
 interface Changeset {
   readonly html: string;
   readonly change: { readonly files: readonly ChangeFile[] };
   readonly view_mode: string;
-  readonly net_groups?: readonly { readonly path: string; readonly available: boolean; readonly reason?: string; readonly indices: readonly number[] }[];
+  readonly net_groups?: readonly NetGroup[];
   readonly patch?: string;
   readonly reference?: { readonly artifact_id: string; readonly version: number } | null;
   readonly output?: { readonly artifact_id: string; readonly version: number } | null;
@@ -35,7 +38,7 @@ export interface ChangesetPorts extends Pick<PagePorts, "lifetime" | "translate"
   readonly returnToTask: () => void;
   readonly onRunOpen: () => void;
   /** A round's changes were read: its files, one entry per write, with the lines each added and removed. */
-  readonly onRead?: (run: string, files: readonly ChangeFile[]) => void;
+  readonly onRead?: (run: string, files: readonly ChangeFile[], netGroups: readonly NetGroup[]) => void;
   /** Adds the remarks to the composer's draft. */
   readonly appendDraft: (task: string) => Promise<unknown>;
   readonly focusDraft: () => void;
@@ -332,7 +335,7 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
     const result = await api<Changeset>("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(nextRun) + "/changeset?change_index=" + r.index + "&net=" + mode + "&layout=" + r.layout + (requireFixed ? "&fixed=1" : ""), save ? "POST" : "GET");
     if (r.ticket !== token || id !== ports.current()) return;
     r.value = result;
-    ports.onRead?.(nextRun, result.change.files);
+    ports.onRead?.(nextRun, result.change.files, result.net_groups || []);
     r.net = result.view_mode === "net";
     r.netIndices = r.net ? (result.net_groups || []).find(group => group.indices.includes(r.index))?.indices || null : null;
     const body = q("[data-coding-change-body]");

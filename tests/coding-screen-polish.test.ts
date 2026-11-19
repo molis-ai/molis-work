@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CODING_STYLES,
+  codingRoundTally,
   codingTimelineWords,
   createCodingTimeline,
   renderCodingDirectory as drawCodingDirectory,
@@ -88,8 +89,8 @@ test("POLISH-24 回合结束卡是一行：怎么结束、改了什么和「看�
   assert.match(head, /class="mw-btn mw-btn--primary"[^>]*data-coding-change-open="r-edit"[^>]*>.*看改动<\/button>/s, "改了文件时主操作是「看改动」，就在这一行");
   assert.match(head, /data-coding-report-open="r-edit"/, "「执行报告」也在这一行");
   assert.equal((html.match(/mw-btn--primary/g) ?? []).length, 1, "一张卡只有一个实心主键");
-  assert.match(head, /data-coding-run-more aria-expanded="false" aria-label="明细"/, "卡头末尾的小箭头打开明细");
-  assert.match(html, /<div class="coding-run-more" hidden>/, "干净结束的一轮，文件清单和核对明细收在卡头下面，默认不占行");
+  assert.match(head, /data-coding-run-more aria-expanded="false" aria-controls="coding-run-more-r-edit" aria-label="明细"/, "卡头末尾的小箭头打开明细，并指明它开的是哪一块");
+  assert.match(html, /<div class="coding-run-more" id="coding-run-more-r-edit" hidden>/, "干净结束的一轮，文件清单和核对明细收在卡头下面，默认不占行");
   assert.doesNotMatch(head, /coding-run-files/, "文件清单不在卡头里");
 });
 
@@ -120,7 +121,7 @@ test("POLISH-26 「开始前已红」是普通说明，用灰色徽标；要重�
   // The checks ran before the edit and not after: that asks for a rerun, so the digest is laid open.
   const stale = round("r-stale", [baseline, unit, wrote]);
   assert.match(stale, /data-coding-rerun-checks="r-stale"/);
-  assert.match(stale, /<div class="coding-run-more">/, "有东西要核对的一轮不折叠");
+  assert.match(stale, /<div class="coding-run-more" id="coding-run-more-r-stale">/, "有东西要核对的一轮不折叠");
   assert.doesNotMatch(stale, /data-coding-run-more/, "摊开的明细不需要开关");
 });
 
@@ -140,7 +141,7 @@ test("POLISH-23 目录行：常态的状态词只留给读屏，等你和失败�
   }
   assert.match(chip("s2"), /title="等你回答" data-word="等你"><span class="mw-sr-only">等你回答<\/span>/, "等你的状态出一个短词，全称在提示里、读给读屏");
   assert.match(chip("s3"), /title="失败待处理" data-word="失败"><span class="mw-sr-only">失败待处理<\/span>/);
-  assert.match(CODING_STYLES, /\.coding-session-state\[data-word\]::after \{ content:attr\(data-word\); \}/, "短词由样式画出来");
+  assert.match(CODING_STYLES, /\.coding-session-state\[data-word\]::after \{ content:attr\(data-word\); content:attr\(data-word\) \/ ""; \}/, "短词由样式画出来，替代文字为空：读屏只读全称，不把短词再读一遍");
   assert.doesNotMatch(chip("s2") + chip("s3"), /data-quiet="true"/);
   assert.equal((html.match(/data-coding-new/g) ?? []).length, 1, "目录列只有一个新建入口");
   assert.doesNotMatch(html, /mw-dir__add/, "不再有虚线的「＋ 新建编码会话」");
@@ -158,7 +159,7 @@ test("POLISH-23 图标页签：每个都有名字，样式只让当前项显示�
   assert.match(CODING_STYLES, /\.coding-face\[aria-pressed=true\] \.coding-face-name \{ display:block; \}/);
 });
 
-test("POLISH-27 头部：路径只写目录名，「标为优先」在 ⋯ 里，任务图没有重复的「回到对话」", () => {
+test("6.4、POLISH-27 头部：路径只写目录名，「标为优先」在 ⋯ 里（平台的菜单，带勾）；任务图没有重复的「回到对话」", () => {
   const html = renderCodingWorkbench(model());
   const chip = /<p class="coding-workspace-chip"[^>]*>([\s\S]*?)<\/p>/.exec(html)?.[1] ?? "";
   assert.equal(plain(chip), "goalboard", "头部只写目录名");
@@ -188,4 +189,19 @@ test("POLISH-26 样式里琥珀只跟着「等你处理」：准备信息的那�
   assert.ok(prep.length > 0);
   assert.deepEqual(prep.filter(line => line.includes("--amber")).map(line => line.slice(0, line.indexOf("{")).trim()), [".coding-prep[data-attention=true] > .coding-prep-line"]);
   assert.match(CODING_STYLES, /\.coding-starter small \{ font-size:11px; color:var\(--faint\); \}/, "建议卡的模式标签是灰色");
+});
+
+test("POLISH-24 增减行只算真正落盘的：被拒的不算，同一文件多次写入用净增减，说不准就不写", () => {
+  const write = (path: string, added: number, removed: number, execution = "applied") => ({ path, added_lines: added, removed_lines: removed, review: { execution } });
+  assert.deepEqual(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 4, 0)], []), { added: 24, removed: 6, files: [{ path: "a.ts", added: 20, removed: 6 }, { path: "b.ts", added: 4, removed: 0 }] });
+  assert.deepEqual(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 90, 90, "not-applied")], []), { added: 20, removed: 6, files: [{ path: "a.ts", added: 20, removed: 6 }] }, "被拒的写入没有落盘，不算进增减行");
+  assert.deepEqual(codingRoundTally([write("a.ts", 9, 9, "not-applied"), write("a.ts", 3, 1)], []), { added: 3, removed: 1, files: [{ path: "a.ts", added: 3, removed: 1 }] }, "同一文件一次被拒、一次落盘，只算落盘的那一次");
+  // Two applied writes to one file: 10 lines added, then 4 of them rewritten. The net change is what the file gained, not 14.
+  const twice = [write("a.ts", 10, 0), write("a.ts", 4, 4)];
+  assert.deepEqual(codingRoundTally(twice, [{ path: "a.ts", available: true, added_lines: 10, removed_lines: 0 }]), { added: 10, removed: 0, files: [{ path: "a.ts", added: 10, removed: 0 }] }, "多次写入用服务给的净增减，不把每次相加");
+  assert.equal(codingRoundTally(twice, [{ path: "a.ts", available: false }]), null, "两次写入之间文件被改过，净增减说不准，整行不写增减");
+  assert.equal(codingRoundTally(twice, []), null);
+  assert.equal(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 1, 1, "unknown")], []), null, "有一次写入结果不明，整行不写增减");
+  assert.equal(codingRoundTally([write("a.ts", 20, 6), write("b.ts", 1, 1, "failed")], []), null);
+  assert.equal(codingRoundTally([write("a.ts", 2, 2, "not-applied")], []), null, "什么都没落盘就没有增减行");
 });

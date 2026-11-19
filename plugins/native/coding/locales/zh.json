@@ -1110,7 +1110,6 @@
     "coding.priority.mark": "标为优先",
     "coding.priority.no-one": "已标为优先。现在没有和它范围重叠、还在进行的会话，没有通知谁。",
     "coding.priority.notified": "已标为优先，并通知{sessions}让出 {paths}；不会自动暂停它们。",
-    "coding.priority.on": "优先中 · 取消",
     "coding.priority.title": "标成优先：和它范围重叠的会话会收到「请让出」的通知，不会被自动暂停",
     "coding.progress.artifact": "固定成果：{title} · v{version}",
     "coding.progress.check": "请核对原目标、固定成果和拟记录的内容。",

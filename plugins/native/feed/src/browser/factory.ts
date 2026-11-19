@@ -144,6 +144,7 @@ export function feedClient(host: FeedHost): void {
     const detail = (event as CustomEvent<{ itemId?: string | null; view?: string; panel?: string; intent?: string; invalidate?: boolean }>).detail;
     if (!detail) return;
     if (detail.invalidate) { if (scope.visible) void page.refresh("notice").catch(error => page.error(error)); return; }
+    event.preventDefault();
     page.select(detail.view ?? "all", detail.intent, detail.panel);
     if (typeof detail.itemId === "string") void stage.open(detail.itemId).catch(error => page.error(error));
     else if (detail.itemId === null) { if (stage.collapse() && scope.visible) void page.refresh().catch(error => page.error(error)); }

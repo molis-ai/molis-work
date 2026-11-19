@@ -30,7 +30,7 @@ export function installLoad(page: LingguangPage): void {
     if (!record) return;
     s.wantedId = null;
     s.wantedByLink = false;
-    if (s.selected?.id === record.id) return;
+    if (s.selected?.id === record.id) { page.resumeEditor(record.id); return; }
     if (s.selected) await page.save();
     s.picks = new Set([record.id]);
     page.fillEditor(record);

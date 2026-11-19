@@ -33,6 +33,20 @@ test("result declarations reject unsafe destinations and invalid pointers before
     { summary: "结果", title: "false" }, "JSON Pointer escapes work; prototype fields are never read");
 });
 
+test("QEA-125 a declared Home destination uses the same result pointer and cannot borrow a project", () => {
+  const link = { ...view.link!, home_href_template: "/settings/kit?draft={/item/id}" };
+  const scoped = { ...view, link };
+  assert.deepEqual(inspectActionDeclarations([definition(scoped)], undefined), []);
+  const output = { item: { id: "saved/body", name: "Draft" }, project_id: "output-is-not-the-caller" };
+  assert.equal(presentActionResult(scoped, output)?.link?.href, "/settings/kit?draft=saved%2Fbody");
+  assert.equal(presentActionResult(scoped, output, "caller-project")?.link?.href, "/projects/caller-project/?openItem=saved%2Fbody&openTitle=Draft");
+  assert.equal(presentActionResult(scoped, { item: { id: "." } })?.link, undefined);
+  assert.equal(presentActionResult(scoped, { item: { id: "d" } }, "caller-project")?.link, undefined, "a project with a missing result value cannot choose the Home destination");
+  for (const home_href_template of ["//elsewhere.test/a", "/projects/{project_id}/drafts", "/{unrecognized}", "/{unterminated", "/{/invalid~pointer}", null]) {
+    assert.ok(inspectActionDeclarations([definition({ ...scoped, link: { ...link, home_href_template } })], undefined).length, String(home_href_template));
+  }
+});
+
 test("ASC-69: a pending connection is declared by pointer and presented only as a bounded authorization id", () => {
   const pending: ActionResultView = { summary: "接入方案已准备", pending_connection: { authorization_pointer: "/authorization_id" } };
   assert.deepEqual(inspectActionDeclarations([definition(pending)], undefined), []);

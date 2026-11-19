@@ -39,6 +39,9 @@
   - 实例每次写入都让并发凭证（`updated_at`）变大，不会停在原值或倒退；带旧凭证的继续调用被拒绝。
   - 编辑保存固定所属流程和每次内容快照；排队请求只推进该流程的版本，切换流程或返回目录不会改写后来对象。标题与交接字段的去抖在离开时归原流程提交；动画后的编辑只操作仍在看的原流程。
   - 保存失败保留该流程的最新编辑并暂停它后续的排队写入；本标签页重新打开或重载后仍可查看并明确重试。开始实例先等该次编辑保存完成，失败草稿不能拿旧链开始。失败与重读不会跳回原流程，其他流程继续可用。
+  - 交接预览、继续及失败后的读回只更新发起时的导航与实例；切步骤或离开后，旧回执不改后来页面，不清理后来请求的等待状态，也不宣称取消已提交的业务。B可以在A等待时独立操作。
+  - 已准备的交接从原`pending.output`只读展示并继续，人工修改不在恢复时被源正文替换；动作结果未知仍必须本人明确再次执行。未受理的人工草稿在失败读回后保留，提交期间不再编辑或假装撤回。实际返回的当前步骤与交接记录决定界面进度和成功提示，被判断拦下不显示交接成功。
+  - 已准备的交接不再次要求生成模型或判断规则可用，恢复中的进度为实际交接/执行；站点可用性和目标动作的当前授权仍照原合同核对。真实SDK生成、Pages接收后丢回执、设置停用模型再恢复的回归为`tests/workflows-pending-model.e2e.test.ts`（QEA-64），尚未生成的新实例仍需要模型。
   - 搜索和对象标签的打开请求按同一流程 ID 读取正文、标题与助理上下文；首次加载先读目录，最新打开意图优先于旧的页面记忆，无 ID 的请求返回目录。
   - 能力撤回、失权或升级使原版本不可用时，保留原引用并显示原因，不自动换成同名新能力。
   - 只有目录在交给提供方之前拒绝的调用才算没执行；其他错误按可能已执行处理。
@@ -49,5 +52,6 @@
 - 改动后必跑：`node scripts/run-tests.mjs tests/workflows-plugin.test.ts tests/workflows-action-steps.test.ts tests/workflows-handoff-idempotency.test.ts tests/workflows-step-directory.test.ts tests/workflow-content-actions.test.ts tests/workflow-station-kinds.test.ts tests/workflows-client-bundle.test.ts tests/workflows-judgment-link.test.ts tests/workflows-stop-and-token.test.ts tests/workflows-stop-effects.test.ts tests/workflows-delegation.test.ts tests/workflows-project-deletion.test.ts tests/workflows-store.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/builtin-plugin-assembly-gate.test.ts tests/observation-workflow-steps.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-save-ownership.e2e.test.ts tests/workflows-open-object.e2e.test.ts tests/workflows-action-steps.e2e.test.ts tests/workflows-touch-tools.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 保存与编辑导航改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-save-ownership.e2e.test.ts`（W2-18-WFSAVE-01/02：真实 HTTP/Store 回执屏障、跨流程与目录、标题/交接去抖、失败重载及明确重试、动画后过期编辑）。
+- 交接与运行导航改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-handoff-ownership.e2e.test.ts`（QEA-60～63：真实跨实例交错、Pages/Shelf实际写入后丢回执、未受理草稿与固定提交恢复、明确动作重试、判断拦下及三宽两主题）。
 - 对象打开改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-open-object.e2e.test.ts`（W2-18-WF-OPEN-01：正式搜索、已开另一条流程、对象标签/重载恢复、首次按需加载、无 ID 返回目录）。
 - 相关手册：[skills/molis-plugin-dev/host.md](../../../skills/molis-plugin-dev/host.md)、[specs/action-architecture/spec.md](../../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

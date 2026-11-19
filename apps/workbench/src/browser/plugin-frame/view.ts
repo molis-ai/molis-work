@@ -15,7 +15,9 @@ export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePa
     const itemId = selection && "itemId" in selection ? selection.itemId : undefined;
     const invalidation = selection && "invalidate" in selection && selection.invalidate === true && itemId === undefined;
     if (!invalidation) stop();
-    root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail }));
+    const request = new CustomEvent("molis-work:select-item", { detail, cancelable: true });
+    root.dispatchEvent(request);
+    if (request.defaultPrevented) return;
     if (!row || typeof itemId !== "string" || !itemId) return;
     const observer = new MutationObserver(check), deadline = setTimeout(() => stop(), 10000);
     stop = () => { observer.disconnect(); clearTimeout(deadline); };

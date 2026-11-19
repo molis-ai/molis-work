@@ -54,23 +54,28 @@ async function handToGit(page: Page, run: RunView, draft: string, note: string, 
     status(page, uiText.text("coding.commit.git-worktree"), true);
     return;
   }
-  const ownWorkspace =(s.state.workspaces || []).find(item => item.canonical_path === run.frozen.directory?.canonical_path), own = ownWorkspace?.workspace_id || s.workspaceId;
+  const ownWorkspace = (s.state.workspaces || []).find(item => item.canonical_path === run.frozen.directory?.canonical_path);
+  const originalSession = s.current;
+  if (!ownWorkspace) { status(page, uiText.text("coding.commit.original-directory-gone"), true); return; }
   try {
-    sessionStorage.setItem("molis-commit-draft:" + own, draft);
-  } catch {
-    // No storage: Git opens without the drafted message.
+    const outcome = await page.host.offerCommitDraft(ownWorkspace.workspace_id, draft);
+    if (!page.lifetime.alive || s.current !== originalSession) return;
+    await useProjectWorkspace(page, ownWorkspace.workspace_id);
+    directory.querySelector<HTMLElement>("[data-coding-face=files]")?.click();
+    status(page, outcome === "suggested" ? uiText.text("coding.commit.suggestion-saved") : note, failed);
+  } catch (error) {
+    if (!page.lifetime.alive || s.current !== originalSession) return;
+    status(page, uiText.text("coding.commit.handoff-failed", { reason: errorMessage(error) }), true);
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.className = "mw-btn mw-btn--ghost mw-btn--sm"; retry.dataset.codingCommitRetry = "";
+    retry.textContent = uiText.text("common.control.retry");
+    page.lifetime.listen(retry, "click", () => {
+      if (s.current !== originalSession) return;
+      retry.disabled = true;
+      void handToGit(page, run, draft, note, failed);
+    });
+    page.q("[data-coding-status]").append(" ", retry);
   }
-  let pointed = false;
-  try {
-    await useProjectWorkspace(page, own);
-    pointed = true;
-  } catch {
-    // The directory could not be made the project's; the status below says so.
-  }
-  directory.querySelector<HTMLElement>("[data-coding-face=files]")?.click();
-  // Git would otherwise stay on another directory, where this message does not belong: say so rather than claim it is there.
-  const name = String(ownWorkspace?.display_name || "");
-  status(page, pointed ? note : ownWorkspace ? uiText.text("coding.commit.git-not-pointed-named", { name }) : uiText.text("coding.commit.git-not-pointed", { name }), failed || !pointed);
 }
 
 /** Committing a round's changes happens in Git, under Host review; the round only drafts the message. */

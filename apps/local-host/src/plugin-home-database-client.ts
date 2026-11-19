@@ -8,7 +8,7 @@ import type { HomePluginDatabaseDeclaration, PluginDatabase, PluginDatabaseDecla
 import { openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
-import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
+import { assertSqliteLibraryReady } from "@molis-ai/molis-work-storage";
 import { projectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
@@ -37,7 +37,7 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
       writer.exec("PRAGMA synchronous=EXTRA");
       if (writer.prepare("PRAGMA journal_mode=DELETE").get()?.journal_mode !== "delete") throw new ActionError("actions.service_unavailable", "插件库的回滚日志模式暂不可用");
       writer.exec("PRAGMA busy_timeout=1000");
-      assertArtifactLibraryReady(homeSqlitePath(home, declaration.store_name, partition?.project_id));
+      assertSqliteLibraryReady(homeSqlitePath(home, declaration.store_name, partition?.project_id));
     } else writer.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;");
     reader = openReadOnlyHomeSqlite(home, declaration.store_name, partition?.project_id);
   } catch (error) { writer.close(); throw error; }

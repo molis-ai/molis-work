@@ -1,12 +1,9 @@
-import { validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
+import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { feedErrors } from "./contract/feed.js";
 import type { FeedSourceRecord } from "./projection.js";
-import type { FeedSourceProviders, RegisterFeedSourceInput, IntelligenceCollectRequest } from "./source-ports.js";
+import type { FeedSourceProviders, RegisterFeedSourceInput } from "./source-ports.js";
 import { sha256, bounded, normalizeQuery } from "./source-input.js";
 const WEB_QUERY_DEFINITION_ID = "anysearch";
-const DEFAULT_MAX_MATERIALS = 20;
-const DEFAULT_MAX_BYTES = 1_000_000;
-const DEFAULT_DEADLINE_MS = 15_000;
 export function normalizeRegistration(input: RegisterFeedSourceInput, providers: FeedSourceProviders): {
   kind: string;
   definitionId: string;
@@ -71,81 +68,16 @@ export function normalizeRegistration(input: RegisterFeedSourceInput, providers:
   };
 }
 
-export function buildExactRequest(source: FeedSourceRecord, operationId: string, providers: FeedSourceProviders): IntelligenceCollectRequest {
-  const budget = {
-    maxProviderCalls: 1,
-    maxFetchExtractCalls: source.kind === "web_query" ? 3 : 0,
-    maxModelInputTokens: 0,
-    maxModelOutputTokens: 0,
-    maxMaterials: source.kind === "web_query" ? 5 : DEFAULT_MAX_MATERIALS,
-    maxBytes: DEFAULT_MAX_BYTES,
-    maxConcurrency: 1,
-    deadlineMs: source.kind === "web_query" ? 30_000 : DEFAULT_DEADLINE_MS,
-  };
-  if (source.kind === "web_query") {
-    const query = normalizeQuery(String(source.config.query ?? ""));
-    return validateSearchIntentExactV1({
-      schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
-      operationId,
-      goal: `同步网页查询来源「${source.name}」到 Molis Work Feed`,
-      taskProfile: "latest_monitoring",
-      mode: "exact",
-      input: { kind: "query", query },
-      sourcePolicy: {
-        required: [
-          { kind: "provider", value: "anysearch" },
-          { kind: "channel", value: "web" },
-          { kind: "source_definition", namespace: "app", value: WEB_QUERY_DEFINITION_ID },
-        ],
-        allowed: [
-          { kind: "provider", value: "anysearch" },
-          { kind: "channel", value: "web" },
-          { kind: "source_definition", namespace: "app", value: WEB_QUERY_DEFINITION_ID },
-        ],
-      },
-      budget,
-      partialPolicy: "allow_partial",
-      resultProfile: "materials_v1",
-    });
-  }
-  let feedUrl: string;
-  let definitionId = source.definition_id ?? "";
-  if (source.kind === "youtube_channel") {
-    feedUrl = providers.youtube.feedUrl(providers.youtube.normalizeChannel(String(source.config.channel_id ?? "")));
-    definitionId = providers.youtube.definitionId;
-  } else if (source.kind === "custom_rss") {
-    feedUrl = providers.customRss.normalizeUrl(String(source.config.feed_url ?? ""));
-    definitionId = providers.customRss.definitionId;
-  } else {
-    const catalog = providers.listCatalog().find((entry) => entry.sourceId === source.definition_id);
-    if (!catalog) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
-    feedUrl = catalog.feedUrl;
-    definitionId = catalog.sourceId;
-  }
-  const domain = source.kind === "youtube_channel"
-    ? providers.youtube.host
-    : source.kind === "custom_rss"
-      ? providers.customRss.host(feedUrl)
-      : new URL(feedUrl).hostname.toLowerCase();
-  return validateSearchIntentExactV1({
-    schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
-    operationId,
-    goal: `同步公开来源「${source.name}」到 Molis Work Feed`,
-    taskProfile: "exact_rss_ingest",
-    mode: "exact",
-    input: { kind: "feed", url: feedUrl },
-    sourcePolicy: {
-      required: [
-        { kind: "url", value: feedUrl },
-        { kind: "source_definition", namespace: "app", value: definitionId },
-      ],
-      allowed: [
-        { kind: "domain", value: domain },
-        { kind: "source_definition", namespace: "app", value: definitionId },
-      ],
-    },
-    budget,
-    partialPolicy: "allow_partial",
-    resultProfile: "materials_v1",
-  });
+/**
+ * What the platform is asked to fetch for one source: the kind and the one field it names (a catalog entry, an address, a channel or a
+ * query), the operation, and for a feed the cursor of the last pull. Nothing about where it goes: the platform decides that.
+ */
+export function sourcePullRequestFor(source: FeedSourceRecord, operationId: string, providers: FeedSourceProviders): SourcePullRequest {
+  const base = { operation_id: operationId, source_name: source.name };
+  if (source.kind === "web_query") return { kind: "web_query", ...base, query: normalizeQuery(String(source.config.query ?? "")) };
+  const cursor = { cursor: source.cursor };
+  if (source.kind === "youtube_channel") return { kind: "youtube_channel", ...base, channel_id: providers.youtube.normalizeChannel(String(source.config.channel_id ?? "")), ...cursor };
+  if (source.kind === "custom_rss") return { kind: "custom_rss", ...base, feed_url: providers.customRss.normalizeUrl(String(source.config.feed_url ?? "")), ...cursor };
+  if (!source.definition_id) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
+  return { kind: "rss", ...base, definition_id: source.definition_id, ...cursor };
 }

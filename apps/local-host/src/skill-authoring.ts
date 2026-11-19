@@ -6,7 +6,7 @@
  * with every other Skill as it was; taking the last one away takes the package off. Only text: no resources, no scripts.
  */
 import { randomUUID } from 'node:crypto';
-import type { ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
@@ -14,10 +14,12 @@ import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type 
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
 import { contentPackageDraft, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
+import { t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { SKILL_DRAFT } from './agent-definitions/system-prompts.js';
-import { textModelRequired, type HostCompleteText } from './host-complete-text.js';
+import { textModelRequired, type HostTextForCommit, type HostTextRequestOptions } from './host-complete-text.js';
 import type { InstalledRelease } from './installed-release.js';
+import { hostLog } from './host-log.js';
 import type { SkillImportPorts } from './skill-import.js';
 
 /** The name this Home's publisher is pinned under the first time the person saves a Skill, as an import pins it. */
@@ -112,12 +114,12 @@ export class SkillAuthoringService {
   }
 
   /** Signs the package holding `skills` at its next version and installs it over the installed one. */
-  private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext) {
+  private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext, complete?: () => void) {
     const draft = this.draftOf(skills, scope, installed);
     await this.assertOwn(installed, scope, who, draft, caller);
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
-    return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
+    return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller, complete);
   }
 
   /**
@@ -125,7 +127,7 @@ export class SkillAuthoringService {
    * scope stays as it was. Since batch 42 only adopting a draft calls this: the person compared the draft with the version in use, so a
    * version adopted elsewhere in between is followed by the next one, not refused.
    */
-  async save(input: SkillSave, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredSaveResult> {
+  async save(input: SkillSave, who: Who, caller: ActionExecutionContext, complete?: (skillId: string) => void): Promise<SkillAuthoredSaveResult> {
     const fields = checkedFields(input);
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
@@ -139,7 +141,8 @@ export class SkillAuthoringService {
       if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
       declaration = declarationOf(current.skill_id, current.version + 1, fields);
     }
-    const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller);
+    const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller,
+      complete && (() => complete(declaration.skill_id)));
     return { ...result, skill_id: declaration.skill_id, skill_version: declaration.version };
   }
 
@@ -169,20 +172,27 @@ export async function adoptDraft(service: SkillAuthoringService, drafts: SkillDr
   if (cases.length) {
     const trials = drafts.trialsOf(draft.draft_id, draft.revision);
     if (untriedCases(cases, trials).length) throw skillErrors.trial_required('这份草稿有已知答案还没在这一版上回放，先回放再采用');
-    if (trials.some(trial => trial.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
+    if (cases.some(known => trials.find(trial => trial.case_id === known.case_id)?.verdict === 'differs') && !input.accept_differences) throw skillErrors.trial_differs('回放的结果和你认可的结果还有出入：仍然采用，还是回去改');
   }
   const scope: SkillScope = draft.scope_ref === 'home' ? 'home' : 'project', target = draft.target;
-  const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller);
-  const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
-  drafts.adopted(draft.draft_id, draft.scope_ref, result.skill_id, source && { source, replacements: draft.replacements, seen_version: source.version });
-  return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
+  return drafts.withAdoption(draft.draft_id, async () => {
+    const source = target.kind === 'custom' ? target.source : target.kind === 'own' ? target.rebase : undefined;
+    const result = await service.save({ ...draft.fields, scope, ...(target.kind === 'own' ? { skill_id: target.skill_id } : {}) }, who, caller, skillId => {
+      try { drafts.adopted(draft.draft_id, draft.scope_ref, skillId, source && { source, replacements: draft.replacements, seen_version: source.version }); }
+      catch (error) {
+        hostLog.error('skills', 'adoption_settlement_failed', error, { draft_id: draft.draft_id });
+        throw new ActionError('actions.execution_failed', t.text('workbench.http.request-could-not-be-completed-please-try-again'), { cause: error });
+      }
+    });
+    return { ...result, ...(target.kind === 'custom' ? { source: target.source } : {}) };
+  });
 }
 
 /**
  * One sentence into the form's fields, by the configured text model under the registered instructions (`skills.draft`). It proposes
  * only: what comes back is cut to the form's limits and handed to the person, and an answer that is not a draft is refused.
  */
-export async function draftSkill(intent: string, complete: HostCompleteText | undefined, authority: Parameters<HostCompleteText>[1] | undefined,
+export async function draftSkill(intent: string, complete: HostTextForCommit | undefined, authority: HostTextRequestOptions | undefined,
   resolve: (prompt: InstructedPrompt) => string = value => composeInstructedPrompt(value.instruction.body, value.data)): Promise<SkillAuthoredFields> {
   const asked = intent.trim();
   if (!asked || asked.length > SKILL_DRAFT_INTENT_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_DRAFT_INTENT_CHARS} 字说想让这个技能做什么`, { field: 'intent' });
@@ -190,9 +200,10 @@ export async function draftSkill(intent: string, complete: HostCompleteText | un
   await authority?.beforeDispatch?.();
   const answer = await complete(resolve(instructed(SKILL_DRAFT, `用户想要的技能：${asked}`)), authority);
   await authority?.beforeDispatch?.();
+  answer.validateResult();
   const unreadable = () => skillErrors.draft_unreadable('助理没有给出能用的初稿，请再试一次，或者自己写');
   let parsed: Record<string, unknown>;
-  try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')) as Record<string, unknown>; } catch { throw unreadable(); }
+  try { parsed = JSON.parse(answer.value.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, '')) as Record<string, unknown>; } catch { throw unreadable(); }
   const text = (key: string) => typeof parsed?.[key] === 'string' ? (parsed[key] as string).trim() : '';
   const name = cutHead(text('name').replace(/\s+/gu, ' '), NAME_CHARS), description = cutHead(text('description'), SKILL_LIMITS.descriptionChars);
   const body = cutHead(text('body').replace(/\r\n?/gu, '\n').split('\n').slice(0, SKILL_LIMITS.bodyLines).join('\n'), SKILL_LIMITS.bodyChars).trim();

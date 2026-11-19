@@ -121,7 +121,8 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (retry) retry.hidden = true;
       goalGraphRequest = (async () => {
         try {
-          const html = await molisWorkRequest(route("/api/board/momentum?view=" + documentCollection + "&goal_id=" + encodeURIComponent(getSelected() || "")), { as: "text", fallback: globalThis.t.text("goals.momentum-client.could-not-load-goal-relationships-please-retry") });
+          const selected = getSelected();
+          const html = await molisWorkRequest(route("/api/board/momentum?view=" + documentCollection + (selected ? "&goal_id=" + encodeURIComponent(selected) : "")), { as: "text", fallback: globalThis.t.text("goals.momentum-client.could-not-load-goal-relationships-please-retry") });
           const template = document.createElement("template");
           template.innerHTML = html;
           const next = template.content.querySelector("[data-goal-momentum]");

@@ -57,6 +57,7 @@ export async function runSessionList(
   ports: SessionsPorts,
 ): Promise<ExternalSessionListOutput> {
   const isPerson = isPersonalCaller(caller);
+  const needle = input.query?.trim().toLowerCase();
   if (!isPerson && input.view !== "project") {
     throw new ActionError("actions.forbidden", "非本人调用只能读取当前项目的会话");
   }
@@ -114,6 +115,8 @@ export async function runSessionList(
       if (entryFilter && !entryFilter.has(session.entry_id) && !session.seen_via.some(id => entryFilter.has(id))) {
         continue;
       }
+      if (needle && ![row.title, row.directory, row.tool.display_name, findTopLevelTool(session.entry_id)?.display_name_en]
+        .some(value => value?.toLowerCase().includes(needle))) continue;
       filteredRows.push(row);
     }
 
@@ -262,15 +265,15 @@ export async function runHistoryRead(
       throw sessionsErrors.scope_changed("读取范围在读取期间已变化");
     }
 
+    const { row, resolved } = materializeFullRow(
+      liveSession, dirMap, store.decisions.allAttributionDecisions(),
+      store.decisions.allSuggestions(), postSnapshot.bindings, projectMap, store.duplicateLocalNativeKeys(),
+    );
     if (!isPerson) {
       const permit = store.decisions.getProjectAiRead(caller.project_id!);
       if (!permit || !permit.allowed) {
         throw sessionsErrors.scope_changed("当前项目的外部会话 AI 读取许可在读取期间已关闭");
       }
-      const { resolved } = materializeFullRow(
-        liveSession, dirMap, store.decisions.allAttributionDecisions(),
-        store.decisions.allSuggestions(), postSnapshot.bindings, projectMap, store.duplicateLocalNativeKeys(),
-      );
       if (resolved.effective_project_id !== caller.project_id) {
         throw sessionsErrors.scope_changed("会话的项目归属在读取期间已变化");
       }
@@ -282,7 +285,7 @@ export async function runHistoryRead(
       : entries.map(entry => ({ position: entry.position, ranges: literalRanges(entry.text, input.query!) })).filter(item => item.ranges.length > 0);
 
     return {
-      session_key: liveSession.session_key, entries, older_cursor: readOut.older_cursor, newer_cursor: readOut.newer_cursor,
+      session_key: liveSession.session_key, session: isPerson ? row : toRowSummary(row), entries, older_cursor: readOut.older_cursor, newer_cursor: readOut.newer_cursor,
       matches, search: readOut.search, read_state: readOut.read_state, stopped: readOut.stopped, activity: readOut.activity, trust: "untrusted",
     };
   });

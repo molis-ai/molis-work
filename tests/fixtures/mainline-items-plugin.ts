@@ -31,6 +31,8 @@ export function notesPlugin() {
     related: new Map<string, ActionSubject[]>(), next: new Map<string, WorkItemNextStep | null>(), nextCalls: 0, valuesCalls: 0,
     /** Set to make the next 「建成」 fail after the note is made: a cancel or a lost answer on the way back. */
     failAfterCreate: false,
+    /** Hold the reply after the source has written so another action can change the arrangement. */
+    afterCreate: undefined as (() => Promise<void>) | undefined,
   };
   const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", [READ]);
   const memoReader = defineSubjectContextAction("notes.memo.read", 1, "memo", "便签", [READ]);
@@ -72,12 +74,13 @@ export function notesPlugin() {
             ...(found.happened_at ? { happened_at: found.happened_at } : {}) } };
         }) };
       } },
-      { ...create, handle: (caller: ActionExecutionContext, input: unknown) => {
+      { ...create, handle: async (caller: ActionExecutionContext, input: unknown) => {
         const { name, request_id } = input as { name: string; request_id: string };
         state.creates.push({ request_id, name, audience: caller.audience });
         let id = state.made.get(request_id);
         if (!id) { id = `note-${state.made.size + 1}`; state.made.set(request_id, id); state.notes.set(id, { id, title: name, status: "open" }); }
         if (state.failAfterCreate) { state.failAfterCreate = false; throw new ActionError("notes.lost", "回答在路上丢了", { kind: "unavailable" }); }
+        if (state.afterCreate) await state.afterCreate();
         return { subject: { kind: "note", id } };
       } },
       { ...related, handle: (_caller: ActionExecutionContext, input: unknown) => ({ subjects: state.related.get((input as { subject: ActionSubject }).subject.id) ?? [] }) },

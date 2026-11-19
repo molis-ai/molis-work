@@ -358,3 +358,5 @@
 [0.1.0]: v0.1.0.md
 [0.3.0]: https://github.com/molis-ai/molis-work/compare/v0.2.0...aadce77ac5d35ca08c27624a4e38aaeb4244cde7
 [0.2.0]: https://github.com/molis-ai/molis-work/compare/v0.1.14...v0.2.0
+
+当前实现补充（质量审查第51批，QEA-84–86／117）：新认可改为同连接 ATTACH 两库单次原子提交，主干既存 `commit-intents` 仍幂等恢复，不再生成新意向。见 `specs/quality-experience-audit/spec.md` 第51批；本次验证独立记录，不延伸上列历史验收结论。

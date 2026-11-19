@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_SCHEMA_VERSION, isImportedDocumentVersion, type ArtifactsApplicationApi, type ArtifactJsonValue, type ImportedDocumentWarning } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ownedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ARTIFACT_PRODUCER } from "./artifact-provider.js";
 import { artifactVersionPath } from "./artifact-browser.js";
 
@@ -29,7 +30,7 @@ export interface ImportedArtifactDocument {
    * specs/project-knowledge PMAT-14), or empty when it reads none.
    */
   format: "markdown" | "text" | "file";
-  warnings: string[];
+  warnings: ImportedDocumentWarning[];
   original_html?: string;
   original_file?: ArtifactOriginalFile;
 }
@@ -69,6 +70,7 @@ export const documentErrors = defineErrorCodes("artifacts.document", {
   empty: "invalid",
   binary: "invalid",
   too_large: "too_large",
+  unsupported_version: "unavailable",
 });
 
 export interface ArtifactDocumentImportPorts {
@@ -82,7 +84,7 @@ export interface ArtifactDocumentImportPorts {
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
   readHtml(html: string): { title: string; content: string } | Promise<{ title: string; content: string }>;
   /** The text of a file kept as its original (PDF, DOCX), read by the Host's extraction; null for a kind it does not read. */
-  readFileText?(file: { filename: string; bytes: Buffer }): Promise<{ text: string; warnings: string[]; model_required?: ModelRequired } | null>;
+  readFileText?(file: { filename: string; bytes: Buffer }): Promise<{ text: string; warnings: ImportedDocumentWarning[]; model_required?: ModelRequired } | null>;
   /** The file the Host was given for this import, when an `original_file` comes without its bytes. */
   offered?: OfferedOriginal;
   signal?: AbortSignal;
@@ -105,7 +107,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     modelRequired = read?.model_required;
     return read;
   });
-  const told = () => modelRequired ? { model_required: modelRequired } : {};
+  const told = () => ({ text_available: document.content.trim().length > 0, ...modelRequired ? { model_required: modelRequired } : {} });
   ports.signal?.throwIfAborted();
   if (source === "file") document = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {}, ...ports.offered ? { offered: ports.offered } : {} });
   else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
@@ -123,18 +125,20 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   // Project-scoped identity: the same source can be independently imported into two projects.
   const artifactId = `document-${digest(JSON.stringify([ports.projectId, document.source, document.source_id]))}`;
   const latest = ports.artifacts.query.latestArtifactVersion(ports.projectId, artifactId);
+  if (latest && !isImportedDocumentVersion(latest)) throw documentErrors.unsupported_version("这个来源的固定版本格式暂不支持，请更新 Molis Work 后再导入");
+  const warnings = document.warnings.map(warning => ownedTextRef(warning, "workbench"));
   const payload = JSON.parse(JSON.stringify(document)) as ArtifactJsonValue;
   const previous = latest?.payload;
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
     && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
-  if (latest && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
+  if (latest?.schema_version === IMPORTED_DOCUMENT_SCHEMA_VERSION && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
     return { artifact_id: artifactId, version: latest.version, title: latest.title, reused: true,
-      url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings, ...told() };
+      url: ports.routePrefix + artifactVersionPath(latest), warnings, ...told() };
   }
   const result = ports.artifacts.commands.registerVersion({
     project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
-    artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1,
+    artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: IMPORTED_DOCUMENT_SCHEMA_VERSION,
     producer: ARTIFACT_PRODUCER,
     content: { kind: "inline", payload },
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,
@@ -146,7 +150,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
       : document.format === "text" ? "text/plain" : "text/markdown",
   });
   return { artifact_id: artifactId, version: result.artifact.version, title: result.artifact.title, reused: false,
-    url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings, ...told() };
+    url: ports.routePrefix + artifactVersionPath(result.artifact), warnings, ...told() };
 }
 
 async function readFileDocument(input: Record<string, unknown>, ports: Pick<ArtifactDocumentImportPorts, "readHtml" | "readFileText" | "offered">): Promise<ImportedArtifactDocument> {
@@ -167,7 +171,8 @@ async function readFileDocument(input: Record<string, unknown>, ports: Pick<Arti
     const text = read ? withinImportSize(read.text.trim()) : null;
     return { source: "file", source_id: input.source_id === undefined ? `${filename}:${"sha256" in original ? original.sha256 : digest(original.data_base64)}` : requiredString(input.source_id, "文档来源标识无效", 512),
       source_url: null, title: input.title == null || input.title === "" ? filename.replace(/\.[^.]+$/u, "") || filename : requiredString(input.title, "文档标题无效", 500),
-      content: text?.text ?? "", format: "file", warnings: [...unread ? ["文件超过 2 GB，没有读取正文；原件完整保存。"] : [], ...read?.warnings ?? [], ...text?.cut ? ["正文超过 2 MB，只保留了开头部分；原件完整保存。"] : []], original_file: original };
+      content: text?.text ?? "", format: "file", warnings: [...unread ? [{ key: "workbench.import.warning-original-too-big" }] : [],
+        ...read?.warnings ?? [], ...text?.cut ? [{ key: "workbench.import.warning-text-truncated" }] : []], original_file: original };
   }
   if (typeof input.content !== "string") throw documentErrors.content_invalid("文件必须是 UTF-8 文本");
   const whole = input.content.replace(/^\uFEFF/u, "");
@@ -187,8 +192,8 @@ async function readFileDocument(input: Record<string, unknown>, ports: Pick<Arti
     source_url: null, title,
     content: extracted?.content ?? original,
     format: extension === "txt" ? "text" : "markdown",
-    warnings: [...html ? ["HTML 已提取为文本快照，复杂排版、图片和附件未导入；原始 HTML 保存在版本数据中。"] : [],
-      ...cut ? ["正文超过 2 MB，只保留了开头部分；原件完整保存。"] : []],
+    warnings: [...html ? [{ key: "workbench.import.warning-html-snapshot" }] : [],
+      ...cut ? [{ key: "workbench.import.warning-text-truncated" }] : []],
     ...(html ? { original_html: original } : {}),
     ...(originalFile ? { original_file: originalFile } : {}),
   };

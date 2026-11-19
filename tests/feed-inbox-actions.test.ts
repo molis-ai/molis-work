@@ -1,3 +1,4 @@
+// QEA-09: these calls exercise the shared binding through real Feed actions, including owner rules and persistence.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

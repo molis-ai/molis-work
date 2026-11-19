@@ -138,6 +138,11 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       });
     };
 
+    const restoreDisclosures = (root, keys) => {
+      const open = new Set(keys || []);
+      root?.querySelectorAll("[data-persist-open]").forEach(item => { item.open = open.has(item.dataset.persistOpen); });
+    };
+
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goals == null) desktopSurfaceScroll.goals = Number(ui.documentTop || 0);
@@ -157,10 +162,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         setDesktopDirectory(restoredDirectory, false, false);
       }
       if (goalData) restoreTreeCollapsed(ui?.collapsed);
-      const disclosures = new Set(ui?.disclosures || []);
-      document.querySelectorAll("[data-persist-open]").forEach((item) => {
-        item.open = disclosures.has(item.dataset.persistOpen);
-      });
+      restoreDisclosures(document, ui?.disclosures);
       if (goalData) {
         syncGoalCollectionFolds();
         setSelectedStatuses(ui?.statuses || []);

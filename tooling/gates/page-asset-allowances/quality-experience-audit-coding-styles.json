@@ -1,0 +1,7 @@
+{
+  "reason": "将起始页和窄屏会话目录的显示规则从工作台共享表归到 Coding 插件帧。共享表比第 83 批少 220 B，Coding 原有按需样式相对同一主干构建增加 64 B。",
+  "review": "PR #2101，合并基点 6b0e8a4f83，QEA-159 的实际 Host 资源复测和隔离 Home 宽窄窗验证。",
+  "assets": {
+    "/assets/molis-work-plugins/coding.css": 64
+  }
+}

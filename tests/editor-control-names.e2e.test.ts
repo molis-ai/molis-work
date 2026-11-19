@@ -54,14 +54,24 @@ async function navigate(b: Browser, frame: Frame, plugin: string) {
 }
 
 async function axNode(frame: Frame, selector: string): Promise<AXNode | undefined> {
-  const { result } = await frame.frameCommand<{ result: { objectId?: string } }>(
-    "Runtime.evaluate", { expression: node(selector), returnByValue: false });
-  assert.ok(result.objectId, selector);
-  try {
-    const { nodes } = await frame.frameCommand<Tree>("Accessibility.getPartialAXTree", { objectId: result.objectId, fetchRelatives: false });
-    return nodes.find(entry => !entry.ignored);
-  } finally {
-    await frame.frameCommand("Runtime.releaseObject", { objectId: result.objectId });
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const { result } = await frame.frameCommand<{ result: { objectId?: string } }>(
+      "Runtime.evaluate", { expression: node(selector), returnByValue: false });
+    assert.ok(result.objectId, selector);
+    try {
+      const { nodes } = await frame.frameCommand<Tree>("Accessibility.getPartialAXTree", { objectId: result.objectId, fetchRelatives: false });
+      const current = await frame.frameCommand<{ result: { value: boolean } }>("Runtime.callFunctionOn", {
+        objectId: result.objectId, functionDeclaration: "function(selector) { return this.isConnected && this === document.querySelector(selector); }",
+        arguments: [{ value: selector }], returnByValue: true,
+      });
+      // A refresh can replace the remote object between DOM lookup and AX read. Only retry that stale object;
+      // an ignored or unnamed control still attached to the page must fail the original assertion.
+      if (current.result.value) return nodes.find(entry => !entry.ignored);
+      assert.ok(Date.now() < deadline, "The control kept being replaced during its accessibility read: " + selector);
+    } finally {
+      await frame.frameCommand("Runtime.releaseObject", { objectId: result.objectId });
+    }
   }
 }
 

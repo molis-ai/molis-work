@@ -55,15 +55,18 @@ process.stdout.write(JSON.stringify({ text: '周会纪要：下周三上线。',
   assert.equal(first.status, 201, await first.clone().text());
   const asked = await first.json() as ArtifactImportResult;
   assert.deepEqual(asked.model_required, { approximate_bytes: 626 * 1024 * 1024 });
-  assert.match(asked.warnings.join("\n"), /转写要先下载本机语音模型（约 626 MB），同意下载后重新导入即可/u);
+  assert.equal(asked.text_available, false); // QEA-28: a saved original is not a successful transcription.
+  // QEA-79: the localized notice takes the precise raw number, independently of the authorization decision below.
+  assert.deepEqual(asked.warnings, [{ owner: "workbench", key: "workbench.import.warning-transcription-model-size", args: [{ name: "megabytes", kind: "number", number: 626 }] }]);
   assert.equal(existsSync(downloaded), false);
 
   // An Agent, an MCP client or a workflow passing the yes downloads nothing: the consent is a person's, read from who calls (S-39).
   const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
   for (const audience of ["agent", "mcp", "workflow"] as ActionAudience[]) {
     const result = await client.invoke({ actor_id: "owner", project_id: project.project_id, audience, permissions: ARTIFACT_ACTION_PERMISSIONS },
-      artifactsActions.importFile, { ...file, allow_model_download: true });
+      artifactsActions.importFile, { ...file, allow_model_download: true }) as ArtifactImportResult;
     assert.deepEqual(result.model_required, { approximate_bytes: 626 * 1024 * 1024 }, audience);
+    assert.equal(result.text_available, false);
     assert.equal(existsSync(downloaded), false, audience);
   }
   assert.deepEqual(said(), [false, false, false, false]);
@@ -77,6 +80,7 @@ process.stdout.write(JSON.stringify({ text: '周会纪要：下周三上线。',
   const done = lines.at(-1)!;
   assert.equal(done.type, "result", JSON.stringify(lines));
   assert.equal(done.result!.model_required, undefined);
+  assert.equal(done.result!.text_available, true); // QEA-28: only the actual saved text completes transcription.
   assert.equal(done.result!.version, 2);
   assert.equal(readFileSync(downloaded, "utf8"), "user approved");
   assert.deepEqual(said(), [false, false, false, false, true]);

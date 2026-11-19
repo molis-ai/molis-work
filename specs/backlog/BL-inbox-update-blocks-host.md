@@ -2,6 +2,10 @@
 
 分组：7. 平台与架构
 
+第50批本地结算：57文件607项、20项相关UI、构建与健康已过；最终增加collection请求断言的五样本亦过，其他工作树并发测试下p50=9,115ms，health在3–4/20条返回、最大事件循环延迟698–879ms。较空闲样本5,416ms与这次波动一并保留；最新main交集和准确头CI继续，本条尚不清除。
+
+2026-11-17 审查第40/42/43/44/47/50批进展：平台按实际场景/依赖缩小目录读取，保留逐次授权；Inbox逐项之间让出事件循环；Storage复用严格结构比较，仍逐次读取版本和归属；单目标许可匹配不建立整名单索引。第50批再把后台Goal集合与不可见正文分开投影，平台提示和已应用游标各归原owner。固定规则20条建议五样本p50由前检查点14,127ms降到5,416ms，health在3–4/20条返回，最大事件循环延迟407–759ms；Inbox只重读一次，7–14次后台Goal请求均为collection。失败/取消/重试实际写入、隐藏输入、迟到选择及分栏恢复已有定向证据；最新57文件要求、性能断言复核和准确提交Full CI仍待结算。详见[QF-51追加](../quality-experience-audit/report.md)、[第50批](../quality-experience-audit/spec.md)。本条保留，不能用局部CPU下降、单次快样本或固定规则结果替代真实模型与最终CI验收。
+
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | BL-inbox-update-blocks-host | Inbox「更新前 20 条建议」在规则固定返回、不调模型时，开发机上一次也要约 10 秒（5 个样本 p50 10.5 秒），期间宿主进程同步占满：CI 上测得事件循环连续忙 13～17 秒、空闲 0 毫秒，同一进程里的一切（其他请求、页面驱动）都等着。CPU 采样显示时间主要花在每条事项记录场景结果时整套重查动作：`plugins/native/inbox/src/scene-runtime.ts` 的 `record` → `apps/local-host` 的场景检查 `local-host-scenes`（`check`、`beforeConsume`）与 `local-host-availability` 的 `resolve` → `packages/kernel` 的 `action-service` `availability`/`discover`（约 34 秒 / 97 秒采样）→ 每个动作经 `plugin-install-records` 同步读 SQLite（`sqlite-connection` 的 `get`、`plainRow` 自身约 10 秒）。批 27 的性能书已记下「判断 POST 为何在 20 条固定结果下仍要数秒，留在空闲机上复测后再定」，本条是复测结果。**复现**：`node scripts/run-tests.mjs --jobs 1 tests/inbox-evaluate-reads.e2e.test.ts`，看诊断行 `BFP inbox update samples` 的 `notice`；加 `NODE_OPTIONS="--cpu-prof --cpu-prof-dir=<目录>"` 取采样，按调用方汇总 `action-service.js` 的 `availability`。CI 上的表现：这个用例在全量里每次都红（基线 run 43373326442 重跑才过，run 43380029353 两次都红），错误是 `CDP timeout: Runtime.callFunctionOn`，`cause` 里 `eventLoopIdleMs` 为 0。测试只断言读取次数与提示顺序，不断言耗时；不为它放宽测试的时限。同一段慢也让首页的 Inbox 卡难在截止内答完：在 1 秒截止下 `tests/home-offers.e2e.test.ts` 的 RAC-214 两次都红（Inbox 行 30 秒内连同「重试」都没出现）；#2044 把截止放宽到 3 秒后要再看一次全量 | #2046 的全量（`integration/full-suite-green-1113`）；[批 27 Feed 与 Inbox 性能](../visual-ui-experience/work-items/batch27-feed-inbox-performance/spec.md) | 已知缺口 | 不在测试一侧能修：要在一次更新里只查一次动作与授权（或按版本缓存安装记录），并决定是否把逐条记录移出同步路径；牵涉动作服务与场景检查，归平台 | 无 | 高 | 平台（动作服务）、Inbox |

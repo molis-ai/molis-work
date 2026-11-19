@@ -40,7 +40,10 @@ export const fieldsOf = (fields: SkillAuthoredFields): Fields => ({ ...blank(), 
 export const sentFields = (fields: Fields): SkillAuthoredFields => ({ name: fields.name, description: fields.description, applies_to: fields.applies_to, body: fields.body,
   ...(fields.when_not_to_use.trim() ? { when_not_to_use: fields.when_not_to_use } : {}), ...(fields.argument_hint.trim() ? { argument_hint: fields.argument_hint } : {}) });
 
-export type SaveState = "saved" | "saving" | "failed";
+export type SaveState =
+  | { kind: "saved" | "saving" }
+  | { kind: "failed" | "latest-failed"; message: string }
+  | { kind: "conflict"; latest: SkillDraft };
 export type Side = "try" | "compare";
 export type Tab = "edit" | Side;
 export type CaseForm = SkillCaseFields & { case_id?: string };
@@ -55,12 +58,10 @@ export interface Workshop {
   /** The version the draft becomes when adopted (absent: a new Skill). */
   next?: number;
   save: SaveState;
-  saveFailure?: string;
-  savedAt?: string;
   /** Narrow: the one column shown; wide: the side column's tab. */
   tab: Tab;
   side: Side;
-  compare: "how" | "out";
+  compare: "how" | "out" | "draft";
   /** The replayed result compared with the known answer. */
   out?: { consumer: SkillTrialConsumer; side: "base" | "draft" };
   ask: string;
@@ -85,7 +86,7 @@ export interface Workshop {
 }
 
 export function workshopOf(draft: SkillDraft, name: string, next: number | undefined, here: boolean): Workshop {
-  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: "saved", savedAt: draft.updated_at,
+  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: { kind: "saved" },
     tab: "edit", side: "try", compare: "how", ask: "", caseErrors: {}, errors: {}, ...draft.target.kind === "custom" && here ? { turnOffSource: true } : {} };
 }
 

@@ -16,6 +16,7 @@ const DRAWER_READ = "document.querySelector('[data-character-drawer]')?.open ===
   + " && !document.querySelector('[data-character-drawer-foot] button')?.disabled";
 const CONFLICT = "document.querySelector('[data-roles-drawer=merge]') !== null";
 
+// QEA-148 follows the role settings in an isolated Home through save, conflict and retry.
 test("RAC-1607 RAC-1608: Characters keeps a tab's unsaved edit across a reload, and a version saved elsewhere is neither overwritten nor lets the edit go", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { click, evaluate, waitFor } = b;

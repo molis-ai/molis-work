@@ -206,7 +206,7 @@ test("W5-06 Feed and Inbox draw their stage from this page's view, not the share
     ...view,
     enabled_plugins: ["goals", "feed", "inbox"],
     feed: { ...view.feed, feed_items: [item] },
-    inbox_judgment: { name: "Pinned judgment", enabled: true, available: true, reason: null },
+    stage_data: { inbox: { entries: [], subjects: [], judgments: [], judgment: { name: "Pinned judgment", enabled: true, available: true, reason: null } } },
   } as MolisWorkWebView);
   assert.match(stage(html, "feed"), /data-feed-item-id="stage-pin-item"/, "Feed's stage lists the view's feed items");
   const inbox = stage(html, "inbox");

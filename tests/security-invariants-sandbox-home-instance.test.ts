@@ -18,7 +18,7 @@ import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operati
 type Release = Parameters<HomePluginHost["installPackage"]>[0];
 const APPROVAL_OWNER = "agent-studio:~home";
 
-/** A release as the install path builds it after a confirmation, read back from the package the Host kept. */
+/** A stored, verified release without the publisher pin that confirmation normally records. */
 function releaseOf(home: string, bundle: PluginPackageBundle): Release {
   const pkg = readSandboxPackage(bundle.payload), store = new SandboxPackageStore(home);
   store.save(bundle, pkg);
@@ -29,15 +29,17 @@ const changed = (release: Release, edit: { manifest?: (manifest: PluginManifest)
   return { ...release, packaged: { manifest: edit.manifest ? edit.manifest(packaged.manifest) : packaged.manifest, trust: (edit.trust ?? packaged.trust) as typeof packaged.trust } };
 };
 
+// QEA-136: the positive install includes the person's real confirmation.
 test("RAC-962 RAC-963 S-80 the Home's Runtime takes a package only of its own range, under a pin, in the sandbox, without always_on or what only a project holds; a refusal leaves nothing", mac, async t => {
   const h = await fixture(t), publisher = newPublisher();
-  const home = releaseOf(h.home, homePackage(publisher));
+  const bundle = homePackage(publisher), home = releaseOf(h.home, bundle);
   const cases: Array<[string, Release, string]> = [
     ["a package of the project's range", releaseOf(h.home, signedPackage(newPublisher(), undefined, { pluginId: SECOND_PLUGIN_ID })), "plugin.home_scope_unavailable"],
     ["always_on", changed(home, { manifest: manifest => Object.assign({}, manifest, { always_on: true }) }), "plugin.declaration_invalid"],
     ["output ports, which a project's database holds", changed(home, { manifest: manifest => Object.assign({}, manifest, { ports: { inputs: [], outputs: [{ port_id: "x" }] } }) }), "plugin.state_invalid"],
     ["no signature behind it (unsigned)", changed(home, { trust: UNSIGNED_TRUST }), "plugin.home_scope_unavailable"],
     ["the Host's own trust level on a sandboxed package", changed(home, { trust: HOST_BUILD_TRUST }), "plugin.grant_denied"],
+    ["a signed release with no publisher pin", home, "plugin.publisher_revoked"],
   ];
   for (const [name, release, code] of cases) {
     await assert.rejects(h.host.homePlugins!.installPackage(release), refused(code), name);
@@ -48,35 +50,56 @@ test("RAC-962 RAC-963 S-80 the Home's Runtime takes a package only of its own ra
     assert.deepEqual(valuesOf(h.home, APPROVAL_OWNER).filter(key => key === APPROVED + id), [], `${name}: no approval was kept`);
     assert.deepEqual(await operationsOf(h.homeClient(), h.homeCaller(), id), [], `${name}: no action is offered`);
   }
-  // The same package in the form it is meant for installs, so the refusals above are about what was changed.
-  await h.host.homePlugins!.installPackage(home);
+  await h.install(bundle);
+  assert.equal(h.ledger.publishers().find(pin => pin.key_id === publisher.identity)?.revoked_at, null);
   assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "running");
 });
 
-test("RAC-964 S-84 a Home package runs only while its publisher's pin stands: one never pinned, or whose pin was revoked, is not started again and keeps its data; the others run", mac, async t => {
-  const h = await fixture(t), revoked = newPublisher();
+// QEA-136: check the durable installation, data and availability after reopening the Home.
+test("RAC-964 S-84 a Home package runs only while its publisher's pin stands: a missing or revoked pin prevents startup and leaves its data intact", mac, async t => {
+  const h = await fixture(t), revoked = newPublisher(), missing = newPublisher();
+  const third = "io.molis.work.example.third";
   await h.install(homePackage(revoked));
   await h.install(homePackage(newPublisher(), { pluginId: SECOND_PLUGIN_ID }));
-  const THIRD = "io.molis.work.example.third";
-  // Installed without the confirmation that pins its publisher: the Home's Runtime never asks the ledger when it installs.
-  await h.host.homePlugins!.installPackage(releaseOf(h.home, homePackage(newPublisher(), { pluginId: THIRD })));
-  const installId = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
-  await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "kept" });
+  await h.install(homePackage(missing, { pluginId: third }));
+  const rowsFor = (installId: string) => h.store(db => db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ? ORDER BY item_key").all(installId));
+  const held = [];
+  for (const id of [PACKAGE_PLUGIN_ID, third]) {
+    const installId = h.host.homePlugins!.installation(id)!.install_id;
+    const views = await operationsOf(h.homeClient(), h.homeCaller(), id);
+    assert.equal(await operate(h.homeClient(), h.homeCaller(), views, "notes.add", { text: id }), true);
+    assert.deepEqual(await operate(h.homeClient(), h.homeCaller(), views, "notes.list", {}), [{ id: "1", text: id }]);
+    const rows = rowsFor(installId);
+    assert.ok(rows.length, `${id} has stored data`);
+    held.push({ id, installId, rows });
+  }
 
   await h.host.close();
+  const revokedAt = "2026-10-26T00:00:00.000Z";
+  assert.equal(h.ledger.revokePublisher(revoked.identity, revokedAt)?.revoked_at, revokedAt);
+  // Keep the cold fixture's installed package and data, but remove its publisher pin from the isolated store.
   const store = new DatabaseSync(join(h.home, "plugin-runtime", "plugin-runtime.db"));
-  try { store.prepare("UPDATE plugin_publishers SET revoked_at = ? WHERE key_id = ?").run("2026-10-26T00:00:00.000Z", revoked.identity); } finally { store.close(); }
+  try { assert.equal(store.prepare("DELETE FROM plugin_publishers WHERE key_id = ?").run(missing.identity).changes, 1); }
+  finally { store.close(); }
   await h.reopen();
 
-  for (const id of [PACKAGE_PLUGIN_ID, THIRD]) assert.match(h.host.homePlugins!.packageError(id) ?? "", /撤销信任/, `${id} says why it does not run`);
-  for (const id of [PACKAGE_PLUGIN_ID, THIRD]) {
+  for (const { id, installId, rows } of held) {
+    assert.equal(h.host.homePlugins!.packageError(id, "code"), "plugin.publisher_revoked");
+    assert.match(h.host.homePlugins!.packageError(id) ?? "", /撤销信任/, `${id} says why it does not run`);
+    assert.equal(h.host.homePlugins!.installation(id)?.install_id, installId, `${id} keeps its installation`);
+    assert.notEqual(h.host.homePlugins!.installation(id)?.state, "running", `${id} does not start`);
     assert.equal(h.host.homePlugins!.outsideBuild().includes(id), false, `${id} is not offered to a project`);
     assert.deepEqual(await operationsOf(h.homeClient(), h.homeCaller(), id), [], `${id} offers no action`);
+    assert.deepEqual(rowsFor(installId), rows, `${id} keeps its stored data`);
   }
-  assert.ok(valuesOf(h.home, installId).length > 0, "a package that is not started keeps its data");
   assert.equal(h.host.homePlugins!.packageError(SECOND_PLUGIN_ID), undefined, "another publisher's package is not affected");
   assert.ok(h.host.homePlugins!.outsideBuild().includes(SECOND_PLUGIN_ID));
-  assert.equal(new HomeConsentLedger(h.home).publishers().filter(pin => pin.revoked_at !== null).length, 1);
+  const other = await operationsOf(h.homeClient(), h.homeCaller(), SECOND_PLUGIN_ID);
+  assert.equal(await operate(h.homeClient(), h.homeCaller(), other, "notes.add", { text: "still running" }), true);
+  assert.deepEqual(await operate(h.homeClient(), h.homeCaller(), other, "notes.list", {}), [{ id: "1", text: "still running" }]);
+  const pins = new HomeConsentLedger(h.home).publishers();
+  assert.deepEqual(pins.filter(pin => pin.revoked_at !== null).map(pin => pin.key_id), [revoked.identity]);
+  assert.equal(pins.some(pin => pin.key_id === missing.identity), false);
 });
 
 /** `homePackage`'s notes, plus one command per capability that calls it and answers what became of the call. */

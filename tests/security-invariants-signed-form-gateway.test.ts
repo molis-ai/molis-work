@@ -6,6 +6,7 @@ import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platf
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { APPROVED, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 
 const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
@@ -62,8 +63,14 @@ operations["notes.add"] = async (input, sdk) => {
   const { records, storage } = await f.host.withProject(project.reference, runtime => ({
     records: new SqlitePluginRuntimeRepository(runtime.store.db), storage: new SqlitePluginPrivateStorage(runtime.store.db),
   }));
-  const record = scope === "home" ? f.host.homePlugins?.installation(PACKAGE_PLUGIN_ID) : records.list().find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
-  assert.ok(record);
+  const installation = () => scope === "home" ? f.host.homePlugins?.installation(PACKAGE_PLUGIN_ID) : records.list().find(item => item.plugin_id === PACKAGE_PLUGIN_ID);
+  const installId = installation()?.install_id;
+  assert.ok(installId);
+  const settings = scope === "home" ? "/api/settings/plugin-permissions/set" : prefix + "/api/plugin-trust/permissions/set";
+  const grant = await f.request(settings, { method: "POST", body: { install_id: installId, permission: "capabilities:call", granted: true } });
+  assert.equal(grant.status, 200, await grant.clone().text());
+  const record = installation();
+  assert.ok(record?.grants.includes("capabilities:call"));
   assert.equal(record.state, "running");
   const open = async (at = prefix) => {
     const response = await f.request(at + "/plugins/" + PACKAGE_PLUGIN_ID + "?frame=workbench");
@@ -113,7 +120,7 @@ async function refusal(response: Response, status: number, code: string) {
   assert.equal(body.code, code);
 }
 
-test("S-47 SCS-11 project signed form submits through the original page and refuses old routes and forged identities", mac, async t => {
+test("S-47 SCS-11 QEA-138 project signed form submits through the original page and refuses old routes and forged identities", mac, async t => {
   const f = await signedPage(t), page = await f.open();
   const post = (path: string, body: unknown, headers = page) => f.post(f.prefix + path, body, headers);
   assert.deepEqual(await f.read(page), [], "opening the installed page does not write");
@@ -146,7 +153,7 @@ test("S-47 SCS-11 project signed form submits through the original page and refu
   assert.deepEqual(await f.read(fresh), [...rows, { id: "2", text: "directory" }]);
 });
 
-test("S-47 SCS-11 original signed page refuses same-version digest replacement and late sandbox writes", mac, async t => {
+test("S-47 SCS-11 QEA-138 original signed page refuses same-version digest replacement and late sandbox writes", mac, async t => {
   const f = await signedPage(t), page = await f.open();
   const replaced = { ...f.record, manifest_digest: "0".repeat(64) };
   assert.notEqual(replaced.manifest_digest, f.record.manifest_digest);
@@ -194,7 +201,7 @@ test("S-47 SCS-11 original signed page refuses same-version digest replacement a
   assert.deepEqual(await f.read(await f.open()), [], "a page closed during its command leaves no storage effect");
 });
 
-test("S-47 S-107 SCS-11 a Home signed form retains its original project's reach at the sandbox write", mac, async t => {
+test("S-47 S-107 SCS-11 QEA-138 a Home signed form retains its original project's reach at the sandbox write", mac, async t => {
   const f = await signedPage(t, "home"), page = await f.open(), homePage = await f.open("");
   assert.deepEqual(await f.read(homePage, ""), []);
   const call = (text: string, headers = page, at = f.prefix) => f.post(at + f.endpoint, f.submission(text), headers);
@@ -208,7 +215,8 @@ test("S-47 S-107 SCS-11 a Home signed form retains its original project's reach 
   // This operation uses only Home capabilities and private storage. Losing the originating project must stop
   // that write even though the Home installation and its direct Home page remain live.
   const stopped = await f.atWrite(() => call("late after withdrawal"), async () => {
-    const hidden = await f.request("/api/settings/projects/" + f.project.project_id + "/plugins", { method: "DELETE", body: { plugin_id: PACKAGE_PLUGIN_ID } });
+    const expected_revision = await projectPluginRevisionAt(f.origin, f.project.project_id);
+    const hidden = await f.request("/api/settings/projects/" + f.project.project_id + "/plugins", { method: "DELETE", body: { plugin_id: PACKAGE_PLUGIN_ID, expected_revision } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
     assert.ok((await hidden.json()).hidden.includes(PACKAGE_PLUGIN_ID));
   });

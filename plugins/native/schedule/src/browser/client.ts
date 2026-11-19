@@ -36,6 +36,7 @@ export function scheduleClient(host: ScheduleHost): void {
   workbench.addEventListener("molis-work:select-item", event => {
     const itemId = (event as CustomEvent<{ itemId?: unknown } | undefined>).detail?.itemId;
     if (typeof itemId !== "string" || !itemId) return;
+    event.preventDefault();
     if (detailOf(workbench, itemId)) select(page, itemId, "task");
     else workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } }));
   });

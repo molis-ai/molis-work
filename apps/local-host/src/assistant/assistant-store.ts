@@ -446,7 +446,7 @@ export class AssistantStore {
   /** A work whose first round could not start is dropped with what was kept for it; one that has a round is never dropped. */
   discard(actorId: string, workId: string): void {
     if (this.rounds(workId).length) return;
-    for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
+    for (const table of ["works", "observed", "notices", "followups", "undos", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
   }
 
   /** Rounds of this person's works started since then, with the work they belong to (most recent 500). */

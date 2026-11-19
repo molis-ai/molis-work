@@ -194,6 +194,7 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
     if (query.scope !== undefined) { where.push("version.scope = ?"); values.push(query.scope); }
     if (query.lifecycle_state !== undefined) { where.push("version.lifecycle_state = ?"); values.push(query.lifecycle_state); }
     if (query.personal_owner_actor_id !== undefined) { where.push("(version.scope <> 'personal' OR identity.owner_actor_id = ?)"); values.push(query.personal_owner_actor_id); }
+    if (query.producer_plugin_id !== undefined) { where.push("identity.producer_plugin_id = ?"); values.push(query.producer_plugin_id); }
     if (query.availability !== undefined) { where.push("version.availability = ?"); values.push(query.availability); }
     if (query.supported_types !== undefined) { where.push("(version.artifact_type_id, version.schema_version) IN (SELECT json_extract(value, '$.artifact_type_id'), json_extract(value, '$.schema_version') FROM json_each(?))"); values.push(JSON.stringify(query.supported_types)); }
     return (this.db.prepare(`

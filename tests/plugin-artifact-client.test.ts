@@ -276,6 +276,7 @@ function sdkContracts() {
     record: { input: object(versionProperties, required), output: result(processRecord) },
     "process-head": { input: object({ artifact_id: id }), output: nullable(object({ version })) },
     "process-own": { input: reference, output: nullable(processRecord) },
-    list: { input: object({}), output: array(object({ artifact_id: id, version, kind: { enum: ["artifact", "process_item"] }, artifact_type_id: id, schema_version: version, title: nullable(text) })) },
+    // BL-375: the listing takes an optional type and producer, and names each version's producer.
+    list: { input: object({ artifact_type_id: id, producer_plugin_id: id }, []), output: array(object({ artifact_id: id, version, kind: { enum: ["artifact", "process_item"] }, artifact_type_id: id, schema_version: version, title: nullable(text), producer_plugin_id: id })) },
   };
 }

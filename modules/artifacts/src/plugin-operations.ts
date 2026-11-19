@@ -3,7 +3,7 @@ import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRe
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginArtifactErrors } from "./plugin-errors.js";
-import { pluginArtifactContracts, referenceInput, processInput, artifactInput } from "./plugin-action-contracts.js";
+import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput } from "./plugin-action-contracts.js";
 
 export interface PluginArtifactOperationsInput {
   api: ArtifactsApplicationApi;
@@ -100,16 +100,16 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
       if (pinned && !ownsRecord(pinned, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
       return pinned;
     },
-    listConsumable() {
+    listConsumable(value) {
       requirePermission("artifact:read");
-      checked("list", {});
-      // Filter declarations, availability and lifecycle in SQL; only one bounded content page is held at a time.
+      const filter = checked("list", filterInput(value));
+      // Filter declarations, availability, lifecycle and the caller's filter in SQL; only one bounded content page is held at a time.
       const listed: PluginConsumableVersion[] = [];
       const walk = (query: ArtifactsApplicationApi["query"] | ProcessItemsApplicationApi["query"], types: PluginManifest["artifacts"]["consumes"], consume: (page: Array<ArtifactVersionRecord | ProcessItemRecord>) => void, personalOwner?: string) => {
         if (!types.length) return;
         for (let offset = 0;; offset += 200) {
           requirePermission("artifact:read");
-          const page = query.listArtifacts(project_id, { supported_types: types, personal_owner_actor_id: personalOwner, lifecycle_state: "active", availability: "available", limit: 200, offset });
+          const page = query.listArtifacts(project_id, { ...filter, supported_types: types, personal_owner_actor_id: personalOwner, lifecycle_state: "active", availability: "available", limit: 200, offset });
           consume(page);
           if (page.length < 200) return;
         }
@@ -173,5 +173,5 @@ function ownsRecord(value: Pick<ProcessItemRecord, "producer_plugin_id" | "produ
 const referenceKey = (value: Pick<ProcessItemRecord, "artifact_id" | "version">) => JSON.stringify([value.artifact_id, value.version]);
 function summary(value: ProcessItemRecord | ArtifactVersionRecord, kind: PluginConsumableVersion["kind"], title: unknown): PluginConsumableVersion {
   return { ...referenceInput(value), kind, artifact_type_id: value.artifact_type_id, schema_version: value.schema_version,
-    title: typeof title === "string" && title.trim().length > 0 ? title : null };
+    title: typeof title === "string" && title.trim().length > 0 ? title : null, producer_plugin_id: value.producer_plugin_id };
 }

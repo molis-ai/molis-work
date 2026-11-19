@@ -1,5 +1,5 @@
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginArtifactPublishInput, PluginProcessItemInput } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactPublishInput, PluginConsumableFilter, PluginProcessItemInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { arraySchema as array, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import { id, version, text, record, processRecord, reference, origin } from "./plugin-action-schemas.js";
 
@@ -22,12 +22,15 @@ export const pluginArtifactContracts = {
   record: { input: versionInput, output: result(processRecord) },
   "process-head": { input: object({ artifact_id: id }), output: nullable(object({ version })) },
   "process-own": { input: reference, output: nullable(processRecord) },
-  list: { input: object({}), output: array(object({ artifact_id: id, version, kind: { enum: ["artifact", "process_item"] },
-    artifact_type_id: id, schema_version: version, title: nullable(text) })) },
+  list: { input: object({ artifact_type_id: id, producer_plugin_id: id }, []), output: array(object({ artifact_id: id, version, kind: { enum: ["artifact", "process_item"] },
+    artifact_type_id: id, schema_version: version, title: nullable(text), producer_plugin_id: id })) },
 };
 
 // Project before validating: Javascript callers cannot replace trusted identity or add authority.
 export const referenceInput = (value: ArtifactReference): ArtifactReference => ({ artifact_id: value.artifact_id, version: value.version });
+export const filterInput = (value: PluginConsumableFilter = {}): PluginConsumableFilter => ({
+  ...(value.artifact_type_id === undefined ? {} : { artifact_type_id: value.artifact_type_id }),
+  ...(value.producer_plugin_id === undefined ? {} : { producer_plugin_id: value.producer_plugin_id }) });
 export const processInput = (value: PluginProcessItemInput): PluginProcessItemInput => ({ ...referenceInput(value),
   artifact_type_id: value.artifact_type_id, schema_version: value.schema_version, content: value.content,
   ...(value.metadata === undefined ? {} : { metadata: value.metadata }),

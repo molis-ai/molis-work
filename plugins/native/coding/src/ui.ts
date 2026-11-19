@@ -519,7 +519,7 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
     ${renderSettingsSection({ title: uiText.text("coding.settings.runtimes"), body: runtimes, attrs: { "aria-label": uiText.text("coding.settings.runtimes") } })}
     ${model.project_href ? `<div data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
       ${renderSettingsSection({ title: uiText.text("coding.settings.mcp.title"), attrs: { "aria-label": uiText.text("coding.settings.mcp.title") }, body: `${renderSettingRow({
-        name: uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }),
+        name: uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }), nameAttrs: { "data-coding-project-line": true },
         hint: uiText.text("coding.settings.mcp.note"),
         control: `<a class="mw-btn mw-btn--secondary" href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a>`,
       })}<div class="mw-settings-section__block" data-mcp-servers></div>` })}

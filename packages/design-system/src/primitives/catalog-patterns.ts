@@ -1,7 +1,7 @@
 // The catalog board's composed patterns: button groups, tag input, drop zone, stat tiles, item and settings rows, and the data
 // table. They live on the board first: the styles below are the board's own (not in the served sheets), read the interface's semantic
 // tokens with Soft Workbench's values as fallbacks, and move into the page sheets with the first product page that uses them.
-import { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderSelect, renderStatusMark, renderSwitch, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 
@@ -26,18 +26,6 @@ export const ITEM_ROW_STYLES = `
   .mw-item strong { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
   .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
-
-/** Setting rows (`mw-settings`, `mw-setting`): a surface of toggles and choices, promoted into the workbench sheet with Sessions. */
-export const SETTING_ROW_STYLES = `
-  .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
-  .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
-  .mw-settings { display: grid; width: min(560px, 100%); ${SURFACE}; }
-  .mw-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; padding: 12px 16px; }
-  .mw-setting + .mw-setting { box-shadow: inset 0 1px 0 var(--line); }
-  .mw-setting > div:first-child { flex-basis: 220px; }
-  .mw-setting > div:last-child { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  .mw-setting .mw-select { width: auto; min-width: 140px; }`;
 
 /** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
 export const MARK_STYLES = `
@@ -113,7 +101,6 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat .mw-progress { margin-top: 16px; }
 
 ${ITEM_ROW_STYLES}
-${SETTING_ROW_STYLES}
 
   .mw-dt { display: grid; width: min(880px, 100%); overflow: hidden; ${SURFACE}; }
   .mw-dt--small { width: min(420px, 100%); }
@@ -228,20 +215,13 @@ export function rowsSection(say: (key: string) => string): string {
   const item = (mark: PluginIconName, title: string, meta: string, end: string) =>
     `<li class="mw-item"><span class="mw-mark">${icon(mark)}</span><span><strong>${title}</strong><small>${meta}</small></span><span class="mw-item__end">${end}</span></li>`;
   const more = (name: string) => ghostIcon(`${name} 的更多操作`, "more");
-  const setting = (id: string, title: string, note: string, control: string) =>
-    `<div class="mw-setting"><div><strong id="${id}">${title}</strong>${note ? `<p>${note}</p>` : ""}</div><div>${control}</div></div>`;
   const items = `<ul class="mw-items">${
     item("file", "季度复盘.pdf", "成果库 · 2.4 MB", `10 分钟前${more("季度复盘.pdf")}`)
     + item("image", "首页草图.png", "设计 · 820 KB", renderStatusMark({ label: "同步中", state: "syncing", tone: "progress" }) + more("首页草图.png"))
     + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }) + renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
   }</ul>`;
-  const settings = `<div class="mw-settings">${
-    setting("catalog-set-boot", "登录时启动", "在后台开着常驻宿主，助理随叫随到", renderSwitch({ checked: true, attrs: { "aria-labelledby": "catalog-set-boot" } }))
-    + setting("catalog-set-lang", say("workbench.context-onboarding.language-2"), "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
-    + setting("catalog-set-notify", "只在要你确认时提醒", "", renderSwitch({ attrs: { "aria-labelledby": "catalog-set-notify" } }))
-    + setting("catalog-set-cache", "清空本机缓存", "不影响项目里的内容", renderButton({ label: "清空…", variant: "secondary", attrs: { "aria-describedby": "catalog-set-cache" } }))
-  }</div>`;
-  return section("rows", "Item Row / Settings Row", `<div class="mw-catalog__specimens">${specimen("条目", items)}${specimen("设置", settings)}</div>`);
+  // A settings page's rows have their own section on the board (设置的行, the SDK's renderSettingRow and its kin).
+  return section("rows", "Item Row", `<div class="mw-catalog__specimens">${specimen("条目", items)}</div>`);
 }
 
 type FileRow = { name: string; mark: PluginIconName; where: string; status: Parameters<typeof renderStatusMark>[0]; updated: string; minutes: number; size: string; bytes: number };

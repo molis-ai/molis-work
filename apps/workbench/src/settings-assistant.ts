@@ -89,6 +89,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       attrs: { id: "contributions", "data-assistant-contributions": true },
       body: `<div data-assistant-contributions-body><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>`,
     }) })}
+    ${(["div", "label"] as const).map(tag => `<template data-assistant-row="${tag}">${renderSettingRow({ name: "—", hint: "—", control: "<i></i>", label: tag === "label" })}</template>`).join("")}
   </section>`;
 }
 
@@ -109,11 +110,13 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const api = (path, payload) => molisWorkRequest(base() + path, { body: payload });
   const problem = (failure) => { const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); return note; };
   const note = (text) => el("p", "mw-settings-section__note", text);
-  // The same markup as the SDK's renderSettingRow, for rows this page draws from what it read.
+  // A row this page draws from what it read: a copy of the row the page was served with (the SDK's renderSettingRow), filled in.
   const settingRow = (name, hint, controls, tag = "div", className = "") => {
-    const row = el(tag, "mw-setting-row" + (className ? " " + className : "")), copy = el("span", "mw-setting-row__copy"), control = el("span", "mw-setting-row__control");
-    copy.append(el("strong", "", name)); if (hint) copy.append(el("span", "", hint));
-    control.append(...controls); row.append(copy, control); return row;
+    const row = root.querySelector('template[data-assistant-row="' + tag + '"]').content.firstElementChild.cloneNode(true);
+    if (className) row.classList.add(className);
+    const [title, sentence] = row.firstElementChild.children;
+    title.textContent = name; if (hint) sentence.textContent = hint; else sentence.remove();
+    row.lastElementChild.replaceChildren(...controls); return row;
   };
   const switchOf = (checked, label) => {
     const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = checked;
@@ -256,7 +259,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     if (!rules.length) { rulesList.append(note(globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }
     const list = el("ul", "mw-setting-list");
     rules.forEach((rule) => {
-      const item = el("li");
+      const item = el("li"); item.dataset.ruleId = rule.rule_id;
       const expired = rule.until && new Date(rule.until) <= new Date();
       const { control, toggle } = switchOf(rule.enabled, globalThis.t.text("workbench.settings-assistant.enable-rule", { label: rule.label }));
       toggle.addEventListener("change", () => run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
@@ -271,14 +274,17 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     rulesError.hidden = true;
     try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); return true; } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; return false; }
   };
-  // Adding a rule: the button waits for the answer, so a second press cannot add it twice; once added, the row closes again.
+  // Adding a rule: the button waits for the answer, so a second press cannot add it twice; once added, the row closes again
+  // and focus goes to the rule that was added (its switch), not to the page's start with the button that is now folded away.
   const add = async (form, rule, added) => {
     const submit = form.querySelector('[type="submit"]');
+    const before = new Set([...rulesList.querySelectorAll("[data-rule-id]")].map((item) => item.dataset.ruleId));
     submit.disabled = true;
     const done = await run(() => rulesApi("/rules", { rule }));
     submit.disabled = false;
     if (!done) return;
     added?.(); form.querySelector("details").open = false;
+    [...rulesList.querySelectorAll("[data-rule-id]")].find((item) => !before.has(item.dataset.ruleId))?.querySelector("input")?.focus();
   };
   const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
   root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {
@@ -320,7 +326,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const budgetError = root.querySelector("[data-assistant-budget-error]");
   const paintUsage = (usage) => {
     const used = usage.today.input + usage.today.output;
-    usageLine.textContent = globalThis.t.text("workbench.settings-assistant.assistant-used-today") + " " + used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
+    usageLine.textContent = used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
       + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
       + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + usage.daily_tokens.toLocaleString() : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
     if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";

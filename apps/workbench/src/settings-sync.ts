@@ -9,7 +9,7 @@ export function renderSyncSettings(_L:(text:string)=>string):string {
     <header class="settings-heading"><h1 id="settings-title">${uiText("workbench.settings-sync.sync")}</h1><p>${uiText("workbench.settings-sync.choose-what-sync-personal-space-turning-sync-off")}</p></header>
     <p data-sync-identity class="settings-muted"></p>
     <p data-sync-status role="status" class="settings-muted mw-loading">${uiText("workbench.settings-sync.loading")}</p>
-    <form data-sync-form hidden><div class="settings-setting-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-slot="checkbox" data-sync-automatic><span>${uiText("workbench.settings-sync.automatic-sync-device")}</span></label><span class="settings-muted">${uiText("workbench.settings-sync.only-affects-device-sync-now-remains-available-when")}</span></div><fieldset class="settings-section" data-sync-fields></fieldset>
+    <form data-sync-form hidden><div class="sync-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-slot="checkbox" data-sync-automatic><span>${uiText("workbench.settings-sync.automatic-sync-device")}</span></label><span class="settings-muted">${uiText("workbench.settings-sync.only-affects-device-sync-now-remains-available-when")}</span></div><fieldset class="settings-section" data-sync-fields></fieldset>
       <p class="settings-muted" data-sync-quota></p>
       <div class="settings-form-actions"><button type="button" class="mw-btn mw-btn--secondary" data-sync-reload>${uiText("workbench.settings-sync.reload")}</button> <button type="submit" class="mw-btn mw-btn--primary">${uiText("workbench.settings-sync.save-sync-settings")}</button> <button type="button" class="mw-btn mw-btn--secondary" data-sync-run>${uiText("workbench.settings-sync.sync-now")}</button></div>
     </form>
@@ -68,7 +68,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       root.querySelector('[data-sync-automatic]').checked=data.device.automatic===true;
       fields.replaceChildren(node('legend','',globalThis.t.text("workbench.settings-sync.content-sync")));
       for(const [index,item] of data.collections.entries()){
-        const row=node('div','settings-setting-row'),label=node('label','mw-check-row');
+        const row=node('div','sync-row'),label=node('label','mw-check-row');
         const checkbox=node('input','mw-check');checkbox.type='checkbox';checkbox.dataset.slot='checkbox';checkbox.dataset.collection=String(index);
         checkbox.checked=data.policy.selections.some(s=>namespace(s)===namespace(item.selection));
         const waiting=item.conflicts.filter(c=>c.waiting).length;
@@ -94,7 +94,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       for(const collection of data.collections)for(const item of collection.failures||[]){const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text("workbench.settings-sync.items-needing-attention")),node('p','',item.reason),node('code','',item.key),button("workbench.settings-sync.retry-item",()=>act(()=>request('/retry-item',{namespace:namespace(collection.selection),key:item.key,direction:item.direction},'POST'))));conflicts.append(row);}
       const history=root.querySelector('[data-sync-history]');history.replaceChildren();
       const retained=node('details','settings-data-disclosure');retained.append(node('summary','',globalThis.t.text("workbench.settings-sync.retained-versions")));history.append(retained);
-      for(const collection of data.collections){const entry=node('div','settings-setting-row');entry.append(node('span','',collection.title),button("workbench.settings-sync.cloud-history",()=>cloudHistory(collection)),button("workbench.settings-sync.local-history",async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync.no-retained-versions")));for(const item of response.items)body.append(node('p','',item.key),button("workbench.settings-sync.view-restore",()=>compare(collection,item,true)));sheet("workbench.settings-sync.local-history",body,[]);}catch(failure){error.hidden=false;error.textContent=failure.message;}}));retained.append(entry);}
+      for(const collection of data.collections){const entry=node('div','sync-row');entry.append(node('span','',collection.title),button("workbench.settings-sync.cloud-history",()=>cloudHistory(collection)),button("workbench.settings-sync.local-history",async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',globalThis.t.text("workbench.settings-sync.no-retained-versions")));for(const item of response.items)body.append(node('p','',item.key),button("workbench.settings-sync.view-restore",()=>compare(collection,item,true)));sheet("workbench.settings-sync.local-history",body,[]);}catch(failure){error.hidden=false;error.textContent=failure.message;}}));retained.append(entry);}
       error.hidden=!data.error;error.textContent=data.error?data.error:'';
       if(!stepsRead){stepsRead=true;void loadSteps();}
     };

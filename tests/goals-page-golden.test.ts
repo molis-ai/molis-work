@@ -21,7 +21,13 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // QEA-83 combines those changes with QEA-06 import batch guidance and its action label; the underlying frozen business view is unchanged.
 // Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
 // checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
-// section became a title over one card.
+// section became a title over one card. Its second part (POLISH-29) re-recorded the same twenty for one intended change, checked hunk by
+// hunk against the drawing of #2127's head (4aae9decfa): the four appearance preference rows and the project's name and AI-tool rows are
+// now drawn by the SDK's setting row and section (the form error moved under the sentence, each choice group and field is named by its
+// row's title); nothing outside those two sections changed and the other 32 records did not move. Merged with main f5efe316a2 (#2101,
+// the QEA notes below), the same twenty were recorded again on top of main's accepted records: they move by the same amounts as before
+// the merge (+605 in each whole page, +382 in each settings-general) and the other 32 equal main's. The same held once more when main
+// a8d998935d (#2133) re-recorded the whole pages again: same twenty, same amounts, on top of main's records.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

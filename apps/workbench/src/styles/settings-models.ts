@@ -23,10 +23,12 @@ export const MODEL_SETTINGS_STYLES = `
 .model-section h3 { margin: 24px 0 0; font-size: 13px; font-weight: 500; }
 .mw-card.model-facts { width:auto; margin:0 0 8px; }
 .model-facts .mw-card__panel { padding-block:4px; container-type:inline-size; }
-.model-facts .settings-setting-row:last-child { border-bottom:0; }
-.model-facts .setting-value { max-width:60%; min-width:0; }
-.model-facts .setting-value > * { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-@container (max-width:480px) { .model-facts .settings-setting-row { flex-direction:column; align-items:flex-start; gap:4px; } .model-facts .setting-value { max-width:100%; justify-content:flex-start; } }
+.model-facts .mw-setting-row { flex-wrap:nowrap; }
+.model-facts .mw-setting-row:last-child { border-bottom:0; }
+.model-facts .mw-setting-row__copy { flex:1 1 auto; }
+.model-facts .mw-setting-row__control { flex:0 1 auto; max-width:60%; min-width:0; }
+.model-facts .mw-setting-row__control > * { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@container (max-width:480px) { .model-facts .mw-setting-row { flex-direction:column; align-items:flex-start; gap:4px; } .model-facts .mw-setting-row__copy { flex:none; } .model-facts .mw-setting-row__control { max-width:100%; justify-content:flex-start; } }
 .model-advanced { margin: 24px 0 8px; }
 .model-advanced>.mw-collapsible__body{gap:24px}.model-advanced .model-field{margin:0}
 .model-diagnostics { margin:0; padding:12px; border-radius:var(--r-tag); background:var(--surface-soft); color:var(--ink-soft); font:12px/1.6 var(--font-mono, ui-monospace, monospace); white-space:pre-wrap; overflow-wrap:anywhere; }

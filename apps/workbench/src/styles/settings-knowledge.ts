@@ -6,7 +6,6 @@ export const KNOWLEDGE_SETTINGS_STYLES = `
   .knowledge-settings .knowledge-quota-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; min-height: 60px; padding: 12px 0; }
   .knowledge-settings .knowledge-quota-copy { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 240px; font-size: 13px; }
   .knowledge-settings .knowledge-quota-bar { max-width: 360px; }
-  .knowledge-settings .knowledge-items-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .knowledge-settings .knowledge-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
   .knowledge-settings .knowledge-toolbar > .mw-select-picker { width: auto; flex: 0 0 auto; }
   .knowledge-settings .knowledge-toolbar > .mw-select-picker > .mw-select-picker__trigger { width: auto; min-width: 112px; }

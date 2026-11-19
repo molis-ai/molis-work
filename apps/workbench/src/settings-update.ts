@@ -1,6 +1,5 @@
-import { t as uiText, escapeHtml, format, renderAlert, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, format, renderAlert, renderButton, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_UPDATE_CLIENT_SCRIPT } from "./scripts/settings-update.js";
-import { settingRow } from "./settings-row.js";
 import type { MolisWorkSettingsView } from "./settings-view.js";
 
 /** What the Host says about going back a version (upgrade-continuity U3 §5.2), for 设置 › 更新. */
@@ -36,8 +35,8 @@ function rollbackDialog(point: Extract<SettingsRollbackPoint, { available: true 
     <form method="dialog" class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><div><h2 id="rollback-title">${escapeHtml(title)}？</h2></div></header>
       <div class="mw-form__body">
-        ${settingRow(uiText.text("workbench.settings-update.program"), "", `<span class="setting-number">${escapeHtml(current)} → ${escapeHtml(point.version)}</span>`)}
-        ${settingRow(uiText.text("workbench.settings-update.data"), escapeHtml(data), "")}
+        ${renderSettingRow({ name: uiText.text("workbench.settings-update.program"), control: `<span class="setting-number">${escapeHtml(current)} → ${escapeHtml(point.version)}</span>` })}
+        ${renderSettingRow({ name: uiText.text("workbench.settings-update.data"), hint: data })}
         ${warning}
         <label class="mw-check-row"><input class="mw-check" data-slot="checkbox" type="checkbox" checked data-rollback-save><span>${uiText("workbench.settings-update.save-copy-first")}</span></label>
         <p class="settings-form-error" role="alert" data-rollback-error hidden></p>
@@ -53,7 +52,10 @@ function rollbackDialog(point: Extract<SettingsRollbackPoint, { available: true 
  */
 export function renderUpdateSettings(view: MolisWorkSettingsView, desktopShell: boolean): string {
   const update = view.update, current = view.diagnostics.version ?? uiText.text("workbench.settings-update.unknown-version");
-  const version = `<section class="settings-section" aria-label="${uiText("workbench.settings-update.version")}">${settingRow(uiText.text("workbench.settings-update.current-version"), "Molis Work", `<span class="setting-number">${escapeHtml(current)}</span>`)}</section>`;
+  const card = (attrs: Record<string, string>, body: string) => renderSettingsSection({ className: "settings-section", attrs, body });
+  const goBack = (hint: string, control?: string) => renderSettingRow({ name: uiText.text("workbench.settings-update.go-back"), nameAttrs: { id: "rollback-section" }, hint, control });
+  const version = card({ "aria-label": uiText.text("workbench.settings-update.version") },
+    renderSettingRow({ name: uiText.text("workbench.settings-update.current-version"), hint: "Molis Work", control: `<span class="setting-number">${escapeHtml(current)}</span>` }));
   const held = update?.held ? renderAlert({ tone: "success", attrs: { "data-rollback-held": true },
     title: uiText.text("workbench.settings-update.rolled-back", { version: update.held.held_version }),
     body: uiText.text("workbench.settings-update.held", { version: update.held.rolled_back_from }),
@@ -65,9 +67,10 @@ export function renderUpdateSettings(view: MolisWorkSettingsView, desktopShell: 
     const action = desktopShell
       ? renderButton({ variant: "secondary", label: uiText.text("workbench.settings-update.go-back-to", { version: point.version }), attrs: { "data-rollback-open": true } })
       : `<code class="setting-command">molis-work home rollback --confirm</code>`;
-    back = `<section class="settings-section" aria-labelledby="rollback-section">${settingRow(`<span id="rollback-section">${uiText("workbench.settings-update.go-back")}</span>`, escapeHtml(subtitle), action)}${desktopShell ? "" : `<p class="settings-muted">${uiText("workbench.settings-update.in-terminal")}</p>`}</section>${desktopShell ? rollbackDialog(point, current) : ""}`;
+    back = card({ "aria-labelledby": "rollback-section" }, goBack(subtitle, action) + (desktopShell ? "" : `<p class="mw-settings-section__note">${uiText("workbench.settings-update.in-terminal")}</p>`))
+      + (desktopShell ? rollbackDialog(point, current) : "");
   } else if (point && !update?.held) {
-    back = `<section class="settings-section" aria-labelledby="rollback-section">${settingRow(`<span id="rollback-section">${uiText("workbench.settings-update.go-back")}</span>`, uiText.text(REASON_KEY[point.reason]), "")}</section>`;
+    back = card({ "aria-labelledby": "rollback-section" }, goBack(uiText.text(REASON_KEY[point.reason])));
   }
   return `<section class="settings-document" aria-labelledby="settings-title" data-update-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title" tabindex="-1">${uiText("workbench.settings-update.title")}</h1></div></header>

@@ -145,7 +145,12 @@ test('moved redirect batches stay non-claimable and batch 91 dependencies and co
   assert.deepEqual(nodes['91.2'].hard, ['31.1']);
   assert.deepEqual(nodes['91.3'].hard, ['91.1', '91.2', '36A.1', '36A.2', '36A.3', '37.2']);
   assert.deepEqual(nodes['91.4'].hard, ['91.1', '91.2', '35.2', '36A.4']);
-  for (const id of ['91.1', '91.2', '91.3', '91.4']) assert.ok(nodes['90'].hard.includes(id));
+  assert.deepEqual(nodes['91.5'].hard, ['91.1', '36A.1', '36A.2', '36A.3', '36A.4', '36A.5', '36A.6', '36A.7']);
+  for (const id of ['91B.1', '91B.2', '91B.3']) assert.deepEqual(nodes[id].hard, ['91.1']);
+  assert.deepEqual(nodes['91B.4'].hard, ['91B.1', '91B.2', '91B.3']);
+  for (const id of ['91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4']) {
+    assert.ok(nodes['90'].hard.includes(id), `90.hard missing ${id}`);
+  }
   for (const b of snapshot.batches) {
     for (const c of b.cond) assert.ok(!/决定 \d+（待定）：\s*$/.test(c), `empty pending decision in ${b.id}: ${c}`);
   }

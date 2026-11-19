@@ -2660,7 +2660,7 @@
 "basis": "tracks.md（2026-11-18）"
 },
 "91-1": {
-"title": "Design System 流式、状态环与滚动原语",
+"title": "Design System 流式、布局与行为反馈统一底座",
 "main": "D",
 "also": [
 "C1"
@@ -2668,7 +2668,7 @@
 "kind": "实现",
 "occupy": true,
 "status": "定",
-"basis": "tracks.md 逐项表"
+"basis": "tracks.md 逐项表（决定 55）"
 },
 "91-2": {
 "title": "平台运行流合同、Prologue 与 Agent Host 热路径减负",
@@ -2704,5 +2704,63 @@
 "occupy": true,
 "status": "定",
 "basis": "tracks.md 逐项表"
+},
+"91-5": {
+"title": "后续开发指引与插件创作台规范同步更新",
+"main": "D",
+"also": [
+"E"
+],
+"kind": "规范与指引",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 55）"
+},
+"91B-1": {
+"title": "入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口",
+"main": "D",
+"also": [
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 55）"
+},
+"91B-2": {
+"title": "工作主干 9 插件 + 4 官方集成全面打磨",
+"main": "E",
+"also": [
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 55）"
+},
+"91B-3": {
+"title": "创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨",
+"main": "E",
+"also": [
+"B",
+"D"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 55）"
+},
+"91B-4": {
+"title": "全站轻动效收口与三层自动化防回归门禁焊死",
+"main": "无",
+"also": [
+"B",
+"D",
+"E"
+],
+"kind": "收口与门禁",
+"occupy": false,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 55）"
 }
 }

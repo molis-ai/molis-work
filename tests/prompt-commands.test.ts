@@ -30,7 +30,8 @@ test("Coding A2 front matter gives only a description and an argument hint; a br
 });
 
 test("Coding A2 $ARGUMENTS is replaced as typed, every time; a command that names none gets the words after a blank line", () => {
-  assert.equal(fillPromptCommand({ text: "Fix $ARGUMENTS, then test $ARGUMENTS.", takes_arguments: true }, "  src/a.ts \"quoted\"  "), "Fix src/a.ts \"quoted\", then test src/a.ts \"quoted\".");
+  assert.equal(fillPromptCommand({ text: "Fix $ARGUMENTS, then test $ARGUMENTS.", takes_arguments: true }, "  src/a.ts \"quoted\"  "), "Fix   src/a.ts \"quoted\"  , then test   src/a.ts \"quoted\"  .");
+  assert.equal(fillPromptCommand({ text: "<$ARGUMENTS>/$ARGUMENTS", takes_arguments: true }, " $&\n  line  "), "< $&\n  line  >/ $&\n  line  ");
   assert.equal(fillPromptCommand({ text: "Review the UI.\n", takes_arguments: false }, "the header"), "Review the UI.\n\nthe header");
   assert.equal(fillPromptCommand({ text: "Review the UI.", takes_arguments: false }, " "), "Review the UI.");
 });

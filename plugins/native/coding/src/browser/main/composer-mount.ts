@@ -131,7 +131,8 @@ async function submit(page: Page, id: string, input: ComposerSubmission, acknowl
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
   // A chosen prompt command (A2) makes the task: its text with what was typed as the argument.
-  const run = s.lastRun, task = refs.prompts?.task(input.text) ?? input.text, intent = s.intent, model = refs.composerModels.value();
+  const expanded = refs.prompts?.task(input.text), commandPrompt = expanded == null ? undefined : true;
+  const run = s.lastRun, task = expanded ?? input.text, intent = s.intent, model = refs.composerModels.value();
   // Pictures go with the task of a new round; words sent into a round under way carry none (the round's own were fixed when it began).
   const images = refs.images?.take(input.materials) ?? [];
   if (run && !terminal(run.phase) && images.length) return { state: "failed", message: readText("coding.images.next-round") };
@@ -146,8 +147,8 @@ async function submit(page: Page, id: string, input: ComposerSubmission, acknowl
   try {
     rememberConfiguration(page);
     await refs.draft.flush();
-    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge));
-    else if (!await startFromComposer(page, id, task, selection, intent, model)) return { state: "failed", message: readText("coding.composer.cancelled") };
+    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge, commandPrompt));
+    else if (!await startFromComposer(page, id, task, selection, intent, model, commandPrompt)) return { state: "failed", message: readText("coding.composer.cancelled") };
     refs.prompts?.sent();
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));

@@ -39,7 +39,7 @@ export function createRendererHelpers(ports: {
     // Global assets, settings, capabilities and onboarding keep their root URLs. Project settings use the __PROJECT_SETTINGS__ token.
     // Only href itself is rewritten. Data attributes retain their own values.
     const prefixed = routePrefix
-      ? html.replace(/(\s)href="\/(?!assets\/|locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"])|onboarding(?:[/?#"]))/g, `$1href="${routePrefix}/`)
+      ? html.replace(/(\s)href="\/(?!assets\/|locale(?:\?|")|projects\/|onboarding(?:[/?#"])|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `$1href="${routePrefix}/`)
       : html;
     const resolved = prefixed
       .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')

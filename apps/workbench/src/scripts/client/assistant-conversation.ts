@@ -147,29 +147,21 @@ ${ASSISTANT_REVIEW_PART}
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
-  /**
-   * Words the work keeps but the view leaves out (a page handed over from the side panel's browser, a pasted text, a
-   * selection): read back when clicked and shown in the side panel as they were given, with the page they came from.
-   */
+  // A material preview is scoped to the work that was open when requested.
   const readBack = (material, title) => {
-    const workId = view && view.work && view.work.work_id;
-    if (!workId || !material.material_id || !sidePanelHere() || !["text", "file", "selection"].includes(material.kind)) return null;
+    if (material.expired || !sidePanelHere()) return null;
+    if (material.kind === "file" && material.text) return () => sidePreview({ preview: { title, media_type: "text/plain", text: material.text } });
+    const workId = view?.work?.work_id, pictured = material.kind === "image";
+    if (!workId || !material.material_id || !["text", "file", "selection", "image"].includes(material.kind)) return null;
+    const path = "/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id);
     return async () => {
       try {
-        const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
-        if (typeof full.text !== "string") { host.showToast?.(globalThis.t.text("workbench.assistant-conversation.material-has-no-text-preview")); return; }
-        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
-      } catch (error) { host.showToast?.(error, true); }
-    };
-  };
-  /** A picture the work carried, shown in the side panel; one the app no longer holds (it restarted) is marked, not offered. */
-  const readImage = (material, title) => {
-    const workId = view && view.work && view.work.work_id;
-    if (!workId || material.kind !== "image" || !material.material_id || material.expired || !sidePanelHere()) return null;
-    return async () => {
-      try {
-        const { image } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id) + "/image");
-        sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
+        const { image, material: full } = await api(pictured ? path + "/image" : path);
+        if (view?.work?.work_id !== workId) return;
+        if (image) return sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
+        if (typeof full.text !== "string") return host.showToast?.(readText("workbench.assistant-conversation.material-has-no-text-preview"));
+        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: full.truncated, source_url: full.url,
+          url: full.original_available ? host.route("/api/assistant" + path + "/original") : undefined } });
       } catch (error) { host.showToast?.(error, true); }
     };
   };
@@ -181,10 +173,7 @@ ${ASSISTANT_REVIEW_PART}
       : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
     const surf = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
     const named = material.object && surf ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface:surf, id: material.object.id } } : null;
-    // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
-    const open = named ? () => showObject(named)
-      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
-      : readBack(material, title) || readImage(material, title);
+    const open = named ? () => showObject(named) : readBack(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("workbench.assistant-conversation.open-named", { title })); }
     chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? globalThis.t.text("workbench.assistant-conversation.draft") : "") + (material.expired ? globalThis.t.text("workbench.assistant-conversation.no-longer-valid") : "")));

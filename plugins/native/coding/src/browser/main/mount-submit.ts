@@ -44,15 +44,14 @@ async function togglePriority(page: Page, button: HTMLButtonElement) {
 }
 
 /** Starts a round for the words in the composer, once the person has said who goes first when other work names the same files. */
-export async function startFromComposer(page: Page, id: string, task: string, selection: RoundSelection, intent: string, modelValue: string) {
+export async function startFromComposer(page: Page, id: string, task: string, selection: RoundSelection, intent: string, modelValue: string, command_prompt?: true) {
   // Another session already working on the same files in this directory: the person decides who goes first.
   const { overlaps } = await api<{ overlaps: Overlap[] }>(page, sessionPath(id) + "/scope-check", "POST", { task, workspace_id: selection.workspace_id });
-  const choice = overlaps.length ? await askOverlap(page, overlaps) : "parallel";
+  const choice = overlaps.length && await askOverlap(page, overlaps);
   if (choice === "cancel") { status(page, uiText.text("coding.overlap.not-sent")); return false; }
-  if (choice === "wait") {
-    await startRound(page, id, task, intent, modelValue, selection, { wait_for: overlaps[0].work_id });
-    status(page, uiText.text("coding.overlap.will-wait", { title: overlaps[0].title }));
-  } else await startRound(page, id, task, intent, modelValue, selection);
+  const wait = choice === "wait" ? overlaps[0] : undefined;
+  await startRound(page, id, task, intent, modelValue, selection, { command_prompt, wait_for: wait?.work_id });
+  if (wait) status(page, uiText.text("coding.overlap.will-wait", { title: wait.title }));
   return true;
 }
 

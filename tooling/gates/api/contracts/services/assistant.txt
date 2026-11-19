@@ -273,6 +273,7 @@ export interface AssistantMaterial {
         media_type: string;
         byte_length: number;
     };
+    file_attachment?: MaterialRef;
     expired?: boolean;
     explicit: boolean;
     source?: AssistantSurfaceRef;
@@ -288,6 +289,7 @@ export interface AssistantMaterialText {
     text?: string;
     truncated?: boolean;
     url?: string;
+    original_available?: true;
     source?: AssistantSurfaceRef;
     object?: AssistantObjectRef;
     draft?: boolean;

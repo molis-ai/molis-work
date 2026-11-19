@@ -5,6 +5,7 @@
 export declare const CONVERSATION_ATTACHMENT_IMAGE_TYPES: readonly ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 export declare const CONVERSATION_ATTACHMENT_LIMITS: {
+    readonly round_images: 6;
     readonly image_bytes: number;
     readonly document_bytes: number;
     readonly text_chars: 200000;
@@ -42,6 +43,11 @@ export type ConversationAttachmentImageType = (typeof CONVERSATION_ATTACHMENT_IM
 export interface ConversationAttachmentRequest {
     signal?: AbortSignal;
     as: "text" | "image";
+}
+
+export interface ConversationAttachmentUploadRequest {
+    signal?: AbortSignal;
+    expected_kind?: "image";
 }
 
 export interface MaterialDocument {

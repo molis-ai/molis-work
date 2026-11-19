@@ -144,9 +144,9 @@
 | SRB-17 | 原会话运行时，用户可选“停止后接手”或“保留并行”；未选／取消不改变原任务也不启动目标，已在请求中明确选择的不重复询问，其他无关任务不受影响 | 用真实运行会话分别走界面选择和明确对话请求，核对两边任务的状态、执行位置、接收消息及无关任务 |
 | SRB-18 | 停止后接手确实先确认原任务停止；失败／未知不伪造成功，接手失败保留原任务已停止的状态；并行模式确实保持原任务运行；重启不重复交接效果 | 制造停止失败、回执丢失、接手启动失败和重启，核对原生工具状态、会话数量、输入与实际副作用 |
 
-第 34 批已合入并交付历史发现、按页读取、搜索、确定性目录／worktree 自动归属、AI 归属建议、工作台「外部会话」表面及安全不变量；Gemini/Qoder/Kimi/MiniMax/Pi 的未知 schema 与 Kimi 双格式、`gh` 403 恢复也已有测试（`tests/sessions-service.test.ts`、`tests/sessions-adapters.test.ts`、`tests/sessions-search-assistant.test.ts`、`tests/sessions-workbench.test.ts`、`tests/sessions-workbench.e2e.test.ts`、`tests/security-invariants-external-sessions.test.ts`）；界面实物与本机已装外部工具实操待用户本人验收（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）。冷启动引导导入（`SRB-09`）与持续跟进、直接控制发送、运行中交接（`SRB-04`、`SRB-05`、`SRB-17`、`SRB-18` 及 `SRB-03/06/08/10/11` 控制侧）按路线书第 45、60 批推进。
+第 34 批已合入并交付历史发现、按页读取、搜索、确定性目录／worktree 自动归属、AI 归属建议、工作台「外部会话」表面及安全不变量；Gemini/Qoder/Kimi/MiniMax/Pi 的未知 schema 与 Kimi 双格式、`gh` 403 恢复也已有测试（`tests/sessions-service.test.ts`、`tests/sessions-adapters.test.ts`、`tests/sessions-search-assistant.test.ts`、`tests/sessions-workbench.test.ts`、`tests/sessions-workbench.e2e.test.ts`、`tests/security-invariants-external-sessions.test.ts`）；界面实物与本机已装外部工具实操待用户本人验收（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）。冷启动引导导入（`SRB-09`）与持续跟进、直接控制发送、运行中交接（`SRB-04`、`SRB-05`、`SRB-17`、`SRB-18` 及 `SRB-03/06/08/10/11` 控制侧）分别按路线书第 35、60 批推进。
 
-第 35 批交付 SRB-09：Onboarding 给已有项目补材料时可选「AI 工具里的会话」。以项目 AI 的身份经 `sessions.list@1`、`sessions.history.read@1` 读，许可没开时由本人在这一步打开，没开就不整理会话、讲清原因；一个会话一份带时间与说话人的材料，重复导入复用原成果，会话增长记新版本，整理失败保留已读材料（`tests/context-onboarding-sessions.test.ts`）。真实外部工具实操待用户本人验收。
+第 35 批接续 SRB-09。已有项目可从「外部会话 → 开始整理」进入，新项目在采用后进入这一步。Onboarding 以项目 AI 的身份经 `sessions.list@1`、`sessions.history.read@1` 读，由本人在引导里开启项目许可，派发和发布结果前经 `sessions.history.authorize@1` 重验原许可与会话归属。每份材料带原文、时间和说话人。整理失败或撤权时保留已读原文，相同来源与经确认的摘要复用原成果。见[合后修复](../batch-35-audit-fixes/spec.md)。真实外部工具、真实模型和一骏本人验收仍待执行。
 
 ## 6. 接续事项
 

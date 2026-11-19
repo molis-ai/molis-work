@@ -52,9 +52,10 @@ function sessionMarkdown(row: ExternalSessionRow | ExternalSessionRowSummary, en
 }
 
 /** Why the round cannot read the sessions, said to the person; undefined for a failure that is not a refusal. */
-function refusalOf(error: unknown): string | undefined {
+export function sessionReadRefusal(error: unknown): string | undefined {
   if (!(error instanceof ActionError)) return undefined;
   if (error.code === "sessions.project_ai_read_off") return "这个项目的 AI 还不能读外部会话：许可没打开。只有你能打开它；没打开，这一步不整理会话。";
+  if (error.code === "sessions.scope_changed" || error.code === "sessions.not_found") return "外部会话的读取范围或许可已变化。已读材料仍在，你可以核对读取范围，或继续整理其他来源。";
   if (error.code === "actions.dependency_missing" || error.code === "actions.forbidden") return "这里读不了外部会话，请先在「外部会话」里允许读取这些工具。";
   return undefined;
 }
@@ -63,7 +64,7 @@ function refusalOf(error: unknown): string | undefined {
  * The project's sessions as this round's files, newest first; one that cannot be read is skipped with its reason. When none can be read
  * (the permit is off, nothing is filed to the project) the answer is why, for the round to say; the round's other sources still go on.
  */
-export async function readOnboardingSessions(client: BoundActionClient, signal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[]; titles: Record<string, string> } | { refused: string }> {
+export async function readOnboardingSessions(client: BoundActionClient, signal?: AbortSignal): Promise<{ name: string; locator: string; files: ImportFile[]; titles: Record<string, string>; notice?: string } | { refused: string }> {
   const rows: (ExternalSessionRow | ExternalSessionRowSummary)[] = [];
   let cursor: string | null = null;
   try {
@@ -73,16 +74,17 @@ export async function readOnboardingSessions(client: BoundActionClient, signal?:
       rows.push(...page.sessions);
       cursor = page.next_cursor;
     } while (cursor && rows.length < ONBOARDING_SESSIONS_LIMITS.sessions);
-  } catch (error) { const refused = refusalOf(error); if (refused) return { refused }; throw error; }
+  } catch (error) { const refused = sessionReadRefusal(error); if (refused) return { refused }; throw error; }
   if (!rows.length) return { refused: "这个项目还没有 AI 能读的外部会话：先在「外部会话」里把会话归到这个项目。" };
   const files: ImportFile[] = [], titles: Record<string, string> = {};
+  let notice: string | undefined;
   for (const row of rows.slice(0, ONBOARDING_SESSIONS_LIMITS.sessions)) {
     signal?.throwIfAborted();
     const path = sessionFilePath(row.session_key);
     titles[path] = sessionTitle(row);
+    const entries: ExternalSessionEntry[] = [];
+    let before: string | null = null, partial = false;
     try {
-      const entries: ExternalSessionEntry[] = [];
-      let before: string | null = null, partial = false, older = false;
       do {
         const page: ExternalSessionHistoryOutput = await client.invoke(sessionsActions.historyRead, { session_key: row.session_key, limit: EXTERNAL_SESSION_HISTORY_MAX, ...(before ? { from: { before } } : {}) });
         entries.unshift(...page.entries);
@@ -90,14 +92,15 @@ export async function readOnboardingSessions(client: BoundActionClient, signal?:
         before = page.older_cursor;
         if (partial) break;
       } while (before && entries.length < ONBOARDING_SESSIONS_LIMITS.entries);
-      older = Boolean(before);
-      if (!entries.length) { files.push({ path, reason: "这个会话没有读到内容" }); continue; }
-      files.push({ path, bytes: Buffer.from(sessionMarkdown(row, entries.slice(-ONBOARDING_SESSIONS_LIMITS.entries), partial, older)) });
     } catch (error) {
-      if (error instanceof ActionError && error.code === "sessions.project_ai_read_off") return { refused: refusalOf(error)! };
       if (signal?.aborted) throw error;
-      files.push({ path, reason: error instanceof Error ? `读不了：${error.message}` : "读不了这个会话" });
+      notice = sessionReadRefusal(error);
+      partial = true;
+      if (!entries.length) files.push({ path, reason: notice ?? (error instanceof Error ? `读不了：${error.message}` : "读不了这个会话") });
     }
+    if (entries.length) files.push({ path, bytes: Buffer.from(sessionMarkdown(row, entries.slice(-ONBOARDING_SESSIONS_LIMITS.entries), partial, Boolean(before))) });
+    else if (!partial) files.push({ path, reason: "这个会话没有读到内容" });
+    if (notice) break;
   }
-  return { name: "外部会话", locator: "sessions", files, titles };
+  return { name: "外部会话", locator: "sessions", files, titles, notice };
 }

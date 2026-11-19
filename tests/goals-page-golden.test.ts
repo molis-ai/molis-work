@@ -30,6 +30,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // a8d998935d (#2133) re-recorded the whole pages again: same twenty, same amounts, on top of main's records.
 // Batch 38 adds a project settings link to scene adoption. Removing only that link and its section from each of the 20 changed
 // renders reproduced main a8d998935d's length and SHA-256, including the desktop query. The 32 other records match directly.
+// B35-R1 adds the Sessions link to onboarding for the current project. Sessions sets its tab state after mounting.
+// Main ffd077b2df reproduced all 52 accepted hashes. Applying just these changes to its Sessions template matched the 16
+// whole pages byte for byte, including the desktop link. The other 36 hashes matched directly.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

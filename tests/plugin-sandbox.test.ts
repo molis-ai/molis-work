@@ -166,26 +166,29 @@ test('SDK reaches the declared files by relative path and bounded base64 only, a
   } finally { await f.close(); }
 });
 
-test('S-conversation-attachments CATT-07 a sandboxed plugin attaches a file and reads it back through the Host\'s client, a picture in bounded parts; a reference of another shape never reaches the Host', mac, async () => {
+test('S-conversation-attachments CATT-07 a sandboxed plugin attaches a file (B35-R6) and reads it back through the Host\'s client, a picture in bounded parts; a reference of another shape never reaches the Host', mac, async () => {
   const effects: SandboxEffects = { materials: ['read'] };
   const picture = Buffer.alloc(600 * 1024, 9), seen: string[] = [];
   const ref = { subject: { kind: 'conversation_attachment', id: `ca_${'b'.repeat(64)}` }, pin: { mode: 'current', read_revision: 'b'.repeat(64) } };
   const attachment = { ref, title: 'shot.png', kind: 'image', media_type: 'image/png', byte_length: picture.length };
   const f = await fixture(`export const operations={run:async(_,sdk)=>{
-    const kept=await sdk.materials.attach({file_name:'shot.png',data_base64:Buffer.from('png').toString('base64')});
+    const kept=await sdk.materials.attach({file_name:'shot.png',data_base64:Buffer.from('png').toString('base64')},{expected_kind:'image'});
     const words=await sdk.materials.readAttachment(kept.ref,{as:'text'});
     const image=await sdk.materials.readAttachment(kept.ref,{as:'image'});
     let forged; try{await sdk.materials.readAttachment({subject:{kind:'conversation_attachment',id:'x'},pin:{mode:'latest'}},{as:'text'})}catch(e){forged=e.code}
     return JSON.stringify([kept.title,words.text,image.image.bytes.length,Buffer.from(image.image.bytes).subarray(0,2).toString('hex'),image.image.media_type,forged]);
   }};`, { effects, grants: effects, services: { materials: {
     async extract() { throw new Error('unused'); }, async readDocuments() { throw new Error('unused'); },
-    async attach(upload) { seen.push(`attach:${upload.file_name}`); return attachment as never; },
+    async attach(upload, request) { seen.push(`attach:${upload.file_name}:${request?.expected_kind}`); return attachment as never; },
     async readAttachment(given, request) { seen.push(`read:${request.as}:${given.subject.id === ref.subject.id}`); return request.as === 'image' ? { attachment, image: { media_type: 'image/png', bytes: picture } } as never : { attachment, text: '图上的字' } as never; },
   } } });
   try {
     assert.equal(await f.runner.call('run', ''), JSON.stringify(['shot.png', '图上的字', picture.length, '0909', 'image/png', 'sandbox.invalid_request']));
-    assert.equal(seen[0], 'attach:shot.png');
-    assert.ok(seen.filter(entry => entry === 'read:image:true').length >= 3, 'the picture comes back in parts of at most 256 KiB');
+    assert.equal(seen[0], 'attach:shot.png:image');
+    assert.equal(seen.filter(entry => entry === 'read:image:true').length, 1, 'the three parts use one blob read');
+    assert.equal(seen.filter(entry => entry === 'read:text:true').length, 4, 'the explicit and image metadata reads plus reauthorization of two cached parts');
+    await f.runner.call('run', '');
+    assert.equal(seen.filter(entry => entry === 'read:image:true').length, 2, 'the next invocation has no cached bytes');
     assert.ok(!seen.some(entry => entry.endsWith(':false')), 'the forged reference never reached the Host');
   } finally { await f.close(); }
 });

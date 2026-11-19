@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { codeIntelligenceReadiness, type LanguageServerSpec } from "@molis-ai/molis-work-service-agent-host";
+import { codeIntelligenceReadiness, createCodeIntelligence, type LanguageServerSpec } from "@molis-ai/molis-work-service-agent-host";
 import { buildCodeIntelligenceHtml } from "@molis-ai/molis-work-plugin-coding";
 import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pagePack } from "./fixtures/page-text.js";
@@ -45,6 +45,28 @@ test("CLS-01 A4: a round lists only the languages its directory uses, and whethe
   assert.deepEqual(await codeIntelligenceReadiness({ servers, rootPath: empty }), { languages: [] }, "a directory with no source lists nothing");
 });
 
+test("B35-R8 a directory and a non-executable file are missing; an executable that exits reports a startup failure", async t => {
+  const root = await mkdtemp(path.join(tmpdir(), "molis-code-start-failure-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "main.ts"), "const a = 1;\n");
+  const plainFile = path.join(root, "plain");
+  await writeFile(plainFile, "not a program", { mode: 0o600 });
+  for (const command of [root, plainFile]) {
+    const { languages } = await codeIntelligenceReadiness({ rootPath: root, servers: [{ command, extensions: [".ts"] }] });
+    assert.equal(languages[0]?.state, "missing");
+  }
+  const command = await program(root, "exits-on-start");
+  const intelligence = createCodeIntelligence({ rootPath: root, servers: [{ command, extensions: [".ts"] }] });
+  t.after(() => intelligence.close());
+  assert.equal((await intelligence.readiness()).languages[0]?.state, "ready", "discovery found the executable");
+  const checked = await intelligence.checkWrite({ path: "main.ts", before: "const a = 1;\n", after: "const a = 2;\n" });
+  assert.equal(checked.checks.diagnostics.state, "unchecked");
+  if (checked.checks.diagnostics.state === "unchecked") {
+    assert.equal(checked.checks.diagnostics.cause, "failed");
+    assert.match(checked.checks.diagnostics.reason, /failed to start/);
+  }
+});
+
 test("CLS-03 A4: after a restart a complete tool in the Home's tools folder is used as is; a half-finished one is not counted", async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), "molis-code-tools-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -70,10 +92,10 @@ test("CLS-03 A4 scheme A: the process line folds when every language is ready an
     { language: "typescript", command: "typescript-language-server", state: "ready", source: "this_machine" },
     { language: "rust", command: "rust-analyzer", state: "ready", source: "tools" },
   ] });
-  assert.match(ready, /代码理解 · 2 种语言好了/);
+  assert.match(ready, /代码理解 · 已找到 2 种语言的工具/);
   assert.doesNotMatch(ready, /<details[^>]* open/, "all ready: the line stays folded");
-  assert.match(ready, /TypeScript<\/b><span[^>]*>用本机的 typescript-language-server/);
-  assert.match(ready, /Rust<\/b><span[^>]*>用 Molis 工具目录里的 rust-analyzer/);
+  assert.match(ready, /TypeScript<\/b><span[^>]*>在本机找到 typescript-language-server/);
+  assert.match(ready, /Rust<\/b><span[^>]*>在 Molis 工具目录找到 rust-analyzer/);
 
   const missing = buildCodeIntelligenceHtml({ languages: [
     { language: "typescript", command: "typescript-language-server", state: "ready", source: "this_machine" },

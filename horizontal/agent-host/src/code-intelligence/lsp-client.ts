@@ -27,9 +27,9 @@ export interface LspClient {
   /** A notification; never waits for an answer. */
   notify(method: string, params: unknown): void;
   /** Hand the server the document text the caller holds. */
-  openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): void;
-  /** Tell the server the document changed; the version must go up. */
-  changeDocument(input: { readonly path: string; readonly text: string; readonly version: number }): void;
+  openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): number;
+  /** Assign a new document version, even when this path was closed and opened again. */
+  changeDocument(input: { readonly path: string; readonly text: string }): number;
   /** Tell the server the document is no longer open (a bounded cache evicts the least recently used). */
   closeDocument(input: { readonly path: string }): void;
   /** Listen to what the server pushes (`textDocument/publishDiagnostics`); returns the way to stop listening. */
@@ -59,6 +59,7 @@ export function startLanguageServer(spec: LanguageServerSpec, options: { readonl
 function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly timeoutMs: number }): LspClient {
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   let nextId = 1;
+  let documentVersion = 0;
   let buffer = Buffer.alloc(0);
   let alive = child.exitCode === null;
   let stderr = "";
@@ -139,12 +140,14 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     request,
     notify: (method, params) => { if (alive) send({ method, params }); },
     openDocument: ({ path, text, languageId }) => {
-      if (!alive) throw new Error("the language server is not running");
-      send({ method: "textDocument/didOpen", params: { textDocument: { uri: fileUri(path), languageId, version: 1, text } } });
+      const version = ++documentVersion;
+      send({ method: "textDocument/didOpen", params: { textDocument: { uri: fileUri(path), languageId, version, text } } });
+      return version;
     },
-    changeDocument: ({ path, text, version }) => {
-      if (!alive) throw new Error("the language server is not running");
+    changeDocument: ({ path, text }) => {
+      const version = ++documentVersion;
       send({ method: "textDocument/didChange", params: { textDocument: { uri: fileUri(path), version }, contentChanges: [{ text }] } });
+      return version;
     },
     closeDocument: ({ path }) => {
       if (!alive) return;

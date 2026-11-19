@@ -1,0 +1,5 @@
+{
+  "reason": "第 96 批 96-2：开着的定时任务详情到点后只读这一项、一轮落地就地重画（browser/round.ts 与共用的 round-stamp），页面重读期间保留用户的新选择、「能读的数据」区域随详情移入新详情。无新增资源、无新文字，只进 Schedule 自己的客户端脚本。",
+  "review": "PR「第 96 批」描述的「页面资源增长」一节（评审子代理审本批 PR 时一并审）",
+  "assets": { "/assets/molis-work-plugins/schedule.js": 1662 }
+}

@@ -28,7 +28,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null, takeNotice = '';
-  let blankName = '', goingBack = false;
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:globalThis.t.text("workbench.context-onboarding.request-failed-try-again")});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);

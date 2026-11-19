@@ -35,12 +35,12 @@
   ],
   "pages": {
     "arrival-empty/zh": {
-      "cold": 5488,
-      "warm": 2830
+      "cold": 5469,
+      "warm": 2811
     },
     "arrival-empty/en": {
-      "cold": 5521,
-      "warm": 2830
+      "cold": 5502,
+      "warm": 2811
     },
     "chooser/zh": {
       "cold": 5255,

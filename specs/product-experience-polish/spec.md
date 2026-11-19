@@ -43,7 +43,7 @@
    - 在 `packages/plugin-sdk` 提供统一自动保存状态渲染：`idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻闪 `640ms` 后 `2s` 淡回静默）→ `failed`（红色常驻 + 保留草稿 + 就地 `mw-btn--link`「重试」）。
    - 修复 `packages/design-system/src/browser/copy-feedback.ts` 硬编码中文默认值 `"已复制" / "复制失败"`，改为经 `globalThis.t` 读取双语键；提供 `optimisticToggle` 乐观开关失败回滚助手（失败自动弹回原值 + 解除禁用 + 区块内就地 `role="alert"`）。
 5. **共享控件与生成插件渲染器收口**：
-   - **生成插件共享渲染器（`packages/design-system/src/plugin-component-*.ts`）**：解耦页面 `opener` 与模态窗 `submit` 的阳色绑定（确保每页平面最多 1 个 `mw-btn--primary`、每个独立弹窗内正向提交恒为 `primary`）；清除 `.pc-count::before` 硬编码中文 `"共 X 条"`；废除 `TONES[index % 4]` 轮转琥珀染色；拆 `.pc-directory>.pc-record` 卡套卡与行级雾蓝底；删除 `:hover translateY(-1px)` 与 `"✓ "` 字符；未知插件回退图标由 `sparkles` 改为 `puzzle`；首载骨架守 `250ms` 延迟。
+   - **生成插件共享渲染器（`packages/design-system/src/plugin-components.ts` 与 `plugin-component-*.ts`）**：解耦页面 `opener` 与模态窗 `submit` 的阳色绑定（确保每页平面最多 1 个 `mw-btn--primary`、每个独立弹窗内正向提交恒为 `primary`）；清除 `.pc-count::before` 硬编码中文 `"共 X 条"`；废除 `TONES[index % 4]` 轮转琥珀染色；拆 `.pc-directory>.pc-record` 卡套卡与行级雾蓝底；删除 `:hover translateY(-1px)` 与 `"✓ "` 字符；未知插件回退图标由 `sparkles` 改为 `puzzle`；首载骨架守 `250ms` 延迟。
    - **统一日期／时间渐进增强器**：在 `packages/design-system` 基于 `.mw-calendar` + `.mw-popover` 封装统一 `date / time / datetime-local / month` 增强组件，清零全仓 21 处 OS 原生日期/时间拾取器。
    - **宿主确认弹窗桥 `host.confirm` 与共享件**：扩展 `apps/workbench/src/browser/plugin-frame/dialogs.ts` 支持 `{ title?, confirmLabel, tone?: "primary" | "danger" }`，不可逆删除默认危险红 `mw-btn--danger` 与具体动词（禁用泛词「确定」），按钮严格「左取消、右主动作」；修复市场卡片 `craft-finish-pages.ts` `.mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn)` 漏筛 `:not([hidden])` 导致的单按钮折行事故；修复 `/__ui/catalog` 裸键 `"common.control.retry"`、`context-toolbar.ts` 字符图标、`file-picker.ts` 硬编码中文与 `diff-view.ts` 琥珀普通提示及 `@container (max-width: 680px)` 单列降级；清零 `agent-review-surface.ts` 8 处硬编码色并取消审批二次确认套娃。
 
@@ -77,7 +77,7 @@
 - **账号、登录与租户席位**：修复 `account-subscription-form.ts` 动态套餐名误入 `t.text()` 渲染 `"这句话暂时显示不了"` 的严重 Bug 并隐藏 `seatTypeId`；清零 8 处 `window.confirm`、7 处错挂 `mw-input` 的 `<select>` 与 2 处原生 `datetime-local`；废除 `account-menu.ts` 9 处硬编码 `#hex` 与被底栏压住的 `bottom: 28px` 浮条（切宿主 Toast）；翻转全部表单底栏为「左取消、右主动作」。
 - **插件市场与详情**：市场扩至 `960px` 等高双列、恢复按钮标准边框、0 条待核对通知常态隐藏、`settings-plugins.ts` 用人话标题替机器码并切宿主 Toast 与危险红卸载钮、安装完成接 `molisCraft.land`。
 - **右侧面板四视图与终端**：电脑面板删除 `--accent`（`#4c8dff`）实心主按钮与 10 处硬编码色；资料面板修英文提交钮 `"Imported"` → `"Import"`、拆 6 种全琥珀文件状态、把浏览器/电脑审批条设为真正的 `--amber-soft` 并接 `molisCraft.ask`；翻转 4 处按钮反序、修侧栏拖入高亮错绑隐藏弹窗 Bug、二进制文件补系统打开、图片挂 `molisMediaZoom`、字符 `×` 换图标、分割条补 `4px` 阈值与 `Escape`。
-- **IM 讨论**：注入 `PRESENTATION_FORM_STYLES`、`mw-dialog / mw-menu / mw-status`、`STATE_RING / MICRO_INTERACTION / CRAFT_FINISH` 脚本并收窄 `svg { width: 20px }` 根治对象引用卡破相；未读话题补 `sr-only` 与 `600` 字重；发送钮独占唯一 `--action`；嵌入侧栏去重复大标题与混排 `Thread`，草稿恢复回填对象标题。
+- **IM 讨论**：消费 `91-1` 已注入 `packages/im-ui/src/client.ts` 的共享脚本，补齐 `PRESENTATION_FORM_STYLES`、`mw-dialog / mw-menu / mw-status` 样式并收窄 `svg { width: 20px }` 根治对象引用卡破相；未读话题补 `sr-only` 与 `600` 字重；发送钮独占唯一 `--action`；嵌入侧栏去重复大标题与混排 `Thread`，草稿恢复回填对象标题。
 - **Artifacts 与 Sessions**：修复两处首屏加载失败白屏吞错（补 `.mw-empty--error` + 重试）；Artifacts 隐藏常态绿色「可用」、归档分组改中性灰、人话替换反向域名 ID 与 `Schema`、补 `molisCopy` 与 `molisMediaZoom`；Sessions 左栏切 `280px` `--surface-soft`、数据源改按需弹层释放 `240px` 首屏高度、4 处错挂 `mw-input` 的 `<select>` 修正为 `mw-select`、3 处裸剪贴板切 `molisCopy`、悬停改 `130ms` 并切 `@container`。
 - **全局搜索 `⌘K` 与标签拖拽**：搜索命中高亮 `#f5c542` 改 `--accent` 浅洗、范围切 `mw-toggle-group`；`tab-drag-slot.ts` `.animate([{ width }])` 改 FLIP `transform` + `--dur-move / --ease-quint`。
 
@@ -129,7 +129,7 @@
 ## 5. 三层防回归自动化门禁收紧（`91B-4`）
 
 按 `AGENTS.md` 门禁修改流程经用户确认后，在 `91B-4` 永久焊死三层守卫：
-1. **静态精细度与布局门禁（`tests/soft-workbench-refinement.test.ts`）**：将全量内置插件样式表（`plugins/native/*/src/styles.ts`）与 `packages/im-ui/src/styles.ts` 纳入扫描范围；新增插件内禁止视口布局 `@media (max-width/min-width)`（仅允许 `(pointer: coarse)` / `(hover: none)` / `(prefers-reduced-motion)`）守卫。
+1. **静态精细度与布局门禁（`tests/soft-workbench-refinement.test.ts`）**：将全量内置插件样式表（含全部 `plugins/native/*/src/*styles*.ts`、注册 `stylesheet` 与 `plugin-builder/src/agent-studio.ts`、`form/src/fillpage.ts`、`inbox/src/ui.ts`、`pages/src/comment-side-view.ts` 等内联样式源）与 `packages/im-ui/src/styles.ts` 纳入扫描范围；新增插件内禁止视口布局 `@media (max-width/min-width)`（仅允许 `(pointer: coarse)` / `(hover: none)` / `(prefers-reduced-motion)`）守卫。
 2. **视觉秩序与分屏几何门禁（`tests/visual-order.e2e.test.ts` + `tests/fixtures/order-audit.ts`）**：补齐漏检的 11 个高频表面（`risk / work-brief / shelf / sessions / materials / plugin-market / capabilities / im-ui` 及右侧面板视图）与 `MODE_PAGES` 深色/紧凑/390px 覆盖；将 `[role="button"]` 纳入热区与控件检查；新增 **`600px` 分屏窄窗格几何断言**（无横向裁切溢出、正文有效列宽 `≥ 280px`、无非法双滚动容器）。
 3. **行为反馈与回滚门禁（`tests/busy-feedback.e2e.test.ts` + `tests/save-failure.e2e.test.ts`）**：将漏测的 12 个表面（`risk / work-brief / cognia / alchemist / dataset / images / schedule / artifacts / sessions / text-stats / diff / plugin-builder`）补入 `250ms` 瞬闪采样；将断网保存失败回滚断言从 Shelf 扩展至 Todo、Jelly 与设置实时开关。
 

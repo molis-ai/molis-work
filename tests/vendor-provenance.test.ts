@@ -210,12 +210,12 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is chore/cleanup-legacy-migrations 99f9c7e1 (based on official main 64e5aaf4)", () => {
+  test("the current Prologue package is official main 66c404c7 (Prologue PR #136)", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "99f9c7e10173cc62e9aef7d65ca9e21d3aa262fe");
-    assert.match(provenance.source.note, /chore\/cleanup-legacy-migrations/);
+    assert.equal(provenance.source.commit, "66c404c7dd81c254191388736ca05eb38d32f6c2");
+    assert.match(provenance.source.note, /Official main commit 66c404c7/);
     assert.equal(provenance.artifact.bytes, 1_479_460);
     assert.equal(provenance.artifact.sha256, "577c8ecbb04b6348d1e3722c63e57eb5874d72e88e82b03a467c08da2a993637");
     assert.equal(provenance.source.candidateUpstream, undefined);
@@ -277,7 +277,7 @@ describe("the records of this repository", () => {
     // The upstream audit keeps every commit it checked; batch 31 added 7e2de40b, 018947ae, 4493a5eb, 4a4d1d3c, 188d9f6c and 3825662d,
     // batch 32 e0625b62, 0a0dfdfa and 02a11ac5, and moved mainHead to 02a11ac5.
     const upstream = record.upstream;
-    assert.equal(upstream.mainHead, "64e5aaf444629aa597f028e63cf4090456830637");
+    assert.equal(upstream.mainHead, "66c404c7dd81c254191388736ca05eb38d32f6c2");
     assert.equal(upstream.commitsChecked.length, 69);
     assert.ok(upstream.commitsChecked.includes("02a11ac5a566eab4afe15e5562240fdd11f5c9a4"));
     assert.ok(upstream.commitsChecked.includes("0a0dfdfa507f463efdce14611dcbfbf1506ac5d2"));

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleMcpMessage, type McpProtocolPorts, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+import { handleMcpMessage, isPlatformMcpTool, type McpProtocolPorts, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
 const serverInfo = { name: "molis-work-mcp", version: "1.0.0" };
 const tools = [{ name: "fixture-query", description: "Read fixture", inputSchema: { type: "object" } }];
@@ -101,4 +101,7 @@ test("D0113 a newer client negotiates the server's supported version instead of 
   const reply = await handleMcpMessage({ id: 19, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "new-client", version: "1" } } }, {
     serverInfo, tools, callTool: async () => "ok", formatToolError: () => "failed" });
   assert.equal((reply?.result as { protocolVersion: string }).protocolVersion, "2025-03-26");
+  assert.equal(isPlatformMcpTool("goalboard_v1_goal_list"), false);
+  assert.equal(isPlatformMcpTool("molis_work_v1_goal_list"), false);
+  assert.equal(isPlatformMcpTool("molis_work_v1_context_resolve"), true);
 });

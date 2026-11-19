@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Visual comparison of a branch against main (W4-12): the key surfaces of tests/visual-surfaces.e2e.test.ts at 1440, 1024
+// Visual comparison of a branch against main (W4-12): the key surfaces of scripts/visual-capture.mts at 1440, 1024
 // and 390 wide, light and dark, captured in Chrome on this Mac for both trees and diffed pixel by pixel.
 //
 //   node scripts/visual-compare.mjs [--base <ref>] [--base-tree <dir>] [--out <dir>] [--tolerance <0-255>] [--max-ratio <0-1>]
@@ -30,7 +30,7 @@ import { decodePng, diffImages, encodePng } from "./visual/png.mjs";
 import { diffStyles, readStyles } from "./visual/styles.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const CAPTURE = "tests/visual-surfaces.e2e.test.ts";
+const CAPTURE = "scripts/visual-capture.mts";
 
 function parse(argv) {
   const options = { base: "origin/main", baseTree: null, out: join(ROOT, ".impeccable/qa/review/visual/compare"), tolerance: 0, maxRatio: 0, compare: null };

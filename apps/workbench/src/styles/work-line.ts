@@ -94,7 +94,7 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 .work-counts>.work-reply-mini{position:relative;height:28px;margin-left:5px;padding-left:5px;animation:none}
 .work-counts>.work-reply-mini::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:var(--line-strong)}
 .work-counts>.work-reply-mini .mw-btn.mw-btn--icon-only{width:28px;height:28px;min-width:28px;min-height:28px}
-.work-counts>.work-reply-mini .work-task-mark{height:28px}
+.work-counts>.work-reply-mini .work-task-mark{height:28px;min-width:43px;justify-content:center}
 .work-counts>.work-event{height:28px;padding:0 8px 0 6px;font-size:11px}
 /* The right column: the lists open where the info bar will stand, right above the stack and as wide (§4「底栏第十三版」第 4 条). */
 .work-side{grid-column:3;grid-row:1;justify-self:start;position:relative;width:100%;max-width:400px;min-width:0}

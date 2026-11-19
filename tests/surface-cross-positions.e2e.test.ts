@@ -220,9 +220,8 @@ test("IUI-02 IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
   const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals", { title, outcome: "Same object's actual outcome", idempotency_key: randomUUID() });
-  await b.waitFor(visible('[data-side-tabs] [data-side-tab][aria-selected=true]'));
-  await b.click('[data-side-tabs] [data-side-tab][aria-selected=true]');
-  await b.waitFor(visible('[data-side-tab="discussion"]'));
+  await b.waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
+  // Scheme C: the side opens from its switch and picks a view from the side-ear list (handled by click()).
   await b.click('[data-side-tab="discussion"]');
   const frame = `document.querySelector(${quoted(imFrame)})`, doc = `${frame}?.contentDocument`, query = (selector: string) => `${doc}?.querySelector(${quoted(selector)})`;
   const imClick = async (selector: string) => {

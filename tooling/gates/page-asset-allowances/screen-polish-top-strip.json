@@ -1,7 +1,7 @@
 {
-  "reason": "逐屏打磨第一轮 P1 顶部栏（方案 C「纸上的页签」）、第十三版左上角一格「项目 › 项目主页」与起始页（POLISH-04）、底栏第十三版（账户条、居中两行输入框与三个计数、三张清单、卡叠、右端两键，POLISH-05/71/73/74）及触控/交互精修（含 390px 计数条防 CLS、820px 窄宽顶部栏收缩防裁切、三张清单点外关闭及开验收自动收起、账户菜单同步态镜像与字号/ARIA 修正、480px 以下矮窗约束说明编辑器紧凑留白）。顶部栏样式（styles/top-strip.ts）与底栏样式（styles/work-line.ts）使用标准 CSS 嵌套消减重复选择器前缀后，工作台样式相对 main 仅净增 6,613 字节（远低于用户 2026-11-18 批准的 17,720 字节与 10 KB 线）；到达页与设置页样式各减少 6 KB 以上，工作台脚本与输入框脚本均为净减。工作台中英文词包增删键后换了内容定址文件名，门禁按新路径放行。首屏热启动增长来自每页文档骨架新增的左上角项目/页面清单、账户条、同步态镜像与底栏三清单骨架标记；冷启动增长为热启动加工作台样式净增减去工作台脚本净减。",
-  "review": "specs/screen-polish/spec.md §3「方案 C」、§4「底栏第十三版」与验收 POLISH-01～07、38、42、55、61～64、70～74；统一分支 feat/screen-polish-unified（含 P5 第二段、Coding 前半、顶部与底栏第十三版及视觉/全量回归精修，对照 main d1188d6b46 隔离构建实测，2026-11-19）。node scripts/gates/page-assets.mjs --base origin/main：/assets/molis-work-workbench.css 1,186,862 → 1,193,475（+6,613，远低于已批 17,720 B 与 10 KB 线）、/assets/molis-work-plugin-frame.js 324,737 → 324,784（+47）；/assets/molis-work-workbench.js -577、/assets/molis-work-composer.js -654、/assets/molis-work-assistant-subtasks.js -136、/assets/molis-work-arrival.css -6,044、/assets/molis-work-settings.css -6,150。node scripts/gates/first-screen.mjs --base origin/main 实测总增量（本文件填扣除 P5、Coding 两份许可后的精确净值，不向上取整）：arrival-empty zh 冷 +3,875 / 热 +3,189、en 冷 +3,887 / 热 +3,189；chooser zh 冷 +3,184 / 热 +3,152、en 冷 +3,196 / 热 +3,152；workbench-default zh 总冷 +12,041（本项 11,936）/ 总热 +6,542（本项 5,937）、en 总冷 +12,061（本项 11,956）/ 总热 +6,550（本项 5,945）；workbench-all-plugins zh 总冷 +13,075（本项 11,548）/ 总热 +7,576（本项 5,536）、en 总冷 +13,073（本项 11,567）/ 总热 +7,562（本项 5,543）。",
-  "userApproval": "用户于 2026-11-16 在会话里批准（对「批准工作台样式 +14.3 KB（含词包换名）并提交吗？」答「批准并提交」）：工作台样式净增、工作台中英文词包换名，以及由此带来的上列各页首屏增长；用户于 2026-11-18 再次批准（对「工作台样式净增 17,720 字节（约 17.3 KB），批吗？」答「批」）。统一分支经标准 CSS 嵌套收紧后工作台样式实测净增 +6,613 字节，落在批准额度与 10 KB 以内。",
+  "reason": "逐屏打磨第一轮 P1 顶部栏（方案 C「纸上的页签」）、第十三版左上角一格「项目 › 项目主页」与起始页（POLISH-04）、底栏第十三版（账户条、居中两行输入框与三个计数、三张清单、卡叠、右端两键，POLISH-05/71/73/74）及触控/交互精修（含 390px 计数条防 CLS、820px 窄宽顶部栏收缩防裁切、三张清单点外关闭及开验收自动收起、账户菜单同步态镜像与字号/ARIA 修正、480px 以下矮窗约束说明编辑器紧凑留白、开关对话与任务计数变动时稳住输入框文字栏宽防抖动）。顶部栏样式（styles/top-strip.ts）与底栏样式（styles/work-line.ts）使用标准 CSS 嵌套消减重复选择器前缀后，工作台样式相对 main 仅净增 6,651 字节（远低于用户 2026-11-18 批准的 17,720 字节与 10 KB 线）；到达页与设置页样式各减少 6 KB 以上，工作台脚本与输入框脚本均为净减。工作台中英文词包增删键后换了内容定址文件名，门禁按新路径放行。首屏热启动增长来自每页文档骨架新增的左上角项目/页面清单、账户条、同步态镜像与底栏三清单骨架标记；冷启动增长为热启动加工作台样式净增减去工作台脚本净减。",
+  "review": "specs/screen-polish/spec.md §3「方案 C」、§4「底栏第十三版」与验收 POLISH-01～07、38、42、55、61～64、70～74；统一分支 feat/screen-polish-unified（含 P5 第二段、Coding 前半、顶部与底栏第十三版及视觉/全量回归精修，对照 main 820c13d498 CI 产线基线实测，2026-11-19）。node scripts/gates/page-assets.mjs --base origin/main：/assets/molis-work-workbench.css 1,186,862 → 1,193,513（+6,651，远低于已批 17,720 B 与 10 KB 线）、/assets/molis-work-plugin-frame.js 324,737 → 324,784（+47）；/assets/molis-work-workbench.js 1,367,794 → 1,367,464（-330）、/assets/molis-work-composer.js -654、/assets/molis-work-assistant-subtasks.js -136、/assets/molis-work-arrival.css -6,044、/assets/molis-work-settings.css -6,150。node scripts/gates/first-screen.mjs --base origin/main 实测总增量（本文件填扣除 P5、Coding 两份许可后的精确净值，不向上取整）：arrival-empty zh 冷 +3,875 / 热 +3,189、en 冷 +3,887 / 热 +3,189；chooser zh 冷 +3,184 / 热 +3,152、en 冷 +3,196 / 热 +3,152；workbench-default zh 总冷 +12,326（本项 12,221）/ 总热 +6,542（本项 5,937）、en 总冷 +12,346（本项 12,241）/ 总热 +6,550（本项 5,945）；workbench-all-plugins zh 总冷 +13,360（本项 11,833）/ 总热 +7,576（本项 5,536）、en 总冷 +13,358（本项 11,852）/ 总热 +7,562（本项 5,543）。",
+  "userApproval": "用户于 2026-11-16 在会话里批准（对「批准工作台样式 +14.3 KB（含词包换名）并提交吗？」答「批准并提交」）：工作台样式净增、工作台中英文词包换名，以及由此带来的上列各页首屏增长；用户于 2026-11-18 再次批准（对「工作台样式净增 17,720 字节（约 17.3 KB），批吗？」答「批」）。统一分支经标准 CSS 嵌套收紧后工作台样式实测净增 +6,651 字节，落在批准额度与 10 KB 以内。",
   "entryApprovals": [
     {
       "pages": [
@@ -27,7 +27,7 @@
     }
   ],
   "assets": {
-    "/assets/molis-work-workbench.css": 6613,
+    "/assets/molis-work-workbench.css": 6651,
     "/assets/molis-work-plugin-frame.js": 47
   },
   "pages": {
@@ -48,19 +48,19 @@
       "warm": 3152
     },
     "workbench-default/zh": {
-      "cold": 11936,
+      "cold": 12221,
       "warm": 5937
     },
     "workbench-default/en": {
-      "cold": 11956,
+      "cold": 12241,
       "warm": 5945
     },
     "workbench-all-plugins/zh": {
-      "cold": 11548,
+      "cold": 11833,
       "warm": 5536
     },
     "workbench-all-plugins/en": {
-      "cold": 11567,
+      "cold": 11852,
       "warm": 5543
     }
   }

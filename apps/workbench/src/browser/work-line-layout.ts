@@ -108,12 +108,21 @@ function installRise(slot: HTMLElement): void {
 
 /**
  * The words in the input wrap before the counts in its top right (13th version): the room they leave is the counts' own width,
- * which changes with 该你 N, a count's digits and a finger's 44px keys, so it is measured, not guessed.
+ * which changes with 该你 N, a count's digits and a finger's 44px keys, so it is measured, not guessed. Keeping the last
+ * `[data-reply-mini]` width while the dialog is open prevents the input column from jumping horizontally on send (VUX-16).
  */
 function installCountsRoom(slot: HTMLElement): void {
   const counts = slot.querySelector<HTMLElement>("[data-work-counts]");
   if (!counts) return;
-  const measure = () => slot.style.setProperty("--counts-room", `${Math.ceil(counts.offsetWidth) + 16}px`);
+  let miniWidth = 0;
+  const measure = () => {
+    const mini = counts.querySelector<HTMLElement>("[data-reply-mini]");
+    if (mini && mini.offsetWidth > 0) {
+      const gap = Number.parseFloat(getComputedStyle(counts).columnGap) || Number.parseFloat(getComputedStyle(counts).gap) || 0;
+      miniWidth = mini.offsetWidth + (Number.parseFloat(getComputedStyle(mini).marginLeft) || 0) + gap;
+    }
+    slot.style.setProperty("--counts-room", `${Math.ceil(counts.offsetWidth + (mini ? 0 : miniWidth)) + 16}px`);
+  };
   measure();
   new ResizeObserver(nextFrame(measure)).observe(counts);
 }

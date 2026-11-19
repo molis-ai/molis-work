@@ -42,14 +42,14 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   // Pin the viewport to the regression scenario so geometry does not depend on the host window size.
   await command('Emulation.setDeviceMetricsOverride', { width: 756, height: 469, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  // side-shelf §3.1: Shelf, 灵光 and the rest are the side panel's tabs. Since 07-1 S4b the way in is the side's current glyph in
-  // the titlebar (the bar's side button is gone). At this short, narrow window it must still be a whole, uncovered 32px+ target
-  // inside the viewport.
+  // side-shelf §3.1 & specs/screen-polish §3 方案 C (POLISH-05 / POLISH-07): Shelf, 灵光 and the rest are the side panel's views.
+  // The way in from the titlebar is the side switch (`[data-side-toggle]`). At this short, narrow window it must still be a whole,
+  // uncovered 32px+ target inside the viewport.
   const layout = await evaluate<any>(`(() => {
-    const shelf = document.querySelector('.immersive-titlebar [data-side-tabs] [data-side-tab][aria-selected=true]');
+    const shelf = document.querySelector('.immersive-titlebar [data-side-toggle]');
     const r = shelf?.getBoundingClientRect();
     const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
-    const neighbours = [...document.querySelectorAll('.immersive-titlebar :is(.tab-item, .tab-add-button, .tab-strip-button, [data-side-tab], [data-layout-open])')].filter(e => e !== shelf && !e.contains(shelf) && e.getClientRects().length)
+    const neighbours = [...document.querySelectorAll('.immersive-titlebar :is(.tab-item, .tab-add-button, .tab-strip-button, [data-side-tab], [data-side-toggle], [data-layout-open], [data-project-menu])')].filter(e => e !== shelf && !e.contains(shelf) && e.getClientRects().length)
       .map(e => e.getBoundingClientRect()).filter(n => r && n.left < r.right && n.right > r.left && n.top < r.bottom && n.bottom > r.top).length;
     return { viewport: { w: innerWidth, h: innerHeight }, shelf: r ? { w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
       hitsShelf: !!(hit && shelf.contains(hit)), hitTag: hit?.tagName.toLowerCase(), neighbours };

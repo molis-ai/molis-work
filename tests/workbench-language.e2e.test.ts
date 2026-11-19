@@ -1475,8 +1475,6 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
   assert.deepEqual(reads, [], "a discussion that has never opened costs no language reads");
   await choose("zh");
   assert.equal(await b.evaluate("fetch('/im?embedded=1',{headers:{'x-molis-work-ui-locale':'en'}}).then(answer=>answer.status)"), 403);
-  await b.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
-  await b.waitFor("document.querySelector('[data-side-tab=discussion]')?.checkVisibility()");
   await b.click("[data-side-tab=discussion]");
   await b.waitFor(`${im}?.querySelector('[data-name-form] input')`);
   await b.evaluate(`(() => {
@@ -1631,8 +1629,6 @@ test("FSS-07 the first visible discussion uses the already selected appearance",
   t.after(stop);
   await b.command("Network.setCacheDisabled", { cacheDisabled: true }, b.sessionId);
   await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/assets/ui-skin/folio-1.css", resourceType: "Stylesheet" }] }, b.sessionId);
-  await b.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
-  await b.waitFor("document.querySelector('[data-side-tab=discussion]')?.checkVisibility()");
   await b.click("[data-side-tab=discussion]");
   await b.waitFor(`${frame}.contentDocument?.URL.includes('/im?embedded=1&project=') && ${loading}?.checkVisibility() && ${frame}.hidden`);
   await b.waitFor(`${frame}.contentDocument?.querySelector('link[href="/assets/ui-skin/folio-1.css"]')`);

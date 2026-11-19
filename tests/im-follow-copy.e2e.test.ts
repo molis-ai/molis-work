@@ -12,9 +12,7 @@ test("RAC-129-IM / VUX-26 VUX-19: the discussion preserves DOM and focus, follow
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
-  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
-  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
-  await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()");
+  // Scheme C: the side opens from its switch and picks a view from the side-ear list (handled by click()).
   await click("[data-side-tab=\"discussion\"]");
   const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";
   // A first visit asks for a name, as a person gives it.

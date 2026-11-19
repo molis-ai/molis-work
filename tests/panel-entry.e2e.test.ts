@@ -11,9 +11,10 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // tests/overlay-placement. At 1440 and 1024, an open side panel leaves the plugin's own page at least half the width.
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-// The side opens from its current glyph in the titlebar since the bar's side button left, and a Home tool from its own glyph there
-// since its titlebar button left (07-1 S4b).
-const TOGGLES = "[data-assistant-toggle], [data-assistant-side-toggle], [data-assistant-works-toggle], [data-side-tabs] [data-side-tab][aria-selected=true], [data-side-tabs] [data-side-tab][data-side-keys]";
+// Scheme C & v13 bottom bar: the side opens from `[data-side-toggle]` at the right end of the titlebar and the Assistant dialog
+// opens from `[data-dialog-open]` in the bottom bar; once open, its inner drawers toggle from `[data-assistant-side-toggle]` and
+// `[data-assistant-works-toggle]`.
+const TOGGLES = "[data-dialog-open], [data-assistant-toggle], [data-assistant-side-toggle], [data-assistant-works-toggle], [data-side-toggle], [data-side-tabs] [data-side-tab][aria-selected=true], [data-side-tabs] [data-side-tab][data-side-keys]";
 
 /** Records the first frame of every animation that starts from now on. */
 const RECORD = String.raw`(() => { window.__entries = [];

@@ -42,7 +42,7 @@ export interface ScheduledRun {
   needs: ("network" | "model")[];  // 跑这一次要什么；平台据此标「等着」
 }
 export interface MissedRun extends ScheduledRun { missed_at: string }
-export interface RunsOverview { source: { surface: string; title: string }; upcoming: ScheduledRun[]; missed: MissedRun[] }
+export interface RunsOverview { source: { surface: string; title: string }; upcoming: ScheduledRun[]; missed: MissedRun[]; expired: number }   // expired：第 95 批加，见 §10.2
 
 export const RUN_DECISION_INPUT_TYPE = "molis.runs.decision.v1";   // { run_id: string; decision: "run_now" | "skip" }
 export const RUN_DECISION_OUTPUT_TYPE = "molis.runs.decided.v1";   // { state: "started" | "skipped" | "gone" }
@@ -201,8 +201,15 @@ interface RuntimeOverview {
 
 - **退出被拦住时的系统注销与关机**：桌面在 `ExitRequested` 上先问，macOS 注销或关机时也会先等这一问；系统会提示应用没退出。系统发起的退出不问直接退，另立事项 [BL-desktop-quit-on-system-logout](../backlog/BL-desktop-quit-on-system-logout.md)。**接受、不修**；重看条件：第 26 批做退出与更新体验时一并看 Tauri 能否分辨系统发起的退出。
 - **换端口后旧端口的授权**：Tauri 运行时加上的能力不撤下，留到桌面退出；两个端口都只在本机回环、都要过核身份才会被用到。**接受、不修**；重看条件：Tauri 支持按窗口撤下能力时再看。
-- **Feed 的「现在做」**：把下次拉取设成当下；如果之后十分钟以上没有轮到（例如马上睡眠），会再记一次错过，人再决定一次即可（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。重看条件：Feed 照 Schedule 的做法把「现在做排上的那一次」排除在宽限判断外时删掉。
-- **没决定的错过不过期**：一直列着，直到人选「现在做」或「跳过」，或来源被删（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）；期限属产品语义，等用户定，重看条件写在该 BL。
+- ~~**Feed 的「现在做」**~~：第 95 批（95-2）已改：照 Schedule 的做法把来源放回错过的那一刻、决定留在那一行，调度见到带 `run_now` 的那一刻照常拉一次，不论晚了多久，也不再记错过（[BL-feed-run-now-missed-again](../backlog/BL-feed-run-now-missed-again.md)）。
+- ~~**没决定的错过不过期**~~：第 95 批（95-3）已改：用户 2026-11-18 定从 `due_at` 起算留七天，到期没人决定的自动跳过，菜单栏面板与首页提示说一次「有 n 件 7 天没处理、已自动跳过」（按主人分开数），「知道了」后不再说（[BL-missed-runs-never-expire](../backlog/BL-missed-runs-never-expire.md)）。做法见 §10.2。
+
+### 10.2 七天到期（第 95 批）
+
+- **到期只从时间算**：`runHasExpired(due_at, now)`（`now - due_at >= 7 天`，刚满七天就算）。三位主人都不为到期另写一行或改状态：没人决定的那一行原样留着，读的时候按 `runsExpiryBounds` 排出列表、数进 `expired`；所以关机跨过第七天的，一回来读到的就是已过期，不靠哪次扫描赶上；第一页只列还在等的，过期的再多也数得全（`COUNT`）。对过期的那一件点「现在做／跳过」答 `gone`；第七天之前点的「现在做」是人的决定，照常执行，不算进汇总。人自己的「跳过」也不算进汇总。
+- **各主人自己存**：Feed 的 `feed_missed_pulls`、Schedule 的 `schedule_missed_runs`、助理跟进记录里的 `missed`。行留到过期后一个月再删（Feed、Schedule 在写错过时顺手删；助理在下一次跑这条跟进时删），已决定的照旧留到决定后一个月。Schedule 的一次性提醒与一次性操作过期时，像「跳过」一样了结（提醒删掉、操作标完成），在每 5 秒一轮的恢复写里做（`endExpiredOnce`）。
+- **说一次**：宿主把人读过的那份汇总的时刻记在 `run/expired-seen.json`（`format.home.run.expired-seen` 第 1 版），问各主人时作为 `expired_after` 传下去，主人只数之后到期的；重启后读回这个时刻，同一份汇总不再说。「知道了」在首页走 `POST /api/runtime/expired/seen`，在菜单栏面板走桌面命令 `runtime_expired_seen`（只答面板自己的页面，同 `runtime_decide`）。
+- **已知局限**：一份汇总只数说的那一刻答得上来的主人；某个项目当时没开着（不在 `openProjects` 里），它在那之前到期的几件，之后打开也不再计入汇总（这几件照样已跳过，只是没被说出来）。重看条件：home_aggregate 能按项目传不同输入时，按「项目＋主人」分别记说到哪儿。
 - **面板读不到时**：读失败一律显示「没在运行」，不区分宿主没起和一次读超时；30 秒后再读。**接受、不修**；重看条件：界面能可靠区分「宿主没起」和「一次读超时」时再看。
 - **「已核对、不再提醒」没有来源**：11-04 决定要求在首页也列「已核对、不再提醒」的，但助理跟进的结果里没有「已不需要」这一种，首页只列错过的；另立 [BL-followup-already-unneeded](../backlog/BL-followup-already-unneeded.md)（A 轨／助理，等跟进有了这个结果再接）。
 - **运行中宿主重启进入升级**：升级开场页只在桌面启动等待时显示；应用已打开、宿主重启进入升级时，主窗口停在原页面（「没在运行」页），不另行导航。重看条件：第 26 批把宿主重启与升级体验合起来看。

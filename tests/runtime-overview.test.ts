@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decideRuntimeRun, runtimeOverview, runtimeRunDecisionRequest, type HomeAggregatePorts, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { decideRuntimeRun, expiredSeenThrough, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type HomeAggregatePorts, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionDefinition, type ActionView, type RunsOverview,
   type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -25,7 +28,7 @@ const homeDecision = defineRunDecisionAction("assistant.runs.decide", 1, "助理
 const run = (id: string, due: string, needs: Array<"network" | "model"> = [], project: string | null = null) =>
   ({ run_id: id, title: id, due_at: due, project_id: project, open: null, needs });
 
-function harness(answers: Record<string, (input: unknown) => unknown>, options: { online?: boolean; model?: boolean } = {}) {
+function harness(answers: Record<string, (input: unknown) => unknown>, options: { online?: boolean; model?: boolean; seen?: string | null } = {}) {
   const calls: string[] = [];
   const projects = [reference("p1"), reference("p2")];
   const projectViews = (projectId: string) => [view(projectOverview("schedule"), "schedule", projectId), view(projectDecision("schedule"), "schedule", projectId),
@@ -46,15 +49,16 @@ function harness(answers: Record<string, (input: unknown) => unknown>, options: 
     aggregate, within: async (scope, work) => scope === null || projects.some(project => project.project_id === scope) ? work(client(scope)) : undefined,
     now: () => new Date(NOW), online: () => options.online ?? true, model: () => options.model ?? true,
     gaps: () => [{ from: "2026-11-11T01:00:00.000Z", to: "2026-11-11T07:00:00.000Z", cause: "sleep" }],
+    expiredSeen: () => options.seen ?? null,
   };
   return { ports, calls };
 }
 
-const overview = (source: string, upcoming: unknown[], missed: unknown[] = []) => (input: unknown) => {
+const overview = (source: string, upcoming: unknown[], missed: unknown[] = [], expired = 0, title = source) => (input: unknown) => {
   const window = input as RunsWindow;
   assert.equal(window.now, NOW);
   assert.equal(Date.parse(window.upcoming_until) - Date.parse(window.now), 48 * 3_600_000, "the next two days");
-  return { source: { surface: source, title: source }, upcoming, missed } as RunsOverview;
+  return { source: { surface: source, title }, upcoming, missed, expired } as RunsOverview;
 };
 
 test("RES-05 every owner found by type is asked once and the answers are put side by side, sorted, each with where it came from", async () => {
@@ -80,7 +84,7 @@ test("RES-05 one owner that fails, times out or answers what cannot be drawn is 
   const { ports } = harness({
     "p1:schedule.runs.overview": () => { throw new ActionError("schedule.unreadable", "PRIVATE owner words"); },
     "p2:schedule.runs.overview": () => new Promise(() => undefined),
-    "p1:feed.runs.overview": () => ({ source: { surface: "bad surface!", title: "x" }, upcoming: [], missed: [] }),
+    "p1:feed.runs.overview": () => ({ source: { surface: "bad surface!", title: "x" }, upcoming: [], missed: [], expired: 0 }),
     "p2:feed.runs.overview": overview("feed", [run("pull", "2026-11-11T10:00:00.000Z", ["network"])]),
     "home:assistant.runs.overview": overview("assistant", [run("fu", "2026-11-11T11:00:00.000Z", ["model"])]),
   }, { online: false });
@@ -105,4 +109,37 @@ test("RES-05 现在做 and 跳过 go to the decision action of the same provider
   assert.deepEqual(await decideRuntimeRun(ports, runtimeRunDecisionRequest({ scope_project_id: "p1", provider_id: "nobody", run_id: "x", decision: "skip" })), { state: "gone" });
   for (const bad of [{ scope_project_id: "p1", provider_id: "feed", run_id: "x", decision: "later" }, { provider_id: "feed", run_id: "x", decision: "skip" }])
     assert.throws(() => runtimeRunDecisionRequest(bad), { code: "actions.input_invalid" });
+});
+
+test("BL-missed-runs-never-expire the runs skipped on their own since the person was last told are counted together and by owner, once", async () => {
+  const asked: Array<string | null> = [];
+  const counting = (source: string, title: string, expired: number) => (input: unknown) => { asked.push((input as RunsWindow).expired_after); return overview(source, [], [], expired, title)(input); };
+  const answers = {
+    "p1:schedule.runs.overview": counting("schedule", "定时任务", 2), "p2:schedule.runs.overview": counting("schedule", "定时任务", 1),
+    "p1:feed.runs.overview": counting("feed", "Feed 来源", 1), "p2:feed.runs.overview": counting("feed", "Feed 来源", 0),
+    "home:assistant.runs.overview": counting("assistant", "助理定时", 0),
+  };
+  const told = "2026-11-10T09:00:00.000Z", result = await runtimeOverview(harness(answers, { seen: told }).ports);
+  assert.deepEqual(asked, Array(5).fill(told), "every owner counts only what ran out after the last summary the person read");
+  assert.deepEqual(result.expired, { count: 4, through: NOW, sources: [{ title: "定时任务", count: 3 }, { title: "Feed 来源", count: 1 }] },
+    "one count across projects, by owner, and the moment it was made, for 「知道了」 to send back");
+  assert.deepEqual((await runtimeOverview(harness({ ...answers, "p1:feed.runs.overview": () => ({ source: { surface: "feed", title: "Feed" }, upcoming: [], missed: [] }) }).ports)).unavailable_sources,
+    [{ project_id: "p1", provider_id: "feed", code: "actions.output_invalid" }], "an owner that does not say how many expired is not drawn");
+  assert.throws(() => runtimeExpiredSeenRequest({ through: "later" }), ActionError);
+  assert.deepEqual(runtimeExpiredSeenRequest({ through: NOW }), { through: NOW });
+});
+
+test("BL-missed-runs-never-expire the summary the person read is kept in the Home: a restart reads it back, it never moves back or past now", t => {
+  const home = mkdtempSync(join(tmpdir(), "molis-work-expired-seen-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  assert.equal(expiredSeenThrough(home), null, "nothing told yet: every expired run still kept is counted once");
+  assert.equal(markExpiredSeen(home, NOW, new Date(NOW)), NOW);
+  assert.equal(expiredSeenThrough(home), NOW, "read back as a restarted Host reads it");
+  assert.equal(markExpiredSeen(home, "2026-11-01T00:00:00.000Z", new Date(NOW)), NOW, "an older summary read late does not move it back");
+  assert.equal(markExpiredSeen(home, "2027-01-01T00:00:00.000Z", new Date("2026-11-12T00:00:00.000Z")), "2026-11-12T00:00:00.000Z", "never past now");
+  mkdirSync(join(home, "run"), { recursive: true });
+  writeFileSync(join(home, "run", "expired-seen.json"), "{ torn");
+  assert.equal(expiredSeenThrough(home), null, "a torn file counts as nothing told");
+  writeFileSync(join(home, "run", "expired-seen.json"), JSON.stringify({ schema_version: 2, seen_through: NOW }));
+  assert.equal(expiredSeenThrough(home), null, "a version this one did not write is not read");
 });

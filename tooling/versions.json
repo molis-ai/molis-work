@@ -1268,6 +1268,7 @@
     "format.home.restore.journal": 1,
     "format.home.desktop": 1,
     "format.home.run.endpoint": 1,
+    "format.home.run.expired-seen": 1,
     "format.home.run.presence": 1,
     "format.home.snapshot.file-body": 1,
     "format.home.snapshot.file-wrapper": 1,

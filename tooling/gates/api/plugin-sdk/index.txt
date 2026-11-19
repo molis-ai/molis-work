@@ -428,6 +428,7 @@ export declare const QUESTION_REASK: Readonly<{
 }>;
 
 export { RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+export { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type RoleTemplateInspectionOptions = {
     readonly source: "draft";
@@ -1006,7 +1007,9 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
     values: Record<string, string>;
 }, ports: ActionCardPorts<Card>): Promise<Card>;
 
+export { runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
 export { runIsMissed } from "@molis-ai/molis-work-contracts/platform/actions";
+export { runsExpiryBounds } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const sandboxActionId: (buildId: string, operationId: string) => string;

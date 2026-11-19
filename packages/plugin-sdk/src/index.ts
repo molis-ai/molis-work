@@ -287,7 +287,7 @@ export {
  */
 export { defineDueRemindersAction, assertDueReminderWindow, withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow, DueReminder, DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineRunsOverviewAction, defineRunDecisionAction, assertRunsWindow, withinRunsWindow, runIsMissed, RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineRunsOverviewAction, defineRunDecisionAction, assertRunsWindow, withinRunsWindow, runIsMissed, runHasExpired, runsExpiryBounds, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { RunsWindow, ScheduledRun, MissedRun, RunsOverview, RunDecision, RunDecided, RunDecisionChoice, RunNeed, RunsOwnerScope } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**

@@ -1,6 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import type { PluginJobControl, PluginInstallationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pruneUninstalledSchedules } from "./runtime-uninstall.js";
+import { endExpiredOnce } from "./missed-runs.js";
 import { reconcileScheduledOperations } from "./operations.js";
 import { rescheduleEnabledConversationTasks } from "./wakeup.js";
 import type { ScheduleRuntime } from "./runtime-actions.js";
@@ -17,6 +18,7 @@ export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: str
         pruneUninstalledSchedules(runtime, projectId, installations);
         reconcileScheduledOperations(runtime.db, runtime.schedule);
         rescheduleEnabledConversationTasks(runtime.db, runtime.schedule);
+        endExpiredOnce(runtime.db, projectId, Date.now());
       });
       // Grants of archived or vanished tasks: the platform keeps them, so they are cleared there, after Schedule's own write.
       const cleared = await grants.reconcile(() => new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));

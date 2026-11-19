@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantRule, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AssistantFollowUpRecords, AssistantFollowUps, AssistantStore, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "@molis-ai/molis-work-app-local-host";
@@ -193,7 +193,7 @@ test("RES-04 a missed time is listed for the person, 现在做 starts that round
   const h = harness("2026-11-11T08:00:00.000Z");
   const daily = await h.followUps.save({ work_id: "w1", text: "汇总今天的工作", at: "2026-11-11T10:00:00.000Z", label: "每日汇总", repeat: "daily" });
   const once = await h.followUps.save({ work_id: "w1", text: "看一眼合同", at: "2026-11-11T11:00:00.000Z", label: "看合同" });
-  const window = (now: string, hours = 48) => ({ now, upcoming_until: new Date(Date.parse(now) + hours * 3_600_000).toISOString() });
+  const window = (now: string, hours = 48) => ({ now, upcoming_until: new Date(Date.parse(now) + hours * 3_600_000).toISOString(), expired_after: null });
   let view = h.followUps.runsOverview(window("2026-11-11T08:00:00.000Z"));
   assert.deepEqual(view.upcoming.map(run => [run.title, run.due_at, run.needs, run.project_id]), [
     ["每日汇总", "2026-11-11T10:00:00.000Z", ["model"], null], ["看合同", "2026-11-11T11:00:00.000Z", ["model"], null]]);
@@ -231,15 +231,40 @@ test("RES-04 a missed time of a work since archived or a follow-up since removed
   h.at("2026-11-11T11:00:00.000Z");
   await h.run(`fu-${first.followup_id}-${Date.parse("2026-11-11T09:00:00.000Z")}`);
   await h.run(`fu-${second.followup_id}-${Date.parse("2026-11-11T09:30:00.000Z")}`);
-  const [secondRun, firstRun] = h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed;
+  const [secondRun, firstRun] = h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z", expired_after: null }).missed;
   h.working(true);
   await assert.rejects(h.followUps.decideMissed({ run_id: firstRun!.run_id, decision: "run_now" }), { code: "assistant.busy" });
-  assert.equal(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed.length, 2, "a refused 现在做 keeps it on the list");
+  assert.equal(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z", expired_after: null }).missed.length, 2, "a refused 现在做 keeps it on the list");
   h.working(false);
   await h.followUps.remove(first.followup_id);
   assert.deepEqual(await h.followUps.decideMissed({ run_id: firstRun!.run_id, decision: "run_now" }), { state: "gone" });
   h.works.set("w1", { ...h.works.get("w1")!, archived: true });
   assert.deepEqual(await h.followUps.decideMissed({ run_id: secondRun!.run_id, decision: "run_now" }), { state: "gone" });
   assert.equal(h.sent.length, 0);
-  assert.deepEqual(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z" }).missed, []);
+  assert.deepEqual(h.followUps.runsOverview({ now: "2026-11-11T11:00:00.000Z", upcoming_until: "2026-11-12T11:00:00.000Z", expired_after: null }).missed, []);
+});
+
+test("BL-missed-runs-never-expire a missed follow-up time waits seven days from its due time, then is skipped on its own and counted once", async () => {
+  const h = harness("2026-11-11T08:00:00.000Z");
+  const lapsed = await h.followUps.save({ work_id: "w1", text: "汇总", at: "2026-11-11T09:00:00.000Z", label: "过期的" });
+  const decided = await h.followUps.save({ work_id: "w1", text: "看看", at: "2026-11-11T09:30:00.000Z", label: "人跳过的" });
+  h.at("2026-11-11T11:00:00.000Z");
+  await h.run(`fu-${lapsed.followup_id}-${Date.parse("2026-11-11T09:00:00.000Z")}`);
+  await h.run(`fu-${decided.followup_id}-${Date.parse("2026-11-11T09:30:00.000Z")}`);
+  const window = (now: string, expiredAfter: string | null = null) => ({ now, upcoming_until: now, expired_after: expiredAfter });
+  const [skip, run] = h.followUps.runsOverview(window("2026-11-11T11:00:00.000Z")).missed;
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: skip!.run_id, decision: "skip" }), { state: "skipped" });
+
+  const deadline = new Date(Date.parse("2026-11-11T09:00:00.000Z") + RUN_MISSED_KEPT_MS);
+  const before = new Date(deadline.getTime() - 1).toISOString();
+  assert.deepEqual(h.followUps.runsOverview(window(before)).missed.map(entry => entry.title), ["过期的"], "a moment before the seventh day it still waits");
+  assert.equal(h.followUps.runsOverview(window(before)).expired, 0);
+  // The computer was off across the seventh day and is back a day later.
+  const back = new Date(deadline.getTime() + 86_400_000).toISOString();
+  h.at(back);
+  assert.deepEqual(h.followUps.runsOverview(window(back)).missed, [], "found expired the moment it is back");
+  assert.equal(h.followUps.runsOverview(window(back)).expired, 1, "only the one nobody decided on");
+  assert.deepEqual(await h.followUps.decideMissed({ run_id: run!.run_id, decision: "run_now" }), { state: "gone" }, "现在做 after the seventh day finds it gone");
+  assert.equal(h.sent.length, 0, "nothing expired is sent");
+  assert.equal(h.followUps.runsOverview(window(back, back)).expired, 0, "once told, not said again");
 });

@@ -7,7 +7,8 @@ import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { decideRuntimeRun, hasNetwork, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
+import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
+import { expiredSeenThrough, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -33,12 +34,14 @@ export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: st
     now: () => new Date(), online: hasNetwork,
     model: () => hostHasTextModel({ homeDirectory }),
     gaps: () => currentHostPresence()?.gaps() ?? [],
+    expiredSeen: () => expiredSeenThrough(homeDirectory),
   };
 }
 
 /**
  * `GET /api/runtime/overview`: what runs on its own here, for the menu-bar panel, the quit confirmation and the Home's missed notice.
  * `POST /api/runtime/runs/decide`: 「现在做」 or 「跳过」 on one missed run, handed to its owner.
+ * `POST /api/runtime/expired/seen`: the person read the summary of runs skipped on their own; it is not said again (`runs-expired-seen.ts`).
  */
 export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
   if (!homeDirectory) return false;
@@ -49,6 +52,11 @@ export async function handleRuntimeOverviewHttp(request: IncomingMessage, respon
   if (request.method === "POST" && url.pathname === "/api/runtime/runs/decide") {
     const decision = runtimeRunDecisionRequest(await readLocalWebBody(request));
     sendLocalWebJson(response, 200, await decideRuntimeRun(runtimeOverviewPorts(host, homeDirectory), decision));
+    return true;
+  }
+  if (request.method === "POST" && url.pathname === "/api/runtime/expired/seen") {
+    const { through } = runtimeExpiredSeenRequest(await readLocalWebBody(request));
+    sendLocalWebJson(response, 200, { seen_through: markExpiredSeen(homeDirectory, through, new Date()) });
     return true;
   }
   return false;

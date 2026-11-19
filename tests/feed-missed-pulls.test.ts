@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { decideMissedPull, feedRunsOverview } from "@molis-ai/molis-work-plugin-feed";
-import { RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+import { RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createLocalFeedSourceScheduler, createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 
 const MINUTE = 60_000;
@@ -36,9 +36,13 @@ function harness(t: TestContext) {
     },
     next(sourceId: string) { const schedule = current.service.feed.sources.get(DEMO_PROJECT_ID, sourceId).schedule; return schedule.mode === "interval" ? schedule.next_pull_at : null; },
     tick: () => current.scheduler.tick(clock.now),
-    missed: () => current.service.feed.sources.missed.list(DEMO_PROJECT_ID, 50),
+    /** Every row nobody decided on, expired or not, as Feed keeps it. */
+    missed: () => current.service.feed.sources.missed.list(DEMO_PROJECT_ID, 500, "1970-01-01T00:00:00.000Z"),
     decide: (run_id: string, decision: "run_now" | "skip") => decideMissedPull(current.service.feed, DEMO_PROJECT_ID, { run_id, decision }, clock.now),
-    overview: () => feedRunsOverview(current.service.feed, DEMO_PROJECT_ID, { now: clock.now.toISOString(), upcoming_until: new Date(clock.now.getTime() + 2 * 86_400_000).toISOString() }),
+    overview: (expiredAfter: string | null = null) => feedRunsOverview(current.service.feed, DEMO_PROJECT_ID,
+      { now: clock.now.toISOString(), upcoming_until: new Date(clock.now.getTime() + 2 * 86_400_000).toISOString(), expired_after: expiredAfter }),
+    record: (sourceId: string, dueAt: string) => current.service.feed.sources.missed.record(DEMO_PROJECT_ID,
+      { run_id: `pull:${sourceId}:${dueAt}`, source_id: sourceId, title: "来源", due_at: dueAt, missed_at: new Date(Date.parse(dueAt) + 3_600_000).toISOString() }),
     restart() { store.close(); store = new LocalProjectDatabase(databasePath); current = open(); },
     later(ms: number) { clock.now = new Date(clock.now.getTime() + ms); },
   };
@@ -85,4 +89,76 @@ test("BL-feed-run-now-missed-again a pull no one decided on is still written dow
   assert.deepEqual(h.missed().map(row => [row.source_id, row.due_at]).sort(), [
     [sourceId, "2026-11-10T09:15:00.000Z"], [sourceId, "2026-11-10T10:15:00.000Z"], [skipped, "2026-11-10T10:15:00.000Z"],
   ].sort(), "each slot that came up late is its own row; the skipped one stays decided");
+});
+
+const DUE = "2026-11-10T09:15:00.000Z";
+
+test("BL-missed-runs-never-expire a missed pull waits seven days from its due time: listed and decidable until then, skipped on its own at exactly seven days", async t => {
+  const h = harness(t), sourceId = h.source();
+  h.clock.now = new Date("2026-11-10T10:00:00.000Z");
+  await h.tick();
+  const [row] = h.missed();
+  assert.equal(row?.due_at, DUE);
+  h.clock.now = new Date(Date.parse(DUE) + RUN_MISSED_KEPT_MS - 1);
+  assert.deepEqual(h.overview().missed.map(run => run.run_id), [row!.run_id], "a moment before the seventh day it still waits for the person");
+  assert.equal(h.overview().expired, 0);
+  h.clock.now = new Date(Date.parse(DUE) + RUN_MISSED_KEPT_MS);
+  const view = h.overview();
+  assert.deepEqual(view.missed.filter(run => run.run_id === row!.run_id), [], "at exactly seven days it leaves the list");
+  assert.equal(view.expired, 1, "and is counted as skipped on its own");
+  assert.deepEqual(h.decide(row!.run_id, "run_now"), { state: "gone" }, "现在做 that arrives as it expires finds it gone");
+  assert.equal(h.missed().find(entry => entry.run_id === row!.run_id)?.decision, null, "Feed's record stays: not the person's 跳过");
+  await h.tick();
+  assert.deepEqual(h.pulls, [], "an expired pull is never made");
+  assert.ok(sourceId);
+});
+
+test("BL-missed-runs-never-expire 现在做 a moment before the seventh day is the person's decision: pulled once, never counted as expired", async t => {
+  const h = harness(t);
+  h.source();
+  h.clock.now = new Date("2026-11-10T10:00:00.000Z");
+  await h.tick();
+  const [row] = h.missed();
+  h.clock.now = new Date(Date.parse(DUE) + RUN_MISSED_KEPT_MS - 1);
+  assert.deepEqual(h.decide(row!.run_id, "run_now"), { state: "started" });
+  h.later(2 * 86_400_000);
+  h.restart();
+  await h.tick();
+  assert.equal(h.pulls.length, 1, "the decision is carried out after the deadline it beat");
+  assert.equal(h.overview().expired, 0, "a decided pull is not in the summary");
+});
+
+test("BL-missed-runs-never-expire the computer off across the seventh day: at start the pull is expired, counted once, and not counted again once told", async t => {
+  const h = harness(t), sourceId = h.source(), other = h.source(1);
+  h.clock.now = new Date("2026-11-10T10:00:00.000Z");
+  await h.tick();
+  const rows = h.missed();
+  assert.equal(rows.length, 2);
+  assert.deepEqual(h.decide(rows.find(row => row.source_id === other)!.run_id, "skip"), { state: "skipped" });
+  // Off from now until ten days later: nothing ran on the seventh day.
+  h.later(10 * 86_400_000);
+  h.restart();
+  const view = h.overview();
+  assert.deepEqual(view.missed.filter(run => run.due_at === DUE), [], "found expired the moment it is back");
+  assert.equal(view.expired, 1, "only the one nobody decided on: the person's 跳过 is not in the summary");
+  // The person read the summary made at this moment; after another restart it is not said again.
+  const told = h.clock.now.toISOString();
+  h.restart();
+  assert.equal(h.overview(told).expired, 0, "the same summary is not said twice");
+  h.later(86_400_000);
+  assert.equal(h.overview(told).expired, 0);
+  assert.ok(sourceId);
+});
+
+test("BL-missed-runs-never-expire more expired pulls than one page are all counted, and the page lists only the ones still waiting", async t => {
+  const h = harness(t), sourceId = h.source();
+  const start = Date.parse("2026-10-20T00:00:00.000Z");
+  for (let index = 0; index < RUNS_MISSED_LIMIT + 10; index += 1) h.record(sourceId, new Date(start + index * 3_600_000).toISOString());
+  const waiting = ["2026-11-09T08:00:00.000Z", "2026-11-09T09:00:00.000Z", "2026-11-09T10:00:00.000Z"];
+  for (const due of waiting) h.record(sourceId, due);
+  h.clock.now = new Date("2026-11-10T12:00:00.000Z");
+  const view = h.overview();
+  assert.equal(view.expired, RUNS_MISSED_LIMIT + 10, "every expired one, past the first page");
+  assert.deepEqual(view.missed.map(run => run.due_at), [...waiting].reverse(), "the waiting ones are not pushed off the page by expired ones");
+  assert.equal(h.overview("2026-10-27T00:00:00.000Z").expired, RUNS_MISSED_LIMIT + 10 - 1, "the first one ran out at the very moment of the last summary: not counted again");
 });

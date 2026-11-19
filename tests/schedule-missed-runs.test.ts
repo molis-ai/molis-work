@@ -4,10 +4,10 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
   bindScheduleConversationJob, createScheduleConversationTask, createScheduleReminders, decideMissedRun, deliverScheduleReminder, getScheduleReminder,
-  noteMissedWakeup, registerConversationJob, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
+  endExpiredOnce, noteMissedWakeup, registerConversationJob, scheduleRunsOverview, SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE, SCHEDULE_REMINDER_WAKEUP,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+import { RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
 
 const at = "2026-11-11T09:00:00.000Z", DAY = 86_400_000, MINUTE = 60_000;
@@ -40,9 +40,12 @@ function harness(t: TestContext) {
   t.after(async () => { await schedule.close(); db.close(); });
   const reminders = createScheduleReminders({ db, projectId, schedule, now: () => clock.now, describe: () => ({ title: "笔记", link: "/n", generation: "first" }) });
   const decide = (run_id: string, decision: "run_now" | "skip") => db.transaction(() => decideMissedRun(db, schedule, projectId, { run_id, decision }, new Date(clock.now))).immediate();
-  const overview = (hours = 48) => scheduleRunsOverview(db, schedule.list(), projectId, { now: new Date(clock.now).toISOString(), upcoming_until: new Date(clock.now + hours * 3_600_000).toISOString() });
+  const overview = (hours = 48, expiredAfter: string | null = null) => scheduleRunsOverview(db, schedule.list(), projectId,
+    { now: new Date(clock.now).toISOString(), upcoming_until: new Date(clock.now + hours * 3_600_000).toISOString(), expired_after: expiredAfter });
   const missedRows = () => db.prepare("SELECT run_id, kind, title, due_at, decision FROM schedule_missed_runs ORDER BY due_at").all() as Array<{ run_id: string; kind: string; title: string; due_at: string; decision: string | null }>;
-  return { db, clock, schedule, reminders, delivered, rounds, decide, overview, missedRows,
+  /** Schedule's reconcile round, which runs every few seconds while the project is open (and first thing after a start). */
+  const reconcile = () => db.transaction(() => endExpiredOnce(db, projectId, clock.now)).immediate();
+  return { db, clock, schedule, reminders, delivered, rounds, decide, overview, missedRows, reconcile,
     remind: (text: string, repeat: "none" | "daily" = "none", when = at) => reminders.add(identity, { at: when, text, repeat }).reminderId,
     task: (title: string) => {
       const created = createScheduleConversationTask(db, { title, instructions: "看一眼", hour: 9, minute: 0, notify_important: false }, () => new Date(clock.now));
@@ -128,4 +131,53 @@ test("RES-02 the overview lists the jobs that are on and come in the window, wit
   assert.ok(view.upcoming.every(run => run.project_id === projectId));
   assert.ok(view.upcoming.some(run => run.open?.id === task.taskId));
   assert.deepEqual(h.overview(0).upcoming, [], "nothing outside the window");
+});
+
+test("BL-missed-runs-never-expire a missed one-time reminder and a missed task wait seven days from due_at; at exactly seven days they are skipped on their own", async t => {
+  const h = harness(t), once = h.remind("一次性提醒"), task = h.task("每日回顾"), daily = h.remind("每天", "daily");
+  h.clock.now = Math.max(Date.parse(at), Date.parse(task.dueAt)) + 3 * 3_600_000;
+  await h.schedule.tick();
+  const rows = Object.fromEntries(h.missedRows().map(row => [row.title, row]));
+  assert.deepEqual(Object.keys(rows).sort(), ["一次性提醒", "每天", "每日回顾"].sort());
+  const deadline = (title: string) => Date.parse(rows[title]!.due_at) + RUN_MISSED_KEPT_MS;
+
+  h.clock.now = deadline("一次性提醒") - 1;
+  h.reconcile();
+  assert.ok(h.overview().missed.some(run => run.title === "一次性提醒"), "a moment before the seventh day it still waits");
+  assert.ok(getScheduleReminder(h.db, once), "and the one-time reminder is still there to be done");
+
+  h.clock.now = Math.max(deadline("一次性提醒"), deadline("每日回顾"), deadline("每天"));
+  const view = h.overview();
+  assert.deepEqual(view.missed.filter(run => ["一次性提醒", "每日回顾", "每天"].includes(run.title) && rows[run.title]!.due_at === run.due_at), [], "all three leave the list");
+  assert.equal(view.expired, 3, "and are counted as skipped on their own");
+  assert.deepEqual(h.decide(rows["一次性提醒"]!.run_id, "run_now"), { state: "gone" }, "现在做 as it expires finds it gone");
+  assert.equal(getScheduleReminder(h.db, once), null, "the one-time reminder behind it is over, as 跳过 would end it");
+  assert.deepEqual(h.missedRows().filter(row => Object.values(rows).some(entry => entry.run_id === row.run_id)).map(row => row.decision), [null, null, null],
+    "Schedule's rows stay undecided: not the person's 跳过");
+  assert.ok(getScheduleReminder(h.db, daily), "a repeating reminder goes on");
+  assert.equal(h.delivered.length, 0, "nothing expired is delivered");
+});
+
+test("BL-missed-runs-never-expire the computer off across the seventh day: the first reconcile ends the one-time reminder; the person's own decisions are not counted", async t => {
+  const h = harness(t), once = h.remind("关机前错过"), skipped = h.remind("人跳过的"), ran = h.remind("人现在做的");
+  h.clock.now = Date.parse(at) + 3 * 3_600_000;
+  await h.schedule.tick();
+  const rows = Object.fromEntries(h.missedRows().map(row => [row.title, row.run_id]));
+  assert.deepEqual(h.decide(rows["人跳过的"]!, "skip"), { state: "skipped" });
+  assert.deepEqual(h.decide(rows["人现在做的"]!, "run_now"), { state: "started" });
+  // Off right after the clicks, back ten days later: the decided one is still delivered once, the undecided one is over.
+  h.clock.now += 10 * 86_400_000;
+  h.reconcile();
+  await h.schedule.tick();
+  assert.deepEqual(h.delivered, ["人现在做的@" + at], "the person's 现在做 is carried out, once");
+  assert.equal(getScheduleReminder(h.db, once), null, "the expired one-time reminder is ended at start");
+  assert.equal(getScheduleReminder(h.db, skipped), null);
+  assert.equal(getScheduleReminder(h.db, ran), null);
+  assert.equal(h.overview().expired, 1, "only the one nobody decided on is in the summary");
+  const told = new Date(h.clock.now).toISOString();
+  h.clock.now += 86_400_000;
+  h.reconcile();
+  await h.schedule.tick();
+  assert.equal(h.overview(48, told).expired, 0, "once told, the same summary is not said again");
+  assert.equal(h.delivered.length, 1, "and nothing is delivered twice");
 });

@@ -8,6 +8,11 @@ import { ActionError, type ActionDefinition } from "./actions.js";
  * the person's 「现在做」 or 「跳过」 itself; the Host finds the owners by these types and only puts their answers side by side.
  * A project Plugin declares both in project scope, the list as a `home_aggregate` query the Host asks in every open project (PG-043);
  * a Home-level owner declares them in Home scope. Either way each run says its project.
+ *
+ * A missed run waits for the person for seven days from its `due_at` (user 2026-11-18). One nobody decided on by then is skipped on its
+ * own: it leaves the list, a decision on it finds it `gone`, and its owner counts it in `expired` so the panel can say once how many were
+ * skipped. Expiry is read from `due_at` and the time asked, never from when the owner last looked, so a computer that was off across the
+ * seventh day finds the run expired the moment it is back; a run the person decided on is never counted.
  */
 export const RUNS_OVERVIEW_INPUT_TYPE = /* @version type.molis.runs.window "molis.runs.window.v{version}" */ "molis.runs.window.v1";
 export const RUNS_OVERVIEW_OUTPUT_TYPE = /* @version type.molis.runs.overview "molis.runs.overview.v{version}" */ "molis.runs.overview.v1";
@@ -16,8 +21,14 @@ export const RUN_DECISION_OUTPUT_TYPE = /* @version type.molis.runs.decided "mol
 
 /** A run that comes due more than this late is missed: it is recorded and not run on its own. The same number for every owner. */
 export const RUN_MISSED_GRACE_MS = 10 * 60 * 1000;
+/** How long a missed run waits for 「现在做」 or 「跳过」, counted from its `due_at`; at this age it is skipped on its own. */
+export const RUN_MISSED_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface RunsWindow { now: string; upcoming_until: string }
+/**
+ * `expired_after`: count the runs whose seven days ran out after this instant (null: every expired run the owner still keeps). The
+ * Host passes the last moment the person was told about, so a summary is not said twice.
+ */
+export interface RunsWindow { now: string; upcoming_until: string; expired_after: string | null }
 /** What one run needs besides Molis Work running; the platform marks a run as waiting when one of them is not there. */
 export type RunNeed = "network" | "model";
 export interface ScheduledRun {
@@ -33,7 +44,8 @@ export interface ScheduledRun {
   needs: RunNeed[];
 }
 export interface MissedRun extends ScheduledRun { missed_at: string }
-export interface RunsOverview { source: { surface: string; title: string }; upcoming: ScheduledRun[]; missed: MissedRun[] }
+/** `expired`: how many missed runs nobody decided on had their seven days run out after `expired_after` and by `now`. */
+export interface RunsOverview { source: { surface: string; title: string }; upcoming: ScheduledRun[]; missed: MissedRun[]; expired: number }
 export type RunDecisionChoice = "run_now" | "skip";
 export interface RunDecision { run_id: string; decision: RunDecisionChoice }
 /** `started`: the owner took it and runs it the way it runs at its time (it does not wait for the end); `gone`: no longer there. */
@@ -46,7 +58,8 @@ const id = { type: "string", minLength: 1 } as const;
 const token = { ...id, pattern: "^[a-zA-Z0-9_-]+$" };
 const instant = { ...id, format: "date-time" } as const;
 const runId = { ...id, maxLength: 300 } as const;
-export const RUNS_WINDOW_SCHEMA = { type: "object", properties: { now: instant, upcoming_until: instant }, required: ["now", "upcoming_until"], additionalProperties: false } as const;
+export const RUNS_WINDOW_SCHEMA = { type: "object", properties: { now: instant, upcoming_until: instant, expired_after: { anyOf: [{ type: "null" }, instant] } },
+  required: ["now", "upcoming_until", "expired_after"], additionalProperties: false } as const;
 const RUN_PROPERTIES = { run_id: runId, title: { ...id, maxLength: 300 }, due_at: instant, project_id: { type: ["string", "null"], maxLength: 120 },
   open: { anyOf: [{ type: "null" }, { type: "object", properties: { surface: token, id }, required: ["surface", "id"], additionalProperties: false }] },
   needs: { type: "array", maxItems: 2, uniqueItems: true, items: { enum: ["network", "model"] } } } as const;
@@ -56,7 +69,8 @@ export const MISSED_RUN_SCHEMA = { type: "object", properties: { ...RUN_PROPERTI
 export const RUNS_OVERVIEW_SCHEMA = { type: "object", properties: {
   source: { type: "object", properties: { surface: token, title: id }, required: ["surface", "title"], additionalProperties: false },
   upcoming: { type: "array", maxItems: RUNS_UPCOMING_LIMIT, items: SCHEDULED_RUN_SCHEMA },
-  missed: { type: "array", maxItems: RUNS_MISSED_LIMIT, items: MISSED_RUN_SCHEMA } }, required: ["source", "upcoming", "missed"], additionalProperties: false } as const;
+  missed: { type: "array", maxItems: RUNS_MISSED_LIMIT, items: MISSED_RUN_SCHEMA }, expired: { type: "integer", minimum: 0 } },
+  required: ["source", "upcoming", "missed", "expired"], additionalProperties: false } as const;
 export const RUN_DECISION_SCHEMA = { type: "object", properties: { run_id: runId, decision: { enum: ["run_now", "skip"] } }, required: ["run_id", "decision"], additionalProperties: false } as const;
 export const RUN_DECIDED_SCHEMA = { type: "object", properties: { state: { enum: ["started", "skipped", "gone"] } }, required: ["state"], additionalProperties: false } as const;
 
@@ -78,7 +92,8 @@ export function defineRunDecisionAction(capabilityId: string, version: number, t
 /** Owners list runs with `now <= due_at < upcoming_until`; the window itself is checked here. */
 export function assertRunsWindow(window: RunsWindow): void {
   const [now, until] = [window.now, window.upcoming_until].map(Date.parse);
-  if (!Number.isFinite(now) || !Number.isFinite(until) || now! > until!) throw new ActionError("actions.input_invalid", "运行时间窗口无效");
+  const after = window.expired_after === null ? null : Date.parse(window.expired_after);
+  if (!Number.isFinite(now) || !Number.isFinite(until) || now! > until! || (after !== null && !Number.isFinite(after))) throw new ActionError("actions.input_invalid", "运行时间窗口无效");
 }
 export function withinRunsWindow(value: string, window: RunsWindow): boolean {
   const instant = Date.parse(value); return instant >= Date.parse(window.now) && instant < Date.parse(window.upcoming_until);
@@ -87,4 +102,18 @@ export function withinRunsWindow(value: string, window: RunsWindow): boolean {
 export function runIsMissed(dueAt: string | number, now: number): boolean {
   const due = typeof dueAt === "number" ? dueAt : Date.parse(dueAt);
   return Number.isFinite(due) && now - due > RUN_MISSED_GRACE_MS;
+}
+/** Whether a missed run that was due at `dueAt` has had its seven days run out at `now` (exactly seven days counts). */
+export function runHasExpired(dueAt: string | number, now: number): boolean {
+  const due = typeof dueAt === "number" ? dueAt : Date.parse(dueAt);
+  return Number.isFinite(due) && now - due >= RUN_MISSED_KEPT_MS;
+}
+/**
+ * The `due_at` bounds an owner keeps in its own query: a run is still listed when `due_at > listed_after`; it is counted in `expired`
+ * when `counted_after < due_at <= listed_after`. Both are ISO instants, so owners that keep `due_at` as ISO text compare them as text.
+ */
+export function runsExpiryBounds(window: RunsWindow): { listed_after: string; counted_after: string | null } {
+  const now = Date.parse(window.now);
+  return { listed_after: new Date(now - RUN_MISSED_KEPT_MS).toISOString(),
+    counted_after: window.expired_after === null ? null : new Date(Date.parse(window.expired_after) - RUN_MISSED_KEPT_MS).toISOString() };
 }

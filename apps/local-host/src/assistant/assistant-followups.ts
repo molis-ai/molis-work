@@ -5,7 +5,8 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow, withinRunsWindow, type ActionView,
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
+  runHasExpired, runsExpiryBounds, withinRunsWindow, type ActionView,
   type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantSavedText, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -32,8 +33,8 @@ export const FOLLOW_UP_KIND = "assistant.follow-up";
  * outside the page that created it, so the sentence is written where it starts, in the language last used (FSS-69).
  */
 export type FollowUpMessageWords = Extract<AssistantSavedText, { readonly key: string }>;
-/** Missed times kept per follow-up for the person to decide on; older ones fall off. */
-const MISSED_KEPT = 10;
+/** A missed time is kept a month after its seven days ran out, so the panel can count it as skipped on its own; then it goes. */
+const EXPIRED_KEPT_MS = 30 * 86_400_000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
 const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
@@ -288,7 +289,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
       while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
       const { next_at: _next, missed: earlier = [], ...rest } = followUp;
-      const missed = outcome === "missed" ? [...earlier.filter(entry => entry.due_at !== due), { due_at: due, missed_at: now.toISOString() }].slice(-MISSED_KEPT) : earlier;
+      const kept = earlier.filter(entry => entry.due_at !== due && now.getTime() - Date.parse(entry.due_at) < RUN_MISSED_KEPT_MS + EXPIRED_KEPT_MS);
+      const missed = outcome === "missed" ? [...kept, { due_at: due, missed_at: now.toISOString() }] : kept;
       const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
         last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) }, ...(missed.length ? { missed } : {}) };
       if (!ports.records.save(ports.actorId, saved, followUp)) return;
@@ -300,16 +302,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
    * The follow-ups as an owner of runs (specs/proactive-assistant/resident-runtime-design.md §2.1): the times queued in the window, and
    * the times missed that the person has not decided on. A follow-up's works are the person's own, outside any project.
    */
-  runsOverview(window: RunsWindow): RunsOverview {
-    assertRunsWindow(window);
-    const all = this.list(), run = (followUp: AssistantFollowUp, dueAt: string): ScheduledRun => ({ run_id: missedRunId(followUp.followup_id, dueAt), title: followUp.label,
-      due_at: dueAt, project_id: null, open: { surface: "assistant", id: followUp.work_id }, needs: ["model"] });
-    const upcoming = all.filter(item => item.enabled && item.next_at && withinRunsWindow(item.next_at, window)).map(item => run(item, item.next_at!))
-      .sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, RUNS_UPCOMING_LIMIT);
-    const missed: MissedRun[] = all.flatMap(item => (item.missed ?? []).map(entry => ({ ...run(item, entry.due_at), missed_at: entry.missed_at })))
-      .sort((a, b) => b.due_at.localeCompare(a.due_at)).slice(0, RUNS_MISSED_LIMIT);
-    return { source: { surface: "assistant", title: "助理定时" }, upcoming, missed };
-  }
+  runsOverview(window: RunsWindow): RunsOverview { return followUpRuns(this.list(), window); }
 
   /**
    * 「现在做」 or 「跳过」 on one missed time. 现在做 starts one round the way the time itself would have (the same words and the same
@@ -322,6 +315,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     const followUp = find();
     if (!followUp || !parsed) return { state: "gone" };
     const due = followUp.missed!.find(entry => Date.parse(entry.due_at) === parsed.due)!.due_at;
+    // Its seven days ran out before the click: it was skipped on its own, and stays counted as that until it goes.
+    if (runHasExpired(due, ports.now().getTime())) return { state: "gone" };
     const work = whenThere(() => ports.work(followUp.work_id));
     if (decision.decision === "run_now") {
       if (!work || work.archived) { this.#forgetMissed(followUp.followup_id, due); return { state: "gone" }; }
@@ -447,6 +442,20 @@ export function sameLocalTimeLater(at: number, days: number, timeZone: string | 
   const target = wall(at) + days * 86_400_000;
   const guess = target - (wall(at) - at);
   return target - (wall(guess) - guess);
+}
+
+/** The follow-ups' runs in a window: the queued times in it, the missed ones still waiting, and how many ran out their seven days. */
+function followUpRuns(all: readonly AssistantFollowUp[], window: RunsWindow): RunsOverview {
+  assertRunsWindow(window);
+  const bounds = runsExpiryBounds(window), listed = Date.parse(bounds.listed_after), counted = bounds.counted_after === null ? -Infinity : Date.parse(bounds.counted_after);
+  const run = (followUp: AssistantFollowUp, dueAt: string): ScheduledRun => ({ run_id: missedRunId(followUp.followup_id, dueAt), title: followUp.label,
+    due_at: dueAt, project_id: null, open: { surface: "assistant", id: followUp.work_id }, needs: ["model"] });
+  const upcoming = all.filter(item => item.enabled && item.next_at && withinRunsWindow(item.next_at, window)).map(item => run(item, item.next_at!))
+    .sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, RUNS_UPCOMING_LIMIT);
+  const times = all.flatMap(item => (item.missed ?? []).map(entry => ({ item, entry, due: Date.parse(entry.due_at) })));
+  const missed: MissedRun[] = times.filter(({ due }) => due > listed).map(({ item, entry }) => ({ ...run(item, entry.due_at), missed_at: entry.missed_at }))
+    .sort((a, b) => b.due_at.localeCompare(a.due_at)).slice(0, RUNS_MISSED_LIMIT);
+  return { source: { surface: "assistant", title: "助理定时" }, upcoming, missed, expired: times.filter(({ due }) => due <= listed && due > counted).length };
 }
 
 /** `followup:<followup id>:<due time in ms>`: stable for one missed time of one follow-up. */

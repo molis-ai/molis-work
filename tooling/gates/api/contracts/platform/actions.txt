@@ -3467,8 +3467,12 @@ export declare const RUNS_OVERVIEW_SCHEMA: {
                 readonly additionalProperties: false;
             };
         };
+        readonly expired: {
+            readonly type: "integer";
+            readonly minimum: 0;
+        };
     };
-    readonly required: readonly ["source", "upcoming", "missed"];
+    readonly required: readonly ["source", "upcoming", "missed", "expired"];
     readonly additionalProperties: false;
 };
 
@@ -3487,8 +3491,17 @@ export declare const RUNS_WINDOW_SCHEMA: {
             readonly type: "string";
             readonly minLength: 1;
         };
+        readonly expired_after: {
+            readonly anyOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly format: "date-time";
+                readonly type: "string";
+                readonly minLength: 1;
+            }];
+        };
     };
-    readonly required: readonly ["now", "upcoming_until"];
+    readonly required: readonly ["now", "upcoming_until", "expired_after"];
     readonly additionalProperties: false;
 };
 
@@ -3525,6 +3538,8 @@ export declare const RUN_DECISION_SCHEMA: {
 
 export declare const RUN_MISSED_GRACE_MS: number;
 
+export declare const RUN_MISSED_KEPT_MS: number;
+
 export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
@@ -3555,6 +3570,7 @@ export interface RunsOverview {
     };
     upcoming: ScheduledRun[];
     missed: MissedRun[];
+    expired: number;
 }
 
 export type RunsOwnerScope = "project" | "home";
@@ -3562,6 +3578,7 @@ export type RunsOwnerScope = "project" | "home";
 export interface RunsWindow {
     now: string;
     upcoming_until: string;
+    expired_after: string | null;
 }
 
 export declare const SCHEDULED_RUN_SCHEMA: {
@@ -5652,7 +5669,14 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
+export declare function runHasExpired(dueAt: string | number, now: number): boolean;
+
 export declare function runIsMissed(dueAt: string | number, now: number): boolean;
+
+export declare function runsExpiryBounds(window: RunsWindow): {
+    listed_after: string;
+    counted_after: string | null;
+};
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

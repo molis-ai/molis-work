@@ -1186,6 +1186,7 @@ fn main() {
       capsule_open_main,
       runtime::runtime_overview,
       runtime::runtime_decide,
+      runtime::runtime_expired_seen,
       runtime::runtime_missed_dot,
       runtime::runtime_quit_confirmed,
       runtime::runtime_open,
@@ -1629,6 +1630,7 @@ mod tests {
         for command in [
             "runtime_overview",
             "runtime_decide",
+            "runtime_expired_seen",
             "runtime_missed_dot",
             "runtime_settings_set",
             "rollback_to_previous",

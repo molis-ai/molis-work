@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
-  ActionError, assertRunsWindow, bindActionHandler, defineRunDecisionAction, defineRunsOverviewAction, withinRunsWindow, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT,
+  ActionError, assertRunsWindow, bindActionHandler, defineRunDecisionAction, defineRunsOverviewAction, runHasExpired, runsExpiryBounds, withinRunsWindow,
+  RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT,
   type ActionExecutionContext, type ActionHandlerBinding, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sourceDeletedAt } from "./contract/sources.js";
@@ -10,7 +11,9 @@ import type { FeedApplication } from "./application.js";
  * Feed's part in the menu-bar panel (resident-runtime-design §2.1): the sources' next scheduled pulls, and the pulls that came up more
  * than the grace late and were not made (`FeedSourceScheduler.tick` writes those down). 「现在做」 puts the source's next pull back at
  * the time it missed and keeps the decision on that row, as Schedule does: the next tick pulls that slot once on the usual path, even
- * when it comes much later (the computer slept right after the click), and does not ask again; 「跳过」 only marks it.
+ * when it comes much later (the computer slept right after the click), and does not ask again; 「跳过」 only marks it. A pull nobody
+ * decided on for seven days from its time is skipped on its own (scheduled-runs.ts): its row is left undecided, so it is told apart
+ * from the person's 跳过, and it is counted in `expired` instead of listed.
  */
 export const missedPullRunId = (sourceId: string, plannedAt: string) => `pull:${sourceId}:${plannedAt}`;
 const FEED_SURFACE = "feed";
@@ -28,19 +31,24 @@ export function feedRunsOverview(feed: FeedApplication, projectId: string, windo
       ? [{ run_id: missedPullRunId(source.source_id, source.schedule.next_pull_at), title: [...source.name].slice(0, 300).join("") || source.source_id,
         due_at: source.schedule.next_pull_at, project_id: projectId, open: { surface: FEED_SURFACE, id: source.source_id }, needs: ["network" as const] }] : [])
     .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at)).slice(0, RUNS_UPCOMING_LIMIT);
-  const missed = feed.sources.missed.list(projectId, RUNS_MISSED_LIMIT).map(entry => ({ run_id: entry.run_id, title: entry.title, due_at: entry.due_at,
+  const bounds = runsExpiryBounds(window);
+  const missed = feed.sources.missed.list(projectId, RUNS_MISSED_LIMIT, bounds.listed_after).map(entry => ({ run_id: entry.run_id, title: entry.title, due_at: entry.due_at,
     project_id: projectId, open: { surface: FEED_SURFACE, id: entry.source_id }, needs: ["network" as const], missed_at: entry.missed_at }));
+  const expired = feed.sources.missed.expired(projectId, bounds.counted_after, bounds.listed_after);
   // The host page shows this label; the plugin's own words follow the action caller's language, with the old Chinese as a fallback for
   // direct calls that install no text context.
   let title = "Feed 来源";
   try { const word = uiText.text("feed.runs.source-title"); if (word !== "feed.runs.source-title") title = word; } catch { /* direct call has no text context */ }
-  return { source: { surface: FEED_SURFACE, title }, upcoming, missed };
+  return { source: { surface: FEED_SURFACE, title }, upcoming, missed, expired };
 }
 
-/** One decision, synchronous so the Runtime's transaction holds it whole. A source that is gone, paused or no longer on a schedule is `gone`. */
+/**
+ * One decision, synchronous so the Runtime's transaction holds it whole. A source that is gone, paused or no longer on a schedule is
+ * `gone`, and so is a pull whose seven days ran out before the click: it was already skipped on its own, and stays counted as that.
+ */
 export function decideMissedPull(feed: FeedApplication, projectId: string, input: RunDecision, now: Date): RunDecided {
   const missed = feed.sources.missed.get(projectId, input.run_id);
-  if (!missed || missed.decision) return { state: "gone" };
+  if (!missed || missed.decision || runHasExpired(missed.due_at, now.getTime())) return { state: "gone" };
   const at = now.toISOString();
   let source: ReturnType<FeedApplication["sources"]["get"]> | null = null;
   try { source = feed.sources.get(projectId, missed.source_id); }

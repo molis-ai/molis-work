@@ -87,10 +87,15 @@ export interface MissedPullRecord {
 }
 
 export interface SourceMissedPulls {
-  /** Once per occurrence: the same run id is written once. Decided rows older than a month go at the same time. */
+  /**
+   * Once per occurrence: the same run id is written once. Rows a month past their end go at the same time: decided ones a month after
+   * the decision, undecided ones a month after their seven days ran out.
+   */
   record(projectId: string, entry: Omit<MissedPullRecord, "decision">): void;
-  /** The undecided ones, latest first. */
-  list(projectId: string, limit: number): MissedPullRecord[];
+  /** The undecided ones still waiting (`due_at` after `keptAfter`, see `runsExpiryBounds`), latest first. */
+  list(projectId: string, limit: number, keptAfter: string): MissedPullRecord[];
+  /** How many undecided ones ran out their seven days in the bounds `runsExpiryBounds` gives: `countedAfter < due_at <= keptAfter`. */
+  expired(projectId: string, countedAfter: string | null, keptAfter: string): number;
   get(projectId: string, runId: string): MissedPullRecord | null;
   decide(projectId: string, runId: string, decision: "run_now" | "skip", at: string): void;
 }

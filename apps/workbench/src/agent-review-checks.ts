@@ -26,5 +26,6 @@ export function reviewChecks(document: AgentTextReviewDocument): { readonly html
 function diagnosticsFact(diagnostics: AgentWriteChecks["diagnostics"]): MwCheckFact {
   if (diagnostics.state === "clean") return { state: "done", text: uiText.text("workbench.agent-review.checks-clean"), source: diagnostics.source };
   if (diagnostics.state === "errors") return { state: "failed", text: uiText.text("workbench.agent-review.checks-errors", { n: diagnostics.errors.length + diagnostics.more }), source: diagnostics.source };
-  return { state: "idle", text: uiText.text(`workbench.agent-review.checks-unchecked-${diagnostics.cause}`) };
+  return { state: "idle", text: uiText.text(`workbench.agent-review.checks-unchecked-${diagnostics.cause}`),
+    ...(diagnostics.cause === "failed" ? { source: diagnostics.reason.split("\n")[0]!.slice(0, 120) } : {}) };
 }

@@ -77,6 +77,28 @@ test("S-conversation-attachments CATT-04 bytes changed on disk are never shown a
   await assert.rejects(readConversationAttachment(home, coding, picture.ref, { as: "image" }), { code: "material.attachment.unreadable" });
 }));
 
+test("B35-R4 a cancelled publication leaves no blob and a same-byte reattach after forget has readable bytes", async () => inHome(async home => {
+  const controller = new AbortController();
+  await assert.rejects(attachConversationFile(home, coding, upload("cancel.png", pixel), {
+    signal: controller.signal, beforeEffect: () => controller.abort(),
+  }), { name: "AbortError" });
+  assert.deepEqual(await readdir(blobs(home)), []);
+
+  const [first, repeated] = await Promise.all([
+    attachConversationFile(home, coding, upload("first.png", pixel)),
+    attachConversationFile(home, coding, upload("repeated.png", pixel)),
+  ]);
+  assert.deepEqual(first, repeated, "both offers return the recorded attachment and its title");
+  const other = { ...coding, project_id: "project-b" };
+  const attaching = attachConversationFile(home, other, upload("other.png", pixel), {
+    beforeEffect: () => forgetProjectAttachments(home, coding.project_id),
+  });
+  const kept = await attaching;
+  await assert.rejects(readConversationAttachment(home, coding, kept.ref, { as: "original" }), notFound);
+  assert.deepEqual((await readConversationAttachment(home, other, kept.ref, { as: "original" })).original, pixel);
+  assert.deepEqual(await readdir(blobs(home)), [sha(pixel)]);
+}));
+
 test("S-conversation-attachments CATT-05 a deleted project or a removed installation takes its attachments; bytes another owner still names stay", async () => inHome(async home => {
   const other = { ...coding, install_id: "install-other" };
   const mine = await attachConversationFile(home, coding, upload("shot.png", pixel));

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -17,19 +17,19 @@ import { CODING_BOX, CODING_COMPOSER, CODING_SEND, codingControl } from "./fixtu
 const MENU = `${CODING_COMPOSER} .mw-compose__menu:not([hidden]) .mw-menu`;
 
 /** One streamed Anthropic-format model turn of text. */
-function turn(text: string): string {
+function turn(text: string, write?: { path: string; text: string }): string {
   const events: string[] = [];
   const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
-  emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+  emit("content_block_start", { index: 0, content_block: write ? { type: "tool_use", id: "init-write", name: "write", input: write } : { type: "text", text: "" } });
+  if (!write) emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
   emit("content_block_stop", { index: 0 });
-  emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_delta", { delta: { stop_reason: write ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
   return events.join("");
 }
 
-test("Coding A2 the / menu groups the project's and the person's commands; a chosen one is a chip whose prompt is the round's task", { timeout: 300_000 }, async t => {
+test("Coding A1 A2 B35-R7 the / menu sends the exact prompt and /init writes only after a review decision", { timeout: 300_000 }, async t => {
   // The person's own commands, in a home directory of the test's own (never the real one).
   const home = await mkdtemp(join(tmpdir(), "coding-commands-home-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -40,13 +40,18 @@ test("Coding A2 the / menu groups the project's and the person's commands; a cho
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const backend = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = backend; resetSecretStoreCache(); });
-  const calls: string[] = [];
+  const calls: string[] = [], instructions = "# Project instructions\n\nRun the repository tests.\n";
+  let proposedInit = false;
   const model = createServer(async (req, res) => {
     const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8"), aside = asideReply(raw);
     res.writeHead(200, { "content-type": "text/event-stream" });
     if (aside) { res.end(turn(aside)); return; }
-    calls.push(raw); res.end(turn("补好了。"));
+    calls.push(raw);
+    if (!proposedInit && raw.includes("在工作区根目录起草一份 AGENTS.md")) {
+      proposedInit = true;
+      res.end(turn("", { path: "AGENTS.md", text: instructions }));
+    } else res.end(turn("补好了。"));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
@@ -79,7 +84,7 @@ test("Coding A2 the / menu groups the project's and the person's commands; a cho
   // The project's commands, added while the session is open: typing / reads them again.
   const commands = join(homeDirectory, "coding-first-read", ".molis", "commands");
   await mkdir(commands, { recursive: true });
-  await writeFile(join(commands, "补测试.md"), "---\ndescription: 给一个文件补测试\nargument-hint: 文件\nallowed-tools: Bash(rm:*)\n---\n给 $ARGUMENTS 补测试：覆盖每个分支和空状态；跑 pnpm test，不改被测代码。");
+  await writeFile(join(commands, "补测试.md"), "---\ndescription: 给一个文件补测试\nargument-hint: 文件\nallowed-tools: Bash(rm:*)\n---\n$ARGUMENTS\n给文件补测试：覆盖每个分支和空状态。\n$ARGUMENTS");
   await writeFile(join(commands, "发版检查.md"), "---\ndescription: 发版前检查一遍\n");
   await new Promise(resolve => setTimeout(resolve, 3_100));
   await type("");
@@ -114,8 +119,9 @@ test("Coding A2 the / menu groups the project's and the person's commands; a cho
   assert.equal(await owner.evaluate<string>(`(()=>{const chip=document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-chip]`)});return chip.className+'|'+chip.nextElementSibling?.className+'|'+chip.querySelector('[data-command-remove]').getAttribute('aria-label');})()`),
     "mw-cmdchip|mw-composer__text|去掉 /补测试", "the board's chip, above the words, its × naming the command");
   assert.equal(await owner.evaluate<boolean>(`!document.querySelector(${JSON.stringify(CODING_SEND)}).disabled`), true, "a command alone can be sent");
-  await type("src/components/Hero.tsx");
-  const filled = "给 src/components/Hero.tsx 补测试：覆盖每个分支和空状态；跑 pnpm test，不改被测代码。";
+  const argument = "  src/components/Hero.tsx\n  $&  ";
+  await type(argument);
+  const filled = argument + "\n给文件补测试：覆盖每个分支和空状态。\n" + argument;
   await owner.waitFor(`document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-prompt] > pre`)})?.textContent===${JSON.stringify(filled)}`, 10_000);
   await owner.click(`${CODING_COMPOSER} [data-composer-prompt] > summary`);
   await owner.waitFor(`document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-prompt]`)}).open`, 5_000);
@@ -133,10 +139,11 @@ test("Coding A2 the / menu groups the project's and the person's commands; a cho
   await waitFor(`posts.some(one=>/\\/runs$/.test(one.path))`, 30_000);
   const body = await evaluate<Record<string, unknown>>(`JSON.parse(posts.find(one=>/\\/runs$/.test(one.path)).body)`);
   assert.equal(body.task, filled);
+  assert.equal(body.command_prompt, true);
   assert.ok(!JSON.stringify(body).includes("Bash(rm"), "the file's allowed-tools are not read");
   await owner.waitFor(`!document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-chip]`)})`, 10_000);
-  await waitFor(`document.querySelector('.coding-turn[data-kind=user]')?.textContent.includes('给 src/components/Hero.tsx 补测试')`, 60_000);
-  assert.ok(calls.some(raw => raw.includes("给 src/components/Hero.tsx 补测试")), "the model is given the command's prompt");
+  await waitFor(`document.querySelector('.coding-turn[data-kind=user]')?.textContent.includes('给文件补测试')`, 60_000);
+  assert.ok(calls.some(raw => raw.includes(JSON.stringify(filled).slice(1, -1))), "the model is given the command's prompt");
 
   // ⌫ in an empty box takes a chosen command off again.
   await type("");
@@ -169,4 +176,24 @@ test("Coding A2 the / menu groups the project's and the person's commands; a cho
   const drafted = await evaluate<Record<string, unknown>>(`JSON.parse(posts.filter(one=>/\\/runs$/.test(one.path)).at(-1).body)`);
   assert.equal(drafted.intent, intent);
   assert.match(String(drafted.task), /^读这个仓库，在工作区根目录起草一份 AGENTS\.md[\s\S]*写进仓库之前会先给人审。$/);
+
+  const reviewPath = `/projects/${opened.projectId}/api/agent/reviews`;
+  type FileReview = { review_id: string; reference: { version: string }; document: { target_path?: string; after_text?: string } };
+  let review: FileReview | undefined;
+  for (const deadline = Date.now() + 20_000; Date.now() < deadline && !review;) {
+    const { reviews } = await opened.web.get<{ reviews: { request: FileReview }[] }>(reviewPath);
+    review = reviews.map(row => row.request).find(request => request.document.target_path?.endsWith("AGENTS.md"));
+    if (!review) await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.ok(review, "/init reaches the product's file review");
+  const agentFile = join(homeDirectory, "coding-first-read", "AGENTS.md");
+  await assert.rejects(readFile(agentFile, "utf8"), { code: "ENOENT" }, "the file is still unwritten during review");
+  assert.equal(review.document.after_text, instructions);
+  await opened.web.post(reviewPath + "/decide", { review_id: review.review_id, version: review.reference.version, decision: "approve" });
+  let written: string | undefined;
+  for (const deadline = Date.now() + 10_000; Date.now() < deadline && written === undefined;) {
+    written = await readFile(agentFile, "utf8").catch(() => undefined);
+    if (written === undefined) await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(written, review.document.after_text, "approval writes the exact reviewed file");
 });

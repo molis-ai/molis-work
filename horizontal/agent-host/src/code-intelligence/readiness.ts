@@ -6,7 +6,7 @@
  * "not checked" this round, never "no errors".
  */
 
-import { existsSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path, { delimiter } from "node:path";
 import type { AgentRunCodeIntelligence } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -23,12 +23,17 @@ const MARKERS: Readonly<Record<string, string>> = {
 const SOURCE_DIRECTORIES = ["", "src", "lib", "app", "cmd", "pkg"] as const;
 const MAX_LANGUAGES = 8;
 
-/** A program on this machine: an absolute path that exists, or a name found on PATH. */
+function executable(file: string): boolean {
+  try { accessSync(file, constants.X_OK); return statSync(file).isFile(); }
+  catch { return false; }
+}
+
+/** A regular executable on this machine, by absolute path or by name on PATH. */
 export function localCommand(command: string): string | undefined {
-  if (command.startsWith("/")) return existsSync(command) ? command : undefined;
+  if (path.isAbsolute(command)) return executable(command) ? command : undefined;
   for (const directory of (process.env.PATH ?? "").split(delimiter)) {
     const candidate = path.join(directory, command);
-    if (candidate.length > directory.length && existsSync(candidate)) return candidate;
+    if (candidate.length > directory.length && executable(candidate)) return candidate;
   }
   return undefined;
 }
@@ -74,7 +79,7 @@ export async function codeIntelligenceReadiness(input: {
     const tool = spec.install !== undefined && input.tools !== undefined
       ? await installedTool(spec.install, { toolsRoot: input.tools.root, ...(input.tools.registry === undefined ? {} : { registry: input.tools.registry }) }).catch(() => undefined)
       : undefined;
-    languages.push(tool === undefined ? { language, command: spec.command, state: "missing" } : { language, command: spec.command, state: "ready", source: "tools" });
+    languages.push(tool && executable(tool) ? { language, command: spec.command, state: "ready", source: "tools" } : { language, command: spec.command, state: "missing" });
   }
   return { languages };
 }

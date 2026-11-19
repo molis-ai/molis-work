@@ -22,7 +22,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
     try {
       if (req.method === "GET" && url.pathname === prefix) {
         const model = await onboardingTextModel(home, ports.model);
-        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()) }); return true;
+        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete(url.searchParams.get("project"))) }); return true;
       }
       if (req.method === "POST" && url.pathname === prefix) {
         const input = await readNativePluginJsonBody(req);
@@ -36,7 +36,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
       else if (req.method === "GET" && match[3]) { const text = await contextReferenceText(home, id, match[3]); json(res, 200, { text: text.slice(0, 200_000), chars: text.length }); }
       else if (req.method === "GET" && !match[2]) {
         // The plugins that declare they take a code folder, by name, only while this round has one to hand over (batch12-design §7.3).
-        const journey = readContextJourney(home, id);
+        const journey = readContextJourney(home, id, url.searchParams.get("project") ?? undefined);
         // A round for an existing project shows that project's name; the page cannot read the catalog itself.
         const project = journey.existing ? await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(journey.project_id).display_name).catch(() => null) : null;
         json(res, 200, { ...journey, ...(journey.existing ? { project_title: project } : {}), takers: codeRoot(journey) ? (ports.takers?.() ?? []).map(({ plugin_id, name }) => ({ plugin_id, name })) : [] });

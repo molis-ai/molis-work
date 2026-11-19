@@ -12,7 +12,7 @@ function languageRow(row: AgentRunCodeIntelligence["languages"][number]): MwEnvC
       state: "done",
       label,
       value: uiText.text(row.source === "tools" ? "coding.code-intel.from-tools" : "coding.code-intel.from-machine", { command: row.command }),
-      status: { label: uiText.text("coding.env.badge.ready"), tone: "done" },
+      status: { label: uiText.text("coding.code-intel.found"), tone: "done" },
     };
   }
   // Decision 51: nothing is downloaded before batch 65's network rules; the person installs it, and the next round uses it.
@@ -30,7 +30,7 @@ function languageRow(row: AgentRunCodeIntelligence["languages"][number]): MwEnvC
 }
 
 /**
- * Coding A4 scheme A: one process line under the person's request, "Code understanding · N languages ready", that opens to which
+ * Coding A4 scheme A: one process line under the person's request, "Code understanding · tools found for N languages", that opens to which
  * program each language uses and where it came from. A language that is not ready opens the line and says, right under its row,
  * that its files are not checked this round — never that they have no errors — and what the person can do.
  */

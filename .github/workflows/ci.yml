@@ -107,7 +107,12 @@ jobs:
 
       - name: Pack build outputs
         run: |
-          find . \( -name node_modules -o -name .git \) -prune -o -name dist -type d -prune -print | sort | tar -cf - -T - | gzip -1 > "$RUNNER_TEMP/dist.tar.gz"
+          {
+            find . \( -name node_modules -o -name .git \) -prune -o -name dist -type d -prune -print
+            for d in apps/local-host/native/materials/bin apps/local-host/native/computer/bin; do
+              if [ -d "$d" ]; then printf './%s\n' "$d"; fi
+            done
+          } | sort -u | tar -cf - -T - | gzip -1 > "$RUNNER_TEMP/dist.tar.gz"
 
       - name: Upload build outputs
         uses: actions/upload-artifact@v4

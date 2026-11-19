@@ -449,7 +449,7 @@ export const scopedLintFiles = (headSnapshot, baseSnapshot) => {
     const baseText = changed.has(file) ? baseSnapshot.read(file) : null;
     const seen = new Set();
     for (const text of [headText, baseText]) {
-      if (!text || (!text.includes("./") && !text.includes("../") && !text.includes('"."') && !text.includes("'.'"))) continue;
+      if (!text || (!text.includes("./") && !text.includes("../") && !text.includes('"."') && !text.includes("'.'") && !text.includes('".."') && !text.includes("'..'"))) continue;
       RELATIVE_SPECIFIER.lastIndex = 0;
       let match;
       while ((match = RELATIVE_SPECIFIER.exec(text)) !== null) {

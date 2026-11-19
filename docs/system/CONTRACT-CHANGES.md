@@ -451,3 +451,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **对话附件：** `PluginMaterialsClient.attach` 与 `readAttachment`（要 `materials:read`）和沙箱 SDK 同名方法：附件归调用的插件安装与项目，只有它读得回；不进成果库。说明见 [S-conversation-attachments](security-invariants/S-conversation-attachments.md)。
   - **图片改引用：** `AgentImageMaterial` 与 `AssistantMaterial.image` 由 `resource_id`／`revision` 改为 `attachment: MaterialRef`；`agent.run.start@1` 的 `image_materials` 至多 6 张。`AgentDocumentCapability`、`AgentDocumentParser` 删除。
   - **命令模板：** 新子路径 `@molis-ai/molis-work-plugin-sdk/prompt-commands` 与合同 `services/prompt-commands`；动作 `commands.personal.list@1`（要 `commands:read`）与 `commands.project.list@1`（要 `workspace:read`）。
+- **第 98 批：多个插件共用过程项类型，接收方按来源或类型取**（PR [#2154](https://github.com/molis-ai/molis-work/pull/2154)，BL-375）：在原版本上改，不升版本，没有读取兼容。
+  - **列表：** `PluginArtifactClient.listConsumable(filter?: PluginConsumableFilter)`，条件 `{ artifact_type_id?, producer_plugin_id? }` 只缩小名单（声明、授权、个人归属照旧先筛）；不带条件的旧调用不变。SDK 动作 `sdk.artifacts.<安装>.list@1` 的输入从 `{}` 变成这两个可选字段。
+  - **摘要：** `PluginConsumableVersion` 加必有字段 `producer_plugin_id`（平台按运行身份记下的生产插件）；自己造这个类型的测试替身或适配要补上。`ArtifactListQuery` 加可选 `producer_plugin_id`。
+  - **声明：** 几个插件可以在 `process_items.produces` 声明同一种类型；成果类型仍按 S-82 只有一个属主。

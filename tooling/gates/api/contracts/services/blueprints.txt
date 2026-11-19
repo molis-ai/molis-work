@@ -88,6 +88,8 @@ export type BlueprintCurrentValue = {
     value: SandboxJson;
     origin: BlueprintPartOrigin | null;
     revision?: AdoptionRevision;
+    setting_source?: SettingSource;
+    value_unavailable?: string;
 } | {
     state: "missing";
 } | {
@@ -115,6 +117,28 @@ export type BlueprintDraftSaveInput<Body = Blueprint> = {
     draft_id: string;
     expected_revision: number;
 });
+
+export type BlueprintLibraryInput = {
+    adoption_id?: never;
+    preview_id?: never;
+} | BlueprintAdoptionReadInput | {
+    preview_id: string;
+};
+
+export interface BlueprintLibraryResult {
+    drafts: {
+        source: DraftSource;
+        title: TextRef;
+    }[];
+    adoptions: {
+        adoption_id: string;
+        title: TextRef;
+        target: BlueprintAdoptedTarget;
+        request: BlueprintAdoptionApplyInput;
+    }[];
+    preview?: BlueprintAdoptionPreviewResult;
+    target_created?: boolean;
+}
 
 export interface BlueprintOwnerReceipt {
     action: ExactActionReference;
@@ -151,15 +175,19 @@ export interface BlueprintPreviewChange<Proposal = BlueprintProposal> {
     action?: ExactActionReference;
 }
 
-export interface BlueprintPreviewPart {
+export type BlueprintPreviewPart = PreviewDecision & {
     part_id: string;
+    title?: OwnedTextRef;
+    summary?: OwnedTextRef;
     proposal: BlueprintProposal;
     layer: SettingLayer;
     candidates: BlueprintPreviewCandidate[];
-    decision: (typeof decisions)[number];
+    device_only?: true;
+    model_selection?: true;
+    correction_type?: "boolean" | "string" | "json";
     consequences: SettingConsequence[];
     affected_step_ids: string[];
-}
+};
 
 export type BlueprintPreviewSelection = {
     kind: "create";
@@ -207,6 +235,7 @@ export type UndoStep = {
 } | InterruptedStep);
 
 export declare const blueprintActions: {
+    library: ActionDefinition<BlueprintLibraryInput, BlueprintLibraryResult>;
     draftSave: ActionDefinition<BlueprintDraftSaveInput, BlueprintDraftResult>;
     draftRead: ActionDefinition<BlueprintDraftReadInput, BlueprintDraftResult>;
     preview: ActionDefinition<BlueprintAdoptionPreviewInput, BlueprintAdoptionPreviewResult>;
@@ -228,7 +257,7 @@ export declare const servicesBlueprintsContract: {
     readonly contractId: "io.molis.work.service.blueprints.v1";
     readonly kind: "service";
     readonly schemaVersion: 1;
-    readonly maturity: "contract-only";
+    readonly maturity: "partial";
     readonly ssot: "specs/scene-and-page-contract/spec.md";
 };
 
@@ -269,12 +298,21 @@ type InterruptedStep = ({
     reason: (typeof skipReasons)[number];
 };
 
+type PreviewDecision = {
+    decision: (typeof actionableDecisions)[number];
+} | {
+    decision: "skip";
+    reason: (typeof previewSkipReasons)[number];
+};
+
 type UndoOperation = "revert" | "remove";
+
+declare const actionableDecisions: readonly ["create", "reuse", "update", "needs_choice", "needs_install"];
 
 declare const appliedCurrentStates: readonly ["changed", "owner_unavailable"];
 
-declare const decisions: readonly ["create", "reuse", "update", "needs_choice", "needs_install", "skip"];
-
 declare const dependencyChanges: readonly ["added", "removed", "changed"];
 
-declare const skipReasons: readonly ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "revision_changed", "reused", "shared", "no_revert"];
+declare const previewSkipReasons: readonly ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"];
+
+declare const skipReasons: readonly ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"];

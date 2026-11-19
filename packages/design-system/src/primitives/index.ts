@@ -123,3 +123,14 @@ export {
   type MwScopeDeltaItem,
   type MwTaskAttemptBudgetOptions,
 } from "./recovery-parts.js";
+export {
+  CODING_BASICS_BOARD_STYLES,
+  CODING_BASICS_STYLES,
+  codingBasicsSection,
+  renderCheckLine,
+  renderCommandChip,
+  renderCommandPrompt,
+  type MwCheckError,
+  type MwCheckFact,
+  type MwCommandChipOptions,
+} from "./coding-basics.js";

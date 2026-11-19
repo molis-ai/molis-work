@@ -136,11 +136,7 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
     if status != 0 {
         return Err(format!("InstallEventHandler 失败：{status}"));
     }
-    let (toggle, capture, files) = shelf_hotkeys::chords_from_catalog_file(
-        &crate::web_service::molis_work_home()
-            .join("shelf")
-            .join("catalog.json"),
-    );
+    let (toggle, capture, files) = shelf_hotkeys::default_chords();
     reregister(host, toggle, capture, files)?;
     HOST.store(host as *mut Host, Ordering::SeqCst);
     Ok(())

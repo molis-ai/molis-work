@@ -9,6 +9,8 @@ export interface ModelChoice {
   readonly label: string;
   /** The person marked the model as taking a reasoning effort. */
   readonly reasoning_effort?: boolean;
+  /** What the person marked: true sees pictures, false does not; absent when unmarked. */
+  readonly vision?: boolean;
 }
 
 /** The round the controls read, as far as they read it. */
@@ -34,6 +36,10 @@ export interface ComposerModels {
   value(): string;
   /** Chooses a model by that value; one the catalog no longer lists is kept, said to be unavailable, so a send can say so. */
   choose(value: string): void;
+  /** The chosen model as the catalog lists it, or null. */
+  current(): ModelChoice | null;
+  /** The first model marked as seeing pictures, as a value `choose` takes, or "" when none is. */
+  sighted(): string;
   /** The effort this round is started with, when the chosen model takes one and the person chose it. */
   effort(): { reasoning_effort?: string };
   /** The session's saved start: the effort it was started with, where the model still takes one. */
@@ -105,6 +111,8 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     },
     value: () => value,
     choose(next) { value = next; settle(); paint(); },
+    current: () => chosen(),
+    sighted: () => { const one = list.find((item) => item.vision === true); return one ? key(one) : ""; },
     effort: () => chosen()?.reasoning_effort && effort ? { reasoning_effort: effort } : {},
     apply(config) { effort = config?.reasoning_effort || ""; paint(); },
     controls({ active, sending, run }) {

@@ -3,13 +3,13 @@
 import {createTrialAuthPeer,trialAccountConfig} from "../examples/personal-trial-tools/mock-auth.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, statSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, runHomeUpgrade, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_MODEL_CONFIGURATION, jellyServiceActions } from "@molis-ai/molis-work-plugin-jelly";
 import { assertVersionedFileWritable, createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -42,6 +42,28 @@ test("S-upgrade-too-new-untouched: `browser/sites.json` one version ahead: read 
   // A refused save is not in force either: the browser goes on deciding as it did before it was asked.
   assert.deepEqual(sites.list(), [], "the refused allow is not taken");
   assert.equal(sites.assistantEnabled, true, "the refused switch is not taken");
+});
+
+test("ONB-22/29: the Home upgrades Jelly and inactive installation preferences independently, only where a choice existed", t => {
+  const { home } = upgradeTestHome(t);
+  const choices = [
+    { relative: "jelly/preferences.json", provider_id: "text", model_id: "jelly-A" },
+    { relative: "plugin-files/retained-install/.model-settings/preference.json", provider_id: "another", model_id: "plugin-B" },
+  ];
+  for (const { relative, provider_id, model_id } of choices) place(home, relative, { schema_version: 1, provider_id, model_id });
+  const unset = join(home, "plugin-files", "no-choice", ".model-settings", "preference.json");
+  mkdirSync(dirname(unset), { recursive: true });
+  const unrelated = place(home, "plugin-files/retained-install/files/preference.json", { schema_version: 1, note: "user file" });
+  const prior = sha256(unrelated);
+  const report = runHomeUpgrade(home);
+  for (const { relative, provider_id, model_id } of choices) {
+    assert.equal(report.units.find(unit => unit.relative_path === relative)?.state, "committed");
+    const path = join(home, relative);
+    assert.deepEqual(json(path), { schema_version: 2, selection: { provider_id, model_id }, revision: 0, receipts: {} });
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+  }
+  assert.equal(existsSync(unset), false);
+  assert.equal(sha256(unrelated), prior);
 });
 
 test("S-upgrade-too-new-untouched: `jelly/preferences.json` one version ahead or unreadable: the model choice is refused before anything it would change", async t => {

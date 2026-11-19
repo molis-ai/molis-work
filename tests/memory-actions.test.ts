@@ -114,10 +114,10 @@ test("memory is one system.memory provider in the shared directory: the person m
   const views = await client.discover(person);
   const memoryViews = views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID);
   assert.deepEqual(memoryViews.map(view => view.capability_id).sort(), ["memory.batch.apply", "memory.batch.preview", "memory.candidates.accept", "memory.candidates.discard", "memory.candidates.list", "memory.change", "memory.changes.list",
-    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.operations.list", "memory.page", "memory.pairs.list", "memory.pairs.resolve", "memory.prefs.read", "memory.prefs.write",
+    "memory.changes.undo", "memory.export", "memory.history", "memory.import", "memory.list", "memory.operations.list", "memory.page", "memory.pairs.list", "memory.pairs.resolve", "memory.preferences.read", "memory.preferences.write", "memory.prefs.read", "memory.prefs.write",
     "memory.recall", "memory.scope.clear", "memory.scope.preview", "memory.session.clear.apply", "memory.session.clear.preview", "memory.signals.report", "memory.upkeep.run", "memory.write"]);
   const agentViews = (await client.discover(currentAgent)).filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
-  assert.deepEqual(agentViews, ["memory.list", "memory.recall", "memory.write"], "agents see reading and the gated write, never management");
+  assert.deepEqual(agentViews, ["memory.list", "memory.preferences.read", "memory.recall", "memory.write"], "the settings read is listed alongside ordinary memory actions");
 
   const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => currentAgent);
   // An agent must bring a quote of the person's words, but the Host holds none of the person's messages for it to be checked against: what an agent writes is a suggestion, never "you said".

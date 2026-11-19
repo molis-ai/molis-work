@@ -36,13 +36,24 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
     const bindRuntime=(scope)=>{(scope||document).querySelectorAll('[data-project-runtime]').forEach(root=>{
       if(root.dataset.bound==='1')return;root.dataset.bound='1';
       const select=root.querySelector('select'),error=root.querySelector('.settings-form-error'),path=root.dataset.runtimePrefix+'/api/project-settings/runtime';
+      let revision;
       const show=state=>{
+        revision=state.revision;
         const gone=state.selected&&!state.runtimes.some(item=>item.runtime_id===state.selected);
         root.hidden=state.runtimes.length<2&&!state.problem;
         select.replaceChildren(new Option(globalThis.t.text("workbench.project-settings.default-runtime"),''),...state.runtimes.map(item=>new Option(item.display_name,item.runtime_id)),...(gone?[new Option(state.selected+globalThis.t.text("workbench.project-settings.unavailable"),state.selected)]:[]));
         select.value=state.selected||'';error.textContent=state.problem||'';error.hidden=!state.problem;
       };
-      select.addEventListener('change',()=>molisWorkRequest(path,{body:{runtime_id:select.value||null},fallback:globalThis.t.text("workbench.project-settings.could-not-change-runtime")}).then(show,caught=>{molisWorkRequest.show(error,caught);error.hidden=false;}));
+      select.addEventListener('change',async ()=>{
+        if(!revision)return;
+        select.disabled=true;
+        try {
+          show(await molisWorkRequest(path,{body:{runtime_id:select.value||null,expected_revision:revision,request_id:crypto.randomUUID()},fallback:globalThis.t.text("workbench.project-settings.could-not-change-runtime")}));
+        } catch(caught) {
+          try { show(await molisWorkRequest(path)); } catch { /* Keep the last displayed revision and report the original save failure. */ }
+          molisWorkRequest.show(error,caught);error.hidden=false;
+        } finally { select.disabled=false; }
+      });
       molisWorkRequest(path).then(show,()=>null);
     });};
     const bindDelete = (scope) => {

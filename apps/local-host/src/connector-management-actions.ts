@@ -53,7 +53,8 @@ export const connectorManagementActions = {
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: authorizationInput, output_schema: output } } as ActionDefinition,
   cancel: { capability_id: "connectors.authorization.cancel", version: /* @version action.connectors.authorization.cancel */ 1, operation: "command", action: { ...metadata,
     title: "取消这次接入授权", description: "仅取消指定的待提交授权请求。已提交则如实返回 connected，不删除已有连接，不撤销服务端已独立授予的权限，也不停止其他任务。",
-    kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE], input_schema: authorizationInput, output_schema: output } } as ActionDefinition,
+    kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE],
+    input_schema: { ...authorizationInput, properties: { ...authorizationInput.properties, expected_status: { const: "prepared" } } }, output_schema: output } } as ActionDefinition,
 };
 
 export function connectorManagementHandlers(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector): ActionHandlerBinding[] {
@@ -101,10 +102,10 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
       return authorization(id);
     }),
     binding(connectorManagementActions.cancel, async (caller, input) => {
-      const id = (input as { authorization_id: string }).authorization_id;
+      const { authorization_id: id, expected_status } = input as { authorization_id: string; expected_status?: "prepared" };
       requireConnectorInitiator(home, id, caller);
       authorization(id); await caller.beforeEffect();
-      return cancelConnectorAuthorization(home, id)!;
+      return cancelConnectorAuthorization(home, id, expected_status)!;
     }),
   ];
 }

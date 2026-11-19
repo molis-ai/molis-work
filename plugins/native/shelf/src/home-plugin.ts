@@ -6,6 +6,7 @@ import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/servi
 import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfItemRecord, ShelfMaterialPorts, ShelfModelSelection, ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
+import { bindShelfPreferences } from "./device-preferences.js";
 import { shelfAiPorts } from "./ai.js";
 import { shelfManifest } from "./manifest.js";
 import { shelfUiContribution } from "./ui.js";
@@ -65,14 +66,14 @@ export async function withOriginState(snapshot: ShelfSnapshot, projects: Pick<Pl
  * any has, from whether any model is configured.
  */
 export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability,
-  projects?: Pick<PluginProjectsClient, "exist">): ShelfActionPorts {
+  projects?: Pick<PluginProjectsClient, "exist">, invalidate?: () => void) {
   let selection: ShelfModelSelection | null = null;
   const remember = (settings: ShelfDeviceSettings) => { selection = settings.model_selection ?? null; return settings; };
   return {
-    aiAvailability: () => availability(selection),
+    remember, aiAvailability: () => availability(selection),
     snapshot: async () => { const snapshot = await store().snapshot(); remember(snapshot.settings); return withOriginState(snapshot, projects); },
     settings: () => remember(store().settings()),
-    saveSettings: async patch => remember(await store().saveSettings(patch)),
+    saveSettings: async patch => { const settings = remember(await store().saveSettings(patch)); invalidate?.(); return settings; },
     admit: (input, control) => store().admitFile(input, control),
     admitText: (text, title, capture, control) => store().admitText(text, title, capture, control),
     captureUrl: (url, control) => store().admitUrl(url, control),
@@ -90,7 +91,7 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
     deleteClipboard: clipId => store().deleteClipboard(clipId),
     writeCopy: (itemId, text, expectedContentHash) => store().writeCopy(itemId, text, expectedContentHash),
     readFile: itemId => store().readFile(itemId),
-  };
+  } satisfies ShelfActionPorts & { remember: typeof remember };
 }
 
 /** The personal Shelf uses the public services and lifecycle of a Home plugin. */
@@ -100,7 +101,8 @@ export function createHomeShelfPlugin(): PluginDefinition {
     const { store, model, actions, projects } = shelfServices(context);
     // The sample goes on a shelf that has never held anything, once: the instance writes it itself, under its own current grants.
     await store().initialize();
-    const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined), projects));
+    const ports = shelfStorePorts(store, selection => model.availability(selection ?? undefined), projects, () => context.services?.ui?.invalidate());
+    const handlers = [...createShelfActionHandlers(ports), ...bindShelfPreferences(context, store, ports.remember)];
     return { kind: "app", views: [shelfUiContribution, shelfSettingsUiContribution], actions: [...handlers,
       { ...shelfActions.terminal, async handle(caller) {
         await caller.beforeEffect();

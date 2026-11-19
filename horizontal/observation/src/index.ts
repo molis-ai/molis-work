@@ -7,6 +7,7 @@ export { type ObservationEnvironment } from "./records.js";
 export { type ExitAction, type ExitObservation } from "./exit.js";
 export { clearObservationProjectFile, purgeObservationPluginFile, type PluginPurge } from "./lifecycle.js";
 export { ObservationLayer } from "./service.js";
+export { observationSettingOwner, RETENTION_KEY, retentionActions } from "./retention-setting.js";
 export { readRecords, readCoverage, readCoverageGaps } from "./queries.js";
 export { snapshotText } from "./evidence.js";
 export { OBSERVATION_COVERAGE_PLAN } from "./coverage-plan.js";

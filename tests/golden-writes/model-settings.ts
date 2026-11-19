@@ -10,6 +10,9 @@ export default async function ({ call, http, tag }: GoldenWriteContext) {
   await provider(`金样模型 ${tag}`);
   await provider(`金样模型 ${tag} 已改`);
   readsBack(await http("/api/settings/models", { method: "GET" }), `金样模型 ${tag} 已改`);
-  await call("jelly.model.configure", { provider_id: id, model_id: "golden-model" });
+  const key = "jelly.model_selection";
+  const { values } = await call("jelly.preferences.read", { keys: [key] }) as import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues;
+  await call("jelly.preferences.write", { key, layer: "personal", expected_revision: values[0]!.revision,
+    request_id: "golden-model-" + tag, change: { set: { provider_id: id, model_id: "golden-model" } } });
   readsBack(await call("jelly.model.settings"), id);
 }

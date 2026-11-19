@@ -16,6 +16,12 @@ export interface Command {
   readonly enabled?: boolean;
   /** It sets what the next round is given (materials, a method, a Character…): offered in the composer's ＋ too, with this glyph. */
   readonly adds?: PluginIconName;
+  /** The `/` menu group it is listed under (a prompt command's: this project's, or the person's own); none: built-in. */
+  readonly group?: string;
+  /** Where it is from, said in the palette's first column in place of 「命令」 (a prompt command's 项目, 我的). */
+  readonly source?: string;
+  /** A short warning beside it in the `/` menu (「读不了」); its hint says why. */
+  readonly warning?: string;
   readonly run: () => unknown;
 }
 
@@ -53,7 +59,7 @@ const LIMIT = 60;
 
 function entriesOf(palette: Palette): Entry[] {
   const { ports } = palette;
-  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: uiText.text("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
+  const commands = ports.commands().filter(command => command.enabled !== false).map((command): Entry => ({ kind: command.source ?? uiText.text("coding.slash.label"), label: command.label, detail: "/" + command.slash, keys: command.keys, run: command.run, words: [command.slash, ...(command.keywords || [])] }));
   const sessions = ports.sessions().filter(session => session.session_id !== ports.current()).map((session): Entry => ({ kind: uiText.text("coding.palette.session"), label: sessionTitle(session.title), detail: session.state_label || "", run: () => ports.openSession(session.session_id, sessionTitle(session.title)), words: [] }));
   return [...commands, ...sessions];
 }

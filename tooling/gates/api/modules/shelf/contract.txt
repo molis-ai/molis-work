@@ -6,6 +6,15 @@ export declare const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput,
     item: ShelfItemRecord;
 }>;
 
+export declare const SHELF_PREFERENCE_FIELDS: {
+    readonly "shelf.drop_wheel": readonly ["drop_wheel_enabled"];
+    readonly "shelf.hotkeys": readonly ["hotkeys"];
+    readonly "shelf.panel_keys": readonly ["panel_keys"];
+    readonly "shelf.engine": readonly ["engine"];
+    readonly "shelf.model": readonly ["model_selection"];
+    readonly "shelf.action_bar": readonly ["shortcuts", "action_order", "hidden_actions"];
+};
+
 export interface ShelfAdmitActionInput {
     text?: string;
     title?: string;
@@ -55,7 +64,7 @@ export interface ShelfAiStatus {
     readonly selected: ShelfModelSelection | null;
     readonly choices: readonly (ShelfModelSelection & {
         readonly label: string;
-        readonly vision: boolean;
+        readonly vision?: boolean;
     })[];
 }
 
@@ -219,6 +228,8 @@ export type ShelfPanelKeySlot = "hide" | "paste" | "copy" | "delete";
 
 export type ShelfPanelKeys = Readonly<Record<ShelfPanelKeySlot, ShelfPanelKeyChord>>;
 
+export type ShelfPreferenceKey = keyof typeof SHELF_PREFERENCE_FIELDS;
+
 export interface ShelfRecipeAvailability {
     readonly recipe: ShelfRecipeId;
     readonly available: boolean;
@@ -310,6 +321,7 @@ export interface ShelfSnapshot {
     readonly runtime: ShelfRuntimeStatus;
     readonly running_jobs: readonly ShelfJobRecord[];
     readonly settings: ShelfDeviceSettings;
+    readonly action_bar_revision: string;
     readonly root: string;
 }
 
@@ -326,3 +338,5 @@ export interface ShelfTextMaterial {
         artifact?: ShelfArtifactSource;
     };
 }
+
+export declare function shelfPreferenceKey(key: string): key is ShelfPreferenceKey;

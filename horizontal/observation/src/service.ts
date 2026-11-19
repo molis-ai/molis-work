@@ -2,6 +2,7 @@ import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "
 import { observationActions, type ObservationCleanupResult, type ObservationFactInput, type ObservationRecorder, type ObservationService, type ObservationSink } from "@molis-ai/molis-work-contracts/services/observation";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { sweepExpiredRecords } from "./cleanup.js";
+import { retentionActions, retentionSettingHandlers } from "./retention-setting.js";
 import { exitRecord, exitSkips, type ExitAction, type ExitObservation } from "./exit.js";
 import { handleHoldsList, handleHoldsPut, handleHoldsRelease } from "./holds.js";
 import type { ObservationKeys } from "./keys.js";
@@ -87,9 +88,10 @@ export class ObservationLayer {
       defineAction(observationActions.holdsRelease, (caller, input) => handleHoldsRelease(deps, caller, input)),
       defineAction(observationActions.holdsList, (caller, input) => handleHoldsList(deps, caller, input)),
     ];
+    const settings = retentionSettingHandlers(deps);
     return {
-      definitions: bound.map((item) => item.definition as ActionDefinition),
-      handlers: bound.map((item) => item.handler),
+      definitions: [...bound.map((item) => item.definition as ActionDefinition), retentionActions.read, retentionActions.write],
+      handlers: [...bound.map((item) => item.handler), settings.read, settings.write],
     };
   }
 

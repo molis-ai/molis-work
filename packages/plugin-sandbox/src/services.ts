@@ -151,7 +151,7 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
   { service: 'sync', services: ['sync'], reason: 'Portable synchronization callbacks require the Runtime library service; sandbox operations do not yet provide this protocol.', declared: definition => definition.manifest.sync !== undefined },
   { service: 'savedHistory', services: ['savedHistory'], reason: 'Passive execution-history export requires the Runtime agent-history service, which sandbox operations do not yet provide.', declared: (definition, held) => asksFor(definition, held, ['agent-history:read']) },
   { service: 'model_configuration', services: [], reason: 'A sandboxed package does not write model_configuration in its Manifest: it asks for its model settings with effects.modelSettings in contract.json and the Host derives the rest (PG-017 BL-491).',
-    declared: definition => definition.manifest.model_configuration !== undefined },
+    declared: definition => definition.manifest.settings_entries?.model_configuration !== undefined },
   { service: 'image_generation', services: [], reason: 'A sandboxed package does not write image_generation in its Manifest: it asks for image generation with effects.imageGeneration in contract.json and the Host derives the rest (PG-017 BL-491).',
     declared: definition => definition.manifest.image_generation !== undefined },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',

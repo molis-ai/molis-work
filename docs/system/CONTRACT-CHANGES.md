@@ -1,5 +1,11 @@
 # 合同变更流程
 
+2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。原回执匹配但目标层已经变化时，冲突详情返回原请求的 `undo_of` 及 `reason: "revision_changed"`，供撤销记录结束该项并保留手工修改。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
+
+同批逐项预览区分建议格式错误、无声明、主人停用和沙箱暂不支持。已保存但离线的选择携带原值、来源和不可用原因。模型连接目录的读取可显式请求 `preference_revision`，用同一次读取的版本提交普通选择。
+
+按一骏 11 月 18 日的决定，旧格式写以下字段会在生效前被拒绝。助理预算改用 `/api/assistant/preferences`，Shelf 设备偏好、工作记录期限与提醒线、Jelly 普通模型选择分别使用 `shelf.preferences.write`、`observation.preferences.write`、`jelly.preferences.write`。先从配对读动作取得版本，再以该版本与请求号提交。工具登记、暂停记录与模型连接管理仍使用各自入口。
+
 2026-11-17 质量审查 QEA-124/125：公开动作的 `result_view.link` 增加可选 `home_href_template`，仅供无可信项目上下文的回执使用。动作提供方声明目的地，Contracts 统一校验模板、插值和同源地址，旧项目或共享模板按原合同处理。Skills 的起草动作补个人空间目的地，工作台按设置页实际消费的参数打开该草稿。旧助理卡的已存呈现快照保持原回执，SDK、Workflows 继续共用呈现。阶段一原位更新 API 和动作快照。业务输入输出、动作版本、授权和持久结构均无变化。
 
 2026-11-17 质量审查第50批：Goals自有 `goals.stage.read@1` 输入新增可选 `projection: "collection"`，其现行输出的 `selected` 为 null，集合与呈现状态保持；省略该字段的固定版本调用方继续读取原完整正文。原页面声明、Manifest stage输入、Host片段和工作台刷新同批接入。按当前阶段一原位扩充，动作快照同步；没有持久结构变更、历史值兜底或兼容reader。公开contracts/SDK API快照无变化。
@@ -54,6 +60,8 @@
 
 2026-11-05 用户明确决定：旧版跨范围移动在源已不可用、又完全缺少目标回执时停止自动续办，保留现存内容并提示待核对；撤回该旧态的自动恢复成功承诺，不新增SDK查找口或从隐藏历史重建请求。当前移动仍须在接受源遗忘前原子保存目标回执及历史；真实事务失败、已保存回执后的清理失败均保留原请求恢复要求。已接受的自动新增撤销只凭原change/undo/purge/独立决定的精确身份继续清理，不重新开放正文。输入输出schema不变，原错误码与权限不放宽；旧红日志、明确范围与验证保留在Memory spec。
 
+第 61 批复核修复保留既有动作身份。阶段一动作快照记录 `connectors.setup.prepare@1` 新增 `created`，`connectors.authorization.cancel@1` 新增可选的 `expected_status`，供采用者仅补偿自己的准备请求。`connectors.records.read@1` 的可选 `connector_category` 用于助理当前工作的账号约束，输出加 `account_label`。`automation.adoption.adopt@1` 增加可选的能力包去处。`feed.sources.add_account@1` 声明 `sources:pull_connector` 和并行调度，公开调用方须持有该权限，来源与事件仍同事务写入。各原调用方沿现行合同，持久化 schema 和 vendored SDK 沿当前版本。
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
@@ -107,6 +115,9 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 第 38 批模型偏好 v1→v2 | Jelly 与已安装插件已有的模型选择原位保留。持 Home 升级锁，按已登记的内置文件与安装专属偏好路径枚举，补充个人层修订和回执。2026-11-18 一骏确认。 | local-host 模型设置；受支持的旧 Home 均退出后移除升级段。 |
+| 第 38 批 Shelf 目录 v1→v2 | Shelf 保留设备设置、材料、任务、剪贴板及同步元数据，在本机设置旁记录修改版本和回执。2026-11-18 一骏确认设备偏好可采用。 | modules/shelf；受支持的旧目录均退出后移除升级段。 |
+| 第 38 批项目设置回执 | 项目库 5→6 只在升级事务中补齐原按需创建的运行时表，保留旧运行时，纳入修改版本与同事务回执。运行期读写只认当前结构。场景采用记录另建 Home 库 v1。2026-11-18 用户确认两项变更。 | 项目库归 local-host；场景记录归 horizontal/blueprints。连续升级段随受支持的项目版本保留。 |
 | 记忆新一代起点（Memory V0，用户 2026-11-07 定不迁移） | `memory` 1 → 2 只删账本里关于旧记忆的行（历史、候选、变更、信号、使用、配对、标记），保留归属标题和每个开关；偏好里唯一新增的 `class_restrictions` 在缺少时补成空列表（不限制任何类别，用户 2026-11-11 定），不改其他字段；并留一个标记；持主人锁的下一次启动只凭这个标记，先永久删除 `agent-runtime/records/` 下旧布局的 `io.molis.work~memories` 与 `io.molis.work~memory-candidates` 两个目录（SDK 索引库在它们存在时拒绝挂载；不是普通目录的拒绝、不删；用户 2026-11-11 定），再写空的 `memory-forgetting-v2.json`，最后删标记；中途停下的下一次启动重做。其他 SDK 记录不动，旧记忆不读、不搬；别的缺遗忘文件的 Home 照旧拒绝。真实 Home 升级前按发布检查单先做完整备份 | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 1 版时删除此升级段与标记处理 |
 | 记忆账本无正文归因收口（第 31 批合后复查 #2087，2026-11-15；PR 正文称用户当次明确指令，独立决定记录待补） | `memory` 2 → 3 将既有 `memory_revisions.body` 原位清洗为只含 `{version, change, by, at}`（去除第 2 版曾写入的重复 `text`/`kind`/`applies`/`snapshot`），并移除非 `pending` 的 `memory_markers.body` 中的 `$.merge` 暂态字段；现行第 3 版读取路径严格校验四键归因形状，残留正文或未知键直接报 `storage.memory.invalid`，不做读时过滤兜底；遗忘与完成提交同时从 `memory_changes` 与 `memory_markers` 擦除自动改动的 `trigger_evidence` | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 2 版时删除此升级段 |
 | Files 退役与过程项同步切换（第 06 批，用户 2026-11-09 批准隔离实现） | 用户随后明确取消新增升版：06 批当时项目库保持 2（第 15 批 #2017 已升到第 3 版；11-13 用户决定同版本例外改指第 3 版）、过程项同步保持 1、D1 保持 6。精确旧 Files 身份、三类过程项及相关端口／绑定的功能转换仍做，同版本按账号 cutoverId 派生私有同步分区，公开集合不变；原不同版本 namespace 方案不再执行。显式隔离 owner 采用不伪装 U1 同版本升级，普通打开只检当前结构、不补 DDL；[同版本采用设计](../../specs/batch-06-shared-tools/current-version-adoption.md)已独立复核。2026-11-12 起：项目库采用程序在 `apps/local-host/src/process-items-adoption.ts`（只在隔离 Home 测过）；现有 1→2 步骤直接升到新布局，只动结构（用户 11-12 定）；旧布局第 2 版只走显式采用，采用中换日志后在同一事务走完 2→3，落到第 3 版现行（用户 11-13 定）。项目库结构快照的同版本变化只按 `tooling/gates/schemas/same-version-exceptions.json` 的唯一一条放行（用户 11-11 定，11-13 改指第 3 版）。同一采用事务里，项目库按 spec「本库安装清理」把 Files 的官方安装记成已卸载（私有值保留）、删去它作为订阅方的事件游标（Runtime 的 `retired-install.ts`）；全部项目采用后，Home 步骤除撤同意外，由 Projects 的 `plugin-retirement.ts` 把 `files` 移出各项目成员（本地与可同步两份），每个项目记一条普通的移除事件（11-12 起，只在隔离 Home 测过）。限定旧源预检、封前容量预留、冻结值播种、精确旧回执与保留期内受权历史读取。脏旧设备在改属前保全原值、操作与同步恢复数据，恢复件登记首版格式，走本人显式接管；普通读写不兜底旧业务结构。真实部署、真实 Home 与云端迁移另授权；[完整合同及验收](../../specs/batch-06-shared-tools/sync-cutover.md) | 成果／过程项 owner 管业务图，Runtime 管端口与同意，sync-replication 管恢复件和客户端，Rust 同步 owner 管 D1／R2，Host 的实际 Home owner 控制本地采用窗口。消费者为资料、Coding、Diff、Text Stats 与同步设置。支持的旧源全部迁完且无待接管恢复件后移除专用转换和旧源捕获入口；已有恢复件在用户处置前保留。永久封印、原回执及仍有效的历史权利按其合同继续履行，不随转换代码删除。 |
@@ -147,6 +158,8 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION#1→2` |
+| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION#1→2` |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | `plugins/native/images/src/database.ts#IMAGES_DATABASE#1→2` |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
@@ -241,6 +254,7 @@
 | `agent-definitions/agent-definitions.db` | 2 → 3 | 第 42 批 #2107（用户 2026-11-16 批准：新增技能草稿 `skill_drafts`、已知答案 `skill_cases`、回放 `skill_trials`、来源 `skill_lineage` 四张空表，已有的技能设置与用量不动） | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
 | `assistant/assistant.db` | 1 → 2 | 存键和参数、不存译文（BL-action-card-outcome-text，用户 2026-11-17 定升版本、旧句子转 `{ literal }`）：卡片的 `outcome` 从句子改成 `OwnedTextRef`。2026-11-08／11-09「助理库保持第 1 版」的决定到此为止 | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上：Coding 存在 `plugin_private_values` `cards:<会话>` 的卡片 `outcome` 转 `{ literal }`；v4 金样 `0.1.1-dev.6` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
+| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 38 批，保留有选择的项目和继承默认值的项目，采用回执与原设置同事务。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text，用户 2026-11-17 定）：来源名改存插件 Manifest 的 `name_text` 引用，旧名字与旧卡片结果转 `{ literal }`（纯 SQL 插件升级段） | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
@@ -446,3 +460,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **审查引用的 owner 类型删 `goal-acceptance`**（2026-11-17 合后复查，插件同等地位收口 C9）：`platform/reviews.ts` 的 `ReviewOwner` 非可信决定一支只剩 `kind: "agent-review"`，`REVIEW_OWNER_SCHEMA` 同步收窄；`horizontal/agent-host`、`horizontal/mainline`、`horizontal/project-approvals` 读引用时不再接受 `goal-acceptance`。带审查引用 schema 的动作在原版本上收窄（只少一个从未产生的取值，动作合同快照的 schema 哈希随之变）：`acceptance.decide/deliveries.record/read/reports.submit/requirements.set@1`、`background.tasks.read@1`、`mainline.line.read@1`，以及插件声明的 `coding.background.tasks@1`、`images.background.tasks@1`。全仓没有产生这个值的代码，库里也没有存量，不写升级段、不留读取兼容。用到 `ReviewOwner` 的插件作者：不要再构造 `goal-acceptance`，Goal 的验收按通用的 `agent-review` 或可信决定引用走。
 
 - 第 59 批合后修复（2026-11-17）为 `agent.subagents.conversation@1` 和 `agent.subagents.wait@1` 的对话投影增加可选字段 `extend_budget_available: true`。消费方可据此展示原 `agent.subagents.command@1` 的 `extend-budget` 操作，实际命令仍核对原 Run 和当前权限。手写严格输出校验的消费方需接受这个可选字段。`/subtask-conversation` 的 `createAgentSubtaskSource` 多可选 `wait`，可以直接消费带版本的对话投影。命令形状、数据库、Prologue SDK 产物沿用原版本。[需求 §13](../../specs/subagent-interaction/spec.md#13-第-59-批合后审计修复)
+- **第 35 批：对话附件、命令模板、看图口径与图片改引用**（PR [#2123](https://github.com/molis-ai/molis-work/pull/2123)，[决定 51](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-51)）：在原版本上改，不升版本。
+  - **看图口径：** `PluginModelChoice.vision`、`PluginModelAvailability.vision`、`SandboxModelChoice.vision`、`ShelfAiStatus` 的 `vision` 改为可选，缺省表示模型设置里没标注（以前没标注给 `false`）。只有 `false` 拒绝带图；按 `if (vision)` 判断的插件，对没标注的模型会少带图，应改成「不是 `false` 就带」。宿主会告诉模型看不到就直说。
+  - **对话附件：** `PluginMaterialsClient.attach` 与 `readAttachment`（要 `materials:read`）和沙箱 SDK 同名方法：附件归调用的插件安装与项目，只有它读得回；不进成果库。说明见 [S-conversation-attachments](security-invariants/S-conversation-attachments.md)。
+  - **图片改引用：** `AgentImageMaterial` 与 `AssistantMaterial.image` 由 `resource_id`／`revision` 改为 `attachment: MaterialRef`；`agent.run.start@1` 的 `image_materials` 至多 6 张。`AgentDocumentCapability`、`AgentDocumentParser` 删除。
+  - **命令模板：** 新子路径 `@molis-ai/molis-work-plugin-sdk/prompt-commands` 与合同 `services/prompt-commands`；动作 `commands.personal.list@1`（要 `commands:read`）与 `commands.project.list@1`（要 `workspace:read`）。

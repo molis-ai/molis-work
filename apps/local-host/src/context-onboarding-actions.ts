@@ -22,9 +22,13 @@ const scope = "home", door = contextOnboardingDoor;
 
 export const contextOnboardingActions = {
   create: door.define({ capability_id: "onboarding.context.create", version: /* @version action.onboarding.context.create */ 1, scope,
-    title: "开始一轮整理", description: "首次引导：建一轮整理旅程，之后选来源。",
-    input_schema: { type: "object", properties: { id: { type: "string", maxLength: 200 } }, additionalProperties: false } },
-  (entry, input) => withContextJourneys(entry.home, store => store.create(input.id ?? ""))),
+    title: "开始一轮整理", description: "首次引导：建一轮整理旅程，之后选来源；带上已有项目时，这一轮给那个项目补材料（如外部会话）。",
+    input_schema: { type: "object", properties: { id: { type: "string", maxLength: 200 }, project_id: { type: "string", minLength: 1, maxLength: 200 } }, additionalProperties: false } },
+  async (entry, input) => {
+    // The project is one the person has: read from the catalog, never made here (batch 35 item 1).
+    if (input.project_id) await entry.ports.withCatalog({ homeDirectory: entry.home }, catalog => catalog.getProject(input.project_id!));
+    return withContextJourneys(entry.home, store => store.create(input.id ?? "", input.project_id));
+  }),
   stageFile: door.define({ capability_id: "onboarding.context.stage_file", version: /* @version action.onboarding.context.stage_file */ 1, scope,
     title: "暂存一份原文件", description: "首次引导：把本人选的一份文件按内容摘要存进这一轮的暂存，供选择引用。",
     input_schema: { type: "object", properties: { journey, path: { type: ["string", "null"], maxLength: 4096 } }, required: ["journey", "path"], additionalProperties: false } },

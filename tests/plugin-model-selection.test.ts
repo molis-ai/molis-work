@@ -40,8 +40,9 @@ async function fixture(t: TestContext) {
 
 test("W5-01-SEL-01 an explicit Runtime model selection reaches only that configured provider and model; the default is unchanged", { timeout: 60_000 }, async t => {
   const { model, first, second, call } = await fixture(t);
-  assert.deepEqual(model.availability(), { available: true, runtime_label: "A default · first-model", vision: false });
-  assert.deepEqual(model.availability(second.selection), { available: true, runtime_label: "B selected · second-model", vision: false });
+  // Neither model is marked for pictures, so neither answer says it can or cannot see them (decision 51 ③: unmarked is not "cannot").
+  assert.deepEqual(model.availability(), { available: true, runtime_label: "A default · first-model" });
+  assert.deepEqual(model.availability(second.selection), { available: true, runtime_label: "B selected · second-model" });
   assert.equal(await call(), "A default");
   assert.equal(await call({ selection: second.selection }), "B selected");
   assert.deepEqual(first.server.requests.map(request => request.model), ["first-model"]);

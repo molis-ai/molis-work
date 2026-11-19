@@ -179,6 +179,7 @@ export {
   stepPointsBadge,
 } from "./recovery-parts.js";
 
+export { buildCodeIntelligenceHtml } from "./code-intelligence-parts.js";
 export { CODING_STYLES } from "./styles.js";
 export { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./workbench-client.js";
 export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";

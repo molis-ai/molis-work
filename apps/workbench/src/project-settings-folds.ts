@@ -128,6 +128,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
         name: uiText.text("workbench.project-settings-folds.agent-runtime"), nameAttrs: { id: "project-runtime-label" }, hint: uiText.text("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default"),
         detail: `<small class="settings-form-error" role="alert" hidden></small>`, control: `<select id="project-runtime" aria-labelledby="project-runtime-label"></select>`,
       }) })}
+      <section class="settings-section"><a class="mw-btn mw-btn--ghost" href="${escapeHtml(desktopShell ? primitives.withDesktopQuery("/projects/" + encodeURIComponent(project.project_id) + "/onboarding?scene") : "/projects/" + encodeURIComponent(project.project_id) + "/onboarding?scene")}">${uiText("workbench.scene.title")}</a></section>
       ${renderSettingsSection({ title: uiText.text("workbench.project-settings-folds.project-management"), className: "settings-section settings-project-maintenance", body: renderDanger(project) })}
       ${renderProjectDeleteDialog(project, desktopShell, primitives)}
     </section>`;

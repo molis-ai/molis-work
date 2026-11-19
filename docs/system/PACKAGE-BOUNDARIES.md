@@ -262,6 +262,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/account` | 横向 | 14 | 1,225 | `session-manager.ts` 262 | 1 | 1 | 1 | 在用 | 中 | 待审 |
 | `horizontal/agent-host` | 横向 | 99 | 13,928 | `adapters/prologue-stream.ts` 723 | 1 | 3 | 1 | 在用 | 深 | 已审 |
 | `horizontal/appearance` | 横向 | 6 | 536 | `selection.ts` 164 | 1 | 4 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/blueprints` | 横向 | 5 | 590 | `adopt.ts` 193 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/automation-recommender` | 横向 | 5 | 413 | `scan.ts` 150 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/connector-host` | 横向 | 6 | 897 | `connection-store.ts` 452 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/evaluation` | 横向 | 11 | 2,428 | `rules.ts` 553 | 1 | 3 | 1 | 在用 | 中 | 待审 |

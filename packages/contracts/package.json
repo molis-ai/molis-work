@@ -170,6 +170,10 @@
       "types": "./dist/services/agent-inputs.d.ts",
       "import": "./dist/services/agent-inputs.js"
     },
+    "./services/prompt-commands": {
+      "types": "./dist/services/prompt-commands.d.ts",
+      "import": "./dist/services/prompt-commands.js"
+    },
     "./services/agent-task-grants": {
       "types": "./dist/services/agent-task-grants.d.ts",
       "import": "./dist/services/agent-task-grants.js"

@@ -7,7 +7,8 @@ import { retainComposer } from "./composer-retained.js";
 import { composerMenus, type ComposerMenus } from "./composer-menus.js";
 import { composerSender, type ComposerSender } from "./composer-send.js";
 import "./composer-program.js";
-import { attached, composerBasics, composerState, itemKey, letGo, type Composer } from "./composer-state.js";
+import { molisPicture } from "./picture.js";
+import { attached, composerBasics, composerState, itemKey, letGo, type Composer, type Item } from "./composer-state.js";
 import { firstScreen, paint } from "./composer-view.js";
 
 /**
@@ -43,7 +44,8 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   let carried: readonly unknown[] = [];
   c.paint = (controls) => {
     paint(c, controls);
-    const now = attached(c);
+    // The read rows' materials, then every row's file: a refused row going is a change too, for a page whose note named it.
+    const now = [...attached(c), ...c.items.flatMap((item) => item.file ? [item.file] : [])];
     if (now.length !== carried.length || now.some((one, index) => one !== carried[index])) { carried = now; options.onMaterials?.(); }
   };
   const retained = retainComposer(c), drafts = composerDrafts(c, retained), menus = composerMenus(c), sender = composerSender(c, drafts, retained);
@@ -76,12 +78,18 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   return {
     ready: () => c.signal.aborted ? Promise.reject(c.signal.reason) : Promise.resolve(),
     setRunning(next) { if (c.running !== next) { c.running = next; if (!next) c.note = undefined; c.paint(); } },
-    refresh() { c.paint(true); },
+    // The bar's start is drawn again; a / menu the person is typing in is drawn again with it, from the page's commands now.
+    refresh(what) { if (what === "lines") return c.paint(); const typing = Boolean(c.typed && c.open); c.paint(true); if (typing && c.typed) menus.openAdd(false); },
     focus() { c.field.focus(); },
     insert(text) {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
-    attach(given) { if (given.length) void sender.upload(given); },
+    attach(given, replacing = []) {
+      const same = (file: File) => replacing.some((one) => one === file || (one.name === file.name && one.size === file.size && one.type === file.type && one.lastModified === file.lastModified));
+      const gone = c.items.filter((item) => item.file && same(item.file));
+      if (gone.length) { letGo(gone); c.items = c.items.filter((item) => !gone.includes(item)); c.paint(); }
+      if (given.length) void sender.upload(given);
+    },
     hold(reason) {
       const now = reason ?? "";
       if (c.held === now || c.signal.aborted) return;
@@ -89,6 +97,7 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
       c.paint(true);
     },
     materials: () => attached(c),
+    files: () => c.items.flatMap((item) => item.file ? [item.file] : []),
     destroy: release,
   };
 }
@@ -120,6 +129,7 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       c.items = c.items.filter((item) => item.key !== data.composerRemove); c.requestId = ""; c.paint(); return field.focus();
     }
     if (data.composerRetry) return void sender.retry(data.composerRetry);
+    if (data.composerOpen) { const item = c.items.find((one) => one.key === data.composerOpen); return void (item?.thumb && openPicture(item, target as HTMLElement, c.options.attachments?.pictures?.close)); }
     if (data.composerFiles !== undefined) { c.close(); menus.untype(); return files.click(); }
     if (data.composerSource && Array.isArray(c.sources)) return menus.pick(c.sources[Number(data.composerSource)]!);
     if (data.composerPick && c.picking && Array.isArray(c.picking.found)) {
@@ -136,14 +146,16 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
         material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source, search: { hit_id: hit.hit_id, snippet: hit.snippet, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title } } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
-    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); return command?.run(); }
+    // A command may put its chip on the box (Coding A2): drawn at once.
+    if (data.composerCommand) { const command = options.commands?.[Number(data.composerCommand)]; menus.untype(); c.close(); field.focus(); command?.run(); return c.paint(); }
+    if (data.commandRemove !== undefined && target.closest("[data-composer-chip]")) { options.chip?.()?.remove.run(); c.paint(); return field.focus({ preventScroll: true }); }
     if (data.composerMore !== undefined) return void target.setAttribute("aria-expanded", String(target.getAttribute("aria-expanded") !== "true"));
     if (data.composerControl) {
       const control = options.controls?.find((one) => one.id === data.composerControl);
       if (control?.kind === "toggle") { const on = target.getAttribute("aria-pressed") !== "true"; target.setAttribute("aria-pressed", String(on)); control.change?.(on); }
       if (control?.kind === "button") control.run();
     }
-    if (data.composerNotice !== undefined) return options.notice?.()?.action?.run();
+    if (data.composerNotice !== undefined) { const now = options.notice?.(); return (data.composerNotice === "also" ? now?.also : now?.action)?.run(); }
     if (data.composerReceiver !== undefined) c.ai?.receiver?.()?.open?.();
     if (data.tagRemove !== undefined) c.ai?.receiver?.()?.reset?.();
   }, { signal });
@@ -158,6 +170,8 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     const plain = !composing(event) && !event.metaKey && !event.ctrlKey && !event.altKey;
     if (plain && (event.key === "ArrowDown" || event.key === "ArrowUp") && menus.step(event.key === "ArrowDown" ? 1 : -1)) return event.preventDefault();
     if (plain && !event.shiftKey && (event.key === "Enter" || event.key === "Tab") && menus.take()) return event.preventDefault();
+    // ⌫ in an empty box takes the command chip off, as × does.
+    if (plain && event.key === "Backspace" && !field.value) { const chip = options.chip?.(); if (chip) { event.preventDefault(); chip.remove.run(); return c.paint(); } }
     const key = composerKey(event, options.submitKeys !== false);
     if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined); }
   }, { signal });
@@ -182,3 +196,12 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
 }
 
 globalThis.molisComposerProgram ??= mount;
+globalThis.molisPictureProgram ??= molisPicture;
+
+/**
+ * A picture on the strip, at its own size, in the board's dialog: named by its file, the picture's alt is that name, and closing it
+ * (Esc, ×, or a press outside) gives the focus back to the preview that opened it.
+ */
+function openPicture(item: Item, opener: HTMLElement, closeLabel = "") {
+  molisPicture(opener, { src: item.thumb!, title: item.title, ...(closeLabel ? { close: closeLabel } : {}) });
+}

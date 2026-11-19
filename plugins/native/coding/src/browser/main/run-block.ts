@@ -1,3 +1,4 @@
+import { buildCodeIntelligenceHtml } from "../../code-intelligence-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
 import { readChangeTally } from "./change-tally.js";
@@ -75,17 +76,37 @@ function placePrep(page: Page, block: HTMLElement, run: RunView, ordered: HTMLEl
   ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, fold);
 }
 
+/**
+ * A box drawn from HTML under the person's request, after the last of `after` already placed; kept across redraws, so a fold the
+ * person opened or closed stays as they left it. No HTML removes it.
+ */
+function placeBox(block: HTMLElement, ordered: HTMLElement[], attr: string, className: string, html: string, after: readonly string[]) {
+  let box = block.querySelector<HTMLElement>(`:scope > [${attr}]`);
+  if (!html) { box?.remove(); return; }
+  if (!box || box.tagName !== "DIV") {
+    box?.remove();
+    box = el("div", "", className);
+    box.setAttribute(attr, "");
+  }
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    box.innerHTML = html;
+  }
+  ordered.splice(Math.max(ordered.findIndex(node => node.dataset.kind === "user"), ...after.map(name => ordered.findIndex(node => node.hasAttribute(name)))) + 1, 0, box);
+}
+
+const PREP = "data-coding-prep", CODE = "data-coding-code-intel-box";
+
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
   placePrep(page, block, run, ordered, last);
+  // Which languages the round could understand sits under its prep: one fold, open only when something is not ready (A4).
+  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [PREP]);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
   if (planCard) {
-    const prepIdx = ordered.findIndex(node => node.hasAttribute("data-coding-prep"));
-    const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
-    const anchor = prepIdx >= 0 ? prepIdx : userIdx;
-    ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, planCard);
+    ordered.splice(Math.max(...["user", PREP, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
   }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {

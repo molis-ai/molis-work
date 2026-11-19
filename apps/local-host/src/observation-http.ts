@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import { retentionActions } from "@molis-ai/molis-work-service-observation";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
@@ -11,6 +12,10 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 
 function routeDefinition(method: "GET" | "POST", pathname: string): ActionDefinition | undefined {
   switch (pathname) {
+    case "/api/observation/preferences/read":
+      return retentionActions.read;
+    case "/api/observation/preferences/write":
+      return method === "POST" ? retentionActions.write : undefined;
     case "/api/observation/settings":
       return observationActions.settingsGet as ActionDefinition;
     case "/api/observation/space":

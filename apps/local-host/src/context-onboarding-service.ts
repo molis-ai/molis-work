@@ -42,6 +42,8 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 import { ONBOARDING_TEXT_MODEL_MISSING, onboardingTextModel, type TextModelPort } from "./configured-text-port.js";
 import type { HostTextCommitResult } from "./host-complete-text.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
+import { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
+import { partTitle, textParts } from "./context-onboarding-parts.js";
 import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
@@ -62,6 +64,11 @@ export interface ContextOnboardingPorts {
   homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<TextModelPort<string>>;
   readSource?: typeof readContextSource;
+  /**
+   * The actions of an existing project's AI (not the person): the round reads the external sessions filed to that project through them,
+   * so the project's AI read permit decides (batch 35 item 1, sessions-rebuild contract design §7.4). None offered without it.
+   */
+  sessions?: (home: string, projectId: string, signal: AbortSignal) => Promise<BoundActionClient>;
   /** The plugins that declare they take a code folder (`onboardingTakers`, batch12-design §7.3); none offered without it. */
   takers?: () => readonly OnboardingTaker[];
   /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
@@ -286,6 +293,14 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
   await running.get(key(home, id)); return readContextJourney(home, id);
 }
 
+/** The person's AI tool sessions as a source's files, through the Host's reader of them (BL-177); refused when this Host has none. */
+async function readSessionsSource(home: string, journey: ContextJourney, ports: ContextOnboardingPorts, signal: AbortSignal) {
+  if (!ports.sessions) throw new Error("这里读不了外部会话");
+  const read = await readOnboardingSessions(await ports.sessions(home, journey.project_id, signal), signal);
+  if ("refused" in read) throw new Error(read.refused);
+  return read;
+}
+
 async function organize(home: string, journey: ContextJourney, runEpoch: number, signal: AbortSignal, ports: ContextOnboardingPorts): Promise<void> {
   const isCurrent = () => {
     const latest = withContextJourneys(home, store => store.find(journey.id));
@@ -311,9 +326,13 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     for (const source of journey.sources.filter(s => s.selected)) {
       signal.throwIfAborted();
       if (source.references) continue;
+      // A new project has no sessions filed to it and no permit yet: the person chose them for the step after the project is made.
+      if (source.kind === "sessions" && !journey.existing) continue;
       source.error = undefined; save();
       try {
-        const input = await (ports.readSource ?? readContextSource)(home, source);
+        const sessions = source.kind === "sessions" ? await readSessionsSource(home, journey, ports, signal) : null;
+        const titles: Record<string, string> = sessions?.titles ?? {};
+        const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source);
         signal.throwIfAborted();
         const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
         const reading = source.reading?.total === input.files.length
@@ -336,6 +355,8 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
             reading.references.push(prevRef);
           } else {
             const read = await prepareContextDocument(home, journey.id, source.kind, file, signal, journey.secret_decisions);
+            const session = source.kind === "sessions" ? sessionKeyOf(file.path) : null;
+            if ("reference" in read && session) Object.assign(read.reference, { session_key: session, title: titles[file.path] ?? read.reference.title });
             if ("reference" in read) reading.references.push(read.reference);
             else if ("secret_hold" in read) (reading.held_secrets ??= []).push(read.secret_hold);
             else if ("issue" in read) reading.issues.push(read.issue);
@@ -365,6 +386,9 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     const unique = deduplicateSelectedReferences(selectedSources);
     save();
     if (!unique.length) {
+      // The sessions were the round's material and could not be read (the permit is off, say): the organizing does not run, and says why.
+      const refused = selectedSources.find(s => s.kind === "sessions" && s.error);
+      if (refused && journey.existing) throw new Error(refused.error);
       if (selectedSources.some(s => s.held_secrets?.length)) {
         throw new Error("检测到疑似密钥文件，默认未发送给模型；请先选择只发变量名、不发或原样发送。");
       }
@@ -549,49 +573,6 @@ export function parseContextSummary(raw: string, references: ContextReference[])
 }
 
 /**
- * A text in parts of at most `size` characters or UTF-16 units (`unit`), cut after a line end where there is one in the second half of
- * the part, and never inside a surrogate pair. A 🟢 is one character and two units. Todo's organizer reads whole characters, so its
- * parts are counted in characters; Pages limits what a body encodes to, so its parts are counted in units. Pages and Todo each take a
- * bounded text per call; a material of any length goes as several.
- */
-function textParts(text: string, size: number, unit: "characters" | "units"): string[] {
-  const parts: string[] = [];
-  for (let offset = 0; offset < text.length;) {
-    const end = unit === "characters" ? partEndByCharacters(text, offset, size) : partEndByUnits(text, offset, size);
-    parts.push(text.slice(offset, end)); offset = end;
-  }
-  return parts;
-}
-/** Where the part that starts at `offset` ends, `size` counted in UTF-16 units. */
-function partEndByUnits(text: string, offset: number, size: number): number {
-  let end = Math.min(offset + size, text.length);
-  const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
-  if (line >= offset + size / 2) end = line + 1;
-  else end = cutHead(text, end).length;
-  return end;
-}
-/** Where the part that starts at `offset` ends, `size` counted in characters: a pair of units is one, so a part never ends inside it. */
-function partEndByCharacters(text: string, offset: number, size: number): number {
-  let end = offset, count = 0, line = -1;
-  while (count < size && end < text.length) {
-    const code = text.codePointAt(end)!;
-    if (code === 10 && count >= size / 2) line = end + 1;
-    end += code > 0xFFFF ? 2 : 1;
-    count += 1;
-  }
-  return end < text.length && line >= 0 ? line : end;
-}
-/**
- * A part's title: the name, cut to fit, then which part it is, so the cut never takes the part number. `max` counts whole characters
- * (a 🙂 is one, though two UTF-16 units), the way Todo and Pages count a title, so a cut never ends inside a character.
- */
-function partTitle(title: string, part: number, parts: number, max: number): string {
-  const suffix = parts > 1 ? uiText.text("workbench.context-onboarding-service.part-k-n", { k: part, n: parts }) : "";
-  const characters = [...title], room = max - [...suffix].length;
-  return (characters.length <= room ? title : characters.slice(0, room - 1).join("") + "…") + suffix;
-}
-
-/**
  * The providers the journey pins: the Todo and Pages that ship with the Host (#1207). It finds their actions in the catalog by
  * `capability_id@version` and declares the fields it uses below; it imports neither plugin's contract (PG-111).
  */
@@ -692,6 +673,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const todoSelected = Array.isArray(input.todo_selected) ? [...new Set(input.todo_selected.filter((value): value is string => typeof value === "string" && drafted.has(value)))] : [];
   // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
   // round read it, never a path from the request (ONB-44, batch12-design §7.3).
+  // A round for an existing project only adds what it read: no blank start, and no folder handed on as a new project's.
+  if (journey.existing && !journey.adoption && (input.blank === true || typeof input.take === "string")) throw new Error("给已有项目补的材料只能采用整理结果");
   const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;
   const taker = wanted ? ports.takers?.().find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
   if (wanted && !journey.adoption && !(taker && root)) throw new Error("这个文件夹不能这样交出去：只有你自己选的、顶层有项目文件的文件夹，交给声明了能接手的插件");
@@ -702,7 +685,10 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   // import, kept apart from work done in the project later. The scope ends with the adoption.
   const job = withObservationSource("imported", () => Promise.resolve().then(async () => {
     try {
-      await ports.withCatalog({ homeDirectory: home }, async catalog => {
+      // A round for an existing project makes no project and leaves its folders and description as they are; the summary still goes
+      // into its Pages, as a new project's does, so Pages is added when the project does not have it (adding it twice changes nothing).
+      if (journey.existing) await ports.withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID }); });
+      else await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
@@ -719,14 +705,15 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         }
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
-      if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
+      if (!journey.adoption!.blank && !journey.existing) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
       const client = await ports.actions(home, journey.project_id);
       const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
       const handed = await importAdoptedMaterialsAndSummary({ home, id, journey, actions, shipped });
       await adoptTodoDrafts(journey, actions);
       await handToTaker(home, journey, handed, ports);
-      completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
+      if (!journey.existing) completeMolisWorkOnboarding(home, journey.project_id);
+      journey.phase = "complete"; journey.error = null;
       // The project now holds the materials; what the round staged goes. The project is made either way: a staging that cannot be
       // removed now is only space, and must not turn a finished project back into a failure.
       await removeJourneyStaging(home, id).catch(error => hostLog.warn("onboarding", "staging_not_removed", error));

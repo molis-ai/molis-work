@@ -74,6 +74,48 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   const root=document.documentElement;
   root.style.setProperty("--desktop-window-safe-inline-start","88px");
   const nativeWindow=globalThis.__TAURI__?.window?.getCurrentWindow();
+  if(nativeWindow?.label==="main" && window.top===window){
+    const startShelfPreferences=()=>{
+      const invoke=settings=>globalThis.__TAURI__.core.invoke("shelf_sync_device_preferences",{settings});
+      if(document.body.hasAttribute("data-account-entry")){void invoke(null).catch(()=>{});return;}
+      let revision, connection, retry, running, stopped=false;
+      const api="/api/plugins/io.molis.work.shelf";
+      const stop=()=>{connection?.abort();clearTimeout(retry);};
+      const watch=async()=>{
+        stop();
+        if(stopped||globalThis.molisWorkAccountTransition?.preparing)return;
+        const session=new AbortController(), signal=session.signal;
+        connection=session;
+        const read=async(info)=>{
+          if(signal.aborted||revision===info.revision)return;
+          const {values}=await globalThis.molisWorkRequest(api+"/preferences/read",{method:"POST",body:{keys:["shelf.hotkeys","shelf.drop_wheel"]},signal});
+          const hotkeys=values.find(item=>item.key==="shelf.hotkeys"&&item.state==="ok");
+          const wheel=values.find(item=>item.key==="shelf.drop_wheel"&&item.state==="ok");
+          if(signal.aborted)return;
+          if(!hotkeys||typeof wheel?.value!=="boolean")throw new Error("Shelf preferences unavailable");
+          await invoke({hotkeys:hotkeys.value,drop_wheel_enabled:wheel.value});if(!signal.aborted)revision=info.revision;
+        };
+        const next=async(after)=>{
+          try{
+            const info=await globalThis.molisWorkRequest(api+"/view-revision"+after,{signal});
+            if(signal.aborted)return;
+            running=read(info);await running;
+            if(!signal.aborted)void next("?after="+encodeURIComponent(revision));
+          }catch(error){
+            if(signal.aborted)return;
+            if([401,403,404,503].includes(error.status)){revision=undefined;await invoke(null).catch(()=>{});}
+            if(!signal.aborted)retry=setTimeout(watch,3000);
+          }
+        };
+        return next("");
+      };
+      globalThis.molisWorkRefreshShelfPreferences=async()=>{stop();await running?.catch(()=>{});if(!stopped)await watch();};
+      addEventListener("pagehide",()=>{stopped=true;stop();},{once:true});
+      globalThis.molisWorkAccountTransition?.page(document.body,async()=>{stop();},async()=>{stopped=true;stop();await running?.catch(()=>{});await invoke(null);},()=>{revision=undefined;void watch();});
+      void watch();
+    };
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startShelfPreferences,{once:true});else startShelfPreferences();
+  }
   if(nativeWindow){
     const syncFullscreen=async()=>{
       try{

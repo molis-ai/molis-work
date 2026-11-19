@@ -1,3 +1,4 @@
+import { renderAssistantPreferenceForms } from "./settings-assistant-preference-forms.js";
 import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** One "still tell me" exception of a rule being written: a switch whose label says which rule it belongs to (B27-AC01). */
@@ -43,6 +44,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>`,
     })}
+    ${renderAssistantPreferenceForms()}
     ${projectId ? renderSettingsSection({
       title: text("workbench.settings-assistant.project-suggestions"), id: "assistant-suggestions-title", attrs: { "data-assistant-suggestions": true },
       body: `${renderSettingRow({ name: text("workbench.settings-assistant.offer-project-suggestions"), hint: text("workbench.settings-assistant.project-suggestions-note"), label: true,
@@ -54,6 +56,7 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true } })}
       <form data-assistant-budget>${renderSettingRow({ name: text("workbench.settings-assistant.daily-cap"), hint: text("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty"),
         control: `<input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}">${renderButton({ label: text("common.control.save"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+      ${renderSettingRow({ name: "", nameAttrs: { "data-budget-source": true }, control: renderButton({ label: text("workbench.settings-assistant.use-default"), variant: "ghost", size: "sm", attrs: { "data-budget-inherit": true, hidden: true } }) })}
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>`,
     })}
     ${renderSettingsSection({
@@ -329,12 +332,67 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     usageLine.textContent = used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
       + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
       + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + usage.daily_tokens.toLocaleString() : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
-    if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";
   };
-  const usageApi = (payload) => molisWorkRequest("/api/assistant" + (payload ? "/budget" : "/usage"), { body: payload });
-  const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; } };
-  budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
-  runUsage(() => usageApi());
+  async function refreshUsage() {
+    try { paintUsage(await rulesApi("/usage")); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; }
+  }
+  const rangeForm = root.querySelector("[data-assistant-lookback]"), count = rangeForm.querySelector("[data-lookback-count]"), unit = rangeForm.querySelector("[data-lookback-unit]");
+  const rangeError = root.querySelector("[data-lookback-error]");
+  const fields = new Map();
+  function preference(key, form, reset, source, error, value, paint) {
+    const save = form.querySelector("button[type=submit]");
+    let latest, pending;
+    save.disabled = true;
+    const render = item => {
+      latest = item;
+      if (item.state !== "ok") { save.disabled = true; reset.hidden = true; error.hidden = false; error.textContent = item.reason; return; }
+      paint(item.value); save.disabled = false; reset.hidden = item.source === "provider_default";
+      source.textContent = globalThis.t.text(item.source === "provider_default" ? "workbench.settings-assistant.provider-default" : "workbench.settings-assistant.my-preference");
+    };
+    fields.set(key, render);
+    const write = async change => {
+      if (!latest || latest.state !== "ok" || save.disabled) return;
+      const request = { key, layer: "personal", expected_revision: latest.revision, change };
+      if (!pending || JSON.stringify(pending.change) !== JSON.stringify(change) || pending.expected_revision !== latest.revision)
+        pending = { ...request, request_id: crypto.randomUUID() };
+      save.disabled = true; reset.disabled = true; error.hidden = true;
+      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); }
+      catch (failure) {
+        molisWorkRequest.show(error, failure); error.hidden = false;
+        if (failure.code === "assistant.setting_conflict") { pending = undefined; await loadPreferences(); }
+      } finally { save.disabled = latest?.state !== "ok"; reset.disabled = false; }
+    };
+    form.addEventListener("submit", event => { event.preventDefault(); void write({ set: value() }); });
+    reset.addEventListener("click", () => void write({ inherit: true }));
+  }
+  preference("assistant.lookback", rangeForm, rangeForm.querySelector("[data-inherit]"), root.querySelector("[data-lookback-source]"), rangeError,
+    () => ({ count: Number(count.value), unit: unit.value }), value => { count.value = String(value.count); unit.value = value.unit; });
+  preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
+    () => Number(budgetInput.value || 0), value => { budgetInput.value = value ? String(value) : ""; });
+  const report = root.querySelector("[data-assistant-report]"), reportError = root.querySelector("[data-report-error]");
+  const r = report.elements;
+  const dayNames = new Intl.DateTimeFormat(document.documentElement.lang, { weekday: "long", timeZone: "UTC" });
+  for (let day = 1; day <= 7; day++) r.weekday.add(new Option(dayNames.format(Date.UTC(2024, 0, day)), String(day)));
+  const zoneList = report.querySelector("datalist");
+  for (const zone of new Set(["UTC", ...Intl.supportedValuesOf("timeZone")])) zoneList.append(new Option(zone, zone));
+  function reportFields() {
+    r.weekday.disabled = report.querySelector("[data-report-week]").hidden = r.frequency.value !== "weekly";
+    r.month_day.disabled = report.querySelector("[data-report-month]").hidden = r.frequency.value !== "monthly";
+    r.month_day.required = !r.month_day.disabled;
+  }
+  r.frequency.addEventListener("change", reportFields);
+  preference("assistant.report_schedule", report, report.querySelector("[data-inherit]"), root.querySelector("[data-report-source]"), reportError,
+    () => ({ enabled: r.enabled.checked, frequency: r.frequency.value, time: r.time.value, time_zone: r.time_zone.value.trim(),
+      ...(r.frequency.value === "weekly" && { weekday: Number(r.weekday.value) }), ...(r.frequency.value === "monthly" && { month_day: Number(r.month_day.value) }) }),
+    value => {
+      r.enabled.checked = value.enabled; r.frequency.value = value.frequency; r.time.value = value.time; r.time_zone.value = value.time_zone;
+      r.weekday.value = String(value.weekday ?? 1); r.month_day.value = String(value.month_day ?? 1); reportFields();
+    });
+  async function loadPreferences() {
+    try { for (const item of (await rulesApi("/preferences")).values) fields.get(item.key)?.(item); }
+    catch (failure) { for (const error of [budgetError, rangeError, reportError]) { molisWorkRequest.show(error, failure); error.hidden = false; } }
+  }
+  void loadPreferences(); void refreshUsage();
   if (location.hash === "#contributions") { contributionsFold.open = true; loadContributions(); }
   load();
 

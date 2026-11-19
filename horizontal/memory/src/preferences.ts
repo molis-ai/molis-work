@@ -1,6 +1,7 @@
 import type { MemoryCandidate, MemoryLedgerPort, MemoryPrefs, MemoryPrefsView, MemoryPreset, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { isCompletePrefs, completePrefs, formationAllowed, presetPrefs, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
 import { memoryErrors } from "./errors.js";
+import { savePreferenceLayer } from "./preference-layers.js";
 import { personOnly, placeOf } from "./places.js";
 import type { MemoryCaller } from "./service.js";
 
@@ -31,7 +32,7 @@ export class MemoryPreferences {
     // Plugin rules replace one plugin at a time; a plugin not named keeps its rule.
     if (typeof input !== "string" && input.plugins) for (const [pluginId, rule] of Object.entries(input.plugins)) if (rule && typeof rule.allowed === "boolean" && !Array.isArray(rule.kinds))
       next.plugins[pluginId] = { allowed: rule.allowed, kinds: current.plugins[pluginId]?.kinds ?? next.plugins[pluginId]!.kinds };
-    this.ledger.savePrefs(caller.actor_id, target === "personal" ? PERSONAL_PREFS_KEY : projectPrefsKey(where.project!), next);
+    savePreferenceLayer(this.ledger, caller.actor_id, target === "personal" ? PERSONAL_PREFS_KEY : projectPrefsKey(where.project!), next, true);
     return { scope: target, project_id: where.project, prefs: next };
   }
 
@@ -52,8 +53,10 @@ export class MemoryPreferences {
     if (typeof input.learn_personal === "boolean") personal.learn_from_work = input.learn_personal;
     if (typeof input.learn_project === "boolean") projects.learn_from_work = input.learn_project;
     this.ledger.transaction(() => {
-      this.ledger.savePrefs(actorId, PERSONAL_PREFS_KEY, personal);
-      this.ledger.savePrefs(actorId, PROJECT_DEFAULT_PREFS_KEY, projects);
+      if (typeof input.form === "boolean" || typeof input.use_personal === "boolean" || typeof input.learn_personal === "boolean")
+        savePreferenceLayer(this.ledger, actorId, PERSONAL_PREFS_KEY, personal, true);
+      if (typeof input.form === "boolean" || typeof input.use_project === "boolean" || typeof input.learn_project === "boolean")
+        savePreferenceLayer(this.ledger, actorId, PROJECT_DEFAULT_PREFS_KEY, projects, true);
     });
     return this.assistantPrefs(actorId);
   }

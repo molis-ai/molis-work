@@ -52,6 +52,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   });
 
   const renderMolisWorkOnboarding = createWorkbenchOnboardingRenderer({
+    catalogTextPacks: ports.catalogTextPacks,
     readText, escapeHtml, htmlLang, controlTokenMeta, withDesktopQuery, icon, renderIconSprite,
     nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, accountRegistration, appearance: ports.appearance,
   });

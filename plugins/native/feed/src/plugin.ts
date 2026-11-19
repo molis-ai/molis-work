@@ -137,7 +137,7 @@ export function createFeedPlugin(): PluginDefinition {
       return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => writer.commit(caller, operation),
         acquireSync: lease, appendEvent });
     };
-    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, wake: WAKE,
+    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, accountSources: connector, wake: WAKE,
       retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
     // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
     const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {

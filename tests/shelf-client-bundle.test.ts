@@ -93,7 +93,8 @@ test("RAC-166 the Shelf settings page's client is bundled the same way, with the
   assert.doesNotThrow(() => new Function(SHELF_SETTINGS_CLIENT_SCRIPT), "the settings client is a script");
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /^\(\(\) => \{\nconst SHELF_HOTKEY_TABLES = \{"codes":\{/u);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /const SHELF_SETTINGS_API = "\/api\/plugins\/io\.molis\.work\.shelf";/u);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/u);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /molisWorkRefreshShelfPreferences/u);
+  assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys|shelf_sync_device_preferences/u);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/u);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /molisWorkControlHeaders|data-shelf-settings-tab/u, "requests go through molisWorkRequest");
   const tables = /const SHELF_HOTKEY_TABLES = (\{.*\});/u.exec(SHELF_SETTINGS_CLIENT_SCRIPT)?.[1];

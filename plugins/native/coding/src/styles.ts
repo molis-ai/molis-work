@@ -405,6 +405,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-activity { max-width:var(--coding-reading); margin:-12px auto 24px; }
 .coding-activity > summary { display:flex; align-items:center; }
 .coding-tools-summary { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.coding-code-intel > .mw-rec-list { margin-top:8px; }
 .coding-tools-summary > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-tools-summary svg, .coding-tool svg, .coding-run-card svg, .coding-live svg { width:14px; height:14px; flex:none; }
 .coding-tools-summary.is-live > span:last-child { background:linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation: none; }

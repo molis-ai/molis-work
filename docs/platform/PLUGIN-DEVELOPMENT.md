@@ -98,7 +98,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 再次运行同一条 dev 命令，新进程会从开发数据库恢复私人计数并生成下一版本；已产生的 Artifact 保留。空 grant 字符串 `""` 会触发缺权限拒绝。缺少显式源码执行选项不会执行插件。版本不兼容在加载入口前拒绝。开发代码可以访问进程和文件系统，Host grant 只限制提供给插件的 API，不能阻止任意 JS 自行执行其他操作。
 
-状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库（拒绝时错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 [BL-plugin-cli-dev-uncoded-errors](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)）；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
+状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库，也不写进任何东西，报 `host.plugin_development_directory_occupied`（`details.state_directory` 是被拒的目录）；标记不是这个版本认得的报 `host.plugin_development_directory_unsupported`。漏写 `--allow-unsigned-development` 报 `plugin.unsigned_development_required`，不建目录。这些失败都是退出码 1、stderr 一行 `{"developed":false,"code":…,"message":…}`；Manifest 真写错时才是 `plugin.manifest_invalid` 一类的码；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
 
 ## 界面文字与语言文件
 

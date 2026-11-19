@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-desktop-same-version-install | 已完成并删除 | 第 94 批（2026-11-19）：开发机重装同版本 App 后，打开就换上新构建——桌面在版本相同时比两边构建指纹 `dist/.molis-work-build.json` 的 `created_at`，只装更晚的构建，回退保留照旧先判（`apps/desktop/adapters/tauri/src/web_service.rs`）；隔离 Home 实操 DSV-01～05 见 [94.md](../specs/post-anticorruption-roadmap/reference/batches/94.md) |
 | BL-980 | 已完成并删除 | 2026-11-18：`openHomeSqliteFile`（`packages/storage/src/home-sqlite.ts`）的注释分开写只读与可写两种打开——只读遇缺失文件报错且不建文件，可写会建空库，`file:` URL 带 `mode=rw` 不建；行为未变，来源 [#1255 评审](https://github.com/molis-ai/molis-work/pull/1255#issuecomment-6392998821) 不挡合并第 4 项。归入 [92-2](../specs/post-anticorruption-roadmap/reference/batches/92.md#batch-92-item-2)，已由 [#2145](https://github.com/molis-ai/molis-work/pull/2145) 合入。 |
 | BL-917 | 已完成并删除 | 第 61 批（2026-11-18）：Feed 账号来源扩到 Home 能按账号拉取的每个服务——平台 `services.sourcePull.accounts()` 答已连接、能否拉取与服务名，Feed「其他服务的账号」一处选服务；见 [服务矩阵 §3](../specs/assistant-service-connections/service-matrix.md) |
 | BL-action-card-outcome-text、BL-work-brief-source-name-text | 已完成并删除 | 2026-11-17：动作卡片结果与 Work Brief 来源名改存文字引用（`OwnedTextRef`），助理库 1→2、项目库 4→5、Work Brief 库 1→2 把旧句子转成 `{ literal }`（见 `docs/system/CONTRACT-CHANGES.md`「存下的句子改成文字引用」） |

@@ -411,8 +411,6 @@
     "coding.composer.draft-unsaved": "The draft isn’t saved to the service yet; this window still keeps it: {error}",
     "coding.composer.draft-unsaved-short": "The draft isn’t saved to the service yet; this window still keeps it, and you can send as usual",
     "coding.composer.drop-refused": "Only text goes here",
-    "coding.composer.enter-hint": "Enter adds a line. To send, press {keys}",
-    "coding.composer.enter-hint-dismiss": "Got it",
     "coding.composer.failed": "Not sent",
     "coding.composer.files": "Add files",
     "coding.composer.files-hint": "No files here; choose from Project material",

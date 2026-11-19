@@ -69,9 +69,6 @@ export interface MwComposerLabels {
   clear: string;
   /** The draft could not be kept on this machine: "草稿没能保存在本机；字还在，照常能发". */
   unsaved: string;
-  /** Said once, after Enter at the end of a line: "回车已改为换行。要发送请按 {keys}", and "知道了". */
-  enterHint: string;
-  enterHintDismiss: string;
   /** The status line's captions and words for what the client itself does. */
   notice: string;
   sending: string;

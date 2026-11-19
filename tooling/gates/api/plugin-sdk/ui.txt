@@ -165,8 +165,6 @@ export interface MwComposerLabels {
     restored: string;
     clear: string;
     unsaved: string;
-    enterHint: string;
-    enterHintDismiss: string;
     notice: string;
     sending: string;
     sendingText: string;

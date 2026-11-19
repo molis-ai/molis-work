@@ -3,8 +3,8 @@ import type { ComposerDelivery } from "@molis-ai/molis-work-plugin-sdk/page-glob
 
 /**
  * The unified input's rules (specs/unified-input-voice/implementation-plan.md §3.1–3.5, slice K2), kept apart from the page
- * program (`browser/composer.ts`) so each is one function a test can call: the keys and the input-method guard, the one-time
- * Enter hint, the draft keys and their sweep, the delivery choice and the generation that
+ * program (`browser/composer.ts`) so each is one function a test can call: the keys and the input-method guard, the draft keys
+ * and their sweep, the delivery choice and the generation that
  * drops a late result. Nothing here touches the page.
  */
 
@@ -16,8 +16,9 @@ export function composing(event: { isComposing?: boolean; keyCode?: number }): b
 
 /**
  * What a key does in the text area (specs/unified-input-voice §10.5, user 2026-11-16): Enter sends (a supplement while a turn
- * runs), Shift+Enter breaks the line (the browser's own), nothing sends while an input method is composing. ⌘/Ctrl+Enter still
- * sends and ⌘/Ctrl+Shift+Enter is still for the next turn, until the shell's batch settles them; nothing else is the composer's
+ * runs), Shift+Enter breaks the line (the browser's own), nothing sends while an input method is composing. ⌘/Ctrl+Enter sends
+ * too (on an empty field the bottom bar opens the conversation instead) and ⌘/Ctrl+Shift+Enter is for the next turn (user
+ * 2026-11-18); nothing else is the composer's
  * (Esc closes its own menu, Tab moves focus). Interrupting has no key. `submitKeys: false` (a decision's reason) leaves every
  * key to writing.
  */
@@ -25,15 +26,6 @@ export function composerKey(event: { key: string; metaKey?: boolean; ctrlKey?: b
   if (!submitKeys || composing(event) || event.key !== "Enter" || event.altKey) return null;
   if (event.metaKey || event.ctrlKey) return event.shiftKey ? "after-run" : "send";
   return event.shiftKey ? null : "send";
-}
-
-/** Where the one-time hint remembers it was shown (UIC-06): per browser profile (per plugin inside a frame, whose storage is its own). */
-export const ENTER_HINT_KEY = "mw.composer.enter-hint";
-
-/** Whether a plain Enter now is someone sending the old way: one written line, the caret at its end, nothing composing. */
-export function wantsEnterHint(event: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; isComposing?: boolean; keyCode?: number }, value: string, caret: number): boolean {
-  return event.key === "Enter" && !composing(event) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
-    && value.trim() !== "" && !value.includes("\n") && caret === value.length;
 }
 
 /** The platform draft's key prefix (§3.4); the key has no version: a changed shape goes through CONTRACT-CHANGES, never an old key read. */

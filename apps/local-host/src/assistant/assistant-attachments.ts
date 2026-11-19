@@ -1,5 +1,6 @@
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantMaterial, type AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ConversationAttachment, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { checkHeldImages, checkMaterials, MAX_ATTACHMENT_TEXT, MAX_MATERIAL_TEXT } from "./assistant-send-materials.js";
@@ -72,7 +73,12 @@ export class AssistantMaterialAccess {
     }
     const read = await attachments.read(attached.ref, { as: "text", signal: control.signal }).catch(error => { throw assistantErrors.invalid(said(error)); });
     const whole = read.text ?? "";
-    if (!whole.trim()) throw assistantErrors.invalid(`「${name}」里没有读到文字${attached.text?.issues.length ? `（${attached.text.issues.slice(0, 2).join("；")}）` : ""}`);
+    if (!whole.trim()) {
+      const issues = attached.text?.issues.slice(0, 2);
+      const details = issues?.length ? uiText.text("common.punctuation.in-parens", { value: issues.join(uiText.text("common.list.separator")) }) : "";
+      const title = uiText.text("common.punctuation.quoted", { value: name });
+      throw assistantErrors.invalid(`${title}里没有读到文字${details}`);
+    }
     const text = whole.slice(0, MAX_ATTACHMENT_TEXT), truncated = whole.length > MAX_ATTACHMENT_TEXT || attached.text?.truncated === true;
     const pages = attached.text?.pages ?? undefined;
     const note = pages ? `${pages} 页${truncated ? "，只取了前面一部分" : ""}` : truncated ? "只取了前面一部分" : "";

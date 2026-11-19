@@ -77,7 +77,7 @@ test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned in
   } finally { live.db.close(); }
   const restarted = harness("2026-03-08T10:15:00.000Z", { file, timeZone });
   try {
-    assert.equal(restarted.db.prepare("PRAGMA user_version").get()?.user_version, 2);
+    assert.equal(restarted.db.prepare("PRAGMA user_version").get()?.user_version, 3);
     const [failed, missed] = restarted.followUps.list("w1");
     assert.deepEqual(failed!.last!.detail, { original });
     assert.equal(savedText(failed!.last!.detail, "en"), original, "no size limit for the upstream's own words");

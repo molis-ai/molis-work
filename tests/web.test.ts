@@ -368,26 +368,23 @@ test("Web health identifies the process serving the response", async () => {
   }
 });
 
-test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
+test("Web View cache reuses platform shell views across SQLite reopen and invalidates on option changes", async () => {
   const { databasePath } = await webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
   const options = { databasePath, projectId: DEMO_PROJECT_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
-  const first = await cachedMolisWorkWebView(
-    cache,
-    firstStore,
-    new GoalProjectApplication(firstStore),
-    options,
-  );
+  const first = cachedMolisWorkWebView(cache, firstStore, new GoalProjectApplication(firstStore), options);
   firstStore.close();
 
   const reopenedStore = new LocalProjectDatabase(databasePath);
   try {
     const coordinator = new GoalProjectApplication(reopenedStore);
-    const unchanged = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
-    assert.strictEqual(unchanged.goals, first.goals, "opening the SQLite WAL must not invalidate the cached Goals projection");
-    assert.deepEqual(unchanged.feed, first.feed, "plugin views are freshly authorized without changing original data");
+    const unchanged = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
+    assert.strictEqual(unchanged, first, "reopening SQLite keeps the cached platform WebView");
+
+    const changed = cachedMolisWorkWebView(cache, reopenedStore, coordinator, { ...options, routePrefix: "/projects/demo" });
+    assert.notStrictEqual(changed, first, "changing WebView options invalidates the cached view");
 
     coordinator.goals.commands.createGoal(
       DEMO_PROJECT_ID,
@@ -403,10 +400,8 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
       },
       { actor_id: "test-user", idempotency_key: "web-cache-event" },
     );
-    const changed = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
-    assert.notStrictEqual(changed, first);
-    assert.ok(changed.goals.some((item) => item.goal.goal_id === "CACHE-EVENT"));
-
+    const withNewGoal = buildMolisWorkWebView(reopenedStore, coordinator, options);
+    assert.ok(withNewGoal.goals.some((item) => item.goal.goal_id === "CACHE-EVENT"));
   } finally {
     reopenedStore.close();
   }

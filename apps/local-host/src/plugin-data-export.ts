@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import type { DatabaseSync } from "node:sqlite";
 import { bindActionHandler, defineErrorCodes, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -59,7 +58,9 @@ function quoteIdent(name: string): string {
   return `"${name.replaceAll('"', '""')}"`;
 }
 
-function readTableItems(db: DatabaseSync | SqliteDatabase, tables: readonly string[], projectId?: string): Array<{ table: string; rows: Record<string, unknown>[] }> {
+type ReadableSqlite = { prepare(sql: string): { get(...params: readonly unknown[]): unknown; all(...params: readonly unknown[]): unknown[] } };
+
+function readTableItems(db: ReadableSqlite, tables: readonly string[], projectId?: string): Array<{ table: string; rows: Record<string, unknown>[] }> {
   const items: Array<{ table: string; rows: Record<string, unknown>[] }> = [];
   for (const table of tables) {
     const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);

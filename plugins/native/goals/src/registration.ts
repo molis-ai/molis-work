@@ -30,7 +30,7 @@ export const registration: PluginRegistration = {
     goalsDialogsUiContribution,
   ],
     stylesheet: GOALS_WORKBENCH_STYLESHEET,
-    stylesheetLayer: "beneath-shell",
+    stylesheetPrefixes: ["goal-"],
     pageClients: GOALS_PAGE_CLIENTS,
     recordRow: { selector: "[data-tree-item][data-goal-id]", idDataset: "goalId" },
   },

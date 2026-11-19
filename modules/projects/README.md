@@ -73,7 +73,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
 - 负责：项目身份、目录（Catalog）、项目目录的输入/输出角色、默认输出目录与「最近用过」、生命周期；项目库里代表项目本身的根行（`project_root`）。
 - 不负责：Session、桌面面板、Goal、Artifact、Runtime 进程状态；「最近用过」的出处读取（宿主装配 `materials.*`）。
 - 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts、plugin-sdk、storage 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录库不保存项目库路径：由必填的 `projects_directory` 与单段 `project_id` 推导，合同的 `database_path` 是读出值。不是普通目录名的 id 在创建和读取时拒绝，项目库不由本模块移动（W5-17、S-102）。
   - 每个项目恰好一个输出目录，且每一项成员记录它的角色（`role_input`、`role_output`）：没选过输出的项目有默认输出目录那一行，`canonical_path` 是 `project-output:<project_id>`，路径由 `outputs_directory` 与 `project_id` 推导，第一次用到才建。默认输出目录的 id 以已写下的行为准（首个事件按 `created_at, rowid` 排，设备时钟回拨也不换 id）。

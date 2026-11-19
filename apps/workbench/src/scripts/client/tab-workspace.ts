@@ -709,23 +709,21 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (tab?.plugin === "goals" && tab.kind === "item") { writeView(ops.focused(state).id, undefined, tab.id); if (embedded) notifyParent("workbench-pane-view", { view: undefined }); }
     }
   });
-  // Choosing another Goal inside a Goal tab (its workspace directory, a relation link) takes the tab with it, so its
-  // label and restore target match what it shows; a Goal that already has its own tab is opened there instead.
-  document.addEventListener("molis-work:goal-changed", (event) => {
-    const goalId = event.detail?.goalId;
-    if (embedded || applying || !goalId) return;
+  // Choosing another record inside an item tab (a directory or relation link) takes the tab with it, so its
+  // label and restore target match what it shows; a record that already has its own tab is opened there instead.
+  document.addEventListener("molis-work:record-selected", (event) => {
+    const plugin = event.detail?.plugin, itemId = event.detail?.itemId;
+    if (embedded || applying || !plugin || !itemId) return;
     const pane = ops.focused(state), tab = ops.activeTab(state);
-    if (!pane || tab?.plugin !== "goals" || tab.kind !== "item" || tab.itemId === goalId) return;
-    const existing = pane.tabs.find((item) => item.plugin === "goals" && item.kind === "item" && item.itemId === goalId);
+    if (!pane || tab?.plugin !== plugin || tab.kind !== "item" || tab.itemId === itemId) return;
+    const existing = pane.tabs.find((item) => item.plugin === plugin && item.kind === "item" && item.itemId === itemId);
     if (existing) { if (tab.view === "work") existing.view = "work"; activate(pane.id, existing.id); return; }
-    tab.itemId = goalId;
-    if (event.detail.goalTitle) tab.title = event.detail.goalTitle;
-    // The selection that fired this is already loading the Goal's document; redraw the tab without a second load,
-    // which would race the one whose late response must not win.
+    tab.itemId = itemId;
+    if (event.detail.title) tab.title = event.detail.title;
     const loading = loadingGoalId;
-    loadingGoalId = goalId;
+    if (plugin === "goals") loadingGoalId = itemId;
     apply(); persist();
-    if (loadingGoalId === goalId) loadingGoalId = loading;
+    if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
   });
   return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,

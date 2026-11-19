@@ -79,7 +79,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let globalSearchPalette = null;
     let assistantIsland = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || "goals";
+    let activeDesktopSurface = document.body.dataset.desktopSurface || "home";
     let desktopSurfaceScroll = {};
     let goalWorkspaceMode = "graph";
     let selected = q("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";

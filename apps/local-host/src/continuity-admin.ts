@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { CONTINUITY_ACTIONS, memberClientId } from "@molis-ai/molis-work-server";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { changeMcpClientCredential } from "./mcp-client-credentials.js";
+import { registeredHostAction } from "./goal-callers.js";
 
 /** Local administrator operation. Delegates to the existing protected Host grant owner. Never a mobile endpoint. */
 export async function configureMemberActions(input:{hostUrl:string;homeDirectory:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {
@@ -20,7 +21,7 @@ export async function configureMemberActions(input:{hostUrl:string;homeDirectory
   const {grants}=await read.json() as {grants:ReadonlyArray<{capability_id:string;version:number;provider_id:string;generation:string}>};
   const results:{capability_id:string;enabled:boolean;status:string}[]=[];
   for(const action of CONTINUITY_ACTIONS){
-    const enabled=input.role!=="revoked" && (input.role!=="viewer" || action.capability_id!=="goals.progress.record");
+    const enabled=input.role!=="revoked" && (input.role!=="viewer" || registeredHostAction(action.capability_id,action.version)?.operation!=="command");
     const previous=grants.find(row=>row.capability_id===action.capability_id && row.version===action.version && row.provider_id===action.provider_id);
     const expected=previous ? {expected_generation:previous.generation} : {expected_absent:true};
     const response=await fetch(endpoint,{method:"POST",redirect:"error",signal:AbortSignal.timeout(30000),headers:{origin:url.origin,"content-type":"application/json","x-molis-work-control-token":token,"x-molis-work-idempotency-key":randomUUID()},

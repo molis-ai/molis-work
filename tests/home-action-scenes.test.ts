@@ -80,11 +80,11 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     assert.equal(feed.getInboxEntry(reference.project_id, entry.entry_id).status, "open");
     const cache = new Map();
     const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
-    const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
+    const view = cachedMolisWorkWebView(cache, viewOptions);
     assert.equal("feed" in view, false, "the cached platform WebView holds no Feed aggregate or second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
-    await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
+    cachedMolisWorkWebView(cache, viewOptions);
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, [], "warming the unrelated board cache cannot bypass recommendation authority");
     denied = undefined;
     await actions.invoke(homeActions.writeJudgment, { function_key: "system_pick_home_dock" });

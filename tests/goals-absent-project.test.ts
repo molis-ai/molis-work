@@ -81,3 +81,64 @@ test("RAC-400 the management entry refuses an unregistered Goals tool as missing
   assert.ok(refused.status >= 400 && refused.status < 500, `a refusal the caller can read, not a failure: ${refused.status}`);
   assert.deepEqual(goalFacts(), before, "the refused initialize created no Goal table, board or Goal fact");
 });
+
+test("PEQ-01 PEQ-02 PEQ-07 PEQ-12 a new project does not enable Goals, opens on Home without goals.css, and removing then re-adding Goals keeps its data", { timeout: 240_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "peq-goals-lifecycle-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "默认项目无 Goals", actor_id: "test" });
+  // PEQ-12: a brand-new project has no Goals without any prior consent revocation.
+  assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "PEQ-12: new project does not enable Goals");
+  catalog.close();
+  const controlToken = resolveWebControlToken({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+  await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise<void>(done => server.close(() => done()));
+    await rm(home, { recursive: true, force: true });
+  });
+  const origin = `http://127.0.0.1:${address.port}`;
+  const prefix = `${origin}/projects/${project.project_id}`;
+  const revision = async () => {
+    const data = await fetch(`${origin}/api/settings/project-plugins`).then(r => r.json()) as { projects: Array<{ project_id: string; revision: string }> };
+    return data.projects.find(item => item.project_id === project.project_id)!.revision;
+  };
+  const changePlugin = async (method: "POST" | "DELETE", pluginId: string) => fetch(`${origin}/api/settings/projects/${project.project_id}/plugins`, {
+    method,
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
+    body: JSON.stringify({ plugin_id: pluginId, expected_revision: await revision() }),
+  });
+  const initialHtml = await fetch(prefix + "/").then(r => r.text());
+  assert.match(initialHtml, /data-desktop-surface="home"/, "PEQ-07: new project lands on Project Home");
+  assert.doesNotMatch(initialHtml, /data-plugin-shell-style="goals"|molis-work-plugins\/goals\.css/, "PEQ-08: goals.css is not linked when Goals is absent");
+  assert.doesNotMatch(initialHtml, /id="molis-work-data"/, "PEQ-01: no Goals bootstrap when Goals is absent");
+
+  // Add Goals, create a Goal, verify goals.css and Goal data appear.
+  assert.equal((await changePlugin("POST", "goals")).status, 200);
+  const created = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals`, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
+    body: JSON.stringify({ goal_id: "PEQ-KEEP-1", title: "移除后保留的目标" }),
+  });
+  assert.equal(created.status, 201, "Goals action succeeds once added");
+  const withGoalsHtml = await fetch(prefix + "/").then(r => r.text());
+  assert.match(withGoalsHtml, /href="\/assets\/molis-work-plugins\/goals\.css" data-plugin-shell-style="goals"/, "PEQ-08: goals.css linked when Goals is enabled");
+  assert.match(withGoalsHtml, /移除后保留的目标/);
+
+  // Remove Goals: succeeds (PEQ-01/PEQ-12), removes goals.css and bootstrap, refuses Goals routes, keeps DB rows (PEQ-02).
+  assert.equal((await changePlugin("DELETE", "goals")).status, 200, "PEQ-01: Goals can be removed from a project");
+  const removedHtml = await fetch(prefix + "/").then(r => r.text());
+  assert.doesNotMatch(removedHtml, /data-plugin-shell-style="goals"|id="molis-work-data"/, "PEQ-08: goals.css and bootstrap leave when Goals is removed");
+  assert.equal((await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/directory`)).status, 403, "PEQ-01: Goals routes refused after removal");
+
+  // Re-add Goals: previous Goal is still there intact (PEQ-02).
+  assert.equal((await changePlugin("POST", "goals")).status, 200, "PEQ-02: Goals can be re-added");
+  const restoredDir = await fetch(`${prefix}/api/plugins/io.molis.work.goals/goals/directory`);
+  assert.equal(restoredDir.status, 200);
+  const restoredJson = await restoredDir.json() as { goals: Array<{ goal_id: string; title: string }> };
+  assert.ok(restoredJson.goals.some(g => g.goal_id === "PEQ-KEEP-1" && g.title === "移除后保留的目标"), "PEQ-02: Goal preserved across remove and re-add");
+  const restoredHtml = await fetch(prefix + "/").then(r => r.text());
+  assert.match(restoredHtml, /PEQ-KEEP-1/, "PEQ-02: Goal id restored after re-adding Goals");
+  assert.match(restoredHtml, /移除后保留的目标/, "PEQ-02: Goal title restored after re-adding Goals");
+});

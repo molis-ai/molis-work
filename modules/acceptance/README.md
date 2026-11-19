@@ -46,7 +46,7 @@ node scripts/run-tests.mjs tests/acceptance-requirements.test.ts tests/security-
 - 负责：要求及其版本、交付版本与每一版动到哪几项、核对报告及平台给的层级与缺口、用户本人的认可与退回、各轮记录；从记录现算状态。
 - 不负责：对象本身（归它的插件）、证据的正文（成果库的版本、Agent Host 的命令回执，都只存引用、读的时候按调用方的权限去原主人那里读）、决定请求在哪里显示（事件卡、要求栏归工作台）、动作的注册与授权（Host 装配）。
 - 公开入口：`@molis-ai/molis-work-module-acceptance`（`src/index.ts`，经 `dist` 导出）；合同 `@molis-ai/molis-work-contracts/modules/acceptance`，形状沿用 `platform/reviews` 的共用审查合同。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。不依赖 Goals、助理或任何插件的包。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-storage`。不依赖 Goals、助理或任何插件的包。
 - 不变量：
   - 层级只由平台得出：报告的输入里没有层级字段；拿不到平台事实的证据一律按自述计并记下缺口（S-acceptance-evidence-tier，PWA-144）。
   - 只有用户本人经受保护可信决定入口能认可或退回：`acceptance.decide@1` 绑定 `requires_trusted_decision: true` 与 `acceptance.review@1`，任何绕过受保护入口的直接调用、Agent、工作流、MCP、插件和插件转来的调用都拒，被拒的调用什么都不写（S-acceptance-person-decides）。

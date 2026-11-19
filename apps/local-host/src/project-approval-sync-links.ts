@@ -5,7 +5,7 @@ import type { ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { decisionOwnerMatches, projectReviewDecisions, readProjectReviewDecision } from "@molis-ai/molis-work-service-project-approvals";
 import type { ReplicaDatabase, SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome, verifyTreeItemDecisionHistory } from "./goal-callers.js";
+import { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome, verifyTreeItemDecisionHistory } from "./project-library-v5-handover.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 
 type Collection = PluginSyncIdentity & { readonly collection_id: string; readonly schema_version: number };

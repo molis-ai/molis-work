@@ -32,15 +32,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         statusIconMarkup: item.status_icon,
         readOnly: item.terminal_read_only || null,
       } }));
-      document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
-        goalId,
-        goalTitle: item.goal.title,
-        status: item.status,
-        statusLabel: item.status_label,
-        statusMeaning: item.status_meaning,
-        statusIconMarkup: item.status_icon,
-        parentReadOnly: Boolean(item.is_compound_parent),
-        children: item.children || [],
+      document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
+        plugin: "goals",
+        itemId: goalId,
+        title: item.goal.title,
       } }));
       selectTreeGoal(goalId);
       if (navigatorView === "graph") updateGraphVisibility();

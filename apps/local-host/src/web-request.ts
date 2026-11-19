@@ -27,7 +27,7 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { t as uiText, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import fs from "node:fs";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
+import { cachedMolisWorkWebView, type MolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { handleSurfaceHomeHttp, isSurfaceHomePath } from "./surface-home-http.js";
@@ -194,11 +194,11 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
-/** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPluginSelection, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
+/** What the project page shows: the shell view and the stages of the plugins this project shows (PEQ-01, PEQ-03). */
+function projectWebView({ options, webViewCache, localHost, hostReference, serverOptions, shownPluginSelection, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
   { scope = "shell", withMembershipRevision = false }: { scope?: "shell" | "page"; withMembershipRevision?: boolean } = {}) {
-  return async (): Promise<GoalsWebView> => {
-    let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
+  return async (): Promise<MolisWorkWebView> => {
+    let view = await cachedMolisWorkWebView(webViewCache, options);
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
     const { shown, revision } = await shownPluginSelection(options.projectId, withMembershipRevision);
@@ -275,7 +275,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context, { withMembershipRevision: true }), context.controlToken, context.goalActions,
+    projectWebView(context, { withMembershipRevision: true }), context.controlToken,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
@@ -291,7 +291,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   workspaceMembershipRoute,
   ...goalsSettingsRoutes,
   ...projectProbeRoutes,
-  { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, projectWebView(context, { scope: "page" }), context.goalActions,
+  { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, projectWebView(context, { scope: "page" }),
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
   { id: "project-approvals", handle: ({ request, response, url, localHost, hostReference, serverOptions }) =>

@@ -32,7 +32,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         loadingGoalId = goalId;
         void loadGoalDocument(goalId).then((loaded) => {
           if (loaded) {
-            document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId } }));
+            document.dispatchEvent(new CustomEvent("molis-work:record-document-loaded", { detail: { recordId: goalId } }));
             document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-ready", { detail: { pluginId: "io.molis.work.goals", subjectKind: "goal", subjectId: goalId } }));
           }
         }).finally(() => { if (loadingGoalId === goalId) loadingGoalId = null; });

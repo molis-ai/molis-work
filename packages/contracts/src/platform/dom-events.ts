@@ -131,10 +131,6 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/work-acceptance.ts"],
     state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.",
   },
-  "goal-selection": {
-    files: ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"],
-    state: "The Goal selected in the Goals directory and the page's first selection on load.",
-  },
   preferences: {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
@@ -158,10 +154,6 @@ export const PAGE_STATE_OWNERS = {
   "work-terminal": {
     files: ["apps/workbench/src/terminal/client-subject-events.ts"],
     state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.",
-  },
-  "goals-event-document": {
-    files: ["plugins/native/goals/src/event-document-client.ts"],
-    state: "The Goal event panel inside an open Goal document.",
   },
   "pages-landing": {
     files: ["plugins/native/pages/src/landing-editor.ts"],
@@ -268,21 +260,6 @@ export const DOM_EVENTS = [
     summary: "Detach and hide the Character terminal, because another Character is shown.",
   },
   {
-    name: "molis-work:goal-changed", kind: "announcement", owner: "goal-selection", on: "document",
-    detail: "{ goalId, goalTitle, status, statusLabel, statusMeaning, statusIconMarkup, parentReadOnly, children }",
-    summary: "The selected Goal changed, or the first one was selected on load.",
-  },
-  {
-    name: "molis-work:goal-document-loaded", kind: "announcement", owner: "tab-workspace", on: "document",
-    detail: "{ goalId }",
-    summary: "A Goal document finished loading into the work area, from the tab workspace or from the Goals navigation client.",
-  },
-  {
-    name: "molis-work:goal-panel-presence", kind: "announcement", owner: "goals-event-document", on: "element", bubbles: true,
-    detail: "none",
-    summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
-  },
-  {
     name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "{ itemId }",
     summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone, or the plugin is refused the read (no permission, or the project turned the plugin off). The surface says which on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
@@ -353,9 +330,24 @@ export const DOM_EVENTS = [
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
   },
   {
+    name: "molis-work:record-document-loaded", kind: "request", owner: "immersive-navigation", on: "document",
+    detail: "{ recordId }",
+    summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.",
+  },
+  {
     name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ plugin, itemId }",
-    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).",
+    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404.",
+  },
+  {
+    name: "molis-work:record-panel-presence", kind: "request", owner: "immersive-navigation", on: "element", bubbles: true,
+    detail: "none",
+    summary: "An editing or detail panel inside an open record document changed presence; the shell re-reads panel layout.",
+  },
+  {
+    name: "molis-work:record-selected", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ plugin, itemId, title? }",
+    summary: "The selected record inside a shell-rendered plugin surface changed; the active item tab follows the selection.",
   },
   {
     name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",

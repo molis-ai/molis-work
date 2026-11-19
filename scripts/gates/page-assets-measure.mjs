@@ -92,7 +92,9 @@ export async function measureServed(root, probe = []) {
   });
   const packPaths = [
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),
-    // A framed plugin's own sheet (PG-070): the rules of its namespace, sent only where its frame links it.
+    // Additional client bundles declared by a plugin's registration (e.g. Pages' editor bundle).
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.flatMap((pack) => pack.clientAssets ?? []),
+    // A framed or shell-linked plugin's own sheet (PG-070, PEQ-08): the rules of its namespace, sent only where its page links it.
     ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => packsModule.pluginOnDemandStylesheet(pack.project_plugin_id)).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.css`),
   ];
   const measured = {};

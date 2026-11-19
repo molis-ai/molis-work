@@ -8,7 +8,7 @@ import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPlugi
 import { ACCEPTANCE_HANDOVER_DROPPED_TABLES, computeAcceptanceHandover, finishAcceptanceHandover, goalDecisionDigestBeforeHandover } from "@molis-ai/molis-work-plugin-goals/v5-acceptance-handover";
 import { refreezeMovedOutcomeDigests } from "@molis-ai/molis-work-service-project-approvals";
 import { renameJournalRecords, sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
-import { GOALS_V5_LIBRARY, goalsApprovalTransferManifest } from "./goal-callers.js";
+import { GOALS_V5_LIBRARY, goalsApprovalTransferManifest } from "./project-library-v5-handover.js";
 import { goalsHistoryPlatformExtension } from "./goal-context-history.js";
 import { pluginSyncNamespace } from "./plugin-sync-database.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";

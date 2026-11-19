@@ -10,6 +10,7 @@ interface HomeHost {
   order(): string[];
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
   market(): void;
+  picker?(): void;
   projectKey: string;
   translate(key: string): string;
   changed(): void;
@@ -263,6 +264,7 @@ export function mountHome(host: HomeHost) {
       return;
     }
     if (key === "market") { host.market(); return; }
+    if (key === "picker") { (host.picker ?? host.market)(); return; }
     if (key === "lead-toggle") { lead.toggle(display); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);
     if (!control) return;

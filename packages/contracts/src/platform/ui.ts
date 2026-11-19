@@ -287,6 +287,8 @@ export interface UiPageRouteDeclaration {
   /** The route's name in this Manifest: lowercase letters, digits and hyphens. The plugin tells its routes apart by it. */
   readonly route_id: string;
   readonly path: string;
+  /** Full workbench page (default), HTML fragment rendered by the route's surface, or refresh document wrapping it. */
+  readonly kind?: "page" | "fragment" | "refresh_document";
   readonly query?: readonly string[];
   /** Bounded declaration constants, disjoint from path/query names; the request cannot override them. */
   readonly params?: Readonly<Record<string, string>>;

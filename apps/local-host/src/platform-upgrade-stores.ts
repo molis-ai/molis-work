@@ -27,7 +27,7 @@ import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { builtinPluginByProjectKey, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { GOALS_V5_LIBRARY, isGoalsApprovalSource } from "./goal-callers.js";
+import { GOALS_V5_LIBRARY, isGoalsApprovalSource } from "./project-library-v5-handover.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");

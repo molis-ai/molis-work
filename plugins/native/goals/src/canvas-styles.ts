@@ -1,4 +1,4 @@
-/** The canvas composition belongs to Workbench; Goal and Work keep their own content. */
+/** Goals canvas, list, kanban, and document workspace styles (owned by Goals, PEQ-08). */
 export const GOAL_CANVAS_STYLES = `
   .immersive-plugin-stage > .goal-canvas-shell, .tab-pane-body > .goal-canvas-shell { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: contain; background: var(--canvas); container: goal-board / inline-size; }
   .goal-canvas-shell [hidden] { display: none !important; }
@@ -595,8 +595,8 @@ export const GOAL_CANVAS_STYLES = `
   /* Archive/read-only documents share the integrated timeline, without a terminal frame. */
   .document-pane:not(.goal-canvas-shell .document-pane) .goal-event-document { position: relative; container-type: normal; }
   .document-pane:not(.goal-canvas-shell .document-pane) .goal-layout { display: flex; flex-direction: column; }
-  .document-pane:not(.goal-canvas-shell .document-pane) .timeline-pane { flex: 1; border: 0; }
-  .document-pane:not(.goal-canvas-shell .document-pane) .is-editing-goal .detail-pane { display: flex !important; position: absolute; inset: 0; z-index: 4; }
+  .document-pane:not(.goal-canvas-shell .document-pane) .goal-event-document .timeline-pane { flex: 1; border: 0; }
+  .document-pane:not(.goal-canvas-shell .document-pane) .goal-event-document.is-editing-goal .detail-pane { display: flex !important; position: absolute; inset: 0; z-index: 4; }
   @media (max-width: 600px) {
     .goal-node-workspace { inset: 0; border-radius: 0; }
     .goal-work-main .tui-pane { padding: 0 12px 12px; }

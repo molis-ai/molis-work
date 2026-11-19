@@ -1035,6 +1035,7 @@ export interface UiPageReviews<Element = unknown> {
 export interface UiPageRouteDeclaration {
     readonly route_id: string;
     readonly path: string;
+    readonly kind?: "page" | "fragment" | "refresh_document";
     readonly query?: readonly string[];
     readonly params?: Readonly<Record<string, string>>;
 }

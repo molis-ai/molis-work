@@ -7,7 +7,7 @@ import { createLocalProjectSettingsHttp, type LocalWebCatalogRunner } from "./we
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalArtifactHttp } from "./artifact-library-http.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
-import { createLocalGoalsReadHttp } from "./web-goals-read.js";
+import { createLocalGoalsReadHttp } from "./web-project-pages.js";
 import { registerConnectorDevicePolling } from "./connector-device-oauth.js";
 import { registerOnboardingStagingCleanup } from "./context-onboarding-service.js";
 import { createPeriodicTasks } from "./periodic-tasks.js";

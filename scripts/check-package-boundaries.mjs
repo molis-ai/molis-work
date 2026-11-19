@@ -6,6 +6,7 @@ import { sqliteDriverFindings } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
+import { checkPlatformNoPluginPackageImports } from "./gates/platform-plugin-imports.mjs";
 
 import {
   evaluateImportBoundary,
@@ -431,7 +432,6 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkCoordinatorStaysDeleted(repositoryRoot));
   const requiredOwnerFiles = [
     "plugins/native/goals/src/module/goal-commands.ts",
-    "plugins/native/goals/src/module/guidance-commands.ts",
     "plugins/native/goals/src/module/lifecycle-archive.ts",
     "plugins/native/goals/src/module/lifecycle-commands.ts",
     "plugins/native/goals/src/module/planning/engine.ts",
@@ -442,6 +442,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/goal-query-application.ts",
   ];
   for (const relativePath of [
+    "plugins/native/goals/src/module/guidance-commands.ts",
     "plugins/native/goals/src/module/risk-commands.ts",
     "plugins/native/goals/src/module/lifecycle-completion.ts",
     "plugins/native/goals/src/module/lifecycle-reasons.ts",
@@ -596,7 +597,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
   // consume public operation ports instead of owning Store, SQL or Module rules.
-  for (const file of ["create", "policy-guidance", "lifecycle", "events", "relations"]) {
+  for (const file of ["create", "lifecycle", "events", "relations"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
@@ -604,7 +605,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
-  for (const file of ["draft", "risk-impact", "verification", "input", "decisions"]) {
+  for (const file of ["draft", "policy-guidance", "risk-impact", "verification", "input", "decisions"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);
@@ -1801,6 +1802,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     }),
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
+    ...checkPlatformNoPluginPackageImports(repositoryRoot, packages).map((message) => `[peq-03-platform-plugin-import] ${message}`),
     ...dependencyGraph.errors,
     ...checkLayerExceptionsInUse(sourceImports.edges, dependencyGraph.edges),
     ...rootSource.map((message) => `[root-source] ${message}`),

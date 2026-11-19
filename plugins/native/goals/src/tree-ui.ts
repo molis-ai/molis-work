@@ -1,6 +1,6 @@
 import { format as uiFormat, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { presentationOwnerHue, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { presentationOwnerHue, renderListColumns, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { goalsPresentation } from "./presentation.js";
 import { GOALS_PLUGIN_ID } from "./identity.js";
 import type { GoalCollectionModel } from "./collection-model.js";
@@ -255,7 +255,7 @@ function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollect
  */
 function treeColumns(): string {
   const names = ["goals.tree-ui.column-goal", "goals.tree-ui.status", "goals.tree-ui.column-progress", "goals.tree-ui.column-relations", "goals.tree-ui.column-created"] as const;
-  return `<div class="tree-columns" data-tree-columns aria-hidden="true">${names.map(name => `<span>${uiText(name)}</span>`).join("")}</div>`;
+  return renderListColumns(names.map(name => uiText.text(name)), { className: "tree-columns", attrs: "data-tree-columns" });
 }
 
 export type GoalsTreeRenderer = ReturnType<typeof createTreeRenderer>;

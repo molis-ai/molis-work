@@ -8,14 +8,7 @@ const EDITOR_PANEL = 'body.immersive-workbench dialog:is([data-create-dialog], [
 const CENTERED_EDITOR = 'body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker])';
 
 export const SURFACE_LANGUAGE_STYLES = `
-  .goal-node-toolbar .goal-node-back,
   .plugin-stage-detail-bar .plugin-stage-back { flex: none; margin-left: -8px; }
-  .goal-node-back svg { transform: rotate(180deg); }
-  .goal-node-toolbar { gap: 12px; }
-  body.immersive-workbench .goal-details-aside { background: var(--paper); box-shadow: none; }
-  body.immersive-workbench .goal-canvas-shell .tui-empty { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-  body.immersive-workbench .goal-event-document .event-form button[type=submit] { border-color: var(--action); }
-  body.immersive-workbench .goal-event-document .event-form { width: min(100%, 880px); }
 
   /* All temporary editors meet the workspace edge, rather than floating over it. */
   ${EDITOR_PANEL} { position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0; width: min(560px, 100vw); max-width: 100vw; height: calc(100dvh - var(--tab-strip-h, 32px)); max-height: calc(100dvh - var(--tab-strip-h, 32px)); padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: var(--paper); color: var(--ink); box-shadow: none; overflow: hidden; transform: none; animation: none; transition: opacity 130ms var(--ease-quint), overlay 130ms allow-discrete, display 130ms allow-discrete; }
@@ -144,10 +137,10 @@ export const SURFACE_LANGUAGE_STYLES = `
     ${EDITOR_PANEL} :is(input:not([type=checkbox]), select, textarea) { font-size: 16px; }
     ${EDITOR_PANEL} header button[data-dialog-close] { min-height: 44px; }
     ${EDITOR_PANEL} > form > footer, ${EDITOR_PANEL} .feed-task-dialog-shell > footer { padding: 12px 16px; }
-    .goal-node-toolbar button, .goal-details-toggle, .plugin-stage-back { width: 44px; min-height: 44px; }
+    .plugin-stage-back { width: 44px; min-height: 44px; }
   }
   /* Search and irreversible confirmations remain compact, with restrained depth. */
-  body :is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog) { border-radius: 8px; box-shadow: var(--lift-1); }
-  body :is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog)::backdrop { background: var(--scrim); backdrop-filter: none; }
+  body :is(.global-search-dialog, .runtime-plan-dialog) { border-radius: 8px; box-shadow: var(--lift-1); }
+  body :is(.global-search-dialog, .runtime-plan-dialog)::backdrop { background: var(--scrim); backdrop-filter: none; }
   @media (prefers-reduced-motion: reduce) { ${EDITOR_PANEL}, ${EDITOR_PANEL}::backdrop { animation: none; transition: none; } }
 `;

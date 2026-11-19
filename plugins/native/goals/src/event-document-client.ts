@@ -80,7 +80,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       article?.querySelector(".goal-workspace-hero")?.toggleAttribute("inert", editing && matchMedia("(max-width: 760px)").matches);
       const frame = article?.closest("[data-goal-node-workspace]");
       if (frame?.querySelector("[data-goal-work-main]")) {
-        article.dispatchEvent(new CustomEvent("molis-work:goal-panel-presence", { bubbles: true }));
+        article.dispatchEvent(new CustomEvent("molis-work:record-panel-presence", { bubbles: true }));
       } else frame?.querySelector("[data-tui-pane]")?.toggleAttribute("inert", editing);
       article?.querySelector(".timeline-pane")?.toggleAttribute("inert", editing && matchMedia("(max-width: 760px)").matches);
     };

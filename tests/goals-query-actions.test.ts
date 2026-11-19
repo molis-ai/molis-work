@@ -151,7 +151,9 @@ test("query contracts read the completion, human requirements and event payloads
       assert.equal(core.work_status, "completed");
       assert.equal(core.closure, null);
       const human = await actions.invoke(goalsActions.state, { goal_id: "OLD-HUMAN" });
-      assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
+      assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.origin?.kind, "imported_acceptance_criterion");
+      const platformReq = await host.withProject(ref, r => goalApplicationOf(r).acceptanceView(ref.project_id, "OLD-HUMAN").requirements.find(item => item.id === "OLD-HUMAN-C1"));
+      assert.equal(platformReq?.requires_person, true);
       const directory = await actions.invoke(goalsActions.list, { limit: 100 });
       for (const goal of directory.goals) {
         const state = await actions.invoke(goalsActions.state, { goal_id: goal.goal_id });
@@ -210,11 +212,12 @@ test("Web cache keeps the cursor of its authorized collection when a write lands
       }
       return result;
     } };
-    const cache = new Map(), options = { databasePath: project.database_path, projectId: project.project_id, homeDirectory: home };
-    const first = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    const first = await delayed.invoke(goalsActions.collection, {});
     assert.equal(first.goals.some(item => item.goal.goal_id === "after"), false);
-    const next = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    const next = await delayed.invoke(goalsActions.collection, {});
     assert.equal(next.goals.some(item => item.goal.goal_id === "after"), true);
     assert.ok(next.snapshot.cursor > first.snapshot.cursor);
+    const cache = new Map(), options = { databasePath: project.database_path, projectId: project.project_id, homeDirectory: home };
+    assert.equal("goals" in cachedMolisWorkWebView(cache, options), false, "platform WebView cache stores no Goals collection");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

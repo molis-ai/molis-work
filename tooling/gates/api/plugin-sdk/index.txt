@@ -319,6 +319,7 @@ export interface PackagedSkills {
 
 export interface PageRouteMatch {
     readonly route_id: string;
+    readonly kind: "page" | "fragment" | "refresh_document";
     readonly params: Readonly<Record<string, string>>;
     readonly rejected?: {
         readonly param: string;

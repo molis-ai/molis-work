@@ -3,7 +3,7 @@ import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { transferGoalsApprovalRecords } from "@molis-ai/molis-work-service-project-approvals";
 import { sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
-import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_V5_LIBRARY, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./goal-callers.js";
+import { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_V5_LIBRARY, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./project-library-v5-handover.js";
 import { pluginSyncNamespace } from "./plugin-sync-database.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { projectPluginSchemaInspector } from "./project-plugin-databases.js";

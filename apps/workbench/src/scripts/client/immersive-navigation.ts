@@ -278,8 +278,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (saved.details == null) setDetails(frame.clientWidth >= 840);
     else syncPresence();
   }).observe(frame);
-  document.addEventListener("molis-work:goal-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
-  document.addEventListener("molis-work:goal-panel-presence", syncPresence);
+  document.addEventListener("molis-work:record-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
+  document.addEventListener("molis-work:record-panel-presence", syncPresence);
   window.addEventListener("resize", sync);
   return { sync, syncPresence, syncGoalMode, hideDirectory, showDirectory };
 }`;

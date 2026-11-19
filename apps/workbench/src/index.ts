@@ -2,7 +2,7 @@ export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-
 export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
 export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
-export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
+export { defaultPagePlugins } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";

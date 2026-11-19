@@ -61,9 +61,6 @@ export const goalsManifest: PluginManifest = {
   summary: "确定目标，推进工作，留下结果。", summary_text: { key: "goals.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
-  // 常开插件 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person
-  // takes the mark back. The Host reads the agreement from the consent ledger, not from this list.
-  always_on: true,
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Every permission is required and written out here. The first four are what its actions ask of the caller
   // (`actionPermissionDeclarations` over `GOALS_ACTIONS`, which `tests/goals-project-database.test.ts` holds
@@ -111,7 +108,7 @@ export const goalsManifest: PluginManifest = {
     page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "stage", slot: "stage", title: "Goals", contribution_id: GOALS_STAGE_CONTRIBUTION_ID,
-        stage_data: { action: "goals.stage.read", input: ["collection", "goal_id", "projection"] } },
+        stage_data: { action: "goals.stage.read", input: ["collection", "view", "goal_id", "projection", "route_kind"] } },
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true },
     ],
   },

@@ -396,23 +396,24 @@ test("an object keeps showing the Goals it serves after it moves out of their pr
   assert.deepEqual([goal.state, goal.associations.filter(item => item.type === "attached").length, goal.open?.surface], ["ok", 0, "goals"]);
 });
 
-test("the Goals page shows a newly bound material without waiting for the next journal event", async () => {
-  const { cachedMolisWorkWebView } = await import("@molis-ai/molis-work-app-local-host");
+test("the Goals page reads fresh input bindings via declaredStageData without stale WebView caching", async () => {
+  const { cachedMolisWorkWebView, declaredStageData } = await import("@molis-ai/molis-work-app-local-host");
   const binding = { binding_id: "b1", goal_id: "g1", input_name: "发布说明", source_type: "plugin_object", source_ref: '["pages_document","d1"]',
     snapshot_digest: null, state: "confirmed", reason: "", created_by: "web-user", created_at: "2026-09-28T00:00:00.000Z" };
   let bindings: typeof binding[] = [];
-  const collection = () => ({ snapshot: { cursor: 7, board: { project_id: "b", title: "B", active_goal_id: null } }, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
-    counts: {}, input_bindings: bindings, policy_bindings: [], events: [] });
+  const stage = () => ({ collection: { snapshot: { cursor: 7, board: { project_id: "b", title: "B", active_goal_id: null } }, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
+    counts: {}, input_bindings: bindings, policy_bindings: [], events: [] } });
   const actions = { discover: async () => [], invoke: async (definition: { capability_id: string }) => {
-    if (definition.capability_id === "goals.collection.read") return collection();
+    if (definition.capability_id === "goals.stage.read") return stage();
     throw new ActionError("actions.missing", "not here");
   } } as never;
   const cache = new Map();
   const options = { databasePath: "/tmp/placement-cache.db", projectId: "b" } as never;
-  assert.equal((await cachedMolisWorkWebView(cache as never, {} as never, options, actions)).input_bindings.length, 0);
+  assert.equal("input_bindings" in cachedMolisWorkWebView(cache as never, options), false);
+  assert.equal(((await declaredStageData(["goals"], () => actions)).goals as { collection: { input_bindings: unknown[] } }).collection.input_bindings.length, 0);
   bindings = [binding];
-  // Same journal cursor: binding a material writes no Goal event.
-  assert.equal((await cachedMolisWorkWebView(cache as never, {} as never, options, actions)).input_bindings.length, 1);
+  // Same journal cursor: binding a material writes no Goal event, and declaredStageData reads it directly.
+  assert.equal(((await declaredStageData(["goals"], () => actions)).goals as { collection: { input_bindings: unknown[] } }).collection.input_bindings.length, 1);
 });
 
 test("plugin stores move with the same id, copy independently and receive handed-over content once", async t => {

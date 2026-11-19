@@ -42,6 +42,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
 | 项目库 | `projects/<project_id>/molis-work.db` | 6 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 3→4 在项目库同一事务中接收可信决定、规则和原审批记录；4→5 把 Coding 卡片里存成句子的结果改成 `{ literal }` 文字引用；5→6 保留已有运行时选择，补设置版本和写入回执；低版本升级，高版本拒绝 |
+| 场景草稿与采用记录 | `blueprints/blueprints.db` | 1 | `user_version` | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE` | 首次使用时建库；遇到高版本拒绝打开 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 2 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 5 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 随项目库 3→4 交接旧决定和规则并更换同步集合，保留原业务事实 |

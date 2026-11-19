@@ -1,10 +1,11 @@
+import { JELLY_MODEL_SELECTION_KEY } from "./model-preference-key.js";
 import { defineSettingsActions } from "@molis-ai/molis-work-plugin-sdk";
 import type { SettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { PluginModelConfigurationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** Where Jelly keeps its model choice and the two actions that read and save it; carried by Jelly's Manifest (`model_configuration`). */
 export const JELLY_MODEL_CONFIGURATION = {
-  key: "jelly.model_selection",
+  key: JELLY_MODEL_SELECTION_KEY,
   preference: { store_name: "jelly", file_name: "preferences.json" },
   custom_provider: { provider_id: "jelly-text", display_name: "Jelly 模型" },
   actions: { read: { capability_id: "jelly.model.settings", version: /* @version action.jelly.model.settings */ 1 }, save: { capability_id: "jelly.model.configure", version: /* @version action.jelly.model.configure */ 1 } },

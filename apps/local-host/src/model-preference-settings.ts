@@ -40,7 +40,9 @@ export function modelPreferenceOwner(home: string, declaration: ConsumerModelCon
               Object.keys(requested).length !== 2) throw errors.setting_invalid("请选择已配置的供应商和模型");
             const selection = { provider_id: requested.provider_id, model_id: requested.model_id };
             choice = restoringOriginal ? selection : configuredSelection(home, selection);
-            if (!choice) throw errors.setting_invalid("所选模型或连接当前不可用");
+            if (!choice) throw errors.setting_invalid(state.selection
+              ? "所选模型或连接当前不可用。原选择已保留，请恢复连接或重新选择模型。"
+              : "所选模型或连接当前不可用，请恢复连接或重新选择模型。");
           }
           state.selection = choice; state.revision++;
         },

@@ -1,3 +1,4 @@
+import { JELLY_MODEL_SELECTION_KEY } from "../model-preference-key.js";
 import type { SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
@@ -77,7 +78,7 @@ async function save(page: JellyPage, pick: Pick, revision: string): Promise<void
   else {
     const change = { set: body };
     if (!pick.pending || JSON.stringify(pick.pending.change) !== JSON.stringify(change))
-      pick.pending = { key: "jelly.model_selection", layer: "personal", expected_revision: revision, request_id: crypto.randomUUID(), change };
+      pick.pending = { key: JELLY_MODEL_SELECTION_KEY, layer: "personal", expected_revision: revision, request_id: crypto.randomUUID(), change };
     await page.request("POST", `${API}/preferences/write`, pick.pending);
   }
   showNote(page, uiText.text("jelly.model.saved"));
@@ -89,7 +90,7 @@ export async function openModelSettings(page: JellyPage): Promise<void> {
   await flushEditor(page);
   const [payload, preferences] = await Promise.all([
     page.request<{ settings?: ModelSettings } & ModelSettings>("GET", `${API}/model-settings`),
-    page.request<{ values: { revision: string; value?: ModelSettings["selection"] }[] }>("POST", `${API}/preferences/read`, { keys: ["jelly.model_selection"] }),
+    page.request<{ values: { revision: string; value?: ModelSettings["selection"] }[] }>("POST", `${API}/preferences/read`, { keys: [JELLY_MODEL_SELECTION_KEY] }),
   ]);
   const choice = preferences.values[0];
   if (!choice) throw new Error(uiText.text("jelly.model.unavailable"));

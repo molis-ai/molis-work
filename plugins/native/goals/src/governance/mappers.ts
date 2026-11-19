@@ -1,5 +1,5 @@
 import { storedJson } from "../stored-json.js";
-import type { ProjectDecisionHistory, ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
@@ -24,18 +24,17 @@ function number(value: unknown): number {
   return Number(value ?? 0);
 }
 
-export function mapGoalTreeProposalDecision(row: GovernanceRow, approval?: ProjectTrustedDecision): GoalTreeProposalDecisionRecord {
+export function mapGoalTreeProposalDecision(row: GovernanceRow, approval: ProjectTrustedDecision): GoalTreeProposalDecisionRecord {
   return {
-    decision_id: text(approval ? row.effect_id : row.decision_id), project_id: text(row.project_id),
+    decision_id: text(row.effect_id), project_id: text(row.project_id),
     proposal_id: text(row.proposal_id), item_id: text(row.item_id),
-    decision: text(approval ? row.result : row.decision) as GoalTreeProposalDecisionRecord["decision"],
-    actor_id: approval?.actor_id ?? text(row.actor_id),
-    authority_source: approval?.source.entry.source ?? text(row.authority_source) as GoalTreeProposalDecisionRecord["authority_source"],
-    runtime_actor_id: optionalText(row.runtime_actor_id), conversation_ref: approval?.source.entry.conversation_ref ?? text(row.conversation_ref),
-    message_ref: approval?.source.entry.message_ref ?? text(row.message_ref), reason: text(row.reason),
+    decision: text(row.result) as GoalTreeProposalDecisionRecord["decision"],
+    actor_id: approval.actor_id,
+    authority_source: approval.source.entry.source,
+    runtime_actor_id: optionalText(row.runtime_actor_id), conversation_ref: approval.source.entry.conversation_ref,
+    message_ref: approval.source.entry.message_ref, reason: text(row.reason),
     revision_proposal_id: optionalText(row.revision_proposal_id),
-    materialized_objects: approval ? storedJson(row, "goal_tree_item_effects", "materialized_objects_json", [])
-      : JSON.parse(text(row.materialized_objects_json)) as GoalTreeProposalDecisionRecord["materialized_objects"],
+    materialized_objects: storedJson(row, "goal_tree_item_effects", "materialized_objects_json", []),
     created_at: text(row.created_at),
   };
 }
@@ -43,7 +42,6 @@ export function mapGoalTreeProposalDecision(row: GovernanceRow, approval?: Proje
 export interface GoalTreeApprovalHistory {
   current(): ProjectTrustedDecision | undefined;
   read(projectId: string, id: string): ProjectTrustedDecision | null;
-  transferred(projectId: string): readonly ProjectDecisionHistory[];
 }
 
 export function mapGoalTreeProposalItem(

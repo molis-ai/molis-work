@@ -37,7 +37,6 @@ const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs"
 const { assertRecordedVersions } = await import("./golden/formats.mjs");
 const storage = await import("@molis-ai/molis-work-storage");
 const { relativePathPattern, versionsNewestLast } = await import("./golden/versions.mjs");
-const { retainRefusedDiscussion } = await import("./golden/discussion-v1.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
 const UNAVAILABLE = unavailableInFixture;
@@ -83,27 +82,24 @@ function declaredReductions(entry) {
 const removedStore = recorded => local.REMOVED_HOME_STORES.some(root => { const relative = recorded.replace(/^spaces\/[^/]+\//u, ""); return relative === root || relative.startsWith(root + "/"); });
 
 /**
- * Every recorded table of every library still has at least its recorded rows (§4 step 5), less what the Files retirement's adoption declared it
- * drops (`adoptAsMaintenance`), library by library and table by table. An old discussion library the discussion-v1 step refused is counted where
- * it was kept. Only numbers leave this function.
+ * Every recorded table of every library still has at least its recorded rows (§4 step 5), library by library and table by table.
+ * Only numbers leave this function.
  */
-function assertRowsKept(manifest, home, retainedDiscussion, retired = new Map()) {
+function assertRowsKept(manifest, home) {
   for (const entry of manifest.stores) {
     // A store the build no longer has is removed by the upgrade round (`REMOVED_HOME_STORES`, named beside the round): it must be gone, not kept.
     if (removedStore(entry.path)) {
       if (existsSync(path.join(home, entry.path))) throw goldenFailure("golden.removed_store_kept", entry.path);
       continue;
     }
-    const retained = retainedDiscussion.get(entry.path);
-    retained?.assertKept();
-    const db = new DatabaseSync(retained?.file ?? path.join(home, entry.path), { readOnly: true });
+    const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
     let now;
     try { now = countSqliteRows(db); } finally { db.close(); }
-    const reduced = declaredReductions(entry), dropped = retired.get(entry.path) ?? {};
+    const reduced = declaredReductions(entry);
     for (const [table, recorded] of Object.entries(entry.tables)) {
       if (reduced.has(table)) continue;
       if (now[table] === undefined) throw goldenFailure("golden.table_missing", `${entry.path}#${table}`);
-      if (now[table] < recorded - (dropped[table] ?? 0)) throw goldenFailure("golden.rows_decreased", `${entry.path}#${table}`);
+      if (now[table] < recorded) throw goldenFailure("golden.rows_decreased", `${entry.path}#${table}`);
     }
   }
 }
@@ -111,57 +107,6 @@ function assertRowsKept(manifest, home, retainedDiscussion, retired = new Map())
 /** Start a Host on each Home and close it, opening no project: the Home's own upgrade runs as it starts (U1 design §4). */
 async function startEveryHost(homes) {
   for (const item of homes) await (await openGoldenHost(item.at, { web: !item.account })).close();
-}
-
-const FILES_PLUGIN_ID = "io.molis.work.files", FILES_CATALOG_ID = "files";
-
-/**
- * The Files retirement (batch 06; the user's decisions of 2026-11-12): a project library in the layout before it is refused when
- * a Host opens it, until the adoption program runs in a maintenance window the person authorizes (sync settings' step 3,
- * specs/batch-06-shared-tools/current-version-adoption.md). The replay stands in for that window: after each Home's own upgrade (`startEveryHost`,
- * the step `upgrade`), the product's adoption of each project library the Home lists that still has something to adopt, and its
- * Home step, before any Host opens a project. A library with nothing to adopt is left alone, so a current golden goes through no adoption and
- * the sync library is still opened by the structure check alone (UPG2-06). What only Files held may go, counted in
- * the restored golden before anything ran and nothing wider: the event cursors Files subscribed with, Files' membership in the catalog, and the
- * default bindings whose source was Files, which the materials source takes over only once the person agrees again.
- */
-function filesOnlyRows(homes, home) {
-  const retired = new Map();
-  const count = (file, table, sql, ...values) => {
-    const db = new DatabaseSync(path.join(home, file), { readOnly: true });
-    let n;
-    try { n = Number(db.prepare(sql).get(...values).n); } finally { db.close(); }
-    if (n) retired.set(file, { ...retired.get(file), [table]: (retired.get(file)?.[table] ?? 0) + n });
-  };
-  const libraries = homes.map(item => {
-    const at = realpathSync(item.at), files = local.projectDatabases(at, storage.readStorageSpace(at) ?? undefined).map(relative => path.relative(home, path.join(item.at, relative)));
-    for (const file of files) {
-      count(file, "plugin_port_bindings", "SELECT COUNT(*) AS n FROM plugin_port_bindings WHERE source_plugin_id = ? AND origin = 'default'", FILES_PLUGIN_ID);
-      count(file, "plugin_event_cursors", "SELECT COUNT(*) AS n FROM plugin_event_cursors WHERE subscriber_plugin_id = ?", FILES_PLUGIN_ID);
-    }
-    const catalog = path.relative(home, path.join(item.at, "projects", "catalog.db"));
-    if (existsSync(path.join(home, catalog))) for (const table of ["project_plugins", "project_portable_plugins"]) count(catalog, table, `SELECT COUNT(*) AS n FROM ${table} WHERE plugin_id = ?`, FILES_CATALOG_ID);
-    return { item, files };
-  });
-  return { retired, libraries };
-}
-
-async function adoptAsMaintenance({ retired, libraries }, home) {
-  for (const { item, files } of libraries) {
-    const where = item.path || "root";
-    const waiting = files.filter(file => { const found = local.inspectProjectAdoption(path.join(home, file)); return found.layout !== "current" || local.adoptionPending(found); });
-    if (!waiting.length) continue;
-    const backups = mkdtempSync(path.join(tmpdir(), "golden-adoption-")), owner = storage.acquireStorageOwner(path.join(item.at, "agent-runtime"));
-    try {
-      for (const file of waiting) {
-        const projectId = path.basename(path.dirname(file));
-        if (local.adoptProjectDatabase({ home: item.at, owner, projectId, backupDirectory: backups }).state === "refused") throw goldenFailure("golden.adoption_refused", `${where}/${projectId}`);
-      }
-      const consents = local.retireFilesConsents({ home: item.at, owner, at: new Date().toISOString() });
-      if (consents.waiting.length) throw goldenFailure("golden.adoption_waiting", `${where}/${consents.waiting[0].project_id}`);
-    } finally { owner.release(); rmSync(backups, { recursive: true, force: true }); }
-  }
-  return retired;
 }
 
 /** The offline snapshot runs the owners' checks over every registered library: version, every table against the baseline, triggers word for word (§4 step 3). */
@@ -303,23 +248,19 @@ async function replayGolden(name) {
     restoreGolden(source, manifest, restored.home);
     // The gates take a golden's versions from its manifest; before anything upgrades them, they are read from what was restored.
     step = "recorded-versions"; assertRecordedVersions(storage, manifest, restored.home);
-    step = "discussion-v1-refusal"; const retainedDiscussion = retainRefusedDiscussion(manifest, restored);
-    steps.discussion_v1_refused = retainedDiscussion.size;
-    const homes = homesOf(manifest, restored.home), filesOnly = filesOnlyRows(homes, restored.home);
+    const homes = homesOf(manifest, restored.home);
     step = "upgrade"; await startEveryHost(homes);
-    step = "adoption"; const retired = await adoptAsMaintenance(filesOnly, restored.home);
     step = "upgrade"; await openEveryProject(homes);
-    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home, retainedDiscussion, retired);
+    step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);
     step = "structure"; await assertStructure(homes);
     step = "versioned-files"; steps.versioned_files = await readVersionedFiles(manifest, source, homes);
     step = "read"; steps.reads = await readEverything(manifest, homes);
-    step = "rows"; assertRowsKept(manifest, restored.home, retainedDiscussion, retired);
+    step = "rows"; assertRowsKept(manifest, restored.home);
     step = "write"; steps.writes = await writeEverything(homes);
     step = "third-party"; steps.third_party = await replayThirdParty(manifest, homes);
     step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
     step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
     step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
-    step = "discussion-v1-retained"; for (const retained of retainedDiscussion.values()) retained.assertKept();
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
     return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };
   } catch (error) {
@@ -335,6 +276,6 @@ const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.pl
 for (const name of selectedGoldens()) results.push(await replayGolden(name));
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
-else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, discussion v1: ${item.steps.discussion_v1_refused} old files refused and kept, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
+else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
 // The Host's background work has no reason to outlive a finished replay.
 process.exit(results.every(item => item.ok) ? 0 : 1);

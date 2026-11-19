@@ -88,8 +88,7 @@ export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
-export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
-export { projectApprovalUpgrade } from "./project-database-schema.js";
+export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
@@ -266,9 +265,7 @@ export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export { runLocalHomeCli } from "./cli-home.js";
 export { startOfToday } from "./assistant/assistant-usage-ledger.js";
-export { PROJECT_DATABASE_VERSION_2_SCHEMA } from "./project-database-schema.js";
-export { adoptionRefusalText, type AdoptionRefusalCode, type AdoptionRefusalText } from "./process-items-refusal-text.js";
-export { ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
+export { PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
@@ -412,10 +409,6 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
-export { adoptionPending, adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
-export type { ProjectLayout } from "./project-layout.js";
-export { captureProcessItemsRecovery, verifyProcessItemsRecovery, type ProcessItemsRecoveryCapture } from "./process-items-recovery.js";
-export { processItemsMaintenance, type ProcessItemsMaintenance, type ProcessItemsMaintenancePorts, type ProcessItemsMaintenanceView } from "./process-items-maintenance.js";
 export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.

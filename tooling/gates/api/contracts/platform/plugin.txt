@@ -4954,8 +4954,7 @@ export interface PluginProjectDatabase extends PluginDatabase {
         read(history?: boolean): ProjectApprovalRules;
     };
     readonly approvalHistory?: {
-        read(id: string): ProjectTrustedDecision | ProjectDecisionHistory | null;
-        transferred(subject: ProjectDecisionHistory["subject"]): readonly ProjectDecisionHistory[];
+        read(id: string): ProjectTrustedDecision | null;
     };
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
 }

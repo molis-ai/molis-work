@@ -21,7 +21,7 @@ test("RAC-2376 RAC-2377 W1-18-SHELF-FORMAT-01 current Shelf data reopens, while 
     const missingChildren = JSON.parse(current); delete missingChildren.items[0].children;
     const missingJobArray = JSON.parse(current);
     missingJobArray.jobs = [{ job_id: "retained-job", item_id: item.item_id, option_id: null, runtime: "", status: "succeeded" }];
-    const priorVersion=JSON.parse(readFileSync(new URL('./fixtures/home-store-schemas/shelf-v1.json',import.meta.url),'utf8'));
+    const priorVersion = { version: 1, items: [{ item_id: "prior-item", kind: "text", title: "Old" }] };
     for (const input of [priorVersion,changedVersion,missingDigest, missingArray, missingVerdict, missingChildren, missingJobArray]) {
       const bytes = JSON.stringify(input); writeFileSync(filename, bytes);
       const reopened = openTestShelfStore(home, { disabled: true });

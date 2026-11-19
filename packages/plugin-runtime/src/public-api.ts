@@ -8,7 +8,7 @@ export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsent
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
 export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
-export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, inspectPluginProjectDatabase, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, transferPluginProjectDatabase, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, inspectPluginProjectDatabase, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { SANDBOX_HOME_SCHEMA_LIMITS, assertPluginHomeSchema, assertPluginHomeSnapshotSchema, inspectPluginHomeSchema } from "./project-database.js";
 export {
   PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS, assertPluginUpgradeSteps, pluginProjectTablesVersion, pluginUpgradeSteps, upgradePluginHomeLibrary, upgradePluginProjectTables,
@@ -70,9 +70,6 @@ export type { PluginWiringServicesInput } from "./services.js";
 export { PluginInputGraph } from "./wiring.js";
 export type { PluginArtifactReaderPort, PluginInputFailure } from "./wiring.js";
 export { MemoryPluginWiringRepository, SqlitePluginWiringRepository, PLUGIN_WIRING_SCHEMA_SQL } from "./wiring-repository.js";
-export { planWiringReassignment, reassignWiringSource, type WiringReassignmentPlan } from "./wiring-reassignment.js";
-export { planRetiredInstalls, retireInstalls, type RetiredInstallPlan, type RetiredPlugin } from "./retired-install.js";
-export { applyPrivateValueAdoption, applyPrivateValueMove, planPrivateValueAdoption, planPrivateValueMove, type PrivateValueAdoptionPlan, type PrivateValueChange, type PrivateValueMove } from "./private-value-adoption.js";
 export type { PluginWiringDatabase } from "./wiring-repository.js";
 export { PluginSupervisor } from "./supervisor.js";
 export type {

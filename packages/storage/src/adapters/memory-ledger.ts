@@ -34,10 +34,9 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.
  * (`{ version, change, by, at }`) per revision, and forgets it with the entry.
  */
 export const MEMORY_LEDGER_STORE = "memory";
-const FORGETTING_PENDING = "memory-generation:forgetting-pending";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 3, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 1, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -72,35 +71,7 @@ CREATE TABLE memory_pairs (
 CREATE TABLE memory_markers (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-`, upgrades: [
-  // 1 → 2 (specs/prologue-memory-strategy, user 2026-11-07: no migration): memories move to the SDK's indexed store, which never reads the old
-  // layout, so the ledger's facts about the old memories go with them. Owner titles stay, and so does every switch: the one new preference, the
-  // per-class restriction list, starts empty, which restricts nothing (user 2026-11-11). The marker asks the next start for the new
-  // generation's empty forgetting file, the one file this build reads that an older Home cannot have (finishMemoryLedgerUpgrade).
-  { from: 1, sql: `UPDATE memory_prefs SET body = json_insert(body, '$.class_restrictions', json('[]'));
-DELETE FROM memory_revisions; DELETE FROM memory_candidates; DELETE FROM memory_changes; DELETE FROM memory_signal_events;
-DELETE FROM memory_uses; DELETE FROM memory_pairs; DELETE FROM memory_markers;
-INSERT INTO memory_markers(actor_id,key,at,body) VALUES ('', '${FORGETTING_PENDING}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), '{}');`,
-    reduces_rows: ["memory_revisions", "memory_candidates", "memory_changes", "memory_signal_events", "memory_uses", "memory_pairs", "memory_markers"] },
-  // 2 → 3 (specs/prologue-memory-strategy MEM-10, 2026-11-15): historical memory text and snapshots live solely in Prologue's encrypted record;
-  // rewrite revision bodies in memory_revisions to pure change attribution and clear any non-pending merge payload in memory_markers.
-  { from: 2, sql: `UPDATE memory_revisions SET body = json_object('version', json_extract(body, '$.version'), 'change', json_extract(body, '$.change'), 'by', json_extract(body, '$.by'), 'at', json_extract(body, '$.at'));
-UPDATE memory_markers SET body = json_remove(body, '$.merge') WHERE json_extract(body, '$.phase') != 'pending' AND json_type(body, '$.merge') IS NOT NULL;` },
-] };
-
-/**
- * Finish the 1 → 2 upgrade once the Host holds the Home: only a ledger the upgrade itself marked gets a new forgetting file, through `start`.
- * A Home that lost its forgetting file any other way stays refused. Returns whether the marker was there.
- */
-export function finishMemoryLedgerUpgrade(homeDirectory: string, start: () => void): boolean {
-  const db = openBaselineHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE);
-  try {
-    if (!db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?").get(FORGETTING_PENDING)) return false;
-    start();
-    db.prepare("DELETE FROM memory_markers WHERE actor_id='' AND key=?").run(FORGETTING_PENDING);
-    return true;
-  } finally { db.close(); }
-}
+`, upgrades: [] };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 

@@ -216,20 +216,15 @@ test("RAC-1266: an unreadable proposal item baseline stops the proposal read ins
   } finally { dispose(); }
 });
 
-test("RAC-1267: an unreadable trusted decision scope stops the decision read", async () => {
-  const { store, governance, dispose } = await fixture("unreadable-scope");
+test("RAC-1267: an unreadable trusted decision record stops the decision read", async () => {
+  const { store, dispose } = await fixture("unreadable-scope");
   try {
-    const goalId = (store.db.prepare("SELECT goal_id FROM goals ORDER BY goal_id LIMIT 1").get() as { goal_id: string }).goal_id;
     const decisionId = "decision-unreadable-scope";
     const recorded_at = "2026-09-02T00:00:01.000Z";
     const marker = "damaged-decision-scope-marker";
-    const original = { decision_id: decisionId, project_id: DEMO_PROJECT_ID, goal_id: goalId, actor_id: "review-user", actor_kind: "user",
-      authority_source: "management", conversation_ref: "codex://threads/test", message_ref: "message-test", request_id: null, selected_option_id: null,
-      conclusion: "我确认可以完成", accepts_requirements: 1, scope_json: `{"${marker}":`, change_json: null, recorded_at };
     store.db.prepare(`INSERT INTO project_review_decisions(decision_id, project_id, record_json, recorded_at) VALUES (?, ?, ?, ?)`)
-      .run(decisionId, DEMO_PROJECT_ID, JSON.stringify({ kind: "history", subject: "event", decision_id: decisionId,
-        project_id: DEMO_PROJECT_ID, recorded_at, owner: { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature }, original }), recorded_at);
-    const error = capturedGovernanceRead(() => governance.eventDecisions.read(DEMO_PROJECT_ID, decisionId), "actions.execution_failed");
+      .run(decisionId, DEMO_PROJECT_ID, `{"${marker}":1}`, recorded_at);
+    const error = capturedGovernanceRead(() => projectReviewDecisions(store.db, DEMO_PROJECT_ID).read(decisionId), "actions.execution_failed");
     const location = store.db.prepare("SELECT CAST(rowid AS TEXT) AS ref FROM project_review_decisions WHERE decision_id = ?").get(decisionId) as { ref: string };
     assert.deepEqual(error.details, { storage: { table: "project_review_decisions", column: "record_json", row_ref: location.ref } });
     assert.doesNotMatch(error.message, new RegExp(marker));

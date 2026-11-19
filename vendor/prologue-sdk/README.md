@@ -1,6 +1,12 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main 64e5aaf4（2026-11-17，第 59 批）
+## 当前包：chore/cleanup-legacy-migrations 99f9c7e1（2026-11-19，遗留迁移与兼容代码清理）
+
+运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,479,460 字节**，SHA-256 `577c8ecbb04b6348d1e3722c63e57eb5874d72e88e82b03a467c08da2a993637`。来自 `molis-prologue` 分支 `chore/cleanup-legacy-migrations` 的干净提交 `99f9c7e10173cc62e9aef7d65ca9e21d3aa262fe`（基于官方 main `64e5aaf4`），无 vendor 补丁。
+
+本包清理了已退役的 `Archive/`、旧记忆采用与旧行结构兼容（memory/candidate 行结构回到 1）、旧运行时幂等键回退以及 v1 会话/恢复兼容分支（仅保留 v2 封套与 `durable-prefix`）。构建前通过完整类型检查、`pnpm build`、`quality.mjs`（267 个文件 / 3,449 项测试）、公开 API 快照、质量棘轮、文档链接检查、干净消费者检查与 Rust fmt/clippy。现核查 69 个 Prologue 提交，上一份官方 `64e5aaf4` 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 64e5aaf4（2026-11-17，第 59 批）
 
 运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,488,998 字节**，SHA-256 `4628595426c2a33a285640b245485634ed8f34224320838d8927b5736b741c85`。[Prologue #135](https://github.com/molis-ai/molis-prologue/pull/135) 的官方 main `64e5aaf444629aa597f028e63cf4090456830637` 与独立评审头 `88926b6c5cfa54e07ad2c070941dcd9aad383ffb` 同树。
 

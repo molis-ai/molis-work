@@ -154,7 +154,7 @@ Memory 自动学习共享原 `memory.learn` kind 和 runner。Coding 任务只�
 
 Memory 恢复从当前可核验的唯一顶层 `memory-forgetting-v2.json` 取得较新决定，与归档事实单调合并；文件名 v2 是当前物理代，内容仍为严格 JSON v1，不采用旧名、不双读或转换旧 Home/归档。旧版 CLI 复用原未知顶层路径或独立事实缺失门拒绝；新版正常启动只认当前路径，双名混放由原 snapshot/restore inventory 拒绝，不增加启动全树扫描。目标 `memory.db` 仍当 opaque 原件。唯一发布材料经原 owner 输入进入全部 journal phase，原归档及 manifest 不变。在同一 `publishing` 阶段清除旧正式记录、候选与投影，journal 最终记实际发布字节；原件、preserved 与密钥依赖集合不变。SDK 可修改材料仅限选中的既有 Memory / candidate 文件，其他 kind 仍核原 digest，新文件拒绝。未提交失败／崩溃回到含较新决定的原 Home，committed 只校验并收尾。
 
-独立文件登记于现 homeStoreRegistry：旧离线 snapshot / restore 拒绝未知顶层 store，旧 recover 在 journal 路径校验拒绝，早于任何 rollback / publish。旧正常 Host/Web/MCP 仍依赖当前完整偏好合同的初始化拒写，两部分必须一起交付，不能删除事实文件退版。仅记忆账本损坏且独立事实可核验时保证恢复；独立文件丢失/损坏不能补空，也不伪造机制出现前的历史事实。项目和 Session 删除恢复不据本片完成。回归：`tests/home-restore-memory-forgetting.test.ts`、`tests/home-restore-forgetting-old-cli.test.ts`。
+独立文件登记于现 homeStoreRegistry：旧离线 snapshot / restore 拒绝未知顶层 store，旧 recover 在 journal 路径校验拒绝，早于任何 rollback / publish。旧正常 Host/Web/MCP 仍依赖当前完整偏好合同的初始化拒写，两部分必须一起交付，不能删除事实文件退版。仅记忆账本损坏且独立事实可核验时保证恢复；独立文件丢失/损坏不能补空，也不伪造机制出现前的历史事实。项目和 Session 删除恢复不据本片完成。回归：`tests/home-restore-memory-forgetting.test.ts`。
 本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。
 
 工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立，携带私有控制头的请求不签发浏览器会话。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/archive/daily-quality-d0038/spec.md)。

@@ -571,7 +571,7 @@ test("R38-RECOVERY-LIVE-03: closing an inspected interruption refreshes the same
     sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "原会话", owner,
       ...(closed ? {} : { recovery: { required: true as const, reason: "需要核对" } }),
       runs: [{ ref, frozen, original_questions: [{ pending_id: "question", pending_revision: 1, kind: "text", why: "是否执行测试？" }], task: "原要求", started_at: "2026-09-20T00:00:00Z", ...(closed ? { events: [
-        { type: "run-recovered", atMs: 1789900000000, transcript: "opening-only", operations: [{ summary: "修改 cart.mjs", outcome: "completed" }] },
+        { type: "run-recovered", atMs: 1789900000000, transcript: "durable-prefix", operations: [{ summary: "修改 cart.mjs", outcome: "completed" }] },
         { type: "failed", error: { code: "RUN_INTERRUPTED", safeMessage: "Interrupted" } },
       ] as PrologueEvent[] } : {}) }] }) },
     startAgentRun: async () => { throw new Error("must not replay"); }, shutdown: async () => {},

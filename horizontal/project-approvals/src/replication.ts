@@ -42,16 +42,6 @@ function validateDecision(row: ApprovalRow) {
   const value = parsedJson(row.record_json);
   if (!text(row.decision_id) || !text(row.recorded_at) || value.decision_id !== row.decision_id
     || value.outcome_digest !== undefined && (typeof value.outcome_digest !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.outcome_digest))) throw invalid();
-  if (value.kind === "history") {
-    const original = value.original;
-    if (row.request_id !== null || row.request_key !== null || value.project_id !== row.project_id || value.recorded_at !== row.recorded_at
-      || !isRecord(value.owner) || value.owner.kind !== "plugin" || !text(value.owner.plugin_id) || !text(value.owner.publisher_signature)
-      || (value.subject !== "event" && value.subject !== "proposal-item") || !isRecord(original)
-      || original.project_id !== row.project_id || original.decision_id !== row.decision_id
-      || !text(original.actor_id) || !text(original.conversation_ref) || !text(original.message_ref)
-      || !Object.values(original).every(item => item === null || typeof item === "string" || typeof item === "number")) throw invalid();
-    return;
-  }
   const ref = value.reference, source = value.source;
   if (!text(row.request_id) || !text(row.request_key) || value.request_key !== row.request_key || value.decided_at !== row.recorded_at
     || !text(value.decision) || (value.note !== null && typeof value.note !== "string")

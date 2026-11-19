@@ -1884,7 +1884,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
-    resolution: {integrity: sha512-tAJX2+3+JE/CPSXWVeYCHrV5CbN+uIYv4wqHpeX53LBAKiaKPPkn6xTBYE7QlRGXtut8nsOFCMrtThx8vlteuA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
+    resolution: {integrity: sha512-J4zDfvUF2nScQhsRzR1p/itMBp/QcGWyzwy4XPQEei9eWc10WXjk2OMJmqUBTNi7wItextBEMya5wVX4tQq30A==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

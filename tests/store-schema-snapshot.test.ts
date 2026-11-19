@@ -28,11 +28,11 @@ test("UPG-01 the snapshot holds the catalog, the project database, every Home li
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 / ONB-28 the snapshot keeps the Goals 4→5 upgrade and every project upgrade through the v6 runtime settings receipts", () => {
+test("APR-19 the built snapshot records both the project database and Goals at v1 baseline with no pre-release upgrades", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [6, [1, 2, 3, 4, 5]]);
-  assert.deepEqual([goals?.version, goals?.froms], [5, [4]]);
+  assert.deepEqual([project?.version, project?.froms], [1, []]);
+  assert.deepEqual([goals?.version, goals?.froms], [1, []]);
 });
 
 test("UPG-01 the hash moves with what a Home in use would keep in its old form, and not with how a statement is written", () => {

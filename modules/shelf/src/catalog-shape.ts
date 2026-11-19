@@ -1,14 +1,11 @@
 import { isRecord, type SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
-import { SHELF_PREFERENCE_FIELDS, shelfPreferenceKey, type ShelfPreferenceKey } from "./preference-keys.js";
+import { shelfPreferenceKey, type ShelfPreferenceKey } from "./preference-keys.js";
 import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import { defaultShelfDeviceSettings, isCurrentShelfSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
 
-export const CATALOG_VERSION = /* @version format.shelf.catalog */ 2;
-export const CATALOG_UPGRADES: readonly { readonly from: number; readonly transform: (value: unknown) => unknown }[] = [{ from: 1, transform(value) {
-  if (!isRecord(value) || Object.hasOwn(value, "preferences")) throw shelfErrors.invalid_file("Shelf 目录格式无效，原文件已保留");
-  return { ...value, preferences: { layers: Object.fromEntries(Object.keys(SHELF_PREFERENCE_FIELDS).map(key => [key, { explicit: true, revision: 0 }])), receipts: {} } };
-} }];
+export const CATALOG_VERSION = /* @version format.shelf.catalog */ 1;
+export const CATALOG_UPGRADES: readonly { readonly from: number; readonly transform: (value: unknown) => unknown }[] = [];
 
 export interface StoredItem extends Omit<ShelfItemRecord, 'hidden' | 'size_bytes' | 'preview_text' | 'relative_path'> {
   hidden: boolean;

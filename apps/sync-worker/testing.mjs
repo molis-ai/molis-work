@@ -12,7 +12,7 @@ export async function applySql(db,file){
 }
 
 /** Synthetic upstream + ephemeral D1 only. No Cloudflare credentials or live Auth. */
-export async function cloudFixture(t,{authOrigin='https://auth.example.test',mode='cloud',schema=true,adoption=true}={}) {
+export async function cloudFixture(t,{authOrigin='https://auth.example.test',mode='cloud',schema=true}={}) {
   const {Miniflare,Response,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const requests=[];
   const options={modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'cloud-quota-test'},bindings:{DEPLOYMENT_MODE:mode,AUTH_ORIGIN:authOrigin,APPLICATION_ID:'work'},outboundService:async request=>{
@@ -26,8 +26,7 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   const mf=new Miniflare(convertV4MiniflareOptions(options));
   t.after(()=>mf.dispose());
   let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('FILES');
-  // A fresh database runs the v6 baseline and then the same-version cutover structure, statement by statement in file order.
-  if(schema)for(const file of adoption?['0001_sync.sql','0002_process_items_cutover.sql']:['0001_sync.sql'])await applySql(db,file);
+  if(schema)await applySql(db,'0001_sync.sql');
   const call=(path,user='alice',body,method=body===undefined?'GET':'POST',origin='https://sync.example.test')=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:'Bearer '+user,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const space=user=>personalStorageSpace(authOrigin,'work',user).spaceId;
   const selection={plugin_id:'io.example.quota',publisher_id:'example',publisher_signature:'synthetic-only',collection_id:'records',schema_version:1};

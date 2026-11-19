@@ -259,9 +259,8 @@ test("B10-R3: the current version works and saved send receipts survive a real d
     service.continuations.close(); db.close();
     const bytes = await readFile(file);
     db = new DatabaseSync(file);
-    // 1 → 2 (user 2026-11-17) only turns stored outcome sentences into literal text references; a current store is not touched again.
-    assert.equal(ASSISTANT_STORE_BASELINE.version, 2);
-    assert.deepEqual(ASSISTANT_STORE_BASELINE.upgrades?.map(step => step.from), [1]);
+    assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
+    assert.deepEqual(ASSISTANT_STORE_BASELINE.upgrades ?? [], []);
     const changes = db.prepare("SELECT total_changes() AS count").get()!.count;
     const reopened = new AssistantStore(db);
     assert.deepEqual(reopened.get("user", work.work_id), saved);
@@ -269,7 +268,7 @@ test("B10-R3: the current version works and saved send receipts survive a real d
     assert.equal(reopened.get("user", work.work_id).draft_revision, 4);
     assert.deepEqual(reopened.requests.read("user", "v1-reopen-request"), { state: "sent", result: receipt });
     assert.equal(db.prepare("SELECT total_changes() AS count").get()!.count, changes, "opening and reading do not rewrite stored facts");
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
     assert.deepEqual(await readFile(file), bytes, "reopening the current version does not rewrite its bytes");
   } finally { service.continuations.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -54,14 +54,10 @@ export function fixtureApprovals(store: LocalProjectDatabase, clock: () => Date)
     eventDecisions: new GovernanceEventDecisions((input: RecordGoalUserDecisionInput) => {
       const authority = provenance.validateEventDecisionAuthority(input.authority);
       return commit(input.project_id, { kind: "goal", id: input.goal_id }, authority, input.idempotency_key, input);
-    }, (project, id) => {
-      const record = history(project).read(id);
-      return record && "kind" in record ? record : null;
     }),
     treeApprovals: {
       current: () => current,
       read(project: string, id: string) { return history(project).findCommitted(id); },
-      transferred(project: string) { return history(project).transferred(approvalOwner, "proposal-item"); },
     },
     tree<T>(project: string, id: string, key: string, raw: GoalTreeProposalDecisionAuthority, input: unknown, run: () => T): T {
       if (raw?.authority_source !== "web" && raw?.authority_source !== "management") return run();

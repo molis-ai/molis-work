@@ -128,7 +128,7 @@
 |  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
 | [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../backlog/BL-586.md) |
 |  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
-| [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../backlog/BL-plugin-cli-dev-uncoded-errors.md) |
+| [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../../docs/backlog-removed.md) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/48.md#batch-48-item-3) |
 |  | [首次可用率与返修评测样本](reference/batches/48.md#batch-48-item-4) |
@@ -151,7 +151,7 @@
 |  | [工作流查询与映射](reference/batches/55.md#batch-55-item-6) |
 |  | [旧 Office 与下载／转写恢复](reference/batches/55.md#batch-55-item-7) |
 |  | [连续两期场景](reference/batches/55.md#batch-55-item-8) |
-| [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) · [BL-attention-404-by-code](../backlog/BL-attention-404-by-code.md) |
+| [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) · [BL-attention-404-by-code](../../docs/backlog-removed.md) |
 |  | [切换后新入口文字与翻译复核](reference/batches/56.md#batch-56-item-2) |
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
 | [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |

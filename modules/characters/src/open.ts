@@ -20,7 +20,7 @@ import { CharacterRoles } from "./roles.js";
  * tables (role-service-design §2). Clean Homes start at the current baseline; 1 → 2 only creates the role tables, empty, and is run by
  * the upgrade process, not on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.characters_store_baseline */ 2, schema: (`CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: /* @version database.characters_store_baseline */ 1, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE character_runs (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX character_runs_by_character ON character_runs (owner_actor_id, project_id, character_id, created_at);`)+CHARACTER_ROLE_TABLES_SQL+replicaSchemaSql('characters') + CHARACTERS_SYNC_TRIGGERS,
-  upgrades: [{ from: 1, sql: CHARACTER_ROLE_TABLES_SQL }] };
+  upgrades: [] };
 
 /** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
 export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" }, replication: createCharactersReplicationBinding } as const satisfies HomeStoreDeclaration;

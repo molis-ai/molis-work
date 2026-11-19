@@ -38,7 +38,7 @@ export class GovernanceCollaborationModule implements GovernanceApplicationApi {
     this.records = new GovernanceRecordStore(options.db, options.journal, options.treeApprovals);
     this.decisions = new GovernanceDecisionTransactions(options.db);
     this.eventDecisions = options.eventDecisions ?? new GovernanceEventDecisions(
-      () => { throw new ActionError("actions.forbidden", "需要平台记录的本人决定"); }, () => null,
+      () => { throw new ActionError("actions.forbidden", "需要平台记录的本人决定"); },
     );
     this.query = governanceQueries(repository);
   }

@@ -3,11 +3,9 @@ import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pluginSyncDatabaseDeclaration, runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { DatabaseSync } from "node:sqlite";
-import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
-import { IMAGES_DATABASE, imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
+import { imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
 import { imageRuntimeFixture, imageTerminal } from "./fixtures/images-runtime.js";
 
 // W5-01-IMGPORT-01: the actual Host adapter supplies metadata and a revision; credentials remain outside the plugin.
@@ -234,19 +232,4 @@ test("ARF-4 an unfinished account switch or deletion survives restart and refuse
   assert.deepEqual((await client.invoke(actions.connections, {})).connections, []);
   assert.equal((await agent.invoke(actions.start, prior)).job.id, accepted.id);
   assert.equal(f.calls.length, 1);
-});
-
-test("ARF-4 Images v1 golden database upgrades in isolation, preserving service, job and existing references", () => {
-  const db = new DatabaseSync(":memory:");
-  try {
-    db.exec(readFileSync(new URL("./fixtures/golden-homes/0.1.1-dev.3/stores/images/images.db.sql", import.meta.url), "utf8"));
-    db.prepare("INSERT INTO connections VALUES (?,?,?,?,?,?,?)").run("saved", "Saved", "gemini", "https://example.test", "chosen", "t0", "t1");
-    db.prepare("INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run("historic", "project", "request", "hash", "saved", "Saved", "gemini", "chosen", "kept", "", "", "failed", "[]", "failure", "t0", "t1", null);
-    const rows = () => [db.prepare("SELECT * FROM connections ORDER BY id").all(), db.prepare("SELECT * FROM jobs ORDER BY id").all()];
-    const before = rows(), baseline = pluginSyncDatabaseDeclaration(imagesManifest, IMAGES_DATABASE);
-    assert.deepEqual(runSqliteUpgrade(db, "images.db", baseline), { from: 1, to: 2 });
-    assert.deepEqual(rows(), before);
-    assert.deepEqual(db.prepare("SELECT * FROM connection_changes").all(), []);
-    assert.deepEqual(runSqliteUpgrade(db, "images.db", baseline), { from: 2, to: 2 });
-  } finally { db.close(); }
 });

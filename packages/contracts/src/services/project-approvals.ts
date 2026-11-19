@@ -170,16 +170,3 @@ export interface ProjectReviewCoverage {
   readonly requirements: readonly (Pick<ReviewRequirement, "id" | "version" | "target" | "evidence"> &
     { readonly disposition: "accepted" | "returned" })[];
 }
-
-/** Original pre-transfer facts have their own provenance. They cannot become a new protected request. */
-export interface ProjectDecisionHistory {
-  readonly kind: "history";
-  readonly decision_id: string;
-  readonly project_id: string;
-  readonly owner: Extract<ApprovalRuleOwner, { kind: "plugin" }>;
-  readonly subject: "event" | "proposal-item";
-  readonly recorded_at: string;
-  readonly original: Readonly<Record<string, string | number | null>>;
-  /** Existing effects verified during the transfer of this history. */
-  readonly outcome_digest?: string;
-}

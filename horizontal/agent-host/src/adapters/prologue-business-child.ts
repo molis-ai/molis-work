@@ -2,6 +2,7 @@ import type { ExactRef } from "@prologue/sdk";
 import { agentErrors } from "../errors.js";
 import { roundGateway } from "./prologue-round-gateway.js";
 import { businessChildTools } from "./prologue-action-gateway.js";
+import { packToDynamicTools } from "./prologue-action-tools.js";
 import { prologueToolName } from "./prologue-node-kit.js";
 import { ensureStopGuard } from "./prologue-stop-guard.js";
 import type { PrologueStartInput } from "./prologue-ports.js";
@@ -18,8 +19,7 @@ export async function bindBusinessSubagent(deps: Pick<RunDeps, "runtime" | "stat
   // The SDK grants these two for the child's assigned step, independently of the Character's own tool declaration.
   const allowed = [...role.host_tools.map(prologueToolName), ...businessChildTools(tools.names, role.execution), "board-read", "board-report"];
   if (requested.some(tool => !allowed.includes(tool))) throw agentErrors.role_execution_exceeded("子任务请求了当前未授权的业务工具");
-  const session = await deps.runtime.sessions.open(ref, { pack: tools.pack, executors: tools.executors,
-    ...(parts.parameterBranches ? { parameterBranches: parts.parameterBranches } : {}) });
+  const session = await deps.runtime.sessions.open(ref, { tools: packToDynamicTools(tools.pack, tools.executors, parts.parameterBranches) });
   if (!session) throw agentErrors.session_unknown("业务子会话不存在");
   deps.state.sessions.set(ref.id, ref);
   deps.state.actionToolSessions.add(ref.id);

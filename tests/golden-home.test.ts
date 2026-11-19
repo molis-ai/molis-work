@@ -570,8 +570,8 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
     for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
-    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 2, "io.molis.work.goals": 5, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
-      "io.molis.work.schedule": 3 });
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
+      "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
     const upgraded: Record<string, number> = {
@@ -600,15 +600,14 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     }],
     ["a plugin's project tables raised", recorded => {
       const at = `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`, entry = recorded.stores.find(item => item.path === at);
-      // Batch 39 moved the project rules and decisions to the platform, giving newly generated Goals tables version 5.
-      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 5);
-      entry!.plugin_tables!["io.molis.work.goals"] = 6;
+      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 1);
+      entry!.plugin_tables!["io.molis.work.goals"] = 2;
       return `${at}#plugin_tables`;
     }],
     ["a format's version raised", recorded => {
       const item = recorded.formats.find(format => format.entry === "format.shelf.catalog" && format.path === "shelf/catalog.json");
-      assert.equal(item?.version, 2);
-      item!.version = 3;
+      assert.equal(item?.version, 1);
+      item!.version = 2;
       return "shelf/catalog.json#format.shelf.catalog";
     }],
     ["a format added that the Home does not have", recorded => {

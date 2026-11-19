@@ -83,10 +83,8 @@ test("Jelly Markdown preserves task IDs, fences, hierarchy, inline formatting an
   const rich = jellyHtmlToBlocks('<ol><li>第一项</li><li>第二项</li></ol><pre><code class="language-ts">const a = 1;</code></pre>'); assert.equal(rich.filter(b => b.kind === "numbered").length, 2); assert.equal(rich.find(b => b.kind === "code")?.language, "ts");
 });
 
-test("Jelly Swift schema5 alternating dictionary import preserves IDs, links, civil dates and original archive", () => {
-  const dt = { year: 2026, month: 9, day: 22 }, timestamp = 1790035200000, noteId = { rawValue: "note-native" }, blockId = { rawValue: "block-native" };
-  const doc = { schemaVersion: 5, state: { revision: 8, calendar: { uncategorizedID: "cat-default", categories: ["cat-default", { id: "cat-default", name: "未分类", colorHex: "#8E8E93", sortIndex: 0 }], items: ["item-native", { id: "item-native", title: "任务", kind: "task", categoryID: "cat-default", schedule: { startDate: dt, endDate: dt }, creationTimeZoneIdentifier: "Asia/Shanghai", createdAt: timestamp, updatedAt: timestamp }], recurrence: { series: [], exceptions: [], completions: [] } }, notes: [noteId, { id: noteId, title: "原笔记", document: { schemaVersion: 1, blocks: [{ id: blockId, kind: "task", inlineContent: { spans: [{ text: "任务", marks: [] }] }, indentLevel: 0, taskState: {} }] }, categoryID: "cat-default", revision: 2, createdAt: timestamp, updatedAt: timestamp }], inspirations: [], calendarNoteRelations: { baselines: [{ item: { _0: "item-native" } }, { primaryNoteID: noteId, referenceNoteIDs: [] }], occurrenceOverrides: [] }, taskBlockLinks: [{ noteID: noteId, blockID: blockId, calendarItemID: "item-native" }], inspirationNoteLinks: [], materialDigests: [] } };
-  const before = JSON.stringify(doc), result = decodeJellyImport(doc); assert.equal(result.workspace.items[0]!.start_date, "2026-09-22"); assert.equal(result.workspace.notes[0]!.blocks[0]!.id, "block-native"); assert.equal(result.workspace.relations[0]!.note_id, "note-native"); assert.deepEqual(result.workspace.imported_sources?.[0]?.source, doc); assert.equal(JSON.stringify(doc), before);
+test("Jelly backup import accepts current schema_version 1 and rejects legacy schemaVersion 5", () => {
+  assert.throws(() => decodeJellyImport({ schemaVersion: 5, state: {} }), /仅支持当前版本/);
 });
 
 test("JLY-27-04: Jelly undo/redo revisions stay above old drafts, including delete and restart recovery", t => {

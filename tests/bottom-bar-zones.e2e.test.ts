@@ -27,14 +27,15 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the first place alone before the
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-dock-pins] [data-top-corner-toggle]') && document.querySelector('.plugin-rail-items [data-plugin-id=jelly] .nav-warn-dot')", 20_000);
 
-  // The strip, left to right, none covering another; the foot holds the line and the input, and no plugin entry.
+  // The strip, left to right, none covering another; the foot holds the input, and no plugin entry.
   const zones = await evaluate<Record<string, unknown>>(`(() => {
     const box = (selector) => document.querySelector(selector).getBoundingClientRect();
     const strip = '.workbench-header[data-dock] ';
-    const dock = box(strip + '[data-dock-pins]'), picker = box(strip + '.plugin-picker'), side = box(strip + '[data-side-toggle]'), layout = box(strip + '[data-layout-open]'), project = box(strip + '.titlebar-end .navigator-project-selector');
+    const dock = box(strip + '[data-dock-pins]'), picker = box(strip + '.plugin-picker'), side = box(strip + '[data-side-toggle]'), layout = box(strip + '[data-layout-open]');
     const foot = document.querySelector('.workbench-bar[data-work-bar]');
     return {
-      order: dock.right <= picker.left + 4 && picker.right <= side.left && side.right <= layout.left && layout.right <= project.left,
+      // From 960px the strip ends at the layout button: the project's mark is not shown (POLISH-05 as rewritten, POLISH-71).
+      order: dock.right <= picker.left + 4 && picker.right <= side.left && side.right <= layout.left && layout.right <= innerWidth && !document.querySelector(strip + '.titlebar-end')?.checkVisibility(),
       dock: [...document.querySelectorAll('[data-dock-pins] > *')].map((node) => node.className),
       own: document.querySelector('[data-bar-own]') !== null,
       foot: [!!foot.querySelector('[data-work-line] [data-assistant-composer]'), foot.querySelectorAll('[data-dock-pin], [data-top-corner], [data-plugin-picker-toggle], .navigator-project-selector').length],
@@ -92,9 +93,9 @@ test("PFG-22 WLN-18 POLISH-07 on a phone the strip is one row of whole 44px targ
       small: targets.filter((node, index) => boxes[index].height < 44 || boxes[index].width < 44).map((node) => node.className),
       overlap: boxes.some((one, index) => boxes.slice(index + 1).some((other) => Math.min(one.right, other.right) - Math.max(one.left, other.left) > 0.5 && Math.min(one.bottom, other.bottom) - Math.max(one.top, other.top) > 0.5)),
       // One row (POLISH-07): the way back, the first place, ＋, the side's switch and the project.
-      // With the dialog closed, the task mark and the button that opens it stand at the end of the line's track: above the input, over nothing of the work.
+      // With the dialog closed, the task mark and the button that opens it stand in the input's top right, beside 在办 (底栏第十三版第 3 条): over nothing of the work.
       rows: new Set(boxes.map((one) => Math.round(one.top))).size, tall: Math.round(strip.getBoundingClientRect().height),
-      mini: (() => { const mini = document.querySelector('[data-reply-mini]')?.getBoundingClientRect(), track = document.querySelector('.work-line-track')?.getBoundingClientRect(); return !!mini && !!track && mini.top >= track.top - 4 && mini.bottom <= track.bottom + 4 && mini.right <= innerWidth; })(),
+      mini: (() => { const mini = document.querySelector('[data-reply-mini]')?.getBoundingClientRect(), slot = document.querySelector('[data-work-line-slot]')?.getBoundingClientRect(); return !!mini && !!slot && mini.top >= slot.top && mini.bottom <= slot.bottom && mini.left >= slot.left && mini.right <= slot.right && mini.right <= innerWidth; })(),
       dock: shown('[data-dock-pins]'),
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin], [data-top-corner])').length };
   })()`);

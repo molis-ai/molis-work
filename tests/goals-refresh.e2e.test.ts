@@ -159,7 +159,7 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     await openDocument(b);
-    await b.click('[data-dock-pin="home"]');
+    await b.click('[data-corner-home]');
     await b.waitFor("document.body.dataset.desktopSurface === 'home'");
     await b.evaluate(`(() => {
       globalThis.__oldGoalDocument = document.querySelector('[data-goal-event-document]');
@@ -220,7 +220,7 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
     await b.waitFor("!document.querySelector('[data-event-form=concern]').hidden");
     await b.evaluate(`(() => { const input = document.querySelector('[data-event-form=concern] [name=statement]');
       input.value = 'Unsubmitted concern stays with its author'; input.dispatchEvent(new Event('input', { bubbles: true })); globalThis.__dirtyConcern = input; })()`);
-    await b.click('[data-dock-pin="home"]');
+    await b.click('[data-corner-home]');
     await b.waitFor("document.body.dataset.desktopSurface === 'home'");
     await addGoal(b.origin, prefix, "AFTER-DIRTY");
     const after = boardSnapshot(b.store, b.projectId!);
@@ -235,7 +235,7 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     await openDocument(b);
-    await b.click('[data-dock-pin="home"]');
+    await b.click('[data-corner-home]');
     await b.waitFor("document.body.dataset.desktopSurface === 'home'");
     const before = await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number };
     await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${before.observed_event_cursor}`);
@@ -274,7 +274,7 @@ test("QEA-114 QEA-199 collection refresh with competing writes and navigation", 
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     await openDocument(b);
-    await b.click('[data-dock-pin="home"]');
+    await b.click('[data-corner-home]');
     await b.waitFor("document.body.dataset.desktopSurface === 'home'");
     const cursor = async () => (await (await fetch(b.origin + prefix + "/api/board/cursor")).json() as { observed_event_cursor: number }).observed_event_cursor;
     await b.waitFor(`document.querySelector('#molis-work-data').boardCursor >= ${await cursor()}`);

@@ -88,7 +88,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the bell shows the line's waiting count");
   // WLN-39 (user decision 2026-11-15): the project bell counts only the line's waiting events. The stored Shelf notice
   // remains reachable from its list, but settling it must not subtract from that independent count.
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-work-line-head]'))"), "this project page has a line head");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-top-corner-toggle]'))"), "this project page has the first place, whose amber count the bell reads (POLISH-15)");
   const waiting = `(() => { const node = document.querySelector(${JSON.stringify(bell)}); return node.hidden ? 0 : Number(/^(\\d+) 件事等你处理$/u.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? 0); })()`;
   const waitingBefore = await evaluate<number>(waiting);
   assert.ok(waitingBefore >= 1, "the seeded line has waiting events");

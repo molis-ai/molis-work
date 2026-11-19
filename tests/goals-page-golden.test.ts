@@ -18,6 +18,9 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // (MOLIS_WORK_GOLDEN_RECORD=1) and every later change to who draws them (T-116 moves the drawing from the workbench and the Host into the
 // Goals package) has to give the same bytes, in both interface languages. Batch 39 (#2105) re-recorded golden.json for the intentional
 // trusted-decision `data-review-version` attributes, unified authorization settings navigation, and retired `policy_bindings` removal.
+// Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
+// checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
+// section became a title over one card.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

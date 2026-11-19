@@ -108,7 +108,7 @@ test("PA-43 the page's markup holds every sentence; its program holds none, asks
 
     const page = await f.request(f.project, "/settings/workspaces");
     assert.equal(page.status, 200);
-    const section = page.text.slice(page.text.indexOf("<section class=\"settings-section\" data-say="), page.text.indexOf("</section>", page.text.indexOf("data-write-checkers>")));
+    const section = page.text.slice(page.text.indexOf("<section class=\"settings-section mw-settings-section\" data-say="), page.text.indexOf("</section>", page.text.indexOf("data-write-checkers>")));
     assert.match(section, /<template data-wc="group">[\s\S]*<h3>\{folder\}<\/h3>[\s\S]*<template data-wc="row">[\s\S]*<template data-wc="remove">/, "the group's name is a heading; the rows and the delete question are templates");
     assert.match(section, /<template data-wc="remove"><dialog class="mw-dialog mw-dialog--alert" data-slot="alert-dialog"[\s\S]*<h2 id="write-checkers-remove-title">删除检查器「\{name\}」？<\/h2>[\s\S]*value="remove"/, "deleting asks in the catalog's alert dialog");
     for (const named of ["添加检查器（{folder}）", "修改 {name}", "上移 {name}", "删除 {name}"]) assert.ok(section.includes(`aria-label="${named}"`), `a button is read out with the name of what it changes: ${named}`);

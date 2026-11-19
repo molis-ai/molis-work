@@ -14,7 +14,10 @@ export const CHARACTERS_STYLES = `
   .roles-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
   .roles-sec-head h2 { margin: 0 auto 0 0; }
   .roles-sec-head > :not(h2) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .roles-page .settings-section > .mw-alert { margin: 12px 0; }
+  .roles-page .mw-settings-section__rows > .mw-alert { margin: 12px 0; }
+  /* POLISH-30: what a section's card starts or ends with keeps clear of the card's edge. */
+  .roles-page .mw-settings-section__rows > .roles-hint { margin: 0; padding: 12px 0 8px; }
+  .roles-page .mw-settings-section__rows > :is(.roles-builtin-list, .roles-inset, .mw-empty):last-child { margin-bottom: 0; padding-bottom: 8px; }
   .roles-page .mw-alert .mw-alert__actions { margin-top: 8px; }
   .roles-ladder { padding: 4px 0 12px; }
   /* The name and its facts keep a readable width; when the row's actions do not fit beside them, they wrap under it, right-aligned. */

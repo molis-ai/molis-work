@@ -10,7 +10,7 @@ import type {
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderSettingRow, renderSettingsSection, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingComposerLabels, codingIntentOptions } from "./composer-labels.js";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
@@ -484,43 +484,44 @@ export const codingSettingsDescriptor: UiContributionDeclaration = {
  */
 export function renderCodingSettings(model: CodingSettingsModel): string {
   const { primitives: p } = model;
+  // POLISH-29/30: the same layout as every settings page: a title outside, one card of rows under it, one thing per row.
   const roles = model.roles.map((role) => {
     const id = CODING_ROLE_IDS.find(id => id === role.role_id);
-    const name = id ? uiText.text(`coding.role.${id}`) : role.name;
-    return `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(name)}</strong><span>${p.escape(role.role_id === "writers" ? uiText.text("coding.settings.role.writers") : role.role_id === "coordinator" ? uiText.text("coding.settings.role.coordinator") : executionLabel(role.execution, p))}</span></div></div>`;
+    return renderSettingRow({
+      name: id ? uiText.text(`coding.role.${id}`) : role.name,
+      hint: role.role_id === "writers" ? uiText.text("coding.settings.role.writers") : role.role_id === "coordinator" ? uiText.text("coding.settings.role.coordinator") : executionLabel(role.execution, p),
+    });
   }).join("");
   const runtimes = model.runtimes.length === 0
-    ? `<p class="model-field-hint">${p.escape(uiText.text("coding.settings.no-runtimes"))}</p>`
-    : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? uiText.text("coding.settings.runtime.write-command") : uiText.text("coding.settings.runtime.write") : uiText.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? uiText.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? uiText.text("coding.settings.runtime.methods-supported") : uiText.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
+    ? `<p class="mw-settings-section__note">${p.escape(uiText.text("coding.settings.no-runtimes"))}</p>`
+    : model.runtimes.map((runtime) => renderSettingRow({
+      name: runtime.display_name,
+      // Two sentences, both too long for the control's place: what it may do, then how it reads skills.
+      hint: `${runtime.can_write ? runtime.can_command ? uiText.text("coding.settings.runtime.write-command") : uiText.text("coding.settings.runtime.write") : uiText.text("coding.settings.runtime.read-only")} ${runtime.methods === "partial" ? uiText.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? uiText.text("coding.settings.runtime.methods-supported") : uiText.text("coding.settings.runtime.methods-none")}`,
+    })).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
     <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
       <p>${p.escape(uiText.text("coding.settings.lede"))}</p>
     </header>
-    <section class="settings-section" aria-label="${p.escape(uiText.text("coding.attach.character"))}">
-      <h2>${p.escape(uiText.text("coding.settings.roles"))}</h2>
-      ${roles}
-    </section>
-    <section class="settings-section" aria-label="${p.escape(uiText.text("coding.settings.runtimes"))}">
-      <h2>${p.escape(uiText.text("coding.settings.runtimes"))}</h2>
-      ${runtimes}
-    </section>
-    <section class="settings-section" aria-label="${p.escape(uiText.text("coding.settings.mcp.title"))}">
-      ${model.project_href ? `<p>${p.escape(uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a></p>
-      <section data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
-        <h2>${p.escape(uiText.text("coding.settings.mcp.title"))}</h2><p>${p.escape(uiText.text("coding.settings.mcp.note"))}</p>
-        <div data-mcp-servers></div>
-        <h3 data-mcp-form-title>${p.escape(uiText.text("coding.settings.mcp.add"))}</h3>
-        <form data-mcp-config class="mw-form-stack">
+    ${renderSettingsSection({ title: uiText.text("coding.settings.roles"), body: roles, attrs: { "aria-label": uiText.text("coding.attach.character") } })}
+    ${renderSettingsSection({ title: uiText.text("coding.settings.runtimes"), body: runtimes, attrs: { "aria-label": uiText.text("coding.settings.runtimes") } })}
+    ${model.project_href ? `<div data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
+      ${renderSettingsSection({ title: uiText.text("coding.settings.mcp.title"), attrs: { "aria-label": uiText.text("coding.settings.mcp.title") }, body: `${renderSettingRow({
+        name: uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }),
+        hint: uiText.text("coding.settings.mcp.note"),
+        control: `<a class="mw-btn mw-btn--secondary" href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a>`,
+      })}<div class="mw-settings-section__block" data-mcp-servers></div>` })}
+      ${renderSettingsSection({ title: uiText.text("coding.settings.mcp.add"), titleAttrs: { "data-mcp-form-title": true }, body: `<form data-mcp-config class="mw-settings-section__block coding-mcp-fields">
           <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.name"))}<input class="mw-input" name="label" required maxlength="128" aria-label="${p.escape(uiText.text("coding.settings.mcp.name-label"))}"></label>
           <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.transport"))}<select class="mw-select" name="transport" aria-label="${p.escape(uiText.text("coding.settings.mcp.transport-label"))}"><option value="http">${p.escape(uiText.text("coding.settings.mcp.transport.http"))}</option><option value="stdio">${p.escape(uiText.text("coding.settings.mcp.transport.stdio"))}</option></select></label>
-          <div data-mcp-stdio class="mw-form-stack">
+          <div data-mcp-stdio class="coding-mcp-fields">
             <label class="mw-field">${p.escape(uiText.text("coding.settings.granted-workspace"))}<select class="mw-select" name="workspace" aria-label="${p.escape(uiText.text("coding.settings.mcp.workspace-label"))}"></select></label>
             <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.executable"))}<input class="mw-input" name="executable" aria-label="${p.escape(uiText.text("coding.settings.mcp.executable-label"))}"></label>
             <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.argv"))}<textarea class="mw-textarea" name="argv" aria-label="${p.escape(uiText.text("coding.settings.mcp.argv-label"))}">[]</textarea></label>
             <p>${p.escape(uiText.text("coding.settings.mcp.stdio-note"))}</p>
           </div>
-          <div data-mcp-http class="mw-form-stack" hidden>
+          <div data-mcp-http class="coding-mcp-fields" hidden>
             <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.endpoint"))}<input class="mw-input" name="endpoint" aria-label="${p.escape(uiText.text("coding.settings.mcp.endpoint-label"))}" placeholder="https://example.com/mcp"></label>
             <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.auth"))}<select class="mw-select" name="auth" aria-label="${p.escape(uiText.text("coding.settings.mcp.auth-label"))}"><option value="none">${p.escape(uiText.text("coding.settings.mcp.auth.none"))}</option><option value="connection">${p.escape(uiText.text("coding.settings.mcp.auth.connection"))}</option><option value="keep-existing">${p.escape(uiText.text("coding.settings.mcp.auth.keep"))}</option></select></label>
             <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.account"))}<select class="mw-select" name="auth_connection_id" aria-label="${p.escape(uiText.text("coding.settings.mcp.account-label"))}"><option value="">${p.escape(uiText.text("coding.settings.mcp.choose-connection"))}</option></select></label><p>${p.escape(uiText.text("coding.settings.mcp.http-note"))}</p><a href="/capabilities/connections">${p.escape(uiText.text("coding.settings.mcp.connections"))}</a>
@@ -528,9 +529,11 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
           <label class="mw-field">${p.escape(uiText.text("coding.settings.mcp.timeout"))}<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="${p.escape(uiText.text("coding.settings.mcp.timeout-label"))}"></label>
           <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>${p.escape(uiText.text("coding.settings.mcp.enabled"))}</label>
           <div>${renderButton({label:uiText.text("coding.settings.mcp.save"),type:"submit"})} ${renderButton({label:uiText.text("coding.settings.mcp.reset"),variant:"ghost",attrs:{"data-mcp-reset":""}})}</div>
-        </form><p role="status" data-mcp-status>${p.escape(uiText.text("coding.settings.mcp.loading"))}</p>
-      </section>` : `<p>${p.escape(uiText.text("coding.settings.choose-project"))}</p><ul>${(model.projects ?? []).map(project => `<li><a href="/settings/coding-settings?project=${encodeURIComponent(project.project_id)}">${p.escape(project.name)}</a></li>`).join("")}</ul>`}
-    </section>
+        </form><p class="mw-settings-section__note" role="status" data-mcp-status>${p.escape(uiText.text("coding.settings.mcp.loading"))}</p>` })}
+    </div>` : renderSettingsSection({ title: uiText.text("coding.settings.mcp.title"), attrs: { "aria-label": uiText.text("coding.settings.mcp.title") }, body: `<p class="mw-settings-section__note">${p.escape(uiText.text("coding.settings.choose-project"))}</p>${(model.projects ?? []).map(project => renderSettingRow({
+      name: project.name,
+      control: `<a class="mw-btn mw-btn--ghost" href="/settings/coding-settings?project=${encodeURIComponent(project.project_id)}" aria-label="${p.escape(project.name)}">${icon("chevron-right")}</a>`,
+    })).join("")}` })}
   </section>`;
 }
 

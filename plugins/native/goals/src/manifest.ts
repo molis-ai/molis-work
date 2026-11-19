@@ -10,6 +10,7 @@ import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
 import { PROJECT_GUIDANCE_READ_PERMISSION } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
@@ -89,8 +90,11 @@ export const goalsManifest: PluginManifest = {
     { permission: PROJECT_GUIDANCE_READ_PERMISSION, required: true, reason: "目标的工作终端先读项目说明" },
     { permission: "terminal:run", required: true, reason: "在项目的工作目录里为目标打开工作终端" },
     { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
+    { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
+    { permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
+  capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
   actions: [...GOALS_ACTIONS, ...GOALS_TERMINAL_ACTIONS, ...goalsPresentationActions],
   presentation: goalsPresentation,
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).

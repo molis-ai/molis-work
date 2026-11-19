@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApprovalRuleOwner, ProjectDecisionHistory, ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import type { SqliteBaselineDatabase, SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { assertFrozenProjectReview, assertProjectReviewCoverage } from "./coverage.js";
 
 type Person = Pick<ProjectTrustedDecision, "actor_id" | "source">;
@@ -159,6 +159,28 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
       return { record, replayed: false };
     },
   };
+}
+
+/**
+ * The project library's 5→6 step only (batch 44 item 3, CONTRACT-CHANGES 「当前保留机制」, user 2026-11-19): a Goal decision's outcome
+ * no longer holds the person's requirement conclusions, which moved to the platform's acceptance, so a record that froze the old digest
+ * gets the new one. `moved` names, for a record's decision, the digest it froze before and the one it has now (null: unchanged). Only a
+ * record whose frozen digest is exactly the old one changes; one that already holds the new one is left as it is; any other digest
+ * refuses (the record is not what the step knows). Nothing else in a record changes. Runs inside the step's transaction. Delete with
+ * the project library's version-5 golden support.
+ */
+export function refreezeMovedOutcomeDigests(db: SqliteBaselineDatabase, projectId: string,
+  moved: (decisionId: string) => { readonly previous: string; readonly next: string } | null): void {
+  const rows = db.prepare("SELECT decision_id, record_json FROM project_review_decisions WHERE project_id = ? ORDER BY decision_id").all(projectId) as Array<{ decision_id: string; record_json: string }>;
+  for (const row of rows) {
+    const record = JSON.parse(row.record_json) as ProjectTrustedDecision;
+    if (record.outcome_digest === undefined) continue;
+    const digests = moved(row.decision_id);
+    if (!digests || record.outcome_digest === digests.next) continue;
+    if (record.outcome_digest !== digests.previous) throw new ActionError("actions.conflict", "原决定记下的业务结果与升级前的不符，项目库已保留");
+    db.prepare("UPDATE project_review_decisions SET record_json = ? WHERE project_id = ? AND decision_id = ? AND record_json = ?")
+      .run(canonicalJsonText({ ...record, outcome_digest: digests.next }, "null"), projectId, row.decision_id, row.record_json);
+  }
 }
 
 export function readProjectReviewDecision(db: { prepare(sql: string): { get(...params: string[]): unknown } }, projectId: string, id: string, owner?: Owner): DecisionHistory | null {

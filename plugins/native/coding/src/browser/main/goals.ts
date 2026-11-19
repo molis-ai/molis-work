@@ -38,10 +38,10 @@ export function renderGoalPreview(page: Page) {
     content.style.whiteSpace = "pre-wrap";
     region.append(el("strong", title), content);
   }
-  const requirements = choice.snapshot.state.requirements;
+  const requirements = choice.snapshot.requirements ?? [];
   if (requirements.length) {
     const list = el("ul");
-    for (const item of requirements) list.append(el("li", item.human_decision_required ? uiText.text("coding.goal.needs-person", { statement: item.statement }) : item.statement));
+    for (const item of requirements) list.append(el("li", item.requires_person ? uiText.text("coding.goal.needs-person", { statement: item.statement }) : item.statement));
     region.append(el("strong", uiText.text("coding.goal.requirements")), list);
   }
   const missing = sections.filter(item => !item[1]).map(item => item[0]);

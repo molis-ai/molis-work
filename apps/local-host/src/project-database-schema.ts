@@ -7,6 +7,7 @@ import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_R
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
+import { ACCEPTANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-acceptance";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
@@ -111,6 +112,6 @@ export const projectLibraryV6Step: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
   version: /* @version database.project_database_baseline */ 6,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V5, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}\n${PROJECT_GUIDANCE_SCHEMA_SQL}`,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V5, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}\n${PROJECT_GUIDANCE_SCHEMA_SQL}\n${ACCEPTANCE_SCHEMA_SQL}`,
   upgrades: PROJECT_DATABASE_UPGRADES,
 };

@@ -1,0 +1,129 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test, { type TestContext } from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AcceptanceSubject, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { acceptanceReplica, acceptanceSyncKey, importAcceptanceHandover, openAcceptance } from "@molis-ai/molis-work-module-acceptance";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+
+// The platform's requirements and acceptance between one person's devices (contract-design §10.5, user 2026-11-18 「Add sync now」): one
+// key per subject; requirements and deliveries only move forward, checks and decisions are a union, a copy each side went on with is a
+// conflict that stops that subject until the person picks a side, and a synced decision counts once its trusted-decision record is here.
+
+const at = "2026-11-18T09:00:00.000Z";
+const SUBJECT: AcceptanceSubject = { provider_id: "plugin.sample", subject: { kind: "task", id: "t1" } };
+const PROVIDER = { project_id: "p1", actor_id: "plugin.sample", person: false, session: null };
+const PERSON = { project_id: "p1", actor_id: "web-user", person: true, session: null };
+const NO_EVIDENCE = { artifactReadable: async () => false, checkRun: async () => "none" as const, stopped: () => false };
+
+function device(t: TestContext) {
+  const directory = mkdtempSync(join(tmpdir(), "acceptance-sync-"));
+  const store = new LocalProjectDatabase(join(directory, "molis-work.db"));
+  t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
+  writeProjectRoot(store.db, "p1", at);
+  // The trusted-decision records this device holds; a synced decision counts only once its record is here too (§10.9 question 11).
+  const records = new Set<string>();
+  let revoked = false;
+  const service = openAcceptance(store.db, "p1", { now: () => at, vouched: id => records.has(id) });
+  const replica = acceptanceReplica(store.db, "p1", "same-space", () => { if (revoked) throw new ActionError("actions.forbidden", "sync selection revoked"); });
+  const view = (): AcceptanceView => service.read(PROVIDER, { subjects: [SUBJECT] }).views[0]!;
+  const rows = () => ["requirements", "deliveries", "checks", "decisions"].map(table =>
+    JSON.stringify(store.db.prepare(`SELECT r.* FROM acceptance_${table} r JOIN acceptance_subjects s USING (subject_no) ORDER BY 2, 3, 4`).all()));
+  return { store, service, replica, records, view, rows, revoke: (value: boolean) => { revoked = value; } };
+}
+
+type Device = ReturnType<typeof device>;
+/** Everything `from` has to send, received by `to` at the next revision, and acknowledged back. */
+function send(from: Device, to: Device, revision: { value: number }) {
+  for (let change = from.replica.next(); change; change = from.replica.next()) {
+    revision.value += 1;
+    to.replica.receive({ ...change, revision: revision.value });
+    from.replica.acknowledge(change.key, change.operationId, revision.value);
+  }
+}
+
+test("PEQ-16 acceptance sync carries requirements, deliveries, checks and decisions, replays a retry, refuses a revoked selection, and counts a decision only with its record", async t => {
+  const a = device(t), b = device(t), revision = { value: 0 };
+  a.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "能打开", requires_person: false }, { id: "r2", statement: "看得懂", requires_person: true }] });
+  await a.service.deliver(PROVIDER, { subject: SUBJECT, version: "v1" }, NO_EVIDENCE);
+  const first = a.replica.next()!;
+  assert.equal(first.key, acceptanceSyncKey("p1", SUBJECT), "one key per subject");
+  b.replica.receive({ ...first, revision: 1 });
+  b.replica.receive({ ...first, revision: 1 }, { retry: true });
+  a.replica.acknowledge(first.key, first.operationId, 1);
+  revision.value = 1;
+  assert.deepEqual(b.rows(), a.rows(), "the second device has the same requirements and delivery");
+  assert.deepEqual(b.view().requirements.map(item => [item.id, item.statement, item.version]), [["r1", "能打开", 1], ["r2", "看得懂", 1]]);
+
+  // A check on one device and the person's decision on the other: each travels, and both end up with both (a union).
+  await b.service.report(PROVIDER, { subject: SUBJECT, reports: [{ requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "打开页面", observed: "能打开" }] }, NO_EVIDENCE);
+  // As the Host commits it: the trusted-decision record goes in with the item decisions.
+  const decided = a.service.decide(PERSON, { subject: SUBJECT, version: "v1", accepts: [{ id: "r2", version: 1 }], returns: [] }, "decision-1", () => a.records.add("decision-1"));
+  assert.equal(decided.requirements.find(item => item.id === "r2")?.person, "accepted");
+  send(b, a, revision);
+  send(a, b, revision);
+  assert.deepEqual(b.rows(), a.rows(), "both devices hold the check and the decision");
+
+  // The decision reached the second device before its trusted-decision record: it waits, and counts once the record is there.
+  const waiting = b.view().requirements.find(item => item.id === "r2")!;
+  assert.deepEqual([waiting.person, waiting.awaiting_voucher, waiting.satisfied], ["pending", true, false]);
+  b.records.add("decision-1");
+  assert.deepEqual(b.view().requirements.find(item => item.id === "r2")?.person, "accepted");
+
+  // A revoked selection refuses the next change and leaves the cursor where it was.
+  await a.service.deliver(PROVIDER, { subject: SUBJECT, version: "v2", touches: ["r1"] }, NO_EVIDENCE);
+  const second = a.replica.next()!;
+  b.revoke(true);
+  const cursor = b.replica.cursor();
+  assert.throws(() => b.replica.receive({ ...second, revision: revision.value + 1 }), { code: "actions.forbidden" });
+  assert.equal(b.replica.cursor(), cursor);
+  b.revoke(false);
+  b.replica.receive({ ...second, revision: revision.value + 1 });
+  assert.equal(b.view().round, 2, "the delivery moved forward");
+});
+
+test("PEQ-16 two devices that each changed the requirements conflict and stop syncing that subject; taking the other copy converges byte for byte, and the logs refuse edits otherwise", async t => {
+  const a = device(t), b = device(t), revision = { value: 0 };
+  a.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "能打开", requires_person: false }] });
+  send(a, b, revision);
+  assert.deepEqual(b.rows(), a.rows());
+
+  // Offline, each device lists one more requirement of its own.
+  a.service.set(PERSON, { subject: SUBJECT, requirements: [{ id: "r1", statement: "能打开", requires_person: false }, { id: "ra", statement: "A 加的", requires_person: false }] });
+  b.service.set(PERSON, { subject: SUBJECT, requirements: [{ id: "r1", statement: "能打开", requires_person: false }, { id: "rb", statement: "B 加的", requires_person: false }] });
+  const fromA = a.replica.next()!;
+  b.replica.receive({ ...fromA, revision: revision.value + 1 });
+  assert.equal(b.replica.conflicts().length, 1, "both went on: a conflict, both copies kept");
+  assert.deepEqual(b.view().requirements.map(item => item.id), ["r1", "rb"], "the local copy stays until the person picks a side");
+  assert.equal(b.replica.next(), null, "a subject in conflict stops syncing");
+
+  // Without the person's choice the logs are append-only.
+  assert.throws(() => b.store.db.prepare("DELETE FROM acceptance_requirements").run(), /只追加|append|abort|ABORT/i);
+
+  // The person takes the other device's copy: the subject's rows are replaced whole, and the two devices hold the same bytes.
+  b.replica.resolve(fromA.key, "remote");
+  assert.deepEqual(b.replica.conflicts(), []);
+  assert.deepEqual(b.rows(), a.rows());
+  assert.deepEqual(b.view().requirements.map(item => item.id), ["r1", "ra"]);
+});
+
+test("PEQ-16 a decision moved from Goals counts on the second device without a platform record (trusted as far as the sync itself)", async t => {
+  const a = device(t), b = device(t), revision = { value: 0 };
+  const goal: AcceptanceSubject = { provider_id: "io.molis.work.goals", subject: { kind: "goal", id: "G1" } };
+  // What the 5→6 step writes for a Goal whose requirement the person accepted in Goals (origin `goals_v5`).
+  a.store.db.transaction(() => importAcceptanceHandover(a.store.db, "p1", [{
+    subject: goal, created_at: at,
+    requirements: [{ requirement_id: "g1", version: 1, statement: "从 Goals 搬来", expected: null, part: null, requires_person: true, withdrawn: false, position: 0, by_person: false, actor_id: "runtime-1", created_at: at }],
+    deliveries: [{ round: 1, version: "goal-decision:d1", touches: null, actor_id: "system:upgrade", delivered_at: at }],
+    checks: [],
+    decisions: [{ decision_id: "d1", clock: 1, requirement_id: "g1", requirement_version: 1, stands_round: 1, version: "goal-decision:d1", decision: "accepted", note: null,
+      origin_ref: "gov-1", actor_id: "web-user", decided_at: at }],
+    satisfied: { g1: true },
+  }])).immediate();
+  send(a, b, revision);
+  const moved = b.service.read(PROVIDER, { subjects: [goal] }).views[0]!.requirements[0]!;
+  assert.deepEqual([moved.person, moved.satisfied, moved.decision?.origin], ["accepted", true, "goals_v5"], "trusted as far as the sync itself");
+});

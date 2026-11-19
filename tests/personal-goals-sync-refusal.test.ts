@@ -74,37 +74,33 @@ test('APR-19 Goal sync preserves the exact recorded outcome across invalid snaps
   await actions.invoke(caller, goalsActions.create, { goal_id: goal, title: 'Compare the delivered result across Homes',
     idempotency_key: 'sync-owner-new-goal', requirements: [{ requirement_id: requirement, statement: 'Person compared the result', human_decision_required: true }] });
   const { decision_request } = await actions.invoke(caller, goalsActions.requestDecision, { goal_id: goal, idempotency_key: 'sync-owner-request',
-    question: 'Did the result meet the requirement?', options: [{ option_id: 'yes', label: 'Met', impact: 'Record the conclusion' },
-      { option_id: 'no', label: 'More work', impact: 'Keep working' }], purpose: 'requirement_acceptance',
-    scope: { requirement_ids: [requirement] },
+    question: 'Can this Goal be completed?', options: [{ option_id: 'yes', label: 'Complete', impact: 'Record the authorization' },
+      { option_id: 'no', label: 'More work', impact: 'Keep working' }], purpose: 'action',
+    scope: { action: 'complete' },
   }) as { decision_request: { request_id: string } };
   const server = new MolisWorkServer('management', null, null, f.host);
   t.after(() => server.close());
   const reviews = mcpGoalReviews(server, p, f.project.database_path);
   const review = await reviews.prepare(goalsActions.decide, { goal_id: goal, request_id: decision_request.request_id,
     idempotency_key: 'sync-owner-decision', selected_option_id: 'yes', conclusion: 'Compared the delivered result',
-    scope: { requirement_ids: [requirement] }, effects: [{ kind: 'accept_requirements' }] });
+    scope: { action: 'complete' }, effects: [{ kind: 'authorize_action', action: 'complete' }] });
   const { record } = await reviews.submit(review);
   assert.match(record.outcome_digest ?? '', /^sha256:[a-f0-9]{64}$/u);
   await f.enable();
   const valid = f.events[0]!;
   const snapshot = () => f.edit(1, (app, store) => ({
     state: app.goalEvents.readState(p, goal),
-    conclusions: store.db.prepare<[], { verdict: string }>('SELECT * FROM goal_event_requirement_conclusions ORDER BY requirement_id').all(),
     approvals: store.db.prepare<[], { record_json: string }>('SELECT record_json FROM project_review_decisions ORDER BY decision_id').all(),
   }));
   const before = snapshot();
   assert.equal(before.approvals.length, 1);
   assert.deepEqual(JSON.parse(String(before.approvals[0]?.record_json)), record);
-  assert.equal(before.conclusions[0]?.verdict, 'accepted');
+  assert.equal(before.state.applied_decisions.length, 1);
   let revision = valid.revision;
   for (const edit of [
     (goals: ProjectReplicaRows) => { goals.goal_event_applied_decisions![0]!.commitment_json = '{"outcome":"changed","requirements":[]}'; },
-    (goals: ProjectReplicaRows) => { goals.goal_event_requirement_conclusions![0]!.verdict = 'rejected'; },
-    (goals: ProjectReplicaRows) => {
-      goals.goal_event_requirement_conclusions!.splice(0);
-      goals.goal_event_applied_decisions!.splice(0);
-    },
+    (goals: ProjectReplicaRows) => { goals.goal_event_applied_decisions![0]!.conclusion = 'Something else was decided'; },
+    (goals: ProjectReplicaRows) => { goals.goal_event_applied_decisions!.splice(0); },
   ]) {
     const value = structuredClone(valid.value);
     edit((goalWire(value) as GoalWire).facts.goals!);

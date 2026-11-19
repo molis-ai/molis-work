@@ -21,7 +21,7 @@ import { text, identifier, count, boolean, object, nullable, goalEventSchema, go
 import { listGoalDocumentHistory } from "./event-document-model.js";
 import { readGoalHistory, type GoalHistoryQueryPorts, type GoalHistoryReadResult } from "./history-query.js";
 import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-history-map.js";
-import { goalDocumentAction, createGoalDocumentActionHandler, readGoalDocument } from "./document-action.js";
+import { goalDocumentAction, createGoalDocumentActionHandler, readGoalDocument, type GoalAcceptanceViews } from "./document-action.js";
 import { goalsStageAction, createGoalsStageActionHandler } from "./stage-action.js";
 import { buildGoalsDocumentCollection, readGoalsMembership } from "./document-collection.js";
 import type { GoalContractView } from "./goal-entry-contract.js";
@@ -176,7 +176,7 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     createGoalsCollectionActionHandler(projectId, collection),
     createGoalsStageActionHandler({ membership: () => readGoalsMembership(collection, projectId),
       collection: (membership, capturePresentation) => buildGoalsDocumentCollection(collection, projectId, membership, capturePresentation),
-      document: goalId => readGoalDocument(projectId, { goal: readGoal, events, history }, goalId) }),
+      document: (goalId, acceptance) => readGoalDocument(projectId, { goal: readGoal, events, history }, goalId, acceptance) }),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },
     { ...goalsActions.contract, handle: (_caller, input) => readContract((input as GoalReadActionInput).goal_id) },
     createGoalDocumentActionHandler(projectId, { goal: readGoal, events, history }),
@@ -201,8 +201,9 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     { ...goalsActions.event, handle: (_caller, input) => { const query = input as GoalReadActionInput & { event_id: string }; return events.readEvent(projectId, query.goal_id, query.event_id); } },
     { ...goalsActions.history, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalDocumentHistoryQuery;
       return listGoalDocumentHistory({ projectId, goalId: goal_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents(), query }); } },
-    { ...goalsActions.historyItem, handle: (_caller, input) => { const query = input as GoalReadActionInput & { item_id: string };
-      return readGoalHistory({ projectId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
+    { ...goalsActions.historyItem, handle: (_caller, input, acceptance?: GoalAcceptanceViews) => { const query = input as GoalReadActionInput & { item_id: string };
+      return readGoalHistory({ projectId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents(),
+        acceptance: acceptance?.get(query.goal_id) ?? null }); } },
     { ...goalsActions.create, handle: (caller, input) => {
       const payload = input as GoalCreateActionInput;
       // The creation channel is a fact about who asked: only the person may name one (directly, or through the action of the plugin that owns

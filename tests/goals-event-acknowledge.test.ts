@@ -185,7 +185,7 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
     await r.person.invoke(goalsActions.report, { goal_id, idempotency_key: "report", events: [{ type_id: "story", type_version: 1, title: "做出了开场", fields: { piece: "开场洞穴" } }] });
     const state = await r.person.invoke(goalsActions.state, { goal_id });
     await r.person.invoke(goalsActions.agree, { goal_id, idempotency_key: "agree", expected_config_version: state.config.version, expected_agreement_version: state.agreement.version,
-      new_requirements: [{ requirement_id: "api-first", statement: "接口先于页面" }] });
+      outcome: "接口先于页面上线" });
     const records = await r.events(goal_id);
     const idOf = (match: (event: GoalWorkEventRecord) => boolean) => records.find(match)!.event_id;
     const answered = [

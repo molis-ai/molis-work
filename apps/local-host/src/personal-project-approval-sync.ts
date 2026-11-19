@@ -1,12 +1,13 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { partitionedReplica, syncNamespace, type SyncRegistration, type SyncSelection } from "@molis-ai/molis-work-module-sync-replication";
+import { ACCEPTANCE_JOURNAL, acceptanceReplica } from "@molis-ai/molis-work-module-acceptance";
 import { PROJECT_GUIDANCE_JOURNAL, projectGuidanceReplica } from "@molis-ai/molis-work-module-projects";
 import { PROJECT_APPROVALS_JOURNAL, projectApprovalReplica } from "@molis-ai/molis-work-service-project-approvals";
 import type { ReplicaDatabase, SqliteReplica } from "@molis-ai/molis-work-storage";
 import { createSyncJsonContent } from "@molis-ai/molis-work-plugin-sdk";
 import { readDatabaseSpace } from "@molis-ai/molis-work-storage";
 import { LocalProjectDatabase } from "./project-database.js";
-import { PLATFORM_SYNC_COLLECTIONS, type PlatformSyncCollection } from "./platform-sync-catalog.js";
+import { PLATFORM_SYNC_COLLECTIONS, projectApprovalSyncSelection, type PlatformSyncCollection } from "./platform-sync-catalog.js";
 import type { SyncCatalogReader } from "./personal-runtime-sync-authority.js";
 import { projectSyncCatalog } from "./project-sync-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -29,9 +30,24 @@ export function createProjectGuidanceSyncRegistration(home: string, spaceId: str
   home, spaceId, check, withCatalog, readCatalog, selected);
 }
 
-/** One platform collection kept in each project's library, one key per project, under the person's selection of it. */
+/**
+ * A project's requirements and acceptance (contract-design §10.5): one key per subject, its own opt-in selection, and the approvals
+ * collection selected with it, since a decision made through the trusted-decision entry counts only once its record has come too.
+ */
+export function createAcceptanceSyncRegistration(home: string, spaceId: string, check: () => void, withCatalog: LocalWebCatalogRunner,
+  readCatalog: SyncCatalogReader | undefined, selected: Selected): SyncRegistration {
+  return projectPlatformSyncRegistration({ owner: "acceptance", journal: ACCEPTANCE_JOURNAL, replica: acceptanceReplica, keyLength: 5, dependencies: [projectApprovalSyncSelection],
+    denied: "要求与认可同步授权或原项目已变化", locate: project => "/projects/" + encodeURIComponent(project) },
+  home, spaceId, check, withCatalog, readCatalog, selected);
+}
+
+/**
+ * One platform collection kept in each project's library under the person's selection of it: one key per project
+ * (`[project, journal, project]`), or, with `keyLength`, one per object of a project (`[project, journal, …]`).
+ */
 function projectPlatformSyncRegistration(owner: {
   readonly owner: PlatformSyncCollection["owner"]; readonly journal: string; readonly denied: string; locate(projectId: string): string;
+  readonly keyLength?: number; readonly dependencies?: readonly SyncSelection[];
   replica(db: ReplicaDatabase, projectId: string, spaceId: string, authorize: () => void): SqliteReplica;
 }, home: string, spaceId: string, check: () => void, withCatalog: LocalWebCatalogRunner, readCatalog: SyncCatalogReader | undefined,
   selected: Selected): SyncRegistration {
@@ -46,7 +62,8 @@ function projectPlatformSyncRegistration(owner: {
   const keyProject = (key: string) => {
     let found: unknown;
     try { found = JSON.parse(key); } catch { throw denied(); }
-    if (!Array.isArray(found) || found.length !== 3 || typeof found[0] !== "string" || found[0] !== found[2] || found[1] !== owner.journal) throw denied();
+    if (!Array.isArray(found) || typeof found[0] !== "string" || found[1] !== owner.journal) throw denied();
+    if (owner.keyLength === undefined ? found.length !== 3 || found[0] !== found[2] : found.length !== owner.keyLength || !found.slice(2).every(part => typeof part === "string" && part)) throw denied();
     return found[0];
   };
   const requireSelected = (revision: number) => {
@@ -60,7 +77,7 @@ function projectPlatformSyncRegistration(owner: {
     return row;
   };
   return {
-    selection, title,
+    selection, title, ...(owner.dependencies ? { dependencies: owner.dependencies } : {}),
     content: createSyncJsonContent({ spaceId, authorize: () => requireSelected(selected().revision) }),
     locate: key => owner.locate(keyProject(key)),
     async refresh() { check(); await withCatalog({ homeDirectory: home }, () => undefined); check(); },

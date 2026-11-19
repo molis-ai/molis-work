@@ -114,10 +114,11 @@ export function work(app: GoalProjectApplication, project: string, id = 'goal-ma
   const base = { project_id: project, goal_id: id, actor_id: 'runtime-1', actor_kind: 'runtime' as const };
   app.goalEvents.createIntent({ ...base, title: '可移植的目标', outcome: '设备上可检查', idempotency_key: `${id}:intent` });
   app.goalEvents.configure({ ...base, expected_version: 0, idempotency_key: `${id}:config`, types: [{ type_id: 'delivery', version: 1, name: '交付', purpose: '结果', semantic_family: 'delivery', source: { kind: 'runtime', label: 'Goal' }, fields: [{ field_id: 'piece', name: '结果', purpose: '结果', format: 'text', required: true }] }] });
-  const state = app.goalEvents.readState(project, id);
-  app.goalEvents.setAgreement({ ...base, expected_config_version: state.config.version, expected_agreement_version: state.agreement.version, idempotency_key: `${id}:agreement`, new_requirements: [{ requirement_id: `${id}:requirement`, statement: '检查得到结果', human_decision_required: true }] });
-  app.goalEvents.report({ ...base, idempotency_key: `${id}:report`, events: [{ type_id: 'delivery', type_version: 1, title: '已交付', fields: { piece: '结果' }, judgments: [{ requirement_id: `${id}:requirement`, verdict: 'supports' }] }] });
-  app.goalEvents.recordTrustedDecision({ project_id: project, goal_id: id, idempotency_key: `${id}:decision`, authority: { actor_id: 'alice', actor_kind: 'user', authority_source: 'web', conversation_ref: `web:${project}`, message_ref: `decision:${id}` }, conclusion: '确认交付', accepts_requirements: true, scope: { requirement_ids: [`${id}:requirement`] } });
+  // The requirement and the person's acceptance are the platform's (contract-design §10); Goals keeps the work and the decisions.
+  app.setRequirements(project, id, [{ requirement_id: `${id}:requirement`, statement: '检查得到结果', human_decision_required: true }]);
+  app.goalEvents.report({ ...base, idempotency_key: `${id}:report`, events: [{ type_id: 'delivery', type_version: 1, title: '已交付', fields: { piece: '结果' } }] });
+  app.decide(project, id, [`${id}:requirement`]);
+  app.goalEvents.recordTrustedDecision({ project_id: project, goal_id: id, idempotency_key: `${id}:decision`, authority: { actor_id: 'alice', actor_kind: 'user', authority_source: 'web', conversation_ref: `web:${project}`, message_ref: `decision:${id}` }, conclusion: '确认交付', effects: [{ kind: 'authorize_action', action: 'complete' }], scope: { action: 'complete' } });
   const ready = app.goalEvents.readState(project, id);
   const close = app.goalEvents.submitClosure({ ...base, idempotency_key: `${id}:close`, kind: 'complete', result: '设备上已验证结果', reason: '验收完成', expected_config_version: ready.config.version, expected_agreement_version: ready.agreement.version });
   assert.equal(close.completion_applied, true, JSON.stringify(close.unmet_reasons));

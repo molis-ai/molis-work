@@ -56,6 +56,8 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     const nested: ActionExecutionContext = { ...original, delegated_by: manifest.plugin_id };
     // Where the action that runs the scene was handed in from is that action's own fact, one hop; the scene's targets are not told it (BL-803).
     Reflect.deleteProperty(nested, "delegated_action"); Reflect.deleteProperty(nested, "direct_person_entry");
+    // Nor whose object a Host grant was for (S-acceptance-subject-owner).
+    Reflect.deleteProperty(nested, "acting_for");
     const result = await run(nested, scope);
     check();
     return result;

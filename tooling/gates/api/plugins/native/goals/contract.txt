@@ -38,6 +38,7 @@ export interface ApplyGoalConcernInput {
     reason?: string;
     supporting_event_ids?: string[];
     cited_decision_id?: string;
+    acceptance?: GoalAcceptanceReading;
     cited_subjects?: GoalCitedSubject[];
 }
 
@@ -57,6 +58,7 @@ export interface CiteGoalDecisionInput {
     idempotency_key: string;
     decision_id: string;
     scope?: Partial<GoalEventScope>;
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface ConfigureGoalEventsApplicationInput {
@@ -68,6 +70,7 @@ export interface ConfigureGoalEventsApplicationInput {
     idempotency_key: string;
     types?: GoalEventTypeDefinitionInput[];
     requirement_bindings?: GoalEventRequirementBinding[];
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface ConfigureGoalEventsInput {
@@ -79,6 +82,7 @@ export interface ConfigureGoalEventsInput {
     idempotency_key: string;
     types?: GoalEventTypeDefinitionInput[];
     requirement_bindings?: GoalEventRequirementBinding[];
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface ConfigureGoalEventsResult {
@@ -219,8 +223,6 @@ export declare const GOALS_TREE_SUBMIT_RESULT: ActionResultView;
 
 export declare const GOAL_CONCERN_CITED_SUBJECT_LIMIT = 8;
 
-export declare const GOAL_EVENT_EVIDENCE_MAX = 8;
-
 export declare const GOAL_MATERIAL_SNAPSHOT_SOURCE = "material_snapshot";
 
 export declare const GOAL_PLUGIN_OBJECT_SOURCE = "plugin_object";
@@ -233,6 +235,12 @@ export interface GoalAcceptanceCriterion {
     pass_condition: string;
     target: Record<string, unknown> | null;
     required_evidence: string[];
+}
+
+export interface GoalAcceptanceReading {
+    round: AcceptanceView["round"];
+    complete: AcceptanceView["complete"];
+    requirements: Array<Pick<AcceptanceView["requirements"][number], "id" | "statement" | "requires_person" | "person" | "satisfied">>;
 }
 
 export interface GoalArchiveResult {
@@ -261,7 +269,6 @@ export interface GoalConfigurationWorkEventRecord extends GoalWorkEventBase {
     kind: "configuration";
     type: null;
     payload: GoalEventConfigurationPayload;
-    judgments: GoalWorkEventJudgment[];
 }
 
 export interface GoalConfirmedInput {
@@ -288,7 +295,7 @@ export interface GoalContractView extends GoalFactsView {
 
 export type GoalCreateActionInput = Omit<CreateGoalIntentInput, "project_id" | "actor_id" | "actor_kind">;
 
-export type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "project_id" | "authority">;
+export type GoalDecisionActionInput = Omit<RecordGoalUserDecisionInput, "project_id" | "authority" | "acceptance">;
 
 export type GoalDecisionMethod = (typeof goalDecisionMethods)[number];
 
@@ -394,10 +401,6 @@ export interface GoalEventAppliedDecisionView {
     recorded_at: string;
 }
 
-export type GoalEventBasisGap = (typeof goalEventBasisGaps)[number];
-
-export type GoalEventBasisTier = (typeof goalEventBasisTiers)[number];
-
 export type GoalEventClosureKind = (typeof goalEventClosureKinds)[number];
 
 export interface GoalEventClosureResult {
@@ -427,6 +430,7 @@ export interface GoalEventClosureView {
     superseded: boolean;
     superseded_reason: string | null;
     recorded_at: string;
+    acceptance_round: number | null;
 }
 
 export type GoalEventConcernAction = (typeof goalEventConcernActions)[number];
@@ -459,7 +463,6 @@ export interface GoalEventConfigView {
     goal_id: string;
     version: number;
     types: GoalEventTypeDefinition[];
-    extra_requirements: GoalEventExtraRequirement[];
     requirement_bindings: GoalEventRequirementBinding[];
     updated_at: string | null;
     updated_by: string | null;
@@ -496,6 +499,8 @@ export interface GoalEventDecisionRequestResult extends GoalEventMutationResult 
     decision_request: GoalEventDecisionRequestView;
 }
 
+export type GoalEventDecisionRequestStatus = (typeof goalEventDecisionRequestStatuses)[number];
+
 export interface GoalEventDecisionRequestView {
     request_id: string;
     event_id: string;
@@ -505,7 +510,7 @@ export interface GoalEventDecisionRequestView {
     purpose: GoalEventDecisionPurpose;
     proposed_change: GoalEventAgreementChange | null;
     commitment: GoalEventDecisionCommitment | null;
-    status: "pending" | "decided";
+    status: GoalEventDecisionRequestStatus;
     created_at: string;
 }
 
@@ -520,7 +525,6 @@ export interface GoalEventDirectoryItem {
     completion_effect: boolean;
     can_record: boolean;
     next_hint: string;
-    unmet_requirement_count: number;
     pending_decision_count: number;
     blocking_concern_count: number;
     updated_at: string;
@@ -538,16 +542,6 @@ export interface GoalEventDirectoryQuery {
     limit?: number;
     after_cursor?: string;
 }
-
-export type GoalEventEvidenceRef = {
-    kind: "artifact_version";
-    artifact_id: string;
-    version: number;
-} | {
-    kind: "command_receipt";
-    run_id: string;
-    call_id: string;
-};
 
 export interface GoalEventExtraRequirement {
     requirement_id: string;
@@ -581,9 +575,7 @@ export interface GoalEventFactsApi {
     listLatestTimeline(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage;
     listLatestReports(projectId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
     readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord;
-    readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
-    reportRecorded(projectId: string, actorId: string, idempotencyKey: string): boolean;
-    selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string>;
+    readRequirementLinks(projectId: string, goalId: string): GoalRequirementLink[];
     readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
     readObservedEventCursor(projectId: string): number;
     isEventStateOwner(projectId: string, goalId: string): boolean;
@@ -628,35 +620,8 @@ export interface GoalEventIntentApi {
         source_kind?: GoalIntentSourceKind;
         outcome?: string;
         requirements?: CreateGoalIntentRequirementInput[];
-    }): void;
+    }): GoalHungRequirement[];
 }
-
-export interface GoalEventJudgmentAssessment {
-    tier: GoalEventBasisTier;
-    gap: GoalEventBasisGap | null;
-}
-
-export interface GoalEventJudgmentBasis extends GoalEventJudgmentBasisInput {
-    evidence: GoalEventEvidenceRef[];
-}
-
-export interface GoalEventJudgmentBasisInput {
-    checked: {
-        artifact_id: string;
-        version: number;
-    };
-    method: string;
-    observed: string;
-    evidence?: GoalEventEvidenceRef[];
-}
-
-export interface GoalEventJudgmentInput {
-    requirement_id: string;
-    verdict: GoalEventJudgmentVerdict;
-    basis?: GoalEventJudgmentBasisInput;
-}
-
-export type GoalEventJudgmentVerdict = (typeof goalEventJudgmentVerdicts)[number];
 
 export interface GoalEventLatestReports {
     reports: GoalReportWorkEventRecord[];
@@ -684,6 +649,8 @@ export interface GoalEventMutationResult {
     replayed: boolean;
     recorded: true;
 }
+
+export type GoalEventNewDecisionPurpose = (typeof goalEventNewDecisionPurposes)[number];
 
 export interface GoalEventProgressResult extends GoalEventMutationResult {
     progress_summary: GoalEventProgressSummaryView;
@@ -716,7 +683,6 @@ export interface GoalEventReportSummary {
     type_version: number | null;
     received_at: string;
     journal_seq: number;
-    judgments: GoalWorkEventJudgment[];
 }
 
 export interface GoalEventRequirementBinding {
@@ -732,19 +698,6 @@ export interface GoalEventRequirementCommitment {
 }
 
 export type GoalEventRequirementCurrentStatus = (typeof goalEventRequirementCurrentStatuses)[number];
-
-export interface GoalEventRequirementReport {
-    event_id: string;
-    actor_id: string;
-    actor_kind: "user" | "runtime" | null;
-    verdict: GoalEventJudgmentVerdict;
-    received_at: string;
-    journal_seq: number;
-    basis: GoalEventJudgmentBasis | null;
-    tier: GoalEventBasisTier;
-    gap: GoalEventBasisGap | null;
-    substitutes_human_decision: false;
-}
 
 export interface GoalEventRequirementRevisionInput {
     requirement_id: string;
@@ -763,32 +716,9 @@ export type GoalEventRequirementSource = {
     policy_binding_ids: string[];
 };
 
-export interface GoalEventRequirementStatus {
-    requirement_id: string;
-    revision: number;
-    goal_id: string;
-    statement: string;
-    origin: {
-        kind: "goal_event_requirement" | "imported_acceptance_criterion" | "imported_human_approval" | "create_input";
-        decision_method?: GoalAcceptanceCriterion["decision_method"];
-        pass_condition?: string;
-        config_version?: number;
-        policy_binding_ids?: string[];
-    };
-    bound_type_ids: string[];
-    human_decision_required: boolean;
-    current_report: GoalEventRequirementReport | null;
-    user_conclusion: GoalEventUserConclusion | null;
-    currently_satisfied: boolean;
-    satisfied_by: GoalEventSatisfactionGround | null;
-    conclusion_superseded: boolean;
-}
-
 export interface GoalEventResumeResult extends GoalEventMutationResult {
     work_status: "open";
 }
-
-export type GoalEventSatisfactionGround = (typeof goalEventSatisfactionGrounds)[number];
 
 export interface GoalEventScope {
     requirement_ids: string[];
@@ -837,9 +767,9 @@ export interface GoalEventStateView {
         source_kind: GoalIntentSourceKind | null;
     };
     config: GoalEventConfigView;
-    requirements: GoalEventRequirementStatus[];
+    requirements: GoalRequirementLink[];
+    acceptance_subject: AcceptanceSubject;
     latest_reports: GoalEventReportSummary[];
-    gaps: GoalEventWorkGap[];
     observed_event_cursor: number;
     goal_event_cursor: number;
     event_list_next_cursor: number | null;
@@ -1036,25 +966,6 @@ export interface GoalEventUnmetReason {
     request_id?: string;
 }
 
-export interface GoalEventUserConclusion {
-    decision_id: string;
-    actor_id: string;
-    verdict: GoalEventUserConclusionVerdict;
-    received_at: string;
-    journal_seq: number;
-    checked: {
-        artifact_id: string;
-        version: number;
-    } | null;
-}
-
-export interface GoalEventWorkGap {
-    requirement_id: string;
-    statement: string;
-    current_verdict: GoalEventJudgmentVerdict | null;
-    human_decision_required: boolean;
-}
-
 export interface GoalEventWorkStateView {
     owner: GoalEventStateOwnerView | null;
     work_status: GoalEventWorkStatus;
@@ -1088,6 +999,12 @@ export interface GoalFactsView {
 export type GoalFulfillmentState = "unmet" | "satisfied";
 
 export type GoalHistoryLane = "result" | "decision" | "problem" | "other";
+
+export interface GoalHungRequirement {
+    requirement_id: string;
+    statement: string;
+    human_decision_required: boolean;
+}
 
 export interface GoalInputBindingRecord {
     binding_id: string;
@@ -1219,14 +1136,20 @@ export interface GoalReportWorkEventRecord extends GoalWorkEventBase {
     kind: "report";
     type: GoalEventTypeDefinition | null;
     payload: Record<string, string>;
-    judgments: GoalWorkEventJudgment[];
+}
+
+export interface GoalRequirementLink {
+    requirement_id: string;
+    origin: GoalEventRequirementSource | null;
+    bound_type_ids: string[];
+    created_in_config_version: number;
+    created_at: string;
 }
 
 export interface GoalSystemWorkEventRecord extends GoalWorkEventBase {
     kind: "system";
     type: null;
     payload: GoalEventSystemPayload;
-    judgments: GoalWorkEventJudgment[];
 }
 
 export type GoalTaskContext = "game" | "app" | "ai_data" | "content_research" | "operations" | "other";
@@ -1492,14 +1415,6 @@ export interface GoalTreeSemanticReview extends GoalChangeImpact {
 }
 
 export type GoalValidityState = "valid" | "needs_revalidation" | "invalidated";
-
-export interface GoalWorkEventJudgment {
-    requirement_id: string;
-    verdict: GoalEventJudgmentVerdict;
-    basis: GoalEventJudgmentBasis | null;
-    tier: GoalEventBasisTier;
-    gap: GoalEventBasisGap | null;
-}
 
 export interface GoalWorkEventLinkRecord {
     goal_id: string;
@@ -1862,8 +1777,9 @@ export interface RecordGoalUserDecisionInput {
     conclusion: string;
     accepts_requirements?: boolean;
     effects?: GoalEventDecisionEffect[];
-    authorized_change?: GoalEventAgreementChange;
+    authorized_change?: Pick<GoalEventAgreementChange, "outcome">;
     scope?: Partial<GoalEventScope>;
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface ReportGoalEventsInput {
@@ -1874,10 +1790,6 @@ export interface ReportGoalEventsInput {
     idempotency_key: string;
     events: ReportGoalWorkEventInput[];
     progress?: GoalEventReportProgressInput;
-    trusted?: {
-        reporter_session: string | null;
-        assessments: ReadonlyMap<string, GoalEventJudgmentAssessment>;
-    };
 }
 
 export interface ReportGoalEventsRecordedResult {
@@ -1889,7 +1801,6 @@ export interface ReportGoalEventsRecordedResult {
 export interface ReportGoalEventsResult extends ReportGoalEventsRecordedResult {
     goal_event_cursor: number;
     work_status: GoalEventWorkStateView["work_status"];
-    gaps: GoalEventWorkGap[];
     progress_summary: GoalEventWorkStateView["progress_summary"];
     completion_effect: boolean;
     can_record: boolean;
@@ -1900,7 +1811,6 @@ export interface ReportGoalWorkEventInput {
     type_version: number;
     title: string;
     fields: Record<string, string>;
-    judgments?: GoalEventJudgmentInput[];
 }
 
 export interface RequestGoalDecisionInput {
@@ -1911,9 +1821,10 @@ export interface RequestGoalDecisionInput {
     idempotency_key: string;
     question: string;
     options: GoalEventDecisionOption[];
-    purpose: GoalEventDecisionPurpose;
-    proposed_change?: GoalEventAgreementChange;
+    purpose: GoalEventNewDecisionPurpose;
+    proposed_change?: Pick<GoalEventAgreementChange, "outcome">;
     scope?: Partial<GoalEventScope>;
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface ResumeGoalEventWorkInput {
@@ -1934,10 +1845,8 @@ export interface SetGoalEventAgreementInput {
     expected_config_version: number;
     expected_agreement_version: number;
     outcome?: string;
-    new_requirements?: GoalEventExtraRequirementInput[];
-    revise_requirements?: GoalEventRequirementRevisionInput[];
-    retire_requirement_ids?: string[];
     cited_decision_id?: string;
+    acceptance?: GoalAcceptanceReading;
 }
 
 export interface SubmitGoalEventClosureInput {
@@ -1951,6 +1860,7 @@ export interface SubmitGoalEventClosureInput {
     reason: string;
     expected_config_version: number;
     expected_agreement_version: number;
+    acceptance?: GoalAcceptanceReading;
 }
 
 export declare const agreement: Readonly<Record<string, unknown>>;
@@ -1968,6 +1878,8 @@ export declare const boolean: {
 };
 
 export declare const change: Readonly<Record<string, unknown>>;
+
+export declare const changeInput: Readonly<Record<string, unknown>>;
 
 export declare const citedSubjects: {
     maxItems: number;
@@ -1989,6 +1901,8 @@ export declare const decision: Readonly<Record<string, unknown>>;
 export declare const decisionRequest: Readonly<Record<string, unknown>>;
 
 export declare const effect: Readonly<Record<string, unknown>>;
+
+export declare const effectInput: Readonly<Record<string, unknown>>;
 
 export declare const enumeration: (values: readonly unknown[]) => ActionSchema;
 
@@ -2382,12 +2296,6 @@ export declare const goalEventAcknowledgementCategories: readonly ["note", "requ
 
 export declare const goalEventAcknowledgementTreatments: readonly ["apply-now", "later-step", "new-task", "needs-clarification", "not-adopted", "answered", "noted", "merged"];
 
-export declare const goalEventAssessmentKey: (eventIndex: number, requirementId: string) => string;
-
-export declare const goalEventBasisGaps: readonly ["evidence_missing", "evidence_unreadable", "subject_mismatch", "check_failed"];
-
-export declare const goalEventBasisTiers: readonly ["self_reported", "machine_verified", "peer_reviewed"];
-
 export declare const goalEventClosureKinds: readonly ["complete", "cancel"];
 
 export declare const goalEventConcernActions: readonly ["open", "resolve", "accept", "overturn"];
@@ -2398,17 +2306,17 @@ export declare const goalEventDecisionEffectKinds: readonly ["accept_requirement
 
 export declare const goalEventDecisionPurposes: readonly ["suggestion", "requirement_acceptance", "action", "agreement_change"];
 
-export declare const goalEventEvidenceKinds: readonly ["artifact_version", "command_receipt"];
+export declare const goalEventDecisionRequestStatuses: readonly ["pending", "decided", "moved"];
 
 export declare const goalEventFieldFormats: readonly ["text", "longtext"];
 
-export declare const goalEventJudgmentVerdicts: readonly ["supports", "contradicts", "unknown"];
+export declare const goalEventNewDecisionEffectKinds: ("accept_concerns" | "reject_concerns" | "authorize_action" | "deny_action" | "authorize_agreement_change")[];
+
+export declare const goalEventNewDecisionPurposes: readonly ["suggestion", "action", "agreement_change"];
 
 export declare const goalEventPageSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalEventRequirementCurrentStatuses: readonly ["active", "retired"];
-
-export declare const goalEventSatisfactionGrounds: readonly ["user_accepted", "machine_verified", "peer_reviewed"];
 
 export declare const goalEventSchema: ActionSchema;
 
@@ -2419,8 +2327,6 @@ export declare const goalEventSystemOperations: readonly ["progress_summary", "c
 export declare const goalEventTrustedAuthoritySources: readonly ["web", "management"];
 
 export declare const goalEventTypeSourceKinds: readonly ["local", "runtime"];
-
-export declare const goalEventUserConclusionVerdicts: readonly ["accepted", "rejected"];
 
 export declare const goalEventWorkStatuses: readonly ["open", "completed", "cancelled"];
 
@@ -2489,10 +2395,6 @@ export declare const identifier: {
     minLength: number;
 };
 
-export declare const judgment: Readonly<Record<string, unknown>>;
-
-export declare const judgmentInput: Readonly<Record<string, unknown>>;
-
 export { nullableSchema as nullable } from "@molis-ai/molis-work-plugin-sdk";
 
 export declare const object: (properties: Record<string, unknown>, required?: string[]) => ActionSchema;
@@ -2558,8 +2460,6 @@ export declare const treeSubmitResultSchema: Readonly<Record<string, unknown>>;
 type Business<Input> = Omit<Input, "project_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
-
-type GoalEventUserConclusionVerdict = (typeof goalEventUserConclusionVerdicts)[number];
 
 type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
 

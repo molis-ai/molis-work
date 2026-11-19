@@ -36,7 +36,7 @@ function historyLine(entry: AcceptanceHistoryEntry, _index: number, all: Accepta
   return `<li title="${escapeHtml(words)}">${escapeHtml(words)}</li>`;
 }
 
-export interface RequirementColumnUi { readonly returning: string | null; readonly editing: string | null; readonly busy: boolean; readonly error: string }
+export interface RequirementColumnUi { readonly returning: string | null; readonly editing: string | null; readonly adding: boolean; readonly busy: boolean; readonly error: string }
 
 function card(item: AcceptanceRequirementState, lead: boolean, ui: RequirementColumnUi): string {
   const at = standing(item), id = escapeHtml(item.id), disabled = ui.busy ? { disabled: "" } : {};
@@ -72,6 +72,16 @@ export function renderAcceptanceOverview(view: AcceptanceView, key: string): str
     + `<div class="work-card-actions">${renderButton({ variant: "secondary", size: "sm", icon: "list", label: say("review-items"), attrs: { "data-acceptance-open": escapeHtml(key) } })}</div></section>`;
 }
 
+/** The person adds a requirement here: their own door, so it is taken before and after a delivery alike (PWA-146). */
+function adding(ui: RequirementColumnUi): string {
+  const disabled = ui.busy ? { disabled: "" } : {};
+  if (ui.returning || ui.editing) return "";
+  return ui.adding
+    ? `<div class="work-req" data-acceptance-adding><textarea class="work-decision-note" data-acceptance-new rows="2" maxlength="1000" aria-label="${escapeHtml(say("new-requirement"))}" placeholder="${escapeHtml(say("new-requirement"))}"${ui.busy ? " disabled" : ""}></textarea>`
+      + `<div class="work-card-actions">${renderButton({ variant: "primary", size: "sm", label: say("save"), attrs: { "data-acceptance-new-send": "", ...disabled } })}${renderButton({ variant: "secondary", size: "sm", label: say("cancel"), attrs: { "data-acceptance-cancel": "", ...disabled } })}</div></div>`
+    : `<div class="work-card-actions">${renderButton({ variant: "secondary", size: "sm", icon: "plus", label: say("add-requirement"), attrs: { "data-acceptance-add": "", ...disabled } })}</div>`;
+}
+
 /** The column beside the deliverable: one card per requirement, exactly one primary button (the first that waits on the person). */
 export function renderRequirementColumn(view: AcceptanceView, ui: RequirementColumnUi): string {
   const lead = view.requirements.find(item => item.stands_on !== null && item.person === "pending" && item.recheck !== "returned")?.id;
@@ -82,5 +92,6 @@ export function renderRequirementColumn(view: AcceptanceView, ui: RequirementCol
     + `<p class="work-reqs-sum">${renderAcceptanceSummary(view)}</p>`
     + (ui.error ? `<p class="mw-alert mw-alert--danger" role="alert">${escapeHtml(ui.error)}</p>` : "")
     + `<div class="work-reqs-list"${ui.busy ? ' aria-busy="true"' : ""}>${view.requirements.map(item => card(item, item.id === lead, ui)).join("")}</div>`
+    + adding(ui)
     + (view.changes ? `<p class="work-reqs-round"><strong>${escapeHtml(say("round-changes"))}</strong>${escapeHtml(say("round-touched", { n: moved.length, items: moved.join(uiText.text("common.list.separator")) }))}${view.changes.summary ? ` ${escapeHtml(view.changes.summary)}` : ""}</p>` : "");
 }

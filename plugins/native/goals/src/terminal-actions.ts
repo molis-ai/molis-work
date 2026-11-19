@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_ID } from "./identity.js";
 import { randomBytes } from "node:crypto";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, type PluginTerminalClient, type PluginTerminalProgram, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -128,7 +129,6 @@ function goalFacts(state: GoalEventStateView): string {
     state.progress_summary?.next_step ? `下一步：${state.progress_summary.next_step}` : "",
     state.pending_decisions.length ? `待决定：${state.pending_decisions.map(item => item.question).join("；")}` : "",
     state.current_decisions.length ? `已决定：${state.current_decisions.map(item => item.conclusion).join("；")}` : "",
-    state.gaps.length ? `未满足：${state.gaps.map(item => item.statement).join("；")}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -153,7 +153,7 @@ export function goalAdvancePrompt(input: {
   const subject = sourceContext ? `Goal（id: ${input.goal_id}）` : `Goal「${title}」（id: ${input.goal_id}）`;
   const instruction = input.onboarding
     ? `这是新项目的第一次 Goal 工作。请读取 ${subject}的当前状态（goal_state）。先保存能辨认的意图即可，不必先填完整树。已决定的内容不要再问。在已有授权内工作并上报事实。不要自动完成，也不要改别的 Goal。`
-    : `请用 Molis Work 推进 ${subject}。先读取当前状态（约定、要求、决定、最近结果和时效），按差距继续。已决定的内容不要再问。不要改别的 Goal。`;
+    : `请用 Molis Work 推进 ${subject}。先读取当前状态（约定、决定、最近结果和时效），再用 acceptance.read 读这个 Goal 的要求（主体 provider_id「${GOALS_PLUGIN_ID}」、kind「goal」、id「${input.goal_id}」），按差距继续。交付时用 acceptance.deliveries.record 记下确切版本，再用 acceptance.reports.submit 逐项报告核对了什么；认可只有用户本人能做。已决定的内容不要再问。不要改别的 Goal。`;
   const instructionWithFacts = facts ? `${instruction}\n\n当前已确认事实：\n${facts}` : instruction;
   const currentGoalBlock = `<MOLIS_WORK_CURRENT_GOAL>\n${instructionWithFacts}\n</MOLIS_WORK_CURRENT_GOAL>`;
   const trustedPrefix = input.project_guidance_prefix?.trim();

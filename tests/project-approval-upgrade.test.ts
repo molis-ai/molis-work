@@ -110,8 +110,8 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with v4 Goa
     const { goal } = await actions.invoke(caller, goalsActions.create, { title: "The decision's actual target", idempotency_key: "intent-v4",
       requirements: [{ requirement_id: "human-v4", statement: "Person checks the result", human_decision_required: true }] }) as { goal: { goal_id: string } };
     const { decision_request } = await actions.invoke(caller, goalsActions.requestDecision, { goal_id: goal.goal_id, idempotency_key: "prepare-v4",
-      question: "Has the requirement been met?", options: [{ option_id: "yes", label: "Met", impact: "Record the result" },
-        { option_id: "no", label: "More work", impact: "Keep working" }], purpose: "requirement_acceptance", scope: { requirement_ids: ["human-v4"] },
+      question: "May the result be published?", options: [{ option_id: "yes", label: "Publish", impact: "Record the authorization" },
+        { option_id: "no", label: "More work", impact: "Keep working" }], purpose: "action", scope: { action: "publish" },
     }) as { decision_request: { request_id: string } };
     const eventLookup = { action: goalAction, request_id: decision_request.request_id };
     const unchecked = await web.web.post<ReviewRequest>(endpoint + "/request", eventLookup);
@@ -119,10 +119,9 @@ test("APR-19 and APR-17 the normal Home upgrade reopens a v3 project with v4 Goa
     assert.ok(unchecked.choices.every(choice => !choice.availability.available));
     const prepared = await web.web.post<ReviewRequest>(endpoint + "/request", { ...eventLookup, draft: { goal_id: goal.goal_id,
       idempotency_key: "decide-v4", request_id: eventLookup.request_id, selected_option_id: "yes", conclusion: "Checked the result",
-      scope: { requirement_ids: ["human-v4"] }, effects: [{ kind: "accept_requirements" }] } });
-    assert.deepEqual(prepared.choices[0]?.accepts, ["human-v4"]);
+      scope: { action: "publish" }, effects: [{ kind: "authorize_action", action: "publish" }] } });
     const event = await web.web.post<{ record: ProjectTrustedDecision }>(endpoint + "/decide", { reference: prepared.reference, choice_id: "apply", request_key: "decide-v4" });
-    assert.equal(event.record.review.requirements[0]?.disposition, "accepted");
+    assert.equal(event.record.actor_id, LOCAL_PERSON_ACTOR_ID);
     assert.equal((await web.web.post<ReviewRequest>(endpoint + "/request", { reference: prepared.reference })).decision?.decision_id, event.record.decision_id);
     await host.withProject(reference, ({ store }) => {
       assert.equal(store.db.pragma("user_version", { simple: true }), baseline.version);

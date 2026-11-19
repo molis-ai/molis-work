@@ -1,13 +1,11 @@
 import { createHash } from "node:crypto";
 import { ActionError, bindActionHandler, type ActionHandlerBinding, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import type { ReviewRequirement, ReviewTarget } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { ReviewTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { goalEntryActions, type GoalDecisionActionInput } from "./contract/goal-actions.js";
 import type { GoalTreeProposalDecideInput, GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import type { GoalEventDecisionRequestView, GoalEventStateView } from "./contract/goals.js";
-import { normalizeScope } from "./module/event-state-scope.js";
-import { resolveRecordedDecision } from "./module/event-state-authorization.js";
 
 type TreeDraft = Omit<GoalTreeProposalDecideInput, "authority" | "project_id" | "runtime_actor_id">;
 type Request = InferActionInput<typeof import("@molis-ai/molis-work-contracts/services/project-approvals").TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>;
@@ -20,7 +18,7 @@ const version = (facts: unknown) => createHash("sha256").update(canonicalJsonTex
 export function eventDecisionVersion(state: GoalEventStateView): string {
   return version([state.goal_id, state.goal_event_cursor, state.intent.title, state.config.version,
     state.agreement, state.work_status, state.can_record, state.pending_decisions,
-    state.requirements.map(row => [row.requirement_id, row.revision, row.statement, row.bound_type_ids, row.human_decision_required, row.current_report]),
+    state.requirements.map(row => [row.requirement_id, row.bound_type_ids]),
     state.concerns.map(row => [row.concern_id, row.title, row.statement, row.status])]);
 }
 
@@ -33,33 +31,17 @@ function option(id: string, label: Choice["label"], available: boolean, accepts:
     : { available: false, code: "actions.conflict", reason: { literal: "这项决定当前已经不可用" } } };
 }
 
-function requirementsOf(state: GoalEventStateView, owner: Owner, ids: readonly string[]): ReviewRequirement[] {
-  return state.requirements.filter(row => ids.includes(row.requirement_id)).map(row => {
-    const report = row.current_report, reportVersion = report ? version([report.event_id, report.verdict, report.basis, report.tier]) : null;
-    const revision = version([row.revision, row.statement, row.human_decision_required, row.bound_type_ids, reportVersion]);
-    return { id: row.requirement_id, version: revision, statement: row.statement, requires_person: row.human_decision_required,
-      target: { owner, subject: { kind: "goal-requirement", id: row.requirement_id }, version: revision },
-      evidence: report && reportVersion ? [{
-        // A peer's report is still the reporting session's own observation.
-        tier: report.tier === "machine_verified" ? "machine_checked" : "self_reported",
-        target: { owner, subject: { kind: "goal-report", id: report.event_id }, version: reportVersion },
-      }] : [] };
-  });
-}
-
-function draftReview(state: GoalEventStateView, request: GoalEventDecisionRequestView | null, command: GoalDecisionActionInput, owner: Owner) {
+/**
+ * A Goal decision accepts or returns no requirement: that is the platform's own review card (`acceptance.decide@1`, contract-design §10.3),
+ * so Goals' card lists none. A scope's requirement ids are still checked for shape.
+ */
+function draftReview(request: GoalEventDecisionRequestView | null, command: GoalDecisionActionInput) {
   const ids = command.scope?.requirement_ids ?? request?.scope.requirement_ids ?? [];
   if (!Array.isArray(ids) || ids.some(id => typeof id !== "string") || command.scope && !isRecord(command.scope)) throw missing();
-  const requirements = requirementsOf(state, owner, ids);
-  if (!state.can_record || command.request_id && !request) return { requirements, accepts: [], returns: [] };
-  const resolved = resolveRecordedDecision(command, request, normalizeScope(command.scope ?? request?.scope));
-  const selected = requirements.map(row => row.id);
-  const changed = resolved.effects.some(effect => effect.kind === "authorize_agreement_change");
-  return { requirements, accepts: !changed && resolved.accepts_requirements ? selected : [],
-    returns: resolved.effects.some(effect => effect.kind === "reject_requirements") ? selected : [] };
+  return { requirements: [], accepts: [], returns: [] };
 }
 
-function eventOffer(input: Request, readState: (id: string) => GoalEventStateView, goalForRequest: (id: string) => string | null, owner: Owner): TrustedReviewOffer {
+function eventOffer(input: Request, readState: (id: string) => GoalEventStateView, goalForRequest: (id: string) => string | null): TrustedReviewOffer {
   const draft = input.draft as (GoalDecisionActionInput & { observed_version?: string }) | undefined;
   const goalId = draft?.goal_id ?? goalForRequest(input.request_id);
   if (typeof goalId !== "string" || !goalId.trim()) throw missing();
@@ -72,7 +54,7 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
     const { observed_version: _, ...command } = draft;
     const label = request?.options.find(row => row.option_id === command.selected_option_id)?.label ?? command.conclusion;
     if (typeof label !== "string" || !label.trim()) throw new ActionError("actions.input_invalid", "请给出本人决定的结论");
-    const { requirements, accepts, returns } = draftReview(state, request, command, owner);
+    const { requirements, accepts, returns } = draftReview(request, command);
     return { target, request: { summary: request?.question ?? state.intent.title, requirements, approver: { kind: "person" },
       choices: [option("apply", { literal: label }, state.can_record && (!!request || !draft.request_id), accepts, returns)], expires_at: null },
     commands: { apply: command } };
@@ -82,7 +64,6 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
     { id: "authorize", label: "批准约定变更", effects: [{ kind: "authorize_agreement_change" }] },
     { id: "deny", label: "拒绝约定变更", effects: [{ kind: "deny_action", action: request.scope.action ?? "set_agreement" }] },
   ] : request.options.map(row => ({ id: row.option_id, label: row.label, effects: undefined }));
-  const requirements = requirementsOf(state, owner, request.scope.requirement_ids);
   // Business options carry words and impact. Only this owner's explicit agreement-change alternatives define their effect.
   const explicitEffects = request.purpose === "agreement_change" || !request.scope.requirement_ids.length && !request.scope.concern_ids.length && !request.scope.action;
   const choices = select.map(row => {
@@ -90,7 +71,7 @@ function eventOffer(input: Request, readState: (id: string) => GoalEventStateVie
     return explicitEffects ? choice : { ...choice, availability: { available: false as const, code: "actions.input_invalid",
       reason: { literal: "请先选择决定的具体作用范围和效果" } } };
   });
-  return { target, request: { summary: request.question, requirements, approver: { kind: "person" }, choices, expires_at: null },
+  return { target, request: { summary: request.question, requirements: [], approver: { kind: "person" }, choices, expires_at: null },
     commands: explicitEffects ? Object.fromEntries(select.map(row => [row.id, { goal_id: goalId, request_id: request.request_id,
       ...(row.effects ? { effects: row.effects } : { selected_option_id: row.id }),
       conclusion: row.label, idempotency_key: request.request_id, scope: request.scope }])) : {} };
@@ -136,7 +117,7 @@ function treeOffer(input: Request, readProposal: (id: string) => GoalTreeProposa
 export function goalsDecisionOfferHandlers(readState: (id: string) => GoalEventStateView,
   readProposal: (id: string) => GoalTreeProposalRecord, goalForRequest: (id: string) => string | null, owner: Owner): ActionHandlerBinding[] {
   return [
-    bindActionHandler(goalEntryActions.eventReview, input => eventOffer(input, readState, goalForRequest, owner)),
+    bindActionHandler(goalEntryActions.eventReview, input => eventOffer(input, readState, goalForRequest)),
     bindActionHandler(goalEntryActions.treeReview, input => treeOffer(input, readProposal, owner)),
   ];
 }

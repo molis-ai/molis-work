@@ -1,12 +1,15 @@
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_BOARDS_SQL, GOALS_GUIDANCE_SQL, GOALS_INPUT_BINDINGS_SQL, GOALS_TABLES_SQL, GOALS_V2_POLICY_SQL } from "./project-database-goals.js";
-import { GOALS_EVENT_FACTS_SQL } from "./project-database-event-facts.js";
-import { GOALS_EVENT_STATE_SQL, GOALS_V2_EVENT_STATE_SQL } from "./project-database-event-state.js";
+import { GOALS_EVENT_FACTS_SQL, GOALS_V6_EVENT_FACTS_SQL } from "./project-database-event-facts.js";
+import { GOALS_EVENT_STATE_SQL, GOALS_V2_EVENT_STATE_SQL, GOALS_V6_EVENT_STATE_SQL } from "./project-database-event-state.js";
 import { GOALS_GOVERNANCE_SQL, GOALS_TREE_EFFECTS_SQL, GOALS_V2_DECISIONS_SQL } from "./project-database-governance.js";
 
-/** Goals' tables; up to v5 with the project guidance (`GOALS_GUIDANCE_SQL`), which v6 hands to the platform. */
-const businessSchema = (eventState: string, guidance = true) =>
-  [GOALS_BOARDS_SQL, GOALS_TABLES_SQL + (guidance ? GOALS_GUIDANCE_SQL : ""), GOALS_INPUT_BINDINGS_SQL, GOALS_EVENT_FACTS_SQL, eventState, GOALS_GOVERNANCE_SQL].join("\n");
+/**
+ * Goals' tables; up to v5 with the project guidance (`GOALS_GUIDANCE_SQL`) and its own requirements, judgments and conclusions, which v6
+ * hands to the platform's project service and acceptance.
+ */
+const businessSchema = (eventState: string, guidance = true, eventFacts = GOALS_EVENT_FACTS_SQL) =>
+  [GOALS_BOARDS_SQL, GOALS_TABLES_SQL + (guidance ? GOALS_GUIDANCE_SQL : ""), GOALS_INPUT_BINDINGS_SQL, eventFacts, eventState, GOALS_GOVERNANCE_SQL].join("\n");
 const approvalSchema = (eventState: string) => [businessSchema(eventState), GOALS_V2_POLICY_SQL, GOALS_V2_DECISIONS_SQL].join("\n");
 
 /** Only v1–v3 contained Goals' own planning methods. These objects are used to inspect, then upgrade, those sources. */
@@ -38,13 +41,16 @@ const GOALS_PROJECT_DATABASE_V1 = {
 
 /**
  * Private library after the project baseline has moved approvals to the platform. Version 6 (batch 44) is v5 without the project guidance,
- * which the platform's project service keeps now, and with another sync collection (`project_goals@3`: the relations touching a Goal as
- * the platform's generic `relation-edges`, no guidance). The project library's 5→6 step moves a v5 library here and hands the guidance
- * rows over (`apps/local-host/src/project-library-v6-upgrade.ts`); Goals declares no step of its own.
+ * which the platform's project service keeps now, without Goals' own requirements, judgments and conclusions, which the platform's
+ * requirements and acceptance keep (`goal_requirement_links` records only where each requirement came from; requests for accepting
+ * requirements that were still waiting are `moved`), and with another sync collection (`project_goals@3`: the relations touching a Goal
+ * as the platform's generic `relation-edges`, no guidance). The project library's 5→6 step moves a v5 library here and hands the guidance
+ * and the acceptance over (`apps/local-host/src/project-library-v6-upgrade.ts`, `./v5-acceptance-handover.ts`); Goals declares no step
+ * of its own.
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "goals", version: /* @version database.goals_project_database */ 6,
-  schema: businessSchema(GOALS_EVENT_STATE_SQL, false) + GOALS_TREE_EFFECTS_SQL,
+  schema: businessSchema(GOALS_V6_EVENT_STATE_SQL, false, GOALS_V6_EVENT_FACTS_SQL) + GOALS_TREE_EFFECTS_SQL,
   read_permission: "storage:private", write_permission: "storage:private",
 };
 

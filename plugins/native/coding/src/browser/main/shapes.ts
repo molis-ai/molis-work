@@ -41,9 +41,10 @@ export interface GoalChoice {
     };
     readonly state: {
       readonly agreement: { readonly version: number; readonly outcome?: string };
-      readonly requirements: readonly { readonly statement: string; readonly human_decision_required?: boolean }[];
       readonly goal_event_cursor: number | string;
     };
+    /** The Goal's requirements in the platform's words; a context pinned before batch 44 has none here. */
+    readonly requirements?: readonly GoalRequirementWords[];
   };
   readonly reference: { readonly artifact_id: string; readonly version?: number };
   readonly material: { readonly text: string };
@@ -393,6 +394,9 @@ export interface GoalFacts {
 }
 
 /** `GET …/report/progress`: what a progress record would rest on, and the record when one was saved. */
+/** A requirement of a Goal as the platform's requirement list words it. */
+export interface GoalRequirementWords { readonly statement: string; readonly requires_person: boolean }
+
 export interface ProgressPreview {
   readonly title: string;
   readonly reference: { readonly artifact_id: string; readonly version: number };
@@ -401,10 +405,10 @@ export interface ProgressPreview {
     readonly goal: GoalFacts;
     readonly state: {
       readonly agreement: { readonly version: number; readonly outcome?: string };
-      readonly requirements: readonly { readonly statement: string; readonly human_decision_required?: boolean }[];
       readonly progress_summary?: { readonly summary: string };
       readonly goal_event_cursor: number | string;
     };
+    readonly requirements: readonly GoalRequirementWords[];
   } | null;
   recorded?: { readonly progress_summary: { readonly summary: string; readonly next_step?: string; readonly recorded_at: string } } | null;
 }

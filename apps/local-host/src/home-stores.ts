@@ -22,7 +22,6 @@ import { AUTOMATION_PREFERENCES_PATH } from "@molis-ai/molis-work-service-automa
 import { CONNECTOR_TOOLS_HOME_STORE } from "./connector-tool-download.js";
 import { CONNECTORS_HOME_STORE } from "./connectors-store.js";
 import { OBSERVATION_HOME_STORE } from "@molis-ai/molis-work-service-observation";
-import { ACCEPTANCE_HOME_STORE } from "@molis-ai/molis-work-module-acceptance";
 import { EVALUATION_HOME_STORE } from "@molis-ai/molis-work-service-evaluation";
 import { EXTERNAL_SESSIONS_HOME_STORE } from "@molis-ai/molis-work-service-sessions";
 import { CONTEXT_ONBOARDING_HOME_STORE } from "./context-onboarding-store.js";
@@ -105,7 +104,6 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
     // Each person's work items of each project (specs/work-mainline §6): names, references and the arrangement only.
     ...owned("horizontal/mainline", MAINLINE_HOME_STORE),
-    ...owned("modules/acceptance", ACCEPTANCE_HOME_STORE),
     ...owned("horizontal/evaluation", EVALUATION_HOME_STORE),
     ...owned("horizontal/sessions", EXTERNAL_SESSIONS_HOME_STORE),
     ...owned("apps/local-host/src/installer", { path: "runtime-config-backups", snapshot: runtimeBackupSnapshot }, ...at("runtime-integrations", "runtime-integration-attempts")),

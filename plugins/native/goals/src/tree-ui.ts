@@ -135,7 +135,8 @@ function renderGoalTree(
             ${chip ? `<div class="tree-presentation-name" title="${title}"><div aria-hidden="true">${chip}</div>${choose(`<strong class="mw-sr-only">${title}</strong>`)}</div>`
               : choose(`<span class="tree-copy"><span class="tree-title-line"><strong title="${title}">${title}</strong></span></span>`)}
           </div>
-          <span class="directory-row-state">${renderVisibleGoalStatus(item)}</span>
+          <span class="directory-row-state">${renderVisibleGoalStatus(item.presentation_status === "changed_after_completion"
+            ? { ...item, status_label: uiText.text("goals.tree-ui.requirements-changed-after-completion") } : item)}</span>
           ${renderTreeProgress(item, nodeChildren)}
           ${renderTreeDependencies(item, view)}
           <span class="tree-created-meta" data-select-goal="${escapeHtml(item.goal.goal_id)}">${created}${avatar}</span>

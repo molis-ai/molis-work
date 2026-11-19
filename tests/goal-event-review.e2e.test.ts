@@ -4,7 +4,7 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
-test("event document pointer path covers requirement form, concern body, note, selection and resume", { timeout: 90_000 }, async (t) => {
+test("event document pointer path covers the requirement review entry, concern body, note, selection and resume", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, projectId } = browser;
@@ -28,17 +28,14 @@ test("event document pointer path covers requirement form, concern body, note, s
       ],
     }],
   });
-  const configured = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
-  app.goalEvents.setAgreement({
-    ...base, idempotency_key: "review-ui-requirement",
-    expected_config_version: configured.config.version,
-    expected_agreement_version: configured.agreement.version,
-    new_requirements: [{ requirement_id: "restart", statement: "重启后仍能接续同一个目标", bound_type_id: "delivery" }],
-  });
+  // The requirement is the platform's (contract-design §10); Goals binds its delivery type to it.
+  app.setRequirements(DEMO_PROJECT_ID, goalId, [{ requirement_id: "restart", statement: "重启后仍能接续同一个目标" }]);
+  app.goalEvents.configure({ ...base, idempotency_key: "review-ui-binding", expected_version: app.goalEvents.readState(DEMO_PROJECT_ID, goalId).config.version,
+    requirement_bindings: [{ type_id: "delivery", requirement_id: "restart" }] });
   app.goalEvents.report({
     ...base, idempotency_key: "review-ui-reports", events: [
       { type_id: "delivery", type_version: 1, title: "首次项目已能保存并打开", fields: { summary: "项目创建与保存已接通。", details: "打开示例项目后选择目标。" } },
-      { type_id: "delivery", type_version: 1, title: "重启接续仍需验证", fields: { summary: "已完成首次使用，重启路径尚未核对。", details: "重新启动服务后读取同一目标及历史。" }, judgments: [{ requirement_id: "restart", verdict: "unknown" }] },
+      { type_id: "delivery", type_version: 1, title: "重启接续仍需验证", fields: { summary: "已完成首次使用，重启路径尚未核对。", details: "重新启动服务后读取同一目标及历史。" } },
     ],
   });
   app.goalEvents.recordProgress({
@@ -87,8 +84,9 @@ test("event document pointer path covers requirement form, concern body, note, s
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await openGoal();
   await click('[data-event-reader="requirements"]');
-  await click('[data-event-panel="requirements"] [data-event-form-open="requirement"]');
-  assert.equal(await visible('[data-event-form="requirement"]'), true);
+  // The requirements are the platform's: the panel offers its review card, and Goals draws no requirement form (contract-design §10.3).
+  assert.equal(await visible('[data-event-panel="requirements"] [data-acceptance-review]'), true);
+  assert.equal(await evaluate(`Boolean(document.querySelector('[data-event-form="requirement"]'))`), false);
 
   await openGoal();
   await click(`[data-event-id="${concern.event_id}"]`);

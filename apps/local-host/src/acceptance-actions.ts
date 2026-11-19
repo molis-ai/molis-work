@@ -1,11 +1,11 @@
 import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ACCEPTANCE_PROVIDER_ID, acceptanceActions, acceptanceErrors } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
+import { ACCEPTANCE_PROVIDER_ID, acceptanceActions, acceptanceErrors, type AcceptanceSubject } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import type { AcceptanceCaller, AcceptanceEvidencePorts, AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { acceptanceSubjectFromReview, assertAcceptanceObjectReadable, buildAcceptanceReviewOffer } from "./acceptance-review.js";
-import { recoverAcceptanceCommits } from "./acceptance-recovery.js";
+import { assertReadsSubject, speaksForSubject, withProjectAcceptance } from "./acceptance-library.js";
 import { attentionChanged } from "./attention-changes.js";
 import { projectReviewForSystemWrite } from "./project-review-effect.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -39,39 +39,54 @@ function evidencePorts(caller: ActionCallContext, client: ActionClient): Accepta
 }
 
 /**
- * Requirements and acceptance in the Host (`modules/acceptance`), registered once as `system.acceptance`. `acceptance.decide@1`
- * requires a platform trusted decision (`project-review-commands.ts`), committing an immutable `ProjectTrustedDecision` in the
- * project database alongside the item decisions in `acceptance.db` (BL-acceptance-first-slice-limits ③, APR-15, APR-16).
+ * Requirements and acceptance in the Host (`modules/acceptance`), registered once as `system.acceptance`, on each project's own library
+ * (contract-design §10.2). `acceptance.decide@1` requires a platform trusted decision (`project-review-commands.ts`): the item
+ * decisions and the immutable `ProjectTrustedDecision` commit in one transaction of that library (APR-15, APR-16).
+ *
+ * Who may write (`S-acceptance-subject-owner`): `set` only the object's own side — its provider plugin, the Host acting for it, the
+ * person; `deliver` and `report` also anyone who can read that very object through its owner's reader; `read` and `review` the same,
+ * the person reading wherever the owner declares no reader. Refused calls write nothing.
  */
 export function acceptanceProvider(
-  homeDirectory: string,
   clientFor: (caller: ActionCallContext) => ActionClient,
-  localHost?: MolisWorkLocalHost,
-  resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>,
+  localHost: MolisWorkLocalHost,
+  resolveProject: (projectId: string) => Promise<LocalHostProjectReference | null>,
 ): ActionProviderRegistration {
-  const run = async <T>(work: (service: AcceptanceService) => T | Promise<T>): Promise<T> => {
-    const opened = openAcceptance(homeDirectory);
-    try { return await work(opened.service); } finally { opened.close(); }
+  const projectOf = async (projectId: string): Promise<LocalHostProjectReference> => {
+    const project = await resolveProject(projectId);
+    if (!project) throw acceptanceErrors.scope("要求与认可记在项目里，找不到这个项目");
+    return project;
   };
-  const projectOf = async (projectId: string): Promise<LocalHostProjectReference | undefined> => (await resolveProject?.(projectId)) ?? undefined;
+  const run = async <T>(caller: ActionCallContext, work: (service: AcceptanceService) => T | Promise<T>): Promise<T> =>
+    withProjectAcceptance(localHost, await projectOf(callerOf(caller).project_id), service => work(service));
+  /** The gate before any read of the object or write to it; nothing is written before it passes. */
+  const admit = async (caller: ActionCallContext, subjects: readonly AcceptanceSubject[], owners: "only" | "or_readers"): Promise<void> => {
+    const person = callerOf(caller).person;
+    for (const subject of subjects) {
+      if (speaksForSubject(caller, subject, person)) {
+        if (person && owners === "or_readers") await assertAcceptanceObjectReadable(caller, clientFor(caller), localHost, await projectOf(caller.project_id!), subject);
+        continue;
+      }
+      if (owners === "only") throw acceptanceErrors.subject_unknown("这个对象上没有你能写或读的要求");
+      await assertReadsSubject(caller, clientFor(caller), subject);
+    }
+  };
   const A = acceptanceActions;
-  if (localHost && resolveProject) void recoverAcceptanceCommits(localHost, homeDirectory, resolveProject).catch(() => undefined);
   return {
     provider: { provider_id: ACCEPTANCE_PROVIDER_ID, title: "要求、证据与认可", kind: "system" },
     definitions: [A.set, A.deliver, A.report, A.read, A.review, A.decide],
     handlers: [
-      bindActionHandler(A.set, (input, caller) => run(service => service.set(callerOf(caller), input))),
-      bindActionHandler(A.deliver, (input, caller) => run(service => service.deliver(callerOf(caller), input, evidencePorts(caller, clientFor(caller))))),
-      bindActionHandler(A.report, (input, caller) => run(service => service.report(callerOf(caller), input, evidencePorts(caller, clientFor(caller))))),
-      bindActionHandler(A.read, (input, caller) => run(service => service.read(callerOf(caller), input))),
+      bindActionHandler(A.set, async (input, caller) => { await admit(caller, [input.subject], "only"); await caller.beforeEffect(); return run(caller, service => service.set(callerOf(caller), input)); }),
+      bindActionHandler(A.deliver, async (input, caller) => { await admit(caller, [input.subject], "or_readers"); await caller.beforeEffect(); return run(caller, service => service.deliver(callerOf(caller), input, evidencePorts(caller, clientFor(caller)))); }),
+      bindActionHandler(A.report, async (input, caller) => { await admit(caller, [input.subject], "or_readers"); await caller.beforeEffect(); return run(caller, service => service.report(callerOf(caller), input, evidencePorts(caller, clientFor(caller)))); }),
+      bindActionHandler(A.read, async (input, caller) => { await admit(caller, input.subjects, "or_readers"); return run(caller, service => service.read(callerOf(caller), input)); }),
       bindActionHandler(A.review, async (input, caller) => {
         const person = callerOf(caller);
         if (!person.person) throw acceptanceErrors.scope("只有用户本人能查看或提交交付要求的认可决定");
         const subject = acceptanceSubjectFromReview(input);
         const project = await projectOf(person.project_id);
         await assertAcceptanceObjectReadable(caller, clientFor(caller), localHost, project, subject);
-        const view = await run(service => service.read(person, { subjects: [subject] }).views[0]!);
-        if (!localHost || !project) return buildAcceptanceReviewOffer(view, person.project_id, input, () => null, person.actor_id);
+        const view = await run(caller, service => service.read(person, { subjects: [subject] }).views[0]!);
         return localHost.withProject(project, ({ store }) => {
           const decisions = projectReviewDecisions(store.db, person.project_id);
           return buildAcceptanceReviewOffer(view, person.project_id, input, decisions.findCommitted, person.actor_id);
@@ -88,8 +103,7 @@ export function acceptanceProvider(
         check();
         const bound = projectReviewForSystemWrite(caller, person.project_id, ACCEPTANCE_PROVIDER_ID);
         const project = await projectOf(person.project_id);
-        if (!localHost || !project) throw new ActionError("actions.service_unavailable", "当前宿主未挂载项目审批库");
-        const result = await localHost.withProject(project, ({ store }) => {
+        const result = await withProjectAcceptance(localHost, project, (service, store) => {
           const checkCommit = () => {
             check();
             if (bound.held.deadline !== undefined && Date.now() >= bound.held.deadline) {
@@ -99,37 +113,21 @@ export function acceptanceProvider(
               throw new ActionError("actions.conflict", "项目审批规则已变化，请重新查看");
             }
           };
-          const decided = openAcceptance(homeDirectory);
-          let view: ReturnType<AcceptanceService["decide"]>;
-          try {
-            let acceptanceCommitted = false;
-            try {
-              view = store.db.transaction(() => {
-                checkCommit();
-                const result = decided.service.decide(person, input, bound.held.decisionId, (_view, recordIntent) => {
-                  projectReviewDecisions(store.db, person.project_id).commit(
-                    bound.held.command,
-                    { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
-                    bound.held.frozenChoice,
-                    bound.held.review,
-                    new Date().toISOString(),
-                    checkCommit,
-                    bound.held.decisionId,
-                    recordIntent,
-                  );
-                });
-                acceptanceCommitted = true;
-                return result;
-              }).immediate();
-            } catch (error) {
-              if (acceptanceCommitted) throw new ActionError("actions.outcome_unknown", "认可结果可能已保存，平台决定待核对");
-              try { decided.service.completeCommitIntent(bound.held.decisionId); } catch { /* no acceptance row was committed */ }
-              throw error;
-            }
-            try { decided.service.completeCommitIntent(bound.held.decisionId); } catch { /* the durable intent is retried on recovery */ }
-          } finally {
-            decided.close();
-          }
+          // The item decisions and the trusted-decision record commit together, or neither does (§10.2).
+          const view = store.db.transaction(() => {
+            checkCommit();
+            return service.decide(person, input, bound.held.decisionId, () => {
+              projectReviewDecisions(store.db, person.project_id).commit(
+                bound.held.command,
+                { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
+                bound.held.frozenChoice,
+                bound.held.review,
+                new Date().toISOString(),
+                checkCommit,
+                bound.held.decisionId,
+              );
+            });
+          }).immediate();
           try { attentionChanged(person.project_id); } catch { /* the write is done */ }
           return view;
         });

@@ -1,4 +1,4 @@
-import type { ActionAudience, ActionCallContext, ActionDefinition, ActionHandlerBinding } from "./actions.js";
+import type { ActionAudience, ActionDefinition, ActionExecutionContext, ActionHandlerBinding } from "./actions.js";
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import { TEXT_REF_SCHEMA, type TextRef } from "./ui-text.js";
@@ -82,7 +82,7 @@ function answered(input: PresentationValuesInput, output: PresentationValues): P
 
 /** Bind the owner's reader: it answers for the subjects asked, and the helper drops whatever it gives beyond the fields asked or for an object the caller cannot see. */
 export function bindPresentationValuesHandler(definition: ActionDefinition<PresentationValuesInput, PresentationValues>,
-  read: (input: PresentationValuesInput, caller: ActionCallContext) => PresentationValues | Promise<PresentationValues>,
+  read: (input: PresentationValuesInput, caller: ActionExecutionContext) => PresentationValues | Promise<PresentationValues>,
   availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding {
   return bindActionHandler(definition, async (input, caller) => answered(input, await read(input, caller)), availability ? { availability } : undefined);
 }

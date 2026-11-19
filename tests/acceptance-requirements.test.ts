@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AcceptanceReportInput, AcceptanceRequirementState, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { openAcceptance, purgeAcceptanceProject, type AcceptanceCaller, type AcceptanceEvidencePorts } from "@molis-ai/molis-work-module-acceptance";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 /*
  * Requirements, evidence and acceptance as a platform capability (specs/proactive-assistant §7.3.1, PWA-144～146; the shared review
@@ -35,13 +37,41 @@ function platform(sessions: Record<string, string[]>, commands: Record<string, P
   return { ports, asked };
 }
 
+/**
+ * Each project's library with the platform's acceptance in it (contract-design §10.2). `service` answers each call from the library of
+ * the caller's project, as the Host does; `library` is one project's own service, `drop` deletes a project's library.
+ */
 function rig(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "acceptance-"));
   let tick = 0;
-  const { service, close } = openAcceptance(home, () => new Date(Date.UTC(2026, 10, 15, 8, 0, tick++)).toISOString());
-  t.after(() => { close(); rmSync(home, { recursive: true, force: true }); });
+  const now = () => new Date(Date.UTC(2026, 10, 15, 8, 0, tick++)).toISOString();
+  const libraries = new Map<string, { store: LocalProjectDatabase; service: AcceptanceService }>();
+  const library = (projectId: string) => {
+    let opened = libraries.get(projectId);
+    if (!opened) {
+      const store = new LocalProjectDatabase(join(home, `${projectId}.db`));
+      writeProjectRoot(store.db, projectId, now());
+      libraries.set(projectId, opened = { store, service: openAcceptance(store.db, projectId, { now }) });
+    }
+    return opened.service;
+  };
+  const drop = (projectId: string) => {
+    const opened = libraries.get(projectId);
+    if (!opened) return;
+    opened.store.close();
+    libraries.delete(projectId);
+    rmSync(join(home, `${projectId}.db`), { force: true });
+  };
+  t.after(() => { for (const projectId of [...libraries.keys()]) drop(projectId); rmSync(home, { recursive: true, force: true }); });
+  const service = {
+    read: (caller, input) => library(caller.project_id).read(caller, input),
+    set: (caller, input) => library(caller.project_id).set(caller, input),
+    deliver: (caller, input, ports) => library(caller.project_id).deliver(caller, input, ports),
+    report: (caller, input, ports) => library(caller.project_id).report(caller, input, ports),
+    decide: (caller, input) => library(caller.project_id).decide(caller, input),
+  } satisfies Pick<AcceptanceService, "read" | "set" | "deliver" | "report" | "decide">;
   const readOne = (caller: AcceptanceCaller, subject: typeof SUBJECT) => service.read(caller, { subjects: [subject] }).views[0]!;
-  return { home, service, readOne };
+  return { home, service, readOne, library, drop };
 }
 const item = (view: AcceptanceView, id: string): AcceptanceRequirementState => view.requirements.find(one => one.id === id)!;
 const report = (requirement_id: string, version: string, extra: Partial<AcceptanceReportInput> = {}): AcceptanceReportInput =>
@@ -199,7 +229,7 @@ test("PWA-146 rework keeps every round: what was accepted and not touched stays 
 });
 
 test("PWA-144 APR-15 the record is the project's and goes with it: the same object in another project has nothing, a withdrawn requirement leaves the list and keeps its record, and deleting the project clears only that project", async t => {
-  const { home, service, readOne } = rig(t);
+  const { service, readOne, library, drop } = rig(t);
   const world = platform({ "s-maker": ["run-1"] });
   service.set(agent(), { subject: SUBJECT, requirements: SIX.slice(0, 2) });
   service.set(agent("s-maker", "p2"), { subject: SUBJECT, requirements: SIX.slice(0, 3) });
@@ -214,7 +244,10 @@ test("PWA-144 APR-15 the record is the project's and goes with it: the same obje
   await assert.rejects(service.deliver(agent(), { subject: SUBJECT, version: "v1", touches: [] }, world.ports(agent())), code("acceptance.invalid"), "a version is delivered once");
   await assert.rejects(service.report(agent("s-maker", "p2"), { subject: SUBJECT, reports: [report("r1", "v1")] }, world.ports(agent())), code("acceptance.version_unknown"), "nothing delivered in the other project");
 
-  purgeAcceptanceProject(home, "p1");
+  // A project's library answers for that project alone.
+  assert.throws(() => library("p1").read(me("p2"), { subjects: [SUBJECT] }), code("acceptance.scope"));
+
+  // Deleting the project deletes its library, and the record with it; the other project keeps its own.
+  drop("p1");
   assert.deepEqual([readOne(me(), SUBJECT).requirements.length, readOne(me("p2"), SUBJECT).requirements.length], [0, 3]);
-  purgeAcceptanceProject(home, "p1");
 });

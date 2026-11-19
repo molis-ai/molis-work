@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
@@ -19,14 +19,12 @@ async function recordDelivery(actions: BoundActionClient, goal_id: string) {
     types: [{ type_id: "delivery", version: 1, name: "Delivery", purpose: "Actual result", fields: [{ field_id: "body", name: "Body", purpose: "Evidence", format: "text", required: true }] }],
     requirement_bindings: [{ type_id: "delivery", requirement_id: "delivered" }] });
   await actions.invoke(goalsActions.report, { goal_id, idempotency_key: `report-${goal_id}`, events: [{ type_id: "delivery", type_version: 1,
-    title: "Delivered result", fields: { body: "The agreed result is available" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+    title: "Delivered result", fields: { body: "The agreed result is available" } }] });
 }
 
-/** The report is the reporter's own word (PWA-144): the person accepts the delivered requirement through the protected entry. */
+/** The report is the reporter's own word (PWA-144): the person accepts the delivered requirement on the platform (contract-design §10). */
 async function acceptDelivery(host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>, project_id: string, goal_id: string) {
-  await host.withProject(ref, r => goalApplicationOf(r).goalEvents.recordTrustedDecision({ project_id, goal_id, idempotency_key: `accept-${goal_id}`,
-    authority: hostEventDecisionAuthority("web", project_id, "user", `accept-${goal_id}`), conclusion: "The delivered result is accepted",
-    accepts_requirements: true, scope: { requirement_ids: ["delivered"] } }));
+  await host.withProject(ref, r => goalApplicationOf(r).decide(project_id, goal_id, ["delivered"]));
 }
 
 for (const graph of [

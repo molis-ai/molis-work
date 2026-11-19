@@ -92,12 +92,13 @@
 | 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
 | 存下的句子改成文字引用（用户 2026-11-17 定：升版本、升级段把旧句子转成 `{ literal }`、读取不兜底） | 助理库 1 → 2（`assistant_cards.body` 的 `outcome`）、项目库 4 → 5（只改 Coding 确切官方安装的 `cards:<会话>` 私有值里卡片的 `outcome`，由 Coding 在登记的 `private_value_upgrades` 里声明、Plugin Runtime 执行）、Work Brief 1 → 2（`brief_versions`／`brief_proposals`／`brief_requests` 里来源行与变化行的 `name`、`brief_next_marks` 卡片的 `outcome`）只把存着的字符串原样包成 `{ literal }`（超过文字引用上限的截断加省略号，空的删掉或用插件编号代替名字），不翻译、不改别的字段；读取只认 `OwnedTextRef`。成果库里已固定的简报版本不改 | 各库 owner（助理库与项目库归 `apps/local-host`，Work Brief 库归 Work Brief）；最早支持的金样不再需要助理库第 1 版、项目库第 4 版、Work Brief 库第 1 版时删除对应升级段 |
 | Goals v5 要求与认可交给平台（第 44 批第 3 项 B1，用户 2026-11-18 定 10.9 第 9 问 A） | 项目库 5→6 里，宿主 import Goals 包的升级专用入口 `@molis-ai/molis-work-plugin-goals/v5-acceptance-handover`：`compute` 只读 Goals 自己的三张表，用冻结的 v5 满足规则算出平台认可的行与每项原值；`finish` 只改 Goals 自己的表到 v6 声明。只在这一步调用，PEQ-03 白名单外单开「迁移例外」一栏登记；平台写自己的表并逐项核对，不一致拒绝升级（第 8 问 A）。不得用于普通读取 | owner：`plugins/native/goals`（入口）、`apps/local-host`（调用）；删除条件：最早支持的金样已含平台认可表时，删入口、冻结规则与这条例外。设计见 `specs/plugin-equal-standing/contract-design.md` §10.4 |
+| 项目库 5→6 换算原决定记下的业务结果（第 44 批第 3 项，用户 2026-11-19 定「Re-freeze in 5→6」） | Goal 决定的业务结果在 v5 含此人对要求的结论，结论交给平台后 v6 的结果不再含它。同一升级事务里，`horizontal/project-approvals` 的 `refreezeMovedOutcomeDigests` 只读写自己的 `project_review_decisions`：一条记录冻结的值恰是 Goals 的 `goalDecisionDigestBeforeHandover` 按冻结的 v5 规则算出的旧值，才换成 v6 值，已是新值的不动，其他值拒绝并保留整库；记录别的字段不改，不新增读取兜底。由 `tests/acceptance-handover-upgrade.test.ts` 用 dev.7 金样的两条记录验证 | project-approvals 与 Goals；随项目库 v5 金样支持一起删除 |
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
-第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；A、C、D1～D3 已实现，B1、D5 未实现）。B1 的前提「平台认可补同步集合」用户 2026-11-18 定为本批补（「Add sync now」）：第 3 项先给平台认可加同步集合，再写 B1 的升级段。做法定在 `specs/plugin-equal-standing/contract-design.md` §10（第 5 版，评审通过），用户 2026-11-18 对 §10.9 十一问全按推荐定：认可记录搬进项目库，B1 不再跨两个库文件，改为项目库 5→6 同库一步（「跨两个库文件」一句作废）；存量经 Goals 的升级专用入口算出（见「当前保留机制」）。
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；A、B1、C、D1～D3、D5 已实现）。B1 的前提「平台认可补同步集合」用户 2026-11-18 定为本批补（「Add sync now」）：第 3 项先给平台认可加同步集合，再写 B1 的升级段。做法定在 `specs/plugin-equal-standing/contract-design.md` §10（第 5 版，评审通过），用户 2026-11-18 对 §10.9 十一问全按推荐定：认可记录搬进项目库，B1 不再跨两个库文件，改为项目库 5→6 同库一步（「跨两个库文件」一句作废）；存量经 Goals 的升级专用入口算出（见「当前保留机制」）。
 
 三项的共同规则：
 - 只在持存储主人锁的升级轮里执行；
@@ -154,6 +155,13 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
   - 照 41-2「没有用户」的做法，删掉 Goals 的要求、判断与结论。Goal 和工作事件保留。
   - 要求要在平台上重新挂。
   - 这样 PEQ-02「要求认可都在」只对新数据成立。
+
+已实现（第 44 批第 3 项，B1）。做法见 `specs/plugin-equal-standing/contract-design.md` §10（认可记在项目库，5→6 同库一步，Goals 经升级专用入口算出存量，见「当前保留机制」）；与上面 B1 的写法有这些出入，都在 PR 里写明：
+- 不跨两个库文件：认可记在项目库，搬迁与 Goals 自己的表在同一个升级事务里（§10.9 第 1 问）。
+- 「事件类型→要求」的绑定转成 Goals 的 `goal_event_requirement_bindings` 行（原来是要求行上的 `bound_type_id`）；Goals 另留 `goal_requirement_links`，只记每项要求的来处与登记时的配置版本。
+- 还在等本人认可的 `requirement_acceptance` 请求改为 `moved`，由平台的逐项审阅接手；Goal 的收尾记录加上所依据的认可轮次（升级前的为空）。
+- 搬来的认可来源记 `goals_v5`，不要求平台的可信决定凭据；平台自己写的认可要本库有凭据才算（§10.9 第 11 问 A）。
+- 同步：平台的认可集合按主体一个键；要求与交付只前进，检查与决定取并集。为了在两台设备同时写了检查或决定时真取并集，`packages/storage` 的复制给主人加了可选的 `mergesConcurrent`：本地改动还没发出时，合并不丢任一边的主人照常接收来值（自己拒绝的仍是冲突），之后把合并后的整份发出；改动已在发送中、或主人没声明，照旧算冲突。
 
 **C 删 `goal-advance` 的运行时接入**（第 7 项）
 
@@ -305,8 +313,8 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 | `assistant/assistant.db` | 1 → 2 | 存键和参数、不存译文（BL-action-card-outcome-text，用户 2026-11-17 定升版本、旧句子转 `{ literal }`）：卡片的 `outcome` 从句子改成 `OwnedTextRef`。2026-11-08／11-09「助理库保持第 1 版」的决定到此为止 | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上：Coding 存在 `plugin_private_values` `cards:<会话>` 的卡片 `outcome` 转 `{ literal }`；v4 金样 `0.1.1-dev.6` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text，用户 2026-11-17 定）：来源名改存插件 Manifest 的 `name_text` 引用，旧名字与旧卡片结果转 `{ literal }`（纯 SQL 插件升级段） | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
-| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 44 批第 1、2 项（用户 2026-11-17 批准「第 44 批存量搬迁」A、D1、D3）：项目指导从 Goals 库移到平台的 `guidance_entries`、`guidance_revisions`（行原样，日志与收据去掉 Goals 前缀），平台登记「项目长期说明」同步集合；Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`。项目库备份后同一事务完成，见不认识的取值拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
-| `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：表不变，同步集合随项目库 5→6 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）；Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
+| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 44 批第 1、2 项（用户 2026-11-17 批准「第 44 批存量搬迁」A、D1、D3）：项目指导从 Goals 库移到平台的 `guidance_entries`、`guidance_revisions`（行原样，日志与收据去掉 Goals 前缀），平台登记「项目长期说明」同步集合；Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`；第 3 项 B1：Goal 的要求、判断与结论交给平台的 `acceptance_*` 表（认可来源记 `goals_v5`），平台逐项核对读出的满足与否与 Goals 原来一致，不一致拒绝升级，平台登记「要求与认可」同步集合。项目库备份后同一事务完成，见不认识的取值、不属于本项目的行拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
+| `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：同步集合随项目库 5→6 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）。第 3 项 B1：要求、判断、结论三张表交给平台后删掉；新表 `goal_requirement_links` 记每项要求的来处，`bound_type_id` 转成 `goal_event_requirement_bindings` 行；`goal_event_decision_requests` 的状态加 `moved`、`goal_event_closures` 加所依据的认可轮次（两表照 v6 声明重建，行原样）。由项目库 5→6 经 Goals 的升级专用入口一并完成，Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
 | `context-onboarding/context-onboarding.db` | 1 → 2 | 第 44 批第 1 项 D5（用户 2026-11-17「Yes, upgrade 1→2」）：旅程里 Todo 的批次换成平台形状的草稿批次（快照置空、留批次 id），`todo_selected` 改名 `keep` 原样保留，Pages 的文档 id 补成对象地址；见第 1 版没有的形状拒绝，库留在第 1 版 | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE#1→2` |
 | `placement/placement.db` | 1 → 2 | 第 44 批第 1 项 D2（用户 2026-11-17 批准「第 44 批存量搬迁」）：关系类型 `placement.goal_in` 的每个版本改成 `placement.attached_in`，键补上目标插件与种类（Goals 的 `goal`）；其他不动，见第 1 版没有的键拒绝并保留原库 | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE#1→2` |
 

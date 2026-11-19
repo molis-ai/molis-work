@@ -147,7 +147,7 @@ test("BGE-05: every stored-JSON read in Goals names a real table and column of t
   // maintenance at nothing. A read that forgot `rowid AS stored_row` fails on its first read, so every Goals test reading that path catches it.
   const reads = sourceFiles(GOALS_SRC).flatMap(file => [...readFileSync(file, "utf8").matchAll(/storedJson(?:<[^(]*>)?\(row, "(\w+)", "(\w+)"/g)]
     .map(match => ({ file, table: match[1]!, column: match[2]! })));
-  assert.equal(reads.length, 34, "剩余读取均属于 Goals，项目审批规则、旧方法包和项目说明（第 44 批归平台）已从此处撤下");
+  assert.equal(reads.length, 33, "剩余读取均属于 Goals，项目审批规则、旧方法包、项目说明与要求认可（第 44 批归平台）已从此处撤下；Goals 只读自己挂要求的出处");
   const project = new LocalProjectDatabase(":memory:");
   try {
     const columns = (db: SqliteDatabase, table: string) =>

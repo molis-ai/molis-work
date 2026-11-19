@@ -300,7 +300,7 @@ export declare const SURFACE_SLOT_KINDS: readonly ["plugin-slot", "conversation"
 
 export type SurfaceSlotKind = (typeof SURFACE_SLOT_KINDS)[number];
 
-export declare function bindPresentationValuesHandler(definition: ActionDefinition<PresentationValuesInput, PresentationValues>, read: (input: PresentationValuesInput, caller: ActionCallContext) => PresentationValues | Promise<PresentationValues>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
+export declare function bindPresentationValuesHandler(definition: ActionDefinition<PresentationValuesInput, PresentationValues>, read: (input: PresentationValuesInput, caller: ActionExecutionContext) => PresentationValues | Promise<PresentationValues>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 
 export declare function definePresentationOverviewAction(capabilityId: string, version: number, title: string, permissions: readonly string[], scope?: "project" | "home"): ActionDefinition<Record<string, never>, PresentationOverview>;
 

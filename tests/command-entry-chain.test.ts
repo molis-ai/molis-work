@@ -1,5 +1,5 @@
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -49,19 +49,13 @@ test("actual MCP event handlers finish one Goal without the retired claim/run pr
         fields: [{ field_id: "result", name: "结果", purpose: "当前交付", format: "text", required: true }],
       }],
     });
-    const configured = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_action_goals.agreement.set__v1", {
-      goal_id, idempotency_key: "agree",
-      expected_config_version: configured.config.version,
-      expected_agreement_version: configured.agreement.version,
-      new_requirements: [{ requirement_id: "result", statement: "完成跨入口链" }],
-    });
+    // The requirement is the platform's (contract-design §10).
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).setRequirements(projectId, goal_id, [{ requirement_id: "result", statement: "完成跨入口链" }]));
     const reportInput = {
       goal_id, idempotency_key: "report",
       events: [{
         type_id: "result", type_version: 1, title: "跨入口记录已接通",
         fields: { result: "MCP 写入、管理入口读取同一份事实" },
-        judgments: [{ requirement_id: "result", verdict: "supports" }],
       }],
     };
     const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput)) as ReportGoalEventsResult;
@@ -81,11 +75,8 @@ test("actual MCP event handlers finish one Goal without the retired claim/run pr
       /未知 V1 operation: select-goal/,
     );
 
-    // The MCP session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
-    await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
-      project_id: projectId, goal_id, idempotency_key: "accept", authority: hostEventDecisionAuthority("web", projectId, "web-user", "accept"),
-      conclusion: "跨入口结果我核对过", accepts_requirements: true, scope: { requirement_ids: ["result"] },
-    }));
+    // The MCP session's report is its own word (PWA-144): the person accepts the requirement on the platform before closing.
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).decide(projectId, goal_id, ["result"]));
     const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "close", kind: "complete",

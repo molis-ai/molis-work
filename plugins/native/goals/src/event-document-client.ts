@@ -230,7 +230,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
 
     const formPath = (kind) => ({
       report: "/event-report", note: "/event-note", type: "/event-configure", "type-edit": "/event-configure",
-      requirement: "/event-agree", progress: "/event-progress",
+      progress: "/event-progress",
       concern: "/event-concern", decision: "/event-decision", closure: "/event-close",
       resume: "/event-resume", agreement: "/event-agree",
     }[kind] || "/event-report");
@@ -241,29 +241,14 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (kind === "report") {
         const fields = Object.create(null);
         form.querySelectorAll("[data-report-field]").forEach((input) => { fields[input.name] = input.value; });
-        const requirementId = q(form, "[data-judgment-requirement]")?.value.trim();
-        const verdict = q(form, "[data-judgment-verdict]")?.value.trim();
-        const judgments = requirementId && verdict ? [{ requirement_id: requirementId, verdict }] : [];
         const title = q(form, "[data-event-title]")?.value.trim() || text("event_title");
-        return { events: [{ type_id: form.dataset.typeId, type_version: Number(form.dataset.typeVersion), title, fields, judgments }] };
+        return { events: [{ type_id: form.dataset.typeId, type_version: Number(form.dataset.typeVersion), title, fields }] };
       }
       if (kind === "note") return { body: text("note") };
       if (kind === "type" || kind === "type-edit") {
         return {
           expected_version: Number(form.dataset.configVersion || article.dataset.configVersion || 0),
           types: [{ type_id: text("type_id"), version: Number(text("version") || 1), name: text("name"), purpose: text("purpose"), semantic_family: text("semantic_family") || undefined, fields: typeFields(form) }],
-        };
-      }
-      if (kind === "requirement") {
-        return {
-          expected_config_version: Number(form.dataset.configVersion || article.dataset.configVersion || 0),
-          expected_agreement_version: Number(form.dataset.agreementVersion || article.dataset.agreementVersion || 0),
-          new_requirements: [{
-            requirement_id: text("requirement_id"),
-            statement: text("statement"),
-            bound_type_id: text("bound_type_id") || undefined,
-            human_decision_required: q(form, '[name="human_decision_required"]')?.checked === true,
-          }],
         };
       }
       if (kind === "progress") return { summary: text("summary"), next_step: text("next_step") || undefined, next_actor: text("next_actor") || undefined, based_on_cursor: Number(data.get("based_on_cursor") || article.dataset.goalEventCursor || 0) };
@@ -301,25 +286,10 @@ ${GOALS_DELIVERABLES_SCRIPT}
         return { request_id: text("request_id") || undefined, selected_option_id: text("selected_option_id") || undefined, conclusion: text("conclusion"), effects, scope: { requirement_ids: checkedValues(form, "requirement_ids"), concern_ids: checkedValues(form, "concern_ids"), action: pendingAction || null } };
       }
       if (kind === "agreement") {
-        const revise_requirements = [];
-        const retire_requirement_ids = [];
-        form.querySelectorAll("[data-requirement-edit]").forEach((row) => {
-          const requirementId = q(row, '[name="requirement_id"]')?.value.trim();
-          if (!requirementId) return;
-          if (q(row, '[name="retire_requirement"]')?.checked) {
-            retire_requirement_ids.push(requirementId);
-            return;
-          }
-          const statement = q(row, '[name="requirement_statement"]')?.value.trim();
-          const human = q(row, '[name="human_decision_required"]')?.checked === true;
-          revise_requirements.push({ requirement_id: requirementId, statement, human_decision_required: human });
-        });
         return {
           outcome: text("outcome") || undefined,
           expected_config_version: Number(data.get("expected_config_version")),
           expected_agreement_version: Number(data.get("expected_agreement_version")),
-          ...(revise_requirements.length ? { revise_requirements } : {}),
-          ...(retire_requirement_ids.length ? { retire_requirement_ids } : {}),
         };
       }
       if (kind === "closure") {
@@ -363,7 +333,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
       const submitLabel = submit?.textContent;
       if (submit) submit.textContent = globalThis.t.text("goals.event-document-client.saving");
       const restore = { ...captureRestore(), form: kind };
-      let typeSaved = false;
       try {
         if (kind === "closure") await saveDeliverables(form, currentGoal);
         const payload = buildPayload(form, kind, article);
@@ -401,32 +370,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
           if (status) { status.hidden = false; status.textContent = body.error || globalThis.t.text("goals.event-document-client.could-not-save"); }
           return;
         }
-        typeSaved = kind === "type";
-        if (kind === "type" && q(form, '[name="add_requirement"]')?.checked) {
-          const extraData = new FormData(form);
-          const extraStatement = String(extraData.get("requirement_statement") || "").trim();
-          if (!extraStatement) {
-            if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was"); }
-            return;
-          }
-          const extraKey = key + ":req";
-          const extraRes = await postForm(currentGoal, "/event-agree", {
-            expected_config_version: Number(body.config?.version ?? form.dataset.configVersion ?? 0),
-            expected_agreement_version: Number(form.dataset.agreementVersion || article.dataset.agreementVersion || 0),
-            new_requirements: [{
-              requirement_id: String(extraData.get("new_requirement_id") || "").trim(),
-              statement: extraStatement,
-              bound_type_id: String(extraData.get("type_id") || "").trim() || undefined,
-            }],
-            idempotency_key: extraKey,
-          });
-          const extraBody = await extraRes.json().catch(() => ({}));
-          if (!extraRes.ok) {
-            fieldError(form, extraBody.details?.field_id, extraBody.error || globalThis.t.text("goals.event-document-client.could-not-save"));
-            if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was") + " " + (extraBody.error || globalThis.t.text("goals.event-document-client.could-not-save")) + " " + globalThis.t.text("goals.event-document-client.input-kept-retrying-will-continue-saving-completion-requirements"); }
-            return;
-          }
-        }
         form.dataset.writeReceipt = body.event_id || "recorded";
         const refused = kind === "closure" && body.completion_applied === false && body.unmet_reasons?.length;
         if (refused) {
@@ -458,7 +401,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         hidePanels(true);
       } catch (error) {
         const message = error instanceof TypeError ? globalThis.t.text("goals.event-document-client.could-not-reach-local-service-input-kept-please") : error.message || globalThis.t.text("goals.event-document-client.could-not-save");
-        if (status) { status.hidden = false; status.textContent = typeSaved ? globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was") + " " + message : message; }
+        if (status) { status.hidden = false; status.textContent = message; }
         else showError?.(message);
       } finally {
         form.removeAttribute("aria-busy");
@@ -595,6 +538,14 @@ ${GOALS_DELIVERABLES_SCRIPT}
         })();
         return;
       }
+      // The requirements are the platform's: 「逐项审阅」 asks the page for its requirement column on this Goal.
+      const review = event.target.closest("[data-acceptance-review]");
+      if (review) {
+        let subject = null;
+        try { subject = JSON.parse(review.dataset.acceptanceReview || "null"); } catch { /* A subject the page did not write opens nothing. */ }
+        if (subject) document.dispatchEvent(new CustomEvent("molis:acceptance-review-requested", { detail: { subject } }));
+        return;
+      }
       const locate = event.target.closest("[data-locate-event]");
       if (locate) {
         if (locate.dataset.locateEvent) { void locateHistory(locate.dataset.locateEvent); return; }
@@ -670,17 +621,8 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (!form || form.closest("[data-goal-event-document]") !== root()) return;
       clearHold(form);
       if (input.name === "effect" && input.checked) {
-        const opposite = { accept_requirements: "reject_requirements", reject_requirements: "accept_requirements", accept_concerns: "reject_concerns", reject_concerns: "accept_concerns", authorize_action: "deny_action", deny_action: "authorize_action" }[input.value];
+        const opposite = { accept_concerns: "reject_concerns", reject_concerns: "accept_concerns", authorize_action: "deny_action", deny_action: "authorize_action" }[input.value];
         if (opposite) { const other = q(form, '[name="effect"][value="' + opposite + '"]'); if (other) other.checked = false; }
-      }
-      if (input.matches('[name="add_requirement"]')) {
-        const row = q(form, "[data-new-requirement]");
-        if (row) { row.hidden = !input.checked; q(row, "textarea").required = input.checked; }
-      }
-      if (input.matches("[data-judgment-requirement]")) {
-        const verdict = q(form, "[data-judgment-verdict]");
-        verdict.disabled = !input.value; verdict.closest("label").hidden = !input.value;
-        if (!input.value) verdict.value = "";
       }
       if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action" || input.name === "cited_decision_id")) {
         const existing = Boolean(q(form, '[name="concern_id"]')?.value);

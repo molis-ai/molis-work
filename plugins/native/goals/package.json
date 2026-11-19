@@ -33,6 +33,10 @@
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
+    },
+    "./v5-acceptance-handover": {
+      "types": "./dist/v5-acceptance-handover.d.ts",
+      "import": "./dist/v5-acceptance-handover.js"
     }
   },
   "files": [

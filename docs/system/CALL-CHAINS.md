@@ -392,12 +392,12 @@ B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组�
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 引用证据 | Goals 插件的要求报告（`plugins/native/goals/src/plugin.ts`，`plugins/native/goals/src/evidence-check.ts`） | `run_id` 加本会话一轮里被引用的命令 `call_id` → 由主人判定这条要求是否满足 | 调用者是 Agent 或 workflow；会话由 Host 绑定，不从输入读 | 主人自己的错误码 | Goals 自己的事件 |
+| 1 | 引用证据 | 平台认可的核对报告（`acceptance.reports.submit@1`：`apps/local-host/src/acceptance-actions.ts` 委托核对，`modules/acceptance/src/service.ts` 定层级；第 44 批起 Goals 不再自己核对） | `run_id` 加本会话一轮里被引用的命令 `call_id` → 由平台判定这份报告能不能算机器核过 | 调用者是 Agent 或 workflow；会话由 Host 绑定，不从输入读 | 认可自己的错误码 | 认可库里的核对记录 |
 | 2 | 动作入口 | `agent.evidence.check@1`，合同在 `packages/contracts/src/services/agent-host.ts` | 上面两项 → 事实 | 受众只有 `agent`／`workflow`（`plugin: false`）；项目 scope，`scheduling: "concurrent"` | 未绑定会话、插件或本人调用 → 拒绝 | 读取；成功不留行 |
 | 3 | 核对范围 | `horizontal/agent-host/src/recovery-actions.ts` 的 `checkEvidence`：只认可信上下文里的 `runtime_session_id`，逐 Runtime 读这一轮 | 会话加 `run_id` → 这一轮的会话与 owner | 会话不属于调用者项目或这一轮不在这会话里就继续找；读失败单独保留，不当成「不是这轮」 | 找不到这一轮 `agent.run_unknown`；读不到会话 `agent.capability_unavailable` | 无 |
 | 4 | 给事实 | 同一处理器：读这一轮的命令回执与执行记录，给「有没有回执、退出码、超时／取消、之后有没有再改文件」 | 回执 → 事实，不返回输出、不再跑命令 | 返回前再 `beforeEffect()` 与权限尾检 | 没有回执的引用答 `recorded: false`，不写成成功 | 无 |
 
-**守住它的用例**：`tests/security-invariants-agent-evidence.test.ts`、`tests/goal-event-evidence.test.ts`。
+**守住它的用例**：`tests/security-invariants-agent-evidence.test.ts`、`tests/security-invariants-acceptance.test.ts`。
 
 ### 11.5 链 E：项目资料（`system.materials`）
 

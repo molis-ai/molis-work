@@ -276,7 +276,7 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
   // The requirement column (specs/proactive-assistant §7.3.1): what was asked of a piece of work, how each item was checked, and the person's accept or return.
-  { id: "acceptance", handle: ({ request, response, url, localHost, hostReference, serverOptions }) => handleAcceptanceHttp(request, response, url, localHost, hostReference, serverOptions.homeDirectory) },
+  { id: "acceptance", handle: ({ request, response, url, localHost, hostReference }) => handleAcceptanceHttp(request, response, url, localHost, hostReference) },
   // The shell's UI stages in this project, through the same door as the Home's (observation-collection §4).
   { id: "observation-ui", handle: ({ request, response, url, localHost, hostReference }) => handleObservationShellHttp(request, response, url, localHost, hostReference) },
   { id: "observation-api", handle: ({ request, response, url, localHost, hostReference }) => handleObservationHttp(request, response, url, localHost, hostReference) },

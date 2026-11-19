@@ -4,7 +4,6 @@ import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
-import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
@@ -273,11 +272,9 @@ for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDE
     types: [{ type_id: "delivery", version: 1, name: "交付", purpose: "真实结果", fields: [{ field_id: "body", name: "内容", purpose: "证据", format: "text", required: true }] }],
     requirement_bindings: [{ type_id: "delivery", requirement_id: "delivered" }] });
   app.goalEvents.report({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-report",
-    events: [{ type_id: "delivery", type_version: 1, title: "已有真实结果", fields: { body: "本目标的结果可读" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
-  // A report is only the reporter's own word (PWA-144): the person accepts the requirement through the protected entry, so the closure below is gated by the concern alone.
-  app.goalEvents.recordTrustedDecision({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, idempotency_key: "concern-accept",
-    authority: hostEventDecisionAuthority("web", DEMO_PROJECT_ID, "web-user", "concern-accept"),
-    conclusion: "真实结果我核对过", accepts_requirements: true, scope: { requirement_ids: ["delivered"] } });
+    events: [{ type_id: "delivery", type_version: 1, title: "已有真实结果", fields: { body: "本目标的结果可读" } }] });
+  // A report is only the reporter's own word (PWA-144): the person accepts the requirement on the platform, so the closure below is gated by the concern alone.
+  app.decide(DEMO_PROJECT_ID, goal.goal_id, ["delivered"]);
   const other = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "另一个目标", actor_id: "web-user", actor_kind: "user", idempotency_key: "other-goal" }).goal;
   const earlier = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, body: "问题提出前的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "earlier-note" });
   const foreign = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: other.goal_id, body: "其他 Goal 的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "foreign-note" });

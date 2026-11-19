@@ -143,7 +143,7 @@ export { GoalInputBindings } from "./input-bindings.js";
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal, approvalRules: GoalApprovalRules = noApprovalRules): {
   query: GoalsQueryApi;
-  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner"> & { readonly state: Pick<GoalEventStateApi, "readWorkState"> };
+  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readRequirementLinks" | "isEventStateOwner"> & { readonly state: Pick<GoalEventStateApi, "readWorkState"> };
 } {
   const repository = new GoalsRepository(db, journal, approvalRules);
   const context = new GoalsCommandContext(repository);

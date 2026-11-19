@@ -10125,6 +10125,8 @@
     "workbench.project-guidance.what-project-facts-that-remain-true": "What this project is and facts that remain true",
     "workbench.project-guidance.why-make-change": "Why make this change",
     "workbench.project-guidance.workflow": "Workflow",
-    "workbench.project-guidance.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing"
+    "workbench.project-guidance.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing",
+    "workbench.acceptance.add-requirement": "Add a requirement",
+    "workbench.acceptance.new-requirement": "What it must do, in one sentence"
   }
 }

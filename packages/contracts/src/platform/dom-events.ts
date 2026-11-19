@@ -123,6 +123,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/immersive-navigation.ts"],
     state: "The application chrome around the work area, including the Goal work mode.",
   },
+  "acceptance-column": {
+    files: ["apps/workbench/src/browser/work-acceptance.ts"],
+    state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.",
+  },
   "goal-selection": {
     files: ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"],
     state: "The Goal selected in the Goals directory and the page's first selection on load.",
@@ -397,6 +401,11 @@ export const DOM_EVENTS = [
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
     detail: "{ goalId, mode }",
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
+  },
+  {
+    name: "molis:acceptance-review-requested", kind: "request", owner: "acceptance-column", on: "document",
+    detail: "{ subject: { provider_id, subject: { kind, id } } }",
+    summary: "Open the requirement column on one object's requirements (a Goal page's 「逐项审阅」). The column reads them as the person and shows the platform's own card; the page that asks draws no control that accepts or returns a requirement.",
   },
   {
     name: "molis:assistant-card-target", kind: "request", owner: "assistant", on: "document",

@@ -325,7 +325,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       requirement_bindings: [{ type_id: "work", requirement_id: "delivered" }] });
     assert.equal(configured.config.version, 1);
     const reported = await invokeWork(goalsActions.report, { idempotency_key: "public-report", events: [{ type_id: "work", type_version: 1,
-      title: "外部真实交付", fields: { body: "标准 MCP 保存的报告正文" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+      title: "外部真实交付", fields: { body: "标准 MCP 保存的报告正文" } }] });
     assert.equal(reported.events[0]!.actor_id, sessionActor);
     const progressed = await invokeWork(goalsActions.progress, { idempotency_key: "public-progress", based_on_cursor: reported.goal_event_cursor, summary: "报告已交付" });
     assert.equal(progressed.progress_summary.summary, "报告已交付");
@@ -354,11 +354,8 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       expected_config_version: current.config.version, expected_agreement_version: agreed.agreement.version });
     assert.equal(closed.work_status, "cancelled");
     assert.equal((await invokeWork(goalsActions.resume, { idempotency_key: "public-resume", reason: "继续实际工作" })).work_status, "open");
-    // The MCP session's supports report is its own word (PWA-144): the real user accepts the requirement through the protected entry.
-    await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
-      project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user-accept", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user-accept"),
-      conclusion: "交付正文已核对", accepts_requirements: true, scope: { requirement_ids: ["delivered"] },
-    }));
+    // The MCP session's report is its own word (PWA-144): the person accepts the requirement on the platform.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).decide(project.project_id, input.goal_id, ["delivered"]));
     const finalState = await invokeWork(goalsActions.state, {});
     const completed = await invokeWork(goalsActions.close, { kind: "complete", result: "用户可查看完整报告", reason: "完成交付", idempotency_key: "public-complete",
       expected_config_version: finalState.config.version, expected_agreement_version: finalState.agreement.version });

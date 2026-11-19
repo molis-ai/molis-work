@@ -5,8 +5,8 @@ import type { SyncSelection } from "@molis-ai/molis-work-module-sync-replication
 export interface PlatformSyncCollection {
   readonly selection: SyncSelection;
   readonly title: string;
-  readonly owner: "artifacts" | "characters" | "project-approvals" | "project-guidance";
-  readonly store: "library" | "process" | "characters" | "approvals" | "guidance";
+  readonly owner: "artifacts" | "characters" | "project-approvals" | "project-guidance" | "acceptance";
+  readonly store: "library" | "process" | "characters" | "approvals" | "guidance" | "acceptance";
 }
 export const projectApprovalSyncSelection = { plugin_id: "io.molis.work.project-approvals", publisher_id: "molis",
   publisher_signature: "official-project-approvals-binding", collection_id: "approvals",
@@ -19,4 +19,8 @@ export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
   // A project's guidance (contract-design §9): Goals carried it in `project_goals` until batch 44.
   { owner: "project-guidance", store: "guidance", title: "项目长期说明", selection: { plugin_id: "io.molis.work.project-guidance", publisher_id: "molis",
     publisher_signature: "official-project-guidance-binding", collection_id: "guidance", schema_version: /* @version sync.collection.platform.guidance */ 1 } },
+  // The platform's requirements and acceptance (contract-design §10.5): Goals carried a Goal's requirements in `project_goals` until batch 44.
+  // It needs the approvals collection too: a decision made through the trusted-decision entry counts only once its record is here.
+  { owner: "acceptance", store: "acceptance", title: "要求与认可", selection: { plugin_id: "io.molis.work.acceptance", publisher_id: "molis",
+    publisher_signature: "official-acceptance-binding", collection_id: "acceptance", schema_version: /* @version sync.collection.platform.acceptance */ 1 } },
 ];

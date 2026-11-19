@@ -1,73 +1,47 @@
 import type {
-  GoalEventExtraRequirement,
   GoalEventRequirementBinding,
   GoalEventRequirementSource,
+  GoalRequirementLink,
 } from "../contract/goals.js";
 import { storedJson } from "../stored-json.js";
 import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
-/** `goal_event_requirements` and `goal_event_requirement_bindings`: the extra requirements of a Goal and what they bind to. */
+/**
+ * `goal_requirement_links` and `goal_event_requirement_bindings`: which requirements Goals hung on a Goal's platform acceptance, where
+ * each came from, and the event types bound to it. What a requirement says and whether it is met are the platform's (§10.3).
+ */
 export class GoalEventRequirementRecords {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
-  insertRequirement(input: GoalEventExtraRequirement & { project_id: string; goal_id: string; created_at: string }): void {
+  insertLink(input: { project_id: string; goal_id: string; requirement_id: string; origin: GoalEventRequirementSource | null; created_in_config_version: number; created_at: string }): void {
     this.db.prepare(`
-      INSERT INTO goal_event_requirements (
-        requirement_id, project_id, goal_id, statement, bound_type_id,
-        created_at, created_in_config_version, actor_id, source_json,
-        human_decision_required, current_status, revision, support_valid_after_seq
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      input.requirement_id,
-      input.project_id,
-      input.goal_id,
-      input.statement,
-      input.bound_type_id ?? null,
-      input.created_at,
-      input.created_in_config_version,
-      input.actor_id,
-      input.source == null ? null : sqliteJson(input.source),
-      input.human_decision_required ? 1 : 0,
-      input.current_status,
-      input.revision,
-      input.support_valid_after_seq,
-    );
+      INSERT INTO goal_requirement_links (project_id, goal_id, requirement_id, origin_json, created_in_config_version, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(input.project_id, input.goal_id, input.requirement_id, input.origin == null ? null : sqliteJson(input.origin), input.created_in_config_version, input.created_at);
   }
 
-  updateRequirementCurrent(input: {
-    requirementId: string;
-    statement: string;
-    humanDecisionRequired: boolean;
-    currentStatus: GoalEventExtraRequirement["current_status"];
-    revision: number;
-    supportValidAfterSeq: number;
-  }): void {
-    this.db.prepare(`
-      UPDATE goal_event_requirements
-      SET statement = ?, human_decision_required = ?, current_status = ?, revision = ?, support_valid_after_seq = ?
-      WHERE requirement_id = ?
-    `).run(
-      input.statement,
-      input.humanDecisionRequired ? 1 : 0,
-      input.currentStatus,
-      input.revision,
-      input.supportValidAfterSeq,
-      input.requirementId,
-    );
+  /** The Goal a requirement id is hung on in this project, or null; a requirement id names one requirement of one Goal. */
+  linkedGoal(projectId: string, requirementId: string): string | null {
+    const row = this.db.prepare("SELECT goal_id FROM goal_requirement_links WHERE project_id = ? AND requirement_id = ?").get(projectId, requirementId) as Row | undefined;
+    return row ? rowText(row.goal_id) : null;
   }
 
-  getExtraRequirement(requirementId: string): (GoalEventExtraRequirement & { project_id: string; goal_id: string }) | null {
-    const row = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_event_requirements WHERE requirement_id = ?")
-      .get(requirementId) as Row | undefined;
-    return row ? { ...mapRequirement(row), project_id: rowText(row.project_id), goal_id: rowText(row.goal_id) } : null;
-  }
-
-  listExtraRequirements(projectId: string, goalId: string): GoalEventExtraRequirement[] {
+  listLinks(projectId: string, goalId: string): GoalRequirementLink[] {
+    const bindings = this.listBindings(projectId, goalId);
     return (this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_event_requirements WHERE project_id = ? AND goal_id = ? ORDER BY requirement_id
-    `).all(projectId, goalId) as Row[]).map(mapRequirement);
+      SELECT *, rowid AS stored_row FROM goal_requirement_links WHERE project_id = ? AND goal_id = ? ORDER BY created_at, rowid
+    `).all(projectId, goalId) as Row[]).map((row) => {
+      const id = rowText(row.requirement_id);
+      return {
+        requirement_id: id,
+        origin: storedJson<GoalEventRequirementSource | null>(row, "goal_requirement_links", "origin_json", null),
+        bound_type_ids: bindings.filter((binding) => binding.requirement_id === id).map((binding) => binding.type_id),
+        created_in_config_version: Number(row.created_in_config_version),
+        created_at: rowText(row.created_at),
+      };
+    });
   }
 
   insertBinding(input: GoalEventRequirementBinding & {
@@ -106,20 +80,4 @@ export class GoalEventRequirementRecords {
       requirement_id: rowText(row.requirement_id),
     }));
   }
-}
-
-function mapRequirement(row: Row): GoalEventExtraRequirement {
-  const source = storedJson<GoalEventRequirementSource | null>(row, "goal_event_requirements", "source_json", null);
-  return {
-    requirement_id: rowText(row.requirement_id),
-    statement: rowText(row.statement),
-    bound_type_id: row.bound_type_id == null ? undefined : rowText(row.bound_type_id),
-    created_in_config_version: Number(row.created_in_config_version),
-    actor_id: rowText(row.actor_id),
-    human_decision_required: Number(row.human_decision_required) === 1,
-    current_status: rowText(row.current_status || "active") as GoalEventExtraRequirement["current_status"],
-    revision: Number(row.revision ?? 1),
-    support_valid_after_seq: Number(row.support_valid_after_seq ?? 0),
-    ...(source ? { source } : {}),
-  };
 }

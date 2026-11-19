@@ -434,6 +434,11 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     readonly audience: ActionAudience;
     readonly readable_project_ids?: readonly string[];
     readonly calling_plugin_id?: string;
+    readonly acting_for?: {
+        readonly provider_id: string;
+        readonly kind: string;
+        readonly id: string;
+    };
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;

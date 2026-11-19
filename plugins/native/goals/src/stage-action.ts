@@ -1,12 +1,12 @@
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalAction } from "./action-contract.js";
 import { goalsCollectionAction } from "./collection-action.js";
-import { goalDocumentAction } from "./document-action.js";
+import { goalDocumentAction, type GoalAcceptanceViews } from "./document-action.js";
 import type { GoalsDocumentCollectionView, GoalsMembership } from "./document-collection.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
 import { identifier, object, nullable, array, enumeration } from "./contract/goal-actions.js";
 import { resolveGoalsPageCollection, type GoalDocumentCollection } from "./document-routes.js";
-import { goalPresentationStates, type CaptureGoalPresentationStatus, type GoalPresentationStatus } from "./presentation.js";
+import { goalAcceptanceStatus, goalPresentationStates, type CaptureGoalPresentationStatus, type GoalPresentationStatus } from "./presentation.js";
 
 export interface GoalsStageInput { goal_id?: string; collection?: GoalDocumentCollection }
 export interface GoalsStageData {
@@ -33,9 +33,9 @@ export const goalsStageAction = { ...stageRead, action: { ...stageRead.action, a
 export function createGoalsStageActionHandler(ports: {
   membership(): GoalsMembership;
   collection(membership: GoalsMembership, capturePresentation: CaptureGoalPresentationStatus): GoalsDocumentCollectionView;
-  document(goalId: string): GoalEventDocumentView;
+  document(goalId: string, acceptance?: GoalAcceptanceViews): GoalEventDocumentView;
 }): ActionHandlerBinding {
-  return { ...goalsStageAction, handle: (_caller, input) => {
+  return { ...goalsStageAction, handle: (_caller, input, acceptance?: GoalAcceptanceViews) => {
     const { goal_id, collection: requestedCollection } = input as GoalsStageInput;
     const membership = ports.membership();
     const resolved = resolveGoalsPageCollection({ collection: requestedCollection ?? "current", ...(goal_id ? { goal_id } : {}) }, membership);
@@ -44,9 +44,9 @@ export function createGoalsStageActionHandler(ports: {
     // An absent selection is still a collection read; the page owner retains its existing missing-Goal response.
     const goalId = goal_id ?? (selection === "current" ? membership.active_goal_id : visible[0]?.goal.goal_id);
     const selected = goalId && visible.some(item => item.goal.goal_id === goalId)
-      ? { goal_id: goalId, document: ports.document(goalId) } : null;
+      ? { goal_id: goalId, document: ports.document(goalId, acceptance) } : null;
     const presentation_states: GoalsStageData["presentation_states"] = [];
-    const collection = ports.collection(membership, (goal_id, status) => presentation_states.push({ goal_id, status }));
+    const collection = ports.collection(membership, (goal_id, status) => presentation_states.push({ goal_id, status: goalAcceptanceStatus(status, acceptance?.get(goal_id)) }));
     return { collection, presentation_states, selection, selected };
   } };
 }

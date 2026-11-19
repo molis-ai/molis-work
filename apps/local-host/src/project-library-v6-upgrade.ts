@@ -1,9 +1,12 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { rebuildInboxEntries } from "@molis-ai/molis-work-module-attention-resumption";
+import { ACCEPTANCE_SCHEMA_SQL, importAcceptanceHandover } from "@molis-ai/molis-work-module-acceptance";
 import { rewriteStoredContextEdges } from "@molis-ai/molis-work-module-context-ledger";
 import { adoptProjectGuidance, listProjectRoots, PROJECT_GUIDANCE_EVENT_PREFIX, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_GUIDANCE_OBJECT_TYPE, PROJECT_GUIDANCE_RECEIPTS } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
+import { ACCEPTANCE_HANDOVER_DROPPED_TABLES, computeAcceptanceHandover, finishAcceptanceHandover, goalDecisionDigestBeforeHandover } from "@molis-ai/molis-work-plugin-goals/v5-acceptance-handover";
+import { refreezeMovedOutcomeDigests } from "@molis-ai/molis-work-service-project-approvals";
 import { renameJournalRecords, sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
 import { GOALS_V5_LIBRARY, goalsApprovalTransferManifest } from "./goal-callers.js";
 import { goalsHistoryPlatformExtension } from "./goal-context-history.js";
@@ -23,6 +26,12 @@ import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./
  * - A: a project's guidance is the platform's (`modules/projects`, contract-design §9): Goals' two guidance tables move into the
  *   platform's `guidance_entries` and `guidance_revisions` unchanged, and their journal events and receipts lose Goals' prefix, so the
  *   history stays and a retry with the same key still replays. A project without Goals gets the empty tables.
+ * - B1: a Goal's requirements and acceptance are the platform's (`modules/acceptance`, contract-design §10.4): Goals works out, with its
+ *   own frozen v5 rules, the platform's rows and what it read of each requirement (`computeAcceptanceHandover`, the one migration
+ *   exception beside PEQ-03's whitelist); the platform writes them and refuses the upgrade where its own reading differs; Goals then
+ *   leaves its tables as its v6 declaration (`finishAcceptanceHandover`). Goals' waiting event requests never had Inbox entries, so
+ *   the requests that become `moved` leave none behind. A trusted-decision record that froze the outcome of a Goal decision with
+ *   conclusions gets the outcome without them (user 2026-11-19).
  * Delete with the project library's version-5 golden support.
  */
 
@@ -120,15 +129,21 @@ function upgrade(db: SqliteBaselineDatabase): void {
   const goals = takeGoalsApart(db);
   if (!adoptProjectGuidance(db, goals?.projectId ?? "", goals ? GOALS_V5_GUIDANCE : null)) throw refusal();
   if (goals) renameJournalRecords(db, guidanceJournalRenames(goalsTemplate().plugin_id));
+  if (goals) {
+    importAcceptanceHandover(db, goals.projectId, computeAcceptanceHandover(db, goals.projectId));
+    // A record that froze the v5 outcome of such a decision holds its v6 one from here (user 2026-11-19); before the conclusions go.
+    refreezeMovedOutcomeDigests(db, goals.projectId, id => goalDecisionDigestBeforeHandover(db, goals.projectId, id));
+    finishAcceptanceHandover(db, goals.projectId);
+  }
   rewriteRelations(db);
   goals?.rebuild();
 }
 
 /** The 5→6 step's run: one transaction with the library's version mark; foreign keys are off for the Inbox table's rebuild. */
 export const projectLibraryV6Upgrade: Pick<SqliteUpgradeStep, "sql" | "run" | "rebuilds_tables" | "reduces_rows"> = {
-  /** A: the platform's guidance tables and their sync transport, which `run` then fills from Goals'. */
-  sql: PROJECT_GUIDANCE_SCHEMA_SQL,
+  /** A and B1: the platform's guidance and acceptance tables and their sync transport, which `run` then fills from Goals'. */
+  sql: `${PROJECT_GUIDANCE_SCHEMA_SQL}\n${ACCEPTANCE_SCHEMA_SQL}`,
   run: upgrade,
   rebuilds_tables: true,
-  get reduces_rows() { return [...oldTransportTables(), ...Object.values(GOALS_V5_GUIDANCE)]; },
+  get reduces_rows() { return [...oldTransportTables(), ...Object.values(GOALS_V5_GUIDANCE), ...ACCEPTANCE_HANDOVER_DROPPED_TABLES]; },
 };

@@ -197,6 +197,13 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
    * (`host_plugin`), so this is how a handler of one plugin's Home half knows the call came from that plugin's project instance. Never business input.
    */
   readonly calling_plugin_id?: string;
+  /**
+   * The object a call speaks for, when the Host itself acts for it (contract-design §10.3): set only where the Host issues a delegated
+   * Assistant work its own authority, naming that work, and never one a caller carried in (a plugin's, an MCP client's and a workflow's
+   * callers are built fresh by the Host). The platform's requirements and acceptance read it as the object's own side
+   * (`S-acceptance-subject-owner`). Never business input.
+   */
+  readonly acting_for?: { readonly provider_id: string; readonly kind: string; readonly id: string };
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */

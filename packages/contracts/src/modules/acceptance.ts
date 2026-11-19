@@ -54,7 +54,11 @@ export type AcceptanceCheckKind = "engineering" | "hands_on";
  * command that did not end well.
  */
 export type AcceptanceGap = "evidence_missing" | "evidence_stale" | "wrong_object" | "evidence_unreadable" | "check_failed";
-/** The platform's own finding when the report arrives; no input carries it (`ReviewEvidence["tier"]` without the person's). */
+/**
+ * The platform's own finding when the report arrives; no input carries it (`ReviewEvidence["tier"]` without the person's). `machine_checked`:
+ * commands the platform ran in the round that made the version; `peer_reviewed`: a session the platform knows, other than the one that made
+ * the version, checked that version against readable evidence (contract-design §10.9 question 2).
+ */
 export type AcceptanceTier = Exclude<ReviewEvidence["tier"], "person_accepted">;
 
 export interface AcceptanceReportInput {
@@ -81,8 +85,12 @@ export interface AcceptanceCheck {
   reported_at: string;
 }
 
+/** Where a decision's standing comes from: the platform's trusted-decision entry, or Goals' own applied decision moved over by the 5→6 upgrade. */
+export type AcceptanceDecisionOrigin = "trusted_decision" | "goals_v5";
+
 export interface AcceptancePersonDecision {
   decision_id: string;
+  origin: AcceptanceDecisionOrigin;
   decision: "accepted" | "returned";
   note: string | null;
   requirement_version: number;
@@ -119,6 +127,8 @@ export interface AcceptanceRequirementState {
   gap: AcceptanceGap | "self_only" | "contradicted" | null;
   person: "accepted" | "returned" | "pending" | "not_needed";
   decision: AcceptancePersonDecision | null;
+  /** A decision synced from another device whose trusted-decision record has not arrived here yet: it does not count until it does. */
+  awaiting_voucher: boolean;
   satisfied: boolean;
   history: AcceptanceHistoryEntry[];
 }
@@ -205,7 +215,7 @@ const metadata = { scope: "project" as const, scheduling: "concurrent" as const,
 export const acceptanceActions = {
   set: { capability_id: "acceptance.requirements.set", version: /* @version action.acceptance.requirements.set */ 1, operation: "command", action: { ...metadata,
     title: "写下交付要满足的各项要求", description: "把一件工作要满足的要求逐项挂到它的对象上：每项一句话说明、可选的预期与所指的部分、是否要用户本人认可。同一个 id 的说明变了算这条要求的新版本，之前的核验和认可不再算数；没再列出的要求撤下。第一次交付之后只有用户本人能改要求。",
-    kind: "operation", effect: "write", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_REPORT_PERMISSION],
+    kind: "operation", effect: "write", audiences: ["user", "agent", "workflow", "plugin"], permissions: [ACCEPTANCE_REPORT_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceSetRequest>()({ type: "object", properties: { subject: SUBJECT, requirements: { type: "array", minItems: 1, maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: REQUIREMENT } },
       required: ["subject", "requirements"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceSetRequest, AcceptanceView>,
   deliver: { capability_id: "acceptance.deliveries.record", version: /* @version action.acceptance.deliveries.record */ 1, operation: "command", action: { ...metadata,
@@ -220,7 +230,7 @@ export const acceptanceActions = {
       required: ["subject", "reports"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceReportRequest, AcceptanceView>,
   read: { capability_id: "acceptance.read", version: /* @version action.acceptance.read */ 1, operation: "query", action: { ...metadata,
     title: "逐项看要求、证据与认可", description: "读取一件或几件工作（subjects，至多 32 个）的各项要求此刻的状态：所核版本、方法、证据与可信层级、缺口、用户的认可或退回、各轮的记录，以及执行、核验、认可三个各自的进度。按所问的顺序返回 views；没挂要求的对象返回空的一份。只读。",
-    kind: "query", effect: "read", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_READ_PERMISSION],
+    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "plugin"], permissions: [ACCEPTANCE_READ_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceReadRequest>()({ type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: ACCEPTANCE_READ_MAX, items: SUBJECT } }, required: ["subjects"], additionalProperties: false } as const),
     output_schema: { type: "object", properties: { views: { type: "array", items: VIEW } }, required: ["views"], additionalProperties: false } } } as ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>,
   review: { capability_id: "acceptance.review", version: /* @version action.acceptance.review */ 1, operation: "query", action: { ...metadata, subject_kinds: [...ACCEPTANCE_REVIEW_SUBJECT_KINDS],
@@ -235,3 +245,22 @@ export const acceptanceActions = {
       returns: { type: "array", maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: { ...ITEM, properties: { ...ITEM.properties, note: text(2000) }, required: ["id", "version", "note"] } } },
       required: ["subject", "version", "accepts", "returns"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceDecideRequest, AcceptanceView>,
 };
+
+/**
+ * One subject's whole record as Goals hands it over in the project library's 5→6 upgrade (contract-design §10.4), and nowhere else:
+ * the rows exactly as they are to be written, with ids, rounds and clocks already worked out from Goals' own data, and what Goals' own
+ * rules said of each current requirement. The platform writes them and refuses the upgrade where its own reading differs.
+ */
+export interface AcceptanceHandoverSubject {
+  subject: AcceptanceSubject;
+  created_at: string;
+  requirements: Array<{ requirement_id: string; version: number; statement: string; expected: string | null; part: string | null; requires_person: boolean; withdrawn: boolean;
+    position: number; by_person: boolean; actor_id: string; created_at: string }>;
+  deliveries: Array<{ round: number; version: string; touches: string[] | null; actor_id: string; delivered_at: string }>;
+  checks: Array<{ check_id: string; clock: number; requirement_id: string; requirement_version: number; round: number; verdict: "supports" | "contradicts"; tier: AcceptanceTier;
+    gap: AcceptanceGap | null; checked_version: string; method: string; observed: string; evidence: AcceptanceEvidenceRef[]; reporter_session: string | null; actor_id: string; reported_at: string }>;
+  decisions: Array<{ decision_id: string; clock: number; requirement_id: string; requirement_version: number; stands_round: number; version: string; decision: "accepted" | "returned";
+    note: string | null; origin_ref: string; actor_id: string; decided_at: string }>;
+  /** Goals' own reading of each current requirement before the move: satisfied or not. */
+  satisfied: Record<string, boolean>;
+}

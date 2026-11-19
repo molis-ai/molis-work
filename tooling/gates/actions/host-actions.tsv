@@ -6,9 +6,9 @@
 capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	permissions	subjects	input_type	output_type	input	output	traits
 acceptance.decide	1	system.acceptance	command	operation	project	write	concurrent	user	acceptance:decide	acceptance_check,acceptance_requirement,acceptance_subject	-	-	06fef9219267	384b87fb0423	976055ad574b
 acceptance.deliveries.record	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	9e0a5488b919	384b87fb0423	-
-acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	846232c4ba5a	-
+acceptance.read	1	system.acceptance	query	query	project	read	concurrent	agent,plugin,user,workflow	acceptance:read	-	-	-	52fee4b74cc1	846232c4ba5a	-
 acceptance.reports.submit	1	system.acceptance	command	operation	project	write	concurrent	agent,workflow	acceptance:report	-	-	-	7fefdb6244a1	384b87fb0423	-
-acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	384b87fb0423	-
+acceptance.requirements.set	1	system.acceptance	command	operation	project	write	concurrent	agent,plugin,user,workflow	acceptance:report	-	-	-	4c232c4c5c32	384b87fb0423	-
 acceptance.review	1	system.acceptance	query	query	project	read	concurrent	user	acceptance:read	acceptance_check,acceptance_requirement,acceptance_subject	-	-	72f0db8bc372	a2c799262a3c	-
 account.entitlements.check	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	4f580efa7d71	fed40eaf2d30	-
 account.features.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	6204f82b0cd6	-

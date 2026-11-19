@@ -9344,6 +9344,8 @@
     "workbench.project-guidance.what-project-facts-that-remain-true": "项目是什么，以及长期成立的事实",
     "workbench.project-guidance.why-make-change": "为什么要做这次变更",
     "workbench.project-guidance.workflow": "工作方式",
-    "workbench.project-guidance.write-complete-instruction-future-runtime-can-understand-follow": "写清楚背景和要求，方便 AI 不用猜就能直接照着做"
+    "workbench.project-guidance.write-complete-instruction-future-runtime-can-understand-follow": "写清楚背景和要求，方便 AI 不用猜就能直接照着做",
+    "workbench.acceptance.add-requirement": "添加要求",
+    "workbench.acceptance.new-requirement": "一句话写下要满足的要求"
   }
 }

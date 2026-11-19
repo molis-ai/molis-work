@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 import {
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
 } from "@molis-ai/molis-work-plugin-runtime";
@@ -23,10 +24,10 @@ const OWNER = { plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.p
 const GOALS_TABLES = [
   "acceptance_criteria", "boards", "goal_event_agreements", "goal_event_applied_decisions", "goal_event_closures", "goal_event_concerns",
   "goal_event_config_versions", "goal_event_configs", "goal_event_decision_requests", "goal_event_progress_summaries",
-  "goal_event_requirement_bindings", "goal_event_requirement_conclusions", "goal_event_requirements", "goal_event_state_owners",
-  "goal_event_types", "goal_event_work_status", "goal_relations", "goal_trash_records",
+  "goal_event_requirement_bindings", "goal_event_state_owners",
+  "goal_event_types", "goal_event_work_status", "goal_relations", "goal_requirement_links", "goal_trash_records",
   "goal_trash_relation_records", "goal_tree_item_effects", "goal_tree_proposal_items", "goal_tree_proposals",
-  "goal_work_event_judgments", "goal_work_events", "goals", "input_bindings",
+  "goal_work_events", "goals", "input_bindings",
 ];
 
 function emptyLibrary(): DatabaseSync {
@@ -96,13 +97,15 @@ test("PLIB-12 opening the same declaration again opens normally and changes noth
 
 test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is keyed to the project root", () => {
   const db = emptyLibrary();
-  const expected = new DatabaseSync(":memory:");
+  // The frozen history (tests/fixtures/goal-event-history) taken through the project library's real upgrade, 5→6 included (batch 44
+  // hands the requirements to the platform): what the upgrade leaves must be exactly what the declaration makes on an empty library.
+  const upgraded = materializeGoalEventHistory("approved");
+  const expected = new DatabaseSync(upgraded.path);
   try {
     open(db);
-    expected.exec(readFileSync(new URL("./fixtures/goal-event-history/approved.sql", import.meta.url), "utf8"));
     const current = describeSqliteSchema(expected).tables, declared = describeSqliteSchema(db).tables;
     for (const table of GOALS_TABLES.filter(name => name !== "goal_tree_item_effects")) {
-      assert.ok(current[table], `${table} is in the independent current fixture`);
+      assert.ok(current[table], `${table} is in the upgraded fixture`);
       assert.deepEqual(declared[table], current[table], `${table}: complete columns, checks, keys and indexes`);
     }
     assert.deepEqual(declared.goal_tree_item_effects?.columns.map(column => column.name),
@@ -111,5 +114,5 @@ test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business 
     assert.deepEqual(declared.boards!.columns.map(column => column.name), ["project_id", "active_goal_id", "created_at", "updated_at"]);
     assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);
-  } finally { expected.close(); db.close(); }
+  } finally { expected.close(); db.close(); rmSync(upgraded.directory, { recursive: true, force: true }); }
 });

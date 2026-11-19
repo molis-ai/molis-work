@@ -28,9 +28,12 @@ export const pluginArtifactContracts = {
 
 // Project before validating: Javascript callers cannot replace trusted identity or add authority.
 export const referenceInput = (value: ArtifactReference): ArtifactReference => ({ artifact_id: value.artifact_id, version: value.version });
-export const filterInput = (value: PluginConsumableFilter = {}): PluginConsumableFilter => ({
-  ...(value.artifact_type_id === undefined ? {} : { artifact_type_id: value.artifact_type_id }),
-  ...(value.producer_plugin_id === undefined ? {} : { producer_plugin_id: value.producer_plugin_id }) });
+// A missing or null filter is no filter; anything else keeps only its own two fields, and the schema refuses what they hold.
+export const filterInput = (value?: PluginConsumableFilter | null): PluginConsumableFilter => {
+  const filter = value ?? {};
+  return { ...(filter.artifact_type_id === undefined ? {} : { artifact_type_id: filter.artifact_type_id }),
+    ...(filter.producer_plugin_id === undefined ? {} : { producer_plugin_id: filter.producer_plugin_id }) };
+};
 export const processInput = (value: PluginProcessItemInput): PluginProcessItemInput => ({ ...referenceInput(value),
   artifact_type_id: value.artifact_type_id, schema_version: value.schema_version, content: value.content,
   ...(value.metadata === undefined ? {} : { metadata: value.metadata }),

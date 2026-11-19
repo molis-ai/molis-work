@@ -104,8 +104,11 @@ for (const order of [[RESEARCH, WRITING], [WRITING, RESEARCH]] as const) {
     assert.deepEqual(reader.listConsumable({ producer_plugin_id: "io.molis.work.example.never-installed" }), [], "a producer never installed");
     assert.deepEqual(reader.listConsumable({ artifact_type_id: NOTE }), [], "a type the reader does not declare");
     // BL375-05: a filter never widens what the reader may read: another user's personal version, and an undeclared type, stay out.
+    assert.equal(p.versions.processItems.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "research:other-person", version: 1 })?.owner_actor_id, "someone-else",
+      "the other user's version is really there; only its personal owner keeps it out");
     assert.equal(reader.listConsumable({ producer_plugin_id: RESEARCH }).some(row => row.artifact_id === "research:other-person"), false);
     assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ producer_plugin_id: RESEARCH }), [], "the writing plugin does not declare that it reads excerpts");
+    assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ artifact_type_id: EXCERPT }), [], "nor by type, though excerpts are there");
     assert.throws(() => reader.listConsumable({ producer_plugin_id: "" }), { code: "actions.input_invalid" });
   });
 }

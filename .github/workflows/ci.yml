@@ -83,6 +83,8 @@ jobs:
   # Build once on Linux and share all dist/ directories across architecture-boundaries, action-contracts, account-login,
   # security-invariants, golden-replay and product-subset instead of repeating `pnpm build` on ~19 runners.
   build:
+    outputs:
+      dist_name: ${{ steps.dist.outputs.name }}
     name: Build workspace
     needs: [test-selection, queue-check]
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
@@ -106,7 +108,9 @@ jobs:
         run: pnpm build
 
       - name: Pack build outputs
+        id: dist
         run: |
+          echo "name=ci-dist-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
           {
             find . \( -name node_modules -o -name .git \) -prune -o -name dist -type d -prune -print
             for d in apps/local-host/native/materials/bin apps/local-host/native/computer/bin; do
@@ -117,7 +121,7 @@ jobs:
       - name: Upload build outputs
         uses: actions/upload-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.dist.outputs.name }}
           path: ${{ runner.temp }}/dist.tar.gz
           retention-days: 1
           compression-level: 0
@@ -296,7 +300,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs
@@ -457,7 +461,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs
@@ -705,7 +709,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs
@@ -906,7 +910,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs
@@ -971,7 +975,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs
@@ -1064,7 +1068,7 @@ jobs:
       - name: Download build outputs
         uses: actions/download-artifact@v4
         with:
-          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ needs.build.outputs.dist_name }}
           path: ${{ runner.temp }}/dist
 
       - name: Unpack build outputs

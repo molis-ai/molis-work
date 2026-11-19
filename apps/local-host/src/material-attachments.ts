@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync, renameSync, rmSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -9,7 +9,7 @@ import {
   type ConversationAttachmentImageType, type ConversationAttachmentRequest, type MaterialUpload,
 } from "@molis-ai/molis-work-contracts/services/materials";
 import { supportsMaterialExtension } from "@molis-ai/molis-work-plugin-sdk";
-import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, rollbackPreservingError, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { extractHomeMaterial } from "./material-home.js";
 import { readMaterialDocuments } from "./material-documents.js";
 
@@ -90,14 +90,10 @@ async function documentText(home: string, name: string, bytes: Buffer, signal: A
   return { text: read.text, meta: { chars: read.text.length, truncated: read.coverage.truncated === true, pages: read.pages.length ? read.coverage.total_pages : null, coverage: read.coverage.status, issues: read.coverage.issues.slice(0, 20) } };
 }
 
-/** The bytes kept once under their digest: written to a temporary name and moved into place, so a half-written file is never a blob. */
-async function keepBlob(home: string, sha256: string, bytes: Buffer): Promise<void> {
-  const dir = blobsOf(home), target = path.join(dir, sha256);
-  if (existsSync(target)) return;
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const temporary = path.join(dir, `.${sha256}.${randomUUID()}`);
-  try { await writeFile(temporary, bytes, { mode: 0o600, flag: "wx" }); await rename(temporary, target); }
-  finally { await rm(temporary, { force: true }); }
+/** Compare the supplied original before reusing a previously saved attachment. */
+async function stillMatches(target: string, bytes: Buffer): Promise<boolean> {
+  try { return (await readFile(target)).equals(bytes); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
 }
 
 function attachmentOf(row: AttachmentRow): ConversationAttachment {
@@ -115,22 +111,39 @@ export async function attachConversationFile(home: string, owner: AttachmentOwne
   options: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<ConversationAttachment> {
   const { name, bytes } = decoded(upload);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const known = withStore(home, db => db.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
-    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined);
-  if (known && existsSync(path.join(blobsOf(home), sha256))) return attachmentOf(known);
+  const dir = blobsOf(home), target = path.join(dir, sha256);
+  const known = ownedRow(home, owner, sha256);
+  options.signal?.throwIfAborted();
+  if (known && await stillMatches(target, bytes)) {
+    const current = ownedRow(home, owner, sha256);
+    if (current && existsSync(target)) return attachmentOf(current);
+  }
   const image = imageTypeOf(bytes);
   if (image && bytes.length > CONVERSATION_ATTACHMENT_LIMITS.image_bytes) throw attachmentErrors.too_large("图片超过 5 MB，请压缩或截取需要的部分");
-  options.signal?.throwIfAborted();
-  const read = image ? null : await documentText(home, name, bytes, options.signal);
-  const row: AttachmentRow = { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
+  const read = known || image ? null : await documentText(home, name, bytes, options.signal);
+  const row: AttachmentRow = known ?? { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
     text: read?.text ?? null, text_meta: read ? JSON.stringify(read.meta) : null };
-  options.signal?.throwIfAborted();
-  await options.beforeEffect?.();
-  await keepBlob(home, sha256, bytes);
-  withStore(home, db => db.prepare(`INSERT INTO attachments (plugin_id, install_id, project_id, sha256, title, kind, media_type, byte_length, text, text_meta, attached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (plugin_id, install_id, project_id, sha256) DO NOTHING`)
-    .run(...ownerKey(owner), sha256, row.title, row.kind, row.media_type, row.byte_length, row.text, row.text_meta, new Date().toISOString()));
-  return attachmentOf(row);
+  const temporary = path.join(dir, `.${sha256}.${randomUUID()}`);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(temporary, bytes, { mode: 0o600, flag: "wx", signal: options.signal });
+    options.signal?.throwIfAborted();
+    await options.beforeEffect?.();
+    options.signal?.throwIfAborted();
+    // The single Home writer publishes both the bytes and the reference without yielding to project cleanup.
+    return withStore(home, db => {
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        db.prepare(`INSERT INTO attachments (plugin_id, install_id, project_id, sha256, title, kind, media_type, byte_length, text, text_meta, attached_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (plugin_id, install_id, project_id, sha256) DO NOTHING`)
+          .run(...ownerKey(owner), sha256, row.title, row.kind, row.media_type, row.byte_length, row.text, row.text_meta, new Date().toISOString());
+        const saved = attachmentOf(findOwnerRow(db, owner, sha256)!);
+        renameSync(temporary, target);
+        db.exec("COMMIT");
+        return saved;
+      } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
+    });
+  } finally { await rm(temporary, { force: true }); }
 }
 
 /** One of this owner's attachments read back. Another owner's, an unknown one, and a reference that is not an attachment are all `not_found`. */
@@ -142,8 +155,12 @@ function digestOf(ref: MaterialRef): string | null {
 
 function ownedRow(home: string, owner: AttachmentOwner, sha256: string): AttachmentRow | undefined {
   if (!existsSync(homeSqlitePath(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path))) return undefined;
-  return withStore(home, db => db.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
-    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined);
+  return withStore(home, db => findOwnerRow(db, owner, sha256));
+}
+
+function findOwnerRow(db: ReturnType<typeof openBaselineHomeSqlite>, owner: AttachmentOwner, sha256: string): AttachmentRow | undefined {
+  return db.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
+    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined;
 }
 
 /** Whether this owner still has the attachment, bytes included: what a page asks before it offers to show or send it again. */
@@ -195,7 +212,8 @@ async function forget(home: string, where: string, values: string[]): Promise<vo
     db.prepare(`DELETE FROM attachments WHERE ${where}`).run(...values);
     return shas.filter(sha => !db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1").get(sha));
   });
-  await Promise.all(orphaned.map(sha => rm(path.join(blobsOf(home), sha), { force: true })));
+  // A new reference cannot be published between the last-reference check and unlink.
+  for (const sha of orphaned) rmSync(path.join(blobsOf(home), sha), { force: true });
 }
 
 /** What a document is, by its name, for the person and for the record; its text is what the model reads. */

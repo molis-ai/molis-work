@@ -488,7 +488,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
   assert.match(jobBlock("build"), /run: pnpm build$/m, "the shared build job builds the workspace packages");
   assert.match(job, /^    needs: \[test-selection, queue-check, build\]$/m, "product-subset consumes the shared build job");
-  assert.ok(job.includes("name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}"), "product-subset downloads the shared build archive");
+  assert.ok(job.includes("name: ${{ needs.build.outputs.dist_name }}"), "product-subset downloads the shared build archive");
   assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");
   const timeout = Number(/^    timeout-minutes: (\d+)$/m.exec(job)?.[1]);
   const budget = Number(/--budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);

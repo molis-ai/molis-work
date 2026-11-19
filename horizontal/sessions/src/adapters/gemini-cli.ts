@@ -1,6 +1,6 @@
 import { sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import { sessionSourceFailure, type AdapterDiscoveryBatch, type AdapterReadOutput, type AdapterSourceContext, type ExternalSessionSourceAdapter } from "../ports.js";
+import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
 import {
   buildCliResumeTarget,
   isValidNativeId,
@@ -12,6 +12,8 @@ import {
   walkFilesUnderRoot,
   withFileTranscriptCache,
   type ParsedTranscriptResult,
+  discoveryCursor,
+  nextDiscoveryCursor,
 } from "./shared.js";
 
 const DISCOVERY_BATCH_SIZE = 50;
@@ -107,11 +109,12 @@ function parseGeminiMessages(rawObj: Record<string, unknown>): ParsedTranscriptR
 export const geminiCliAdapter: ExternalSessionSourceAdapter = {
   entry_id: "gemini-cli",
 
-  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
+  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal, alreadyRead: number): Promise<AdapterDiscoveryBatch> {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
     const candidates = walked.files.filter(item => isGeminiSessionJson(item.relative, item.entry.name).candidate);
-    const startOffset = cursor ? Math.max(0, Number.parseInt(cursor, 10) || 0) : 0;
+    const previous = discoveryCursor(cursor, alreadyRead);
+    const startOffset = previous.offset;
     const batch = candidates.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
@@ -184,15 +187,10 @@ export const geminiCliAdapter: ExternalSessionSourceAdapter = {
       }
     }
 
-    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
-      throw sessionSourceFailure("version_mismatch", "Gemini CLI 会话记录版本暂不支持解析", false);
-    }
-
-    const nextOffset = startOffset + batch.length;
     return {
       sessions,
       skipped_count: skippedCount,
-      next_cursor: nextOffset < candidates.length ? String(nextOffset) : null,
+      next_cursor: nextDiscoveryCursor(previous, batch.length, candidates.length, sessions.length, unsupportedVersionFiles, "Gemini CLI"),
       total: candidates.length,
     };
   },

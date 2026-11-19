@@ -41,7 +41,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留 |
+| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md)、[91（91A）](batches/91.md)、[91B](batches/91b.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留；VUX-13／14／26 流式衔接与全产品视觉反馈收口见 [91](batches/91.md)／[91B](batches/91b.md)（[决定 55](decisions.md#decision-55)） |
 | [ai-input-receipts](../../ai-input-receipts/spec.md)；BL-314、BL-315、BL-316、BL-317、BL-319、BL-148、BL-162、BL-318 | 产品线（助理）、横向能力（回执） | [32](batches/32.md)、[53](batches/53.md)、[64](batches/64.md)、[89](batches/89.md) | 直接做；阶段 6 各场景写小 spec 时再定 |
 | [prologue-adoption](../../prologue-adoption/spec.md)；BL-302、BL-307、BL-308、BL-306 | 横向能力（AI 运行时）、底层与架构 | [09](batches/09.md)、[24](batches/24.md)、[31](batches/31.md)、[62](batches/62.md)、[82](batches/82.md) | 直接做：按换包窗口 |
 | [ai-interaction-experience](../../ai-interaction-experience/spec.md)；BL-341、BL-343、BL-344、BL-345、BL-340、BL-342 | 产品线（助理、各插件）、横向能力（卡片撤销合同） | [11](batches/11.md)、[53](batches/53.md)、[66](batches/66.md) | 要决策：同排推荐看实物（BL-344）；其余按已定合同直接做 |
@@ -51,7 +51,7 @@
 | 个人云同步（main 的 `specs/personal-cloud-sync/` 总纲 + Goals、关联资产、Pages、插件复制、同步基础五份子文档；`personal` 分支的原同路径是历史来源）；范围与旧分支状态在原需求，隔离分项通过不等于正式交付 | 横向能力（同步）、底层与架构、产品线（同步） | [SRV-1](batches/srv-1.md)、[SRV-2](batches/srv-2.md)、[SRV-5](batches/srv-5.md) | 要决策：服务端批何时开工（[决定 24](decisions.md#decision-24)）；合入方式（[决定 13](decisions.md#decision-13)）；部署与账号（你办） |
 | CGS 自媒体创作（`codex/cgs-formal-integration-20261013` 分支的 `specs/cgs-formal-integration/`） | 产品线（自媒体场景）、横向能力（技能包、场景组装） | [82](batches/82.md)（72 已并入 77） | 已定（2026-11-18，[决定 14](decisions.md#decision-14)）：插件本体放下，七项 Skill 改成内容技能包、可提前做，场景在 82 |
 
-**个人云同步怎样接进来。** 它要服务端（账号、Worker、云上存储），和团队协作、团队记忆、M2 一起放进[服务端批](server-batch.md#server-batch)，排在 01～91 之后，开工时间由你定（用户 2026-11-03）。它和防腐收尾撞在同一处：同步适配写在各插件的存储上，而防腐线把插件的表改成 Manifest 声明（PG-020、PG-021）、Home 插件按项目分库、同一插件分出 Home 与项目两个实例。所以不把分支整个变基进来，而是按收尾后的形状重接，原来的适配和用例当参照：
+**个人云同步怎样接进来。** 它要服务端（账号、Worker、云上存储），和团队协作、团队记忆、M2 一起放进[服务端批](server-batch.md#server-batch)，排在 01～99 之后，开工时间由你定（用户 2026-11-03）。它和防腐收尾撞在同一处：同步适配写在各插件的存储上，而防腐线把插件的表改成 Manifest 声明（PG-020、PG-021）、Home 插件按项目分库、同一插件分出 Home 与项目两个实例。所以不把分支整个变基进来，而是按收尾后的形状重接，原来的适配和用例当参照：
 
 1. SRV-1：拿当时的 main 对一遍分支，列出哪些适配还成立、哪些要重写；你定合入方式（[决定 13](decisions.md#decision-13)）。再与团队实时协作共同设计身份、对象版本、访问、并发与断线恢复，然后定个人同步合同，避免把整对象覆盖当作所有内容的协作语义。同步合同单独一个 PR——插件在 Manifest 里声明哪些表、哪些对象要同步，平台提供同步服务，不按插件名单接（插件同等待遇）；Outbox（BL-070）随它一起定。这时 M1 已经发出，同步声明按合同变更流程的过渡期加，带读取兼容。
 2. SRV-2：平台同步服务、账号、Worker，加核心插件（Goals、待办、文稿、成果库）的声明。字体皮肤语言的切换已在 16 完成，声明直接按新格式写，不再有切换窗口。
@@ -214,6 +214,28 @@
 <a id="section-3-8"></a>
 
 ### BACKLOG 其余条目
+
+<a id="backlog-dispatch-22"></a>
+
+2026-11-18 确认的 22 条可独立实施工作如下。正式映射以此表和对应交付行核回，原 BL 记录实施状态与验收。
+
+| 来源 | 范围 | 执行项 | 依赖与未决 |
+| --- | --- | --- | --- |
+| [BL-959](../../backlog/BL-959.md) | 步骤报告作者 | [53-1](batches/53.md#batch-53-item-1) | 已定，前置见交付行 |
+| [BL-1062](../../backlog/BL-1062.md) | 连接页折叠 | [36A-5](batches/36a.md#batch-36a-item-5) | 已定，前置见交付行 |
+| [BL-attention-404-by-code](../../backlog/BL-attention-404-by-code.md) | 提醒重连 | [56-1](batches/56.md#batch-56-item-1) | 已定，前置见交付行 |
+| [BL-knowledge-restore-partial-catalog](../../backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../../backlog/BL-tests-umask.md) | 离线恢复两项回归 | [73-3](batches/73.md#batch-73-item-3) | 先做离线恢复切片，U7 单独验收 |
+| [BL-plugin-cli-dev-uncoded-errors](../../backlog/BL-plugin-cli-dev-uncoded-errors.md) | 插件隔离试用报错 | [48-1](batches/48.md#batch-48-item-1) | 已定，前置见交付行 |
+| [BL-586](../../backlog/BL-586.md) | 安装身份与视图 | [47-1](batches/47.md#batch-47-item-1) | 已定，前置见交付行 |
+| [BL-973](../../backlog/BL-973.md)、[BL-980](https://github.com/molis-ai/molis-work/blob/27b46f17ab93dabdb75a4a80e665aa5d1b2ca05d/specs/backlog/BL-980.md)、[BL-1017](../../backlog/BL-1017.md) | 文档与测试小修 | [92-1](batches/92.md#batch-92-item-1)、[92-2](batches/92.md#batch-92-item-2)、[92-3](batches/92.md#batch-92-item-3) | 三项分别由 #2144、#2145、#2146 合入 |
+| [BL-1006](../../backlog/BL-1006.md)、[BL-browser-socket-close-pending-bind](../../backlog/BL-browser-socket-close-pending-bind.md) | 关闭页面与连接 | [93-1](batches/93.md#batch-93-item-1)、[93-2](batches/93.md#batch-93-item-2) | 已定，前置见交付行 |
+| [BL-desktop-same-version-install](../../backlog/BL-desktop-same-version-install.md) | 桌面开发安装 | [94-1](batches/94.md#batch-94-item-1) | 已定，前置见交付行 |
+| [BL-feed-sql-driver-name](../../backlog/BL-feed-sql-driver-name.md)、[BL-feed-run-now-missed-again](../../backlog/BL-feed-run-now-missed-again.md)、[BL-missed-runs-never-expire](../../backlog/BL-missed-runs-never-expire.md) | Feed 与错过任务 | [95-1](batches/95.md#batch-95-item-1)、[95-2](batches/95.md#batch-95-item-2)、[95-3](batches/95.md#batch-95-item-3) | 已定，前置见交付行 |
+| [BL-schedule-update-task-lookup](../../backlog/BL-schedule-update-task-lookup.md)、[BL-schedule-detail-refresh-after-failed-round](../../backlog/BL-schedule-detail-refresh-after-failed-round.md) | 定时任务编辑与刷新 | [96-1](batches/96.md#batch-96-item-1)、[96-2](batches/96.md#batch-96-item-2) | 已定，前置见交付行 |
+| [BL-report-rounds-auto-cap](../../backlog/BL-report-rounds-auto-cap.md)、[BL-work-line-report-batch](../../backlog/BL-work-line-report-batch.md) | 助理后台汇报 | [97-1](batches/97.md#batch-97-item-1)、[97-2](batches/97.md#batch-97-item-2) | 已定，前置见交付行 |
+| [BL-375](../../backlog/BL-375.md) | 多插件共用材料类型 | [98-1](batches/98.md#batch-98-item-1) | 已定，前置见交付行 |
+| [BL-coding-changeset-deleted-kind](../../backlog/BL-coding-changeset-deleted-kind.md) | Coding 删除清单 | [99-1](batches/99.md#batch-99-item-1) | 已定，前置见交付行 |
+
 
 保留编号用于核回；历史已交项先找实际成果，不重新实现。每项实现与验收仍由原需求及所在包负责。决策：直接做，按轨道填空；工程流程由所在批次的主会话做；BL-128 要你定（[决定 16](decisions.md#decision-16)）。
 

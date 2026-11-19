@@ -305,7 +305,14 @@ export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./searc
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
 // An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
-export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
+export { adoptContextJourney, readContextJourney, selectContextSources, startContextJourney, updateContextDraft, waitContextJourney } from "./context-onboarding-service.js";
+// Existing work in AI tools read into a round as the project's AI (batch 35 item 1, SRB-09), and the clients that read as the person or as it.
+export { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
+export { bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
+// The person's own and a project folder's prompt commands (Coding A2) and where the Host registers them, with the identity a plugin call carries (S-prompt-commands).
+export { personalPromptCommands, projectPromptCommands } from "./prompt-commands.js";
+export { registerProjectCapabilities } from "./project-capabilities.js";
+export { issuePluginCaller } from "./plugin-callers.js";
 export { classifyContextModelFailure } from "./context-onboarding-delta.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
@@ -332,6 +339,8 @@ export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
 export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type DeliveryNote } from "./assistant/assistant-delivery.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
+export { assistantAttachments, assistantAttachmentImage, ASSISTANT_ATTACHMENT_OWNER, type AssistantAttachmentPort } from "./assistant/assistant-attachments.js";
+export { attachConversationFile, readConversationAttachment, holdsConversationAttachment, forgetProjectAttachments, forgetInstallationAttachments, CONVERSATION_ATTACHMENTS_HOME_STORE, type AttachmentOwner } from "./material-attachments.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";

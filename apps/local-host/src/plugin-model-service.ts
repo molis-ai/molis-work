@@ -54,18 +54,19 @@ export function createPluginModelPort(home: PluginPlatformHome, carried: readonl
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true, vision: true };
       // Every model action of every plugin asks this within one directory: read the settings once per Home and selection there.
       return rememberInDirectoryPass(createPluginModelPort, JSON.stringify([home.directory, selection ?? null]), () => {
-        let label: string | undefined, vision = false;
+        let label: string | undefined, vision: boolean | undefined;
         const state = textModelAvailability(() => {
           if (!configured(selection)) return false;
           const catalog = openConfiguredModels(home.directory);
           try {
             const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
             // What a plugin may show the person: the connection and model they configured, not the runtime underneath (F-01).
-            if (selected) { label = `${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
+            if (selected) { label = `${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision; }
             return true;
           } finally { catalog?.storage.close(); }
         });
-        return state.available && label ? { ...state, runtime_label: label, vision } : state;
+        // What the person marked, as it is: absent when unmarked (decision 51 ③), as `choices()` gives it.
+        return state.available && label ? { ...state, runtime_label: label, ...(vision === undefined ? {} : { vision }) } : state;
       });
     },
     complete(owner, prompt, dispatch) {

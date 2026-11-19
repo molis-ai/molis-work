@@ -3,6 +3,7 @@ import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-co
 import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-judgment-rules";
 import { forgetInstallationBindings, forgetInstallationProjectBindings, installationIdsWithBindings } from "./connector-plugin-requests.js";
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
+import { forgetInstallationAttachments } from "./material-attachments.js";
 import { hostLog } from "./host-log.js";
 import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./plugin-holders.js";
 import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
@@ -24,6 +25,8 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
+  // What the person brought into its conversations is its data: it goes only when the data goes.
+  if (dataGoes) void forgetInstallationAttachments(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? null).catch(error => hostLog.warn("plugins", "attachments_not_removed", error));
   // The judgments it recorded in this project are its data too (S-90); a Home-level activation records none.
   if (dataGoes && scope.project_id) forgetInstallJudgmentsIn(scope.home.directory, record.install_id, scope.project_id);
 }

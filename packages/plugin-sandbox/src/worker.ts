@@ -1,5 +1,5 @@
 // This entry is bundled alone into a .mjs file with the public text tools. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageDescriptor, SandboxImagePart, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageDescriptor, SandboxImagePart, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxAttachmentPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { format, say, t } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { sandboxWorkerText } from './worker-text.js';
 
@@ -91,6 +91,21 @@ function sdk(callId: string): SandboxSdk {
       releaseOriginal: async recordKey => { await invoke('materials.releaseOriginal', [recordKey]); },
       // The whole file in parts of at most 256 KiB, each one a call the Host answers on its own; the revision of the first part is passed back with
       // every later one, so a file that changes in between is refused by the Host, not read as a mixture of two files.
+      attach: file => answer<Awaited<ReturnType<SandboxSdk['materials']['attach']>>>(invoke('materials.attach', [json(file)])),
+      // A picture comes in parts of at most 256 KiB, like an original file; its text comes in one answer.
+      readAttachment: async (ref, request) => {
+        if (request?.as !== 'image') return answer<Awaited<ReturnType<SandboxSdk['materials']['readAttachment']>>>(invoke('materials.readAttachment', [json(ref)]));
+        const meta = await answer<Awaited<ReturnType<SandboxSdk['materials']['readAttachment']>>>(invoke('materials.readAttachment', [json(ref)]));
+        const parts: Buffer[] = [];
+        let offset = 0, mediaType = '';
+        for (;;) {
+          const part: SandboxAttachmentPart = await answer<SandboxAttachmentPart>(invoke('materials.readAttachmentPart', [json(ref), offset, ORIGINAL_PART_BYTES]));
+          mediaType = part.media_type;
+          if (part.byte_length) parts.push(Buffer.from(part.data_base64, 'base64'));
+          offset += part.byte_length;
+          if (!part.byte_length || offset >= part.size) return { attachment: meta.attachment, image: { media_type: mediaType as 'image/png', bytes: Buffer.concat(parts) } };
+        }
+      },
       readOriginal: async (recordKey, request) => {
         const limit = request?.maxBytes ?? ORIGINAL_FILE_BYTES;
         if (!Number.isSafeInteger(limit) || limit < 1 || limit > ORIGINAL_FILE_BYTES) throw Object.assign(new Error('maxBytes is 1 byte to 32 MiB'), { code: 'sandbox.invalid_request' });

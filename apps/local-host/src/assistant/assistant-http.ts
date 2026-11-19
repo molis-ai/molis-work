@@ -1,3 +1,4 @@
+import { assistantAttachmentImage, assistantAttachments } from "./assistant-attachments.js";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginPageRequest } from "../plugin-page-authority.js";
@@ -150,7 +151,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
-    lastLocale: () => lastUsedLocale(ports.homeDirectory),
+    lastLocale: () => lastUsedLocale(ports.homeDirectory), attachments: assistantAttachments(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: (sessionId, control) => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args), control),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
@@ -180,7 +181,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
       }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic),
       assistantWorkConnections(ports.homeDirectory, store, work, categories)),
-      project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      project_prompts: await assistantProjectPrompts(ports.localHost, work), attachmentImage: assistantAttachmentImage(servicePorts.attachments!),
       assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -370,7 +371,12 @@ export const assistantPanelActions = {
   })),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
-    async (entry, { body }) => ({ material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) })),
+    async (entry, { body }, caller) => {
+      // Read first, kept only if the page and the person's grant are still current (the platform's attachment write runs `beforeEffect` last).
+      const control = assistantPermissionCaller(caller, entry.page);
+      return { material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") },
+        { ...(caller.signal ? { signal: caller.signal } : {}), beforeEffect: control.beforeEffect }) };
+    }),
   notices: panel("notices", /* @version action.assistant.panel.notices */ 1, "记下通知已看或略过", ofPanel, (entry, { body }) => ({ settled: of(entry).service.notices.settleNotices(
     { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) }, body.state === "dismissed" ? "dismissed" : "seen") })),
   followupRemove: panel("followups.remove", /* @version action.assistant.panel.followups.remove */ 1, "移除一项跟进", ofPanel,

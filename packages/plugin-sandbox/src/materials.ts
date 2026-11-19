@@ -1,5 +1,7 @@
-import type { SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest, SandboxMaterialSourceContent } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SandboxAttachmentPart, SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest, SandboxMaterialSourceContent } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { MaterialSource, MaterialUpload } from '@molis-ai/molis-work-contracts/services/materials';
+import type { MaterialRef } from '@molis-ai/molis-work-contracts/platform/project-materials';
 import { SandboxError } from './schema.js';
 
 // The Host's readers of files the plugin already holds (`sdk.materials`, PG-017 P2). The reader is the activation's `services.materials`, the
@@ -103,3 +105,41 @@ export function originalPart(offset: SandboxJson | undefined, length: SandboxJso
 export const documentBatchJson = (batch: SandboxMaterialDocumentBatch): SandboxJson => plainJson(batch);
 export const extractionJson = (extraction: SandboxMaterialExtraction): SandboxJson => plainJson(extraction);
 export const sourceContentJson = (content: SandboxMaterialSourceContent): SandboxJson => plainJson(content);
+
+/**
+ * An attachment as the plugin names it back: the plain reference the Host gave it, nothing else. Whether it is this installation's is
+ * the Host's to say; this side only bounds what crosses.
+ */
+export function attachmentRef(value: SandboxJson | undefined): MaterialRef {
+  const ref = plainObject(value, 'An attachment', ['subject', 'pin']);
+  const subject = plainObject(ref.subject, 'An attachment subject', ['kind', 'id']), pin = plainObject(ref.pin, 'An attachment pin', ['mode', 'read_revision']);
+  const short = (item: SandboxJson | undefined) => typeof item === 'string' && item.length > 0 && item.length <= 200;
+  if (!short(subject.kind) || !short(subject.id) || pin.mode !== 'current' || !short(pin.read_revision)) throw invalid('An attachment is the reference the Host gave');
+  return { subject: { kind: subject.kind as string, id: subject.id as string }, pin: { mode: 'current', read_revision: pin.read_revision as string } };
+}
+
+/** Which part of an attached picture: a start inside the 5 MB a picture may be, and at most 256 KiB. */
+export function attachmentPart(offset: SandboxJson | undefined, length: SandboxJson | undefined): { offset: number; length: number } {
+  if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 || offset > 5 * 1024 * 1024) throw invalid('A start is a whole number of bytes inside the picture');
+  if (typeof length !== 'number' || !Number.isSafeInteger(length) || length < 1 || length > ORIGINAL_PART_BYTES) throw invalid('A part is 1 byte to 256 KiB');
+  return { offset, length };
+}
+
+/**
+ * The three attachment methods the worker calls (attach, read the text, read a picture's part), each with its own argument count; undefined
+ * when the Host built no attachment service for this activation. The Host's client names the owner; this side only bounds what crosses.
+ */
+export function attachmentCall(method: string, args: readonly SandboxJson[], materials: PluginMaterialsClient | undefined, signal: AbortSignal | undefined): Promise<SandboxJson> | undefined {
+  const count = (n: number) => { if (args.length !== n) throw invalid('Invalid SDK argument count'); };
+  if (method === 'materials.attach') { count(1); const upload = materialUpload(args[0]); return materials?.attach && (async () => plainJson(await materials.attach!(upload, signal ? { signal } : {})))(); }
+  if (method === 'materials.readAttachment') { count(1); const ref = attachmentRef(args[0]); return materials?.readAttachment && (async () => plainJson(await materials.readAttachment!(ref, { as: 'text', ...(signal ? { signal } : {}) })))(); }
+  if (method !== 'materials.readAttachmentPart') throw invalid('Unknown materials method');
+  count(3);
+  const ref = attachmentRef(args[0]), { offset, length } = attachmentPart(args[1], args[2]);
+  return materials?.readAttachment && (async () => {
+    const image = (await materials.readAttachment!(ref, { as: 'image', ...(signal ? { signal } : {}) })).image;
+    if (!image) throw invalid('This attachment is not a picture');
+    const bytes = Buffer.from(image.bytes).subarray(offset, offset + length);
+    return { data_base64: bytes.toString('base64'), byte_length: bytes.length, size: image.bytes.length, media_type: image.media_type } satisfies SandboxAttachmentPart;
+  })();
+}

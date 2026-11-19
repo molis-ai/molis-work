@@ -211,7 +211,7 @@ export class AssistantService {
     if (input) input = mainSendInput(this.store, this.actorId, input, to => sendScope(to.scope, caller, to.executor));
     const original_input = sentOriginal(input, caller.original_input, writtenBy);
     let materials = checkMaterials(input.materials);
-    checkHeldImages(materials, this.materials.images);
+    checkHeldImages(materials, image => this.materials.holdsImage(image));
     const context = checkContext(input.context);
     const choice = input.executor;
     if (choice !== undefined && choice.kind !== "assistant" && !(choice.kind === "plugin" && typeof choice.plugin_id === "string" && choice.plugin_id)) throw assistantErrors.invalid("不认识的执行者");

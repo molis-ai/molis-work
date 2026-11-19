@@ -143,3 +143,4 @@ function molisMediaZoom(viewport: HTMLElement, image: HTMLImageElement, { onChan
 }
 
 window.molisMediaZoom ??= molisMediaZoom;
+

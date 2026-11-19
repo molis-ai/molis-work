@@ -90,7 +90,7 @@ test("VUX-39 QEA-183 the board's Assistant section drives the shipped island thr
   const settled = (count: number) => `${frame}.contentDocument.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload').length === ${count} && !${frame}.contentDocument.querySelector('[data-assistant-composer] .mw-composer__files .is-reading')`;
   await inFrame("d.querySelector('[data-asst-attach]').click(); return null;");
   await waitFor(settled(3), 15_000);
-  assert.deepEqual(await chips(), [["会议记录.md", "", "", false], ["设计稿.zip", "is-failed", "暂时只能读取文本文件、PDF 和图片", false], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）", true]]);
+  assert.deepEqual(await chips(), [["会议记录.md", "", "", false], ["设计稿.zip", "is-failed", "可以带文字、PDF、Word、图片和录音录像", false], ["白板照片.png", "is-failed", "样例不执行这一步（模拟）", true]]);
   assert.deepEqual((await context()).待发送, ["会议记录.md"], "what went in waits for the next Send; the rounds' own materials do not change");
   assert.equal(await inFrame<boolean>(`const row = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; w.__chip = row; row.querySelector('[data-composer-retry]').click();
     await new Promise((r) => setTimeout(r, 600)); const now = d.querySelectorAll('[data-assistant-composer] .mw-composer__files .mw-upload')[2]; return now === row && now.classList.contains('is-failed');`), true,

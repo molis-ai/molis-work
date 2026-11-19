@@ -5,6 +5,7 @@ import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/pl
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
 import type { ExecutorHanded } from "./assistant-executor-input.js";
+import type { AssistantAttachmentPort } from "./assistant-attachments.js";
 import type { AssistantFollowUpPorts } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -40,6 +41,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   retainSetups?(sessionId: string, control: AgentActionReviewControl): Promise<void>;
   holdSetups?(sessionId: string, revision: string): void;
   setupMaterial?(work: StoredWork, offered: readonly ActionView[], previousWaitWithdrawn: boolean): AgentTextMaterial | undefined;
+  /** The Home's conversation attachments, as the Assistant's: files the person brings, read once and kept by the platform. */
+  attachments?: AssistantAttachmentPort;
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
   /** A draft in a Home whose runtime has been used can have a grant before its first round. */

@@ -1,4 +1,4 @@
-import { renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCommandChip, renderCommandPrompt, renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderComposerNotice, renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
 import { busy, sendable, type Composer, type ComposerBasics, type Status } from "./composer-state.js";
@@ -130,6 +130,7 @@ function draw(c: Composer, controls: boolean) {
   if (controls) { c.close(); shell.querySelector(".mw-composer__start")!.replaceWith(next.querySelector(".mw-composer__start")!); }
   notice(c);
   strip(c);
+  chip(c);
   c.box.querySelector(".mw-composer__restore")?.remove();
   if (c.restored) (c.box.querySelector(".mw-composer__files") ?? c.box).insertAdjacentHTML(c.box.querySelector(".mw-composer__files") ? "afterend" : "afterbegin", renderComposerRestore(c.labels, c.restored, c.fill));
 }
@@ -148,11 +149,30 @@ function notice(c: Composer) {
     return;
   }
   const fresh = document.createElement("template");
-  fresh.innerHTML = renderComposerNotice(id, { text: now.text, tone: now.tone, ...(now.icon ? { icon: now.icon } : {}), action: now.action ? { label: now.action.label } : null });
+  fresh.innerHTML = renderComposerNotice(id, { text: now.text, tone: now.tone, ...(now.icon ? { icon: now.icon } : {}), action: now.action ? { label: now.action.label } : null, also: now.also ? { label: now.also.label } : null });
   const next = fresh.content.firstElementChild as HTMLElement;
   if (!had) c.box.before(next); else if (had.outerHTML !== next.outerHTML) same(had, next);
   c.shell.dataset.notice = now.tone;
   field.setAttribute("aria-describedby", [...described, id].join(" "));
+}
+
+/**
+ * The command chip above the words (Coding A2) and the prompt it makes, folded under them inside the box (the bar has no room below
+ * it, and opening it pushes nothing being typed): the board's parts (`renderCommandChip`, `renderCommandPrompt`), read again on every draw.
+ * Each stays while there is one and changes in place, so its × keeps focus and the prompt stays open or shut as the person left it.
+ */
+function chip(c: Composer) {
+  const now = c.options.chip?.() ?? null;
+  const had = c.box.querySelector<HTMLElement>(":scope > [data-composer-chip]"), shown = c.box.querySelector<HTMLElement>(":scope > [data-composer-prompt]");
+  if (!now) { had?.remove(); shown?.remove(); return; }
+  const fresh = document.createElement("template");
+  fresh.innerHTML = renderCommandChip({ name: now.name, source: now.source, removeLabel: now.remove.label, attrs: { "data-composer-chip": "" } });
+  const next = fresh.content.firstElementChild as HTMLElement;
+  if (!had) c.box.querySelector(".mw-composer__text")!.before(next); else same(had, next);
+  if (!now.prompt) return shown?.remove();
+  fresh.innerHTML = renderCommandPrompt({ ...now.prompt, open: (shown as HTMLDetailsElement | null)?.open ?? false, attrs: { "data-composer-prompt": "" } });
+  const prompt = fresh.content.firstElementChild as HTMLElement;
+  if (!shown) c.box.querySelector(".mw-composer__text")!.after(prompt); else same(shown, prompt);
 }
 
 /**
@@ -161,7 +181,9 @@ function notice(c: Composer) {
  * grows in and the others ease aside, one that goes leaves its neighbours closing up (`paint` runs it in `molisReflow`, with the board's motion tokens).
  */
 function strip(c: Composer) {
-  const html = renderComposerStrip(c.labels, c.items, c.fill), list = c.box.querySelector<HTMLElement>(".mw-composer__files");
+  const pictures = c.options.attachments?.pictures;
+  const items = pictures ? c.items.map((item) => item.thumb ? { ...item, open: c.fill(pictures.open, { name: item.title }) } : item) : c.items;
+  const html = renderComposerStrip(c.labels, items, c.fill, pictures ? { pictures: true, label: pictures.label } : {}), list = c.box.querySelector<HTMLElement>(".mw-composer__files");
   if (!html) return list?.remove();
   const fresh = document.createElement("template");
   fresh.innerHTML = html;

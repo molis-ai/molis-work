@@ -4,6 +4,20 @@
 
 export type AttrValue = string | number | boolean | undefined | null;
 
+export type ComposerFill = (text: string, values: Readonly<Record<string, string>>) => string;
+
+export interface ComposerStripItem {
+    readonly key: string;
+    readonly title: string;
+    readonly state: "reading" | "attached" | "failed";
+    readonly reason?: string;
+    readonly from?: string;
+    readonly retry?: boolean;
+    readonly thumb?: string;
+    readonly meta?: string;
+    readonly open?: string;
+}
+
 export interface DirectoryAddOptions {
     label: string;
     icon?: PluginIconName;
@@ -102,6 +116,18 @@ export interface MwButtonOptions {
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 
+export interface MwCheckError {
+    readonly code: string;
+    readonly where: string;
+    readonly text: string;
+}
+
+export interface MwCheckFact {
+    readonly state: Extract<StateRingState, "done" | "failed" | "idle">;
+    readonly text: string;
+    readonly source?: string;
+}
+
 export interface MwCodingRoundMaterialItem {
     readonly state: StateRingState;
     readonly name: string;
@@ -121,6 +147,13 @@ export interface MwCodingRoundMaterialsOptions {
         readonly title: string;
         readonly detail: string;
     };
+    readonly attrs?: Record<string, AttrValue>;
+}
+
+export interface MwCommandChipOptions {
+    readonly name: string;
+    readonly source: string;
+    readonly removeLabel: string;
     readonly attrs?: Record<string, AttrValue>;
 }
 
@@ -750,6 +783,13 @@ export declare function renderCard(options: {
     className?: string;
 }): string;
 
+export declare function renderCheckLine(options: {
+    readonly facts: readonly MwCheckFact[];
+    readonly errors?: readonly MwCheckError[];
+    readonly label: string;
+    readonly attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderCheckbox(options: {
     name?: string;
     value?: string;
@@ -777,7 +817,24 @@ export declare function renderChoice(options: {
 
 export declare function renderCodingRoundMaterials(options: MwCodingRoundMaterialsOptions): string;
 
+export declare function renderCommandChip(options: MwCommandChipOptions): string;
+
+export declare function renderCommandPrompt(options: {
+    readonly label: string;
+    readonly text: string;
+    readonly open?: boolean;
+    readonly attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderComposer(options: MwComposerOptions): string;
+
+export declare function renderComposerStrip(labels: MwComposerLabels, items: readonly ComposerStripItem[], fill: ComposerFill, options?: {
+    readonly pictures?: false;
+    readonly label?: string;
+} | {
+    readonly pictures: true;
+    readonly label: string;
+}): string;
 
 export declare function renderDatePicker(options: {
     name?: string;
@@ -924,6 +981,10 @@ export declare function renderMenuItem(options: {
     shortcut?: string;
     disabled?: boolean;
     checked?: boolean;
+    badge?: {
+        label: string;
+        tone: "warning" | "neutral";
+    };
     attrs?: Record<string, AttrValue>;
 }): string;
 

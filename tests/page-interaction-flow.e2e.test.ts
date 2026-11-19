@@ -78,14 +78,14 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click("[data-cover-close]");
   await waitFor(`${exclusive} === ''`);
 
-  // The strip and the line (specs/work-line §4.1): at every width nothing in the strip or on the line lies over its neighbour, and
-  // both stay inside the window.
+  // The strip and the foot (specs/work-line §4.1; the foot's three blocks since 底栏第十三版): at every width nothing in the strip
+  // or in the foot lies over its neighbour, and both stay inside the window.
   for (const width of [601, 825, 1041, 1100, 1440]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerWidth === " + width);
     const geometry = await evaluate<{ over: string[]; out: string[]; scroll: boolean }>(`new Promise(resolve => setTimeout(() => {
       const shown = node => node.getClientRects().length > 0, name = node => node.className.split(' ')[0] || node.tagName.toLowerCase();
-      const rows = [[...document.querySelector('.workbench-header[data-dock]').children], [...document.querySelectorAll('[data-work-line] .work-line-wing, [data-work-line] .work-line-slot')]];
+      const rows = [[...document.querySelector('.workbench-header[data-dock]').children], [...document.querySelectorAll('[data-work-line] .bar-account, [data-work-line] .work-line-slot, [data-work-line] .work-stack')]];
       const over = [], out = [];
       for (const row of rows) {
         const boxes = row.filter(shown).map(node => [name(node), node.getBoundingClientRect()]);
@@ -109,11 +109,11 @@ test("QEA-142 settings covers have a mouse and touch exit over two real panes", 
   await setViewport(1440, 900);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await click('[data-dock-pin="goals"]');
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await click("[data-layout-open]");
   await click('[data-workspace-layout] [data-layout-split="right"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  await click('[data-dock-pin="inbox"]');
+  await click('[data-plugin-strip] [data-plugin-id="inbox"]');
   const currentPlugins = `[...document.querySelectorAll('[data-tab-pane] [data-tab-kind=plugin][aria-current]')].map(tab => tab.dataset.plugin)`;
   await waitFor(`JSON.stringify(${currentPlugins}) === '["goals","inbox"]'`);
   const projectLayout = () => evaluate(`(() => {
@@ -135,7 +135,8 @@ test("QEA-142 settings covers have a mouse and touch exit over two real panes", 
     assert.deepEqual(await projectLayout(), before, "closing restores both panes, their tabs, layout and focus");
   };
 
-  await click("[data-project-menu] > summary");
+  // From 960px the project's menu is not shown (POLISH-05 as rewritten, POLISH-71): its entries are pressed where they are now —
+  // 设置 in the foot's account bar, 项目设置 in the first place's list (the browser fixture's `click` finds them there).
   await click('[data-personal-menu] [data-directory-open="settings"]');
   await waitFor(`${cover} === 'settings'`);
   const mouse = await closeButton();
@@ -143,7 +144,6 @@ test("QEA-142 settings covers have a mouse and touch exit over two real panes", 
   await click(closeSelector);
   await assertReturned();
 
-  await click("[data-project-menu] > summary");
   await click(".navigator-project-settings");
   await waitFor(`${cover} === 'project-settings' && !document.body.dataset.navigationPending`);
   await setViewport(390, 844, true);

@@ -134,7 +134,7 @@ interface ListReads {
 function installLists({ line, counts, lists, body, sources, heading }: ListParts, read: ListReads) {
   let open: WorkListId | "" = "", earlier = false;
   const rowsShown = () => open ? [...body.querySelectorAll<HTMLElement>(`[data-work-list-rows="${open}"] :is([data-work-event],[data-work-lists-earlier])`)] : [];
-  const focus = () => { for (const node of body.querySelectorAll<HTMLElement>("[data-work-event]")) node.toggleAttribute("aria-current", read.current(node.dataset.workEvent ?? "")); };
+  const focus = () => { for (const node of body.querySelectorAll<HTMLElement>("[data-work-event]")) { if (read.current(node.dataset.workEvent ?? "")) node.setAttribute("aria-current", "true"); else node.removeAttribute("aria-current"); } };
   const draw = (fresh: (event: WorkLineEvent) => boolean = () => false) => {
     if (sources) sources.innerHTML = read.issues();
     body.innerHTML = WORK_LISTS.map(({ id }) => {

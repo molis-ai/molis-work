@@ -36,7 +36,7 @@ ${SHELL} .workbench-bar[data-work-bar]{display:block}
 ${SHELL}:is(body,.mw-catalog-bar-stage){--dock-min:98px;--foot-input:640px}
 @media (max-width:1279px){${SHELL}:is(body,.mw-catalog-bar-stage){--foot-input:480px}}
 .work-line{min-width:0}
-.work-line-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) min(var(--foot-input),100%) minmax(0,1fr);align-items:end;column-gap:12px;min-width:0;min-height:98px;padding:12px 0;box-sizing:border-box}
+.work-line-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) min(var(--foot-input),100%) minmax(0,1fr);grid-template-rows:var(--foot-rest,auto);align-items:end;column-gap:12px;min-width:0;min-height:98px;padding:12px 0;box-sizing:border-box}
 .work-line-slot{grid-column:2;grid-row:1;position:relative;min-width:0}
 /* The input at rest is two rows filling its 74px block (13th version): the words across the top, wrapping before the three
    counts in its top right; ＋, who it goes to, the scene controls, the microphone and send below. Writing grows it upwards in the
@@ -73,18 +73,20 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 .bar-account-key>b[hidden]{display:none}
 :is(.bar-account-me,.bar-account-key,.work-count,.work-stack-more,.work-stack-open):focus-visible{outline:var(--focus-stroke);outline-offset:2px}
 /* 办完, 在办, 接下来 inside the input's top right while the dialog is closed (POLISH-67, POLISH-74), then a hairline and the dialog's own row. */
-.work-counts{position:absolute;z-index:3;top:8px;right:10px;display:inline-flex;align-items:center;gap:2px;height:24px}
-.work-count{display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 6px;border:0;border-radius:7px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+/* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
+   chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
+.work-counts{position:absolute;z-index:3;top:6px;right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+.work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:7px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
 .work-count[data-zero]{color:var(--faint)}
 .work-count:hover,.work-count[aria-expanded="true"]{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
 .work-count[hidden]{display:none}
 .work-your-turn{color:var(--amber)}
-.work-counts>.work-reply-mini{position:relative;height:24px;margin-left:5px;padding-left:5px;animation:none}
-.work-counts>.work-reply-mini::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:1px;background:var(--line-strong)}
-.work-counts>.work-reply-mini .mw-btn.mw-btn--icon-only{width:24px;height:24px;min-width:24px;min-height:24px}
-.work-counts>.work-reply-mini .work-task-mark{height:24px}
-.work-counts>.work-event{height:24px;padding:0 8px 0 6px;font-size:11px}
+.work-counts>.work-reply-mini{position:relative;height:28px;margin-left:5px;padding-left:5px;animation:none}
+.work-counts>.work-reply-mini::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:var(--line-strong)}
+.work-counts>.work-reply-mini .mw-btn.mw-btn--icon-only{width:28px;height:28px;min-width:28px;min-height:28px}
+.work-counts>.work-reply-mini .work-task-mark{height:28px}
+.work-counts>.work-event{height:28px;padding:0 8px 0 6px;font-size:11px}
 /* The right column: the lists open where the info bar will stand, right above the stack and as wide (§4「底栏第十三版」第 4 条). */
 .work-side{grid-column:3;grid-row:1;justify-self:start;position:relative;width:100%;max-width:400px;min-width:0}
 .work-stack{position:relative;height:74px;min-width:0}
@@ -136,8 +138,15 @@ button.work-stack-more{cursor:pointer}
 @media (max-width:760px),(pointer:coarse){
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
   .work-counts{top:4px;height:44px}
+  .work-counts>.work-reply-mini{height:44px}
+  .work-counts>.work-reply-mini :is(.work-task-mark,.mw-btn.mw-btn--icon-only){height:44px;min-height:44px;min-width:44px}
   .bar-account-key{width:44px;height:44px}
   .work-lists .work-event,.work-lists-earlier{height:44px}
+}
+/* 540px and under the three keys and the task mark, 44px each, take most of the input's width: they stand in a row of their own
+   above the words, which keep the input's whole width (a 320px window left the words 32px beside them). */
+@media (max-width:540px){
+  ${SHELL} .work-line-slot .mw-composer__text,${SHELL} .work-line-slot.work-line-slot .assistant-composer>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
 }
 ${SHELL} [data-line-yield]{margin-bottom:var(--line-rise,0px)}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}

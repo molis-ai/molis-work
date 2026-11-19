@@ -59,15 +59,16 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
     const g=strip?.checkVisibility() ? strip.getBoundingClientRect() : null;
     return {
       // The strip since the work line took the foot (specs/work-line §6.5): the tabs, then ＋ (the start page; the tab strip has no
-      // ＋ of its own), … the right side's glyph strip, the layout button, and the project at the right end. 07-1 S4b: no Home tools
-      // in the titlebar (they are the person's own, on the start page and in the strip's own tray).
-      ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right-1 && s.right<=p.left+1 && Math.abs(t.right-p.right)<24
+      // ＋ of its own), … the right side's glyph strip and the layout button at the right end; from 960px the project's mark is not
+      // shown (POLISH-05 as rewritten, POLISH-71). 07-1 S4b: no Home tools in the titlebar (they are the person's own, on the start
+      // page and in the strip's own tray).
+      ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right-1 && !project.checkVisibility() && Math.abs(t.right-s.right)<24
         && !titlebar.querySelector('[data-home-plugin-open]') && !titlebar.querySelector('[data-titlebar-tabs] .tab-add-button')?.getClientRects().length
         && (g ? g.left>=a.right && s.left>=g.right-1 : s.left>=a.right),
       dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), projectLeft:Math.round(p.left), projectRight:Math.round(p.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right)})
     };
   })()`);
-  assert.ok(addLayout.ok, "ISSUE-30, PFG-22, WLN-16: ＋ follows the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), the layout button, then the project at the titlebar's right end, without overlap " + addLayout.dump);
+  assert.ok(addLayout.ok, "ISSUE-30, PFG-22, WLN-16: ＋ follows the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), then the layout button at the titlebar's right end with no project after it, without overlap " + addLayout.dump);
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
@@ -315,21 +316,21 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
   await waitFor("document.querySelector('[data-work-bar] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-top-corner-toggle]')");
-  // The strip reads the first place · the tabs · ＋ · the side's switch · the layout button · the project (specs/screen-polish §3 方案 C,
-  // POLISH-05), none covering another; a strip with no tab in it is not drawn, so ＋ follows the first place. The foot is the
-  // line, and the Assistant's input stands on it between what happened and what comes next (specs/work-line §4.1, §6.5).
+  // The strip reads the first place · the tabs · ＋ · the side's switch · the layout button, and nothing after it from 960px (specs/screen-polish
+  // §3 方案 C, §4「底栏第十三版」, POLISH-05 as rewritten, POLISH-71); a strip with no tab in it is not drawn, so ＋ follows the first place.
+  // The foot is three blocks: the account bar, the Assistant's input in the window's centre, the card stack (第 2、5 条).
   assert.deepEqual(await evaluate(`(()=>{
     const box=(selector)=>document.querySelector(selector).getBoundingClientRect();
     const strip='.workbench-header[data-dock] ';
-    const pins=box(strip+'[data-dock-pins]'), tabs=document.querySelector(strip+'[data-titlebar-tabs]'), picker=box(strip+'.plugin-picker'), project=box(strip+'.titlebar-end .navigator-project-selector');
+    const pins=box(strip+'[data-dock-pins]'), tabs=document.querySelector(strip+'[data-titlebar-tabs]'), picker=box(strip+'.plugin-picker');
     const side=box(strip+'[data-side-toggle]'), layout=box(strip+'[data-layout-open]'), drawn=tabs.checkVisibility() ? tabs.getBoundingClientRect() : null;
-    const composer=box('[data-work-line] .work-line-slot [data-assistant-composer]'), past=box('[data-work-line] [data-wing=past]'), next=box('[data-work-line] [data-wing=next]');
-    return { strip: (drawn ? pins.right<=drawn.left && drawn.right<=picker.left+4 : pins.right<=picker.left+4) && picker.right<=side.left && side.right<=layout.left && layout.right<=project.left,
+    const account=box('[data-work-line] .bar-account'), slot=box('[data-work-line] .work-line-slot'), composer=box('[data-work-line] .work-line-slot [data-assistant-composer]'), stack=box('[data-work-line] [data-work-stack]');
+    return { strip: (drawn ? pins.right<=drawn.left && drawn.right<=picker.left+4 : pins.right<=picker.left+4) && picker.right<=side.left && side.right<=layout.left && innerWidth-layout.right<24,
       own: document.querySelector(strip+'[data-bar-own]')!==null,
-      project: [project.right<=innerWidth, Math.round(project.width)],
-      line: past.right<=composer.left+1 && composer.right<=next.left+1 && composer.bottom<=innerHeight,
+      project: Boolean(document.querySelector(strip+'.titlebar-end')?.checkVisibility()),
+      line: account.right<=slot.left+1 && slot.right<=stack.left+1 && composer.bottom<=innerHeight && Math.abs(slot.left+slot.width/2-innerWidth/2)<=1,
       foot: document.querySelectorAll('.workbench-bar[data-work-bar] :is([data-dock-pin],[data-top-corner],[data-plugin-picker-toggle],.navigator-project-selector)').length };
-  })()`), { strip: true, own: false, project: [true, 30], line: true, foot: 0 }, "the strip reads the first place · tabs · ＋ · side switch · layout · project; the input stands on the line; the foot holds no plugin entry");
+  })()`), { strip: true, own: false, project: false, line: true, foot: 0 }, "the strip reads the first place · tabs · ＋ · side switch · layout and ends there; the foot is the account bar, the centred input and the stack, with no plugin entry");
   // K3, UIV-12, B36F-04: the receiver is still the Assistant. The bar offers the task's role picker; the work's executor and scope
   // are chosen in its tab, and “+” only adds files, methods and capabilities.
   await waitFor("!!document.querySelector('[data-assistant-composer] [data-composer-control=character]')");

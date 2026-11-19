@@ -53,16 +53,19 @@ const KINDS: Record<string, string> = {
   "[data-assistant-composer] .mw-composer__controls :is([data-composer-control], .mw-select-picker__trigger)": "composer control",
   "[data-assistant-composer] [data-compose-menu-toggle]": "delivery toggle",
   "[data-assistant-composer] [data-composer-stop]": "stop",
-  // The work line (specs/work-line §4): its head, the events on it, the way to earlier ones and back to now; and above the
-  // input while the dialog is closed, the task mark and the button that opens the conversation.
-  ".work-line-head": "line head",
+  // The foot (specs/screen-polish §4「底栏第十三版」第 2、3、5 条; the line's head, wings and paging are gone): the account bar's
+  // name and its keys; inside the input's top right while the dialog is closed, 办完 · 在办 · 接下来 (and 该你 N under 960px), an
+  // event a reply belongs to, the task mark and the button that opens the conversation; the answers on the card in front.
+  ".bar-account-me": "account",
+  ".bar-account-key": "account key",
+  ".work-count": "line count",
   ".work-event": "line event",
-  ".work-line-earlier": "line paging",
   ".work-task-mark": "task mark",
   "[data-dialog-open]": "open conversation",
+  "[data-work-stack] button": "stack card",
 };
 /** The parts of the Assistant's composer that exist only in some states; the base screens do not show them. */
-const LINE_KINDS = ["work chip clear", "strip chip", "attention chip", "composer more", "composer control", "delivery toggle", "stop", "line event", "line paging"];
+const LINE_KINDS = ["work chip clear", "strip chip", "attention chip", "composer more", "composer control", "delivery toggle", "stop", "line event", "stack card"];
 
 /** Shows the bell of the Assistant's composer as the island paints it when a notice waits (it hides it otherwise). */
 const OPTIONAL_CHIPS = ["[data-assistant-attention]"];
@@ -162,11 +165,16 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-plugin-toggle]"]],
   ["the first place's list", "[data-top-corner-toggle]", "[data-top-corner-list]", ["[data-corner-project]", "[data-corner-home]", ".top-corner-manage"]],
+  // Under 960px the project's mark ends the strip and its menu holds the projects; from 960px the mark is not shown (POLISH-05 as
+  // rewritten, POLISH-71): the projects are in the first place's list and who you are opens from the foot's account bar.
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
+  ["the account menu", ".bar-account [data-account-link]", "#mw-account-menu", ["[data-personal-action]", "[data-unified-account-link]"]],
   ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
 const HOVER_ONLY = ["[data-plugin-toggle]"];
+/** The lists a window of this width opens: the project's menu under 960px, the account menu from 960px. */
+const listsAt = (width: number) => POPOVER_CONTENTS.filter(([name]) => name !== (width >= 960 ? "the project menu" : "the account menu"));
 /** A new work a plugin carries, chosen the way a person chooses it: in the opened panel's 「谁来做」 (a new work's who and mode are
  * chosen there), Coding. The composer then shows who does it and the mode beside ＋; the panel is closed again, so the bar is what
  * is measured. */
@@ -207,6 +215,8 @@ const popoversScript = (floor: number) => `(async () => {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.
     const opener = button ? document.querySelector(button) : { isConnected: true, click() {}, hidden: false };
     if (!opener || !opener.isConnected) { out[name] = null; continue; }
+    // The project's menu and the account menu are each drawn at one side of 960px only (listsAt).
+    if ((name === "the project menu" || name === "the account menu") && !opener.checkVisibility()) { out[name] = null; continue; }
     opener.hidden = false;
     // The strip shows while the input has focus.
     if (button) { if (opener.matches("input, textarea")) opener.focus(); else opener.click(); }
@@ -717,7 +727,11 @@ for (const scheme of ["light", "dark"] as const) {
     // A phone's one row has no layout button (specs/screen-polish §3 方案 C, POLISH-07: one column shows, and the row has no room
     // for it beside a 98px tab); it is measured in the touch windows wider than a phone, below.
     assert.equal(seen.has("layout"), false, "a phone's row draws no layout button");
-    assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && kind !== "layout" && !seen.has(kind)), [], "the three screens showed every other kind of control, so none went unmeasured");
+    // Nor, at 540px and under, the way back (it gives its place to the tab), nor the account bar, which is a foot block from 960px;
+    // all three are measured in the touch windows wider than a phone, below.
+    const WIDER = ["layout", "history", "account", "account key"];
+    assert.deepEqual(WIDER.filter(kind => seen.has(kind)), [], "a phone draws no layout button, way back or account bar");
+    assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !WIDER.includes(kind) && !seen.has(kind)), [], "the three screens showed every other kind of control, so none went unmeasured");
 
     // The Assistant's composer stays a 44px input with room to type, and its ＋ and send keep their size while typing.
     await w.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.focus(); input.value = '整理一下本周的待办'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -735,6 +749,8 @@ for (const scheme of ["light", "dark"] as const) {
           `${name} · ${screen} · ${width}×${height}: every control of the strip and the bar is a 44px target`);
         assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · ${screen}: every control is a known one`);
         assert.ok(controls.some(control => control.kind === "layout"), `${name} · ${screen}: the layout button is on the strip, so it is among the 44px targets measured`);
+        assert.ok(controls.some(control => control.kind === "history"), `${name} · ${screen}: the way back is on the strip, so it is among the 44px targets measured`);
+        if (width >= 960) assert.deepEqual(["account", "account key"].filter(kind => !controls.some(control => control.kind === kind)), [], `${name} · ${screen}: the account bar's name and keys are among the 44px targets measured`);
         assert.deepEqual(await w.topPins(), { all: ["top-corner"], shown: ["top-corner"] }, `${name} · ${screen}: the first place is the top's only fixed piece`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${screen} · ${width}×${height}: the bar and the strip lay out cleanly with 44px targets`);
       }
@@ -745,7 +761,7 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
       await w.open(width, height, "", "true");
       const lists = await w.popovers(44);
-      for (const [list] of POPOVER_CONTENTS) {
+      for (const [list] of listsAt(width)) {
         const report = lists[list];
         assert.ok(report, `${name} · ${width}: ${list} has a button that opens it`);
         assert.equal(report.shown, true, `${name} · ${width}: ${list} opens`);
@@ -873,7 +889,7 @@ for (const scheme of ["light", "dark"] as const) {
     // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.
     await w.open(1280, 800, "", "true");
     const lists = await w.popovers(32);
-    for (const [list] of POPOVER_CONTENTS) {
+    for (const [list] of listsAt(1280)) {
       const report = lists[list];
       assert.ok(report, `1280: ${list} has a button that opens it`);
       assert.equal(report.shown, true, `1280: ${list} opens`);

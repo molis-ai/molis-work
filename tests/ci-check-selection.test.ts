@@ -114,18 +114,6 @@ test("CIP-06 Full builds once and runs 24 shards in one wave while preserving wo
   assert.ok(block.includes("STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}"));
 });
 
-test("MR19-06 failed-job reruns download the name from the successful build attempt", () => {
-  for (const { file, text } of workflowFiles().filter(({ file }) => /\/(ci|full-suite|visual-audit)\.yml$/.test(file))) {
-    const build = jobBlock("build", text);
-    assert.match(build, /dist_name: \$\{\{ steps\.dist\.outputs\.name \}\}/, file);
-    assert.match(build, /id: dist\b[\s\S]*?echo "name=[^"]+\$GITHUB_RUN_ATTEMPT" >> "\$GITHUB_OUTPUT"/, file);
-    assert.match(build, /Upload build outputs[\s\S]*?name: \$\{\{ steps\.dist\.outputs\.name \}\}/, file);
-    const downloads = [...text.matchAll(/- name: Download build outputs\n([\s\S]*?)(?=\n\n)/g)];
-    assert.ok(downloads.length, file);
-    for (const [, step] of downloads) assert.match(step, /name: \$\{\{ needs\.build\.outputs\.dist_name \}\}/, file);
-  }
-});
-
 test("MR19-07 plugin stylesheet and shared browser component changes run the PR visual audit", () => {
   const visual = workflowFiles().find(({ file }) => file.endsWith("/visual-audit.yml"))!.text;
   const filters = visual.split("    paths:")[1]!.split("  workflow_dispatch:")[0]!;

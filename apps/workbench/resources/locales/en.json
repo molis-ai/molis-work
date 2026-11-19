@@ -10353,8 +10353,6 @@
     "workbench.automation-adoption.declared-tools": "Declared tools {tools} (subject to this run’s permissions)",
     "workbench.automation-adoption.review-title": "Confirm project suggestions",
     "workbench.automation-adoption.review-changes": "Changes to apply",
-    "workbench.automation-adoption.review-back": "Go back",
-    "workbench.automation-adoption.review-confirm": "Confirm changes",
     "workbench.automation-adoption.review-none": "None",
     "workbench.automation-adoption.open-kit": "View in Capability Packs",
     "workbench.automation-adoption.skills-auto": "Turned on {names}; used automatically when they apply.",

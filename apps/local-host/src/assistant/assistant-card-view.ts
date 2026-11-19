@@ -94,7 +94,7 @@ function adoptionConfirmation(card: AssistantCard, say: (text: string, values?: 
   return `<div data-assistant-adoption-confirm hidden>${renderInteractionOperation({
     id: `${card.card_id}-confirm`, kicker: "", title, target: { prefix: card.provider, label: card.capability_title },
     preview: { title: say("workbench.automation-adoption.review-changes"), rows: card.fields.map(field => [field.label, ""]),
-      actions: [{ id: "edit-adoption", label: say("workbench.automation-adoption.review-back") },
-        { id: "confirm-adoption", label: say("workbench.automation-adoption.review-confirm"), variant: "primary" }] },
+      actions: [{ id: "edit-adoption", label: say("common.control.back") },
+        { id: "confirm-adoption", label: say("common.control.confirm"), variant: "primary" }] },
   })}</div>`;
 }

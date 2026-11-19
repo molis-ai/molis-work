@@ -9530,8 +9530,6 @@
     "workbench.automation-adoption.declared-tools": "声明工具 {tools}（使用时仍需本轮授权）",
     "workbench.automation-adoption.review-title": "确认开启项目建议",
     "workbench.automation-adoption.review-changes": "本次确认的变化",
-    "workbench.automation-adoption.review-back": "返回修改",
-    "workbench.automation-adoption.review-confirm": "确认生效",
     "workbench.automation-adoption.review-none": "无",
     "workbench.automation-adoption.open-kit": "在能力包里看",
     "workbench.automation-adoption.skills-auto": "已开启 {names}，适用时自动用。",

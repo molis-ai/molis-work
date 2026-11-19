@@ -61,7 +61,7 @@ test("S-41 an owner's refusal keeps the owner's own code", async t => {
 
 test("S-41 PMAT-03 a card found by its own words, listed, or grepped across the catalog is only for a caller who may read that kind, in its own project", async t => {
   const f = await fixture(t);
-  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => knowledgeCatalog(f.index, projectId),
+  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => ({ pieces: knowledgeCatalog(f.index, projectId), unsettled: new Set<string>() }),
     writer: () => async input => ({ title: input.title, brief: "内测通行证的说明", keywords: ["内测通行证"], sections: [] }) });
   await f.search.query(f.access(person("a")), { query: "试用", scope: "project", limit: 30 });
   await organizer.kick("a");
@@ -101,7 +101,7 @@ test("S-41 PMAT-34 PMAT-35 PMAT-38 pieces added for some of the words, a round's
   const f = await fixture(t);
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards: f.cards,
     related: (projectId, query, limit) => f.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })) });
-  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => knowledgeCatalog(f.index, projectId),
+  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => ({ pieces: knowledgeCatalog(f.index, projectId), unsettled: new Set<string>() }),
     writer: () => async input => ({ title: input.title, brief: "内测试用的说明", keywords: [], sections: [] }) });
   await f.search.query(f.access(person("a")), { query: "试用", scope: "project", limit: 30 });
   await organizer.kick("a");
@@ -154,7 +154,7 @@ test("D0244-04 S-41 the real search catalog cannot revive a held organizer after
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async project => {
     const snapshot = await f.search.indexedCatalog(f.access(owner));
-    return knowledgeCatalog(snapshot, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece, assertCurrent: snapshot.assertCurrent }));
+    return { unsettled: new Set(snapshot.unsettled()), pieces: knowledgeCatalog(snapshot, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece, assertCurrent: snapshot.assertCurrent })) };
   }, writer: () => async () => { entered.resolve(); await release.promise; throw new Error("late provider error"); } });
   t.after(async () => { release.resolve(); await organizer.close(); });
   const work = organizer.kick("a"); await entered.promise;

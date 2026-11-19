@@ -25,7 +25,7 @@
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
-`SearchService.indexedCatalog` 为可信消费者提供同项目索引目录快照：同一 source/reader 规则过滤当前可用且同步成功的来源，缺 reader 时不交正文；返回的同步原授权检查须跨消费者的异步等待保留。提供方变化后旧快照拒绝，不由重新登记恢复；知识目录仍归 Knowledge。
+`SearchService.indexedCatalog` 为可信消费者提供同项目索引目录快照：同一 source/reader 规则过滤当前可用且同步成功的来源，缺 reader 时不交正文；返回的同步原授权检查须跨消费者的异步等待保留。提供方变化后旧快照拒绝，不由重新登记恢复；`unsettled()` 列出主人现在登记、但索引里还没有完整一遍的来源（Home 恢复或重建后的空索引、首遍未完、同步失败），目录里缺它们的条目不说明主人删了什么；知识目录仍归 Knowledge。
 
 ## 本地开发
 

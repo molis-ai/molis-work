@@ -322,6 +322,21 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
     window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
       const rereading = Boolean(window.__reply) && !(args[1] && args[1].body) && /\\/sessions\\//.test(String(args[0]));
       if (answering) { window.__sent = true; await window.__held; }
+      // MR19-10: deliver the same revision's closed presentation while its POST is still held.
+      const url = new URL(String(args[0]), location.href);
+      if (window.__sent && !window.__closedRead && url.searchParams.has('window') && url.pathname.includes('/sessions/')) {
+        url.searchParams.delete('known');
+        const response = await original(url.href, args[1]);
+        if (!response.ok) return response;
+        const data = await response.json();
+        const question = data.runs.flatMap(run => run.awaiting_input || [])[0];
+        if (question) {
+          question.answerable = false;
+          question.html = question.html.replace('data-ix-question', 'aria-disabled="true" data-ix-question');
+          window.__closedRead = true;
+        }
+        return Response.json(data);
+      }
       // A read counts once its body is read, whichever reader the page's request client uses.
       if (rereading) { await rereads; const response = await original(...args);
         for (const reader of ['json', 'text']) { const read = response[reader].bind(response);
@@ -331,6 +346,9 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
   await otherPage.waitFor("window.__sent === true");
+  await otherPage.evaluate(`document.querySelector('[data-coding-results-open]').click()`);
+  await otherPage.waitFor(`window.__closedRead && document.querySelector(${JSON.stringify(card(coding))})?.dataset.answerable === 'false'`);
+  assert.equal(await otherPage.evaluate(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "a refreshed question retains the in-flight answer");
 
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
   await click(`${card(coding)} [data-ix-action="answer"]`);

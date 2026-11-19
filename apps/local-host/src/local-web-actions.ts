@@ -1,6 +1,6 @@
 import { inDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { captureWebSessionAuthority } from "./web-sessions.js";
-import { ActionError, bindActionClient, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -75,6 +75,23 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const repository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
   const platform = reference ? await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id)) : null;
   return localWebAuthority(host, reference, caller, sessionCurrent, catalog, repository, platform, host.homePlugins?.installations() ?? [], entry, stageAction);
+}
+
+/** Restrict an existing person's project call to the Home directory. Both scopes must still authorize each child. */
+export async function restrictLocalCallerToHome(host: MolisWorkLocalHost, origin: ActionCallContext): Promise<ActionCallContext> {
+  const base = { ...origin, project_id: null, readable_project_ids: [], user_action: undefined };
+  const current = () => requireSynchronous(origin.assert_authority_current?.(), "个人设置授权检查必须同步完成");
+  current();
+  const metadata = await host.inspectPreparedActionMetadata(base);
+  const home = localWebAuthority(host, undefined, base, current, metadata, undefined, null, host.homePlugins?.installations() ?? []);
+  const allowed = home.allowed_actions?.filter(ref => !origin.allowed_actions || origin.allowed_actions.some(original =>
+    original.capability_id === ref.capability_id && original.version === ref.version && (!original.provider_id || original.provider_id === ref.provider_id)));
+  return { ...base, allowed_actions: allowed, validate_authority: async ref => {
+    await origin.validate_authority?.(ref); await home.validate_authority?.(ref);
+  }, assert_authority_current: (ref, required) => {
+    requireSynchronous(origin.assert_authority_current?.(ref, required), "采用授权检查必须同步完成");
+    requireSynchronous(home.assert_authority_current?.(ref, required), "个人设置授权检查必须同步完成");
+  } };
 }
 
 /** The homepage may use only registrations and installations that are already here: a Home owner not yet started adds none. */

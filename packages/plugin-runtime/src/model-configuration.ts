@@ -1,3 +1,5 @@
+import { bindSettingsHandlers, type SettingsActions, type SettingsOwner } from "@molis-ai/molis-work-plugin-sdk";
+import type { SettingsReadInput, SettingsValues, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest, PluginModelConfigurationClient, PluginModelConfigurationDeclaration, PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction, inPluginInstance, type PluginActionScope } from "./action-scope.js";
@@ -8,12 +10,12 @@ const errors = defineErrorCodes("plugin", { model_configuration_action_required:
 /** Synchronous owner calls: after Runtime checks authority there is no wait before a persistent effect. */
 export interface PluginModelConfigurationPort {
   selection(): PluginModelSelection | undefined;
-  read(): PluginModelConfigurationView;
+  read(options?: { preference_revision: true }): PluginModelConfigurationView;
   save(input: PluginModelConfigurationInput): PluginModelConfigurationView;
 }
 
 export function createPluginModelConfigurationClient(manifest: PluginManifest, declaration: PluginModelConfigurationDeclaration,
-  port: PluginModelConfigurationPort, gate: PluginModelGate): PluginModelConfigurationClient {
+  port: PluginModelConfigurationPort, gate: PluginModelGate, preferenceOwner?: SettingsOwner): PluginModelConfigurationClient {
   const checkScope = (scope: PluginActionScope) => {
     gate.assertActive(); gate.requireGrant("storage:private");
     scope.caller.signal?.throwIfAborted();
@@ -26,8 +28,8 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
     checkScope(scope);
     requireSynchronous(scope.caller.assert_authority_current?.(), "模型设置最终授权检查必须同步完成");
   };
-  const requireAction = (kind: "read" | "save") => {
-    const scope = currentPluginAction(), expected = declaration.actions[kind];
+  const requireAction = (kind: "read" | "save", expected = declaration.actions[kind]) => {
+    const scope = currentPluginAction();
     const action = manifest.actions?.find(item => item.capability_id === expected.capability_id && item.version === expected.version);
     if (!scope || !inPluginInstance(scope, gate) || scope.definition.capability_id !== expected.capability_id
       || scope.definition.version !== expected.version || !action || action.operation !== (kind === "read" ? "query" : "command")) {
@@ -37,7 +39,21 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
     return scope;
   };
   const authorize = async (scope: PluginActionScope) => { await scope.caller.beforeEffect(); check(scope); };
+  const settings = manifest.settings_entries, model = settings?.model_configuration;
+  let preferences: PluginModelConfigurationClient["preferences"];
+  if (preferenceOwner && settings && model) {
+    const action = (ref: typeof settings.read) => manifest.actions?.find(item => item.capability_id === ref.capability_id && item.version === ref.version);
+    const entries = settings.entries.filter(entry => entry.key === model.key);
+    const bound = bindSettingsHandlers({ read: action(settings.read), write: action(settings.write) } as SettingsActions,
+      { ...settings, entries }, preferenceOwner);
+    const invoke = async (kind: "read" | "write", input: SettingsReadInput | SettingsWriteInput): Promise<SettingsValues> => {
+      const scope = requireAction(kind === "read" ? "read" : "save", settings[kind]);
+      return await bound[kind].handle({ ...scope.caller, assert_authority_current: () => check(scope) }, structuredClone(input)) as SettingsValues;
+    };
+    preferences = { read: input => invoke("read", input), write: input => invoke("write", input) };
+  }
   return Object.freeze({
+    ...(preferences && { preferences }),
     selection() {
       gate.assertActive(); gate.requireGrant("storage:private"); gate.requireGrant("model:invoke");
       const scope = currentPluginAction();
@@ -50,7 +66,7 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
       const selection = port.selection();
       return selection ? { provider_id: selection.provider_id, model_id: selection.model_id } : undefined;
     },
-    async read() { const scope = requireAction("read"); await authorize(scope); return port.read(); },
+    async read(options?: { preference_revision: true }) { const scope = requireAction("read"); await authorize(scope); return port.read(options); },
     async save(input: PluginModelConfigurationInput) {
       const scope = requireAction("save"), accepted = structuredClone(input);
       await authorize(scope);

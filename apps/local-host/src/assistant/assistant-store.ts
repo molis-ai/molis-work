@@ -1,3 +1,4 @@
+import { AssistantSettingRecords } from "./assistant-setting-records.js";
 import { AssistantActionPolicies } from "./assistant-action-policies.js";
 import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
@@ -218,6 +219,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly preferences: AssistantSettingRecords;
   readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
 
@@ -229,6 +231,7 @@ export class AssistantStore {
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
     this.noticeReceipts = assistantNoticeReceipts(db);
+    this.preferences = new AssistantSettingRecords(db);
     this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
@@ -391,8 +394,7 @@ export class AssistantStore {
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
   setting(actorId: string, key: string): string | null {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
-    return row ? String(row.value) : null;
+    return this.preferences.get(actorId, key);
   }
 
   /** The title last seen for an object with this identifier, whatever its kind (titles are kept as `object-title:<kind>:<id>`). */
@@ -404,8 +406,7 @@ export class AssistantStore {
   }
 
   setSetting(actorId: string, key: string, value: string): void {
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+    this.preferences.set(actorId, key, value);
   }
 
   /**

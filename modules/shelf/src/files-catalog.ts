@@ -1,3 +1,4 @@
+import { isRecord, parseSyncDocumentValue, SYNC_DOCUMENT_MAX_BYTES } from "@molis-ai/molis-work-plugin-sdk";
 import type {PluginOwnerFilesClient,PluginOwnerFilesReader,PluginOwnerFilesWriter} from '@molis-ai/molis-work-contracts/platform/plugin';
 import {createShelfCatalog,type ShelfSyncOptions} from './sync-catalog.js';
 import {CATALOG_UPGRADES,CATALOG_VERSION,emptyShelfCatalog,readCurrentCatalog,type CatalogFile} from './catalog-shape.js';
@@ -17,11 +18,17 @@ function parseLocalShelfCatalog(value:unknown):CatalogFile {
  return readCurrentCatalog(data);
 }
 
-/**
- * `shelf/catalog.json` as the upgrade process needs to know it: the steps and the reading stay Shelf's, and the process replaces the file under the
- * Home's lock, before any plugin runs, in the same way `replaceFileAtomic` does. A catalog kept in sync has no such file, so it has nothing to upgrade here.
- */
-export const SHELF_CATALOG_FILE={version:CATALOG_VERSION,field:'version' as const,upgrades:CATALOG_UPGRADES,parse:parseLocalShelfCatalog};
+/** The same path has either a local envelope or a personal-space replication envelope; normal opens still enforce their own space. */
+function parseUpgradeCatalog(value: unknown): CatalogFile {
+ if (!isRecord(value) || value.replication === null) return parseLocalShelfCatalog(value);
+ const { replication, ...data } = value;
+ if (!isRecord(replication) || typeof replication.spaceId !== "string" || !replication.spaceId || Object.hasOwn(replication, "data"))
+   throw shelfErrors.invalid_file("Shelf 同步目录格式不符，原文件已保留");
+ return parseSyncDocumentValue({ ...replication, data }, replication.spaceId, readCurrentCatalog).data;
+}
+export const SHELF_CATALOG_FILE = { version: CATALOG_VERSION, field: "version" as const, upgrades: CATALOG_UPGRADES,
+ // The physical envelope adds the replication field around the SDK's size-bounded logical document.
+ maximumBytes: SYNC_DOCUMENT_MAX_BYTES + 1024, parse: parseUpgradeCatalog };
 
 /** File authority and the sync CAS protect the same catalog; the expected document is never refreshed for an old edit. */
 export function createShelfFilesCatalog(files:PluginOwnerFilesClient,sync?:ShelfSyncOptions,idle?:(catalog:CatalogFile,key:string)=>void){

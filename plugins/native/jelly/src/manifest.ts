@@ -4,7 +4,7 @@ import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { JELLY_DATABASE } from "./database.js";
-import { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
+import { jellySettings } from "./model-configuration.js";
 export const jellyManifest: PluginManifest = {
   summary: "日历与笔记，按天安排。", summary_text: { key: "jelly.directory.summary" },
   schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: JELLY_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Jelly", kind: "native",
@@ -25,13 +25,15 @@ export const jellyManifest: PluginManifest = {
   ],
   runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
-  model_configuration: JELLY_MODEL_CONFIGURATION,
+  settings_entries: jellySettings,
   sync: jellySync,
   routes: [
     { route_id: "jelly.workspace", method: "GET", path: "/" },
     { route_id: "jelly.calendar", method: "GET", path: "/calendar" },
     { route_id: "jelly.progress", method: "GET", path: "/progress" },
     { route_id: "jelly.export", method: "GET", path: "/export" },
+    { route_id: "jelly.preference.read", method: "POST", path: "/preferences/read" },
+    { route_id: "jelly.preference.write", method: "POST", path: "/preferences/write" },
     { route_id: "jelly.model.read", method: "GET", path: "/model-settings" },
     { route_id: "jelly.note.export", method: "GET", path: "/notes/:id/export" },
     { route_id: "jelly.commands", method: "POST", path: "/commands", max_body_bytes: 36_000_000 },

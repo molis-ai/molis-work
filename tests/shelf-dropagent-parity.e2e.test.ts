@@ -198,10 +198,24 @@ fi
     await waitFor("document.querySelector('[data-shelf-create-action]')");
     await evaluate(`(() => { const form=document.querySelector('[data-shelf-create-action]');
       form.elements.name.value='抽取待办'; form.elements.prompt.value='把材料里的待办整理成列表。'; })()`);
+    // ONB-22/29: another settings writer saves after the editor opens. The first submit must keep both its row and the local draft.
+    const preferences = "/api/plugins/io.molis.work.shelf/preferences/";
+    const key = "shelf.action_bar";
+    const { values: [before] } = await browser.web.post<{values: {revision: string; value: {shortcuts: unknown[]; action_order: string[]; hidden_actions: string[]}}[]}>(preferences + "read", { keys: [key] });
+    assert.ok(before);
+    const shared = { id: "from-scene", name: "整理资料", prompt: "整理资料清单", kinds: ["text"] };
+    await browser.web.post(preferences + "write", { key, layer: "personal", expected_revision: before.revision, request_id: "other-editor",
+      change: { set: { ...before.value, shortcuts: [...before.value.shortcuts, shared], action_order: [...before.value.action_order, "shortcut:" + shared.id] } } });
+    await click("[data-shelf-create-action] button[type=submit]");
+    await waitFor("document.querySelector('[data-shelf-create-error]')?.textContent.length > 0");
+    assert.equal(await evaluate("document.querySelector('[data-shelf-create-action] input[name=name]').value"), "抽取待办");
+    assert.equal(shelf.settings().shortcuts.filter(action => action.id === shared.id).length, 1);
+    assert.equal(shelf.settings().shortcuts.some(action => action.name === "抽取待办"), false);
     await click("[data-shelf-create-action] button[type=submit]");
     await waitFor("!document.querySelector('[data-shelf-create-action]') && [...document.querySelectorAll('[data-shelf-act]')].some(node => node.textContent.includes('抽取待办'))");
     const action = shelf.settings().shortcuts.find(action => action.name === "抽取待办");
     assert.ok(action);
+    assert.equal(shelf.settings().shortcuts.filter(row => row.name === "抽取待办" || row.id === shared.id).length, 2);
     assert.equal(action.prompt, "把材料里的待办整理成列表。");
     assert.equal(await evaluate(`document.querySelector('[data-shelf-act="shortcut:${action.id}"]')?.getAttribute('aria-disabled')`), null);
     const resultsBefore = (await shelf.snapshot()).results.length;

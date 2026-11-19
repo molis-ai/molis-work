@@ -20,6 +20,8 @@ export interface VersionedFile<T = unknown> {
   readonly version: number;
   readonly field: "version" | "schema_version";
   readonly upgrades: readonly VersionedFileStep[];
+  /** An owner with a larger bounded format keeps its own read ceiling and compact representation during upgrade. */
+  readonly maximumBytes?: number;
   readonly parse: (value: unknown) => T;
 }
 
@@ -35,11 +37,11 @@ function versionIn(file: Pick<VersionedFile, "field">, value: unknown): number {
   return Number.isSafeInteger(found) && (found as number) >= 1 ? found as number : 0;
 }
 
-const readJson = (path: string): unknown => JSON.parse(readSnapshotFile(path, MAXIMUM_BYTES).toString("utf8"));
+const readJson = (path: string, maximumBytes = MAXIMUM_BYTES): unknown => JSON.parse(readSnapshotFile(path, maximumBytes).toString("utf8"));
 
 /** The number in the file and nothing else, for the upgrade's scan: 0 when there is none. Throws on a file that does not parse. */
-export function readVersionedFileVersion(file: Pick<VersionedFile, "field">, path: string): number {
-  return versionIn(file, readJson(path));
+export function readVersionedFileVersion(file: Pick<VersionedFile, "field" | "maximumBytes">, path: string): number {
+  return versionIn(file, readJson(path, file.maximumBytes));
 }
 
 /**
@@ -61,7 +63,7 @@ function fileThere(path: string): boolean {
 export function readVersionedFile<T>(file: VersionedFile<T>, path: string, home?: string): VersionedFileRead<T> {
   if (!fileThere(path)) return { status: "absent" };
   let value: unknown;
-  try { value = readJson(path); } catch { return { status: "unreadable" }; }
+  try { value = readJson(path, file.maximumBytes); } catch { return { status: "unreadable" }; }
   const found = versionIn(file, value);
   if (found === 0) return { status: "unreadable" };
   if (found > file.version) return { status: "too_new", found };
@@ -98,7 +100,7 @@ function fail(label: string, reason: string, cause?: unknown): Error {
 export function upgradeVersionedFile(file: VersionedFile, path: string, home?: string): { readonly from: number; readonly to: number } {
   const label = sqliteStoreLabel(path, home);
   let value: unknown;
-  try { value = readJson(path); } catch (cause) { throw fail(label, "unreadable", cause); }
+  try { value = readJson(path, file.maximumBytes); } catch (cause) { throw fail(label, "unreadable", cause); }
   const from = versionIn(file, value);
   if (from === 0 || from > file.version) throw fail(label, "version_changed");
   const problem = versionedFileStepsProblem(file, from);
@@ -111,7 +113,9 @@ export function upgradeVersionedFile(file: VersionedFile, path: string, home?: s
   }
   try { file.parse(value); } catch (cause) { throw fail(label, "verify_failed", cause); }
   const mode = lstatSync(path).mode & 0o777;
-  atomicWriteFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode, durable: true });
+  const encoded = JSON.stringify(value, null, file.maximumBytes === undefined ? 2 : undefined) + "\n";
+  if (Buffer.byteLength(encoded) > (file.maximumBytes ?? MAXIMUM_BYTES)) throw fail(label, "verify_failed");
+  atomicWriteFileSync(path, encoded, { mode, durable: true });
   return { from, to: file.version };
 }
 

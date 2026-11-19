@@ -63,10 +63,23 @@ export function validateSettingsDeclaration(manifest: {
   if (!isJsonObject(declaration)) return [{ path: root, reason: "设置声明必须是对象" }];
   const definitions: readonly unknown[] = Array.isArray(manifest.actions) ? manifest.actions : [];
   return [
-    ...extraFields(declaration, ["entries", "read", "write"], root),
+    ...extraFields(declaration, ["entries", "read", "write", "model_configuration"], root),
     ...entryProblems(declaration.entries, manifest.plugin_id),
+    ...modelEntryProblems(declaration, definitions),
     ...settingsActionProblems(declaration, definitions),
   ];
+}
+
+function modelEntryProblems(declaration: Record<string, unknown>, definitions: readonly unknown[]): PluginDeclarationProblem[] {
+  const config = declaration.model_configuration;
+  if (config === undefined) return [];
+  const entry = isJsonObject(config) && Array.isArray(declaration.entries) && declaration.entries.find(item => isJsonObject(item) && item.key === config.key);
+  const read = declaration.read;
+  if (!entry || !isText(entry.key) || !Array.isArray(entry.layers) || entry.layers.length !== 1 || entry.layers[0] !== "personal" ||
+    !isJsonObject(read) || !definitions.some(def => isJsonObject(def) && def.capability_id === read.capability_id && def.version === read.version &&
+      isJsonObject(def.action) && def.action.scope === "home"))
+    return [{ path: root + ".model_configuration", reason: "模型选择须绑定本主人声明的 Home 个人设置" }];
+  return [];
 }
 
 export function settingsActionProblems(declaration: { readonly read?: unknown; readonly write?: unknown }, definitions: readonly unknown[]): PluginDeclarationProblem[] {
@@ -120,13 +133,15 @@ function entryProblems(value: unknown, pluginId: unknown): PluginDeclarationProb
   for (const [index, entry] of entries.entries()) {
     const at = `${path}[${index}]`;
     if (!isJsonObject(entry)) { problems.push({ path: at, reason: "设置条目必须是对象" }); continue; }
-    problems.push(...extraFields(entry, ["key", "title", "summary", "layers", "schema", "consequence"], at));
+    problems.push(...extraFields(entry, ["key", "title", "summary", "layers", "schema", "consequence", "device_only"], at));
     if (!isText(entry.key)) problems.push({ path: `${at}.key`, reason: "设置 key 必须是非空字符串" });
     else if (seen.has(entry.key)) problems.push({ path: `${at}.key`, reason: "设置 key 重复" });
     else seen.add(entry.key);
     if (!choiceList(entry.layers, SETTINGS_LAYERS) || entry.layers.length === 0) {
       problems.push({ path: `${at}.layers`, reason: "设置必须声明不重复的 project 或 personal 写入层" });
     }
+    if (entry.device_only !== undefined && (entry.device_only !== true || !Array.isArray(entry.layers) || entry.layers.length !== 1 || entry.layers[0] !== "personal"))
+      problems.push({ path: at + ".device_only", reason: "仅此设备的设置须使用个人层" });
     if (entry.consequence !== undefined && !choiceList(entry.consequence, SETTINGS_CONSEQUENCES)) {
       problems.push({ path: `${at}.consequence`, reason: `设置后果必须是 ${SETTINGS_CONSEQUENCES.join("、")} 中不重复的值` });
     }

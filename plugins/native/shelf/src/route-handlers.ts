@@ -2,6 +2,7 @@ import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-c
 import type { ShelfRecipeId } from "@molis-ai/molis-work-module-shelf/contract";
 import { isHttpUrl, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { shelfPreferences } from "./device-preferences.js";
 import { shelfActions, shelfProjectActions, type ShelfAdmitActionInput } from "./actions.js";
 import type { ShelfPluginRouteHandler, ShelfPluginRouteResponse } from "./routes.js";
 
@@ -32,6 +33,8 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     "shelf.material.save": async ({ params, request }) => ({ status: 200, body: await project().actions.invoke(shelfProjectActions.saveMaterial,
       { item_id: params.item_id!, expected_fingerprint: typeof request.body.expected_fingerprint === "string" ? request.body.expected_fingerprint : "" }) }),
     "shelf.snapshot": async () => ({ status: 200, body: await snapshot() }),
+    "shelf.preference.read": async ({ request }) => ({ status: 200, body: await call<unknown, unknown>(shelfPreferences.read, request.body) }),
+    "shelf.preference.write": async ({ request }) => ({ status: 200, body: await call<unknown, unknown>(shelfPreferences.write, request.body) }),
     "shelf.settings.read": async () => ({ status: 200, body: await call(shelfActions.settings, {}) }),
     "shelf.settings.write": async ({ request }) => ({ status: 200, body: await call(shelfActions.saveSettings, request.body as Record<string, unknown>) }),
     "shelf.sample": async () => withShelf(await call(shelfActions.sample, {})),

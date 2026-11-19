@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, memoryLearningActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_SETTING_KEYS, memorySettingActions } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
@@ -129,7 +130,7 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
 // C2 separately exposes owner-bound learning enqueue/form; directory visibility does not supply a project or source owner.
 // This issued Home plugin proves the project-scope refusal; formation-owner and installation gates have their own C2 regressions.
 
-test("plugins discover only owner-bound learning commands; ordinary memory reads and writes remain forbidden", { timeout: 60_000 }, async t => {
+test("only owner-bound learning commands are offered to plugins; personal preference reads are listed as unavailable", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-actions-"));
   // A plugin that declares and holds every memory permission, started by the Host: the call context it presents carries the caller the Host issued it.
   const tables = callerPlugin("memorytables", "home", Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])));
@@ -149,11 +150,20 @@ test("plugins discover only owner-bound learning commands; ordinary memory reads
     assert.equal(action.action.plugin, false, action.capability_id);
   }
   assert.equal(memoryActions.change.action.audiences.includes("plugin" as never), false, memoryActions.change.capability_id);
-  // C2 adds exactly these source-owner commands, not generic memory access. Agents retain the same three.
+  // The settings contract publishes read metadata to agents and plugins. The Memory owner marks it unavailable to both.
   const learning = ["memory.learning.enqueue", "memory.learning.form"];
-  assert.deepEqual(ofMemory(await client.discover(plugin)), learning);
-  assert.deepEqual(ofMemory(await host.inspectActions(plugin)), learning);
-  assert.deepEqual(ofMemory(await client.discover(agent)), ["memory.list", "memory.recall", "memory.write"]);
+  const preferenceRead = memorySettingActions.read.capability_id;
+  for (const [views, ordinary] of [
+    [await client.discover(plugin), learning], [await host.inspectActions(plugin), learning],
+    [await client.discover(agent), ["memory.list", "memory.recall", "memory.write"]],
+  ] as const) {
+    assert.deepEqual(ofMemory(views), [...ordinary, preferenceRead].sort());
+    const status = views.find(row => row.capability_id === preferenceRead)?.availability;
+    assert.ok(status && !status.available && status.code === "memory.forbidden");
+  }
+  for (const caller of [plugin, agent]) {
+    await assert.rejects(client.invoke(caller, memorySettingActions.read, { keys: [MEMORY_SETTING_KEYS.personal] }), { code: "memory.forbidden" });
+  }
 
   // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
   const asPerson = bindActionClient(client, () => person);

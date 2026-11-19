@@ -6,6 +6,7 @@ import { CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contr
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { forgetOwnedAttachments } from "../material-attachments.js";
 import { ASSISTANT_ATTACHMENT_OWNER } from "./assistant-attachments.js";
+import { assistantReceiptPrefix } from "./assistant-setting-records.js";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
 
@@ -51,11 +52,10 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
     db.exec("PRAGMA busy_timeout = 5000;");
     const works = (db.prepare("SELECT body FROM assistant_works WHERE json_extract(body, '$.project_ref.project_id') = ? OR json_extract(body, '$.scope.project_id') = ?")
       .all(projectId, projectId) as Array<{ body: string }>).map(row => JSON.parse(row.body) as StoredWork);
-    if (!works.length) return 0;
-    if (!live) throw new ProjectDeletedDeferred("助理需要结束原工作及其权限，运行中的 Molis Work 会接着清理", true);
+    if (works.length && !live) throw new ProjectDeletedDeferred("助理需要结束原工作及其权限，运行中的 Molis Work 会接着清理", true);
     for (const work of works) {
-      await live.stop(work.work_id);
-      if (live.dropFollowUp) {
+      await live!.stop(work.work_id);
+      if (live?.dropFollowUp) {
         for (const row of db.prepare("SELECT followup_id FROM assistant_followups WHERE work_id = ?").all(work.work_id) as Array<{ followup_id: string }>) {
           await live.dropFollowUp(row.followup_id);
         }
@@ -65,6 +65,8 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
     const relations = new AssistantRelations(db);
     db.exec("BEGIN IMMEDIATE");
     try {
+      const prefix = assistantReceiptPrefix(projectId);
+      db.prepare("DELETE FROM assistant_settings WHERE substr(key,1,length(?))=?").run(prefix, prefix);
       for (const work of works) {
         const identity = { work_id: work.work_id, project_id: work.project_ref?.project_id ?? null };
         for (const related of relations.forWork(identity)) relations.unlink(identity, related.relation, related.object, "项目已删除");

@@ -1,6 +1,6 @@
 {
   "reason": "逐屏打磨 P5 第二段：同一种设置行只留 SDK 一种写法。两处增长的来源：（1）角色页和工作记录是在浏览器里画行的，原来在脚本里手拼 mw-setting-row、mw-settings-section 的标记，换成 SDK 的 renderSettingRow、renderSettingsSection 以后，这两个函数本身进了它们的脚本；（2）工作台的页面本身带着界面与语言的四行和项目常规页的两行，换成 SDK 的行以后标记多了 605 字节（每行多一层 mw-setting-row__copy / __control 和 data-slot，四组选择块和两个输入各带读得出来的名字）。同一次改动里设置样式、工作台样式、工作台脚本、Shelf 样式、会话页脚本都变小了（删掉旧的 .settings-setting-row、.setting-value、SETTING_ROW_STYLES），所以工作台首屏冷启动只多 109 字节，到达页和项目选择页冷启动各少 454 字节。没有新增资源，单项都远低于 10 KB；词包没有变（那条不再用的词留着没删，免得词包换名）。",
-  "review": "specs/screen-polish/p5-settings.md「页面体积」与分支 feat/screen-polish-p5-settings-2 的 PR 评审。本机对照 main e5e565411b（#2127 的合并提交）的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main，2026-11-18）：角色页脚本 +893、工作记录脚本 +410；设置样式 -358、工作台样式 -454、工作台脚本 -42、Shelf 样式 -80、会话页脚本 -18。首屏：工作台默认与全部插件，中英文都是冷 +109、热 +605；到达页与项目选择页冷 -454、热不变。",
+  "review": "specs/screen-polish/p5-settings.md「页面体积」与分支 feat/screen-polish-p5-settings-2 的 PR 评审。本机对照 main e5e565411b（#2127 的合并提交）的隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main，2026-11-18）：角色页脚本 +893、工作记录脚本 +410；设置样式 -358、工作台样式 -454、工作台脚本 -42、Shelf 样式 -16、会话页脚本 -18。首屏：工作台默认与全部插件，中英文都是冷 +109、热 +605；到达页与项目选择页冷 -454、热不变。",
   "assets": {
     "/assets/molis-work-plugins/characters.js": 893,
     "/assets/molis-work-work-records.js": 410

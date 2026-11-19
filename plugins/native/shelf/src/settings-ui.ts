@@ -115,7 +115,7 @@ function paneBody(id: (typeof SECTIONS)[number]["id"], model: ShelfSettingsUiMod
 
 function setupPane(_model: ShelfSettingsUiModel): string {
   // What the Mac asks for and why: each is one sentence of the card, not a row with a control.
-  const fact = (key: string, copy: string) => `<p class="mw-settings-section__note shelf-settings-fact" data-shelf-permission="${key}">${uiText(copy)}</p>`;
+  const fact = (key: string, copy: string) => `<p class="shelf-settings-fact" data-shelf-permission="${key}">${uiText(copy)}</p>`;
   return `${fact("accessibility", "shelf.settings-ui.accessibility-needed-add-files-selected-front-app")}
     ${fact("automation", "shelf.settings-ui.finder-automation-mac-os-asks-once-when-add")}
     ${fact("browsers", "shelf.settings-ui.browsers-page-capture-supports-safari-chrome-edge-best")}

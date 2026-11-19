@@ -27,7 +27,7 @@ interface ProjectSettingsFoldsPrimitives {
   projectDeletionLabels?(): readonly string[];
 }
 
-function renderMissingPlugins(project: ProjectSettingsFoldProject, _primitives: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
+function renderMissingPlugins(project: ProjectSettingsFoldProject): string {
   const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
   if (!missing.length) return "";
   // A plugin's id has no place to break, so the row lets it break anywhere (`project-missing-plugin`) and never runs past the card.
@@ -123,7 +123,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
           control: `<input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160" aria-labelledby="project-display-name-label"><button class="mw-btn mw-btn--secondary" type="submit">${uiText("workbench.project-settings-folds.save-name")}</button>`,
         })}</form>
         <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${uiText("workbench.project-settings-folds.local-data")}</strong><span>${uiText("workbench.project-settings-folds.view-project-id-database-location")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${uiText("workbench.project-settings-folds.project-id")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${uiText("workbench.project-settings-folds.data-file")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>` })}
-      ${renderMissingPlugins(project, primitives)}
+      ${renderMissingPlugins(project)}
       ${renderSettingsSection({ className: "settings-section", attrs: { "data-project-runtime": true, "data-runtime-prefix": `/projects/${encodeURIComponent(project.project_id)}`, hidden: true }, body: renderSettingRow({
         name: uiText.text("workbench.project-settings-folds.agent-runtime"), nameAttrs: { id: "project-runtime-label" }, hint: uiText.text("workbench.project-settings-folds.which-runtime-project-s-new-sessions-run-default"),
         detail: `<small class="settings-form-error" role="alert" hidden></small>`, control: `<select id="project-runtime" aria-labelledby="project-runtime-label"></select>`,

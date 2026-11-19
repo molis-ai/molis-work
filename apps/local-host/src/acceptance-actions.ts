@@ -1,7 +1,8 @@
+import { withAcceptanceTransaction } from "./acceptance-transaction.js";
 import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ACCEPTANCE_PROVIDER_ID, acceptanceActions, acceptanceErrors } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
+import { decideAcceptanceInTransaction, openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { acceptanceSubjectFromReview, assertAcceptanceObjectReadable, buildAcceptanceReviewOffer } from "./acceptance-review.js";
@@ -99,41 +100,23 @@ export function acceptanceProvider(
               throw new ActionError("actions.conflict", "项目审批规则已变化，请重新查看");
             }
           };
-          const decided = openAcceptance(homeDirectory);
-          let view: ReturnType<AcceptanceService["decide"]>;
-          try {
-            let acceptanceCommitted = false;
-            try {
-              view = store.db.transaction(() => {
-                checkCommit();
-                const result = decided.service.decide(person, input, bound.held.decisionId, (_view, recordIntent) => {
-                  projectReviewDecisions(store.db, person.project_id).commit(
-                    bound.held.command,
-                    { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
-                    bound.held.frozenChoice,
-                    bound.held.review,
-                    new Date().toISOString(),
-                    checkCommit,
-                    bound.held.decisionId,
-                    recordIntent,
-                  );
-                });
-                acceptanceCommitted = true;
-                return result;
-              }).immediate();
-            } catch (error) {
-              if (acceptanceCommitted) throw new ActionError("actions.outcome_unknown", "认可结果可能已保存，平台决定待核对");
-              try { decided.service.completeCommitIntent(bound.held.decisionId); } catch { /* no acceptance row was committed */ }
-              throw error;
-            }
-            try { decided.service.completeCommitIntent(bound.held.decisionId); } catch { /* the durable intent is retried on recovery */ }
-          } finally {
-            decided.close();
-          }
+          const view = withAcceptanceTransaction(homeDirectory, person.project_id, store.db, () => bound.submit(), schema => {
+            checkCommit();
+            return decideAcceptanceInTransaction(store.db, schema, person, input, bound.held.decisionId, () => {
+              projectReviewDecisions(store.db, person.project_id).commit(
+                bound.held.command,
+                { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
+                bound.held.frozenChoice,
+                bound.held.review,
+                new Date().toISOString(),
+                checkCommit,
+                bound.held.decisionId,
+              );
+            });
+          });
           try { attentionChanged(person.project_id); } catch { /* the write is done */ }
           return view;
         });
-        bound.submit();
         return result;
       }),
     ],

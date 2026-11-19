@@ -83,6 +83,20 @@ defineRowTests(ROWS, ["RAC-2011", "RAC-2012", "RAC-2013"]);
 
 // T-280: the Feed and Integration sections, Goals' route mount and the proposal UI check, read the same way.
 const FEED_UI = checkMigratedFeedUiOwnership, INTEGRATION = checkMigratedIntegrationOwnership;
+test("QEA-67 active integrations still require their installation manifest and its packaged declaration", () => {
+  assert.deepEqual(errorsOf(INTEGRATION(repository)), []);
+  for (const name of ["github", "gmail", "rss"]) {
+    const directory = `plugins/official-integrations/${name}`;
+    const manifest = path.join(repository, directory, "manifest.json"), exists = fs.existsSync;
+    fs.existsSync = candidate => String(candidate) === manifest ? false : exists(candidate);
+    try {
+      assert.ok(errorsOf(INTEGRATION(repository)).includes(`${directory}: missing manifest.json`));
+    } finally { fs.existsSync = exists; }
+    const file = `${directory}/package.json`, metadata = JSON.parse(read(file));
+    metadata.files = metadata.files.filter(file => file !== "manifest.json");
+    assert.ok(checkWith(INTEGRATION, file, JSON.stringify(metadata)).includes(`${file}: install package must include manifest.json`));
+  }
+});
 const MORE_ROWS = [
   { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "createWorkbenchStageRenderers(", kind: "code" },
   { check: FEED_UI, file: "apps/workbench/src/renderer.ts", needle: "stageModel: stages.declaredStageModel", kind: "code" },

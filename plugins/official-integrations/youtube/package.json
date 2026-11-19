@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-integration-youtube",
   "version": "0.0.0",
   "private": true,
-  "description": "Official YouTube Channel provider adapter and settings boundary.",
+  "description": "Official YouTube public-channel identifiers and feed addresses.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -17,7 +17,6 @@
   },
   "files": [
     "dist",
-    "manifest.json",
     "README.md"
   ],
   "scripts": {
@@ -26,7 +25,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*"
   }
 }

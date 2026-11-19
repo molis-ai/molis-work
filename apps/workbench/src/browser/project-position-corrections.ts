@@ -12,15 +12,22 @@ export function createPositionCorrections(root: HTMLElement, ports: {
 }) {
   const doc = root.ownerDocument, controls: CorrectionControls = new Map();
   let recovery: SurfaceDisplayCorrection["subject"], position: SurfaceHomeDisplay["position"];
-  let task: AbortController | undefined, prompt: HTMLDialogElement | undefined, valid = false;
+  let task: AbortController | undefined, valid = false;
+  let prompt: { dialog: HTMLDialogElement; revision: string; anchor: HTMLElement } | undefined;
   let focusAfter: { anchor: HTMLElement; selector: string } | undefined;
   const resetFocus = ".surface-correction-default summary";
   function dismiss() {
-    prompt?.close(); prompt?.remove(); prompt = undefined;
+    const current = prompt;
+    prompt = undefined;
+    current?.dialog.close(); current?.dialog.remove();
   }
   function suspend() { valid = false; task?.abort(); task = undefined; dismiss(); }
   function clear() { suspend(); controls.clear(); recovery = position = focusAfter = undefined; }
   function rendering(data: SurfaceHomeDisplay): CorrectionRender {
+    if (prompt && (!data.position?.forms.length || data.position.kind !== position?.kind || data.corrections_revision !== prompt.revision)) {
+      focusAfter = { anchor: prompt.anchor, selector: resetFocus };
+      dismiss();
+    }
     position = data.position; valid = true;
     return { controls, recovery: data.object_restore_available ? recovery : undefined, defaults: ports.defaults, headerOnly: ports.headerOnly };
   }
@@ -57,7 +64,8 @@ export function createPositionCorrections(root: HTMLElement, ports: {
   }
   function confirm(input: SurfaceDisplayCorrection, anchor: HTMLElement) {
     dismiss();
-    const dialog = prompt = doc.createElement("dialog");
+    const dialog = doc.createElement("dialog");
+    const current = prompt = { dialog, revision: input.expected_revision, anchor };
     dialog.className = "mw-dialog home-peek";
     dialog.dataset.positionDialog = "";
     const label = surfaceCorrectionWord("confirm-reset");
@@ -67,12 +75,12 @@ export function createPositionCorrections(root: HTMLElement, ports: {
       + renderButton({ label: uiText.text("workbench.position.confirm"), variant: "primary", attrs: { "data-position-reset": "confirm" } }) + "</div>";
     (root.parentElement ?? doc.body).append(dialog);
     dialog.addEventListener("close", () => {
-      dialog.remove(); if (prompt === dialog) prompt = undefined;
+      dialog.remove(); if (prompt === current) prompt = undefined;
       if (valid && anchor.checkVisibility() && (doc.activeElement === doc.body || doc.activeElement === anchor)) anchor.focus({ preventScroll: true });
     });
     dialog.addEventListener("click", event => {
       const choice = (event.target as Element)?.closest<HTMLElement>("[data-position-reset]")?.dataset.positionReset;
-      if (!event.isTrusted || !choice || prompt !== dialog) return;
+      if (!event.isTrusted || !choice || prompt !== current) return;
       dismiss();
       if (choice === "confirm") void apply(input, anchor, null);
     });

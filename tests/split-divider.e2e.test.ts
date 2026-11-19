@@ -10,7 +10,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // cursor behind; the keyboard reads and sets the same value and range; a stage too small for every pane's minimum takes the
 // narrow layout instead of squeezing; and a layout this device cannot keep says so once.
 
-test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteresis, cancels to where it was, speaks its range and gives way to the narrow layout", { timeout: 120_000 }, async (t) => {
+test("VUX-23/24 QEA-179: the split divider has a dead zone, follows, snaps with hysteresis, cancels to where it was, speaks its range and gives way to the narrow layout", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -46,12 +46,16 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
   assert.equal(await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:' + ${JSON.stringify(projectId)})`), beforeCandidate, "the candidate does not persist a layout change");
 
   // Past it, the divider follows the pointer; the frames are guarded while it moves and released after.
+  const columns = "document.querySelector('.work-line-row').style.getPropertyValue('--slot-columns')";
+  await waitFor(`Boolean(${columns})`);
+  const restingColumns = await evaluate<string>(columns);
   await mouse("mousePressed", center.x);
   await mouse("mouseMoved", at(0.62));
   const moving = await guarded();
   assert.equal(moving.resizing, true);
   assert.ok(moving.frames.every(value => value === "none"), "the panes' frames do not take the pointer mid-drag");
   assert.equal(await value(), 62, "the divider is where the pointer is");
+  await waitFor(`${columns} && ${columns} !== ${JSON.stringify(restingColumns)}`);
   // Back near the default it settles there; 12 px off it holds; past 16 px it lets go again.
   await mouse("mouseMoved", center.x + 6);
   assert.equal(await value(), 50, "within 8 px it settles on the default");

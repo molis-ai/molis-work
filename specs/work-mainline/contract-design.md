@@ -59,6 +59,8 @@ interface Mainline {
 
 **要等别的主人的写（评审 M1）。** `items.create` 的 `from`／`create_as`、`items.convert`、`holds.bind`／`holds.create` 要先以调用方身份读或建来源对象，都声明 `scheduling: "concurrent"`，返回后先 `beforeEffect()` 再提交主线这边。新建来源对象的输入带 `request_id`（由主线服务从调用方给的 `request_id`——没给就用调用号——连同人、项目、种类和名字或事项派生），来源主人按它重放同一个对象；主线这边按来源唯一索引幂等，所以取消或冲突后重试不会多出一个 Goal。
 
+`items.convert` 在请求来源创建前核对主线修订。提交时已经过期的请求直接返回当前排列。来源已创建后发生的排列冲突返回同一错误，使用同一请求号重试会取回该对象并继续绑定。
+
 | 动作 | 输入 → 输出 | 说明 |
 | --- | --- | --- |
 | `mainline.read@1`（查询） | `{}` → `{ mainline, sources }` | `sources` 是这个调用方目录里声明了事项来源的种类：`[{ kind, owner, create: boolean, next: boolean }]`，供「设为事项」「建成 xx」 |

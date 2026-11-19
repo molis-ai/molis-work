@@ -25,7 +25,11 @@ export function createConnectionWatch() {
     changed(): void { pending = true; wake?.(); },
     /** Resolves when something changed since the last call (at once when it already has), or when the job is stopped. */
     async next(signal: AbortSignal): Promise<void> {
-      if (!pending && !signal.aborted) await new Promise<void>(resolve => { wake = resolve; signal.addEventListener("abort", () => resolve(), { once: true }); });
+      if (!pending && !signal.aborted) await new Promise<void>(resolve => {
+        const done = () => { signal.removeEventListener("abort", done); resolve(); };
+        wake = done;
+        signal.addEventListener("abort", done, { once: true });
+      });
       wake = undefined; pending = false;
     },
   };

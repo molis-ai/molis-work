@@ -11,7 +11,8 @@ import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/cl
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
 // data-assistant-context last is what the Assistant and the context toolbar read. Pages' own naming must win.
 
-type Listener = (event: { type: string; detail?: unknown; target?: unknown }) => unknown;
+type SurfaceEvent = Event & { readonly detail?: unknown };
+type Listener = (event: SurfaceEvent) => unknown;
 
 class FakeElement {
   attributes = new Map<string, string>();
@@ -25,7 +26,7 @@ class FakeElement {
     if (name === "data-expanded") this.dataset.expanded = String(value);
   }
   addEventListener(type: string, fn: Listener) { this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]); }
-  dispatchEvent(event: { type: string }) { return dispatch(this, event); }
+  dispatchEvent(event: SurfaceEvent) { return dispatch(this, event); }
   querySelector: (selector: string) => unknown = () => null;
   querySelectorAll() { return []; }
   closest() { return null; }
@@ -52,12 +53,12 @@ function node(): Record<string, unknown> {
 let documentListeners: Array<{ type: string; fn: Listener; capture: boolean }> = [];
 
 // Capture listeners on the document, then the surface's own, then the document's bubbling ones.
-function dispatch(target: FakeElement, event: { type: string; detail?: unknown }) {
-  const routed = Object.assign(event, { target });
-  documentListeners.filter((entry) => entry.type === event.type && entry.capture).forEach((entry) => entry.fn(routed));
-  (target.listeners.get(event.type) ?? []).forEach((fn) => fn(routed));
-  documentListeners.filter((entry) => entry.type === event.type && !entry.capture).forEach((entry) => entry.fn(routed));
-  return true;
+function dispatch(target: FakeElement, event: SurfaceEvent) {
+  Object.defineProperty(event, "target", { value: target, configurable: true });
+  documentListeners.filter((entry) => entry.type === event.type && entry.capture).forEach((entry) => entry.fn(event));
+  (target.listeners.get(event.type) ?? []).forEach((fn) => fn(event));
+  if (event.bubbles) documentListeners.filter((entry) => entry.type === event.type && !entry.capture).forEach((entry) => entry.fn(event));
+  return !event.defaultPrevented;
 }
 
 interface Deferred { promise: Promise<unknown>; resolve(value: unknown): void }
@@ -168,7 +169,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     actions: () => ((created.find((made) => made.className === "mw-ctx")!.children as Array<{ className: string; children: Array<{ textContent: string }> }>)
       .filter((child) => child.className === "mw-btn mw-btn--ghost").map((child) => child.children[0]?.textContent ?? "")),
     // The surface reports what the person has in hand (or, with null, that it is gone), as Pages and the DOM selection do.
-    focus: (detail: unknown) => dispatch(surface, { type: "molis:surface-focus", detail }),
+    focus: (detail: unknown) => dispatch(surface, new CustomEvent("molis:surface-focus", { bubbles: true, detail })),
     context: () => JSON.parse(surface.getAttribute("data-assistant-context") ?? "null") as Record<string, unknown> | null,
     serializedContext: () => surface.getAttribute("data-assistant-context"),
     edit(text: string, title?: string) {
@@ -176,8 +177,8 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
       if (title !== undefined) (parts.get("[data-pages-title]") as { value: string }).value = title;
       editorChanged();
     },
-    // The workbench opens an item on the surface (tab-workspace's selectItem / jumpToRecord).
-    selectItem: (itemId: string | null) => dispatch(surface, { type: "molis-work:select-item", detail: { itemId } }),
+    // QEA-157: the workbench opens an item on the surface by issuing a cancelable DOM event.
+    selectItem: (itemId: string | null) => dispatch(surface, new CustomEvent("molis-work:select-item", { cancelable: true, detail: { itemId } })),
     async advance(ms: number) {
       now += ms;
       for (const [id, timer] of [...timers].sort((a, b) => a[1].at - b[1].at)) {

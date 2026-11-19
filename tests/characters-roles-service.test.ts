@@ -21,6 +21,7 @@ function space(t: { after(callback: () => void): void }, actor = "actor-a") {
 }
 const refused = (code: string) => (error: unknown) => (error as { code?: string }).code === code;
 
+// QEA-148 verifies that merged role settings still resolve and persist through the Characters owner.
 test("ROLE-02: a member follows the original's latest version in both sections; overriding one keeps the other following and an earlier override", t => {
   const service = space(t), original = service.create(content), member = service.roles.addMember(PROJECT, original.character_id);
   assert.deepEqual(member.sections, { work_style: { mode: "follow" }, capabilities: { mode: "follow" } });

@@ -23,9 +23,9 @@ function tailHas(path: string, marker: string): boolean {
 }
 
 export async function runRollbackPair(t: TestContext, files: { file: string; libraryFile: string },
-  interrupt: boolean, subject?: string): Promise<string | undefined> {
+  interrupt: boolean, subject?: string, consumer: "artifact" | "acceptance" = "artifact"): Promise<string | undefined> {
   const { file, libraryFile } = files;
-  const mode = subject ? "host-pair" : "pair";
+  const mode = consumer === "acceptance" ? "acceptance-pair" : subject ? "host-pair" : "pair";
   const child = spawn(process.execPath, [childEntry, file, "2", "trusted", mode, libraryFile, subject ?? ""], { stdio: ["ignore", "ignore", "inherit"] });
   const ended = once(child, "exit");
   const markerIn = () => readdirSync(dirname(file)).find(name => name.startsWith("molis-work.db-mj"));

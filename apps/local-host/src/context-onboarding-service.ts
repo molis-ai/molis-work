@@ -3,7 +3,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
+import { ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   withContextJourneys,
@@ -39,7 +39,8 @@ import {
   stagedJourneyIds,
 } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
-import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
+import { ONBOARDING_TEXT_MODEL_MISSING, onboardingTextModel, type TextModelPort } from "./configured-text-port.js";
+import type { HostTextCommitResult } from "./host-complete-text.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
 import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
@@ -59,7 +60,7 @@ export interface ContextOnboardingPorts {
   actions?: (home: string, projectId: string, original_file?: HostOfferedOriginalFile) => Promise<BoundActionClient>;
   /** The person's own (Home) actions, for todo drafts made before the project exists. */
   homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
-  model?: (home: string) => Promise<TextModelPort>;
+  model?: (home: string) => Promise<TextModelPort<string>>;
   readSource?: typeof readContextSource;
   /** The plugins that declare they take a code folder (`onboardingTakers`, batch12-design §7.3); none offered without it. */
   takers?: () => readonly OnboardingTaker[];
@@ -247,12 +248,6 @@ export function reopenContextJourney(home: string, id: string): ContextJourney {
   return withContextJourneys(home, store => store.save(journey));
 }
 
-/** Onboarding's own calls: its instructions, recorded under its own owner, with no other feature's role in front of them. */
-export async function contextModel(home: string, ports: ContextOnboardingPorts): Promise<TextModelPort> {
-  return ports.model ? ports.model(home)
-    : configuredTextPort(home, { owner: ONBOARDING_OWNER, timeoutMs: 180_000, unavailableReason: "材料已保存。请在设置中连接文字模型，再回来继续整理。" });
-}
-
 export function startContextJourney(home: string, id: string, ports: ContextOnboardingPorts): ContextJourney {
   const k = key(home, id);
   if (running.has(k)) return readContextJourney(home, id);
@@ -375,17 +370,19 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
       }
       throw new Error("还没有读到正文，请检查来源范围后重试");
     }
-    const ai = await contextModel(home, ports);
+    const ai = await onboardingTextModel(home, ports.model);
     signal.throwIfAborted();
     journey.model = ai.runtimeLabel ?? null; save();
-    if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
+    if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? ONBOARDING_TEXT_MODEL_MISSING); }
     reachedModel = true;
     // Todo drafts come from the same materials, beside the overview; a failure there never stops the overview.
     const drafts = draftTodos(home, journey, unique, signal, ports, save);
-    const raw = await summarizeContext(home, unique, ai, journey, signal, save);
+    const answer = await summarizeContext(home, unique, ai, journey, signal, save);
     await drafts;
+    signal.throwIfAborted();
     if (!isCurrent()) throw STALE_EPOCH;
-    const parsed = parseContextSummary(raw, unique);
+    answer.validateResult();
+    const parsed = parseContextSummary(answer.value, unique);
     const citedLabels = new Set(parsed.references.filter(r => r.used_in_summary).map(r => r.label));
     for (const source of selectedSources) {
       for (const ref of source.references ?? []) {
@@ -479,11 +476,11 @@ async function* batchesOf(items: AsyncIterable<Evidence>): AsyncGenerator<Eviden
 async function summarizeContext(
   home: string,
   references: ContextReference[],
-  ai: TextModelPort,
+  ai: TextModelPort<HostTextCommitResult>,
   journey: ContextJourney,
   signal: AbortSignal,
   save: () => unknown,
-): Promise<string> {
+): Promise<HostTextCommitResult> {
   const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
   if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [], batches: { done: 0, all: 0 }, timing: { ms: 0, calls: 0 } };
   const checkpoint = journey.synthesis;
@@ -508,11 +505,16 @@ async function summarizeContext(
       const labels = [...new Set(batch.flatMap(item => item.labels))];
       let note = await readStagedNote(home, journey.id, bKey);
       if (note === null) {
-        note = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+        const answer = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
         signal.throwIfAborted();
+        note = answer.value;
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
-        await stageNote(home, journey.id, bKey, note);
+        await stageNote(home, journey.id, bKey, note, () => {
+          signal.throwIfAborted();
+          answer.validateResult();
+        });
+        signal.throwIfAborted();
         checkpoint.notes.push(bKey);
       }
       notes.push({ labels, key: bKey }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;

@@ -20,6 +20,4 @@ export interface GoalsPageView {
   counts: Record<GoalPresentationState, number>;
   input_bindings: GoalsInputBinding[];
   events: GoalsDecisionEvent[];
-  /** The Inbox scene owner's live status; the page only carries it to the client as data. */
-  inbox_judgment?: unknown;
 }

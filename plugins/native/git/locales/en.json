@@ -255,6 +255,15 @@
     "git.upstream.ahead": "{upstream}: {ahead} ahead",
     "git.upstream.behind": "{upstream}: {behind} behind",
     "git.upstream.both": "{upstream}: {ahead} ahead · {behind} behind",
-    "git.upstream.synced": "Up to date with {upstream}"
+    "git.upstream.synced": "Up to date with {upstream}",
+    "git.commit.use-suggestion": "Use suggested message",
+    "git.commit.workspace-unavailable": "The original working directory is no longer available.",
+    "git.draft.saving": "Saving edits…",
+    "git.draft.failed": "Edits could not be saved. Keep this page open and retry: {reason}",
+    "git.draft.not-ready": "Wait for the saved edits to finish loading.",
+    "git.conflict.changed": "The file changed since these edits began. Review the current file before keeping your edits or loading it.",
+    "git.conflict.keep-edit": "Keep my edits for this file",
+    "git.conflict.use-disk": "Load current file",
+    "git.conflict.current-file": "Current file"
   }
 }

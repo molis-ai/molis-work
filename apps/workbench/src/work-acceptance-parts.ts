@@ -23,7 +23,7 @@ function standing(item: AcceptanceRequirementState): { ring: StateRingState; bad
   return { ring: "done", badge: badge(say(item.carried ? "carried" : "machine-checked", { version: on }), "success"), why: item.carried ? say("carried-why") : "" };
 }
 
-const checkLine = (check: AcceptanceCheck) => `<p class="work-req-note" title="${escapeHtml(check.observed)}">${escapeHtml(say("check-line", { kind: say(check.kind === "hands_on" ? "hands-on" : "engineering"), method: check.method }))}</p>`;
+const checkLine = (check: AcceptanceCheck) => `<p class="work-req-note">${escapeHtml(say("check-line", { kind: say(check.kind === "hands_on" ? "hands-on" : "engineering"), method: check.method }))}<span class="work-req-observed">${escapeHtml(check.observed)}</span></p>`;
 const evidence = (check: AcceptanceCheck | null) => !check?.evidence.length ? "" : `<div class="work-req-evidence">${check.evidence.map(reference =>
   `<span class="work-req-chip">${icon(reference.kind === "artifact_version" ? "file" : "terminal")}${escapeHtml(reference.kind === "artifact_version" ? say("evidence-artifact", { version: reference.version }) : say("evidence-command"))}</span>`).join("")}</div>`;
 
@@ -33,7 +33,7 @@ function historyLine(entry: AcceptanceHistoryEntry, _index: number, all: Accepta
     : entry.type === "delivery" ? say(entry.touched ? "history-delivered" : "history-delivered-untouched", { version: entry.version })
     : entry.type === "check" ? `${entry.checked_version} · ${say(entry.gap ? `gap-${entry.gap}` : entry.verdict === "contradicts" ? "gap-contradicted" : entry.tier === "machine_checked" ? "history-machine" : "gap-self_only")}`
     : `${entry.version} · ${say(entry.decision === "accepted" ? "history-accepted" : "history-returned", { note: entry.note ?? "" })}`;
-  return `<li title="${escapeHtml(words)}">${escapeHtml(words)}</li>`;
+  return `<li>${escapeHtml(words)}</li>`;
 }
 
 export interface RequirementColumnUi { readonly returning: string | null; readonly editing: string | null; readonly busy: boolean; readonly error: string }
@@ -49,10 +49,10 @@ function card(item: AcceptanceRequirementState, lead: boolean, ui: RequirementCo
   const edit = renderButton({ variant: "ghost", size: "sm", icon: "edit", iconOnly: true, label: say("edit-requirement"), attrs: { "data-acceptance-edit": "", ...disabled } });
   const facts = [item.stands_on ? say("checked-version", { version: item.stands_on }) : "", item.part ?? ""].filter(Boolean).join(" · ");
   return `<article class="work-req" data-requirement="${id}" data-requirement-version="${item.version}"${lead ? " data-lead" : ""}>`
-    + `<div class="work-req-head">${ring(at.ring)}<strong title="${escapeHtml(item.statement)}">${escapeHtml(item.statement)}</strong>${edit}</div>`
+    + `<div class="work-req-head">${ring(at.ring)}<strong>${escapeHtml(item.statement)}</strong>${edit}</div>`
     + `<div class="work-req-meta">${at.badge}<span title="${escapeHtml(facts)}">${escapeHtml(facts)}</span></div>`
     + (item.check ? checkLine(item.check) : "") + (item.hands_on ? checkLine(item.hands_on) : "")
-    + (at.why ? `<p class="work-req-why" title="${escapeHtml(at.why)}">${icon("circle-alert")}<span>${escapeHtml(at.why)}</span></p>` : "")
+    + (at.why ? `<p class="work-req-why">${icon("circle-alert")}<span>${escapeHtml(at.why)}</span></p>` : "")
     + evidence(item.check) + evidence(item.hands_on) + actions
     + `<details class="work-req-history"><summary>${icon("history")}${escapeHtml(say("history", { n: item.history.length }))}</summary><ol>${item.history.map(historyLine).join("")}</ol></details></article>`;
 }

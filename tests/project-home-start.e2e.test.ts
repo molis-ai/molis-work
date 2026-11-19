@@ -144,7 +144,7 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
   assert.deepEqual((await sessions()).filter(id => !before.includes(id)), [selected]);
 });
 
-test("WBR-21 QHR-01: a real background Home refresh keeps the current row, newer values win, and another project is isolated", { timeout: 90_000 }, async t => {
+test("WBR-21 QHR-01 QEA-164: a real background Home refresh keeps the current row, newer values win, and another project is isolated", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const first = await createProject(b.web, "Refresh source"), second = await createProject(b.web, "Another Home view");
@@ -156,11 +156,12 @@ test("WBR-21 QHR-01: a real background Home refresh keeps the current row, newer
   await go(first.project_id);
   const kept = (await add(first.project_id, "Keep the focused row")).goal.goal_id;
   await go(first.project_id);
-  await b.waitFor(visible(goal(kept)));
+  const status = "document.querySelector('[data-home-status]')";
+  await b.waitFor(`${visible(goal(kept))} && !${status}.textContent.trim()`);
   await b.evaluate(`(() => {
     const original = window.fetch, row = document.querySelector(${JSON.stringify(goal(kept))});
     row.focus();
-    window.homeProbe = { row, requests: 0 };
+    window.homeProbe = { row, top: row.getBoundingClientRect().top, requests: 0 };
     const held = new Promise(resolve => { window.homeProbe.release = resolve; });
     window.fetch = async (url, options) => {
       const first = String(url).endsWith(${JSON.stringify(endpoint)}) && ++window.homeProbe.requests === 1;
@@ -175,18 +176,47 @@ test("WBR-21 QHR-01: a real background Home refresh keeps the current row, newer
   };
   const early = (await add(first.project_id, "An earlier Home response")).goal.goal_id;
   await announce();
-  await b.waitFor("!!window.homeProbe.first");
-  assert.equal(await b.evaluate(`homeProbe.first.display.rows.some(row=>row.subject.id===${JSON.stringify(early)})`), true);
-  assert.equal(await b.evaluate("homeProbe.row.isConnected && document.activeElement === homeProbe.row"), true);
-  const later = (await add(first.project_id, "A newer Home response")).goal.goal_id;
-  await announce();
+  let later: string;
   try {
+    await b.waitFor("!!window.homeProbe.first");
+    assert.equal(await b.evaluate(`homeProbe.first.display.rows.some(row=>row.subject.id===${JSON.stringify(early)})`), true);
+    assert.equal(await b.evaluate("homeProbe.row.isConnected && document.activeElement === homeProbe.row"), true);
+    assert.deepEqual(await b.evaluate(`({ caption: ${status}.textContent.trim(),
+      moved: Math.abs(homeProbe.row.getBoundingClientRect().top - homeProbe.top) > 0.5 })`),
+      { caption: "", moved: false }, "the background read stays quiet and does not move the focused row");
+    later = (await add(first.project_id, "A newer Home response")).goal.goal_id;
+    await announce();
     await b.waitFor(visible(goal(later)), 15_000);
     assert.equal(await b.evaluate("homeProbe.signal.aborted"), true, "the superseded request was cancelled");
     assert.equal(await b.evaluate("homeProbe.row.isConnected && document.activeElement === homeProbe.row"), true, "unchanged row stays put");
   } finally { await b.evaluate("homeProbe.release()"); }
   await b.evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   assert.equal(await b.evaluate(visible(goal(later))), true, "the older real reply did not replace the newer one");
+  await b.evaluate(`(() => {
+    const original = window.fetch;
+    let failNext = true;
+    const held = new Promise(resolve => { homeProbe.releaseRetry = resolve; });
+    window.fetch = async (url, options) => {
+      if (!String(url).endsWith(${JSON.stringify(endpoint)})) return original(url, options);
+      if (failNext) { failNext = false; return new Response(null, { status: 503 }); }
+      const response = await original(url, options);
+      homeProbe.retryStarted = true;
+      await held;
+      return response;
+    };
+  })()`);
+  const recovered = (await add(first.project_id, "A Home response after retry")).goal.goal_id;
+  await announce();
+  const retry = '[data-home-status] [data-home-control="refresh"]';
+  try {
+    await b.waitFor(visible(retry));
+    assert.equal(await b.evaluate(`${status}.querySelector('p').textContent`), "暂时读不到首页");
+    assert.equal(await b.evaluate(visible(goal(later))), true, "a temporary read failure keeps the current rows");
+    await b.click(retry);
+    await b.waitFor("homeProbe.retryStarted");
+    assert.equal(await b.evaluate(`${status}.textContent.trim()`), "正在更新…", "an explicit retry reports progress");
+  } finally { await b.evaluate("homeProbe.releaseRetry()"); }
+  await b.waitFor(`${visible(goal(recovered))} && !${status}.textContent.trim()`);
   await go(second.project_id);
   await b.waitFor(visible(homeCard("goals")));
   assert.equal(await b.evaluate("document.querySelectorAll('[data-home-row]').length"), 0);

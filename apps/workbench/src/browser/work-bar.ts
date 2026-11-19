@@ -188,9 +188,9 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   // A part the read could not get is null: the line and the mark keep what they showed.
   document.addEventListener("molis-work:attention", event => {
-    const { line: read, tasks: table } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null }>).detail ?? {};
+    const { line: read, tasks: table, started } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null; started: number }>).detail;
     if (read) { draw(read); checking(null); knownAt = new Date().toISOString(); try { sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read })); } catch { /* a convenience of this tab */ } }
-    if (table) panel.take(table);
+    if (table) panel.take(table, started);
     panel.offline(null);
     cards.paint();
     acceptance.refresh();

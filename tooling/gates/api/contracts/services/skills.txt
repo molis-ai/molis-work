@@ -562,6 +562,7 @@ export declare const skillErrors: import("platform/action-errors").ErrorCodeRais
     readonly draft_unreadable: "upstream";
     readonly draft_unknown: "not_found";
     readonly draft_conflict: "conflict";
+    readonly draft_adopting: "conflict";
     readonly draft_refused: "forbidden";
     readonly trial_required: "conflict";
     readonly trial_differs: "conflict";

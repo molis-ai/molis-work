@@ -28,6 +28,8 @@ Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失�
 - **Runtime 不能自己扩权**。启动后返回的冻结角色权限若与 Manifest 不一致，该 Run 会被立刻取消。
 - **副作用的批准与回执**。批准是一次性的：消费过就不能再授权第二次写入；拒绝和过期都不能换个入口变成许可；停止一个 Run 会撤回它名下仍在等待的条目。
 
+`AgentReviewQueue.decisions/readMany` 即时读取已有回执、决定处理器及原安装授权，供 Host 审查界面显示当前可决定的动作；它不是授权，也不写状态。最终决定与 Effect 派发仍复核。重启原等待的撤回归各 Adapter，界面不推断恢复。回归：`tests/git-operation-review.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-availability.e2e.test.ts`。
+
 ## 它不拥有什么
 
 编码任务的业务含义、模型选择、凭据，以及批准决定本身——那是用户在宿主审查面里做的。
@@ -48,6 +50,8 @@ adapter 只报告事实并执行已批准的工作。
 补充原件证明由 Host 绑定实际 install、Action 和 `send.<input_id>`；无证明的 Action 输入按 host 来源处理，不因自报 person 升权。混合输入的 raw 原件只原位保存，外层正文仍是唯一模型材料；初始输入与补充输入的证明用途隔离，不能互换。Adapter 只投影已核验原件，不从组合正文或分隔符反推本人原话。
 
 已经接受的 Run 停止时，当前控制调用先通过原权限检查并持久化停止意图；随后取消和 SDK 终态收尾经现有 effects.detach 脱离该短调用。终态仍由 SDK 保存并发布，界面不提前伪报停止；普通迟到业务写仍受原调用检查。
+
+SDK 已提交的执行终态不等待 Host 的显示时间元数据保存，也不因该保存失败退回 running 或阻止同 Session 下一轮。时间仍只写原 run_id 一次，迟到回执只更新原轮次；没有原时间的恢复保留未知。关闭仍等待已接受的时间保存。验证：`tests/prologue-run-timing.test.ts` 的延迟/失败交错及 `tests/prologue-recovery.test.ts` 的真实 Node 存储重启路径（QEA-19/20）。
 
 已派发的业务动作可能在停止时仍等回执。工作权限的终止以原 Run 已提交的结束事件为准，效果继续待核对。原 ActionService 调用成功返回时，Host 用原 SDK 派发许可结算原效果。原调用方能证明尚未调用 ActionService 时，原效果可结算为未派出。宿主关闭时只等已受理的本地回执落盘。其余待核对效果在重启后仍归原轮和原审批。助理仅在当前授权有效时发布动作结果卡、后台工作和结果关系。
 

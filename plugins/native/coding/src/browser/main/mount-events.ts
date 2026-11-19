@@ -27,6 +27,7 @@ function listenSelect(page: Page) {
   lifetime.listen(root, "molis-work:select-item", event => {
     const detail = detailOf<SelectDetail>(event), itemId = detail?.itemId;
     if (detail?.invalidate && itemId === undefined) return;
+    event.preventDefault();
     root.dataset.codingDetail = String(Boolean(itemId));
     s.sessionOnShow = Boolean(itemId);
     drawComposer(page);

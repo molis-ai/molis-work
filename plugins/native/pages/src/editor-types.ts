@@ -61,7 +61,8 @@ export interface PagesEditorMountOptions {
   onOpenPage?: (id: string) => void;
   onComment?: (markId: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
-  onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
+  /** One accepted candidate keeps its request identity through an uncertain save; current gates navigation after the write. */
+  onCreateFromAi?: (input: { title: string; text: string; request_id: string }, current: () => boolean) => Promise<void>;
   /** What the person has in hand, whenever it changes (specs/archive/contextual-interaction §4.1); `null` is the page as a whole. */
   onFocus?: (focus: PagesFocus | null) => void;
   /** The tools or their pressed state may have changed (after every transaction); the surface asks `tools()`. */

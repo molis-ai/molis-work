@@ -46,6 +46,7 @@ function onSelectItem(page: IssuesPage, event: Event) {
   const detail = (event as CustomEvent<{ itemId?: unknown; quiet?: unknown } | undefined>).detail;
   const id = detail?.itemId, quiet = detail?.quiet === true;
   if (typeof id !== "string") return;
+  event.preventDefault();
   page.el.gone.hidden = true;
   page.run(() => page.open(id).catch((error: unknown) => {
     const status = statusOf(error);

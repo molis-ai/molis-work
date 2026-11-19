@@ -461,8 +461,8 @@ export interface AssistantWorkView {
   unsettled?: AssistantUnsettledChange[];
   /** Changes of this work that say how they are undone: each can be taken back once, by the person. */
   undoable?: AssistantUndoable[];
-  /** What this work suggests keeping, waiting for the person. */
-  memory_candidates?: AssistantMemoryCandidate[];
+  /** What this work suggests keeping, waiting for the person. Null means this section could not be read; absent means none. */
+  memory_candidates?: AssistantMemoryCandidate[] | null;
   /** What this work kept, replaced or forgot in the platform memory; an automatic one can be undone (`POST /api/memory/changes/<id>/undo`). */
   memory_changes?: MemoryChange[];
   /** Background work this work started in plugins, and how each stands. */

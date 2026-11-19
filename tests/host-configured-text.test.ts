@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
+import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
@@ -16,6 +16,8 @@ import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-
 import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { asideReply } from "./fixtures/ending-review.js";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions } from "@molis-ai/molis-work-contracts/services/skills";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const listen = async (server: Server) => {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -218,6 +220,131 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
     assert.equal(f.requests.length, 1);
   }));
 }
+
+for (const proposal of ["initial Skill draft", "information plan"] as const) test(
+  `QEA-131 the ${proposal} does not return a proposal after its model changes during final authorization`, { timeout: 45_000 }, async () => fixture(async f => {
+    configure(f);
+    const provider = f.catalog.models.get("configured")!;
+    const databasePath = join(f.home, "project.sqlite");
+    seedDemoBoard(databasePath);
+    const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+    const client = f.host.actionClient(ref);
+    const person: ActionCallContext = { actor_id: "test", project_id: DEMO_PROJECT_ID, audience: "user",
+      permissions: [...SKILLS_PERMISSIONS, "model:invoke", "feed:read", "inbox:read", "evidence:read"],
+      user_action: { source: "management", conversation_ref: "fixture", message_ref: "proposal" } };
+    let answered = false, modelChanged = false, checksAfterReply = 0;
+    f.answer(async request => {
+      answered = true;
+      const title = request.model === "configured-model" ? "原模型建议" : "当前模型建议";
+      const value = proposal === "initial Skill draft"
+        ? { name: title, description: "了解当前事项的进度。", body: "# 按状态整理", applies_to: "assistant" }
+        : { message: title, action: null };
+      return { choices: [{ message: { content: JSON.stringify(value) } }] };
+    });
+    const run = async (caller: ActionCallContext) => proposal === "initial Skill draft"
+      ? (await client.invoke(caller, skillAuthoringActions.draft, { intent: "整理当前事项" })).name
+      : (await client.invoke(caller, informationActions.plan, { prompt: "整理现有材料" })).message;
+    const outcome = await run({ ...person, async validate_authority() {
+      if (!answered || ++checksAfterReply !== 3) return;
+      f.catalog.models.upsert({ ...provider, models: [{ model_id: "replacement-model", enabled: true }] });
+      modelChanged = true;
+    } }).then(value => ({ value }), (error: { code?: string }) => ({ code: error.code }));
+    assert.equal(modelChanged, true, "model changed after the transport checked the reply");
+    assert.deepEqual(outcome, { code: "actions.configuration_changed" });
+    assert.equal(await run(person), "当前模型建议");
+    assert.deepEqual(f.requests.map(request => request.body.model), ["configured-model", "replacement-model"]);
+  }),
+);
+
+for (const use of ["revise", "replay"] as const) test(
+  `QEA-127 Skill ${use} checks the original model after the final authorization wait`, { timeout: 30_000 }, async () => fixture(async f => {
+    configure(f);
+    const provider = f.catalog.models.get("configured")!;
+    const client = f.host.homeActionClient();
+    const person: ActionCallContext = { actor_id: "test", project_id: null, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"] };
+    const fields = { name: "比较实际状态", description: "检查模型是否仍能用于这次回放。", applies_to: "assistant" as const, body: "# 原来写下的做法" };
+    const draft = await client.invoke(person, skillDraftActions.create, { scope: "home", target: { kind: "new" }, fields,
+      case: { title: "原答案", task: "整理当前事项", expected: "按状态归类。" } });
+    const read = () => client.invoke(person, skillDraftActions.read, { draft_id: draft.draft_id });
+    const input = { draft_id: draft.draft_id, expected_revision: draft.revision };
+    const run = (caller: ActionCallContext) => use === "revise"
+      ? client.invoke(caller, skillDraftActions.revise, { ...input, instruction: "按状态逐项分组" })
+      : client.invoke(caller, skillDraftActions.runTrial, { ...input, case_id: draft.cases[0]!.case_id });
+    const body = "# 按最新配置生成的做法";
+    let answered = false, checksAfterReply = 0, switched = false;
+    f.answer(async request => {
+      const judge = JSON.stringify(request).includes("你在对照技能回放的结果");
+      if (use === "revise" || judge) answered = true;
+      const content = use === "revise" ? JSON.stringify({ ...fields, body }) : judge
+        ? JSON.stringify({ results: [{ index: 0, verdict: "match", differences: [] }] }) : "按状态归类。";
+      return { choices: [{ message: { content } }] };
+    });
+    const failed = run({ ...person, async validate_authority() {
+      // Inference and its Host transport each check the completed reply. The next check belongs to the Skill write.
+      if (!answered || ++checksAfterReply !== 3) return;
+      f.catalog.models.upsert({ ...provider, models: [{ model_id: "replacement-model", enabled: true }] });
+      switched = true;
+    } });
+    const error = await failed.then(() => undefined, (cause: { code?: string }) => cause.code);
+    assert.equal(switched, true, "the real model changed at the final write boundary");
+    const kept = await read();
+    assert.deepEqual([kept.revision, kept.fields, kept.cases, kept.trial, kept.untried], [draft.revision, draft.fields, draft.cases, undefined, draft.untried]);
+    assert.equal(error, "actions.configuration_changed");
+    await run(person);
+    const saved = await read();
+    assert.deepEqual(saved.cases, draft.cases);
+    if (use === "revise") assert.deepEqual([saved.revision, saved.fields.body, saved.untried], [draft.revision + 1, body, draft.untried]);
+    else assert.deepEqual([saved.revision, saved.trial?.verdict, saved.untried], [draft.revision, "match", []]);
+    const callsPerAttempt = use === "revise" ? 1 : 2;
+    assert.deepEqual(f.requests.map(request => request.body.model),
+      [...Array(callsPerAttempt).fill("configured-model"), ...Array(callsPerAttempt).fill("replacement-model")]);
+  }),
+);
+
+test("QEA-128 replacing a connection after the Skill replies prevents sending them to the judge", { timeout: 35_000 }, async () => fixture(async f => {
+  const connection = configure(f), client = f.host.homeActionClient();
+  const person: ActionCallContext = { actor_id: "test", project_id: null, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"] };
+  const draft = await client.invoke(person, skillDraftActions.create, { scope: "home", target: { kind: "new" },
+    fields: { name: "分入口回放", description: "整理周报时使用。", applies_to: "both", body: "# 按状态归类" },
+    case: { title: "已知答案", task: "整理进展", expected: "按状态归类。" } });
+  const input = { draft_id: draft.draft_id, expected_revision: draft.revision, case_id: draft.cases[0]!.case_id };
+  const bothStarted = Promise.withResolvers<void>(), firstChecked = Promise.withResolvers<void>();
+  let outputs = 0, replied = 0, afterReply = 0, changed = false, judged = 0;
+  f.answer(async request => {
+    if (JSON.stringify(request).includes("你在对照技能回放的结果")) {
+      judged++;
+      return { choices: [{ message: { content: JSON.stringify({ results: [0, 1].map(index => ({ index, verdict: "match", differences: [] })) }) } }] };
+    }
+    const output = ++outputs;
+    if (output === 1) await bothStarted.promise;
+    if (output === 2) { bothStarted.resolve(); await firstChecked.promise; }
+    replied++;
+    return { choices: [{ message: { content: "按状态归类。" } }] };
+  });
+  const run = (caller: ActionCallContext) => client.invoke(caller, skillDraftActions.runTrial, input);
+  const error = await run({ ...person, signal: AbortSignal.timeout(20_000), async validate_authority() {
+    if (!replied) return;
+    afterReply++;
+    if (afterReply === 2) firstChecked.resolve();
+    // After both replies pass inference and transport, the next check begins the judge, before its own model binding.
+    if (replied !== 2 || afterReply !== 5) return;
+    withConnectorConnections(f.home, store => store.replaceToken(connection.connection_id, "new-test-model-connection"));
+    changed = true;
+  } }).then(() => undefined, (cause: { code?: string }) => cause.code).finally(() => { bothStarted.resolve(); firstChecked.resolve(); });
+  assert.equal(changed, true);
+  assert.equal(judged, 0, "no judgment request consumed replies from the invalidated connection");
+  assert.equal(error, "actions.configuration_changed");
+  const read = () => client.invoke(person, skillDraftActions.read, { draft_id: draft.draft_id });
+  const kept = await read();
+  assert.deepEqual([kept.revision, kept.trial, kept.untried], [draft.revision, undefined, draft.untried]);
+  await run(person);
+  assert.equal(judged, 1);
+  assert.deepEqual((await read()).trial?.cells.map(cell => [cell.consumer, cell.verdict]), [["assistant", "match"], ["coding", "match"]]);
+  assert.deepEqual(f.requests.map(request => request.headers.authorization), [
+    "Bearer configured-fixture-key", "Bearer configured-fixture-key",
+    "Bearer new-test-model-connection", "Bearer new-test-model-connection", "Bearer new-test-model-connection",
+  ]);
+}));
 
 test("protocol, cache preference, cancellation and scoped Home are preserved on actual requests", async () => fixture(async f => {
   configure(f, "anthropic", "anthropic-messages");

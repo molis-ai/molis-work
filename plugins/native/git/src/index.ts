@@ -9,15 +9,6 @@ export {
   type GitView,
 } from "./projection.js";
 export {
-  EMPTY_DRAFT,
-  conflictKey,
-  draftIsEmpty,
-  parseStoredDrafts,
-  serializeStoredDrafts,
-  type GitDraft,
-  type StoredDrafts,
-} from "./drafts.js";
-export {
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
   mayHaveChangedFiles,

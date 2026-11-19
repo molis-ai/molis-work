@@ -46,7 +46,7 @@ const subjectOf = (material: CodingMaterial) => "ref" in material ? material.ref
 export function materialSelection(value: unknown): CodingMaterial[] {
   if (!Array.isArray(value) || value.length > CODING_MATERIALS_MAX) throw new Error(`材料选择无效，每轮最多 ${CODING_MATERIALS_MAX} 份`);
   const picks = value.map((item): CodingMaterial => {
-    if (!item || typeof item !== "object" || typeof item.title !== "string" || item.title.length > 500) throw new Error("材料无效，请重新选择");
+    if (!item || typeof item !== "object" || typeof item.title !== "string" || item.title.length > 1000) throw new Error("材料无效，请重新选择");
     if ("recorded" in item && !("ref" in item) && Object.keys(item).length === 2) {
       const { kind, id } = (item.recorded ?? {}) as { kind?: unknown; id?: unknown };
       if (typeof kind !== "string" || !TOKEN.test(kind) || typeof id !== "string" || !id || id.length > 2_000 || Object.keys(item.recorded).length !== 2) throw new Error("材料无效，请重新选择");

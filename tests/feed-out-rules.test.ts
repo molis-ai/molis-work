@@ -1,3 +1,4 @@
+// QEA-09: these calls exercise the shared binding through real Feed actions, including owner rules and persistence.
 import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { feedCaptureFixture } from "./feed-capture-fixture.js";

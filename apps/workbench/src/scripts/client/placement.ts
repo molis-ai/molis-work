@@ -633,7 +633,6 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       box.append(row);
     }
   };
-  void paintRelated();
   window.addEventListener("focus", () => { void paintRelated(); });
 
   /* ---- Keep bars and labels current ---- */

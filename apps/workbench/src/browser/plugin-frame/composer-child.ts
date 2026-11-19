@@ -133,7 +133,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       focus: () => send({ type: "composer-focus", id }), send: () => send({ type: "composer-send", id }),
     });
     const mirror = stand.mirror;
-    const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal): Promise<ComposerCalls[Op][1]> => {
+    const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal, acknowledge: () => void): Promise<ComposerCalls[Op][1]> => {
       const adapter = ai.draft && "adapter" in ai.draft ? ai.draft.adapter : null;
       switch (op) {
         case "draft-read": {
@@ -162,7 +162,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
           // What is missing is the page's to say at the moment of sending, not as the bar last heard it.
           const missing = ai.required?.();
           if (missing) return { state: "failed", message: missing } as ComposerCalls[Op][1];
-          const outcome: ComposerOutcome = await ai.submit(arg as ComposerCalls["submit"][0], signal);
+          const outcome: ComposerOutcome = await ai.submit(arg as ComposerCalls["submit"][0], signal, acknowledge);
           if (outcome.state !== "unknown") return { ...outcome, ...(outcome.state === "failed" && outcome.unreadable ? { unreadable: [...outcome.unreadable] } : {}) } as ComposerCalls[Op][1];
           const token = ++sequence; checks.set(token, outcome.check);
           return { state: "unknown", check: token } as ComposerCalls[Op][1];
@@ -196,7 +196,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       }
       if (message.type !== "composer-call") return;
       const controller = new AbortController(); calls.set(message.call, controller);
-      void run(message.op, message.arg as never, controller.signal).then(
+      void run(message.op, message.arg as never, controller.signal, () => { if (!gone) send({ type: "composer-acknowledge", id, call: message.call }); }).then(
         value => send({ type: "composer-answer", id, call: message.call, value }),
         error => send({ type: "composer-answer", id, call: message.call, error: error instanceof Error ? error.message : String(error) }),
       ).finally(() => { calls.delete(message.call); changed(); });

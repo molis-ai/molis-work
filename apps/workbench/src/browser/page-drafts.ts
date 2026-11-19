@@ -7,19 +7,30 @@ export function pageDraftStore(namespace: string, assertCurrent: () => void): Ui
     return new URL("/.molis-draft/" + encodeURIComponent(key), location.origin).href;
   };
   const valueOf = (value: string | null) => { if (value !== null && (typeof value !== "string" || new TextEncoder().encode(value).byteLength > 16 * 1024 * 1024)) throw new Error("Draft refused"); };
-  const change = async (key: string, value: string | null, expected?: string | null) => {
-    assertCurrent(); const path = keyOf(key); valueOf(value); if (expected !== undefined) valueOf(expected);
-    // A named lock covers all owner documents on this origin, including sibling source pages and tabs.
-    return navigator.locks.request(namespace + ":" + path, async () => {
+  const withDraft = async <T>(key: string, use: (cache: Cache, path: string) => Promise<T>): Promise<T> => {
+    assertCurrent();
+    const path = keyOf(key);
+    // Read and write in submission order across all documents with this owner and key.
+    return await navigator.locks.request(namespace + ":" + path, async () => {
       assertCurrent(); const cache = await caches.open(namespace); assertCurrent();
-      if (expected !== undefined && (await (await cache.match(path))?.text() ?? null) !== expected) return false;
+      const result = await use(cache, path);
+      assertCurrent();
+      return result;
+    });
+  };
+  const read = async (cache: Cache, path: string) => (await (await cache.match(path))?.text()) ?? null;
+  const change = async (key: string, value: string | null, expected?: string | null) => {
+    valueOf(value);
+    if (expected !== undefined) valueOf(expected);
+    return withDraft(key, async (cache, path) => {
+      if (expected !== undefined && await read(cache, path) !== expected) return false;
       assertCurrent();
       if (value === null) await cache.delete(path); else await cache.put(path, new Response(value));
-      assertCurrent(); return true;
+      return true;
     });
   };
   return {
-    async read(key) { assertCurrent(); const path = keyOf(key), cache = await caches.open(namespace); const value = await (await cache.match(path))?.text() ?? null; assertCurrent(); return value; },
+    async read(key) { return withDraft(key, read); },
     async write(key, value) { await change(key, value); },
     compareAndSwap: (key, expected, value) => change(key, value, expected),
   };

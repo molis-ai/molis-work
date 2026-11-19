@@ -2,7 +2,7 @@ import { lstatSync, realpathSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
+import { assertSqliteLibraryReady } from "@molis-ai/molis-work-storage";
 
 /** A Home library joined into project artifacts must start in WAL at the real path. */
 function prepareHomePluginDatabasePath(home: string, declaration: HomePluginDatabaseDeclaration,
@@ -10,7 +10,7 @@ function prepareHomePluginDatabasePath(home: string, declaration: HomePluginData
   if (!declaration.project_rows?.artifact_join) return home;
   const real = realpathSync(home);
   const path = homeSqlitePath(real, declaration.store_name, partition?.project_id);
-  assertArtifactLibraryReady(path);
+  assertSqliteLibraryReady(path);
   const existing = lstatSync(path, { throwIfNoEntry: false });
   if (!existing || existing.size === 0) {
     // Establish the space in WAL before the fresh file receives any business schema.

@@ -9,7 +9,7 @@ import type { PluginModelConfigurationDeclaration, PluginModelConfigurationInput
 import type { PluginModelConfigurationPort } from "@molis-ai/molis-work-plugin-runtime";
 
 import { openConfiguredModels as openProviders, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl as validBaseUrl } from "./configured-models.js";
-import { hostCompleteText } from "./host-complete-text.js";
+import { hostHasTextModel } from "./host-complete-text.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { atomicWriteFileSync, assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
@@ -87,7 +87,7 @@ function readSettings(home: string, declaration: ConsumerModelConfigurationDecla
     const resolved = selectConfiguredTextModel(home, opened.store, pref);
     if (resolved) settings = { ...settings, configured: true, source: pref ? "selection" : "provider", effective_selection: { provider_id: resolved.provider.provider_id, model_id: resolved.model.model_id } };
   } finally { opened.storage.close(); }
-  if (!settings.configured && !pref && !settings.providers.length && hostCompleteText({ homeDirectory: home })) { settings.configured = true; settings.source = "environment"; }
+  if (!settings.configured && !pref && !settings.providers.length && hostHasTextModel({ homeDirectory: home })) { settings.configured = true; settings.source = "environment"; }
   return settings;
 }
 function saveSettings(home: string, declaration: ConsumerModelConfigurationDeclaration, input: PluginModelConfigurationInput): PluginModelConfigurationView {

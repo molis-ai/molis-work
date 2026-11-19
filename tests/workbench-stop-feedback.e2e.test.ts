@@ -4,7 +4,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { molisWorkHostProjectReference, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -52,9 +53,9 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
   const readProjection = async (signal?: AbortSignal): Promise<HomeBackgroundTaskRow> => {
     const response = await fetch(browser.origin + "/api/attention", { signal });
     assert.equal(response.status, 200);
-    const attention = await response.json() as { background_tasks: HomeBackgroundTaskRow[] | null };
-    assert.ok(Array.isArray(attention.background_tasks), "the owner background projection is readable");
-    const task = attention.background_tasks.find(row => row.project_id === projectId && row.origin.surface === "coding" && row.subject.id === sessionId);
+    const attention = await response.json() as { background_tasks: HomeBackgroundTasksReadResult | null };
+    assert.ok(attention.background_tasks && attention.background_tasks.issues.length === 0, "the owner background projection is readable");
+    const task = attention.background_tasks.tasks.find(row => row.project_id === projectId && row.origin.surface === "coding" && row.subject.id === sessionId);
     assert.ok(task, "the fixture Coding task remains in its project's background projection");
     assert.ok(Array.isArray(task.commands), "the owner projection supplies its commands");
     return task;
@@ -80,7 +81,7 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
     pause: () => store.setState(noEffect, projectId, sessionId, "paused", new Date().toISOString()) };
 }
 
-test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection", { timeout: 120_000 }, async t => {
+test("QEA-17 W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection", { timeout: 120_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
   const command = await backgroundCommand(browser, t);
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
@@ -93,8 +94,15 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   await browser.click(stop); await waitHeld(browser, "stop-refused");
   await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor(`!!${panel}.querySelector('.work-task-row [data-mw-state=paused]')`);
+  assert.equal(await browser.evaluate(`document.querySelector('${stop}').disabled`), true, "QEA-17: a new owner projection must keep the pending stop disabled");
+  await browser.click(stop, { allowDisabled: true });
+  assert.equal(command.attempts(), 1, "QEA-17: repainting cannot submit the same pending stop twice");
+  await browser.click("[data-task-panel] [data-task-open]");
+  await browser.waitFor("document.querySelector('[data-task-card]')");
+  assert.equal(await browser.evaluate("document.querySelector('[data-task-card] [data-task-control=stop]').disabled"), true, "the task card shares the pending attempt");
+  await browser.click("[data-task-panel-list]");
   await releaseResponse(browser, "stop-refused");
-  await browser.waitFor(`document.querySelector('${toast}')?.textContent.includes('The fixture Runtime refused this stop') && !!document.querySelector('${stop}')`);
+  await browser.waitFor(`document.querySelector('${toast}')?.textContent.includes('The fixture Runtime refused this stop') && document.querySelector('${stop}')?.disabled === false`);
   assert.equal(command.ended(), false); assert.equal(command.attempts(), 1);
   assert.match(await browser.evaluate<string>(`document.querySelector('${toast} [data-molis-call-id]')?.dataset.molisCallId || ''`), /^[a-f0-9-]{36}$/);
   command.allow();

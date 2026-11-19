@@ -7,8 +7,7 @@ import type { IntelligenceCollectRequest } from "./search-intelligence-client.js
 
 // The request a plugin's pull becomes (`services.sourcePull`, S-97 provisional). The plugin names an address, a channel, a catalog entry or
 // a query; the budget, the source policy and where the request may go are made here, from the platform's own catalog and normalizers.
-// Byte for byte what the Feed's `buildExactRequest` makes for the same source, so a pull's fingerprint is the same through either door.
-// The Feed's copy goes when the Feed pulls through this service (FI-4 step 4e).
+// The platform owns the plan used by both the pure fingerprint query and the actual pull.
 
 const WEB_QUERY_DEFINITION_ID = "anysearch";
 const DEFAULT_MAX_MATERIALS = 20;

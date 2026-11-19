@@ -45,7 +45,8 @@ test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and
     ["io.molis.work.alchemist", "/api/alchemist/studio/api/v1/bootstrap", "/api/plugin-builder/studio/state"]]) {
     const headers = await open(id), second = await open(id);
     assert.equal((await f.request(prefix + read, { headers })).status, 200);
-    for (const path of [foreign, "/api/settings/models", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files", "/api/sessions/list", "/api/sessions/scope"]) {
+    // QEA-16: choosing Home's attention projection never expands a plugin page's trusted route scope.
+    for (const path of [foreign, "/api/settings/models", "/api/attention?view=home", "/api/attention/events", "/api/attention/events?view=home", `/api/plugins/${id}/view-revision`, "/api/host/directory-grants", "/api/host/plugin-page-actions", "/api/host/plugin-page-files", "/api/sessions/list", "/api/sessions/scope"]) {
       const result = await f.request(prefix + path, { headers, ...(path.startsWith("/api/host/") ? { method: "POST", body: {} } : {}) });
       assert.equal(result.status, 403, path + ": " + await result.text());
     }
@@ -648,6 +649,9 @@ test("RAC-2412 S-47 a settings address keeps only the parameters and fragment it
   }
   assert.equal(openSettingsAddress("/settings/assistant#contributions"),
     "/settings/assistant#contributions", "the assistant page keeps its declared contributions fragment");
+  // QEA-125: the Home Kit receives the draft it reads; the other query fields do not reach the page.
+  assert.equal(openSettingsAddress("/settings/kit?draft=draft-record&role=not-read&mode=write#other", [], "link"),
+    "/settings/kit?draft=draft-record", "QEA-125 the Home Kit keeps the open draft only");
 });
 
 test("RAC-2412 S-47 the Home model dialog keeps only the parameters its page reads", async () => {

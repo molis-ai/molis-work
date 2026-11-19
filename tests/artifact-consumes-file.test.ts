@@ -15,7 +15,8 @@ import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/a
 const OLD_PATTERN = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 const oldReads = (file: { filename: string; stored?: unknown; text?: string }) => file.stored ? Boolean(file.text?.trim()) : OLD_PATTERN.test(file.filename);
 
-const pagesContinuer = () => artifactContinuers().get(IMPORTED_DOCUMENT_TYPE)!.find(item => item.plugin_id === PAGES_PLUGIN_ID)!;
+const importedType = (schema_version: number) => ({ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version });
+const pagesContinuer = () => artifactContinuers(importedType(1)).find(item => item.plugin_id === PAGES_PLUGIN_ID)!;
 
 test("RAC-418: Pages' continue list is the same, extension by extension, as before the declaration", () => {
   const continuer = pagesContinuer();
@@ -33,10 +34,14 @@ test("RAC-418: a plugin that declares .pdf appears for a PDF import and not for 
   const reader = { plugin_id: "example.pdf-reader", name: "PDF reader", surface: "pdf", actions: [action],
     artifacts: { produces: [], consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1, continue: { capability_id: action.capability_id, version: action.version }, file: { extensions: [".pdf"] } }] } };
   const anyFile = { ...reader, plugin_id: "example.any", artifacts: { produces: [], consumes: [{ ...reader.artifacts.consumes[0]!, file: undefined }] } };
-  const continuers = artifactContinuers([...artifactProducerSources(), reader, anyFile]).get(IMPORTED_DOCUMENT_TYPE)!;
+  const sources = [...artifactProducerSources(), reader, anyFile];
+  const continuers = artifactContinuers(importedType(1), sources);
   const listedFor = (filename: string) => continuers.filter(item => continuerReadsFile(item, { filename })).map(item => item.plugin_id).sort();
   assert.deepEqual(listedFor("report.pdf"), ["example.any", "example.pdf-reader"]);
   assert.deepEqual(listedFor("notes.md"), ["example.any", PAGES_PLUGIN_ID].sort());
+  // QEA-80: the same Pages action is offered once for each usable schema. A declared old-only consumer disappears in 2.
+  assert.deepEqual(artifactContinuers(importedType(2), sources).map(item => item.plugin_id), [PAGES_PLUGIN_ID]);
+  assert.deepEqual(artifactContinuers(importedType(3), sources), []);
 });
 
 test("RAC-418: the Manifest check refuses a file declaration that cannot work", () => {

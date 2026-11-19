@@ -19,6 +19,8 @@
 
 Home Runtime 渲染工作台页面时，同时交回每个已画 stage 的 contribution ID（打开 stage 的那个视图指的贡献：`stage` 视图，否则目录入口，`stageContributionId`）；项目装配将它们与项目 stage ID 合并，工作台按 Manifest 画 stage 时只画尚未提供的。插件停用或启动失败时，不可用占位也占据同一个 stage，不能再由静态补位生成可用页面。单一页面与停用后恢复的回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/home-plugin-private-store.test.ts`。项目级 Runtime 实例同样（W5-06 第 3 片）：`project-plugin-stages.ts` 用运行中实例的视图画它们的 stage，模型取渲染器的 `declaredStageModel`；没在运行的画 `data-project-plugin-unavailable` 占位并报同一个 ID。项目平台在启动前就记下自己该跑的插件（`ProjectPluginState.plugins`），整个平台没起来也照样画占位。项目与 Home 的不可用状态经 `unavailable_plugin_stages` 结构化字段交给工作台，和插件 HTML 分开；占位不申请 page grant、不启动客户端，插件不能用 HTML 标记选择宿主渲染。回归见 `tests/runtime-plugin-http-discovery.test.ts` 的 S-47、RAC-79。
 `plugin_stage_ids` 只在真实页面渲染的读取回调中提供，用于内部补位去重；通用读取与 `/api/board` 保持原返回合同，路由快照不包含该字段。
+Goal 刷新、正文和推进片段只准备声明路由匹配的 Runtime 舞台，复用其 owner 固定和等待后授权检查；整页仍读取所有显示舞台。片段保留目标正文、关系、策略、关联成果，以及新建输入菜单所需的插件目录元数据，不触发其他舞台读取和 Home 整页渲染。回归 `tests/stage-data-declarations.test.ts` 的 QEA-94 同时验证实际 Schedule 整页读取与 Goal 片段零无关读取。
+
 
 助理设置页与场景采用都经 `assistant.preferences.read/write@1` 读写个人回看范围、报告安排及每日用量上限。报告安排记录启停、日历周期、当地时间和时区。生成任务由获得委托的简报功能在同一设置主人处读取（路线书 52-1）。助理原表 `assistant_settings` 在同一事务里保存选值、修订和请求回执。材料扫描按当前窗口向来源读取，用量检查继续使用原有的 `daily_tokens`。更改窗口不清理材料，也不改变已有提醒的到期时间。
 
@@ -139,6 +141,14 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 Surface 的浏览器和电脑驱动按原 `HostSurfaceContext` 保留观察与输入，await 后及实际发送前复核原轮、目标和接管状态。浏览器按文档代次拒绝同网址刷新后的旧输入；旧轮释放只清自己的节点和遮罩，新轮输入等原按压释放。桌面只在第一次实际使用时取租约，输入监视确认成功才运行，helper 重连后重新确认；旧事件、预览和 monitor-off 不影响下一轮。原生正常断连先释放原进程上自己的按压再退出，硬崩溃或缺失回执保留未知结果。改这里跑 `tests/security-invariants-browser-round.test.ts`、`tests/security-invariants-computer-round.test.ts`、`tests/security-invariants-computer-gesture.test.ts`；后者只在 macOS 上编译执行生产 Swift，捕获事件，不输入真实电脑。协议夹具和捕获事件只证明对应工程边界。
 
 ## 开发要求
+
+Skill 回放结果在 Agent definitions 原事务同时复核草稿修订和本次模型使用的案例任务/材料/答案；等待中变化拒绝写结果。每条案例保留最近结果，采用按每条案例最新有效回放判断，不因其他案例重复回放要求重跑。回归 `tests/skill-drafts.test.ts`（QEA-103）包含真实公开动作交错、拒绝后的实际未写入与恢复采用。
+
+同一 Skill 草稿采用期间由原 Home store 占用至签名安装与同步结算结束，其他项目及已启动模型的尾写在 store 拒绝；失败/取消释放，其他草稿不受影响。案例改写/删除与旧回放清理共用原事务，仅改标题保留有效回放。回归 `tests/skill-adoption-lifecycle.test.ts`（QEA-104/105）和 `tests/skill-drafts.test.ts`（QEA-106）；此约束不声称包安装与草稿库跨崩溃原子提交。
+
+助理候选卡的接受/拒绝从 HTTP 响应绑定同次取消信号，再交 Memory 公开动作；断连后原 SDK 提交检查拒绝晚写，不另做回滚或自动重试。定向回归 `tests/security-invariants-assistant-memory-candidates.test.ts`（QEA-49）覆盖真实候选、接受/拒绝取消、正式记忆/流水账不变及新请求恢复。
+
+成果导入 JSON 与原件上传的 HTTP 调用通过既有 BoundActionClient control 绑定响应断连信号；流式进度超界也取消本次动作，实际读取/登记前复核仍在原 owner。当前文件已提交后不承诺因断连回滚，也不自动重发；原件内容缓存和成果版本分开，取消未登记版本不代表未暂存原件。定向回归：`tests/artifact-import-cancellation.test.ts`（QEA-24 的原生提取替身仅 macOS；真实传输、动作与版本写入）。
 
 Knowledge 状态薄桥在本次目录中固定同 provider/plugin/project/当前 install 的 source、reader 和 state Action，沿原调用生命周期控制执行；不能按 kind 换主人。缺口只会收紧为 unknown，不凭卡或 token 给权限。Assistant 的开场目录沿现 personContext 与项目 ActionClient 异步核本次有界资料，旧 offered views 只用于筛目录，不替代当前授权。当前卡/索引没有历史安装代字段，因此不宣称跨重启重装身份隔离已完成。
 
@@ -408,3 +418,13 @@ WORK-05 的资料更新与登录方式读取映射到 `system.account` 动作提
 WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。
 
 WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。
+
+冲突解决由 workspace Git owner 核定已审正文、工作文件和暂存索引。准备和刷新临时索引时都禁用配置中的内容过滤器，受审文件的转换单独核对。发布前只刷新 stat，用户可以解决后直接放弃合并。刷新略过子模块检查与额外 hook，暂存内容由已审 blob 决定。原 HEAD、索引、文件身份和锁在发布时复核，部分写入仍给出待核对结果。`tests/git-operations.test.ts` 的 QEA-40/162 执行真实 resolve→merge-abort，核对其他暂存项、工作区修改和缺失项，以及过滤器和 hook 次数。
+
+助理保留的 `/api/assistant/memories` 读回正式 `version`，四种写操作经 `memory.change@1` 传原 `expected_version` 和HTTP取消，不绕过动作合同或补当前版本；缺版本拒绝。`memory-prefs`仍原子更新个人和项目默认，保留具体项目覆写。回归：`tests/security-invariants-assistant-memory-management.test.ts`（QEA-56/57）。
+
+场景执行与 required_scene 依赖按原场景引用查询，普通 usages 只投影实际绑定的判断；推荐来源为 subject-offers 时仍查询完整授权目录。Host 策略与 Kernel 当前授权各自负责原边界，不缓存跨等待的批准。Inbox 批量更新通过同一生产路径验证，见 quality-experience-audit QEA-90/91。
+
+Skill草稿采用由Host组合签名安装与Agent definitions结算：Home/Project共享安装生命周期先完成原目录刷新，再同步复核原授权并调用可信 `complete`，最后保存草稿/案例/来源事务；结算抛错沿原安装撤销或版本回滚，不靠下次采用猜测同名Skill已经成功。回调不来自HTTP输入，不跨异步持有SQLite事务，SQL成功后没有新的异步刷新或权限尾检。新装/升级的精确安装身份补偿、签名包及pin保留规则不变；数据库升级已提交时仍走原scope检查和激活失败处理，不把新schema退回旧代码。QEA-118采用正常设置HTTP证明真实SQL拒绝/重试，QEA-119覆盖在途异步取消、外部停用和已提交回执丢失；不声称进程崩溃时两个owner跨库原子性。
+
+签名插件数据库升级由 SQLite worker 一次写入库结构、安装版本及批准。提交成功后，Host 在原安装范围发布新版本，再检查本人确认调用是否仍能接收回执。迟到的取消或撤权保留已经提交的版本及可用目录，后续本人可重新读取。QEA-137 覆盖 Home 和项目的真实提交回执与同版重试。

@@ -69,6 +69,7 @@ export function workflowsClient(host: WorkflowsHost) {
   root.addEventListener("molis-work:select-item", async (event) => {
     const detail = (event as CustomEvent<{ itemId?: string | null; quiet?: boolean; invalidate?: boolean } | undefined>).detail;
     if (detail?.invalidate && detail.itemId === undefined) return;
+    event.preventDefault();
     const id = detail?.itemId || null;
     page.pickedItem = id; page.pickedQuiet = Boolean(detail?.quiet);
     const revision = ++page.navId;

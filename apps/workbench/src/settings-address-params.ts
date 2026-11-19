@@ -19,6 +19,8 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // directories: apps/workbench/src/settings-local-directories.ts:28-29 reads plugin.
   directories: "plugin",
   memory: "memory_session_kind memory_session_id",
+  // The Home Kit reads a Skill draft from a receipt, just as the project Kit does.
+  kit: "draft",
   // models: web-catalog-settings.ts:66-69 reads setup/template/provider (modelTemplatePageData reads new with template once the shell opens it).
   models: "setup template provider new",
   // prompts: settings-prompts.ts reads role (and project/desktop from the defaults).

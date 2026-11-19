@@ -66,7 +66,7 @@ test("RCPT-321: a correction names the input it is about, and taking one back na
   rejected({ ...base, kind: "stop", about: "steer-1" });
   const corrected = { ...base, kind: "steer", text: "只看错误级别", key: "send.2", about: "steer-1" };
   assertActionInput(schema, corrected);
-  assert.deepEqual(await runControl(corrected, async () => []), { kind: "steer", send: { text: "只看错误级别", key: "send.2", about: "steer-1" } }, "RCPT-321 about reaches agent.inputs.send");
+  assert.deepEqual(await runControl(corrected, async () => []), { kind: "steer", materials: [], send: { text: "只看错误级别", key: "send.2", about: "steer-1" } }, "RCPT-321 about reaches agent.inputs.send");
   const withdrawn = { ...base, kind: "withdraw", input_id: "steer-1" };
   assertActionInput(schema, withdrawn);
   assert.deepEqual(await runControl(withdrawn, async () => []), { kind: "withdraw", input_id: "steer-1" });
@@ -79,7 +79,7 @@ test("RCPT-368: a supplement says who wrote it, the person or the Host relaying 
   for (const source of ["person", "host"] as const) {
     const input = { ...base, kind: "steer", text: "浏览器已经交还", key: "send.3", source };
     assertActionInput(schema, input);
-    assert.deepEqual(await runControl(input, async () => []), { kind: "steer", send: { text: "浏览器已经交还", source, key: "send.3" } }, "BL-144: the source reaches agent.inputs.send");
+    assert.deepEqual(await runControl(input, async () => []), { kind: "steer", materials: [], send: { text: "浏览器已经交还", source, key: "send.3" } }, "BL-144: the source reaches agent.inputs.send");
   }
   const relayed = control.toInput(request({ kind: "steer", run_id: "run-1", text: "浏览器已经交还", source: "host" }));
   assertActionInput(schema, relayed);
@@ -105,10 +105,10 @@ test("a complete control passes the published schema and the handler does not fa
 
   const steered = { ...base, kind: "steer", text: "先看测试" };
   assertActionInput(schema, steered);
-  assert.deepEqual(await runControl(steered, async () => []), { kind: "steer", send: { text: "先看测试" } });
+  assert.deepEqual(await runControl(steered, async () => []), { kind: "steer", materials: [], send: { text: "先看测试" } });
   const keyed = { ...base, kind: "steer", text: "先看测试", key: "send.1", mode: "interrupt" };
   assertActionInput(schema, keyed);
-  assert.deepEqual(await runControl(keyed, async () => []), { kind: "steer", send: { text: "先看测试", key: "send.1", mode: "interrupt" } }, "RC-01: the page's key and mode reach agent.inputs.send");
+  assert.deepEqual(await runControl(keyed, async () => []), { kind: "steer", materials: [], send: { text: "先看测试", key: "send.1", mode: "interrupt" } }, "RC-01: the page's key and mode reach agent.inputs.send");
 
   for (const kind of ["stop", "pause", "resume"] as const) {
     const input = { ...base, kind };

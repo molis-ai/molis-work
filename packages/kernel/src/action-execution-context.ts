@@ -76,12 +76,13 @@ export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: 
 }
 
 /**
- * Whether the list names this action of this provider. Every row of one directory asks the same list (a plugin's runs to hundreds), so in a
- * pass it is indexed on its second question and the index kept for the pass (`rememberInDirectoryPass`); one question, or any outside a pass, scans it.
+ * A directory asks many different actions of the same list, so its second distinct target builds an index for this pass.
+ * Repeated checks of only one target keep scanning: they need no full index, and no answer is retained. Outside a pass every call scans.
  */
 function allowedAction(list: readonly ActionReference[], d: ActionDefinition, provider: ActionProvider): boolean {
-  const asked = rememberInDirectoryPass(list, allowedAction, () => ({ times: 0, index: undefined as Map<string, { any: boolean; providers: Set<string> }> | undefined }));
-  if (++asked.times < 2) return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
+  const key = `${d.capability_id}@${d.version}`;
+  const asked = rememberInDirectoryPass(list, allowedAction, () => ({ first: key, provider: provider.provider_id, index: undefined as Map<string, { any: boolean; providers: Set<string> }> | undefined }));
+  if (!asked.index && asked.first === key && asked.provider === provider.provider_id) return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
   if (!asked.index) {
     asked.index = new Map();
     for (const ref of list) {
@@ -89,7 +90,7 @@ function allowedAction(list: readonly ActionReference[], d: ActionDefinition, pr
       if (ref.provider_id) entry.providers.add(ref.provider_id); else entry.any = true;
     }
   }
-  const entry = asked.index.get(`${d.capability_id}@${d.version}`);
+  const entry = asked.index.get(key);
   return !!entry && (entry.any || entry.providers.has(provider.provider_id));
 }
 

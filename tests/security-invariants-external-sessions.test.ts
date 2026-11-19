@@ -520,6 +520,10 @@ test("S-sessions-untrusted-text 1: prompt-injection, HTML, script and tool paylo
       assert.equal("identity" in projList.sessions[0]!, false);
       const hist = await svc.historyRead({ session_key: projList.sessions[0]!.session_key }, agentCaller);
       assert.equal(hist.trust, "untrusted");
+      // QEA-30: direct history metadata has exactly the existing non-person list projection.
+      assert.deepEqual(hist.session, projList.sessions[0]);
+      assert.equal("identity" in hist.session, false);
+      assert.equal(hist.session.return_target, null, "non-person metadata never exposes a native command or URL");
       assert.equal(hist.entries[0]!.text.includes("ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"), false, "agent transcript redacts secrets");
       assert.ok(hist.entries[0]!.text.includes("<script>alert(1)</script>"), "raw HTML stays unrendered plain text");
     } finally {

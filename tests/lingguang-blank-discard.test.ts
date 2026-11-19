@@ -124,12 +124,16 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     editorOpen: () => part("[data-lingguang-stage-workspace]").hidden === false,
     expanded: () => attributes.get("data-expanded"),
     /** What the surface tells the Assistant and the placement bar it has in hand (null before the page has said anything). */
-    context: () => attributes.has("data-assistant-context") ? JSON.parse(attributes.get("data-assistant-context")!) as { plugin_id: string; object?: { kind: string; id: string } } : null,
+    context: () => attributes.has("data-assistant-context") ? JSON.parse(attributes.get("data-assistant-context")!) as { plugin_id: string; object?: { kind: string; id: string }; unsaved?: boolean } : null,
     elapse: async () => { await flush(); },
     /** The workbench shows the page without an item (its Back button, the plugin's name on the tab strip, a tab that is not an item); `fold` is whether it then folds the page to its list, as applyPluginDefault does. */
     async workbenchSelectsNothing(fold: boolean) {
       workbench.listeners["molis-work:select-item"]!({ detail: { itemId: null } });
       if (fold) workbench.setAttribute("data-expanded", "false");
+      await flush();
+    },
+    async workbenchSelects(itemId: string) {
+      await workbench.listeners["molis-work:select-item"]!({ detail: { itemId }, preventDefault() {} });
       await flush();
     },
     /** The person types in the title or the body; the autosave runs before they leave (the client saves first). */
@@ -418,6 +422,30 @@ test("the workbench saying 「no item」 without folding the page leaves the bla
     assert.equal(page.editorOpen(), true);
     assert.equal(page.expanded(), "true");
     assert.equal(page.store.get("S1")?.status, "inbox");
+  } finally { page.restore(); }
+});
+
+test("QEA-143 selecting the retained spark shows its folded editor without replacing its input", async () => {
+  const page = await mounted([spark("OLD", "想法", "写下的正文")]);
+  try {
+    await page.fire(click("[data-lingguang-id]", { lingguangId: "OLD" }));
+    const body = page.part("[data-lingguang-body]");
+    const saveStatus = page.part("[data-lingguang-save-status]");
+    body.value = "编辑器保留的输入";
+    saveStatus.dataset.mwState = "failed";
+    const before = [...page.calls];
+    await page.workbenchSelectsNothing(true);
+    page.part("[data-lingguang-stage-workspace]").hidden = true;
+    await page.workbenchSelects("OLD");
+    assert.equal(page.expanded(), "true");
+    assert.equal(page.editorOpen(), true);
+    assert.equal(body.value, "编辑器保留的输入");
+    assert.equal(page.context()?.object?.id, "OLD");
+    assert.equal(page.context()?.unsaved, true);
+    assert.equal(saveStatus.dataset.mwState, "failed");
+    await page.workbenchSelects("OLD");
+    assert.deepEqual(page.calls, before);
+    assert.equal(page.store.get("OLD")?.body, "写下的正文");
   } finally { page.restore(); }
 });
 

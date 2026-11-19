@@ -231,7 +231,7 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
-    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
+    detail: "the /api/attention answer ({ background_tasks: { tasks, issues }, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
     summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, the board refreshes when its cursor moved, and on a project page the work line and the task panel paint from its line and tasks.",
   },
   {
@@ -362,7 +362,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
     detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }",
-    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
+    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling. A frame dispatch is cancelable: a plugin that handles the complete selection synchronously calls preventDefault to take responsibility for its reads, saves and navigation, so the frame does not also find and click a row. Claiming the request does not report success or cancel a business operation.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",

@@ -42,7 +42,16 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     };
     await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command('Network.enable', {}, sessionId);
-    await command('Page.addScriptToEvaluateOnNewDocument', {source: `(()=>{const original=window.fetch;window.__concernPosts=0;window.fetch=function(input,init){if(String(input).endsWith('/event-concern')&&init?.method==='POST')window.__concernPosts++;return original.apply(this,arguments);};})()`},sessionId);
+    await command('Page.addScriptToEvaluateOnNewDocument', {source: `(()=>{
+      const original=window.fetch;window.__concernPosts=0;
+      window.fetch=function(input,init){
+        const concern=String(input).endsWith('/event-concern')&&init?.method==='POST';
+        if(concern)window.__concernPosts++;
+        const hold=concern&&window.__holdConcernResponse;if(hold)window.__holdConcernResponse=false;
+        const response=original.apply(this,arguments);
+        return hold?response.then(async response=>{await new Promise(resolve=>window.__releaseConcernResponse=resolve);return response;}):response;
+      };
+    })()`},sessionId);
     await navigate(() => command('Page.navigate', { url: origin + prefix + '/goals/' + goalId }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width>0")) await click('[data-frame-goal-work]');
     await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView==='${goalId}' && !document.querySelector('[data-goal-node-workspace]').hidden`);
@@ -84,14 +93,20 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
     await capture('concern-error-dark');
     await command('Network.setBlockedURLs', { urls: [] }, sessionId);
-    await command('Network.emulateNetworkConditions', { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
-    await click(`${form} button[type=submit]`);
-    assert.equal(await evaluate(`document.querySelector('${body}').inert && document.querySelector('${form} footer [data-event-back]').disabled`), true);
-    assert.equal(await evaluate(`document.querySelector('${form} button[type=submit]').textContent`), '正在保存…');
-    // A second submit event exercises the production in-flight guard, bypassing only the disabled button.
-    await evaluate(`document.querySelector('${form}').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+    // QEA-03: hold the real response until the pending assertions finish; elapsed network latency is not an operation state.
+    await evaluate('window.__holdConcernResponse=true');
+    try {
+      await click(`${form} button[type=submit]`);
+      await waitFor('typeof window.__releaseConcernResponse==="function"');
+      assert.equal(read().concerns.length, 1, 'the real request has persisted while its response is held');
+      assert.equal(await evaluate(`document.querySelector('${body}').inert && document.querySelector('${form} footer [data-event-back]').disabled`), true);
+      assert.equal(await evaluate(`document.querySelector('${form} button[type=submit]').textContent`), '正在保存…');
+      // A second submit event exercises the production in-flight guard, bypassing only the disabled button.
+      await evaluate(`document.querySelector('${form}').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))`);
+    } finally {
+      await evaluate('window.__holdConcernResponse=false;window.__releaseConcernResponse?.()');
+    }
     await waitFor(`document.querySelector('[data-document-pane]')?.getAttribute('aria-busy')!=='true' && document.querySelector('${form}')?.hidden===true`, 6000);
-    await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     assert.equal(read().concerns.length, 1);
     assert.equal(read().concerns[0].title, '首屏操作栏不能盖住输入');
     assert.equal(read().concerns[0].status, 'open');

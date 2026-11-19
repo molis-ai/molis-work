@@ -74,7 +74,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
       if (now.length) content.append(group(globalThis.t.text("workbench.assistant-side-context.used-turn"), tiles(now)));
       if (before.length) content.append(group(globalThis.t.text("workbench.assistant-side-context.used-before"), tiles(before)));
       const changed = objects.filter((o) => o.state !== "current").length;
-      paintBlock(node, globalThis.t.text("workbench.assistant-side-context.context"), "paperclip", content, changed ? changed + " " + globalThis.t.text("workbench.assistant-side-context.changed") : waiting.length ? waiting.length + " " + globalThis.t.text("workbench.assistant-side-context.send-2") : now.length + before.length ? String(now.length + before.length) : "", changed > 0);
+      paintBlock(node, globalThis.t.text("workbench.assistant-dock.context"), "paperclip", content, changed ? changed + " " + globalThis.t.text("workbench.assistant-side-context.changed") : waiting.length ? waiting.length + " " + globalThis.t.text("workbench.assistant-side-context.send-2") : now.length + before.length ? String(now.length + before.length) : "", changed > 0);
     });
   } };
 }`;

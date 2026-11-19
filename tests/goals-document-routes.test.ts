@@ -109,7 +109,8 @@ test("Workbench routes call only the selected owner with exact inputs and retain
   const owner = (name: string) => (...args: unknown[]) => { calls.push({ owner: name, args }); return "<section>" + name + "</section>"; };
   const renderers: GoalsReadRenderers = { refresh: owner("refresh"), momentum: owner("momentum"), document: owner("document") };
   const cases: [GoalsReadRoute, string, unknown[]][] = [
-    [{ kind: "refresh", collection: "trash" }, "refresh", [undefined, "trash"]],
+    [{ kind: "refresh", collection: "trash" }, "refresh", [undefined, "trash", undefined]],
+    [{ kind: "refresh", collection: "current", projection: "collection" }, "refresh", [undefined, "current", "collection"]],
     [{ kind: "momentum", collection: "archive", goal_id: "a/b" }, "momentum", ["a/b", "archive"]],
     [{ kind: "document", collection: "trash", goal_id: "a" }, "document", ["a", "trash"]],
   ];

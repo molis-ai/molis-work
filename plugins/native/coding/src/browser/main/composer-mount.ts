@@ -4,7 +4,8 @@ import { codingComposerLabels } from "../../composer-labels.js";
 import { errorMessage } from "../dom.js";
 import { mac } from "../matching.js";
 import { codingCommands } from "./commands.js";
-import { chooseIntent, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
+import { chooseIntent, configurationChanged, drawIntents, refreshState, rememberConfiguration } from "./configuration.js";
+import { codingImages } from "./images.js";
 import { terminal, unread } from "./composer-state.js";
 import { controls, counts } from "./controls.js";
 import { currentSelection, failedMaterialsOf, selectionMaterialKey } from "./composer.js";
@@ -90,7 +91,8 @@ function sceneControls(page: Page): ComposerControl[] {
 function composerCommands(page: Page): ComposerCommand[] {
   return codingCommands(page).filter(command => command.enabled !== false).map(command => ({
     slash: command.slash, label: command.label, ...(command.hint ? { hint: command.hint } : {}), ...(command.keywords ? { keywords: command.keywords } : {}),
-    ...(command.adds ? { icon: command.adds } : { add: false as const }), run: () => void page.refs.commandsUi.run(command),
+    ...(command.adds ? { icon: command.adds } : { add: false as const }), ...(command.group ? { group: command.group } : {}), ...(command.warning ? { warning: command.warning } : {}),
+    run: () => void page.refs.commandsUi.run(command),
   }));
 }
 
@@ -109,8 +111,10 @@ function readOnlyNotice(page: Page): ComposerNotice | null {
 
 /** What stops a send before it goes, said in the composer's status line rather than by a send that does nothing. */
 function missing(page: Page): string | null {
-  const { readText, s } = page;
+  const { readText, refs, s } = page;
   if (s.recovery) return readText("coding.composer.recovering");
+  const pictures = refs.images?.waiting(refs.composer);
+  if (pictures) return pictures;
   if (s.checkpointBusy) return readText("coding.checkpoints.busy");
   if (roundActive(page)) return null;
   if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === page.refs.composerModels.value())) return readText("coding.model.choose-first");
@@ -126,12 +130,16 @@ function missing(page: Page): string | null {
 async function submit(page: Page, id: string, input: ComposerSubmission, acknowledge: () => void): Promise<ComposerOutcome> {
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
-  const run = s.lastRun, task = input.text, intent = s.intent, model = refs.composerModels.value();
+  // A chosen prompt command (A2) makes the task: its text with what was typed as the argument.
+  const run = s.lastRun, task = refs.prompts?.task(input.text) ?? input.text, intent = s.intent, model = refs.composerModels.value();
+  // Pictures go with the task of a new round; words sent into a round under way carry none (the round's own were fixed when it began).
+  const images = refs.images?.take(input.materials) ?? [];
+  if (run && !terminal(run.phase) && images.length) return { state: "failed", message: readText("coding.images.next-round") };
   const picks = input.materials.flatMap(item => item.kind === "material" ? [{ ref: item.ref, title: item.title }] : []);
   const saved = currentSelection(page, id), materials = [...saved.materials];
   const selected = new Set(materials.map(selectionMaterialKey));
   for (const pick of picks) if (!selected.has(selectionMaterialKey(pick))) { selected.add(selectionMaterialKey(pick)); materials.push(pick); }
-  const selection: RoundSelection = { ...saved, materials, action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) };
+  const selection: RoundSelection = { ...saved, materials, action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []), ...(images.length ? { images } : {}) };
   s.sending = true;
   s.composerSending = true;
   controls(page);
@@ -140,6 +148,7 @@ async function submit(page: Page, id: string, input: ComposerSubmission, acknowl
     await refs.draft.flush();
     if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge));
     else if (!await startFromComposer(page, id, task, selection, intent, model)) return { state: "failed", message: readText("coding.composer.cancelled") };
+    refs.prompts?.sent();
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));
     return { state: "sent" };
@@ -175,6 +184,12 @@ export function mountCodingComposer(page: Page, id: string) {
   if (!window.molisComposer) throw new Error("The page has no composer");
   s.composerDrawn = "";
   refs.composerLabels = codingComposerLabels(readText, mac());
+  const models = refs.composerModels;
+  refs.images = id ? codingImages(page, () => id, () => models.current(), () => {
+    const value = models.sighted(), one = s.state.models.find(model => JSON.stringify([model.provider_id, model.model_id]) === value);
+    return one ? { label: one.label, choose: () => { models.choose(value); configurationChanged(page); refs.composer.refresh(); } } : null;
+  }) : null;
+  const images = refs.images;
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
     kind: "ai", entry: "session", labels: refs.composerLabels, sources: true,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),
@@ -193,9 +208,15 @@ export function mountCodingComposer(page: Page, id: string) {
     pause: () => pauseOf(page),
     get controls() { return sceneControls(page); },
     get commands() { return composerCommands(page); },
+    // Prompt commands (A2): grouped by where they are from; a chosen one sits at the start of the box as a chip.
+    get commandMenu() { return refs.prompts?.menu(); },
+    chip: () => refs.prompts?.chip() ?? null,
     mentions: (query, signal) => refs.mentions(query, signal),
+    // Pictures pasted, dropped or picked (A3): the platform keeps each; the strip shows them as thumbnails that open larger.
+    ...(images ? { attachments: { accept: images.accept, upload: (file: File, signal: AbortSignal) => images.upload(file, signal),
+      pictures: { label: readText("coding.images.strip"), open: readText("coding.images.open"), close: readText("coding.images.close") } } } : {}),
     required: () => missing(page),
-    notice: () => readOnlyNotice(page),
+    notice: () => (images && refs.composer ? images.notice(refs.composer) : null) ?? readOnlyNotice(page),
     submit: (input, _signal, acknowledge) => submit(page, id, input, acknowledge),
   });
 }

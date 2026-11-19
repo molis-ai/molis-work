@@ -112,13 +112,14 @@ export interface AutomationOffersSetting { readonly enabled: boolean }
 
 /**
  * Adopting suggestions (specs/automation-recommender §7, AUT-06, AUT-08): what the Assistant's card offered in a project, turned on as the
- * person confirms it in the card. Only the person, through the card the Host placed in their work (or a page of theirs), calls these;
- * no Agent, plugin, workflow or MCP client can. A skill is turned on in the project in the chosen way; a connection is prepared and
+ * person confirms it in the card. The Host accepts the person's own decision on the current card in their project's work.
+ * A skill is turned on in the project in the chosen way; a connection is prepared and
  * finished in the card's own connection card; undo turns back exactly what this adoption turned on and nothing else.
  */
 export const AUTOMATION_ADOPTION_PROVIDER_ID = "system.automation-adoption";
 /** At most this many suggestions are offered in one card, and adopted in one call. */
 export const AUTOMATION_OFFER_LIMIT = 3;
+export const AUTOMATION_OFFER_INTERVAL_MS = 30_000;
 export interface AutomationAdoptInput {
   /** Suggestions to turn on: ids the project's latest offer listed. */
   readonly adopt: readonly string[];
@@ -130,6 +131,8 @@ export interface AutomationAdoptInput {
 export interface AutomationAdoptResult {
   /** Only when this call turned skills on: what undo takes back. Hiding or preparing a connection alone leaves nothing to undo. */
   readonly adoption_id?: string;
+  /** The capability pack section to inspect after a skill setting was applied. */
+  readonly kit_section?: "kit";
   /** What is now on, as the person reads it. */
   readonly summary: string;
   readonly enabled: readonly { readonly id: string; readonly title: string }[];
@@ -159,10 +162,11 @@ export const automationAdoptionActions = {
       adopt: { ...suggestionIds, title: "开启这些" }, never: { ...suggestionIds, title: "以后别再提" },
       skill_state: { title: "技能怎么用", oneOf: [{ const: "auto", title: "适用时自动用" }, { const: "manual", title: "只在点名时用" }] },
     }, required: ["adopt", "never", "skill_state"], additionalProperties: false },
-    { type: "object", properties: { adoption_id: { type: "string", format: "uuid" }, summary: { type: "string" }, enabled: named, hidden: named,
+    { type: "object", properties: { adoption_id: { type: "string", format: "uuid" }, kit_section: { const: "kit" }, summary: { type: "string" }, enabled: named, hidden: named,
       authorization_id: { type: "string", format: "uuid" } }, required: ["summary", "enabled", "hidden"], additionalProperties: false },
     { undo: { capability_id: "automation.adoption.undo", version: /* @version action.automation.adoption.undo */ 1, input: { adoption_id: "adoption_id" } },
-      result_view: { summary: "已开启所选", text_pointer: "/summary", pending_connection: { authorization_pointer: "/authorization_id" } } }) as ActionDefinition<AutomationAdoptInput, AutomationAdoptResult>,
+      result_view: { summary: "已处理所选建议", text_pointer: "/summary",
+        link: { label: "在能力包里看", href_template: "/settings/{/kit_section}?project={project_id}" }, pending_connection: { authorization_pointer: "/authorization_id" } } }) as ActionDefinition<AutomationAdoptInput, AutomationAdoptResult>,
   undo: adoption("automation.adoption.undo", /* @version action.automation.adoption.undo */ 1, "撤销开启的建议",
     "本人撤销一次开启：把那次开的技能关回原来的状态；之后被别人改过的保持现状并说明。",
     { type: "object", properties: { adoption_id: { type: "string", pattern: "^[0-9a-f-]{36}$" } }, required: ["adoption_id"], additionalProperties: false },

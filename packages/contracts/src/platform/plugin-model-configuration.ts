@@ -13,6 +13,7 @@ export interface PluginModelConfigurationInput {
 
 export interface PluginModelConfigurationView {
   readonly configured: boolean;
+  readonly preference_revision?: string;
   readonly providers: readonly {
     readonly id: string;
     readonly provider_id: string;
@@ -34,12 +35,17 @@ export interface PluginModelConfigurationView {
 export interface PluginModelConfigurationClient {
   /** Only this consumer's selected provider/model names, also usable during availability discovery. */
   selection(): PluginModelSelection | undefined;
-  read(): Promise<PluginModelConfigurationView>;
+  /** The declared setting actions. Only host-executed plugins receive this service. */
+  readonly preferences?: {
+    read(input: import("./settings.js").SettingsReadInput): Promise<import("./settings.js").SettingsValues>;
+    write(input: import("./settings.js").SettingsWriteInput): Promise<import("./settings.js").SettingsValues>;
+  };
+  read(options?: { preference_revision: true }): Promise<PluginModelConfigurationView>;
   save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }
 
 /**
- * What a plugin's Manifest declares (`model_configuration`, PG-102), like any plugin's: the Host gives the service only to a
+ * What a plugin's settings declaration binds (`settings_entries.model_configuration`, PG-102), like any plugin's: the Host gives the service only to a
  * definition on its start list, whose preference directory its store registry holds as this plugin's.
  */
 export interface PluginModelConfigurationDeclaration {

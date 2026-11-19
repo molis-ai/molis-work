@@ -74,11 +74,12 @@ export function parseV1ResetExceptions(text) {
   const hash = value => typeof value === "string" && /^[0-9a-f]{16}$/u.test(value);
   const keys = "approved,from_structure,from_version,place,reason,store,to_structure,to_version";
   const valid = Array.isArray(rows) && rows.every(row => row && typeof row === "object" && Object.keys(row).sort().join(",") === keys
-    && typeof row.store === "string" && typeof row.place === "string"
+    && typeof row.place === "string"
     && Number.isInteger(row.from_version) && row.from_version > 1 && row.to_version === 1
-    && hash(row.from_structure) && hash(row.to_structure)
+    && ((typeof row.store === "string" && hash(row.from_structure) && hash(row.to_structure))
+      || (row.store === null && row.from_structure === null && row.to_structure === null))
     && typeof row.approved === "string" && row.approved.length >= 10 && typeof row.reason === "string" && row.reason.length >= 20);
-  return valid ? { rows } : { why: `${V1_RESET_FILE}: each entry is { store, place, from_version (>1), to_version (1), from_structure, to_structure, approved, reason }` };
+  return valid ? { rows } : { why: `${V1_RESET_FILE}: each entry is { store (string or null), place, from_version (>1), to_version (1), from_structure, to_structure, approved, reason }` };
 }
 
 /** Whether a golden's store entry holds `store` at `version`: the library's own version, or for `<library>#<plugin_id>` that plugin's tables. */

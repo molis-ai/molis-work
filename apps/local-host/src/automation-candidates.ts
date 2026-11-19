@@ -8,10 +8,9 @@ import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js
 import { observedSkillCatalog } from "./agent-definitions/skill-catalog-host.js";
 import { projectAgentDefinitionEntries } from "./agent-definitions/kit-report.js";
 import { connectorDirectory } from "./connector-directory.js";
-import { existingIntegrationRegistry } from "./builtin-integrations.js";
+import { builtinIntegrationDeclarations, existingIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
-import type { IntegrationRegistry } from "./integration-registry.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { observedScopeInstallations, type ScopeInstallation } from "./scope-installations.js";
 
@@ -42,7 +41,7 @@ function skillCandidate(skill: SkillCatalogEntry, english: boolean): AutomationC
  * project shows the person works with it, and that can be connected here. Nothing is named in the product: a service without hints is
  * never suggested, one an installed package declares is suggested like a built-in one.
  */
-function connectorCandidates(home: string, registry: IntegrationRegistry, english: boolean) {
+function connectorCandidates(home: string, registry: IntegrationDeclarationsView, english: boolean) {
   // Presence alone avoids proposing a second setup for a service already in the person's directory, including disconnected accounts.
   // No reason to read a token, test a connection or inspect its endpoint.
   const current = () => new Set(withConnectorConnections(home, store => store.list().map(row => row.service_id), true) ?? []);
@@ -76,11 +75,11 @@ export async function automationCandidates(home: string, source: ProjectPluginHo
   projectAllows: (plugin: string) => boolean | undefined) {
   const rows: AutomationCandidate[] = [], gaps: AutomationGap[] = [];
   const english = caller.locale?.startsWith("en") ?? false;
-  const connections = existingIntegrationRegistry(home);
-  const registry = await connections?.then(value => value, () => undefined);
-  const connectors = registry && connectorCandidates(home, registry, english);
-  if (connectors) rows.push(...connectors.rows);
-  else gaps.push({ code: "directory-unavailable", category: "connections" });
+  const running = existingIntegrationRegistry(home);
+  const registry = await running?.catch(() => undefined);
+  if (running && !registry) gaps.push({ code: "directory-unavailable", category: "connections" });
+  const connectors = connectorCandidates(home, registry ?? builtinIntegrationDeclarations(), english);
+  rows.push(...connectors.rows);
 
   const definitions = openedAgentDefinitions(home), ledger = new HomeConsentLedger(home);
   const tracked = new Map<string, ScopeInstallation>();
@@ -122,7 +121,7 @@ export async function automationCandidates(home: string, source: ProjectPluginHo
     }
   } else gaps.push({ code: "directory-unavailable", category: "skills" }, { code: "directory-unavailable", category: "roles" });
   gaps.push({ code: "directory-unavailable", category: "hooks" }, { code: "directory-unavailable", category: "commands" });
-  return { rows, gaps, hints: connectors?.hints ?? [], assertCurrent: () => {
+  return { rows, gaps, hints: connectors.hints, assertCurrent: () => {
     const livePins = new Map(ledger.observedPublishers().map(pin => [pin.key_id, pin]));
     const settings = new Map(definitions?.skills.settings(project.project_id).map(row => [settingsKey(row.install_id, row.skill_id), row.revision]));
     for (const [key, revision] of settingsRevisions) if ((settings.get(key) ?? 0) !== revision) throw changed();
@@ -131,6 +130,6 @@ export async function automationCandidates(home: string, source: ProjectPluginHo
       const id = row.record.publisher_signature;
       if (row.record.publisher_trust === "pinned" && !isDeepStrictEqual(livePins.get(id), byPublisher.get(id))) throw changed();
     }
-    connectors?.assertCurrent();
+    connectors.assertCurrent();
   } };
 }

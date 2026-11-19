@@ -243,7 +243,7 @@ export class AssistantDispatch {
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
       ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
     const autoSkills = intent?.auto_skills !== false;
-    const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
+    const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills, intent?.connector_categories); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
     let base = await roundAuthority();
     const original_input = !intent?.byHost ? intent?.original_input : undefined;
 

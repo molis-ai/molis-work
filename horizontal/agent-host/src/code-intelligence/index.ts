@@ -8,14 +8,14 @@
  * and the tool reports itself unavailable.
  */
 
-import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
-import { delimiter } from "node:path";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
 import { ensureTool, type ToolInstallSpec } from "./tool-fetcher.js";
+import { checkProposedWrite, type ServerCapabilities } from "./write-check.js";
+import { codeIntelligenceReadiness, localCommand } from "./readiness.js";
 
 export type { LanguageServerSpec } from "./lsp-client.js";
 export { ensureTool } from "./tool-fetcher.js";
@@ -25,8 +25,28 @@ export { unconfiguredSymbolIndex } from "./coding-tools.js";
 export interface CodeIntelligence {
   /** The `coding.symbol-index` executor; the official coding pack's `coding.find-symbol` calls it. */
   readonly symbolIndex: ToolRunner;
+  /** Format and check a proposed write before it is reviewed (A4-2); `path` is inside this round's directory, the file may be new. */
+  checkWrite(input: { readonly path: string; readonly before: string | undefined; readonly after: string }): ReturnType<typeof checkProposedWrite>;
+  /** Which languages the round's directory uses and whether each one's program is here (A4); starts and downloads nothing. */
+  readiness(): ReturnType<typeof codeIntelligenceReadiness>;
   close(): Promise<void>;
 }
+
+/**
+ * The servers every round knows without configuration (A4: TypeScript/JavaScript, Python, Rust, Go), after the person's own entries,
+ * which win for an extension they name. They are used only from this machine (an absolute path or a name on PATH) and never
+ * downloaded; one that is not there makes its file type "not checked", with that reason.
+ */
+const TS = ["typescript-language-server", "--stdio"] as const;
+export const BUILTIN_LANGUAGE_SERVERS: readonly LanguageServerSpec[] = [
+  { command: TS[0], args: [TS[1]], extensions: [".ts", ".mts", ".cts"], languageId: "typescript" },
+  { command: TS[0], args: [TS[1]], extensions: [".tsx"], languageId: "typescriptreact" },
+  { command: TS[0], args: [TS[1]], extensions: [".js", ".mjs", ".cjs"], languageId: "javascript" },
+  { command: TS[0], args: [TS[1]], extensions: [".jsx"], languageId: "javascriptreact" },
+  { command: "pyright-langserver", args: ["--stdio"], extensions: [".py", ".pyi"], languageId: "python" },
+  { command: "rust-analyzer", extensions: [".rs"], languageId: "rust" },
+  { command: "gopls", extensions: [".go"], languageId: "go" },
+];
 
 const MAX_EXTENSIONS = 16;
 const MAX_TEXT_CHARS = 2_000_000;
@@ -115,26 +135,23 @@ async function insideRoot(rootPath: string, requested: string): Promise<string> 
   return real;
 }
 
-/**
- * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
- * `command` is either an absolute path or a name looked up on PATH.
- */
-function localCommand(command: string): string | undefined {
-  if (command.startsWith("/")) return existsSync(command) ? command : undefined;
-  for (const directory of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = path.join(directory, command);
-    if (candidate.length > directory.length && existsSync(candidate)) return candidate;
-  }
-  return undefined;
+/** Like `insideRoot`, for a file that may not exist yet: its directory must, inside the root. */
+async function insideRootForWrite(rootPath: string, requested: string): Promise<string> {
+  const root = await realpath(path.resolve(rootPath));
+  const parent = await realpath(path.dirname(path.resolve(rootPath, requested))).catch(() => { throw new Error(`"${requested}" is in no directory of this round`); });
+  const absolute = path.join(parent, path.basename(requested)), relative = path.relative(root, absolute);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`"${requested}" is outside this round's directory`);
+  return absolute;
 }
 
+/** Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root. */
 async function resolveSpec(
   spec: LanguageServerSpec,
   tools: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string } | undefined,
 ): Promise<LanguageServerSpec> {
   const local = localCommand(spec.command);
   if (local !== undefined) return { ...spec, command: local };
-  if (spec.install === undefined) return spec;
+  if (spec.install === undefined) throw new Error(`${spec.command} is not on this machine`);
   if (tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
   const tool = await ensureTool(spec.install, {
     toolsRoot: tools.root,
@@ -161,6 +178,7 @@ export function createCodeIntelligence(input: {
   const texts = new Map<string, string>();
   const versions = new Map<string, number>();
   const openWith = new Map<string, LspClient>();
+  const abilities = new WeakMap<LspClient, ServerCapabilities>();
   // A round reads a bounded number of files: handing the model an unbounded cache would hold whole trees in memory.
   const MAX_OPEN_DOCUMENTS = 64;
   let closed = false;
@@ -175,7 +193,7 @@ export function createCodeIntelligence(input: {
       const client = startLanguageServer(resolved, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
       spawning.add(client);
       try {
-        await client.request("initialize", {
+        const started = await client.request<{ readonly capabilities?: ServerCapabilities }>("initialize", {
           processId: process.pid,
           rootUri: fileUri(input.rootPath),
           capabilities: {
@@ -183,12 +201,14 @@ export function createCodeIntelligence(input: {
               definition: { linkSupport: false },
               references: {},
               documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+              formatting: {}, rangeFormatting: {}, publishDiagnostics: {}, diagnostic: {},
             },
           },
           workspaceFolders: [{ uri: fileUri(input.rootPath), name: path.basename(input.rootPath) || "work" }],
           ...(spec.initializationOptions === undefined ? {} : { initializationOptions: spec.initializationOptions }),
         });
         if (closed) throw new Error("this round has ended; code intelligence is closed");
+        abilities.set(client, started?.capabilities ?? {});
         client.notify("initialized", {});
         clients.set(key, client);
         return client;
@@ -207,7 +227,7 @@ export function createCodeIntelligence(input: {
     return launch;
   };
 
-  const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string }> => {
+  const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string; readonly name: string; readonly capabilities: ServerCapabilities }> => {
     if (closed) throw new Error("this round has ended; code intelligence is closed");
     const found = serverFor(input.servers, file);
     if (found === undefined) {
@@ -217,7 +237,7 @@ export function createCodeIntelligence(input: {
     if (closed) throw new Error("this round has ended; code intelligence is closed");
     const key = `${resolved.command}\u0000${(resolved.args ?? []).join("\u0000")}`;
     const client = await ensureClient(key, resolved, found.spec);
-    return { client, languageId: found.languageId };
+    return { client, languageId: found.languageId, name: path.basename(resolved.command), capabilities: abilities.get(client) ?? {} };
   };
 
   const open = async (absolute: string): Promise<{ readonly client: LspClient; readonly text: string }> => {
@@ -276,6 +296,10 @@ export function createCodeIntelligence(input: {
 
   return {
     symbolIndex,
+    readiness: () => codeIntelligenceReadiness({ servers: input.servers, rootPath: input.rootPath,
+      ...(input.tools === undefined ? {} : { tools: { root: input.tools.root, ...(input.tools.registry === undefined ? {} : { registry: input.tools.registry }) } }) }),
+    checkWrite: async ({ path: requested, before, after }) => checkProposedWrite({ clientFor, forget: (file) => { openWith.get(file)?.closeDocument({ path: file }); texts.delete(file); versions.delete(file); openWith.delete(file); } },
+      { absolute: await insideRootForWrite(input.rootPath, requested), before, after }),
     async close() {
       closed = true;
       await Promise.all([...clients.values(), ...spawning.values()].map((client) => client.close().catch(() => undefined)));

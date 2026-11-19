@@ -38,9 +38,9 @@ const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "fe
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-test("RAC-2360 APR-19 the project database baseline is version 1 and includes the platform's approvals", () => {
+test("RAC-2360 APR-19 the project database baseline is version 1 and includes project approvals and runtime settings", () => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 1);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")));
+  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql") + fixture("project-runtime-settings-schema.sql")));
 });
 
 test("RAC-2360 an existing empty file initializes the complete current library at 1", () => {

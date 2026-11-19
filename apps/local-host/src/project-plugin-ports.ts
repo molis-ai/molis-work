@@ -35,6 +35,12 @@ export interface ProjectPluginHost {
   homePlugins(): HomePluginHost | undefined;
 }
 
+export async function readyAgentHost(source: Pick<ProjectPluginHost, "agents">) {
+  const service = source.agents();
+  await service?.ready;
+  return service?.agentHost;
+}
+
 /** Reuse the complete production composition, without restoring external MCP or executing an Agent. */
 export async function withPreparedProject<Result>(source: ProjectPluginHost, reference: LocalHostProjectReference,
   operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, activatePlugins = false): Promise<Result> {
@@ -160,8 +166,9 @@ export async function installationPresentationCatalog(source: ProjectPluginHost,
 
 /** The installation facts and live display words behind an already prepared action directory. */
 export function projectActionInstallationsIn({ store, project_id }: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost) {
+  const records = pluginInstallRecords(store.db);
   return {
-    get: pluginInstallRecords(store.db).get,
+    get: records.get, list: records.list,
     manifest: (id: string) => installedPluginManifest(store.db, id)?.manifest,
     text: runningPluginTextIn({ store, localHost, projectId: project_id }),
   };

@@ -35,6 +35,7 @@ export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMet
   const direct = methods.find(m => m.kind === "oauth" && loginReady(m))
     ?? methods.find(m => m.kind === "mcp" && m.login_ready);
   if (direct) return direct;
+  if (methods.length === 1 && methods[0]?.kind === "token" && methods[0].support === "paste") return methods[0];
   if (card.connector_id === "figma") return methods.find(m => m.mcp);
   if (["model-api", "image-api", "typesafe", "mcp-bearer", "wechat"].includes(card.connector_id)) return methods.find(m => m.kind === "token" && m.support === "paste");
   return undefined;

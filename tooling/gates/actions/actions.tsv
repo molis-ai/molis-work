@@ -84,6 +84,8 @@ coding.executor.session.open	1	io.molis.work.coding	io.molis.work.coding	command
 coding.executor.session.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	user	artifact:read	coding_session	molis.work-executor.session.read.input.v1	molis.work-executor.session.read.output.v1	94dc547d6808	35bd77cbcb43	-
 coding.executor.session.update	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	molis.work-executor.session.update.input.v1	molis.work-executor.session.update.output.v1	54d924e8770a	54d924e8770a	-
 coding.executor.state	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	user	artifact:read	coding_session	molis.work-executor.state.input.v1	molis.work-executor.state.output.v1	d746974fa9af	0c83490b84e8	-
+coding.images.keep	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	materials:read	coding_session	-	-	6b613a7cca3d	a2c799262a3c	-
+coding.images.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	materials:read	coding_session	-	-	54266b376e6d	a2c799262a3c	-
 coding.onboarding.take	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	-	-	6843234e11ed	5f0591e92383	-
 coding.plans.confirm	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	4aabd3af2f6e	a2c799262a3c	-
 coding.plans.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	6fcf1e55751d	a2c799262a3c	-
@@ -206,7 +208,7 @@ feed.runs.overview	1	io.molis.work.feed	io.molis.work.feed	query	query	project	r
 feed.search.entries	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	feed_item,source	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	fdb16a63c291
 feed.snapshot	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	evidence:read,feed:read	feed_item	-	-	aebc8614fcfa	0d7b0029e110	-
 feed.source.subject.read	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	source	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
-feed.sources.add_account	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user	feed:read,feed:write	source	-	-	175008cc50d5	8f9fcf887cf7	-
+feed.sources.add_account	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	agent,mcp,user	feed:read,feed:write,sources:pull_connector	source	-	-	175008cc50d5	8f9fcf887cf7	-
 feed.sources.delete	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	irreversible	concurrent	agent,mcp,user	attention:write,connections:use,context-ledger:write,feed:read,feed:write,sources:pull_feed	source	-	-	503bef0aa5f3	09d0f6895b6a	-
 feed.sources.disconnect	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	user	connections:use,feed:read,feed:write	source	-	-	f293ae89c51f	231558c35fb0	-
 feed.sources.enabled	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user	feed:read,feed:write	source	-	-	411840cf45c1	231558c35fb0	-
@@ -395,8 +397,8 @@ jelly.item.notes_to_note	1	io.molis.work.jelly	io.molis.work.jelly	command	opera
 jelly.item.reorder	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	a0df827b8743	19c72840481e	-
 jelly.item.subject.read	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	jelly:read	jelly_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	3cfff55e5308
 jelly.item.update	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_item	-	-	b3c38544eef1	1e27858dd1e6	82b255b06a96
-jelly.model.configure	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:settings	jelly_workspace	-	-	8adc4b172465	d963eead6d35	-
-jelly.model.settings	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:settings	jelly_workspace	-	-	d746974fa9af	d963eead6d35	-
+jelly.model.configure	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:settings	jelly_workspace	-	-	8adc4b172465	3c559cc39d0a	-
+jelly.model.settings	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:settings	jelly_workspace	-	-	d746974fa9af	3c559cc39d0a	-
 jelly.note.archive	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	ae7282e014ab	19c72840481e	-
 jelly.note.create	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_note	-	-	1cf9b1182df3	fde0c80ab0e9	b4b3b9524608
 jelly.note.delete	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	irreversible	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	33a7ffedabdc	19c72840481e	-
@@ -410,6 +412,8 @@ jelly.note.update	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	ho
 jelly.plan.apply	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	715bc0a079f5	19c72840481e	-
 jelly.plan.generate	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	concurrent	agent,mcp,user,workflow	jelly:read,model:invoke	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	613063238287
 jelly.plan.manual	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	e4a35bfb9764	05e76ff7d41d	-
+jelly.preferences.read	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,plugin,user	jelly:settings	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
+jelly.preferences.write	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	user	jelly:settings	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 jelly.redo	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	0e2fb341a6b4	19c72840481e	-
 jelly.relation.attach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
 jelly.relation.detach	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_workspace	-	-	82fbd0256868	19c72840481e	-
@@ -579,6 +583,8 @@ shelf.jobs.extract	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	h
 shelf.jobs.generate	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	materials:original,materials:read,model:invoke,shelf:read,shelf:write	shelf_item	-	-	1eb8e14f7046	540915ccfba3	5e9da1767ea7
 shelf.material.preview	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	user	shelf:read	shelf_item	-	-	e7b581b16414	e93fc94fd3d3	-
 shelf.material.save	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	project	write	concurrent	user	actions:invoke,artifacts:read,artifacts:write,shelf:read	shelf_item	-	-	33cc121c357d	758e75828c89	-
+shelf.preferences.read	1	io.molis.work.shelf	io.molis.work.shelf	query	query	home	read	-	agent,plugin,user	shelf:read	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
+shelf.preferences.write	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	-	user	shelf:read,shelf:write	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 shelf.results.copy	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	home	write	concurrent	plugin	shelf:read,shelf:write	artifact,shelf_item	-	-	f7fcc997d7cb	5ff76b3a9785	-
 shelf.results.list	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	d746974fa9af	e0efe01ef0ab	-
 shelf.results.preview	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	concurrent	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	c8e7ccee276b	f7fcc997d7cb	-

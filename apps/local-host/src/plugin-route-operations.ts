@@ -99,7 +99,7 @@ export function matchPluginRoute<Match extends { readonly plugin_id: string }>(
  * declare, true once it has answered.
  */
 export async function dispatchRuntimePluginRoute(
-  platform: Pick<PluginPlatform, "runtime" | "supervisor" | "router" | "upgrade" | "viewRevision">,
+  platform: Pick<PluginPlatform, "runtime" | "supervisor" | "router" | "upgrade" | "viewRevision" | "waitForView">,
   pluginId: string, operation: string, request: IncomingMessage, response: ServerResponse,
   url: URL, actorId: string, hooks: RuntimePluginRouteHooks = {}, controls: RuntimePluginRouteControls = {},
 ): Promise<boolean> {
@@ -139,7 +139,12 @@ export async function dispatchRuntimePluginRoute(
   if (active.status !== "running") { sendLocalWebJson(response, 503, { error: active.message ?? "插件未能启动" }); return true; }
   if (operation === "view-revision" && request.method === "GET") {
     response.setHeader("cache-control", "no-store");
-    sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
+    const after = url.searchParams.get("after"), control = controls.execution;
+    let revision: string;
+    try { revision = after && control?.signal ? await platform.waitForView(pluginId, after, control.signal) : platform.viewRevision(pluginId); }
+    catch (error) { if (response.destroyed || response.writableEnded) return true; throw error; }
+    control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
+    sendLocalWebJson(response, 200, { revision });
     return true;
   }
   // Bad percent-encoding in the path is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise not its route.

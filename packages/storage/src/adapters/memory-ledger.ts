@@ -153,6 +153,18 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
   }) ?? { state: "absent" };
 }
 
+function preferenceRecords(db: DatabaseSync): Pick<MemoryLedgerPort, "prefs" | "savePrefs" | "deleteProjectPrefs"> {
+  return {
+    prefs: (actorId, key) => parse<Partial<MemoryPrefs>>(db.prepare("SELECT body FROM memory_prefs WHERE actor_id=? AND key=?").get(actorId, key)),
+    savePrefs: (actorId, key, prefs) => {
+      db.prepare("INSERT INTO memory_prefs(actor_id,key,body) VALUES (?,?,?) ON CONFLICT(actor_id,key) DO UPDATE SET body=excluded.body").run(actorId, key, JSON.stringify(prefs));
+    },
+    deleteProjectPrefs: (actorId, projectId) => {
+      db.prepare("DELETE FROM memory_prefs WHERE actor_id=? AND key=?").run(actorId, "project:" + projectId);
+    },
+  };
+}
+
 export function openMemoryLedger(options: { homeDirectory: string; storageOwner?: import("./storage-owner.js").StorageOwner }): MemoryLedgerPort {
   assertNoPendingHomeRestore(join(options.homeDirectory, "agent-runtime"));
   const db = openBaselineHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE);
@@ -217,10 +229,7 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
       db.prepare("INSERT INTO memory_changes(change_id,actor_id,memory_id,at,body) VALUES (?,?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET memory_id=excluded.memory_id, body=excluded.body")
         .run(record.change_id, record.actor_id, record.memory_id, record.at, JSON.stringify(record));
     }),
-    prefs: (actorId, key) => parse<Partial<MemoryPrefs>>(db.prepare("SELECT body FROM memory_prefs WHERE actor_id=? AND key=?").get(actorId, key)),
-    savePrefs: (actorId, key, prefs) => {
-      db.prepare("INSERT INTO memory_prefs(actor_id,key,body) VALUES (?,?,?) ON CONFLICT(actor_id,key) DO UPDATE SET body=excluded.body").run(actorId, key, JSON.stringify(prefs));
-    },
+    ...preferenceRecords(db),
     countSignal: input => ledger.transaction(() => {
       const inserted = db.prepare("INSERT OR IGNORE INTO memory_signal_events(event_id,actor_id,key,occurrence,at) VALUES (?,?,?,?,?)")
         .run(input.event_id, input.actor_id, input.key, input.occurrence, input.at);

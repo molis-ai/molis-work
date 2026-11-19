@@ -62,12 +62,12 @@
   {
     "store": "projects/*/molis-work.db",
     "place": "projects/<project_id>/molis-work.db",
-    "from_version": 5,
+    "from_version": 6,
     "to_version": 1,
-    "from_structure": "799d574d03c5edfa",
-    "to_structure": "d412db452e402bb2",
+    "from_structure": "78910a29f93ed508",
+    "to_structure": "82350291393c9ed7",
     "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
-    "reason": "Pre-release cleanup approved by user: flatten v5 to v1, remove Files-retirement adopted replica tables and approval-transfer steps."
+    "reason": "Pre-release cleanup approved by user: flatten v6 to v1 (including project_runtime_settings), remove Files-retirement adopted replica tables and pre-release steps."
   },
   {
     "store": "projects/*/molis-work.db#io.molis.work.feed",
@@ -118,5 +118,25 @@
     "to_structure": "57259b770650ee22",
     "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
     "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": null,
+    "place": "shelf/catalog.json",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": null,
+    "to_structure": null,
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten Shelf catalog v2 back to clean v1 baseline."
+  },
+  {
+    "store": null,
+    "place": "jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": null,
+    "to_structure": null,
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten model preference v2 back to clean v1 baseline."
   }
 ]

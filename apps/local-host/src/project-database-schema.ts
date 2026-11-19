@@ -8,6 +8,7 @@ import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resu
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
+import { PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL } from "./project-runtime-settings.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -51,6 +52,7 @@ const PROJECT_DATABASE_SCHEMA = [
   PROJECT_REPLICATION_SCHEMA_SQL,
   SURFACE_CORRECTIONS_SCHEMA_SQL,
   PROJECT_APPROVALS_SCHEMA_SQL,
+  PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL,
 ].join("\n");
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {

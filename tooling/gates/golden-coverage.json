@@ -2,6 +2,14 @@
   "about": "scripts/gates/golden-homes.mjs reads this (specs/upgrade-continuity/golden-replay-design.md §4 step 6, §5). uncovered: paths that must be backed up and that no golden holds today, with why. writes: each library of HOME-DATA.md §3 that must be backed up, with the cases of tests/golden-writes/ that write it, or why there is none. other_writes: the cases that write no library of that list.",
   "uncovered": [
     {
+      "path": "config/automation-offers.json",
+      "reason": "现存金样生成时还没有第 61 批主动建议。下一份金样需有项目线索、主动建议及工作回执"
+    },
+    {
+      "path": "config/automation-recommendations.json",
+      "reason": "现存金样未保存项目建议偏好。下一份金样通过项目建议设置保存一条偏好"
+    },
+    {
       "path": "agent-runtime/checkpoints/",
       "reason": "只有带检查点的长任务才写；脚本化模型那一轮对话没有产生，目录不在"
     },
@@ -129,6 +137,11 @@
         "connectors.ts"
       ]
     },
+    "web-search/web-search.db": {
+      "cases": [
+        "connectors.ts"
+      ]
+    },
     "context-onboarding/context-onboarding.db": {
       "cases": [
         "context-onboarding.ts"
@@ -242,6 +255,16 @@
     },
     "alchemist/projects/<编码后的 project_id>/search.sqlite": {
       "none": "行来自联网搜索，金样不联网，是空库（清单 imports）"
+    },
+    "conversation-attachments/conversation-attachments.db": {
+      "cases": [
+        "conversation-attachments.ts"
+      ]
+    },
+    "conversation-attachments/blobs/": {
+      "cases": [
+        "conversation-attachments.ts"
+      ]
     }
   },
   "other_writes": {

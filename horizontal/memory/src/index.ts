@@ -12,3 +12,6 @@ export type { MemoryPageLimits } from "./management-pages.js";
 
 export { memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "./class-restrictions.js";
 export { prepareMemoryRestoreRetention, applyMemoryRestoreRetention } from "./restore-retention.js";
+export { savePreferenceLayer } from "./preference-layers.js";
+export { MEMORY_SETTING_KEYS, memorySettingActions, memorySettingHandlers, memorySettingOwner } from "./preference-settings.js";
+export { decodePreferenceSetting } from "./preference-setting-value.js";

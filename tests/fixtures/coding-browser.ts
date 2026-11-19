@@ -19,10 +19,11 @@ const ADDS: Readonly<Record<string, string>> = { material: "materials", method: 
  * `hold.release()`, or with `hold.fail` answered with a 503; `hold.next` is the kind the switch takes after that one, and
  * `hold.id` the session of the read it took last (the directory marks a session current only once its read lands).
  * `fakes` answers the requests a test has no real data for (a fixed change set) with what it holds; `hold.slow` delays
- * every save (PATCH) by that many milliseconds. `before` is a script run first on every page (a capability taken away).
+ * every save (PATCH) by that many milliseconds. `before` is a script run first on every page (a capability taken away);
+ * `prepareHome` sets the Home up before the Host starts (a model to talk to).
  */
-export async function openCoding(t: TestContext, before = "") {
-  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return null;
+export async function openCoding(t: TestContext, before = "", prepareHome?: (homeDirectory: string) => void | Promise<void>) {
+  const browser = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, prepareHome ? { prepareHome } : {}); if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const frame = await pluginFrameBrowser(t, browser, "coding");
   const { evaluate, waitFor, click } = frame;

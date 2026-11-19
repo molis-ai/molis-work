@@ -295,6 +295,11 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
   await waitFor("!!document.querySelector('#wr-meter')", 10_000);
   const remSaved = await evaluate<{ space_reminder_bytes: number }>("molisWorkRequest('/api/observation/settings', { body: {} })");
   assert.equal(remSaved.space_reminder_bytes, 2_500_000_000, "2.5 GB reminder saved to observation.db");
+  const reminder = await evaluate<{ values: { source: string; value: { bytes: number } }[] }>(
+    "molisWorkRequest('/api/observation/preferences/read', { body: { keys: ['observation.space_reminder'] } })");
+  assert.equal(reminder.values[0]?.source, "personal");
+  assert.equal(reminder.values[0]?.value.bytes, 2_500_000_000);
+
   if (shots) {
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(join(shots, "settings-work-records-space-1440-zh-light.png"), Buffer.from(shot.data, "base64"));

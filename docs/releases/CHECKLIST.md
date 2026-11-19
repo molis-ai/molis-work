@@ -42,6 +42,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
 | 项目库 | `projects/<project_id>/molis-work.db` | 1 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
+| 场景草稿与采用记录 | `blueprints/blueprints.db` | 1 | `user_version` | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE` | 首次使用时建库；遇到高版本拒绝打开 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Goals） |
@@ -56,6 +57,7 @@
 | 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 低版本升级，高版本拒绝 |
 | 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 低版本升级，高版本拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
+| 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 低版本升级，高版本拒绝（第 35 批新建，从版本 1 起） |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级，高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
@@ -96,7 +98,7 @@
 | 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 低版本由升级过程升。高版本或读不了时按没有决定处理：拦过的网站不再拦，助理可以用浏览器，日志记一行；设网站或开关助理时保存被拒并报错，文件不变，被拒的设定也不生效。版本对时只留形状对的网站行，`assistant` 不是 `false` 就算开；文件不在当作没有决定 |
 | 电脑操作设置（JSON 文件，不是库） | `computer/settings.json` | 1 | `version` | `apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION` | 低版本由升级过程升。高版本或读不了时总开关关、人加的禁用应用读成空（内置的禁用应用不受影响），日志记一行；改开关或禁用应用时保存被拒并报错，文件不变。版本对时只有 `enabled` 是 `true` 才算开，只留形状对的禁用应用；文件不在时总开关关 |
 | 电脑操作记录（JSON 文件，不是库） | `computer/records/<id>/record.json` | 1 | `version` | `apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION` | 低版本由升级过程升。高版本、读不了或 `id`、`steps`、`started_at`、`ended_at` 不对的那一条不列出，不追加步骤、不结束、不清理截图，按编号删除也被拒，文件不变（读不了的日志记一行）；别的记录照常列出和清理 |
-| 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | `jelly/preferences.json` 的低版本由升级过程升，装进来的插件那份不在升级过程里。读的时候版本不是 1 或字段不对都报 `host.model_configuration_invalid`（「模型偏好文件无效，原文件已保留」），不是 JSON 时报解析错误，都不改文件；文件不在当作没有选。保存新的选择时先按同一份文件定义读原文件：高版本报 `storage.store_too_new`，还没升级报 `storage.upgrade_pending`，读不了（不是 JSON、没有版本号、字段不对）报 `storage.schema_version_mismatch`，都在建插件自己的供应商、给连接定第一个地址之前拒绝，什么都不改；文件不在或版本对才整份替换 |
+| 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | 低版本由升级过程升级。读的时候版本不是 1 或字段不对都报 `host.model_configuration_invalid`（「模型偏好文件无效，原文件已保留」），不是 JSON 时报解析错误，都不改文件；文件不在当作没有选。保存新的选择时先按同一份文件定义读原文件：高版本报 `storage.store_too_new`，还没升级报 `storage.upgrade_pending`，读不了（不是 JSON、没有版本号、字段不对）报 `storage.schema_version_mismatch`，都在建插件自己的供应商、给连接定第一个地址之前拒绝，什么都不改；文件不在或版本对才整份替换 |
 | 常驻 Web 服务的收据（JSON 文件，不是库） | `config/web-service.json` | 1 | `schema_version` | `apps/local-host/src/installer/web-service-contract.ts#schema_version` | 读的时候不看版本，只看 `owner`、`label`、`plist_path`、`plist_hash`；文件不在或不是 JSON 时当作没有收据，已有的同名 LaunchAgent 算不是自己的，不覆盖（报 `conflict`）；设计 §2.6 不让它进升级链 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝。不进升级链，也不清空：它存着研究报告引用的证据正文（用户 2026-11-08 定，理由是这个插件要重做，`specs/backlog/BL-377.md`） |
 

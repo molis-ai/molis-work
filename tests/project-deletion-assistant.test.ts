@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { installHostUiText, ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, ASSISTANT_STORE_NAME, AssistantService, AssistantStore, LocalHost, assistantAttachments, assistantAuthority, purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
 
 const ACTOR = "local-person";
 
@@ -57,6 +57,25 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.deepEqual(dropped.sort(), [`fu-${gone.work_id}`, `fu-${archived.work_id}`].sort(), "and to cancel their timed follow-ups");
 
   assert.equal(await purgeAssistantProject(home, "project-gone"), 0, "again: nothing left, and nothing needs the live service");
+});
+
+test("S-conversation-attachments: deleting a project drops the pictures only its Assistant works sent, and keeps one another work still shows", async t => {
+  const { home, store, gone, kept } = await assistantHome(t);
+  const attachments = assistantAttachments(home);
+  // Two pictures (by their bytes): one only the deleted project's work sent, one both works sent.
+  const picture = (tag: string) => Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from(tag)]).toString("base64");
+  const only = await attachments.attach({ file_name: "only.png", data_base64: picture("only-in-the-deleted-project") });
+  const shared = await attachments.attach({ file_name: "shared.png", data_base64: picture("in-both-projects") });
+  const material = (attached: typeof only) => ({ material_id: `image-${attached.title}`, kind: "image" as const, title: attached.title, explicit: true,
+    image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } });
+  store.addRound(gone.work_id, { run_id: "run-pictures", text: "看图", materials: [material(only), material(shared)], context: null, started_at: new Date().toISOString() });
+  store.addRound(kept.work_id, { run_id: "run-shared", text: "看图", materials: [material(shared)], context: null, started_at: new Date().toISOString() });
+
+  await purgeAssistantProject(home, "project-gone", { stop: async () => undefined });
+
+  assert.equal(attachments.holds(only.ref), false, "a picture no work names any more goes with its bytes");
+  await assert.rejects(attachments.read(only.ref, { as: "image" }), { code: "material.attachment.not_found" });
+  assert.equal(attachments.holds(shared.ref), true, "a picture the other project's work still shows stays");
 });
 
 test("a Home without an Assistant library has nothing to clear and gets none", async t => {

@@ -84,7 +84,7 @@ test("Jelly custom model selects a Connector credential and keeps preferences fr
   const settings = configuration(home).save({ base_url: "https://models.example.com/v1", api_format: "openai-chat-completions", model_id: "text-a", connection_id: connection.connection_id });
   assert.equal(settings.configured, true); assert.equal(settings.source, "selection"); assert.deepEqual(settings.selection, { provider_id: "jelly-text", model_id: "text-a" }); assert.equal(settings.providers[0]!.has_credential, true); assert.equal(requests, 0);
   assert.equal(settings.custom_connection_id, connection.connection_id);
-  const prefs = readFileSync(join(home, "jelly", "preferences.json"), "utf8"); assert.equal(prefs.includes("jelly-test-plaintext-key"), false); assert.deepEqual(JSON.parse(prefs), { schema_version: 1, provider_id: "jelly-text", model_id: "text-a" }); assert.equal(JSON.stringify(settings).includes("jelly-test-plaintext-key"), false);
+  const prefs = readFileSync(join(home, "jelly", "preferences.json"), "utf8"); assert.equal(prefs.includes("jelly-test-plaintext-key"), false); assert.deepEqual(JSON.parse(prefs), { schema_version: 1, selection: { provider_id: "jelly-text", model_id: "text-a" }, revision: 1, receipts: {} }); assert.equal(JSON.stringify(settings).includes("jelly-test-plaintext-key"), false);
   providerStore(home, (store, storage) => { assert.equal(store.get("jelly-text")?.base_url, "https://models.example.com/v1"); assert.equal(store.get("jelly-text")?.credential_ref, connection.credential_ref); assert.equal(JSON.stringify(storage.db.prepare("SELECT * FROM model_providers").all()).includes("jelly-test-plaintext-key"), false); });
   const secrets = runWithMolisWorkHome(home, () => createFileSecretStore()); assert.equal(secrets.get(connection.credential_ref!), "jelly-test-plaintext-key");
   configuration(home).save({ provider_id: "jelly-text", model_id: "text-b" });
@@ -141,9 +141,15 @@ test("Jelly model actions reuse the original provider and preference owners and 
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: ["jelly:settings", "jelly:read", "model:invoke"] }));
   try {
     assert.equal((await actions.invoke(jellyServiceActions.modelSettings, {})).source, "provider");
-    const saved = await actions.invoke(jellyServiceActions.saveModelSettings, { provider_id: "shared", model_id: "model" });
+    const choice = { provider_id: "shared", model_id: "model" };
+    await assert.rejects(actions.invoke(jellyServiceActions.saveModelSettings, choice), /jelly.preferences.write/);
+    const { jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
+    const prefs = jellyManifest.settings_entries!, key = prefs.model_configuration!.key;
+    const { values } = await actions.invoke<{keys: string[]}, import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>(prefs.read, { keys: [key] });
+    await actions.invoke(prefs.write, { key, layer: "personal", expected_revision: values[0]!.revision, request_id: "choose-model", change: { set: choice } });
+    const saved = await actions.invoke(jellyServiceActions.modelSettings, {});
     assert.deepEqual(saved.selection, { provider_id: "shared", model_id: "model" });
-    assert.deepEqual(configuration(home).read(), saved);
+    assert.deepEqual(configuration(home).read({ preference_revision: true }), saved);
     providerStore(home, store => { assert.equal(JSON.stringify(store.get("shared")), sharedBefore); });
     assert.doesNotMatch(JSON.stringify(saved), /fixture-key/);
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, true);
@@ -172,7 +178,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
   const directory = await host.homeActionClient().discover(person(["jelly:read", "jelly:write", "jelly:settings", "model:invoke"]));
   const jelly = directory.filter(action => action.provider.plugin_id === JELLY_PLUGIN_ID);
-  assert.equal(jelly.length, JELLY_ACTIONS.length); assert.equal(jelly.length, 53);
+  assert.equal(jelly.length, JELLY_ACTIONS.length); assert.equal(jelly.length, 55);
   assert.ok(jelly.every(action => action.provider.plugin_install_id === installation.install_id));
   await platform.runtime.stop(installation.install_id);
   platform.runtime.grant(installation.install_id, installation.grants.filter(grant => grant !== "model:invoke"));
@@ -182,8 +188,8 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
     { base_url: "https://jelly-runtime.example/v1", model_id: "private", connection_id: connection.connection_id }) as JellyModelSettings;
   assert.deepEqual(saved.selection, { provider_id: "jelly-text", model_id: "private" });
   assert.equal(requests, 0);
-  assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 1, provider_id: "jelly-text", model_id: "private" });
-  assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), saved);
+  assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 1, selection: { provider_id: "jelly-text", model_id: "private" }, revision: 1, receipts: {} });
+  assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), { ...saved, preference_revision: configuration(home).read({ preference_revision: true }).preference_revision });
   await assert.rejects(host.homeActionClient().invoke(person(["jelly:read", "model:invoke"]), jellyActions.modelPlan, { source_type: "text", text: "plan" }));
   t.mock.restoreAll();
   assert.equal((await request("/api/plugins/io.molis.work.jelly/model-settings")).status, 200);
@@ -230,12 +236,13 @@ async function trustedJelly(t: test.TestContext) {
   const { HomePluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const { createJellyPlugin, jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), service = new ActionService();
+  const home = homeFor(t, false), service = new ActionService();
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   const definitions: import("@molis-ai/molis-work-contracts/platform/plugin").PluginDefinition[] = [];
   const contexts: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext[] = [];
   const registrations: import("@molis-ai/molis-work-contracts/platform/actions").ActionProviderRegistration[] = [];
   // The plugin's own Manifest carries the declaration; this copy is the one the startup caller keeps hold of.
-  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION), manifest = { ...jellyManifest, model_configuration: declaration };
+  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION), manifest = { ...jellyManifest, settings_entries: { ...jellyManifest.settings_entries!, model_configuration: declaration } };
   const host = new HomePluginHost({ home, actorId: "person", client: service, registry: {
     registerProvider(registration) { registrations.push(registration); return service.registerProvider(registration); },
   }, entries: [{ scope: "home", manifest, create() {
@@ -302,4 +309,67 @@ test("W5-01-JMC-02 a property stuck on a definition declares nothing, and the Ma
     assert.equal(existsSync(join(f.home, "not-jelly")), false);
     assert.equal(existsSync(join(f.home, "jelly", "preferences.json")), true);
   } finally { await f.host.close(); }
+});
+
+test("ONB-22/29/30: a scene chooses only an existing Jelly model, then recovers its file receipt across a later manual selection", async t => {
+  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
+  const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const { blueprintActions: scenes } = await import("@molis-ai/molis-work-contracts/services/blueprints");
+  const { jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const connection = modelConnection(home, "已有模型", "local-test-secret", "https://shared.example.com/v1");
+  providerStore(home, store => store.upsert({ credential_ref: connection.credential_ref!, provider_id: "shared", display_name: "Models",
+    base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: ["original", "selected"].map(model_id => ({ model_id, enabled: true })) }));
+  const key = JELLY_MODEL_CONFIGURATION.key, choice = { provider_id: "shared", model_id: "selected" };
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  try {
+    const caller = await host.localPersonContext();
+    const user = bindActionClient(host.homeActionClient(), () => caller);
+    const title = { literal: "Meetings" };
+    const { draft } = await user.invoke(scenes.draftSave, { expected_revision: null, blueprint: {
+      title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+      parts: [{ part_id: "model", layer: "personal", required: true, proposal: { kind: "setting", key, value: choice } },
+        { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+      steps: [{ step_id: "prepare", title, part_ids: ["model", "note"] }], example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
+    } });
+    const { preview_id, parts } = await user.invoke(scenes.preview, { source: draft.source, target: { kind: "personal" }, part_ids: ["model"] });
+    assert.notEqual(parts[0]?.decision, "skip", JSON.stringify(parts));
+    const apply = { preview_id, part_ids: ["model"], request_id: "select-model" };
+    const first = await user.invoke(scenes.apply, apply);
+    assert.equal(first.steps[0]?.state, "applied", JSON.stringify(first.steps));
+    assert.deepEqual(configuration(home).selection(), choice);
+    const path = join(home, "jelly", "preferences.json");
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    assert.equal(Object.keys(saved.receipts).length, 1);
+    const receipt = Object.values(saved.receipts)[0] as import("@molis-ai/molis-work-plugin-sdk").SettingsWriteReceipt;
+    const sameRequest = { source: draft.source, target: { kind: "personal" as const }, part_ids: ["model"] };
+    const beforeDisconnect = await user.invoke(scenes.preview, sameRequest);
+    assert.equal(beforeDisconnect.parts[0]?.decision, "reuse");
+    withConnectorConnections(home, store => store.setEnabled(connection.connection_id, false));
+    const disconnected = (await user.invoke(scenes.read, { adoption_id: first.adoption_id })).apply_steps[0];
+    assert.ok(disconnected?.state === "applied"); assert.equal(disconnected.current, "owner_unavailable");
+    const afterDisconnect = await user.invoke(scenes.apply, { ...apply, preview_id: beforeDisconnect.preview_id, request_id: "reuse-disconnected" });
+    assert.deepEqual(afterDisconnect.steps[0], { part_id: "model", state: "skipped", reason: "owner_unavailable" });
+    assert.equal((await user.invoke(scenes.preview, sameRequest)).parts[0]?.decision, "skip");
+    const secondConnection = modelConnection(home, "替代模型", "separate-local-test-secret", "https://replacement.example.com/v1");
+    const replacement = { provider_id: "replacement", model_id: "working" };
+    providerStore(home, store => store.upsert({ credential_ref: secondConnection.credential_ref!, provider_id: replacement.provider_id, display_name: "Replacement",
+      base_url: "https://replacement.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: replacement.model_id, enabled: true }] }));
+    const repair = await user.invoke(scenes.preview, { ...sameRequest, changes: [{ part_id: "model", proposal: { kind: "setting", key, value: replacement } }] });
+    assert.equal(repair.parts[0]?.decision, "update");
+    const repaired = await user.invoke(scenes.apply, { ...apply, preview_id: repair.preview_id, request_id: "repair" });
+    assert.equal(repaired.steps[0]?.state, "applied");
+    assert.deepEqual(configuration(home).selection(), replacement);
+    withConnectorConnections(home, store => store.setEnabled(connection.connection_id, true));
+    configuration(home).save({ provider_id: "shared", model_id: "original" });
+    const beforeRetry = readFileSync(path, "utf8");
+    const result = await host.homeActionClient().invoke(caller, jellyManifest.settings_entries!.write, receipt.request);
+    assert.deepEqual(result, receipt.result);
+    const undo = await user.invoke(scenes.revert, { adoption_id: first.adoption_id, request_id: "undo" });
+    assert.deepEqual(undo.undo.steps[0], { part_id: "model", state: "skipped", reason: "revision_changed" });
+    assert.equal(readFileSync(path, "utf8"), beforeRetry);
+    assert.deepEqual(configuration(home).selection(), { provider_id: "shared", model_id: "original" });
+    assert.doesNotMatch(beforeRetry, /local-test-secret|example\.com/);
+  } finally { await host.close(); }
 });

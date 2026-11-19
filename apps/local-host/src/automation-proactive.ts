@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantCardChoice, AssistantPreparedCard } from "@molis-ai/molis-work-contracts/services/assistant";
-import { AUTOMATION_ADOPTION_PROVIDER_ID, AUTOMATION_OFFER_LIMIT, automationAdoptionActions, type AutomationOfferResult, type AutomationReport,
+import { AUTOMATION_ADOPTION_PROVIDER_ID, AUTOMATION_OFFER_INTERVAL_MS, AUTOMATION_OFFER_LIMIT, automationAdoptionActions, type AutomationOfferResult, type AutomationReport,
   type AutomationSuggestion } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { changeOfferRecord, readOfferRecord, type OfferedItem } from "@molis-ai/molis-work-service-automation-recommender";
 import type { HostCardInput } from "./assistant/assistant-offers.js";
@@ -13,13 +13,11 @@ import type { HostCardInput } from "./assistant/assistant-offers.js";
  */
 export interface AutomationOfferHooks {
   /** Place the card in the project's work kept for it (the Assistant's `placeForPerson`). */
-  place(input: HostCardInput): Promise<{ work_id: string }>;
+  place(input: HostCardInput, assertCurrent: () => void): Promise<{ work_id: string }>;
   /** Light the Dock for that work, once per card. */
   notify(work: { work_id: string; title: string }, count: number, dedupe: string): void;
 }
 
-/** A look this soon after the last one is not repeated: opening the project again does not rescan it. */
-export const OFFER_LOOK_INTERVAL_MS = 10 * 60_000;
 export const AUTOMATION_OFFER_SURFACE = "automation-recommendations";
 const ADOPTABLE = new Set(["skills", "connections"]);
 
@@ -35,7 +33,10 @@ function choiceOf(row: AutomationSuggestion): AssistantCardChoice {
   const description = row.next.kind === "skill"
     ? uiText.text("workbench.automation-adoption.skill-detail", { source: row.requirements.slice(0, 2).join(" · "), why: row.reason.slice(0, 160) })
     : connectionWhy(row);
-  return { value: row.id, label: row.title.slice(0, 120), description: description.slice(0, 300) };
+  const review = row.next.kind === "skill" ? [description,
+    ...(row.requirements.length > 2 ? [uiText.text("workbench.automation-adoption.declared-tools", { tools: row.requirements.slice(2).join(uiText.text("common.list.separator")) })] : []),
+    row.risk] : [description, row.effect, row.risk];
+  return { value: row.id, label: row.title.slice(0, 120), description: review.join("　").slice(0, 300) };
 }
 
 function offered(row: AutomationSuggestion): OfferedItem | null {
@@ -49,16 +50,16 @@ function offered(row: AutomationSuggestion): OfferedItem | null {
  * The card for what the look found, or why it says nothing. The new ones come first, then those said before and not taken; within each,
  * the better evidenced first. At most one connection: it is finished in the card's own connection card.
  */
-export async function offerProjectAutomation(home: string, subject: Subject, report: AutomationReport, hooks: AutomationOfferHooks, now = new Date()): Promise<AutomationOfferResult> {
+export async function offerProjectAutomation(home: string, subject: Subject, report: AutomationReport, hooks: AutomationOfferHooks, assertCurrent: () => void, now = new Date()): Promise<AutomationOfferResult> {
   if (report.gaps.some(gap => gap.code === "no-workspace")) {
-    changeOfferRecord(home, subject, record => ({ result: undefined, next: { ...record, looked_at: now.toISOString() } }));
+    changeOfferRecord(home, subject, record => ({ result: undefined, next: { ...record, looked_at: now.toISOString() } }), assertCurrent);
     return { offered: false, reason: "no-workspace" };
   }
   const record = readOfferRecord(home, subject), told = new Set(record.told);
   const rows = report.groups.filter(group => ADOPTABLE.has(group.category)).flatMap(group => group.suggestions).filter(row => offered(row) !== null);
   const fresh = rows.filter(row => !told.has(row.id));
   if (!fresh.length) {
-    changeOfferRecord(home, subject, current => ({ result: undefined, next: { ...current, looked_at: now.toISOString() } }));
+    changeOfferRecord(home, subject, current => ({ result: undefined, next: { ...current, looked_at: now.toISOString() } }), assertCurrent);
     return { offered: false, reason: "nothing-new" };
   }
   const rank = (row: AutomationSuggestion) => (told.has(row.id) ? 2 : 0) + (row.confidence === "high" ? 0 : 1);
@@ -79,9 +80,10 @@ export async function offerProjectAutomation(home: string, subject: Subject, rep
   };
   const title = uiText.text("workbench.automation-adoption.work-title");
   const placed = await hooks.place({ key: `automation:${subject.project}`, work_title: title, scope: { kind: "project", project_id: subject.project },
-    source: { surface: AUTOMATION_OFFER_SURFACE, title: uiText.text("workbench.automation-adoption.source") }, card });
+    source: { surface: AUTOMATION_OFFER_SURFACE, title: uiText.text("workbench.automation-adoption.source") }, card }, assertCurrent);
   changeOfferRecord(home, subject, current => ({ result: undefined, next: { ...current, told: [...new Set([...current.told, ...chosen.map(row => row.id)])],
-    offered: chosen.map(row => offered(row)!), looked_at: now.toISOString() } }));
+    offered: chosen.map(row => offered(row)!), looked_at: now.toISOString() } }), assertCurrent);
+  assertCurrent();
   hooks.notify({ work_id: placed.work_id, title }, chosen.length, `automation:${subject.project}:${chosen.map(row => row.id).sort().join(",")}`);
   return { offered: true, work_id: placed.work_id, count: chosen.length };
 }
@@ -89,5 +91,5 @@ export async function offerProjectAutomation(home: string, subject: Subject, rep
 /** Whether the last look was recent enough that this one is skipped. */
 export function lookedRecently(home: string, subject: Subject, now = Date.now()): boolean {
   const at = readOfferRecord(home, subject).looked_at;
-  return at !== null && now - Date.parse(at) < OFFER_LOOK_INTERVAL_MS;
+  return at !== null && now - Date.parse(at) < AUTOMATION_OFFER_INTERVAL_MS;
 }

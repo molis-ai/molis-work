@@ -1,5 +1,21 @@
 import { COMPOSER_PATTERN_STYLES } from "./primitives/catalog-patterns.js";
 
+// The attachment strip's picture layout (Coding A3): one row of 40px previews that scrolls sideways rather than growing the box;
+// each preview is the button that opens the picture (44px under a coarse pointer); a refusal wraps to a second line, never cut.
+export const COMPOSER_PICTURES_STYLES = `
+  .mw-composer__files.is-pictures { display: flex; gap: 8px; width: auto; overflow-x: auto; }
+  .mw-composer__files.is-pictures > .mw-upload { flex: none; gap: 8px; max-width: 240px; min-height: 0; padding: 4px 0 4px 4px; background: var(--surface-soft); }
+  .mw-composer__files.is-pictures .mw-mark { width: 40px; height: 40px; border-radius: calc(var(--r-row) - 2px); box-shadow: 0 0 0 1px var(--line); background: var(--wash); }
+  .mw-composer__files.is-pictures .mw-upload > span:nth-child(2) { gap: 2px; font-size: 12px; }
+  .mw-composer__files.is-pictures .mw-composer__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+  .mw-composer__files.is-pictures small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+  .mw-composer__files.is-pictures .is-failed .mw-mark { box-shadow: 0 0 0 1.5px var(--red); }
+  .mw-composer__open { all: unset; place-self: stretch; border-radius: inherit; cursor: zoom-in; transition: box-shadow var(--dur-hover) var(--ease-quint); }
+  .mw-composer__open:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
+  .mw-composer__open:focus-visible { outline: var(--focus-stroke) solid var(--accent); outline-offset: 2px; }
+  @media (pointer: coarse) { .mw-composer__files.is-pictures .mw-mark { width: 44px; height: 44px; } }
+`;
+
 /**
  * The unified input's shell (specs/unified-input-voice/implementation-plan.md §3.6, K1's specimen rules), served in the workbench
  * sheet from K2 on with the patterns it is built from. The home bar's one-line capsule grown to rows (`--r-composer`, `--lift-1`,
@@ -12,7 +28,7 @@ import { COMPOSER_PATTERN_STYLES } from "./primitives/catalog-patterns.js";
  *
  * At rest on a phone or in a short window (≤ 600px wide, ≤ 560px tall; user 2026-11-08) it is one row, `composerRestRules()`.
  */
-export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
+export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}${COMPOSER_PICTURES_STYLES}
   .mw-composer { position: relative; display: grid; gap: 6px; width: min(640px, 100%); min-width: 0; container: mw-composer / inline-size; }
   /* Who it goes to: a soft tag beside ＋ in the bottom bar (user 2026-11-10, one input), its glyph and name; "发给：" is spoken, not drawn. */
   .mw-composer__to { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
@@ -66,6 +82,16 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__query { padding: 4px 4px 6px; }
   .mw-composer__query > .mw-input { width: 100%; }
   .mw-composer__line { margin: 0; padding: 6px 10px; color: var(--muted); font-size: 12px; line-height: 18px; }
+  /* A short state beside the name (「读不了」): before the shortcut, in its own column when the item has a description. */
+  .mw-menu__item > .mw-badge { flex: none; margin-left: 8px; }
+  .mw-menu__item--described:has(> .mw-badge) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .mw-menu__item--described > .mw-badge { grid-area: 1 / 3; align-self: center; margin-left: 0; }
+  .mw-menu__item--described:has(> .mw-badge) .mw-menu__shortcut { grid-area: 1 / 4; }
+  /* The / menu's closing line (Coding A2): a plain note under the groups, kept apart by a hairline. */
+  .mw-composer__menu-note { margin: 4px 0 0; padding: 8px 10px 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 18px; text-wrap: pretty; }
+  /* The board's command chip (CODING_BASICS_STYLES) above the words, as wide as it says; its prompt folded under them, both on the box's gutter. */
+  .mw-composer__box > .mw-cmdchip { justify-self: start; max-width: calc(100% - 24px); margin: 10px 12px 0; }
+  .mw-composer__box > .mw-cmdprompt { margin: 0 12px; }
   /* The page's line above the box (\`notice\`): what holds for the next send. Read-only takes the box's outline too, focused or not; a failure's outline comes first. */
   .mw-composer__notice { display: flex; align-items: center; gap: 8px; margin: 0 2px 6px; color: var(--muted); font-size: 12px; line-height: 18px; animation: craft-rise var(--dur-move, 250ms) var(--ease-quint); }
   .mw-composer__notice > svg { flex: none; width: 14px; height: 14px; }
@@ -85,6 +111,7 @@ ${composerFoldRules("")}
     .mw-composer__notice { flex-wrap: wrap; }
     .mw-composer__notice-text { flex-basis: calc(100% - 22px); }
     .mw-composer__notice > .mw-btn { margin-inline-start: 22px; }
+    .mw-composer__notice > .mw-btn + .mw-btn { margin-inline-start: 0; }
   }
   @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls, .mw-composer__notice { animation: none; } }
   @media (max-width: 600px), (pointer: coarse) {

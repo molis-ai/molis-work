@@ -10,7 +10,8 @@ import { assistantCardHtml, cardView } from "./assistant-card-view.js";
 import { isExternalSessionObject, isExternalSessionSurface } from "./assistant-external-sessions.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
-import type { PersonActions } from "./assistant-executor.js";
+import { assertPersonDecisionProject, type AssistantPersonDecision, type PersonActions } from "./assistant-executor.js";
+import { AUTOMATION_ADOPTION_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
 
 const RUNTIME = "prologue";
@@ -20,6 +21,7 @@ const REFUSALS: Record<ActionCardRefusal, string> = { revoked: "assistant.action
 /** Who placed a page's card: the project it was placed from, when there is one. */
 interface OfferCaller {
   project_ref?: LocalHostProjectReference;
+  assertBeforeStart?(): void;
 }
 
 /**
@@ -39,7 +41,9 @@ interface OfferPorts {
   createWork(title: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot, caller: OfferCaller): Promise<StoredWork>;
   fail(code: string, message: string): Error;
   /** The person's own actions in a work's scope: the only way a card the Host placed for the person runs. */
-  personActions?(work: StoredWork): Promise<PersonActions>;
+  personActions?(work: StoredWork, decision?: AssistantPersonDecision): Promise<PersonActions>;
+  /** Record the undo of an effect already made, even if a following effect cannot complete. */
+  personUndo?(work: StoredWork, view: ActionView, output: unknown): void;
   /** Such a card ran: kept as the work's result, with the undo its action declares. */
   personRan?(work: StoredWork, view: ActionView, input: unknown, output: unknown): void;
 }
@@ -93,10 +97,11 @@ export class AssistantOffers {
   constructor(private readonly ports: OfferPorts) {}
 
   async recordOffer(work: StoredWork, offer: AgentActionOffer & Pick<AssistantPreparedCard, "choices">, views: readonly ActionView[],
-    page?: Pick<StoredCard, "from" | "source_object" | "materials" | "runs_as">): Promise<{ offer_id: string }> {
+    page?: Pick<StoredCard, "from" | "source_object" | "materials" | "runs_as">, beforeSave?: () => void): Promise<{ offer_id: string }> {
     const drafted = await draftActionCard(`card-${randomUUID()}`, offer, views, { ...this.rules(work), check: (view, input) => assertActionInput(view.action.input_schema, input) });
     // A round's suggestion belongs to that round; a card a page placed belongs to no round (it shows as coming from that page).
     const card: StoredCard = { ...drafted, work_id: work.work_id, run_id: page ? null : this.ports.store.rounds(work.work_id).at(-1)?.run_id ?? null, ...(page ?? {}) };
+    beforeSave?.();
     this.ports.store.addCard(card);
     return { offer_id: card.card_id };
   }
@@ -164,15 +169,18 @@ export class AssistantOffers {
     }
     if (!work) {
       work = await this.ports.createWork(input.work_title, input.scope, { source: input.source, captured_at: this.ports.now().toISOString() }, caller);
+      caller.assertBeforeStart?.();
       this.ports.store.setSetting(this.ports.actorId, setting, work.work_id);
-    }
-    for (const old of this.ports.store.cards(work.work_id)) {
-      if (old.runs_as === "person" && old.from?.surface === input.source.surface) dismissActionCard(old, this.store);
     }
     const actions = await this.ports.personActions(work);
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
       ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) },
-      await actions.discover(), { from: input.source, runs_as: "person" });
+      await actions.discover(), { from: input.source, runs_as: "person" }, () => {
+        caller.assertBeforeStart?.();
+        for (const old of this.ports.store.cards(work.work_id)) {
+          if (old.runs_as === "person" && old.from?.surface === input.source.surface) dismissActionCard(old, this.store);
+        }
+      });
     return { work_id: work.work_id, card: cardView(this.ports.store.card(work.work_id, offer_id)) };
   }
 
@@ -180,7 +188,7 @@ export class AssistantOffers {
    * The person clicked the card: run exactly what it shows, with their adjustments to its editable or missing fields.
    * The card is claimed first, so a second click, another tab or a retry after a restart cannot run it again.
    */
-  async runCard(workId: string, cardId: string, input: { revision: number; values?: unknown }): Promise<AssistantCard> {
+  async runCard(workId: string, cardId: string, input: { revision: number; values?: unknown }, decision?: AssistantPersonDecision): Promise<AssistantCard> {
     const work = this.ports.store.get(this.ports.actorId, workId);
     const card = this.ports.store.card(work.work_id, cardId);
     // What the card's controls hold (a pick, a day, a moment in the person's zone), as the strings the input takes.
@@ -188,10 +196,30 @@ export class AssistantOffers {
     let job: Awaited<ReturnType<AssistantJobs["follow"]>> = null;
     if (card.runs_as === "person") {
       // The Host's card for the person: their own actions, and its result (with the undo it declares) kept on the work.
-      const actions = this.ports.personActions ? await this.ports.personActions(work) : null;
+      let currentDecision = decision;
+      let checked: ActionView | undefined;
+      if (card.reference.provider_id === AUTOMATION_ADOPTION_PROVIDER_ID) {
+        const assertCurrent = () => {
+          assertPersonDecisionProject(work.project_ref?.project_id ?? null, decision);
+          const live = this.ports.store.get(this.ports.actorId, workId);
+          if (live.archived || live.executor.kind !== "assistant") throw this.ports.fail("assistant.scope", "建议所在的工作已经关闭");
+          if (this.ports.store.cards(workId, AUTOMATION_ADOPTION_PROVIDER_ID)[0]?.card_id !== cardId) {
+            throw this.ports.fail("assistant.conflict", "请查看这个项目最新的建议卡");
+          }
+        };
+        assertCurrent();
+        currentDecision = { ...decision!, assertCurrent, beforeEffect: async () => { await decision!.beforeEffect(); assertCurrent(); },
+          receipt: {
+            record: id => { if (checked) this.ports.personUndo?.(work, checked, { adoption_id: id }); },
+            clear: id => this.ports.store.saveUndo(this.ports.actorId, { undo_id: id, work_id: workId, remove: true }),
+          } };
+      }
+      const actions = this.ports.personActions ? await this.ports.personActions(work, currentDecision) : null;
       if (!actions) throw this.ports.fail("assistant.unsupported", "现在不能执行这张卡");
       return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
-        authority: async () => ({ discover: () => actions.discover(), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => actions.invoke(reference, prepared) }),
+        authority: async () => ({ discover: () => actions.discover(),
+          check: (view, prepared) => { assertActionInput(view.action.input_schema, prepared); checked = view; },
+          invoke: (reference, prepared) => actions.invoke(reference, prepared) }),
         started: async (view, output, claimed) => { this.ports.personRan?.(work, view, claimed.input, output); return false; } }));
     }
     const ran = await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),

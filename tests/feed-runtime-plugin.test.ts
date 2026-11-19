@@ -763,9 +763,9 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
 });
 
 // T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
-test("RAC-2665 BL-917 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
+test("RAC-2665 BL-917 SCAF-06 a Runtime Feed adds a declared, pullable account source and uses the account the person binds", async t => {
   const f = await connecting(t);
-  const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
+  const add = (input: unknown) => f.client.invoke(caller([...WRITE, "sources:pull_connector"]).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
   const added = await add({ service: "github", name: "Work GitHub" });
   assert.deepEqual([added.registered, added.source.sync_kind, added.source.config, added.source.status], [true, "github", {}, "active"]);
   const again = await add({ service: "github", name: "Work GitHub" });
@@ -774,6 +774,7 @@ test("RAC-2665 BL-917 a Runtime Feed adds an account source with no account: the
   // of the service, its account bound the same way (the slot is the service, the record the source).
   const notion = await add({ service: "notion", name: "Docs" });
   assert.deepEqual([notion.registered, notion.source.sync_kind, (notion.source as { kind?: string }).kind, notion.source.config, notion.source.status], [true, "connector", "notion", {}, "active"]);
+  await assert.rejects(add({ service: "figma", name: "No source reader" }), { code: "feed.source_invalid_configuration" });
   // Only the services Feed declares an account slot for, a name, and nothing that names an account.
   for (const input of [{ service: "brave-search", name: "Search" }, { service: "not-a-service", name: "X" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
     await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));

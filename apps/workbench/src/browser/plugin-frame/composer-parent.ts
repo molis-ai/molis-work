@@ -1,4 +1,4 @@
-import type { ComposerControl, ComposerDraftAdapter, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerControl, ComposerDraftAdapter, ComposerFileFact, ComposerHandle, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { PLUGIN_ICON_NAMES, type MwComposerAiLabels, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { BarReceiver, BridgedOutcome, ComposerCalls, ComposerDown, ComposerOp, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import { parentComposerReadiness } from "./composer-readiness.js";
@@ -60,8 +60,9 @@ const maybe = (value: unknown, limit: number) => value === undefined ? undefined
 function noticeOf(value: unknown): ComposerSnapshot["notice"] {
   if (value === null || value === undefined) return null;
   const raw = record(value), action = raw.action === null || raw.action === undefined ? null : record(raw.action);
+  const also = action && raw.also !== null && raw.also !== undefined ? record(raw.also) : null;
   want(raw.tone === "readonly" || raw.tone === "info");
-  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...icon(raw.icon), action: action ? { label: text(action.label, 100) } : null };
+  return { text: text(raw.text, 400), tone: raw.tone as "readonly" | "info", ...icon(raw.icon), action: action ? { label: text(action.label, 100) } : null, ...(also ? { also: { label: text(also.label, 100) } } : {}) };
 }
 const flag = (value: unknown) => { want(value === undefined || typeof value === "boolean"); return value === true; };
 const icon = (value: unknown) => { want(value === undefined || typeof value === "string"); return typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {}; };
@@ -84,7 +85,23 @@ function commandOf(raw: unknown): ComposerSnapshot["commands"][number] {
   const item = record(raw);
   want(item.add === undefined || item.add === false);
   return { slash: text(item.slash, 80), label: text(item.label, 200), ...optional("hint", maybe(item.hint, 400)),
-    ...(item.keywords === undefined ? {} : { keywords: list(item.keywords, 20).map(word => text(word, 80)) }), ...icon(item.icon), ...(item.add === false ? { add: false as const } : {}) };
+    ...(item.keywords === undefined ? {} : { keywords: list(item.keywords, 20).map(word => text(word, 80)) }), ...icon(item.icon), ...(item.add === false ? { add: false as const } : {}),
+    ...optional("group", maybe(item.group, 200)), ...optional("warning", maybe(item.warning, 40)) };
+}
+
+/** The `/` menu's groups and closing line as the page sent them, bounded. */
+function commandMenuOf(raw: unknown): ComposerSnapshot["commandMenu"] {
+  if (raw === null || raw === undefined) return null;
+  const menu = record(raw);
+  return { groups: list(menu.groups, 12).map(one => { const group = record(one); return { label: text(group.label, 200), ...optional("empty", maybe(group.empty, 400)) }; }), ...optional("note", maybe(menu.note, 400)) };
+}
+
+/** The command chip as the page sent it: its words, bounded; the prompt it makes up to 64 KB. */
+function chipOf(raw: unknown): ComposerSnapshot["chip"] {
+  if (raw === null || raw === undefined) return null;
+  const chip = record(raw), prompt = chip.prompt === undefined ? null : record(chip.prompt);
+  return { name: text(chip.name, 200), source: text(chip.source, 100), remove: { label: text(record(chip.remove).label, 100) },
+    ...(prompt ? { prompt: { label: text(prompt.label, 100), text: text(prompt.text, 64 * 1024) } } : {}) };
 }
 
 function deliveryOf(raw: unknown): ComposerSnapshot["delivery"] {
@@ -124,8 +141,8 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
       receiver: receiverOf(raw.receiver), delivery: deliveryOf(raw.delivery),
       pause: pause ? { label: text(pause.label, 100), title: text(pause.title, 200), ...(flag(pause.busy) ? { busy: true } : {}) } : null,
       stop: raw.stop as boolean, mentions: raw.mentions as boolean, sources: raw.sources as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
-      controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf),
-      attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)) } : null,
+      controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf), commandMenu: commandMenuOf(raw.commandMenu), chip: chipOf(raw.chip),
+      attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)), ...picturesOf(attachments.pictures) } : null,
       ...optional("voice", maybe(raw.voice, 80)),
       column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
       near: near ? { kind: text(near.kind, 80), id: text(near.id, 200) } as ComposerSnapshot["near"] : null,
@@ -142,11 +159,23 @@ const mentionsOf = (found: unknown) => Array.isArray(found) ? found.slice(0, 50)
   try { const item = record(one); return [{ title: text(item.title, 200), ...optional("hint", maybe(item.hint, 400)), insert: text(item.insert, 2000) }]; } catch { return []; }
 }) : [];
 
+/** Files a page named to be replaced, as plain facts; anything else names none. */
+const factsOf = (value: unknown): ComposerFileFact[] => Array.isArray(value) ? value.slice(0, 20).flatMap(one => {
+  try { const raw = record(one); want(typeof raw.size === "number" && typeof raw.lastModified === "number"); return [{ name: text(raw.name, 400), size: raw.size as number, type: text(raw.type, 100), lastModified: raw.lastModified as number }]; } catch { return []; }
+}) : [];
+
+/** The words of a strip of pictures, when the page asked for one: all three, or none. */
+function picturesOf(value: unknown): { pictures?: { label: string; open: string; close: string } } {
+  if (value === undefined) return {};
+  const raw = record(value);
+  return { pictures: { label: text(raw.label, 200), open: text(raw.open, 200), close: text(raw.close, 100) } };
+}
+
 /** A page's answer to a file it was given to read, as one of the two the composer knows; anything else did not go. */
 const uploadOf = (raw: unknown): ComposerCalls["upload"][1] => {
   try {
     const item = record(raw);
-    if (item.state === "attached") return { state: "attached", ref: text(item.ref, 400), title: text(item.title, 200) };
+    if (item.state === "attached") return { state: "attached", ref: text(item.ref, 400), title: text(item.title, 200), ...optional("meta", maybe(item.meta, 200)) };
     if (item.state === "failed") return { state: "failed", reason: text(item.reason, 400) };
   } catch { /* falls through: the page's answer is not one the composer reads */ }
   return { state: "failed", reason: "" };
@@ -191,7 +220,7 @@ function outcomeOf(value: BridgedOutcome, check: (key: number) => Promise<Compos
 export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean) {
   let id = 0, snapshot: ComposerSnapshot | null = null, receiver: BarReceiver | null = null, bound: ComposerHandle | null = null, field: HTMLTextAreaElement | null = null;
   let retitle: (() => void) | undefined, selected: (() => boolean) | undefined;
-  let sequence = 0, shown = "", text = "", generation = 0;
+  let sequence = 0, shown = "", lit = "", text = "", generation = 0;
   const answers = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   let receipt: { call: number; acknowledge(): void } | undefined;
   // A shape refresh is still this child's draft: retain selections/revisions until its actual mount is replaced.
@@ -212,7 +241,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     signal?.addEventListener("abort", () => { if (answers.delete(number)) { post({ type: "composer-abort", id: mine, call: number }); reject(signal.reason); } }, { once: true });
     post({ type: "composer-call", id: mine, call: number, op, ...(arg === undefined ? {} : { arg }) });
   }).finally(() => setTimeout(down, 0));
-  const act = (mine: number, kind: "control" | "command" | "receiver" | "notice", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
+  const act = (mine: number, kind: "control" | "command" | "receiver" | "notice" | "chip", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
     // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
     const mine = id;
@@ -234,10 +263,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act(mine, "command", command.slash) })); },
       ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(mentionsOf) } : {}),
       ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal).then(uploadOf) } } : {}),
-      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: bound.materials().filter(item => item.kind === "attachment") }); },
+      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: bound.materials().filter(item => item.kind === "attachment"), files: bound.files().map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
+      get commandMenu() { return now().commandMenu ?? undefined; },
+      chip: () => { const chip = now().chip; return chip ? { ...chip, remove: { label: chip.remove.label, run: () => act(mine, "chip", "") } } : null; },
       required: () => now().required,
-      notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}) } : null; },
+      notice: () => { const line = now().notice; return line ? { text: line.text, tone: line.tone, ...(line.icon ? { icon: line.icon as PluginIconName } : {}), ...(line.action ? { action: { label: line.action.label, run: () => act(mine, "notice", "") } } : {}), ...(line.action && line.also ? { also: { label: line.also.label, run: () => act(mine, "notice", "also") } } : {}) } : null; },
       submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcomeOf(value, key => call(mine, "check", key))),
     };
   };
@@ -257,8 +288,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (!bound) return;
     bound.setRunning(snapshot.running); bound.hold(snapshot.hold);
     if (field && field.placeholder !== snapshot.placeholder) field.placeholder = snapshot.placeholder;
-    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands]);
-    if (drawn !== shown) { shown = drawn; retitle?.(); bound.refresh(); }
+    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.commandMenu]);
+    // The lines read on every draw can change with nothing else (a picture refused, the chip's prompt as words are typed): drawn
+    // again without the bar's start, so a menu that is open stays.
+    const lines = JSON.stringify([snapshot.notice, snapshot.required, snapshot.chip]);
+    if (drawn !== shown) { shown = drawn; lit = lines; retitle?.(); bound.refresh(); }
+    else if (lines !== lit) { lit = lines; bound.refresh("lines"); }
   };
   const make = () => {
     const at = snapshot!, key = pack.plugin_id + ":" + id + ":" + ++generation;
@@ -272,7 +307,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);
-        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; width = 0; measure.disconnect();
+        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; lit = ""; width = 0; measure.disconnect();
         if (!handle) return;
         field?.addEventListener("input", typed);
         const input = field?.closest<HTMLElement>(".mw-composer");
@@ -324,13 +359,18 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (message.type === "composer-text" && typeof message.text === "string" && message.text.length <= 1024 * 1024) {
       if (field.value === message.text) return;
       text = field.value = message.text; window.molisFit?.(field); field.dispatchEvent(new Event("input", { bubbles: true }));
-    } else if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
-    else if (message.type === "composer-focus") bound.focus();
-    else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20));
-    else if (message.type === "composer-send") {
-      // A page may submit its own words/files, but cannot make the person disclose another owner's selected reference.
-      if (bound.materials().some(item => item.kind === "material")) { bound.focus(); return; }
-      field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
-    }
+    } else boxAct(message, bound, field);
   };
+}
+
+/** The page's insert, focus, files and send, on the bar's box while it is the page's own and in sight. */
+function boxAct(message: ComposerUp, bound: ComposerHandle, field: HTMLTextAreaElement) {
+  if (message.type === "composer-insert" && typeof message.text === "string" && message.text.length <= 1024 * 1024) bound.insert(message.text);
+  else if (message.type === "composer-focus") bound.focus();
+  else if (message.type === "composer-attach" && Array.isArray(message.files) && message.files.every(file => file instanceof File)) bound.attach(message.files.slice(0, 20), factsOf(message.replacing));
+  else if (message.type === "composer-send") {
+    // A page may submit its own words/files, but cannot make the person disclose another owner's selected reference.
+    if (bound.materials().some(item => item.kind === "material")) { bound.focus(); return; }
+    field.closest(".mw-composer")?.querySelector<HTMLButtonElement>("[data-composer-send]")?.click();
+  }
 }

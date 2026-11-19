@@ -14,7 +14,7 @@ export function givenService<Given>(definition: PluginDefinition, declared: unkn
 }
 
 const HOME_ONLY = [
-  ["owner_files", "Home 主人文件服务"], ["model_configuration", "模型设置服务"], ["image_generation", "图片生成服务"], ["local_tools", "本机工具服务"],
+  ["owner_files", "Home 主人文件服务"], ["image_generation", "图片生成服务"], ["local_tools", "本机工具服务"],
 ] as const;
 
 /**
@@ -25,6 +25,8 @@ export function assertHomeOnlyDeclarations(homeEntries: readonly { definition: P
   for (const { definition } of projectEntries) {
     const id = definition.manifest.plugin_id;
     if (homeEntries.some(other => other.dual_instance && other.definition.manifest.plugin_id === id)) continue;
+    if (definition.manifest.settings_entries?.model_configuration)
+      throw pluginErrors.declaration_invalid(`项目插件 ${id} 不能声明模型设置服务：它不是双实例插件在项目里的那一半`);
     for (const [field, service] of HOME_ONLY) {
       // Sandbox files use the existing installation-scoped port in either scope, never the native Home root.
       if (field === "owner_files" && definition.execution === "sandbox") continue;

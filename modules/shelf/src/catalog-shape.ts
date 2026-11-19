@@ -1,3 +1,5 @@
+import { isRecord, type SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
+import { shelfPreferenceKey, type ShelfPreferenceKey } from "./preference-keys.js";
 import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import { defaultShelfDeviceSettings, isCurrentShelfSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
@@ -21,15 +23,33 @@ export interface CatalogFile {
   clipboard: ShelfClipboardRecord[];
   current_clip_id: string | null;
   settings: ShelfDeviceSettings;
+  preferences: { layers: Partial<Record<ShelfPreferenceKey, { explicit: boolean; revision: number }>>; receipts: Record<string, SettingsWriteReceipt> };
 }
 export function emptyShelfCatalog(): CatalogFile {
-  return { version: CATALOG_VERSION, seeded_sample: false, items: [], jobs: [], clipboard: [], current_clip_id: null, settings: defaultShelfDeviceSettings() };
+  return { version: CATALOG_VERSION, seeded_sample: false, items: [], jobs: [], clipboard: [], current_clip_id: null, settings: defaultShelfDeviceSettings(), preferences: { layers: {}, receipts: {} } };
+}
+function validReceipt(receipt: unknown) {
+  if (!isRecord(receipt) || !isRecord(receipt.request) || !isRecord(receipt.result)) return false;
+  const { key, layer, request_id, expected_revision, change } = receipt.request;
+  const values = receipt.result.values;
+  if (typeof key !== "string" || !shelfPreferenceKey(key) || layer !== "personal" || typeof request_id !== "string" || !request_id
+    || typeof expected_revision !== "string" || !expected_revision || !isRecord(change) || Object.keys(change).length !== 1
+    || !(Object.hasOwn(change, "set") || change.inherit === true) || !Array.isArray(values) || values.length !== 1) return false;
+  const saved = values[0];
+  return isRecord(saved) && saved.key === key && saved.state === "ok" && typeof saved.revision === "string"
+    && (saved.source === "personal" || saved.source === "provider_default") && Object.hasOwn(saved, "value");
+}
+function validPreferences(value: unknown): boolean {
+  return isRecord(value) && Object.keys(value).length === 2 && isRecord(value.layers) && isRecord(value.receipts)
+    && Object.entries(value.layers).every(([key, layer]) => shelfPreferenceKey(key) && isRecord(layer) && typeof layer.explicit === "boolean"
+      && typeof layer.revision === "number" && Number.isSafeInteger(layer.revision) && layer.revision >= 0)
+    && Object.values(value.receipts).every(validReceipt);
 }
 export function readCurrentCatalog(value: unknown): CatalogFile {
   const raw = value as Partial<CatalogFile> | null;
   const keys = Object.keys(emptyShelfCatalog());
   if (!raw || raw.version !== CATALOG_VERSION || Object.keys(raw).some(key=>!keys.includes(key)) || keys.some(key=>!Object.hasOwn(raw,key))
-    || typeof raw.seeded_sample !== 'boolean' || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
+    || !validPreferences(raw.preferences) || typeof raw.seeded_sample !== 'boolean' || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
     || !(raw.current_clip_id === null || typeof raw.current_clip_id === 'string') || !isCurrentShelfSettings(raw.settings)
     || raw.items.some(item => !item || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)
       || !['done', 'failed'].includes(item.status) || !(item.failure_reason === null || typeof item.failure_reason === 'string')

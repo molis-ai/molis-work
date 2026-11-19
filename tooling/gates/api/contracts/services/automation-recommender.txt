@@ -8,6 +8,8 @@ export declare const AUTOMATION_CATEGORIES: readonly ["hooks", "skills", "connec
 
 export declare const AUTOMATION_HINT_KINDS: readonly ["git_host", "file", "dependency"];
 
+export declare const AUTOMATION_OFFER_INTERVAL_MS = 30000;
+
 export declare const AUTOMATION_OFFER_LIMIT = 3;
 
 export declare const AUTOMATION_PROVIDER_ID = "system.automation-recommendations";
@@ -22,6 +24,7 @@ export interface AutomationAdoptInput {
 
 export interface AutomationAdoptResult {
     readonly adoption_id?: string;
+    readonly kit_section?: "kit";
     readonly summary: string;
     readonly enabled: readonly {
         readonly id: string;

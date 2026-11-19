@@ -4,11 +4,23 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { bindDatabaseSpace, ensureStorageSpace } from "@molis-ai/molis-work-storage";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { Blueprint } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import { homeStores } from "@molis-ai/molis-work-app-local-host";
 
 interface Seed { table: string; values: Record<string, SQLInputValue>; field: string }
 export interface SnapshotFact { file: string; table: string; field: string; key: string; id: SQLInputValue; expected: SQLInputValue }
 const at = "2026-10-24T00:00:00.000Z", id = "snapshot-retained", actor = "snapshot-person";
+
+const sceneTitle = { literal: "Weekly project review" };
+export const snapshotDraftId = "snapshot-weekly-review";
+export const snapshotBlueprint: Blueprint = {
+  title: sceneTitle, purpose: { audience: sceneTitle, work: sceneTitle, inputs: sceneTitle, outputs: sceneTitle, first_result: sceneTitle },
+  parts: [{ part_id: "engine", layer: "project", required: true, proposal: { kind: "setting", key: "projects.runtime", value: "prologue" } },
+    { part_id: "notes", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+  steps: [{ step_id: "configure", title: sceneTitle, part_ids: ["engine", "notes"] }],
+  example_task: { title: sceneTitle, input: sceneTitle, step_ids: ["configure"], result: { part_id: "notes", location: { literal: "Review notes" } } },
+};
 
 /** Real owner tables, not extra probe tables; expected user facts are independent of the snapshot implementation. */
 function libraryFacts(project: string): Record<string, Seed> {
@@ -16,6 +28,8 @@ function libraryFacts(project: string): Record<string, Seed> {
   return {
     sync: { table: "sync_stream_cursors", values: { namespace: id, cursor: 7 }, field: "cursor" },
     "plugin-runtime": { table: "plugin_private_values", values: { install_id: id, item_key: "user-note", item_value: body }, field: "item_value" },
+    blueprints: { table: "blueprint_drafts", values: { draft_id: snapshotDraftId, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project,
+      revision: 2, locale: "en", blueprint_json: JSON.stringify(snapshotBlueprint) }, field: "blueprint_json" },
     assistant: { table: "assistant_settings", values: { actor_id: actor, key: "display", revision: 4, value: JSON.stringify({ compact: false }) }, field: "value" },
     placement: { table: "placement_titles", values: { kind: "goal", id, title, seen_at: at }, field: "title" },
     "agent-definitions": { table: "prompt_overrides", values: { key: id, revision: 2, base_version: 1, body: title, updated_at: at, actor_id: actor }, field: "body" },
@@ -49,6 +63,8 @@ function libraryFacts(project: string): Record<string, Seed> {
       frozen_digest: "snapshot-digest", spec_json: JSON.stringify({ title }), hold_id: null, held_record_count: 0, created_at: at }, field: "spec_json" },
     // An item a person named on their mainline (the store keeps names, references and order; batch 36).
     mainline: { table: "mainline_items", values: { item_id: id, owner_actor_id: actor, project_id: project, name: title, created_at: at }, field: "name" },
+    // A document a person brought into a conversation, kept with its text by the platform (batch 35, S-conversation-attachments).
+    "conversation-attachments": { table: "attachments", values: { plugin_id: "io.snapshot.fixture", install_id: id, project_id: project, sha256: "a".repeat(64), title, kind: "document", media_type: "text/plain", byte_length: 12, text: body, attached_at: at }, field: "text" },
     // The Home's default web search source and its last use (batch 61, §13.7): names and ids only, never a key.
     "web-search": { table: "web_search_last_use", values: { id: 1, source_id: id, title, account_label: null, audience: "user", used_at: at }, field: "title" },
     "external-sessions": { table: "external_sessions", values: { session_key: id, entry_id: "claude-code", location_key: "local", native_id: id, seen_via: "file", title, activity: "idle", last_activity_at: at }, field: "title" },

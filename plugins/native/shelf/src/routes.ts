@@ -38,6 +38,8 @@ const WRITE_BYTES = 3_000_000;
 export const SHELF_HOME_ROUTES = [
   { route_id: "shelf.terminal", method: "POST", path: "/terminal", max_body_bytes: WRITE_BYTES },
   { route_id: "shelf.snapshot", method: "GET", path: "/" },
+  { route_id: "shelf.preference.read", method: "POST", path: "/preferences/read", max_body_bytes: WRITE_BYTES },
+  { route_id: "shelf.preference.write", method: "POST", path: "/preferences/write", max_body_bytes: WRITE_BYTES },
   { route_id: "shelf.settings.read", method: "GET", path: "/settings" },
   { route_id: "shelf.settings.write", method: "POST", path: "/settings", max_body_bytes: WRITE_BYTES },
   { route_id: "shelf.admit", method: "POST", path: "/items", max_body_bytes: UPLOAD_BYTES },

@@ -558,9 +558,12 @@ describe("a generated golden Home", { concurrency: false }, () => {
       "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
-    // A golden made now holds every format at this build's version: the catalog has had its first upgrade step (05②), the
-    // memory ledger its V0 step (1→2, BL-1071), the rest are at 1.
-    const upgraded: Record<string, number> = { "database.home.catalog": CATALOG_SCHEMA_VERSION, "database.memory_ledger_baseline": MEMORY_LEDGER_BASELINE.version };
+    const upgraded: Record<string, number> = {
+      "database.home.catalog": CATALOG_SCHEMA_VERSION,
+      "database.memory_ledger_baseline": MEMORY_LEDGER_BASELINE.version,
+      "format.model.preference": 2,
+      "format.shelf.catalog": 2,
+    };
     for (const item of formats) assert.equal(item.version, upgraded[item.entry] ?? 1, `${item.entry} at ${item.path}`);
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
     // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).

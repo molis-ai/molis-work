@@ -456,8 +456,7 @@ export class MolisWorkLocalHost {
     };
     return { service, host: this, project: reference, incarnation: seen.incarnation, home: catalog.home, ...(assistant ? { assistant } : {}),
       source: { directories: seen.folders, assertCurrent }, files: this.projectCatalogActions.passiveClient(reference),
-      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows),
-      documentTakers: () => catalog.access.withCatalog({ homeDirectory: catalog.home }, current => projectDocumentTakers(current.projectPluginMembership(reference.project_id))) };
+      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows), documentTakers: () => catalog.access.withCatalog({ homeDirectory: catalog.home }, current => projectDocumentTakers(current.projectPluginMembership(reference.project_id))) };
   }
 
   /** Keeps an original project incarnation and any current Runtime lease across a management write. */

@@ -335,7 +335,7 @@ test("PEQ-03 Goals 5→6 must name the real project 6→7 step (batch 44 D1), sp
   assert.match(check(wrongStep), /points at the step 5→6/u);
   const notSpread = actual.replace("...projectLibraryV7Upgrade", "run: projectLibraryV7Upgrade.run");
   assert.notEqual(notSpread, actual);
-  assert.match(check(realSpec, notSpread), /needs the project library's verified joint step from 6/u);
+  assert.match(check(realSpec, notSpread), /needs the project library's verified joint step from 5/u);
 });
 
 test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot without its step, its pointer or by going down", () => {

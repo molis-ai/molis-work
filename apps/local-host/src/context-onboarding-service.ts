@@ -1,9 +1,8 @@
-import { realpath } from "node:fs/promises";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  ONBOARDING_DRAFT_GET_MAX, ONBOARDING_DRAFT_KEEP_MAX, ONBOARDING_DRAFT_MATERIALS_MAX, ONBOARDING_DRAFT_PART_CHARS,
-  type OnboardingDraftBatch, type OnboardingDraftGetInput, type OnboardingDraftInput, type OnboardingDraftKeepInput,
+  ONBOARDING_DRAFT_GET_MAX, ONBOARDING_DRAFT_MATERIALS_MAX, ONBOARDING_DRAFT_PART_CHARS,
+  type OnboardingDraftBatch, type OnboardingDraftGetInput, type OnboardingDraftInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -27,7 +26,7 @@ import {
   readScopePathTags,
   stageHeldSecretDecision,
 } from "./context-onboarding-delta.js";
-import { importAdoptedMaterialsAndSummary } from "./context-onboarding-adopt.js";
+import { handToTaker, importAdoptedMaterialsAndSummary, keepDrafts } from "./context-onboarding-adopt.js";
 import {
   diskFull,
   dropStagedNotes,
@@ -54,8 +53,6 @@ import { descriptionFromSummary, setProjectDescription } from "./project-arrival
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
-import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ONBOARDING_TAKE_MATERIALS_MAX, type OnboardingCodeRootTake, type OnboardingTakeResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { OnboardingMaterialKind, OnboardingTaker } from "./onboarding-takers.js";
 import { withObservationSource } from "@molis-ai/molis-work-service-observation";
 
@@ -758,61 +755,6 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   })).finally(() => running.delete(key(home, id)));
   running.set(key(home, id), job); await job;
   return readContextJourney(home, id);
-}
-
-/**
- * The folder goes to the plugin the person picked, by that plugin's own declared action, called as the person with its permissions
- * only (batch12-design §7.3, §7.7 C1). Once it answered, a retry does not call it again. Only the folder the person picked goes: when
- * the project's output is no longer it, nothing is handed. A plugin that is gone or refuses does not hold the round: the project and
- * its materials are already made, so the round completes, `take_result.not_taken` says why, and the person lands on the plugin's page.
- */
-async function handToTaker(home: string, journey: ContextJourney, handed: readonly { version: ArtifactReference; title: string }[], ports: ContextOnboardingPorts): Promise<void> {
-  const take = journey.adoption?.take;
-  if (!take || journey.take_result) return;
-  const done = (result: NonNullable<ContextJourney["take_result"]>) => { journey.take_result = result; withContextJourneys(home, store => store.save(journey)); };
-  const notTaken = (why: "unavailable" | "moved" | "refused") => done({ open: null, materials: 0, of: handed.length, not_taken: why });
-  const taker = ports.takers?.("code_root").find(one => one.plugin_id === take.plugin_id);
-  if (!taker || !ports.take) return notTaken("unavailable");
-  const output = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(journey.project_id).directories.find(folder => folder.roles.includes("output")));
-  if (!output || output.canonical_path !== await realpath(take.code_root).catch(() => null)) return notTaken("moved");
-  const materials = handed.slice(0, ONBOARDING_TAKE_MATERIALS_MAX).map(item => ({ ref: { subject: { kind: "artifact", id: artifactSubjectId(item.version) }, pin: { mode: "fixed" as const, version: item.version } }, title: item.title.slice(0, 500) }));
-  let answered: OnboardingTakeResult;
-  try {
-    const client = await ports.take(home, journey.project_id, taker.take);
-    answered = await client.invoke(taker.take as ActionDefinition<OnboardingCodeRootTake, OnboardingTakeResult>,
-      { request_id: `onboarding:${journey.id}:take`, code_root: { workspace_id: output.workspace_id }, materials });
-  } catch (error) {
-    // A plugin's own refusal is final; a temporary failure or cancellation can be retried and is not called a refusal.
-    const refused = error instanceof ActionError && (error.kind === "conflict" || error.kind === "forbidden");
-    return notTaken(refused ? "refused" : "unavailable");
-  }
-  done({ open: answered.open, materials: materials.length, of: handed.length });
-}
-
-/**
- * The drafts the person kept, from every batch, go to the drafts taker in the new project; the rest wait there (in Todo's 「待你确认」).
- * Each batch is read again first for its current revision, and each part of a keep goes on from the revision the last one returned, so a
- * retry after a keep that stopped part way does not meet a stale revision; the taker skips a draft already decided. Safe to repeat.
- */
-async function keepDrafts(home: string, journey: ContextJourney, ports: ContextOnboardingPorts): Promise<void> {
-  const keep = new Set(journey.adoption?.keep ?? []), drafts = journey.drafts;
-  if (!drafts?.batches.length || !keep.size || drafts.added || !drafts.plugin_id) return;
-  const taker = ports.takers?.("drafts").find(one => one.plugin_id === drafts.plugin_id);
-  if (!taker?.drafts || !ports.take) throw new Error("起草待办的插件现在不可用，已确认内容仍保留；稍后可以继续保存");
-  const get = taker.drafts.get as ActionDefinition<OnboardingDraftGetInput, { batches: OnboardingDraftBatch[] }>;
-  const keeper = taker.drafts.keep as ActionDefinition<OnboardingDraftKeepInput, { batch: OnboardingDraftBatch }>;
-  const reading = await ports.take(home, journey.project_id, get), keeping = await ports.take(home, journey.project_id, keeper);
-  const ids = drafts.batches.map(batch => batch.batch_id), latest: OnboardingDraftBatch[] = [];
-  for (let start = 0; start < ids.length; start += ONBOARDING_DRAFT_GET_MAX) latest.push(...(await reading.invoke(get, { ids: ids.slice(start, start + ONBOARDING_DRAFT_GET_MAX) })).batches);
-  const kept: OnboardingDraftBatch[] = [];
-  for (let batch of latest) {
-    const chosen = batch.candidates.filter(candidate => keep.has(candidate.candidate_id) && !candidate.decision).map(candidate => candidate.candidate_id);
-    for (let start = 0; start < chosen.length; start += ONBOARDING_DRAFT_KEEP_MAX) {
-      batch = (await keeping.invoke(keeper, { id: batch.batch_id, expected_revision: batch.revision, keep: chosen.slice(start, start + ONBOARDING_DRAFT_KEEP_MAX) })).batch;
-    }
-    kept.push(batch);
-  }
-  drafts.added = kept.flatMap(batch => batch.candidates.flatMap(candidate => keep.has(candidate.candidate_id) && candidate.decision?.item_id ? [candidate.decision.item_id] : []));
 }
 
 export function updateContextDraft(home: string, id: string, input: Record<string, unknown>): ContextJourney {

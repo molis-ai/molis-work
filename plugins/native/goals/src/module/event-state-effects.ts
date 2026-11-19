@@ -69,9 +69,7 @@ export class GoalEventStateEffects {
       const options = normalizeOptions(input.options);
       const purpose = requiredDecisionPurpose(input.purpose);
       const currentOutcome = this.records.owner.latestAgreement(goal.project_id, goal.goal_id)?.outcome || goal.outcome.trim();
-      let proposedChange = input.proposed_change
-        ? toWireChange(compactChange(normalizeAgreementChange(input.proposed_change), currentOutcome))
-        : null;
+      let proposedChange = input.proposed_change ? toWireChange(compactChange(normalizeAgreementChange(input.proposed_change), currentOutcome)) : null;
       let commitment: GoalEventDecisionCommitment | null = null;
       if (purpose === "agreement_change") {
         if (!proposedChange) {

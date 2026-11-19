@@ -207,10 +207,13 @@ export class GoalProjectApplication {
       return result;
     };
     // The commands that stand on the requirements, each given the platform's reading as the plugin's before-hook gives it.
-    for (const name of ["configure", "applyConcern", "requestDecision", "citeDecision", "setAgreement", "submitClosure"] as const) {
-      const command = (application.goalEvents[name] as (input: { project_id: string; goal_id: string; acceptance?: GoalAcceptanceReading }) => unknown).bind(application.goalEvents);
-      (this.goalEvents as unknown as Record<string, unknown>)[name] = (input: { project_id: string; goal_id: string; acceptance?: GoalAcceptanceReading }) => command(this.withReading(input));
-    }
+    const wrap = <I extends { project_id: string; goal_id: string; acceptance?: GoalAcceptanceReading }, R>(fn: (input: I) => R) => (input: I): R => fn(this.withReading(input));
+    this.goalEvents.configure = wrap(application.goalEvents.configure.bind(application.goalEvents));
+    this.goalEvents.applyConcern = wrap(application.goalEvents.applyConcern.bind(application.goalEvents));
+    this.goalEvents.requestDecision = wrap(application.goalEvents.requestDecision.bind(application.goalEvents));
+    this.goalEvents.citeDecision = wrap(application.goalEvents.citeDecision.bind(application.goalEvents));
+    this.goalEvents.setAgreement = wrap(application.goalEvents.setAgreement.bind(application.goalEvents));
+    this.goalEvents.submitClosure = wrap(application.goalEvents.submitClosure.bind(application.goalEvents));
     const record = application.goalEvents.recordTrustedDecision.bind(application.goalEvents);
     this.goalEvents.recordTrustedDecision = input => approvals.event(input.project_id, () => record(this.withReading(input)));
     this.goalQueries = application.goalQueries;

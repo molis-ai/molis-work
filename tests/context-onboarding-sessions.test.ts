@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION, sessionsActions, sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
@@ -137,18 +137,22 @@ function projectPorts(dir: string, hosts: MolisWorkLocalHost[]) {
   let host: MolisWorkLocalHost | undefined;
   let runCatalog: typeof withMolisWorkProjectCatalog = withMolisWorkProjectCatalog;
   const withCatalog: typeof withMolisWorkProjectCatalog = (options, operation) => runCatalog(options, operation);
+  const client = async (projectId: string, permissions: readonly string[], original_file?: { path: string; install_id: string }) => {
+    const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
+    if (!host) {
+      host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.push(host);
+      runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
+    }
+    return bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id })),
+      () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [...permissions], ...original_file ? { original_file } : {} }));
+  };
   return {
     withCatalog,
     takers: onboardingTakers,
-    actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
-      const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
-      if (!host) {
-        host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.push(host);
-        runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
-      }
-      return bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id })),
-        () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
-    },
+    actions: (_home: string, projectId: string, original_file?: { path: string; install_id: string }) =>
+      client(projectId, ["artifacts:read", "artifacts:write"], original_file),
+    take: (_home: string, projectId: string, definition: ActionDefinition) =>
+      client(projectId, definition.action.permissions),
   };
 }
 

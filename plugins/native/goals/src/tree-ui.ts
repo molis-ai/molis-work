@@ -238,9 +238,7 @@ function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionMode
   return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${uiText("goals.tree-ui.goal-list")}"><div class="goal-list-view" data-goal-list-view>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
 }
 
-function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string {
-  return "";
-}
+function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string { return ""; }
 
 function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, proposals = ""): string {
   const { selectedId, archiveView, trashView } = collection;

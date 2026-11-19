@@ -224,7 +224,7 @@
 | [BL-959](../../backlog/BL-959.md) | 步骤报告作者 | [53-1](batches/53.md#batch-53-item-1) | 已定，前置见交付行 |
 | [BL-1062](../../backlog/BL-1062.md) | 连接页折叠 | [36A-5](batches/36a.md#batch-36a-item-5) | 已定，前置见交付行 |
 | [BL-attention-404-by-code](../../backlog/BL-attention-404-by-code.md) | 提醒重连 | [56-1](batches/56.md#batch-56-item-1) | 已定，前置见交付行 |
-| [BL-knowledge-restore-partial-catalog](../../backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../../backlog/BL-tests-umask.md) | 离线恢复两项回归 | [73-3](batches/73.md#batch-73-item-3) | 先做离线恢复切片，U7 单独验收 |
+| [BL-knowledge-restore-partial-catalog](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../../backlog/BL-tests-umask.md) | 离线恢复两项回归 | [73-3](batches/73.md#batch-73-item-3) | 先做离线恢复切片，U7 单独验收 |
 | [BL-plugin-cli-dev-uncoded-errors](../../backlog/BL-plugin-cli-dev-uncoded-errors.md) | 插件隔离试用报错 | [48-1](batches/48.md#batch-48-item-1) | 已定，前置见交付行 |
 | [BL-586](../../backlog/BL-586.md) | 安装身份与视图 | [47-1](batches/47.md#batch-47-item-1) | 已定，前置见交付行 |
 | [BL-973](../../backlog/BL-973.md)、[BL-980](https://github.com/molis-ai/molis-work/blob/27b46f17ab93dabdb75a4a80e665aa5d1b2ca05d/specs/backlog/BL-980.md)、[BL-1017](../../backlog/BL-1017.md) | 文档与测试小修 | [92-1](batches/92.md#batch-92-item-1)、[92-2](batches/92.md#batch-92-item-2)、[92-3](batches/92.md#batch-92-item-3) | 三项分别由 #2144、#2145、#2146 合入 |

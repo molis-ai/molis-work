@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,9 @@ export async function restoreFixture(t: TestContext) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   await host.close();
   mkdirSync(join(home, "plugin-files"), { mode: 0o700 });
-  writeFileSync(join(home, "plugin-files", "original.bin"), Buffer.from([0, 255, 17, 12, 0]), { mode: 0o640 });
+  // The creation mode passes through umask, so the fixture sets the exact sample permissions itself (BL-tests-umask).
+  writeFileSync(join(home, "plugin-files", "original.bin"), Buffer.from([0, 255, 17, 12, 0]));
+  chmodSync(join(home, "plugin-files", "original.bin"), 0o640);
   return { directory, home, root: join(home, "agent-runtime"), snapshot: join(directory, "snapshot") };
 }
 

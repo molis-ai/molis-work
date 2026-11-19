@@ -36,78 +36,77 @@ async function showFrame(b: NonNullable<Awaited<ReturnType<typeof openGoalBrowse
   await b.waitFor(visible);
 }
 
-test("background refresh follows external archive and restore without changing the Goal or execution history", { timeout: 60_000 }, async t => {
+test("QEA-113 QEA-114 QEA-161 QEA-172 QEA-199 PG094-TITLE-01 BL-140 ASC-41 T01-GRAPH-REFRESH-01 Goal refresh across surfaces", { timeout: 240_000 }, async t => {
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
-  const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
-  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
-  const prefix = `/projects/${projectId}`;
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
-  for (const archived of [true, false]) {
-    await post(origin, prefix + "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
+  const b = browser;
+
+  await t.test("background refresh follows external archive and restore without changing the Goal or execution history", { timeout: 60_000 }, async () => {
+    const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
+    // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+    const prefix = `/projects/${projectId}`;
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
+    for (const archived of [true, false]) {
+      await post(origin, prefix + "/api/plugins/io.molis.work.goals/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
+      const afterExternalWrite = boardSnapshot(store, projectId!);
+      await navigate(() => evaluate("document.dispatchEvent(new Event('visibilitychange'))"));
+      const path = prefix + (archived ? "/archive/goals/CORE" : "/goals/CORE");
+      assert.equal(await evaluate("location.pathname"), path);
+      await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'CORE'");
+      assert.match(await evaluate<string>("document.querySelector('[data-toast]').textContent"), archived ? /已归档/ : /已恢复/);
+      assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite, "Refresh is read-only, including history and active Goal");
+    }
+  });
+
+  // QEA-172, QEA-199: Goal-only scenarios use the same seed in a normal project; the Feed fallback keeps the demo.
+  await t.test("a completed refresh response cannot overwrite a Goal selected while it was in flight", { timeout: 60_000 }, async () => {
+    const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+    // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+    const prefix = `/projects/${projectId}`;
+    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1" }, sessionId));
+    await openDocument(browser); // A Goal opens on its Frame tab; this test works in its workspace view.
+    await evaluate(`(() => {
+      const original = fetch.bind(globalThis);
+      let held = false;
+      globalThis.fetch = async (input, options) => {
+        const response = await original(input, options);
+        // The page asks through its own route prefix (the project's path); compare locally so the harness holds the same request.
+        const route_prefix = document.body.dataset.routePrefix || '';
+        const pathname = new URL(String(input), location.href).pathname;
+        if (!held && pathname === route_prefix + '/api/board/refresh') {
+          held = true;
+          const body = await response.text();
+          globalThis.__refreshHeld = true;
+          await new Promise(resolve => { globalThis.__releaseRefresh = resolve; });
+          globalThis.__refreshDelivered = true;
+          return new Response(body, {status: response.status, headers: response.headers});
+        }
+        return response;
+      };
+    })()`);
+    await addGoal(origin, prefix, "REFRESH-RACE");
     const afterExternalWrite = boardSnapshot(store, projectId!);
-    await navigate(() => evaluate("document.dispatchEvent(new Event('visibilitychange'))"));
-    const path = prefix + (archived ? "/archive/goals/CORE" : "/goals/CORE");
-    assert.equal(await evaluate("location.pathname"), path);
-    await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'CORE'");
-    assert.match(await evaluate<string>("document.querySelector('[data-toast]').textContent"), archived ? /已归档/ : /已恢复/);
-    assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite, "Refresh is read-only, including history and active Goal");
-  }
-});
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    // The board refreshes on the UI lifecycle's 4-second poll (#150); a synthetic visibilitychange does not restart it, so
+    // the held refresh comes with the next poll. Under a full run that can take longer than the 4-second default wait.
+    await waitFor("globalThis.__refreshHeld === true", 10_000);
+    await click('.tree-node[data-select-goal="RELEASE"]');
+    await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'RELEASE' && !document.querySelector('[data-document-pane]').hasAttribute('aria-busy')");
+    await evaluate("globalThis.__releaseRefresh(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate("globalThis.__refreshDelivered"), true);
+    assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
+    // The discarded response must not advance the cursor; the deferred refresh must still apply the new Goal (on a later poll).
+    await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-RACE]')", 10_000);
+    assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
+    assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "RELEASE");
+    assert.equal(await evaluate("location.pathname"), prefix + "/goals/RELEASE");
+    // PG094-TITLE-02: the focused item still owns its normal Goal title.
+    const release = afterExternalWrite.goals.find(goal => goal.goal_id === "RELEASE")!;
+    assert.equal(await evaluate("document.title"), release.title + " · Molis Work", "the focused Goal item still updates its own title");
+    assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite);
+  });
 
-// QEA-172, QEA-199: Goal-only scenarios use the same seed in a normal project; the Feed fallback keeps the demo.
-test("a completed refresh response cannot overwrite a Goal selected while it was in flight", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user");
-  if (!browser) return;
-  const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
-  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
-  const prefix = `/projects/${projectId}`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1" }, sessionId));
-  await openDocument(browser); // A Goal opens on its Frame tab; this test works in its workspace view.
-  await evaluate(`(() => {
-    const original = fetch.bind(globalThis);
-    let held = false;
-    globalThis.fetch = async (input, options) => {
-      const response = await original(input, options);
-      // The page asks through its own route prefix (the project's path); compare locally so the harness holds the same request.
-      const route_prefix = document.body.dataset.routePrefix || '';
-      const pathname = new URL(String(input), location.href).pathname;
-      if (!held && pathname === route_prefix + '/api/board/refresh') {
-        held = true;
-        const body = await response.text();
-        globalThis.__refreshHeld = true;
-        await new Promise(resolve => { globalThis.__releaseRefresh = resolve; });
-        globalThis.__refreshDelivered = true;
-        return new Response(body, {status: response.status, headers: response.headers});
-      }
-      return response;
-    };
-  })()`);
-  await addGoal(origin, prefix, "REFRESH-RACE");
-  const afterExternalWrite = boardSnapshot(store, projectId!);
-  await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  // The board refreshes on the UI lifecycle's 4-second poll (#150); a synthetic visibilitychange does not restart it, so
-  // the held refresh comes with the next poll. Under a full run that can take longer than the 4-second default wait.
-  await waitFor("globalThis.__refreshHeld === true", 10_000);
-  await click('.tree-node[data-select-goal="RELEASE"]');
-  await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'RELEASE' && !document.querySelector('[data-document-pane]').hasAttribute('aria-busy')");
-  await evaluate("globalThis.__releaseRefresh(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.equal(await evaluate("globalThis.__refreshDelivered"), true);
-  assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
-  // The discarded response must not advance the cursor; the deferred refresh must still apply the new Goal (on a later poll).
-  await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-RACE]')", 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
-  assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "RELEASE");
-  assert.equal(await evaluate("location.pathname"), prefix + "/goals/RELEASE");
-  // PG094-TITLE-02: the focused item still owns its normal Goal title.
-  const release = afterExternalWrite.goals.find(goal => goal.goal_id === "RELEASE")!;
-  assert.equal(await evaluate("document.title"), release.title + " · Molis Work", "the focused Goal item still updates its own title");
-  assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite);
-});
-
-test("PG094-TITLE-01 QEA-199 Goal refresh preserves the title of both focused surfaces", async t => {
-  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
   for (const destination of ["home", "settings"] as const) await t.test(`PG094-TITLE-01 a real completed Goal refresh preserves the focused ${destination} title`, { timeout: 60_000 }, async () => {
     const { store, origin, projectId, command, sessionId, evaluate, waitFor, navigate, click } = browser;
     // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
@@ -149,13 +148,9 @@ test("PG094-TITLE-01 QEA-199 Goal refresh preserves the title of both focused su
     assert.deepEqual(boardSnapshot(store, projectId!), afterExternalWrite, "refresh made no writes beyond the one actual external Goal creation");
     assert.equal(await evaluate("document.title"), title, "the background response applied without taking the focused surface's title");
   });
-});
 
-// QEA-161: these projection cases use a normal new project with Goals and the Workbench.
-test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-
-  await t.test("QEA-113 a hidden Goal keeps its document while the background collection receives an external write", { timeout: 60_000 }, async t => {
+  // QEA-161: these projection cases use a normal new project with Goals and the Workbench.
+  await t.test("QEA-113 a hidden Goal keeps its document while the background collection receives an external write", { timeout: 60_000 }, async () => {
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     await openDocument(b);
@@ -265,12 +260,8 @@ test("QEA-113 QEA-114 QEA-199 collection refresh across Goal surfaces", async t 
     assert.equal(await b.evaluate("document.querySelector('[data-goal-event-document]') === globalThis.__oldGoalDocument"), true);
     assert.deepEqual(boardSnapshot(b.store, b.projectId!), after);
   });
-});
 
-test("QEA-114 QEA-199 collection refresh with competing writes and navigation", async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-
-  await t.test("QEA-114 an attention hint received during a held collection read remains pending until its own projection applies", { timeout: 60_000 }, async t => {
+  await t.test("QEA-114 an attention hint received during a held collection read remains pending until its own projection applies", { timeout: 60_000 }, async () => {
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
     await openDocument(b);
@@ -350,8 +341,117 @@ test("QEA-114 QEA-199 collection refresh with competing writes and navigation", 
     } finally { await b.evaluate("globalThis.__release?.()").catch(() => {}); }
   });
 
-  // Archiving CORE changes the shared project. Exercise that after the relation write.
-  await t.test("QEA-114 a late collection response cannot navigate back to an archived Frame after the person selects another Goal", { timeout: 60_000 }, async t => {
+  // BL-140: right after a save the next poll sees a new cursor and replaces the Goal document; a menu the person had just opened
+  // closed under their next click. An open menu now holds the refresh back, and closing it lets the refresh in.
+  await t.test("BL-140: a menu open in the Goal document holds the background refresh until it is closed", { timeout: 60_000 }, async () => {
+    const { origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
+    const prefix = `/projects/${projectId}`;
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
+    await openDocument(browser);
+    await waitFor("document.querySelector('[data-goal-event-document] .goal-more')", 10_000);
+    await evaluate(`(() => {
+      window.__refreshes = 0;
+      const original = window.fetch;
+      window.fetch = (input, init) => {
+        const route_prefix = document.body.dataset.routePrefix || '';
+        const wire = new URL(String(input instanceof Request ? input.url : input), location.href).pathname;
+        if ((route_prefix && wire.startsWith(route_prefix) ? wire.slice(route_prefix.length) : wire) === '/api/board/refresh') window.__refreshes += 1;
+        return original(input, init);
+      };
+      document.querySelector('[data-goal-event-document] .goal-more').open = true;
+      return true;
+    })()`);
+    await addGoal(origin, prefix, "MENU-HELD");
+    // Two 4-second polls see the new cursor while the menu is open.
+    await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
+    assert.equal(await evaluate("window.__refreshes"), 0, "no refresh replaces the document under an open menu");
+    assert.equal(await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open"), true);
+    await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open = false");
+    await waitFor("window.__refreshes > 0", 10_000);
+  });
+
+  await t.test("ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async () => {
+    const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+    const prefix = `/projects/${projectId}`;
+    const goalId = "REFRESH-SAVING";
+    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await addGoal(origin, prefix, goalId);
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goalId }, sessionId));
+    await openDocument(browser);
+    await evaluate(`(() => {
+      const original = window.fetch;
+      window.__refreshRequests = 0; window.__trashRequests = 0;
+      window.fetch = async (input, options) => {
+        const route_prefix = document.body.dataset.routePrefix || '';
+        const wire = new URL(String(input), location.href).pathname;
+        const path = route_prefix && wire.startsWith(route_prefix) ? wire.slice(route_prefix.length) : wire;
+        if (path === '/api/board/refresh') {
+          window.__refreshRequests++;
+          if (window.__refreshRequests === 1) {
+            window.__refreshHeld = true;
+            await new Promise(resolve => { window.__releaseRefresh = resolve; });
+          }
+        }
+        const response = await original(input, options);
+        if (path.endsWith('/trash') && options?.method === 'POST') {
+          window.__trashRequests++;
+          window.__saveHeld = true;
+          await new Promise(resolve => { window.__releaseSave = resolve; });
+        }
+        if (path === '/api/board/refresh') {
+          const body = await response.text();
+          window.__refreshDelivered = true;
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    await addGoal(origin, prefix, "REFRESH-TRIGGER");
+    await waitFor("window.__refreshHeld === true", 10_000);
+    await click(".goal-more > summary");
+    await click('[data-goal-view="' + goalId + '"] [data-open-goal-trash]');
+    await evaluate("document.querySelector('[data-goal-trash-form] [name=reason]').value = 'Keep the pending save in view'");
+    await click("[data-goal-trash-submit]");
+    await waitFor("window.__saveHeld === true");
+    assert.equal(await evaluate("document.activeElement === document.body"), true, "disabling the submit button loses focus");
+    const saved = boardSnapshot(store, projectId!);
+    assert.ok(saved.goals.find(goal => goal.goal_id === goalId)?.trashed_at);
+    // The request began before saving; its actual response now describes the Goal in the trash.
+    await evaluate("window.__releaseRefresh()");
+    await waitFor("window.__refreshDelivered === true");
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate("location.pathname"), prefix + "/goals/" + goalId);
+    assert.equal(await evaluate("document.querySelector('[data-goal-trash-dialog]').open"), true);
+    // Two normal four-second polls must also respect the still-pending save.
+    await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
+    assert.deepEqual(await evaluate(`({ requests: window.__refreshRequests, saves: window.__trashRequests,
+      open: document.querySelector('[data-goal-trash-dialog]').open,
+      busy: document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy') })`),
+    { requests: 1, saves: 1, open: true, busy: "true" });
+    assert.deepEqual(boardSnapshot(store, projectId!), saved, "waiting and refreshing cause no further writes");
+    await navigate(() => evaluate("window.__releaseSave()"));
+    await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
+    assert.equal(await evaluate("location.pathname"), prefix + "/trash/goals/" + goalId);
+    assert.deepEqual(boardSnapshot(store, projectId!), saved);
+  });
+
+  // T01-GRAPH-REFRESH-01: a focused workspace also consumes the graph, even when its mode is not "graph".
+  await t.test("T01-GRAPH-REFRESH-01 a focused Goal workspace reloads graph facts after a real board refresh", { timeout: 60_000 }, async () => {
+    const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
+    const prefix = `/projects/${projectId}`;
+    await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
+    await openDocument(browser);
+    await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+    await addGoal(origin, prefix, "T01-GRAPH-REFRESH");
+    const saved = boardSnapshot(store, projectId!);
+    await waitFor("document.querySelector('.tree-node[data-select-goal=T01-GRAPH-REFRESH]')", 10_000);
+    await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelector('[data-goal-momentum] [data-goal-id=T01-GRAPH-REFRESH]')", 10_000);
+    assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
+    assert.deepEqual(boardSnapshot(store, projectId!), saved, "the graph refresh is read-only");
+  });
+
+  // Archiving CORE changes the shared project. Exercise that last in this shared browser.
+  await t.test("QEA-114 a late collection response cannot navigate back to an archived Frame after the person selects another Goal", { timeout: 60_000 }, async st => {
     await b.setViewport(1440, 1000);
     const prefix = `/projects/${b.projectId}`;
     await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/CORE?desktop=1" }, b.sessionId));
@@ -387,7 +487,7 @@ test("QEA-114 QEA-199 collection refresh with competing writes and navigation", 
       assert.equal(await b.evaluate("globalThis.__delivered"), true);
       assert.deepEqual(boardSnapshot(b.store, b.projectId!), saved);
     } finally {
-      offNavigation(); t.diagnostic(`QEA-114 requested navigations ${JSON.stringify(navigations)}`);
+      offNavigation(); st.diagnostic(`QEA-114 requested navigations ${JSON.stringify(navigations)}`);
       await b.evaluate("globalThis.__release?.()").catch(() => {});
     }
   });
@@ -431,121 +531,4 @@ test("failed compact refresh falls back to the full Goal page and keeps other wo
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "V1");
   assert.equal(await evaluate("Boolean(globalThis.__feedSurface) && document.querySelector('[data-work-surface=feed]') === globalThis.__feedSurface"), true);
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite);
-});
-
-// BL-140: right after a save the next poll sees a new cursor and replaces the Goal document; a menu the person had just opened
-// closed under their next click. An open menu now holds the refresh back, and closing it lets the refresh in.
-test("BL-140: a menu open in the Goal document holds the background refresh until it is closed", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user");
-  if (!browser) return;
-  const { origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
-  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
-  const prefix = `/projects/${projectId}`;
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
-  await openDocument(browser);
-  await waitFor("document.querySelector('[data-goal-event-document] .goal-more')", 10_000);
-  await evaluate(`(() => {
-    window.__refreshes = 0;
-    const original = window.fetch;
-    window.fetch = (input, init) => {
-      // The page asks through its own route prefix (the project's path); count the refresh locally.
-      const route_prefix = document.body.dataset.routePrefix || '';
-      const wire = new URL(String(input instanceof Request ? input.url : input), location.href).pathname;
-      if ((route_prefix && wire.startsWith(route_prefix) ? wire.slice(route_prefix.length) : wire) === '/api/board/refresh') window.__refreshes += 1;
-      return original(input, init);
-    };
-    document.querySelector('[data-goal-event-document] .goal-more').open = true;
-    return true;
-  })()`);
-  await addGoal(origin, prefix, "MENU-HELD");
-  // Two 4-second polls see the new cursor while the menu is open.
-  await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
-  assert.equal(await evaluate("window.__refreshes"), 0, "no refresh replaces the document under an open menu");
-  assert.equal(await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open"), true);
-  await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open = false");
-  await waitFor("window.__refreshes > 0", 10_000);
-});
-
-test("ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
-  const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
-  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
-  const prefix = `/projects/${projectId}`;
-  const goalId = "REFRESH-SAVING";
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await addGoal(origin, prefix, goalId);
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/" + goalId }, sessionId));
-  await openDocument(browser);
-  await evaluate(`(() => {
-    const original = window.fetch;
-    window.__refreshRequests = 0; window.__trashRequests = 0;
-    window.fetch = async (input, options) => {
-      // The page asks through its own route prefix (the project's path); compare locally so the harness holds the same requests.
-      const route_prefix = document.body.dataset.routePrefix || '';
-      const wire = new URL(String(input), location.href).pathname;
-      const path = route_prefix && wire.startsWith(route_prefix) ? wire.slice(route_prefix.length) : wire;
-      if (path === '/api/board/refresh') {
-        window.__refreshRequests++;
-        if (window.__refreshRequests === 1) {
-          window.__refreshHeld = true;
-          await new Promise(resolve => { window.__releaseRefresh = resolve; });
-        }
-      }
-      const response = await original(input, options);
-      if (path.endsWith('/trash') && options?.method === 'POST') {
-        window.__trashRequests++;
-        window.__saveHeld = true;
-        await new Promise(resolve => { window.__releaseSave = resolve; });
-      }
-      if (path === '/api/board/refresh') {
-        const body = await response.text();
-        window.__refreshDelivered = true;
-        return new Response(body, { status: response.status, headers: response.headers });
-      }
-      return response;
-    };
-  })()`);
-  await addGoal(origin, prefix, "REFRESH-TRIGGER");
-  await waitFor("window.__refreshHeld === true", 10_000);
-  await click(".goal-more > summary");
-  await click('[data-goal-view="' + goalId + '"] [data-open-goal-trash]');
-  await evaluate("document.querySelector('[data-goal-trash-form] [name=reason]').value = 'Keep the pending save in view'");
-  await click("[data-goal-trash-submit]");
-  await waitFor("window.__saveHeld === true");
-  assert.equal(await evaluate("document.activeElement === document.body"), true, "disabling the submit button loses focus");
-  const saved = boardSnapshot(store, projectId!);
-  assert.ok(saved.goals.find(goal => goal.goal_id === goalId)?.trashed_at);
-  // The request began before saving; its actual response now describes the Goal in the trash.
-  await evaluate("window.__releaseRefresh()");
-  await waitFor("window.__refreshDelivered === true");
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  assert.equal(await evaluate("location.pathname"), prefix + "/goals/" + goalId);
-  assert.equal(await evaluate("document.querySelector('[data-goal-trash-dialog]').open"), true);
-  // Two normal four-second polls must also respect the still-pending save.
-  await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
-  assert.deepEqual(await evaluate(`({ requests: window.__refreshRequests, saves: window.__trashRequests,
-    open: document.querySelector('[data-goal-trash-dialog]').open,
-    busy: document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy') })`),
-  { requests: 1, saves: 1, open: true, busy: "true" });
-  assert.deepEqual(boardSnapshot(store, projectId!), saved, "waiting and refreshing cause no further writes");
-  await navigate(() => evaluate("window.__releaseSave()"));
-  await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
-  assert.equal(await evaluate("location.pathname"), prefix + "/trash/goals/" + goalId);
-  assert.deepEqual(boardSnapshot(store, projectId!), saved);
-});
-
-// T01-GRAPH-REFRESH-01: a focused workspace also consumes the graph, even when its mode is not "graph".
-test("T01-GRAPH-REFRESH-01 a focused Goal workspace reloads graph facts after a real board refresh", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
-  const { store, origin, projectId, sessionId, command, evaluate, waitFor, navigate } = browser;
-  const prefix = `/projects/${projectId}`;
-  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/CORE" }, sessionId));
-  await openDocument(browser);
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
-  await addGoal(origin, prefix, "T01-GRAPH-REFRESH");
-  const saved = boardSnapshot(store, projectId!);
-  await waitFor("document.querySelector('.tree-node[data-select-goal=T01-GRAPH-REFRESH]')", 10_000);
-  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelector('[data-goal-momentum] [data-goal-id=T01-GRAPH-REFRESH]')", 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
-  assert.deepEqual(boardSnapshot(store, projectId!), saved, "the graph refresh is read-only");
 });

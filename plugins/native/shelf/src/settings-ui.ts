@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderSettingsSection, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   SettingsPageModel,
   UiContribution,
@@ -26,7 +26,6 @@ import {
   panelKeysEqual,
   shortcutIdFromSlot,
 } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_GLYPH } from "./glyphs.js";
 import { shelfRecipeText } from "./recipe-text.js";
 import type { ShelfUiPrimitives } from "./ui.js";
 
@@ -66,12 +65,12 @@ export const shelfSettingsUiContribution: UiContribution<SettingsPageModel<Shelf
 
 /** DropAgent's settings sections: by purpose, not by data shape. */
 const SECTIONS = [
-  { id: "setup", title: "shelf.settings-ui.section-setup", tone: "slate", glyph: SHELF_GLYPH.shield, detail: "shelf.settings-ui.section-setup-detail" },
-  { id: "actions", title: "shelf.settings-ui.section-actions", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "shelf.settings-ui.section-actions-detail" },
-  { id: "shortcuts", title: "shelf.settings-ui.section-shortcuts", tone: "ochre", glyph: SHELF_GLYPH.keyboard, detail: "shelf.settings-ui.section-shortcuts-detail" },
-  { id: "guide", title: "shelf.settings-ui.section-guide", tone: "slate", glyph: SHELF_GLYPH.book, detail: "shelf.settings-ui.section-guide-detail" },
-  { id: "machine", title: "shelf.settings-ui.section-machine", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "shelf.settings-ui.section-machine-detail" },
-  { id: "appearance", title: "shelf.settings-ui.section-appearance", tone: "plum", glyph: SHELF_GLYPH.sun, detail: "shelf.settings-ui.section-appearance-detail" },
+  { id: "setup", title: "shelf.settings-ui.section-setup" },
+  { id: "actions", title: "shelf.settings-ui.section-actions" },
+  { id: "shortcuts", title: "shelf.settings-ui.section-shortcuts" },
+  { id: "guide", title: "shelf.settings-ui.section-guide" },
+  { id: "machine", title: "shelf.settings-ui.section-machine" },
+  { id: "appearance", title: "shelf.settings-ui.section-appearance" },
 ] as const;
 
 const KIND_LABELS: readonly { kind: ShelfItemKind; label: string }[] = [
@@ -94,11 +93,11 @@ export function renderShelfSettings(model: ShelfSettingsUiModel): string {
       <p>${uiText("shelf.settings-ui.these-settings-only-change-how-shelf-works-device")}</p>
     </header>
     <div class="shelf-settings-body">
-      ${SECTIONS.map((section) => `<section class="settings-section" data-shelf-settings-pane="${section.id}" aria-labelledby="shelf-settings-${section.id}">
-          <h2 id="shelf-settings-${section.id}"><span class="shelf-glyph tone-${section.tone}" aria-hidden="true">${section.glyph}</span>${uiText(section.title)}</h2>
-          <p class="shelf-settings-detail">${uiText(section.detail)}</p>
-          ${paneBody(section.id, model)}
-        </section>`).join("")}
+      ${SECTIONS.map((section) => renderSettingsSection({
+        // POLISH-29/30: the same layout as every settings page: the title outside, one card under it, no paragraph between them.
+        title: uiText.text(section.title), id: `shelf-settings-${section.id}`, attrs: { "data-shelf-settings-pane": section.id },
+        body: paneBody(section.id, model),
+      })).join("")}
     </div>
   </section>`;
 }
@@ -146,12 +145,12 @@ function actionsPane(model: ShelfSettingsUiModel): string {
         </span>
       </li>`;
   }).join("");
-  return `<div class="shelf-settings-block">
+  return `<div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.action-bar")}</h3>
       <p class="settings-hint">${uiText("shelf.settings-ui.drag-use-arrows-reorder-removed-actions-can-come")}</p>
       <ul class="shelf-action-list" data-shelf-action-list>${rows}</ul>
     </div>
-    <div class="shelf-settings-block">
+    <div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.my-actions")}</h3>
       <p class="settings-hint">${uiText("shelf.settings-ui.one-line-about-what-do-runs-job-copy")}</p>
       ${shortcutForm()}
@@ -174,14 +173,14 @@ function shortcutForm(): string {
 
 function shortcutsPane(model: ShelfSettingsUiModel): string {
   const { primitives: p, settings } = model;
-  return `<div class="shelf-settings-block">
+  return `<div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.global")}</h3>
       <p class="shelf-hotkey-lead">${uiText("shelf.settings-ui.global-shortcut-guide")}</p>
       ${hotkeyRow(p, "toggle", "shelf.settings-ui.open-close-shelf", "shelf.settings-ui.bring-main-window-forward-open-shelf-if-shelf", settings.hotkeys.toggle)}
       ${hotkeyRow(p, "capture", "shelf.settings-ui.capture-current-page", "shelf.settings-ui.bring-safari-chrome-edge-front-capture-steel-blue", settings.hotkeys.capture)}
       ${hotkeyRow(p, "files", "shelf.settings-ui.add-frontmost-selected-files", "shelf.settings-ui.reads-finder-selection-first-if-browser-frontmost-capture", settings.hotkeys.files)}
     </div>
-    <div class="shelf-settings-block">
+    <div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.panel")}</h3>
       <p class="shelf-hotkey-lead">${uiText("shelf.settings-ui.click-key-right-then-press-new-one-panel")}</p>
       ${panelKeyRow(p, "hide", "shelf.settings-ui.leave-editing", "shelf.settings-ui.press-preview-stop-editing-copy", settings.panel_keys.hide)}
@@ -207,11 +206,11 @@ function guidePane(): string {
     ["shelf.settings-ui.guide-drag-out", "shelf.settings-ui.guide-drag-out-detail"],
     ["shelf.settings-ui.guide-offline", "shelf.settings-ui.guide-offline-detail"],
   ];
-  return `<div class="shelf-settings-block">
+  return `<div class="shelf-settings-block mw-settings-section__block">
       <button class="shelf-primary" type="button" data-shelf-try-sample>${uiText("shelf.settings-ui.try-sample-pdf-again")}</button>
       <p class="settings-hint">${uiText("shelf.settings-ui.puts-text-bearing-sample-pdf-materials-no-agent")}</p>
     </div>
-    <div class="shelf-settings-block">
+    <div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.what-can-do")}</h3>
       <dl class="shelf-guide-list">${rows.map(([key, value]) => `<div class="shelf-guide-row"><dt>${uiText(key)}</dt><dd>${uiText(value)}</dd></div>`).join("")}</dl>
     </div>`;
@@ -244,19 +243,19 @@ function machinePane(model: ShelfSettingsUiModel): string {
         ${install}
       </div>`;
   }).join("");
-  return `<div class="shelf-settings-block">
+  return `<div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.ai-model-automatic-actions")}</h3>
       <label>${uiText("shelf.settings-ui.model")} <select data-shelf-model><option value=""${!selection ? " selected" : ""}>${uiText("shelf.settings-ui.choose-available-model-automatically")}</option>${missingModel}${modelOptions}</select></label>
       <p class="settings-hint">${uiText("shelf.settings-ui.summaries-translations-shortcuts-use-selected-model-through-prol")}</p>
       ${model.ai?.reason ? `<p class="settings-hint">${p.escape(model.ai.reason)}</p>` : ""}
       <a class="shelf-paper quiet" href="/settings/models">${uiText("shelf.settings-ui.configure-ai-models")}</a>
-    </div><div class="shelf-settings-block">
+    </div><div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.manual-terminal")}</h3>
       <p class="shelf-settings-line" data-shelf-agent-line>${line}</p>
       <div class="shelf-runtime-picks">${rows}</div>
       <p class="settings-hint">${uiText("shelf.settings-ui.used-when-open-send-terminal-automatic-actions-use")}</p>
     </div>
-    <div class="shelf-settings-block">
+    <div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.custom-runtime")}</h3>
       <ul class="shelf-runtime-custom" data-shelf-runtime-list>${settings.custom_runtimes.map((runtime) => customRuntimeRow(p, runtime)).join("")}</ul>
       <form class="shelf-shortcut-form" data-shelf-runtime-form>
@@ -269,7 +268,7 @@ function machinePane(model: ShelfSettingsUiModel): string {
       </form>
       <p class="shelf-settings-line" data-shelf-runtime-error hidden></p>
     </div>
-    <div class="shelf-settings-block">
+    <div class="shelf-settings-block mw-settings-section__block">
       <h3>${uiText("shelf.settings-ui.where-lives")}</h3>
       <p class="shelf-settings-line">${p.escape(model.storage_path ?? "~/.molis-work/shelf")}</p>
       <p class="settings-hint">${uiText("shelf.settings-ui.copies-job-folders-results-live-here-deleting-copy")}</p>

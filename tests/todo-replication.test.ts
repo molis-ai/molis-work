@@ -147,16 +147,18 @@ test("PCSYNC-TODO-UNDO-03: clock rollback keeps causal history order and batch u
     assert.equal(history[0]!.kind, "status");
     assert.ok(history[0]!.at < history[1]!.at);
   }
+  assert.ok(batch.batch_id);
   assert.equal(b!.revert({ batch_id: batch.batch_id }, access).items.length, 2);
   f.replicas[0]!.receive(f.take(1));
   f.replicas[0]!.receive(f.take(1));
   for (const id of [first.id, second.id]) assert.equal(a!.get(id, access).status, "open");
-  const again = a!.batch([first.id, second.id], { status: "done" }, undefined, access);
+  const { batch_id: nextBatchId } = a!.batch([first.id, second.id], { status: "done" }, undefined, access);
+  assert.ok(nextBatchId);
   f.replicas[1]!.receive(f.take());
   f.replicas[1]!.receive(f.take());
   b!.update(second.id, { notes: "后续编辑" }, b!.get(second.id, access).revision, access);
   const before = [b!.get(first.id, access), b!.get(second.id, access)];
-  assert.throws(() => b!.revert({ batch_id: again.batch_id }, access), { code: "todo.conflict" });
+  assert.throws(() => b!.revert({ batch_id: nextBatchId }, access), { code: "todo.conflict" });
   assert.deepEqual([b!.get(first.id, access), b!.get(second.id, access)], before);
 });
 

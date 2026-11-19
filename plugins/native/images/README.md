@@ -34,6 +34,8 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 `openImagesCopyOwner` 只读打开既有本地库，复用当前图片格式和原件校验；目标使用新的记录及图片身份，保留完整字节和终态记录，不复制连接、密钥或 runner，不恢复生成。相同结果重试不重复写入，目标删除/修改后拒绝重建或覆盖，最终授权失败回滚 SQL 记录及同步队列。失败事务可能留下不被记录引用的不可变暂存文件，由原有有界清理处理。该端口不代表整项目用户入口已经接通。验证另跑 `tests/security-invariants-images-copy.test.ts`。
 界面文字用 `images.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包。`ui.ts` 与浏览器客户端共用它们。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
 
+服务配置先在 Images 私库登记待完成的绑定或删除，连接器提交后才结束操作。中断后此服务暂停生成，从同一服务重试即可。创建方可传 `create_id` 以便重放。私库 v1 → v2 只新增空的 `connection_changes` 表，凭据仍由连接器保管。
+
 ## 开发要求
 
 项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。

@@ -1,7 +1,8 @@
+import { planProjectStage, stageProjectDirectory } from "./project-deletion-stage.js";
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import {
-  projectDirectoryPath, projectOutputContents, projectOutputDirectoryPath, recordedStagedProjectDirectoryPath, removeProjectOutputDirectory, stagedProjectDirectoryPath,
+  projectOutputContents, projectOutputDirectoryPath, recordedStagedProjectDirectoryPath, removeProjectOutputDirectory,
   type ProjectsModule,
 } from "@molis-ai/molis-work-module-projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -22,8 +23,9 @@ export interface ProjectDeletionCleanupPorts {
  * files nobody chose to.
  */
 export const PROJECT_OUTPUT_DELETION_STEP = "project-output";
+const STAGE_DIRECTORY = "project-directory";
 /**
- * Stage a managed directory, commit the catalog's own cleanup and the receipt (one pending step for each owner of
+ * Commit the catalog's own cleanup and the receipt (first stage the directory, then one pending step for each owner of
  * project data in the Home), then run those steps and the physical cleanup, and retry whatever is left from that receipt.
  */
 export class ManagedProjectDeletion {
@@ -54,51 +56,39 @@ export class ManagedProjectDeletion {
       return { deletion, replayed: true, ...this.keptOutput(projectId, deleteOutput) };
     }
 
-    const project = this.projects.query.getProject(projectId);
-    const projectDirectory = projectDirectoryPath(this.projectsDirectory, project.project_id);
-    const stagedDirectory = stagedProjectDirectoryPath(this.projectsDirectory, project.project_id, randomUUID());
-    await fs.rename(projectDirectory, stagedDirectory);
-    let catalogCommitted = false;
-    try {
-      const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
-        const racedReplay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
-        if (racedReplay) {
-          throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表",
-          );
-        }
-        const now = new Date().toISOString();
-        const deletedSessionBindingCount = this.cleanup.removeBindings(project.project_id, actorId, now);
-        const deletedWorkspaceMembershipCount =
-          this.projects.lifecycle.removeWorkspaceMembershipsForProject(project.project_id);
-        this.cleanup.removePanels(project.project_id);
-        this.projects.lifecycle.removeFacts(project.project_id);
-        const record: StoredProjectDeletion = {
-          deletion_id: `project-deletion-${randomUUID()}`,
-          actor_id: actorId,
-          idempotency_key: idempotencyKey,
-          request_fingerprint: requestFingerprint,
-          project_id: project.project_id,
-          display_name: project.display_name,
-          staged_directory: stagedDirectory,
-          deleted_binding_count: deletedSessionBindingCount + deletedWorkspaceMembershipCount,
-          cleanup_state: "pending",
-          cleanup_error: null,
-          deleted_at: now,
-          cleaned_at: null,
-        };
-        this.projects.lifecycle.insertDeletion(record);
-        this.projects.lifecycle.insertDeletionSteps(record.deletion_id,
-          [...this.owners.owners().map(owner => owner.id), ...(deleteOutput ? [PROJECT_OUTPUT_DELETION_STEP] : [])]);
-        return record;
-      }));
-      catalogCommitted = true;
-      return { deletion: await this.finishProjectDeletionCleanup(deletion), replayed: false, ...this.keptOutput(project.project_id, deleteOutput) };
-    } catch (error) {
-      if (!catalogCommitted) {
-        await restoreMovedProject(projectDirectory, stagedDirectory);
+    const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
+      if (this.projects.lifecycle.findDeletion(actorId, idempotencyKey)) {
+        throw catalogErrors.deletion_idempotency_conflict("同一个项目删除请求正在或已经由另一个调用处理，请重新读取项目列表");
       }
-      throw error;
-    }
+      const project = this.projects.query.getProject(projectId);
+      const stagedDirectory = planProjectStage(this.projectsDirectory, projectId,
+        () => this.projects.query.listProjectDeletions().some(entry => entry.project_id === projectId));
+      const now = new Date().toISOString();
+      const deletedSessionBindingCount = this.cleanup.removeBindings(project.project_id, actorId, now);
+      const deletedWorkspaceMembershipCount =
+        this.projects.lifecycle.removeWorkspaceMembershipsForProject(project.project_id);
+      this.cleanup.removePanels(project.project_id);
+      this.projects.lifecycle.removeFacts(project.project_id);
+      const record: StoredProjectDeletion = {
+        deletion_id: `project-deletion-${randomUUID()}`,
+        actor_id: actorId,
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        project_id: project.project_id,
+        display_name: project.display_name,
+        staged_directory: stagedDirectory,
+        deleted_binding_count: deletedSessionBindingCount + deletedWorkspaceMembershipCount,
+        cleanup_state: "pending",
+        cleanup_error: null,
+        deleted_at: now,
+        cleaned_at: null,
+      };
+      this.projects.lifecycle.insertDeletion(record);
+      this.projects.lifecycle.insertDeletionSteps(record.deletion_id,
+        [STAGE_DIRECTORY, ...this.owners.owners().map(owner => owner.id), ...(deleteOutput ? [PROJECT_OUTPUT_DELETION_STEP] : [])]);
+      return record;
+    }));
+    return { deletion: await this.finishProjectDeletionCleanup(deletion), replayed: false, ...this.keptOutput(projectId, deleteOutput) };
   }
 
   /**
@@ -130,6 +120,17 @@ export class ManagedProjectDeletion {
     for (const step of this.projects.lifecycle.deletionSteps(record.deletion_id)) {
       if (step.state !== "pending") continue;
       try {
+        if (step.owner_id === STAGE_DIRECTORY) {
+          // Serialize competing sweepers with the catalog writer. A crash after rename leaves the recorded stage on disk.
+          await this.commit(() => {
+            const current = this.projects.lifecycle.deletionSteps(record.deletion_id).find(entry => entry.owner_id === STAGE_DIRECTORY);
+            if (current?.state === "complete") return;
+            if (this.stillRecorded(record.project_id)) throw catalogErrors.project_storage_invalid("这个项目还在目录库里，不能移动它的目录");
+            stageProjectDirectory(this.projectsDirectory, record.project_id, stagedDirectory);
+            this.projects.lifecycle.updateDeletionStep(record.deletion_id, STAGE_DIRECTORY, { state: "complete", error: null });
+          });
+          continue;
+        }
         if (step.owner_id === PROJECT_OUTPUT_DELETION_STEP) await this.removeOutputFiles(record.project_id);
         else if (!await this.owners.clear(step.owner_id, record.project_id, { deletion_id: record.deletion_id, project_id: record.project_id })) {
           problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
@@ -139,6 +140,7 @@ export class ManagedProjectDeletion {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         problems.push(`${step.owner_id}：${message}`);
+        if (step.owner_id === STAGE_DIRECTORY) return this.recordCleanup(record.deletion_id, problems);
         await this.commit(() => this.projects.lifecycle.updateDeletionStep(record.deletion_id, step.owner_id, { state: "pending", error: message }));
       }
     }
@@ -240,13 +242,4 @@ export function requiredDeletionIdempotencyKey(value: string): string {
     );
   }
   return key;
-}
-
-async function restoreMovedProject(projectDirectory: string, stagedDirectory: string): Promise<void> {
-  try {
-    await fs.rename(stagedDirectory, projectDirectory);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
 }

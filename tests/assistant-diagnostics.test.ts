@@ -27,7 +27,7 @@ test("the runtime's own receipts become the diagnostics page's account: slots, m
 test("the diagnostics section is a closed disclosure that reads only when opened, and its script parses", () => {
   const packs = chinesePagePacks();
   const html = withPagePacks("zh", packs, () => renderAgentDiagnostics({ readText: pageTextForPacks("zh", packs) }));
-  assert.match(html, /<details[^>]*data-agent-diagnostics/);
+  assert.match(html, /data-agent-diagnostics[^>]*><details class="mw-object-row__fold">/);
   assert.doesNotMatch(html, /<details[^>]*\bopen\b/);
   assert.doesNotThrow(() => new Function(AGENT_DIAGNOSTICS_CLIENT_SCRIPT.replace("globalThis.molisWorkBindAgentDiagnostics(document);", "")));
   assert.match(AGENT_DIAGNOSTICS_CLIENT_SCRIPT, /\/api\/assistant\/diagnostics/);

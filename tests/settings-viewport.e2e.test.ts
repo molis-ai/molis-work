@@ -196,8 +196,10 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
   const switchDom = `document.querySelector('${toggle}')`;
   const open = async () => {
     await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
-    await waitFor(`document.querySelector('[data-assistant-rule-surfaces] input') && ${switchDom}`);
+    await waitFor(`document.querySelector('[data-assistant-rule-surfaces] [data-assistant-rule-surface]') && ${switchDom}`);
     await evaluate("document.fonts.ready.then(() => true)");
+    // The capabilities are one row of the page; their list opens in place under it.
+    await click("[data-assistant-capabilities-fold] > summary");
   };
   const switchAX = async () => {
     const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
@@ -223,8 +225,13 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
     await open();
     assert.deepEqual(await evaluate(`['${quiet} ${failure}', '${pause} ${failure}'].map(s => document.querySelector(s).labels[0].textContent.trim())`), labels);
     await readSwitch();
+    // POLISH-31: nothing of the places is on the page until their row is opened.
+    assert.equal(await evaluate(`document.querySelector('${quiet} .mw-setting-open').checkVisibility()`), false);
+    assert.ok(await evaluate<number>("[...document.querySelectorAll('[data-assistant-settings] input[type=checkbox]')].filter(box => box.checkVisibility() && box.getBoundingClientRect().top < innerHeight).length") <= 5);
     for (const width of [1440, 1024, 390]) {
       await b.setViewport(width, 900);
+      // POLISH-29: the heading is the page-title step, 24px (20px on a phone).
+      assert.equal(await evaluate("getComputedStyle(document.querySelector('#settings-title')).fontSize"), width > 760 ? "24px" : "20px");
       for (const theme of ["light", "dark"]) {
         await evaluate(`localStorage.setItem('molis-work:theme','${theme}'); dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
         await waitFor(`document.documentElement.dataset.resolvedTheme === '${theme}'`);
@@ -253,13 +260,18 @@ test("B27-AC01: Assistant rule scopes and the name and state of a capability swi
   type Rule = { rule_id: string; kind: string; except: string[]; surfaces: string[]; until?: string };
   const readRules = async () => (await b.web.get<{ rules: Rule[] }>("/api/assistant/rules")).rules;
   const previousIds = new Set((await readRules()).map(rule => rule.rule_id));
-  const page = quiet + " [data-assistant-rule-surfaces] input";
-  const surface = await evaluate<string>(`document.querySelector('${page}').value`);
+  await click(quiet + " summary");
+  const page = quiet + " [data-assistant-rule-surfaces] [data-assistant-rule-surface]";
+  const surface = await evaluate<string>(`document.querySelector('${page}').dataset.assistantRuleSurface`);
   await click(page);
+  assert.equal(await evaluate(`document.querySelector('${page}').getAttribute('aria-pressed') + document.querySelector('${quiet} [data-assistant-places-label]').textContent`), "true1 place", "the row says how many places are chosen");
   await click(quiet + " " + failure);
   await click(quiet + " [type=submit]");
   await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 1}`);
+  // Once the rule is added the row closes and the choice is cleared, so a second press cannot add the same rule again.
+  await waitFor(`!document.querySelector('${quiet} details').open && !document.querySelector('${quiet} [aria-pressed="true"]')`);
   const pausedAt = Date.now();
+  await click(pause + " summary");
   await click(pause + " [type=submit]");
   await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 2}`);
   await open();

@@ -18,7 +18,7 @@ test("VUX-31: a Shelf setting whose save fails goes back to what was saved and s
   await navigate(() => command("Page.navigate", { url: `${origin}/settings/shelf` }, sessionId));
   await waitFor("!!document.querySelector('[data-shelf-drop-wheel]') && !!document.querySelector('[data-shelf-action-visible]')", 15_000);
   await pause(500);
-  const alertIn = (control: string) => `(() => { const block = document.querySelector(${JSON.stringify(control)}).closest('.shelf-settings-block, .settings-section'), line = block.querySelector(':scope > [data-shelf-save-error]');
+  const alertIn = (control: string) => `(() => { const block = document.querySelector(${JSON.stringify(control)}).closest('.shelf-settings-block, .mw-settings-section__rows'), line = block.querySelector(':scope > [data-shelf-save-error]');
     return line && !line.hidden ? { text: line.textContent, role: line.getAttribute('role') } : null; })()`;
   const failNextSave = async (click: string) => {
     const barrier = await sendBarrier(browser as never, [{ urlPattern: "*api/plugins/io.molis.work.shelf/settings*", requestStage: "Request" }]);

@@ -92,9 +92,7 @@ export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T)
       // of theirs and learns its project: the Host gave the list of projects they may reach (PG-014). Anyone in a project, and
       // any caller the Host gave no list, keeps the usual scope, so another project's todo still reads as not there.
       const reach = todoCallerProject(caller) ? [] : caller.readable_project_ids ?? [];
-      let item: TodoItem;
-      try { item = store.get((input as { subject_id: string }).subject_id, { ...access(caller), projectIds: reach }); }
-      catch { throw todoErrors.not_found("这件待办已删除，或不在当前范围内"); }
+      const item = store.get((input as { subject_id: string }).subject_id, { ...access(caller), projectIds: reach });
       // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
       if (item.archived_at) throw todoErrors.not_found("这件待办已归档");
       // Todos live in the person's Home; one that belongs to a project says which (personal and unplaced leave it empty).

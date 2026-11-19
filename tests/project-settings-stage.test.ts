@@ -88,8 +88,9 @@ test("user settings left nav is grouped single-line categories", () => {
   assert.doesNotMatch(html, /界面与语言<\/strong>/);
   assert.doesNotMatch(html, /只影响当前设备<\/small>/);
   assert.match(html, /id="settings-title">界面与语言/);
-  assert.match(html, /class="mw-hint"/);
-  assert.match(html, /主题、密度和终端配色保存在当前设备。/);
+  // POLISH-29: the heading has one sentence under it and no ⓘ beside it.
+  assert.doesNotMatch(html, /class="mw-hint"/);
+  assert.match(html, /<p>主题、密度和终端配色保存在当前设备。<\/p>/);
   assert.doesNotMatch(html, /class="settings-footnote"/);
   assert.doesNotMatch(html, /class="settings-body"/);
 });
@@ -105,11 +106,15 @@ test("global diagnostics and runtime pages use the same setting rows as project 
       launchers: [{ name: "CLI", path: "/tmp/molis-work", state: "ready" }],
     },
   });
-  assert.match(diagnosticsHtml, /class="settings-section"/);
-  assert.match(diagnosticsHtml, /class="settings-setting-row"/);
+  // POLISH-30: a section's title sits outside and its rows are one card.
+  assert.match(diagnosticsHtml, /class="settings-section mw-settings-section"[^>]*><header class="mw-settings-section__head"><h2/);
+  assert.doesNotMatch(diagnosticsHtml, /class="mw-hint"/);
+  // The diagnostics rows are the SDK's setting row (renderSettingRow), no longer the workbench's own settingRow.
+  assert.match(diagnosticsHtml, /class="mw-setting-row" data-slot="setting-row"/);
+  assert.doesNotMatch(diagnosticsHtml, /class="settings-setting-row"/);
   assert.match(diagnosticsHtml, /class="setting-copy"/);
   assert.match(diagnosticsHtml, /id="launcher-title">启动入口/);
-  assert.match(diagnosticsHtml, /class="settings-section settings-project-maintenance"/);
+  assert.match(diagnosticsHtml, /class="settings-section mw-settings-section settings-project-maintenance"/);
   assert.match(diagnosticsHtml, /class="project-manager-danger"/);
   assert.doesNotMatch(diagnosticsHtml, /<h2>Molis Work 本体<\/h2>/);
   assert.doesNotMatch(diagnosticsHtml, /class="settings-body"/);
@@ -122,7 +127,10 @@ test("global diagnostics and runtime pages use the same setting rows as project 
     web_service: webService,
     diagnostics,
   });
-  assert.match(runtimeHtml, /class="settings-section"/);
+  // specs/screen-polish/p5-settings.md: nothing detected is one empty state in the document, with no section drawn around it.
+  assert.match(runtimeHtml, /<section class="settings-document"[^>]*data-runtime-settings>/);
+  assert.match(runtimeHtml, /class="settings-empty"/);
+  assert.doesNotMatch(runtimeHtml, /class="(?:mw-)?settings-section"/);
   assert.doesNotMatch(runtimeHtml, /class="settings-body"/);
   assert.doesNotMatch(runtimeHtml, /class="settings-record runtime-record"/);
 });
@@ -187,14 +195,14 @@ test("workbench project gear opens a directory of categories and an exclusive se
 test("settings documents use Codex title, card, and row rhythm instead of Linear compression", () => {
   const settings = renderMolisWorkSettingsStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  // The settings title is display type on the fixed scale: 30px, no longer fluid (spec → 第三轮 · 字号).
-  assert.match(settings, /h1 \{ margin: 0; font-size: 30px;/);
+  // POLISH-29: the settings title is the 24px step, the same on every page; the text column is 760px with its left edge fixed.
+  assert.match(settings, /h1 \{ margin: 0; font-size: 24px;/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /:is\(body\.project-preferences-page, \.settings-stage\) \.settings-content \{[^}]*background: var\(--page\)/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /html\[data-resolved-theme="dark"\] :is\(body\.project-preferences-page, \.settings-stage\) \.settings-content \{ box-shadow: none; \}/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /html\[data-resolved-theme="dark"\] :is\(body\.project-preferences-page, \.settings-stage\) \.settings-content > :is\(\.settings-document, \.appearance-document\) \{ background: transparent; \}/);
-  assert.match(settings, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: auto;[^}]*background: transparent;/);
-  assert.match(workbench, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: auto;[^}]*background: transparent;/);
-  assert.match(workbench, /body\.immersive-workbench \.settings-stage :is\([^)]+\) \{ width: 100%; max-width: 760px; margin-inline: auto; padding: 0; \}/);
+  assert.match(settings, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: 0;[^}]*background: transparent;/);
+  assert.match(workbench, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: 0;[^}]*background: transparent;/);
+  assert.match(workbench, /body\.immersive-workbench \.settings-stage :is\([^)]+\) \{ width: 100%; max-width: 760px; margin-inline: 0; padding: 0; \}/);
   assert.match(settings, /\.settings-setting-row \{ display: flex;[\s\S]*padding: 12px 0;/); // 10px → 12px on the spacing scale
   assert.match(settings, /:is\(\.guidance-settings-list, \.guidance-advanced-list\) \{[\s\S]*background: var\(--paper\);/);
   assert.doesNotMatch(settings, /color-mix\(in srgb, var\(--nav-bg\) 82%, var\(--paper\)\)/);

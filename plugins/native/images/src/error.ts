@@ -11,6 +11,7 @@ export const imagesErrors = defineErrorCodes("images", {
   busy: "rate_limited",
   cancelled: "conflict",
   closed: "unavailable",
+  connection_pending: "conflict",
   connection_changed: "conflict",
   connection_invalid: "conflict",
   /** The Host's edge answers an unexpected failure with this and a plain sentence, never the failure's own text. */

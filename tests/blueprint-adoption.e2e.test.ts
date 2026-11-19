@@ -26,7 +26,13 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
       steps: [{ step_id: "prepare", title, part_ids: ["engine", "outline"] }],
       example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "outline", location: title } } } });
   const address = origin + "/projects/" + projectId + "/onboarding?scene";
-  await navigate(() => command("Page.navigate", { url: address }, sessionId));
+  const onboarding = origin + "/onboarding?project=" + encodeURIComponent(projectId);
+  await navigate(() => command("Page.navigate", { url: onboarding }, sessionId));
+  const sceneLink = '.arrival-bar a[href*="onboarding?scene"]';
+  await waitFor("Boolean(document.querySelector(" + JSON.stringify(sceneLink) + "))");
+  assert.equal(await evaluate<string>("document.querySelector(" + JSON.stringify(sceneLink) + ").href"), address);
+  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('.arrival-bar [data-action=blank]'))"), false);
+  await navigate(() => click(sceneLink));
   const draftLink = '[data-scene-main] a[href*="' + draft.source.draft_id + '"]';
   await waitFor("document.querySelector('[data-scene-main] h2, [data-scene-error]:not([hidden])')");
   assert.ok(await evaluate<boolean>('Boolean(document.querySelector(' + JSON.stringify(draftLink) + '))'),

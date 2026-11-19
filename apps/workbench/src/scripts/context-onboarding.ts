@@ -217,6 +217,7 @@ ${CONTEXT_ONBOARDING_SESSIONS_PART}
   const docState = s => s.error ? 'failed' : s.references?.length ? 'done' : ready(s) ? 'ready' : 'pending';
 ${CONTEXT_ONBOARDING_RECOVERY_PART}
   function sourcesView() {
+    const sceneHref = route((existing() ? '/projects/' + encodeURIComponent(journey.project_id) : '') + '/onboarding?scene');
     const total = selectionTotal(), any = picked().filter(ready), pausedDir = pausedNativeDir();
     const countUi = counting && !counting.saving
       ? note(globalThis.t.text("workbench.context-onboarding.counting-chosen-files-they-appear-right-when-count"), 'clock') + (counting.nativeDir ? note(globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}), 'folder') : meter(counting.done, counting.total, globalThis.t.text("workbench.context-onboarding.count"), globalThis.t.text("workbench.context-onboarding.seen-done-total-keeping-kept-size", {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)}))) + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.stop-counting"), attrs:{'data-action':'stop-scan'}}) + '</div>'
@@ -228,7 +229,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + globalThis.t.text("workbench.context-onboarding.finish-google-authorization-browser-continues-afterwards") + '</span>' + btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-gmail-continue"), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
       + errorLine(error) + sourceList() + '<div class="ob-notes">' + countUi + note(globalThis.t.text("workbench.context-onboarding.adding-records-only-names-sizes-text-read-when"), 'shield') + note(globalThis.t.text("workbench.context-onboarding.no-limit-how-many-how-large-large-folder"), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'sources', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
-      bar:{start:exitButton() + stepsBar('sources'), center:'<a class="mw-btn mw-btn--ghost" href="' + route('/onboarding?scene') + '">' + esc(globalThis.t.text("workbench.scene.title")) + '</a>', end:(existing() ? '' : secondary("workbench.context-onboarding.skip",'blank')) + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
+      bar:{start:exitButton() + stepsBar('sources'), center:'<a class="mw-btn mw-btn--ghost" href="' + sceneHref + '">' + esc(readText("workbench.scene.title")) + '</a>', end:(existing() ? '' : secondary("workbench.context-onboarding.skip",'blank')) + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
   /* ───────── Scope: the person's last word on what is read ───────── */
   const previewReady = s => ready(s) && (!directory(s)||Boolean(s.references?.length||s.metadata));

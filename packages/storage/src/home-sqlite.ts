@@ -34,8 +34,11 @@ export function openHomeSqliteDatabase(homeDirectory: string, storeName: string,
 
 
 /**
- * A connection to a library file by its path, for the process that runs a sandboxed plugin's statements on a library in the Home
- * (PG-017 BL-490): the Host made the file and let go of it, so there is nothing to create here. A missing file is an error, not a new library.
+ * A connection to a library file by its path, opened as given: no directory is made, no baseline applied and no file mode set.
+ * - `readOnly: true`: a missing file is an error and nothing is created.
+ * - Otherwise the connection can write, and a missing file is created as an empty library (SQLite's default). A caller that must not
+ *   create one checks first: the sandbox statement engine (PG-017 BL-490) opens its read-only connection before the writer, so a missing
+ *   file fails there; a `file:` URL with `mode=rw` also refuses to create.
  */
 export function openHomeSqliteFile(path: string, options: { readOnly?: boolean } = {}): DatabaseSync {
   return new DatabaseSync(path, { readOnly: options.readOnly === true });

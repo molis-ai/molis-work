@@ -232,10 +232,12 @@ test('PCSYNC-20 personal project recycle UI binds confirmation to the observed s
 test('PCSYNC-27 resident indicator reports conflict and offline states without showing a completed claim',{timeout:60000},async t=>{
  const b=await openGoalBrowser(t,'user');if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.fetch=async(input,init)=>new URL(String(input),location.href).pathname==='/api/sync'?Response.json({available:true,running:false,lastSuccess:null,error:null,progress:{selected:1,pending:0,conflicts:1,waiting:0,failures:0,unavailable:0,complete:false}}):original(input,init);})();`},b.sessionId);
- await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));await b.waitFor("document.querySelector('[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
- assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
- await b.evaluate("dispatchEvent(new Event('offline'))");await b.waitFor("document.querySelector('[data-sync-indicator]').dataset.syncPhase==='offline'");
- assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
+ await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));
+ await b.waitFor("document.querySelector('.bar-account-sync[data-sync-indicator]')?.dataset.syncPhase==='conflict'&&document.querySelector('a[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
+ assert.equal(await b.evaluate("document.querySelector('a[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
+ await b.evaluate("dispatchEvent(new Event('offline'))");
+ await b.waitFor("document.querySelector('.bar-account-sync[data-sync-indicator]')?.dataset.syncPhase==='offline'&&document.querySelector('a[data-sync-indicator]')?.dataset.syncPhase==='offline'");
+ assert.equal(await b.evaluate("[...document.querySelectorAll('[data-sync-indicator]')].some(el=>el.textContent.includes('已同步'))"),false);
 });
 
 test('BSH-14-D sync settings show the four process-item steps in order, a button only on the step whose turn it is, each behind a confirmation',{timeout:60000},async t=>{

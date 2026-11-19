@@ -71,8 +71,8 @@ test("QEA-110 a cached Skill editor retains failed input and window-close protec
   await page.click('[data-cover-close]');
   await page.wait("!document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await page.evaluate("(() => { const event = new Event('beforeunload', { cancelable: true }); dispatchEvent(event); return event.defaultPrevented; })()"), true);
-  await page.click('[data-project-menu] summary');
-  await page.click('.navigator-project-settings');
+  await page.click('[data-top-corner-toggle]');
+  await page.click('[data-top-corner-list] [data-directory-open="project-settings"]');
   await page.wait("document.querySelector('[data-tab-workspace]').dataset.exclusive === 'project-settings'");
   await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
   await page.wait("!!document.querySelector('[data-sk-work]')");
@@ -102,8 +102,8 @@ test("QEA-111 a consumed draft address does not reopen it through settings histo
   await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);
   await page.click('[data-cover-close]');
   await page.wait("!document.querySelector('[data-tab-workspace]').dataset.exclusive");
-  await page.click('[data-project-menu] summary');
-  await page.click('.navigator-project-settings');
+  await page.click('[data-top-corner-toggle]');
+  await page.click('[data-top-corner-list] [data-directory-open="project-settings"]');
   await page.wait("document.querySelector('[data-tab-workspace]').dataset.exclusive === 'project-settings'");
   await page.click('[data-directory-panel="project-settings"] [data-settings-section="kit"]');
   await page.wait(`!!document.querySelector('[data-kit-act="sk-open"][data-kit-v="${draft.draft_id}"]')`);

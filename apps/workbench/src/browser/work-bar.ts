@@ -181,6 +181,11 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
     if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); show("", true); }
     else if (event.key === "ArrowDown" && open && event.target instanceof Element && event.target.closest("[data-work-list]")) { event.preventDefault(); rowsShown()[0]?.focus(); }
   });
+  document.addEventListener("click", event => {
+    if (!open) return;
+    const path = event.composedPath(), target = event.target instanceof Element ? event.target : null;
+    if (!path.includes(lists) && !target?.closest("[data-work-list]")) show("");
+  });
   return { draw, focus, close: () => { if (open) show(""); } };
 }
 
@@ -304,7 +309,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
   // Requirements hang on the event's own object or on the tasks done for it; the card asks about both.
-  const acceptance = installAcceptance(host.route, request, open => host.dialog?.(open));
+  const acceptance = installAcceptance(host.route, request, open => { if (open) { list.close(); cardStack.close(); } host.dialog?.(open); });
   const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows, decisions: panel.decisions,
     acceptance: (slot, subject) => acceptance.overview(slot, () => { const event = eventOf(subject); return [...(event ? [{ provider_id: event.source.provider_id, subject }] : []), ...panel.subjects(subject)]; }),
     // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
@@ -319,7 +324,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       ?? target.closest<HTMLElement>("[data-work-stack-open]")?.dataset.workStackOpen
       ?? (!target.closest("button,a,input,textarea") ? target.closest<HTMLElement>("[data-work-stack-card]")?.dataset.workStackCard : undefined);
     const pressed = events.get(openId ?? "");
-    if (pressed) { if (target.closest("[data-work-stack]")) cardStack.close(); host.openEvent(press(pressed)); }
+    if (pressed) { if (target.closest("[data-work-stack]")) cardStack.close(); if (target.closest("[data-work-lists]") && window.innerWidth < 960) list.close(); host.openEvent(press(pressed)); }
   });
   // Keyboard (WLN-17 as §16 rewrote it): Alt+L puts focus on the card in front, else on the first of the three (the lists' keys: installLists).
   document.addEventListener("keydown", event => {

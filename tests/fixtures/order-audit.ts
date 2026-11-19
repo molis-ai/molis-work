@@ -26,7 +26,7 @@ export const ORDER_SKIP = [
  *
  * - radius: a painted box (a fill, a border or a shadow) whose corner is off the corner scale (DESIGN「Corners」): 4 for a
  *   mark smaller than a control, 6 a tag, 8 a control, 10 a row, 11 a Dock tile, 12 a card, 14 a sheet, 15 the composer,
- *   16 a dialog, 18 the onboarding window, or a capsule or circle (the corner at least half the box's layout size); a box
+ *   16 a dialog, 18 the onboarding window, 20 the foot's three blocks (DESIGN「The foot」), or a capsule or circle (the corner at least half the box's layout size); a box
  *   that holds a rounded part at an inset may be that part's corner plus the inset, so the two curves stay concentric.
  *
  * - empty: a stage or pane empty state (a `.mw-empty` wider than a directory column, outside one) that is not centred, whose
@@ -139,7 +139,7 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     if (gaps.length && (Math.max(...gaps) - Math.min(...gaps) > 1 || gaps.some((g) => allowed.every((a) => Math.abs(g - a) > 1)))) findings.push({ kind: 'row-gap', a: label(row), gaps });
   }
   // Corners: on the scale, a capsule, or concentric with a rounded part inside it.
-  const CORNERS = [4, 6, 8, 10, 11, 12, 14, 15, 16, 18], cornered = new Set();
+  const CORNERS = [4, 6, 8, 10, 11, 12, 14, 15, 16, 18, 20], cornered = new Set();
   const corner = (style) => ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map((k) => parseFloat(style['border' + k + 'Radius']) || 0).find((r) => r > 0) || 0;
   const painted = (style) => !/rgba\(0, 0, 0, 0\)|transparent/.test(style.backgroundColor) || style.backgroundImage !== 'none' || style.boxShadow !== 'none'
     || ['Top', 'Right', 'Bottom', 'Left'].some((k) => parseFloat(style['border' + k + 'Width']) > 0 && !/, 0\)$|transparent/.test(style['border' + k + 'Color']));

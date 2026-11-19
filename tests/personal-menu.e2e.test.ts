@@ -6,7 +6,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 test('an idle closed account menu does not poll, but focus, opening and a pending login still refresh', { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click, setViewport } = browser;
+  await setViewport(1280, 900);
   // Identity presentation only: the separate personal HTTP tests retain the real PKCE/session exchange.
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const original = window.fetch.bind(window), interval = window.setInterval.bind(window), now = Date.now.bind(Date);
@@ -131,7 +132,8 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
 
 test('ASR-02 signed-in account menu has switch and logout, without an anonymous workspace choice', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window);
     window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
@@ -154,7 +156,8 @@ test('ASR-02 signed-in account menu has switch and logout, without an anonymous 
 
 test('account menu localizes its dynamic controls and accessible labels in English', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   await command('Network.setCookie',{name:'molis_work_locale',value:'en',url:origin},sessionId);
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     window.accountEnglishSignedIn=sessionStorage.getItem('accountEnglishSignedIn')==='1';
@@ -184,7 +187,8 @@ test('account menu localizes its dynamic controls and accessible labels in Engli
 
 test('ASR-04/05 account switching waits for the Host preparation and cancellation keeps editing available', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
-  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click,setViewport}=browser;
+  await setViewport(1280, 900);
   // Presentation harness: the separate HTTP/cohort tests exercise the real participant owner and lease.
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window), Source=window.EventSource;

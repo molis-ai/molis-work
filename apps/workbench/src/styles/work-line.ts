@@ -160,6 +160,8 @@ button.work-stack-more:hover{background:var(--amber-soft)}
    above the words, which keep the input's whole width (a 320px window left the words 32px beside them). */
 @media (max-width:540px){
   ${SHELL} .work-line-slot .mw-composer__text,${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
+  .work-counts{left:10px;justify-content:flex-end;pointer-events:none}
+  .work-counts>*{pointer-events:auto}
 }
 ${SHELL} [data-line-yield]{margin-bottom:var(--line-rise,0px)}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}

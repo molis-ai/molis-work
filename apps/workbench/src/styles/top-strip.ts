@@ -38,16 +38,16 @@ ${TOP}{
   &:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:top-strip-shown 0s forwards;animation-delay:3s}
 
   /* The first place, 「项目 › 项目主页」 (§4「底栏第十三版」第 1 条), then a hairline. */
-  &>.dock-pins{order:1;align-self:stretch;flex:0 1 auto;display:flex;align-items:center;height:auto;margin:0;padding:0 0 0 10px;gap:2px;border-radius:0;background:none;box-shadow:none}
+  &>.dock-pins{order:1;align-self:stretch;flex:0 1 auto;min-width:0;display:flex;align-items:center;height:auto;margin:0;padding:0 0 0 10px;gap:2px;border-radius:0;background:none;box-shadow:none}
   &>.dock-pins::before,&>.plugin-picker::after{content:none}
   &>.dock-pins::after{content:"";flex:none;width:1px;height:16px;margin:0 0 0 8px;background:var(--line-strong)}
   & .top-corner{display:contents}
-  & .top-corner-cell{flex:none;display:inline-flex;align-items:center;gap:6px;max-width:360px;height:var(--ear-rest);padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--ink-soft);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+  & .top-corner-cell{flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;max-width:min(360px,36vw);height:var(--ear-rest);padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--ink-soft);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
   & .top-corner-cell:not([data-ear]):is(:hover,[aria-expanded="true"]){background:var(--nav-hover);color:var(--ink)}
   & .top-corner-cell>svg{flex:none;width:12px;height:12px;color:var(--faint)}
   & .top-corner-cell>svg:first-child{width:16px;height:16px;color:currentColor}
-  & .top-corner-project-name{min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
-  & .top-corner-page-name{color:var(--ink);font-weight:500}
+  & .top-corner-project-name{flex:0 1 auto;min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+  & .top-corner-page-name{flex:none;color:var(--ink);font-weight:500}
   /* How many wait for the person (POLISH-15): amber, only while something waits; the Assistant's bell reads the same number. */
   & .top-corner-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
   & .top-corner-count[hidden]{display:none}
@@ -71,7 +71,7 @@ ${TOP}{
 
   /* The tabs take what they need and ＋ follows them (POLISH-03). */
   &>.tab-strip{
-    order:1;align-self:stretch;flex:0 1000 var(--tabs-hug,0px);min-width:clamp(2px,var(--tabs-floor,2px),100% - 360px);height:auto;margin-right:0;padding:0;gap:2px;
+    order:1;align-self:stretch;flex:0 1000 var(--tabs-hug,0px);min-width:clamp(2px,var(--tabs-hug,2px),140px);height:auto;margin-right:0;padding:0;gap:2px;
     &:not(:has(.tab-item,.tab-view-chip,.tab-strip-button:not([hidden]),[data-tab-reorder-slot])),&>.tab-strip-spacer{display:none}
     &>.tab-scroll{align-self:stretch;align-items:center;box-sizing:border-box;height:auto;gap:2px;padding:0 6px 0 10px}
     & .tab-item{height:var(--ear-rest);border-radius:8px;background-color:transparent;box-shadow:none;color:var(--ink-soft);font-size:12px}
@@ -152,10 +152,10 @@ ${TOP}{
 }
 @media (pointer:fine){${TOP} .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone]{min-height:36px}}
 @media (min-width:761px){
-  ${SIDE_OPEN_TOP}{
-    &>.desktop-titlebar-drag{flex-basis:calc(var(--side-panel-width,35vw) - 76px);flex-shrink:0}
-    &>.tab-strip{min-width:clamp(2px,var(--tabs-floor,2px),100% - 320px - var(--side-panel-width,35vw))}
-  }
+  ${SIDE_OPEN_TOP}>.desktop-titlebar-drag{flex-basis:calc(var(--side-panel-width,35vw) - 76px);flex-shrink:0}
+}
+@media (min-width:761px) and (max-width:959px){
+  ${SIDE_OPEN_TOP}>.desktop-titlebar-drag{flex-basis:calc(var(--side-panel-width,35vw) - 114px)}
 }
 @media (min-width:960px){${TOP}>.titlebar-end{display:none}}
 

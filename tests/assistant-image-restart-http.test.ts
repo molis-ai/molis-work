@@ -13,7 +13,7 @@ import { startModelStandIn } from "./fixtures/model-stand-in.js";
 
 // W3-02-G3-04: close the actual Home Host and reopen the same Home, rather than clearing an image Map. Since batch 35 (platform
 // capability audit §6) a picture is a conversation attachment kept by the platform: after the restart it is still shown and can go again.
-test("B35-R5 the same Home reopens its Assistant work with the picture and the original document, and expires a legacy picture", { timeout: 60_000 }, async t => {
+test("B35-R5 the same Home reopens its Assistant work with the picture and the original document", { timeout: 60_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-image-restart-"));
@@ -70,16 +70,13 @@ test("B35-R5 the same Home reopens its Assistant work with the picture and the o
   const image = await request(imagePath);
   assert.equal(image.status, 200); assert.deepEqual(await image.json(), { image: { media_type: "image/png", data } });
   assert.ok(server && host); await server.close(); await host.close();
-  // The schema did not change. Populate the v2 body with the previous release's resource-id shape before starting the v3 Host.
-  const database = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  const database = new DatabaseSync(join(home, "assistant", "assistant.db"), { readOnly: true });
   try {
+    assert.equal(database.prepare("PRAGMA user_version").get()?.user_version, 1);
     const row = database.prepare("SELECT body FROM assistant_rounds WHERE work_id=?").get(started.work.work_id) as { body: string };
-    const historical = JSON.parse(row.body) as { materials: AssistantMaterial[] };
-    assert.equal(historical.materials[1]?.text, undefined, "the shared material service owns the extracted text");
-    const materials = [...historical.materials, { material_id: "legacy", kind: "image", title: "old-photo.png", explicit: true,
-      image: { resource_id: "old-resource", revision: 1, media_type: "image/png", byte_length: 70 } }];
-    database.prepare("UPDATE assistant_rounds SET body=? WHERE work_id=?").run(JSON.stringify({ ...historical, materials }), started.work.work_id);
-    database.exec("PRAGMA user_version=2");
+    const stored = JSON.parse(row.body) as { materials: AssistantMaterial[] };
+    assert.deepEqual(stored.materials[1]?.file_attachment, document.file_attachment);
+    assert.equal(stored.materials[1]?.text, undefined, "the shared material service owns the extracted text");
   } finally { database.close(); }
   await start();
   const again = await request(imagePath);
@@ -90,7 +87,7 @@ test("B35-R5 the same Home reopens its Assistant work with the picture and the o
   assert.equal(reopened.rounds[0]?.run_id, before.rounds[0]?.run_id);
   assert.equal(reopened.rounds[0]?.materials[0]?.material_id, material.material_id);
   assert.equal(reopened.rounds[0]?.materials[0]?.expired, undefined, "the persisted material is not marked as gone");
-  assert.deepEqual(reopened.rounds[0]?.materials[2], { material_id: "legacy", kind: "image", title: "old-photo.png", explicit: true, expired: true });
+  assert.equal(reopened.rounds[0]?.materials[1]?.material_id, document.material_id);
   const doc = `${path}/materials/${document.material_id}`;
   const preview = await (await request(doc)).json();
   assert.equal(preview.material.original_available, true);

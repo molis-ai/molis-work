@@ -66,5 +66,6 @@ export interface ProjectScheduleRuntime {
 
 export type ResolvedWebRequest =
   | { kind: "catalog_index"; projects: WebProjectNavigation[] }
-  | { kind: "project_not_found" }
+  /** `gone`: the catalog said it holds no such project (BL-attention-404-by-code); without it the address names no project at all. */
+  | { kind: "project_not_found"; gone?: true }
   | { kind: "board"; pathname: string; options: ResolvedWebBoardOptions };

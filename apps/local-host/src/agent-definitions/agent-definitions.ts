@@ -31,7 +31,7 @@ export const PROMPT_USES_KEPT = 200;
  * 1 → 2 only creates the first two tables, empty (user 2026-11-06, spec §9 item 6); 2 → 3 only creates the other four, empty (user
  * 2026-11-16, spec §9).
  */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 3, schema: `
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -43,7 +43,7 @@ CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}`,
-  upgrades: [{ from: 1, sql: SKILL_TABLES_SQL }, { from: 2, sql: SKILL_WORK_TABLES_SQL }] };
+  upgrades: [] };
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 

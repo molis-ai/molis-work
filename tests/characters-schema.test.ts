@@ -17,7 +17,7 @@ test("W1-18-CHARACTER-SCHEMA-01 an empty Character store initializes once and cu
     try { assert.deepEqual(reopened.service.get(draft.character_id), draft); }
     finally { reopened.close(); }
     const db = new DatabaseSync(join(home, "characters", "characters.sqlite"));
-    try { assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 2); }
+    try { assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 1); }
     finally { db.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -32,12 +32,11 @@ for (const version of [0, 1, 2, 3, 5]) test(`W1-18-CHARACTER-SCHEMA-01 an existi
   const bytes = readFileSync(filename), mode = statSync(filename).mode;
   try {
     // The common store baseline refuses it (C-06 moved the Characters store onto it): the path and the version found are named.
-    // At the current version 2 the tables must be the baseline's; version 1 waits for the upgrade run (1 → 2 only adds the role
-    // tables, run by the upgrade process, never on open); 0 is no version an upgrade starts from; 3 and 5 are newer than this build.
-    assert.throws(() => openCharacters(home, "owner"), error => version === 2
+    // At the current version 1 the tables must be the baseline's; 0 is no version an upgrade starts from; 2, 3 and 5 are newer than this build.
+    assert.throws(() => openCharacters(home, "owner"), error => version === 1
       ? isSqliteSchemaStructureMismatch(error) && error.message.includes("characters.sqlite") && !error.message.includes(home)
-      : isSqliteVersionRefusal(error) && error.code === (version === 0 ? "storage.schema_version_mismatch" : version === 1 ? "storage.upgrade_pending" : "storage.store_too_new")
-        && error.details?.path === "characters.sqlite" && error.details?.found === version && error.details?.expected === 2
+      : isSqliteVersionRefusal(error) && error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new")
+        && error.details?.path === "characters.sqlite" && error.details?.found === version && error.details?.expected === 1
         && error.message.includes("characters.sqlite") && !error.message.includes(home));
     assert.deepEqual(readFileSync(filename), bytes);
     assert.equal(statSync(filename).mode, mode);

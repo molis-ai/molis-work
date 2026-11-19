@@ -58,7 +58,8 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - spec 的验收标准逐条带编号，证明它的测试在名字或注释里写出编号（`specs/README.md`「验收编号」）。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。偶发失败写进 `tests/quarantine.json`（带 owner 与到期日），不从 `tests/ci-product-subset.txt` 删行（规则见 `docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」）。
 - 改了创作台挂载的 Skill 章节、`plugins/native/plugin-builder/src/agent-prompts.ts` 或宿主对设计答卷的整理与校验：跑 `pnpm studio:replay`，再在隔离 Home 里跑 `pnpm studio:replay smoke`（`docs/platform/STUDIO-SKILL-REPLAY.md`）。
-- 测试截图默认写进已忽略的 `.impeccable/qa/review/`；入库的评审图只许刷新已有的（`docs/system/REPOSITORY-HYGIENE.md`）。
+- 测试截图默认写进已忽略的 `.impeccable/qa/review/`；常规评审截图使用 `shouldSaveReviewScreenshots()`（`MOLIS_WORK_SAVE_SCREENSHOTS=1` 按需开启），仅失败诊断和像素断言测试无条件截屏；入库的评审图只许刷新已有的（`docs/system/REPOSITORY-HYGIENE.md`）。
+- **测试卫生防膨胀**：修 bug 或加断言优先并入对应功能/owner 测试文件，不按单次修复或单次收口新开一次性小文件（不写“收口清单 / spec 文案字符串正则”测试）；浏览器测试同夹具场景复用单个 Chrome 实例，不用超过 500ms 的硬编码 `sleep` 替代真实 DOM/事件就绪条件；不把抓图脚本写进 `*.test.ts`。
 - 推送前先 `git fetch origin main`，再 `pnpm secrets:check`。
 
 ## 协作

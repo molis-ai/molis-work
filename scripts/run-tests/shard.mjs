@@ -36,9 +36,13 @@ function completion(load, { jobs, browserJobs, separateBrowser }) {
 
 /** Deterministic LPT allocation; only the committed table decides ownership, never a runner's private cache. */
 export function planShards(items, { count, jobs = 1, browserJobs = 1, separateBrowser = false }, weights = {}, fileOf = (item) => item, browserOf = () => false) {
-  const known = items.map((item) => weights[fileOf(item)]).filter((seconds) => Number.isFinite(seconds) && seconds > 0);
-  const unknown = median(known);
-  const weight = (item) => weights[fileOf(item)] ?? unknown;
+  const knownOf = (subset) => subset.map((item) => weights[fileOf(item)]).filter((seconds) => Number.isFinite(seconds) && seconds > 0);
+  const unknownAll = median(knownOf(items));
+  const knownBrowser = knownOf(items.filter((item) => browserOf(item)));
+  const knownOther = knownOf(items.filter((item) => !browserOf(item)));
+  const unknownBrowser = knownBrowser.length ? median(knownBrowser) : unknownAll;
+  const unknownOther = knownOther.length ? median(knownOther) : unknownAll;
+  const weight = (item) => weights[fileOf(item)] ?? (browserOf(item) ? unknownBrowser : unknownOther);
   const order = items.map((item, position) => ({ item, position }))
     .sort((a, b) => weight(b.item) - weight(a.item) || (fileOf(a.item) < fileOf(b.item) ? -1 : fileOf(a.item) > fileOf(b.item) ? 1 : 0));
   const loads = Array.from({ length: count }, () => ({ total: 0, browser: 0, longestBrowser: 0, longestOther: 0, seconds: 0, files: 0 }));

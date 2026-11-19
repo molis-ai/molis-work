@@ -7,9 +7,8 @@ import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
-import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type SqliteBaselineDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { storedSentenceAsText } from "../stored-sentences.js";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
@@ -28,46 +27,9 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The Assistant's own facts: its works, the rounds the person started in them, and each Send's outcome. Conversation
  * content and run state stay in the Prologue session; business results stay with their owners. One current schema
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
- *
- * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-/**
- * 1 → 2 (BL-action-card-outcome-text, user 2026-11-17): a card's outcome was a sentence in the language of the day it was written, and is
- * now a key with its values. A sentence already written cannot be taken back to its key, so it stays the words it was, as a `literal`.
- */
-function cardOutcomesAsText(db: SqliteBaselineDatabase): void {
-  const write = db.prepare("UPDATE assistant_cards SET body = ? WHERE card_id = ?");
-  for (const row of db.prepare("SELECT card_id, body FROM assistant_cards WHERE json_type(body, '$.outcome') = 'text'").all() as Array<{ card_id: string; body: string }>) {
-    const { outcome, ...body } = JSON.parse(row.body) as { outcome: string };
-    const text = storedSentenceAsText(outcome);
-    write.run(JSON.stringify(text ? { ...body, outcome: text } : body), row.card_id);
-  }
-}
-
-/** B35-R5: old picture resources did not survive restart. Keep the record of the picture with its final status. */
-function markExpiredPictures(db: SqliteBaselineDatabase): void {
-  const rows = db.prepare(`SELECT work_id, run_id, body FROM assistant_rounds AS round WHERE EXISTS (
-    SELECT 1 FROM json_each(round.body, '$.materials') WHERE json_extract(value, '$.kind') = 'image'
-      AND json_type(value, '$.image.resource_id') = 'text' AND json_type(value, '$.image.attachment') IS NULL
-  )`).all() as Array<{ work_id: string; run_id: string; body: string }>;
-  const write = db.prepare("UPDATE assistant_rounds SET body = ? WHERE work_id = ? AND run_id = ?");
-  for (const row of rows) {
-    const round = JSON.parse(row.body) as Omit<StoredRound, "materials"> & { materials: Array<AssistantMaterial & { image?: { resource_id?: string } }> };
-    round.materials = round.materials.map(item => {
-      if (item.kind !== "image" || !item.image?.resource_id || item.image.attachment) return item;
-      const { image: _expired, ...material } = item;
-      return { ...material, expired: true };
-    });
-    write.run(JSON.stringify(round), row.work_id, row.run_id);
-  }
-}
-
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 3, upgrades: [
-  { from: 1, run: cardOutcomesAsText },
-  { from: 2, run: markExpiredPictures },
-], schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, upgrades: [], schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -94,9 +56,6 @@ CREATE TABLE assistant_followups (
 );
 CREATE TABLE assistant_undos (
   undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
-);
-CREATE TABLE assistant_jobs (
-  key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
 CREATE TABLE assistant_usage (
   run_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, ended_at TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cached INTEGER NOT NULL
@@ -496,7 +455,7 @@ export class AssistantStore {
   /** A work whose first round could not start is dropped with what was kept for it; one that has a round is never dropped. */
   discard(actorId: string, workId: string): void {
     if (this.rounds(workId).length) return;
-    for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
+    for (const table of ["works", "observed", "notices", "followups", "undos", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
   }
 
   /** Rounds of this person's works started since then, with the work they belong to (most recent 500). */

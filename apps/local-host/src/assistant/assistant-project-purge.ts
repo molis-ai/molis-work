@@ -20,7 +20,7 @@ interface AssistantProjectLive {
 }
 
 /** Everything a work keeps under its id, the work last. Usage counts stay: they are numbers the daily cap is read from. */
-const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos", "assistant_jobs",
+const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos",
   "assistant_unsettled", "assistant_observed", "assistant_requests", "assistant_works"] as const;
 
 /** The conversation attachments a stored work or round names (uploaded files and pictures), by digest. */

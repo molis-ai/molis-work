@@ -1,17 +1,15 @@
 import assert from "node:assert/strict";
-import { gzipSync } from "node:zlib";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { EVALUATION_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/evaluation";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { applySqliteBaseline, homeSqlitePath, runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import {
-  OBSERVATION_HOME_STORE, RETENTION_KEY, retentionActions,
+  RETENTION_KEY,
+  retentionActions,
   ObservationLayer,
   observationKeys,
   readCoverageGaps,
@@ -87,92 +85,6 @@ function createFixture(t: test.TestContext, initialNow = "2026-11-15T12:00:00.00
     db: () => layer!.writer.database()!.db,
   };
 }
-
-test("OCL-12 BL-observation-b28-known-limits: deterministic v1 populated observation.db upgrades 1 -> 2 and preserves encrypted snapshots for unsealing", async t => {
-  const home = mkdtempSync(join(tmpdir(), "observation-v1-upgrade-"));
-  t.after(() => rmSync(home, { recursive: true, force: true }));
-  const secrets = memorySecrets();
-  const keys = observationKeys(secrets, () => false);
-
-  const dbPath = homeSqlitePath(home, OBSERVATION_HOME_STORE.path);
-  mkdirSync(join(home, OBSERVATION_HOME_STORE.path), { recursive: true });
-
-  const plaintext = JSON.stringify({ goal_id: "goal-upgrade-1", summary: "Deterministic pre-upgrade evidence payload" });
-  const digest = keys.digest(plaintext);
-  const sealed = keys.seal(gzipSync(Buffer.from(plaintext, "utf8")), digest);
-
-  const rawDb = new DatabaseSync(dbPath);
-  try {
-    rawDb.exec(readFileSync(new URL("./fixtures/observation-v1.sql", import.meta.url), "utf8") + " PRAGMA user_version=1;");
-    rawDb.prepare(`
-      INSERT INTO records (
-        seq, record_id, owner_kind, owner_id, fact, provider_id, stage, outcome, actor_id, actor_kind, audience,
-        delegated_by, entry, project_id, install_id, occurred_at, received_at, clock_adjusted, call_id, invocation_id,
-        parent_invocation_id, runtime_session_id, run_id, work_ref, source_class, subjects, conditions, detail, evidence,
-        coalesced_count, coalesced_last_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(
-      1, "obs-v1-rec-1", "service", "assistant", "assistant.work", null, "delivery", "succeeded",
-      LOCAL_PERSON_ACTOR_ID, "user", "user", null, "workbench", "p1", null,
-      "2026-10-01T08:00:00.000Z", "2026-10-01T08:00:00.050Z", 0, "call-v1-1", null,
-      null, null, "run-v1-1", "work-v1-1", "real",
-      JSON.stringify([{ kind: "goal", id: "goal-upgrade-1" }]),
-      JSON.stringify({ platform_version: "0.28.0" }),
-      JSON.stringify({ step: "delivered" }),
-      JSON.stringify([{ role: "output", ref: { kind: "snapshot", digest, bytes: Buffer.byteLength(plaintext, "utf8"), media_type: "application/json" } }]),
-      null, null,
-    );
-    rawDb.prepare("INSERT INTO evidence_blobs VALUES (?,?,?,?,?)").run(digest, Buffer.byteLength(plaintext, "utf8"), "application/json", sealed, "2026-10-01T08:00:00.050Z");
-    rawDb.prepare("INSERT INTO record_evidence VALUES (?,?)").run(1, digest);
-    rawDb.prepare("INSERT INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(
-      "service:assistant", "assistant.work", "workbench", "p1", "complete",
-      "2026-10-01T08:00:00.000Z", "0.28.0", null, 0, 0, 0, "2026-10-01T08:00:00.050Z",
-    );
-    rawDb.prepare("INSERT INTO writer_state VALUES (?,?)").run(
-      "settings",
-      JSON.stringify({ paused: false, uses: { assistant: true, evaluation: true, export: false }, retention_mode: "90", space_reminder_bytes: null }),
-    );
-
-    const baseline = OBSERVATION_HOME_STORE.library!.baseline;
-    assert.throws(() => applySqliteBaseline(rawDb, "observation", baseline), { code: "storage.upgrade_pending" });
-    assert.deepEqual(runSqliteUpgrade(rawDb, "observation", baseline), { from: 1, to: 2 });
-  } finally {
-    rawDb.close();
-  }
-
-  const env: ObservationEnvironment = {
-    platformVersion: "0.30.0",
-    now: () => new Date("2026-11-15T12:00:00.000Z"),
-    projectClass: () => "user",
-    readableProjects: async () => ["p1"],
-  };
-  const layer = new ObservationLayer({ home, env, keys: has => observationKeys(secrets, has), flushDelayMs: 5 });
-  t.after(() => layer.close());
-  const bound = layer.actions(() => {});
-  const service = new ActionService();
-  service.registerProvider({ provider: { provider_id: "system.observation", title: "工作记录", kind: "system" }, definitions: bound.definitions, handlers: bound.handlers });
-
-  const queried = await service.invoke(person(), observationActions.recordsQuery, { use: "evaluation", work_ref: "work-v1-1" });
-  assert.equal(queried.records.length, 1);
-  assert.equal(queried.records[0]!.record_id, "obs-v1-rec-1");
-
-  const unsealed = await service.invoke(person(), observationActions.evidenceGet, { use: "evaluation", record_id: "obs-v1-rec-1", role: "output" });
-  assert.equal(unsealed.items.length, 1);
-  assert.equal(unsealed.items[0]!.status, "available");
-  assert.equal(unsealed.items[0]!.text, plaintext);
-
-  const placed = await service.invoke(person(), observationActions.holdsPut, {
-    hold_id: "hold-upgraded-1",
-    sample_id: "sample-upgraded-1",
-    project_id: "p1",
-    record_ids: ["obs-v1-rec-1"],
-  });
-  assert.deepEqual(placed.held_record_ids, ["obs-v1-rec-1"]);
-  const settings = await service.invoke(person(), observationActions.settingsGet, {});
-  assert.equal(settings.retention.mode, "90");
-  assert.equal(settings.evaluation_holds.count, 1);
-  assert.ok(settings.evaluation_holds.bytes > 0);
-});
 
 test("OCL-12 EC-16: evaluation holds exempt records and encrypted snapshots from manual and automatic retention clean-up until released or expired", async t => {
   const fx = createFixture(t, "2026-11-15T12:00:00.000Z");

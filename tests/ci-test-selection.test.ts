@@ -41,7 +41,7 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   // Written out here, one file for each entry, not read from FULL_WHEN, so that dropping one of them from the script is seen: what both
   // jobs run with, and what the selection and the runners import (the next test follows those imports on its own).
   const BOTH = [
-    ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/molis-plugin-dev/SKILL.md",
+    ".github/workflows/ci.yml", ".github/actions/setup-work/action.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/molis-plugin-dev/SKILL.md",
     "vendor/prologue-sdk/README.md", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/select.mjs",
     "scripts/run-tests.mjs", "scripts/run-tests/pool.mjs", "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
     "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/run.mjs", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs", "scripts/script-paths.mjs",
@@ -72,6 +72,13 @@ test("RAC-1760 a job runs whole when affected-tests cannot narrow it, when what 
   assert.notEqual(decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, changes: [{ path: "tests/ci-product-subset.txt" }] }) }).mode, "whole");
   // A Markdown file at the root is a document, not a config; AGENTS.md is named on its own.
   assert.equal(decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, changes: [{ path: "README.md" }] }) }).mode, "some");
+  // P1-7: on PRs, `spans-packages` alone (with zero uncovered files and no core/assembly/storage/deletes-code rules)
+  // runs the affected union rather than forcing all 14 shards; `merge_group` still runs the complete lists.
+  const multiLeaf = decideJob({ job: "security", list: LIST, affected: affected({ tests: someTests, full: [{ rule: "spans-packages", detail: "3 packages changed" }] }) });
+  assert.equal(multiLeaf.mode, "some");
+  assert.deepEqual(multiLeaf.files, [LIST[0]]);
+  // Combining `spans-packages` with any structural rule still forces `whole`.
+  whole("security", affected({ tests: someTests, full: [{ rule: "spans-packages", detail: "3 packages" }, { rule: "storage", detail: "packages/storage/src/a.ts" }] }), /full suite \(storage\)/);
 });
 
 /** The repository's files a script loads, following its relative imports (`import … from`, `import()`, `export … from`) to the end. */
@@ -103,11 +110,11 @@ test("RAC-1760 every file the selection, affected-tests and the two runners load
 });
 
 test("RAC-1761 CIP-06 selected runner counts follow duration and browser capacity", () => {
-  const selected = touching(...LIST.slice(0, 6));
+  const selected = touching(...LIST.slice(0, 8));
   const choose = (seconds: number) => decideJob({ job: "security", list: LIST, affected: affected({ tests: selected }), weights: Object.fromEntries(LIST.map(file => [file, seconds])) });
-  assert.deepEqual(choose(10).shards, [1], "six short files need one runner");
-  assert.deepEqual(choose(300).shards, [1, 2, 3], "six five-minute files need three two-worker runners");
-  assert.deepEqual(choose(600).shards, [1, 2, 3], "extra runners cannot make an indivisible ten-minute file faster");
+  assert.deepEqual(choose(10).shards, [1], "eight short files need one runner");
+  assert.deepEqual(choose(300).shards, [1, 2], "eight five-minute files need two four-worker runners");
+  assert.deepEqual(choose(600).shards, [1, 2], "extra runners cannot make an indivisible ten-minute file faster");
   const smokes = PRODUCT.filter(entry => entry.browser).map(entry => entry.file);
   const decision = decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 3)) }), weights: Object.fromEntries(smokes.map(file => [file, 240])) });
   assert.deepEqual(decision.shards, [1, 2, 3], "serial browser smokes each need their own runner to fit six minutes");
@@ -184,7 +191,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");
@@ -275,13 +282,13 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
   assert.doesNotMatch(selection, /pnpm install/, "no dependencies: it starts at once");
   assert.ok(!blockingJobs().includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.match(jobBlock("verify"), /^    needs: \[.*test-selection\]$/m, "Verify directly receives the selection result and modes");
-  assert.deepEqual(blockingJobs(), ["account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"], "the blocking jobs are the ones of today, the two that read the selection among them (decision #14, 2026-10-31)");
+  assert.deepEqual(blockingJobs(), ["build", "account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"], "the blocking jobs are the ones of today, including the shared build job");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 
   for (const [name, key] of [["security-invariants", "security"], ["product-subset", "product"]] as const) {
     const job = jobBlock(name);
-    assert.match(job, /^    needs: \[test-selection, queue-check\]$/m, name);
-    assert.ok(job.includes(`    if: \${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'none') }}`), `${name}: only successful none skips on a PR; all other selections run, except a trusted verified push`);
+    assert.match(job, /^    needs: \[test-selection, queue-check, build\]$/m, name);
+    assert.ok(job.includes(`    if: \${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'none') }}`), `${name}: only successful none skips on a PR; all other selections run after build succeeds, except a trusted verified push`);
     assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3, 4, 5, 6, 7, 8]" : "[1, 2, 3, 4, 5, 6]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
     assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
@@ -340,9 +347,8 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
-  // The merge queue runs the blocking jobs and Verify (the two above among them, evaluated in the cases), and the selection, which there
-  // decides only `native-checks` (RAC-1907): the probe, which does not block, stays out of it.
-  assert.match(jobBlock("linux-probe"), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, "linux-probe is not in the merge queue");
+  // The retired linux-probe job is no longer in ci.yml (superseded by full-suite.yml).
+  assert.doesNotMatch(workflow, /^  linux-probe:/m, "linux-probe has been retired from ci.yml");
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 
@@ -353,7 +359,7 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
  */
 function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string> }): unknown {
   const outputs = Object.fromEntries(Object.entries({ documentation_mode: "code", ...scope.outputs }).map(([name, value]) => [`needs.test-selection.outputs.${name}`, value]));
-  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.test-selection.result": scope.result, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", ...outputs });
+  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.build.result": "success", "needs.test-selection.result": scope.result, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", ...outputs });
 }
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {
@@ -374,7 +380,7 @@ test("RAC-1766 the Rust and Swift checks run when a changed file is one they rea
     "apps/desktop/src-tauri/src/lib.rs", "apps/desktop/src-tauri/Cargo.lock", "apps/desktop/package.json", "apps/desktop/adapters/tauri/src/drop_wheel.rs",
     "apps/local-host/native/materials/JellyMaterial.swift", "apps/local-host/native/computer/Sources/main.swift", "apps/local-host/native/computer/build.sh",
     "apps/local-host/native/materials/whisper/Package.swift", "crates/elsewhere/src/lib.rs", "other/Cargo.toml", "other/Cargo.lock",
-    "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml",
+    "rust-toolchain.toml", "sub/rust-toolchain", "clippy.toml", "rustfmt.toml", ".cargo/config.toml", ".github/workflows/ci.yml", ".github/workflows/full-suite.yml", ".github/actions/setup-work/action.yml",
     "scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "package.json", ".nvmrc", "pnpm-lock.yaml",
   ]) {
     const decision = change("docs/guide.md", file);
@@ -409,7 +415,7 @@ test("UPG2-07 the golden replay of the signed samples runs when a changed file i
     "apps/local-host/src/home-stores.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/project-database.ts", "apps/local-host/src/project-statement-process.ts",
     "apps/desktop/launchers/cli/main.ts", "tooling/plugin-cli/src/install.ts", "apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts",
     "tests/fixtures/golden-homes/0.1.0/manifest.json", "tests/fixtures/golden-home-library/v1.json", "tests/fixtures/replay-plugins/corpus.json", "tests/golden-writes/todo.ts", "scripts/golden/layout.mjs", "scripts/replay-plugins/signed-session.mjs",
-    "vendor/prologue-sdk/README.md", ".github/workflows/ci.yml", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts",
+    "vendor/prologue-sdk/README.md", ".github/workflows/ci.yml", ".github/actions/setup-work/action.yml", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts",
     ".nvmrc", "package.json", "pnpm-lock.yaml",
   ];
   for (const file of LISTED) assert.equal(change("docs/guide.md", file).mode, "whole", file);

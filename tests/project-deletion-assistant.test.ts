@@ -28,8 +28,6 @@ async function assistantHome(t: { after(fn: () => Promise<void> | void): void })
   for (const work of [gone, archived, kept, personal]) {
     store.followUps.save(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
-    // Rows left in the table no longer written (jobs are steps on the work's graph now) still go with their work.
-    db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?)").run(`job-${work.work_id}`, ACTOR, work.work_id, "{}");
     store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: { original: "做完了" } }, `notice-${work.work_id}`);
     store.addRound(work.work_id, { run_id: `run-${work.work_id}`, text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
     store.relations.link({ work_id: work.work_id, project_id: work.project_ref?.project_id ?? null }, "origin", { kind: "pages.doc", id: `doc-${work.work_id}`, revision: "1" }, "从文稿开始");
@@ -50,7 +48,7 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.equal(purged, 2);
   assert.deepEqual(store.list(ACTOR).map(work => work.title).sort(), ["个人工作", "留下的工作"]);
   assert.deepEqual(store.list(ACTOR, { archived: true }), []);
-  for (const table of ["assistant_rounds", "assistant_followups", "assistant_jobs", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
+  for (const table of ["assistant_rounds", "assistant_followups", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
   assert.deepEqual(store.followUps.list(ACTOR).map(item => item.work_id).sort(), [kept.work_id, personal.work_id].sort());
   assert.deepEqual(store.relations.forWork({ work_id: gone.work_id, project_id: "project-gone" }), [], "the relations it recorded are removed");
   assert.deepEqual(store.relations.forWork({ work_id: archived.work_id, project_id: "project-gone" }), []);

@@ -22,7 +22,7 @@ async function fixture(t: import("node:test").TestContext, budget?: RoundBudget)
   t.after(() => cards.close());
   const writer = async (input: KnowledgeDraftInput): Promise<KnowledgeDraft> =>
     ({ title: input.title, brief: `讲的是${input.title}。`, keywords: [input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) });
-  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => ({ pieces: knowledgeCatalog(f.index, projectId), unsettled: new Set<string>() }), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, cut: projectId => knowledgeCutPieces(f.index, projectId),
     related: (projectId, query, limit, snippets) => f.index.related(projectId, query, limit, snippets).map(document => ({ snippet: document.snippet, kind: document.kind, id: document.object_id })), ...(budget ? { budget } : {}) });
   const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); await organizer.reconcile("a"); };

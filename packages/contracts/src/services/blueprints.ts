@@ -131,12 +131,13 @@ export interface BlueprintOwnerReceipt {
 
 const skipReasons = ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
 const appliedCurrentStates = ["changed", "owner_unavailable"] as const;
+const pendingCurrentStates = ["owner_unavailable", "owner_replaced"] as const;
 type BlueprintApprovalStep = { page_id: string; version: number; approval_request_id: string };
 type BlueprintStepError = { code: string; message: string };
 type InterruptedStep =
   | ({ state: "needs_approval" } & BlueprintApprovalStep)
   | { state: "failed"; error: BlueprintStepError }
-  | { state: "pending_verification"; request_id: string }
+  | { state: "pending_verification"; request_id: string; current?: (typeof pendingCurrentStates)[number] }
   | { state: "skipped"; reason: (typeof skipReasons)[number] };
 
 export type BlueprintApplyStep = { part_id: string } & (
@@ -273,7 +274,7 @@ const approval = { page_id: token, version, approval_request_id: token };
 const interrupted = [
   closedObjectSchema({ ...part, state: { const: "needs_approval" }, ...approval }),
   closedObjectSchema({ ...part, state: { const: "failed" }, error: closedObjectSchema({ code: token, message: token }) }),
-  closedObjectSchema({ ...part, state: { const: "pending_verification" }, request_id: token }),
+  closedObjectSchema({ ...part, state: { const: "pending_verification" }, request_id: token, current: { enum: pendingCurrentStates } }, ["part_id", "state", "request_id"]),
   closedObjectSchema({ ...part, state: { const: "skipped" }, reason: { enum: skipReasons } }),
 ] as const;
 const applied = { ...part, state: { const: "applied" }, current: { enum: appliedCurrentStates } } as const;

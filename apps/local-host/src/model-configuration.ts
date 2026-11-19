@@ -18,11 +18,8 @@ const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid"
 /** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
 export type ConsumerModelConfigurationDeclaration = Pick<PluginModelConfigurationDeclaration, "preference" | "custom_provider">;
 export const modelConfigurationInvalid = errors.model_configuration_invalid;
-const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 2;
-const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [{ from: 1, transform(value) {
-  if (!isSelection(value)) throw invalidFile();
-  return { selection: { provider_id: value.provider_id, model_id: value.model_id }, revision: 0, receipts: {} };
-} }];
+const MODEL_PREFERENCE_SCHEMA_VERSION = /* @version format.model.preference */ 1;
+const MODEL_PREFERENCE_UPGRADES: readonly VersionedFileStep[] = [];
 export interface ModelPreferenceFile {
   schema_version: typeof MODEL_PREFERENCE_SCHEMA_VERSION;
   selection: PluginModelSelection | null;

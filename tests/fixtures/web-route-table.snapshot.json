@@ -255,11 +255,13 @@
   "GET /projects/no-such-project/api/board": {
     "status": 404,
     "type": "application/json",
+    "code": "catalog.project_not_found",
     "error": "找不到这个 Molis Work 项目"
   },
   "GET /projects/no-such-project/ (page)": {
     "status": 404,
     "type": "application/json",
+    "code": "catalog.project_not_found",
     "error": "找不到这个 Molis Work 项目"
   },
   "GET <project>/ (page)": {

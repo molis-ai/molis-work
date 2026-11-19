@@ -1,9 +1,8 @@
 name: Full suite
 
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
-# 48 shards on ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
-# full-suite slot of a development machine. 48 shards and 24 public runners keep a slow shard under the 45-minute job cap (the 32-shard
-# run had one shard cancelled at the cap while every test in it passed). Wall time and queue time are measured on the actual run.
+# 24 shards on ubuntu runners after a single shared build job, so all 24 shards run in one wave instead of two waves of 24
+# (each shard with 2 workers, at most 1 browser worker — browser files set the critical path, so 2/1 matches 4/1 wall time without CPU starvation). Wall time and queue time are measured on the actual run.
 # Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
 # Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
@@ -13,7 +12,7 @@ name: Full suite
 #     labelled pull request took all 20 runners the repository gets and left `Verify` queued 10 to 20 minutes (2026-10-15);
 #   - a push to an integration branch (`integration/**`, §7 of the same document). A roadmap batch branch (`batch/**`) is not
 #     run on push; its pull request runs with the label like any other, but without `--bail` (see `fail-fast` below);
-#   - nightly on main, and by hand (Actions → Full suite → Run workflow, on any branch).
+#   - nightly on main, and by hand (Actions → Full suite → Run workflow, on any branch; optional `only_files` reruns specific files).
 
 on:
   pull_request:
@@ -24,6 +23,12 @@ on:
     branches:
       - "integration/**"
   workflow_dispatch:
+    inputs:
+      only_files:
+        description: "Optional space-separated test files to run on a single shard instead of all 24 shards"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "0 17 * * *"
 
@@ -32,7 +37,7 @@ permissions:
 
 # A new run cancels the older one in its group (the label added again on the same pull request, a newer push to an integration
 # branch). A `labeled` event for another label skips its shards and gets a group of its own (its run id), so it cannot cancel a
-# run that is testing (#526). The condition is the job `if` of `shard`, written twice because the concurrency key cannot read a
+# run that is testing (#526). The condition is the job `if` of `build`/`shard`, written twice because the concurrency key cannot read a
 # job; change both together.
 concurrency:
   group: >-
@@ -42,9 +47,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shard:
-    name: Full suite (${{ matrix.shard }}/48)
+  # Build once and share all dist/ directories across all shards instead of building 24+ times.
+  build:
+    name: Build workspace
     if: ${{ github.event_name != 'pull_request' || github.event.label.name == 'full-suite' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      # The tests import the built workspace packages and dist/, and the installer tests compare the build fingerprint.
+      - name: Build
+        run: pnpm build
+
+      - name: Pack build outputs
+        shell: bash
+        run: |
+          {
+            find . \( -name node_modules -o -name .git \) -prune -o -name dist -type d -prune -print
+            for d in apps/local-host/native/materials/bin apps/local-host/native/computer/bin; do
+              if [ -d "$d" ]; then printf './%s\n' "$d"; fi
+            done
+          } | sort -u | tar -cf - -T - | gzip -1 > "$RUNNER_TEMP/dist.tar.gz"
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist.tar.gz
+          retention-days: 1
+          compression-level: 0
+
+  shard:
+    name: Full suite (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [build]
+    if: ${{ (github.event_name != 'pull_request' || github.event.label.name == 'full-suite') && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -58,14 +99,14 @@ jobs:
       # branch does not start a run; it is pushed as a backup. The same condition drops `--bail` in "Run this shard"; change both
       # together.
       fail-fast: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
-      # CIP-06: Team capacity is shared across runs. 24 runners for 48 shards; each runner still has only two workers,
-      # one browser worker. 16 runners made a 54-file shard hit the 45-minute cap; narrower shards keep it under.
+      # CIP-06: 24 runners run 24 shards in a single wave (eliminating second-wave queueing). Each 4-core runner keeps
+      # 1 browser worker plus 1 non-browser worker busy (`MOLIS_WORK_TEST_JOBS=2`, `MOLIS_WORK_TEST_BROWSER_JOBS=1`), matching
+      # 4/1 browser-bound wall time while avoiding CPU starvation and timer races on 4-core runners.
       max-parallel: 24
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48]
+        shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
     env:
-      # Four cores per runner: two files at once, one of them a browser file. With three at once, browser files timed out on CDP and
-      # DOM waits under load, a different handful each run (#519, five runs); add runners instead of workers.
+      # Four cores per runner: one browser worker plus one non-browser worker leaves headroom for Chrome/Host and avoids timer races.
       MOLIS_WORK_TEST_JOBS: 2
       MOLIS_WORK_TEST_BROWSER_JOBS: 1
     steps:
@@ -74,22 +115,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      # The version is the root package.json "packageManager", the pin the other workflows use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       # ASC-06: the managed Python MCP test runs real uv against a local package registry.
       - name: uv for the managed Python installer tests
@@ -98,9 +126,15 @@ jobs:
           version: "0.12.19"
           enable-cache: false
 
-      # The tests import the built workspace packages and dist/, and the installer tests compare the build fingerprint.
-      - name: Build
-        run: pnpm build
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: full-suite-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
+
+      - name: Unpack build outputs
+        shell: bash
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       # The same Chrome the product subset uses (ci.yml): the ubuntu image's, with --no-sandbox for a runner whose kernel restricts
       # unprivileged user namespaces. The side panel's own browser (BrowserHost, which finds Chrome by MOLIS_WORK_BROWSER_PATH, then
@@ -158,7 +192,17 @@ jobs:
         shell: bash
         env:
           BAIL: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/48 --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+          # PR full-suite skips gate-meta self-tests (covered by ci.yml) and full-screen VUX crawls (covered by visual-audit.yml);
+          # nightly schedule, integration branches and manual runs still run every file.
+          STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}
+          ONLY_FILES: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files || '' }}
+        run: |
+          if [ -n "$ONLY_FILES" ]; then
+            read -r -a files <<< "$ONLY_FILES"
+            node scripts/run-tests.mjs --skip-macos-only --timeout-seconds 900 --retries 1 $BAIL "${files[@]}" 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+          else
+            node scripts/run-tests.mjs --skip-macos-only $STRATA_FLAGS --shard ${{ matrix.shard }}/${{ strategy.job-total }} --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+          fi
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary
@@ -166,7 +210,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "### Shard ${{ matrix.shard }}/48"
+            echo "### Shard ${{ matrix.shard }}/${{ strategy.job-total }}"
             echo '```'
             grep '^run-tests: predicted shard seconds:' "$RUNNER_TEMP/full-suite.log" || true
             sed -n '/^run-tests: [0-9]* of [0-9]* files passed/,$p' "$RUNNER_TEMP/full-suite.log" 2>/dev/null || echo "no summary (the run did not finish)"
@@ -194,15 +238,17 @@ jobs:
   # One check for the whole suite, for an integration branch or a labelled pull request to read.
   result:
     name: Full suite
-    needs: [shard]
-    if: ${{ always() && needs.shard.result != 'skipped' }}
+    needs: [build, shard]
+    if: ${{ always() && (needs.build.result != 'skipped' || needs.shard.result != 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Every shard passed
         env:
+          BUILD_RESULT: ${{ needs.build.result }}
           SHARDS_RESULT: ${{ needs.shard.result }}
         run: |
-          echo "shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
+          echo "build: $BUILD_RESULT; shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
+          test "$BUILD_RESULT" = "success"
           test "$SHARDS_RESULT" = "success"
 
   # A red night on main is somebody's to fix (user 2026-11-12): one open issue, "main 的夜间全量红了", lists every file that failed
@@ -212,8 +258,8 @@ jobs:
   # (docs/system/PARALLEL-DEVELOPMENT.md §3).
   nightly-report:
     name: Open or close the red-night issue
-    needs: [shard]
-    if: ${{ always() && github.event_name == 'schedule' && needs.shard.result != 'skipped' && needs.shard.result != 'cancelled' }}
+    needs: [build, shard]
+    if: ${{ always() && github.event_name == 'schedule' && needs.build.result != 'skipped' && needs.build.result != 'cancelled' && needs.shard.result != 'cancelled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -232,7 +278,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RESULT: ${{ needs.shard.result }}
+          RESULT: ${{ needs.build.result == 'success' && needs.shard.result || needs.build.result }}
           SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash

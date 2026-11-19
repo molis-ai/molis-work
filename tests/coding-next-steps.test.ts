@@ -64,7 +64,7 @@ test("AC-25: a step's id is the selector of the control it presses, and the row 
   assert.equal((html.match(/data-ix-step-id=/g) ?? []).length, 4, "two options, check and continue, the changes");
   assert.match(html, /data-ix-step-id="\[data-coding-recover-continue=&quot;run-1&quot;\]"/);
   assert.match(html, /aria-label="下一步"/);
-  assert.match(html, /核对并继续/); assert.match(html, /这一轮需要核对结果/); assert.match(html, /查看变更/); assert.match(html, /这一轮改过的文件/);
+  assert.match(html, /核对并继续/); assert.match(html, /这一轮需要核对结果/); assert.match(html, /看改动/); assert.match(html, /这一轮改过的文件/);
   assert.doesNotMatch(html, /data-ix-steps-more/);
 });
 

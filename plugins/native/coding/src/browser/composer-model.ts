@@ -69,7 +69,10 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
   ];
   const paint = () => {
     const parts = round ? noteOf(round) : [];
-    note.hidden = !parts.length;
+    // The round's model is said beside the composer only when it is not the one the composer shows: a switch taken or
+    // asked for, or a round started with another model (screen-polish §6.3). The results panel's run details always name it.
+    const using = round?.model_switch?.now || round?.frozen?.model_id;
+    note.hidden = !parts.length || !(round?.model_switch?.now || round?.model_switch?.requested || (using && chosen() && chosen()!.model_id !== using));
     note.textContent = parts.join(" · ");
     redraw();
   };

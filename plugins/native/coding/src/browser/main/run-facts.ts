@@ -41,19 +41,26 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   return { values, unused };
 }
 
-/** The facts panel: the round's state, then one line per fact. */
+/**
+ * The run details: what the round was set up with, one line per fact, folded under its state. Paths, capability ids and
+ * token counts are for the person who goes looking, so they stay closed at the bottom of the panel (screen-polish §6.5,
+ * POLISH-27); a fold the person opened stays open across redraws.
+ */
 function drawFacts(page: Page, result: HTMLElement, run: RunView, count: number, facts: { values: Fact[]; unused: string[] }) {
   const { s } = page, phaseLabel = s.phases[run.phase] || run.phase;
   const tone = run.phase === "completed" ? "done" : run.phase === "failed" ? "failed" : terminal(run.phase) ? "idle" : "live";
-  const head = el("header", "", "coding-facts-head"), phase = el("span", phaseLabel, "coding-facts-phase"), list = el("dl");
+  const fold = el("details", "", "coding-run-details"), head = el("summary", "", "coding-facts-head"), phase = el("span", phaseLabel, "coding-facts-phase"), list = el("dl");
+  fold.dataset.codingRunDetails = "";
+  fold.open = Boolean(result.querySelector<HTMLDetailsElement>(":scope > [data-coding-run-details]")?.open);
   phase.dataset.tone = tone;
   phase.dataset.mwState = phaseRing(run.phase);
-  head.append(el("h3", uiText.text("coding.results.facts")), phase, el("span", uiText.text("coding.turn.number", { number: count }), "coding-facts-round"));
+  head.append(el("h3", uiText.text("coding.results.run-details")), phase, el("span", uiText.text("coding.turn.number", { number: count }), "coding-facts-round"));
   for (const [label, value, path] of facts.values) {
     list.append(el("dt", label), el("dd", value, path ? "is-path" : ""));
   }
-  result.replaceChildren(head, list);
-  if (facts.unused.length) result.append(el("p", uiText.text("coding.facts.unused", { what: facts.unused.join(uiText.text("common.list.separator")) }), "coding-facts-unused"));
+  fold.append(head, list);
+  if (facts.unused.length) fold.append(el("p", uiText.text("coding.facts.unused", { what: facts.unused.join(uiText.text("common.list.separator")) }), "coding-facts-unused"));
+  result.replaceChildren(fold);
 }
 
 /** The results panel's facts of the latest round; with no round it says there is nothing yet. */

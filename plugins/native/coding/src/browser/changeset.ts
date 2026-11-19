@@ -34,6 +34,8 @@ export interface ChangesetPorts extends Pick<PagePorts, "lifetime" | "translate"
   readonly closeReport: () => void;
   readonly returnToTask: () => void;
   readonly onRunOpen: () => void;
+  /** A round's changes were read: its files, one entry per write, with the lines each added and removed. */
+  readonly onRead?: (run: string, files: readonly ChangeFile[]) => void;
   /** Adds the remarks to the composer's draft. */
   readonly appendDraft: (task: string) => Promise<unknown>;
   readonly focusDraft: () => void;
@@ -330,6 +332,7 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
     const result = await api<Changeset>("/sessions/" + encodeURIComponent(id) + "/runs/" + encodeURIComponent(nextRun) + "/changeset?change_index=" + r.index + "&net=" + mode + "&layout=" + r.layout + (requireFixed ? "&fixed=1" : ""), save ? "POST" : "GET");
     if (r.ticket !== token || id !== ports.current()) return;
     r.value = result;
+    ports.onRead?.(nextRun, result.change.files);
     r.net = result.view_mode === "net";
     r.netIndices = r.net ? (result.net_groups || []).find(group => group.indices.includes(r.index))?.indices || null : null;
     const body = q("[data-coding-change-body]");

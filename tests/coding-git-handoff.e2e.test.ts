@@ -69,7 +69,14 @@ test("QEA-35: Coding hands a delayed model draft to Git without overwriting typi
   await browser.waitFor(visible(confirm));
   await browser.click(confirm);
   const generate = "[data-coding-commit-round]";
-  await frame.waitFor(visible(generate), 30_000);
+  // Expected change (screen-polish POLISH-24): an ended round is one line, and committing sits in the round's details, behind
+  // the chevron at the end of that line. The test opens them where it used to find the button on the card; the button and
+  // what it does are the same.
+  const present = `!!document.querySelector(${JSON.stringify(generate)})`;
+  const openDetails = () => frame.evaluate(`{ const more = document.querySelector('[data-coding-run-more][aria-expanded=false]'); if (more && ${present}) more.click(); }`);
+  await frame.waitFor(present, 30_000);
+  await openDetails();
+  await frame.waitFor(visible(generate));
   assert.equal(await readFile(join(root, "note.txt"), "utf8"), "Reviewed SDK edit\n");
   assert.equal(foreground, 3);
   const back = "[data-coding-directory-back]";
@@ -91,9 +98,12 @@ test("QEA-35: Coding hands a delayed model draft to Git without overwriting typi
     await frame.waitFor("document.querySelector('[data-git-draft-status]').dataset.state === 'ready'");
   };
   const draft = async () => {
+    await openDetails();
     if (!(await frame.evaluate<boolean>(visible(generate)))) {
       await frame.click("[data-coding-face=sessions]");
       await frame.click("[data-coding-session]");
+      await frame.waitFor(present);
+      await openDetails();
       await frame.waitFor(visible(generate));
     }
     await frame.click(generate);

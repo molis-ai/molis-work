@@ -18,3 +18,16 @@ export const CODING_SESSION_MARKS: Record<CodingSessionState, { readonly label: 
   "queued": { label: "coding.state.queued", ring: "idle" },
   "done": { label: "coding.state.done", ring: "idle" },
 };
+
+/**
+ * The states that ask something of the person: waiting on them, or failed. In the directory only these say so, in the short
+ * word given here (a message key); every other state is its ring alone, so the session's name has the line (screen-polish
+ * §6.1, POLISH-23). The state's full words stay the chip's title and what a screen reader hears.
+ */
+export const CODING_SESSION_ASKS: Readonly<Record<string, string>> = {
+  "paused": "coding.session.short.paused",
+  "waiting-answer": "coding.session.short.waiting",
+  "waiting-approval": "coding.session.short.waiting",
+  "failed": "coding.session.short.failed",
+  "reconcile-required": "coding.session.short.reconcile",
+};

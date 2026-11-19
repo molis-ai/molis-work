@@ -1,3 +1,4 @@
+import { renderChanged } from "./changed-files.js";
 import { controls } from "./controls.js";
 import { renderCommandRows } from "./command-rows.js";
 import { drawEnvironmentReadiness } from "./configuration.js";
@@ -15,7 +16,7 @@ function welcome(page: Page, all: readonly RunView[]) {
   turns.toggleAttribute("data-coding-welcoming", showWelcome);
   if (!showWelcome) {
     root.querySelector("[data-coding-welcome]")?.remove();
-    turns.querySelector(":scope > [data-coding-env-checklist]")?.remove();
+    turns.querySelector(":scope > [data-coding-prep]")?.remove();
   } else {
     if (!root.querySelector("[data-coding-welcome]")) {
       turns.append(q<HTMLTemplateElement>("[data-coding-welcome-template]").content.cloneNode(true));
@@ -58,6 +59,7 @@ export function renderRuns(page: Page, runs: readonly RunView[], all: readonly R
   renderNextSteps(page, all);
   renderOutcomes(page, all);
   s.lastRun = all.at(-1) || null;
+  renderChanged(page);
   drawEnvironmentReadiness(page, s.state.environment_readiness);
   renderFacts(page, all);
   renderPill(page);

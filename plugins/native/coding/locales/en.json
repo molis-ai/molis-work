@@ -77,7 +77,6 @@
     "coding.attach.method": "Skill",
     "coding.attach.title": "Material, roles, skills, MCP and session settings",
     "coding.board.acceptance": "Done when: {acceptance}",
-    "coding.board.back": "Back to conversation",
     "coding.board.by-character": "Character “{character}” · role {role}",
     "coding.board.by-role": "Role {role}",
     "coding.board.cancel": "Cancel",
@@ -100,7 +99,7 @@
     "coding.board.deps-open": "Show the prerequisite steps ({count})",
     "coding.board.deps-ready": "ready",
     "coding.board.deps-waiting": "{count} not done",
-    "coding.board.empty": "This session has no plan or sub-tasks yet. Start one with Plan or Collaborate in the conversation and it shows up here.",
+    "coding.board.empty": "Start one with Plan or Collaborate in the conversation and it shows up here.",
     "coding.board.executor": "Run by: {detail}",
     "coding.board.executor-name": "Run by {name}",
     "coding.board.expand": "Expand {title}",
@@ -1262,7 +1261,6 @@
     "coding.results.back": "Back to the session",
     "coding.results.background": "Background commands",
     "coding.results.cooperation": "Collaboration and related sessions",
-    "coding.results.facts": "This turn at a glance",
     "coding.results.index": "Result sections",
     "coding.results.jump": "Jump to: {section}",
     "coding.results.pending": "Results · to review",
@@ -1638,7 +1636,6 @@
     "coding.short.checkpoints": "Checkpoints",
     "coding.short.commands": "Commands",
     "coding.short.cooperation": "Collaboration",
-    "coding.short.facts": "Overview",
     "coding.short.outcomes": "Results",
     "coding.short.recovery": "Recovery",
     "coding.skill.coding-diagnose-fix.description": "Find a reproducible cause first, then make the smallest fix and check both failure and recovery.",
@@ -2211,6 +2208,28 @@
     "coding.subtask.open-result": "Open this sub-task conversation",
     "coding.subtask.notice.peer-update": "Conversation update received",
     "coding.subtask.notice.task-unavailable": "Original task description unavailable",
-    "coding.subtask.notice.subagent-input": "A person added input to this sub-task"
+    "coding.subtask.notice.subagent-input": "A person added input to this sub-task",
+    "coding.session.short.waiting": "Needs you",
+    "coding.session.short.failed": "Failed",
+    "coding.session.short.paused": "Paused",
+    "coding.session.short.reconcile": "Check",
+    "coding.round.more": "Details",
+    "coding.prep.title": "Prepared",
+    "coding.prep.env-ready": "Environment ready",
+    "coding.prep.deps-ready": "dependencies installed",
+    "coding.prep.folder": "folder",
+    "coding.prep.repo": "repository",
+    "coding.prep.deps": "dependencies",
+    "coding.prep.materials": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} material",
+        "other": "{count} materials"
+      }
+    },
+    "coding.results.changed": "What changed",
+    "coding.results.run-details": "Run details",
+    "coding.head.more": "More",
+    "coding.board.empty-title": "No tasks yet"
   }
 }

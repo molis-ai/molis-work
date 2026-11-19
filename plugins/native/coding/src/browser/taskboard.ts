@@ -114,6 +114,15 @@ function drawGroup(state: State, group: BoardGroup): HTMLElement {
   return fold;
 }
 
+/** The board of a session with no plan and no subtask yet: what it is for, and where such work starts. */
+function emptyBoard(state: State): HTMLElement {
+  const box = el("div", "", "mw-empty coding-board-empty"), mark = el("span", "", "mw-empty__mark");
+  box.dataset.slot = "empty";
+  mark.innerHTML = svg("board");
+  box.append(mark, el("h2", uiText.text("coding.board.empty-title")), el("p", state.empty));
+  return box;
+}
+
 function drawBoard(state: State) {
   const { data, view } = state, { board } = view;
   if (board.hidden) return;
@@ -133,8 +142,10 @@ function drawBoard(state: State) {
   const focusedRow = active && state.list.contains(active) ? active.id : "";
   state.title.textContent = uiText.text("coding.face.taskboard");
   state.meta.textContent = summary(state, data).text;
-  state.notice.textContent = state.loadError || data.error || (groups.length ? uiText.text("coding.board.notice") : state.empty);
-  state.list.replaceChildren(...groups.map(group => drawGroup(state, group)));
+  const problem = state.loadError || data.error;
+  state.notice.textContent = problem || (groups.length ? uiText.text("coding.board.notice") : "");
+  // Nothing planned yet is the shared empty state (screen-polish §6.6), not a footnote under an empty table.
+  state.list.replaceChildren(...(groups.length || problem ? groups.map(group => drawGroup(state, group)) : [emptyBoard(state)]));
   board.scrollTop = scroll;
   // A late completion can redraw the row that just received focus back from the child conversation.
   if (focusedRow && document.activeElement === document.body) {

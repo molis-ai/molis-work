@@ -41,9 +41,11 @@ export class FeedSourceScheduler {
     const attempts = await Promise.allSettled(due.map(async (source) => {
       const schedule = source.schedule;
       if (schedule.mode !== "interval" || !schedule.next_pull_at) return;
-      if (runIsMissed(schedule.next_pull_at, at.getTime())) {
-        // Far past its time (Molis Work was not running, or the computer slept): written down for the person, not pulled now; the next
-        // time comes as usual (resident runtime §2.1). 「现在做」 sets the next time to now, so that pull is on time.
+      // Far past its time (Molis Work was not running, or the computer slept): written down for the person, not pulled now; the next
+      // time comes as usual (resident runtime §2.1). 「现在做」 puts the source back at the time it missed with the decision kept on that
+      // row, so that slot is pulled whenever the next tick comes, however late, and is never written down a second time.
+      if (runIsMissed(schedule.next_pull_at, at.getTime())
+        && service.feed.sources.missed.get(this.projectId, missedPullRunId(source.source_id, schedule.next_pull_at))?.decision !== "run_now") {
         const plannedAt = schedule.next_pull_at, guard = createFeedSourceSyncGuard(service.feed, source, authority);
         await guard();
         await this.write(service, () => {

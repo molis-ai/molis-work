@@ -8,8 +8,9 @@ import type { FeedApplication } from "./application.js";
 
 /**
  * Feed's part in the menu-bar panel (resident-runtime-design §2.1): the sources' next scheduled pulls, and the pulls that came up more
- * than the grace late and were not made (`FeedSourceScheduler.tick` writes those down). 「现在做」 sets the source's next pull to now, so
- * the next tick pulls it on the usual path; 「跳过」 only marks it.
+ * than the grace late and were not made (`FeedSourceScheduler.tick` writes those down). 「现在做」 puts the source's next pull back at
+ * the time it missed and keeps the decision on that row, as Schedule does: the next tick pulls that slot once on the usual path, even
+ * when it comes much later (the computer slept right after the click), and does not ask again; 「跳过」 only marks it.
  */
 export const missedPullRunId = (sourceId: string, plannedAt: string) => `pull:${sourceId}:${plannedAt}`;
 const FEED_SURFACE = "feed";
@@ -51,7 +52,7 @@ export function decideMissedPull(feed: FeedApplication, projectId: string, input
     return { state: "gone" };
   }
   if (input.decision === "skip") { feed.sources.missed.decide(projectId, input.run_id, "skip", at); return { state: "skipped" }; }
-  feed.sources.upsert({ ...source, schedule: { ...schedule, next_pull_at: at }, updated_at: at });
+  feed.sources.upsert({ ...source, schedule: { ...schedule, next_pull_at: missed.due_at }, updated_at: at });
   feed.sources.missed.decide(projectId, input.run_id, "run_now", at);
   return { state: "started" };
 }

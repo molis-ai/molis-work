@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
@@ -17,6 +18,9 @@ import { homeConnectorDirectory } from "./connector-directory.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
+
+/** Raises `SOURCE_PULL_EVIDENCE_KEY_MISSING` (the public code Feed reads); `tests/security-invariants-evidence.test.ts` holds the two equal. */
+const sourcePullErrors = defineErrorCodes("host.source_pull", { evidence_key_missing: "unavailable" });
 
 /** The Manifest permissions that make the Host build `services.sourcePull` (`HOST_SERVICE_PERMISSIONS`). */
 export const SOURCE_PULL_PERMISSIONS: readonly string[] = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION];
@@ -51,6 +55,10 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
       titles: async () => new Map((await homeConnectorDirectory(home)).map(entry => [entry.connector_id, entry.title])) }),
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {
+      // The Home's evidence key is lost while bodies sealed with it remain (BL-1065): stop before fetching what could not be kept.
+      if (content.keyStatus() === "missing") {
+        throw sourcePullErrors.evidence_key_missing("保存正文的钥匙找不到了。已有的内容原样保留；找回原钥匙之前，同步先暂停，不会取新内容。");
+      }
       const intent = buildSourcePullIntent(request);
       // SEL turns a failed body write or caller check into a partial result; a body the plugin could not hold, or a call that went stale
       // (a revoked grant is not a cancellation: the signal stays live), fails the whole pull instead. A cancelled pull keeps its receipt.

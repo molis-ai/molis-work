@@ -154,6 +154,7 @@ function memoryContent(): EvidenceContentStore {
     write(markdown) { const contentRef = `mem:${bodies.size + 1}`; bodies.set(contentRef, markdown); return { contentRef }; },
     read(contentRef) { const body = bodies.get(contentRef); if (body === undefined) throw new Error("content_missing"); return body; },
     has: contentRef => bodies.has(contentRef),
+    keyStatus: () => "ready",
     inspect: refs => ({ referenced: refs.length, available: refs.filter(ref => bodies.has(ref)).length, missing: refs.filter(ref => !bodies.has(ref)).length, keyAvailable: true }),
     delete: contentRef => bodies.delete(contentRef),
   } as EvidenceContentStore;

@@ -12,7 +12,7 @@
 
 <a id="execution-batches"></a>
 
-## 01～91
+## 01～91B
 
 2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
 
@@ -245,7 +245,7 @@
 
 ## 服务端批
 
-排在 01～91 之后，开工时间由用户定；01～91 不等它。后续服务端需求继续加在这一批。
+排在 01～91B 之后，开工时间由用户定；01～91B 不等它。后续服务端需求继续加在这一批。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -278,7 +278,7 @@
 
 ## 发行批
 
-只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～91 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～91B 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
 
 | 批次 | 批次内内容 |
 | --- | --- |

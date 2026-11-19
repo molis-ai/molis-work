@@ -1,4 +1,4 @@
-import { LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SettingLayer, SettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/settings";
 import { MEMORY_CONFIGURE_PERMISSION, MEMORY_PROVIDER_ID, memoryPreferenceMarkerPrefix, type MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { bindSettingsHandlers, defineSettingsActions, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
@@ -86,10 +86,15 @@ export function memorySettingHandlers(ledger: MemoryLedgerPort, assertActive: ()
     }),
   };
   const bound = bindSettingsHandlers(actions, declaration, owner);
+  const refusal = memoryErrors.forbidden("只有本人可以管理记忆偏好");
+  const denied = { available: false, code: refusal.code, kind: refusal.kind, reason: refusal.message } as const;
+  function availability(caller: ActionCallContext): ActionAvailability {
+    return caller.actor_id === LOCAL_PERSON_ACTOR_ID && caller.audience === "user" && caller.actor_kind !== "runtime" && !caller.host_plugin && !caller.delegated_by
+      ? { available: true } : denied;
+  }
   function forPerson(binding: ActionHandlerBinding): ActionHandlerBinding {
-    return { ...binding, handle(caller, input) {
-      if (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.audience !== "user" || caller.actor_kind === "runtime" || caller.host_plugin || caller.delegated_by)
-        throw memoryErrors.forbidden("只有本人可以管理记忆偏好");
+    return { ...binding, availability, handle(caller, input) {
+      if (!availability(caller).available) throw memoryErrors.forbidden(denied.reason);
       const current = () => { assertActive(); caller.memory_session?.assertCurrent(); };
       current();
       return binding.handle({ ...caller, assert_authority_current(ref, required) {

@@ -1,5 +1,5 @@
 import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, type ActionCallContext, type InferActionInput, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
 import { scheduleErrors, scheduleFailure } from "./error.js";
@@ -48,7 +48,6 @@ const fields = { title: { type: "string", maxLength: 200, description: "1 到 80
   subject: { ...subject, description: "任务关心的对象（如一条风险），只写进这一轮的说明，不给读它的权限" },
   notify_important: { type: "boolean", description: "重要结果是否标记未读；缺省为 true" } };
 const read = ["schedule:read"], write = ["schedule:write"];
-const oneTask = { type: "object", additionalProperties: false, properties: { task_id: { type: "string", minLength: 1 } }, required: ["task_id"] } as const;
 
 // `schedule.register/list/...` are the platform wakeup capabilities other plugins consume; the plugin's own tasks live beside them.
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
@@ -75,9 +74,6 @@ export const scheduleActions = {
   readiness: define<Record<string, never>, ScheduleTaskReadiness>("tasks.readiness", /* @version action.schedule.tasks.readiness */ 1, "定时任务就绪情况",
     "读取对话任务到点执行需要的条件：已配置的文字模型、项目绑定的工作区；缺任何一项都仍可创建任务，到点时才会叫醒失败", "query", object({}),
     object({ model: { type: "boolean" }, workspace: { type: "boolean" } }), read),
-  getTask: define<InferActionInput<typeof oneTask>, { task: ScheduleConversationTaskView }>("tasks.get", /* @version action.schedule.tasks.get */ 1, "读取一项定时任务",
-    "按编号读取当前项目的一项对话任务：设置、下一次时间与每一轮的对话（含没跑成的那一轮及原因）；已归档或不在本项目的答不存在", "query",
-    oneTask, object({ task }), read),
   createTask: define<ScheduleTaskInput, { task: ScheduleConversationTaskView }>("tasks.create", /* @version action.schedule.tasks.create */ 1, "新建定时任务",
     "新建每天定时运行的对话任务并登记下一次唤醒；到点后由项目 Agent 按说明执行", "command",
     object(fields, ["title", "instructions"]), object({ task }), write),
@@ -194,11 +190,6 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
     bind(scheduleActions.readiness, () => {
       if (!ports.readiness) throw new ActionError("actions.unredeemed", "当前宿主未提供定时任务就绪检查");
       return ports.readiness();
-    }),
-    bind(scheduleActions.getTask, input => {
-      const task = ports.getTask(input.task_id);
-      if (!task) throw scheduleErrors.task_not_found("定时任务不存在");
-      return { task };
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
     bind(scheduleActions.updateTask, input => {

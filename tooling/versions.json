@@ -1011,7 +1011,6 @@
     "action.schedule.tasks.archive": 1,
     "action.schedule.tasks.create": 1,
     "action.schedule.tasks.enabled": 1,
-    "action.schedule.tasks.get": 1,
     "action.schedule.tasks.list": 1,
     "action.schedule.tasks.open": 1,
     "action.schedule.tasks.readiness": 1,

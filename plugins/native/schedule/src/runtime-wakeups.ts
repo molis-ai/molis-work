@@ -55,6 +55,8 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   if (missed) return missed;
   if (input.capability_id === SCHEDULE_TASK_WAKEUP_CAPABILITY) {
     return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write, async turn => {
+      // The round's answer, or the sentence that it did not run and why, is written: an open page shows it (96-2).
+      services.ui.invalidate();
       const delivered = turn.kind === "assistant";
       await services.actions?.invoke(observationActions.report, { facts: [{
         fact: "io.molis.work.schedule.task_turn", stage: delivered ? "completed" : "executed", outcome: delivered ? "succeeded" : "failed",

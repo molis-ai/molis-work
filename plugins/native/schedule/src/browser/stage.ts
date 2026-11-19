@@ -4,7 +4,6 @@ import type { RowKind } from "./types.js";
 import { post } from "./request.js";
 import { readTaskReads, showCreated } from "./reads.js";
 import { closeArea, placeArea } from "./area.js";
-import { followRound, stopFollowing } from "./round.js";
 
 const uiText = globalThis.t;
 
@@ -27,7 +26,6 @@ function publishContext(page: SchedulePage, taskId: string | null): void {
 function clearSelection(page: SchedulePage): void {
   const { workbench, list } = page;
   closeArea(page);
-  stopFollowing(page);
   list.querySelectorAll<HTMLElement>("[data-schedule-row]").forEach(row => {
     row.classList.remove("is-selected"); row.setAttribute("aria-selected", "false"); row.tabIndex = -1;
   });
@@ -57,8 +55,8 @@ export function closeForm(page: SchedulePage, taskId: string | null): void {
   if (taskId) select(page, taskId, "task"); else collapse(page);
 }
 
-/** Opens one row's detail; opening a task also marks it read (best effort). */
-export function select(page: SchedulePage, id: string | null | undefined, kind: RowKind): void {
+/** Opens one row's detail; the person opening a task also marks it read (best effort), a redraw of what is open does not. */
+export function select(page: SchedulePage, id: string | null | undefined, kind: RowKind, markRead = true): void {
   if (!id) { collapse(page); return; }
   const { workbench, list, host } = page;
   list.querySelectorAll<HTMLElement>("[data-schedule-row]").forEach(row => {
@@ -74,15 +72,12 @@ export function select(page: SchedulePage, id: string | null | undefined, kind: 
   // The detail is on show before the area is placed on it: the place it reports is where the person sees it.
   placeArea(page, kind === "task" ? id : null);
   publishContext(page, kind === "task" ? id : null);
-  // An open task's detail waits for its round and is drawn again when it lands, still opening whatever is open by then.
-  if (kind === "task") followRound(page, id, () => void refreshStage(page, id, "task", true).catch(() => undefined));
-  else stopFollowing(page);
   // Marking a task read is a courtesy: when it does not go through, nothing the person did is lost.
-  if (kind === "task") void post(host, "/tasks/" + encodeURIComponent(id) + "/open", {}, "").catch(() => undefined);
+  if (kind === "task" && markRead) void post(host, "/tasks/" + encodeURIComponent(id) + "/open", {}, "").catch(() => undefined);
 }
 
 /** What is open on the page: a row (by its kind and id), the new/edit form, or nothing. */
-function openNow(page: SchedulePage): { readonly id?: string; readonly kind: RowKind | "form" | "none" } {
+export function openNow(page: SchedulePage): { readonly id?: string; readonly kind: RowKind | "form" | "none" } {
   if (!page.pane.hidden) return { kind: "form" };
   const row = page.list.querySelector<HTMLElement>("[data-schedule-row].is-selected");
   if (!row) return { kind: "none" };
@@ -92,9 +87,10 @@ function openNow(page: SchedulePage): { readonly id?: string; readonly kind: Row
 /**
  * Reads the page again and swaps the list and the details in place, then opens `openId` (or none). When the person opened something
  * else while the page was read, that stays open instead: a late answer does not take their choice away. With `preserveConfirmation`
- * a failure is thrown to the caller (a dialog keeps its review on show); otherwise it is a toast.
+ * a failure is thrown to the caller (a dialog keeps its review on show); otherwise it is a toast. Without `markRead` (a redraw the
+ * person did not ask for), the task opened again is not marked read.
  */
-export async function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false): Promise<boolean> {
+export async function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true): Promise<boolean> {
   const { list, workbench, host } = page;
   try {
     const scrollTop = list.scrollTop, template = document.createElement("template"), asked = openNow(page);
@@ -116,7 +112,7 @@ export async function refreshStage(page: SchedulePage, openId?: string, kind: Ro
     nextWorkspace.querySelectorAll("[data-schedule-detail]").forEach(detail => { if (empty) workspace.insertBefore(detail, empty); else workspace.append(detail); });
     if (kept && keptFor && target.kind === "task" && keptFor === target.id) detailOf(workspace, keptFor)?.querySelector("[data-schedule-reads]")?.replaceWith(kept);
     list.scrollTop = scrollTop;
-    if (target.kind === "task" || target.kind === "job") select(page, target.id, target.kind);
+    if (target.kind === "task" || target.kind === "job") select(page, target.id, target.kind, markRead);
     else if (target.kind === "none") collapse(page);
     // The rows and details are new: what each task reads is said on them again (one read for the whole list).
     void readTaskReads(page);

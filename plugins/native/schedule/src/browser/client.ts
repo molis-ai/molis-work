@@ -3,11 +3,11 @@ import { wireForm } from "./form.js";
 import { wireOperation } from "./operation.js";
 import { createPage } from "./page.js";
 import { wireReads } from "./reads.js";
-import { wireFollowing } from "./round.js";
 import { wireRecovery } from "./recovery.js";
 import { detailOf } from "./dom.js";
-import { select } from "./stage.js";
+import { openNow, refreshStage, select } from "./stage.js";
 import type { ScheduleHost } from "./types.js";
+import { read } from "./request.js";
 
 const OPEN_KEY = "mw-schedule-open";
 
@@ -23,7 +23,16 @@ export function scheduleClient(host: ScheduleHost): void {
   wireOperation(page);
   wireForm(page);
   wireReads(page);
-  wireFollowing(page);
+  // Schedule says when what its page shows has changed behind it (a round ended, a task stopped or was set for its next time): while
+  // the page is on screen it reads the page again and keeps open what is open, without marking a task read (PG-061, 96-2). The first
+  // answer is the page as just drawn. With the form open it waits; the next check reads again.
+  let drawn = true;
+  host.scope.watchRevision(() => read(host, "/view-revision"), async () => {
+    if (drawn) { drawn = false; return; }
+    const open = openNow(page);
+    if (open.kind === "form" || page.creating || page.recovering || page.operationBusy) return false;
+    await refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false).catch(() => undefined);
+  });
   list.addEventListener("click", event => {
     const target = event.target as Element;
     if (target.closest("[data-schedule-new]")) return;

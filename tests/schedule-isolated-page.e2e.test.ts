@@ -72,7 +72,7 @@ test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and
   assert.deepEqual((await browser.web.get<typeof tasks>(api + '/list')).tasks, []);
 });
 
-test("96-2 an open task's detail shows the round that just failed and why without reading the page again; a late answer keeps the newer choice", { timeout: 150_000 }, async t => {
+test("96-2 an open task's detail shows the round that just failed and why without a reload; a late answer keeps the newer choice", { timeout: 150_000 }, async t => {
   // The Host is this test's own (no model configured), so the test can reach the project's clock.
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   await browser.setViewport(1440, 900);
@@ -105,13 +105,13 @@ test("96-2 an open task's detail shows the round that just failed and why withou
   await round(first);
   await child.waitFor(`document.querySelector('${detail(first.task_id)} .schedule-turn--system')`, 30_000);
   // A one-off task that ran its time is switched off by Schedule's next pass a few seconds later; the open detail follows that too.
-  await child.waitFor(`document.querySelector('${detail(first.task_id)}').dataset.scheduleEnabled === 'false'`, 30_000);
+  await child.waitFor(`document.querySelector('${detail(first.task_id)} [data-schedule-task-enabled-action=true]')`, 30_000);
   assert.equal(await child.evaluate("window.__scheduleStayed"), true, "the detail changed in place: the page was not loaded again");
-  const shown = await child.evaluate<{ open: boolean; text: string; next: string; enabled: string }>(`(() => { const d = document.querySelector('${detail(first.task_id)}');
-    return { open: !d.hidden, text: d.querySelector('.schedule-turn--system p').textContent, next: d.querySelector('.feed-detail-header p').textContent, enabled: d.dataset.scheduleEnabled }; })()`);
+  const shown = await child.evaluate<{ open: boolean; text: string; next: string; resumable: boolean }>(`(() => { const d = document.querySelector('${detail(first.task_id)}');
+    return { open: !d.hidden, text: d.querySelector('.schedule-turn--system p').textContent, next: d.querySelector('.feed-detail-header p').textContent, resumable: Boolean(d.querySelector('[data-schedule-task-enabled-action=true]')) }; })()`);
   assert.equal(shown.open, true, "the failed round shows in the detail that was open");
   assert.match(shown.text, /没跑成：\S/, "with the reason it did not run");
-  assert.equal(shown.enabled, "false", "a one-off task that ran its time is off");
+  assert.equal(shown.resumable, true, "a one-off task that ran its time is off: the detail offers to turn it back on");
   assert.notEqual(shown.next, before.next, "the detail no longer says the time that has passed");
 
   // The second task's round lands while the page is read again for it; the person has opened another task by then.
@@ -119,11 +119,15 @@ test("96-2 an open task's detail shows the round that just failed and why withou
   await child.waitFor(`!document.querySelector('${detail(second.task_id)}').hidden`);
   let held: { requestId: string } | null = null;
   const off = browser.on("Fetch.requestPaused", (event, session) => {
-    if (session === browser.sessionId && !held) held = event as { requestId: string };
-    else if (session === browser.sessionId) void browser.command("Fetch.continueRequest", { requestId: (event as { requestId: string }).requestId }, browser.sessionId);
+    if (session !== browser.sessionId) return;
+    const paused = event as { requestId: string; request: { url: string } };
+    if (!held && !new URL(paused.request.url).pathname.includes("/api/")) held = paused;
+    else void browser.command("Fetch.continueRequest", { requestId: paused.requestId }, browser.sessionId);
   });
   t.after(off);
-  await browser.command("Fetch.enable", { patterns: [{ urlPattern: "*/view-revision*", requestStage: "Request" }] }, browser.sessionId);
+  // The shell reads the page document again for the frame (readDocument): that fetch of the workbench page is held, not the
+  // revision checks the page makes on its own.
+  await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*/projects/${browser.projectId}/*`, resourceType: "Fetch", requestStage: "Request" }] }, browser.sessionId);
   await round(second);
   const deadline = Date.now() + 30_000;
   while (!held && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));

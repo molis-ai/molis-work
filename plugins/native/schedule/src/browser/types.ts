@@ -6,8 +6,10 @@ export type Translate = UiClientTranslate;
  * What the workbench hands Schedule's client: the shared host fields it uses (the platform's reads area among them), the shell's
  * document read and its toast.
  */
-export interface ScheduleHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "pluginRoute" | "pluginId" | "confirm" | "taskGrants" | "invokeAction"> {
+export interface ScheduleHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "pluginRoute" | "pluginId" | "confirm" | "taskGrants"> {
   readonly view: Pick<UiPageView<HTMLElement>, "readDocument">;
+  /** The mounted page's lifetime (packages/ui-host client-lifecycle): it reads the platform's view revision only while the page is on screen. */
+  readonly scope: { watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void };
   showToast(message: string, isError?: boolean): void;
 }
 

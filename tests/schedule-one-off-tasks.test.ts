@@ -140,9 +140,9 @@ test("96-1 editing a task reads that one task by its id, never the list; a repea
     // Another project's task id is not one of this project's tasks: it is not found, and that task is as it was.
     await assert.rejects(actions.invoke(scheduleActions.updateTask, { task_id: elsewhere.task_id, title: "改", instructions: "改", time: "10:00" }), { code: "schedule.task_not_found" });
     assert.deepEqual(there.ports.getTask(elsewhere.task_id)?.title, "别处");
-    // An archived task reads as gone before its fields are checked.
+    // An archived task reads as gone before its fields are checked: a blank title would otherwise be the answer.
     await actions.invoke(scheduleActions.archiveTask, { task_id: once.task_id });
-    await assert.rejects(actions.invoke(scheduleActions.updateTask, { task_id: once.task_id, title: "复查", instructions: "看" }), { code: "schedule.task_not_found" });
+    await assert.rejects(actions.invoke(scheduleActions.updateTask, { task_id: once.task_id, title: " ", instructions: "看" }), { code: "schedule.task_not_found" });
   } finally { here.db.close(); there.db.close(); }
 });
 

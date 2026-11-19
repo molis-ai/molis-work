@@ -14,7 +14,7 @@ const cases = [
   { name: "functions", version: 1, file: "functions/functions.db", table: "function_scene_bindings",
     seed: "INSERT INTO function_scene_bindings VALUES ('scene', 'project', '{}', 'revision', 'time')",
     open: (home: string) => { const service = createFunctionsService({ home, credential: () => null }); return () => service.close(); } },
-  { name: "assistant", version: 2, file: "assistant/assistant.db", table: "assistant_settings",
+  { name: "assistant", version: 3, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
   { name: "characters", version: 2, file: "characters/characters.sqlite", table: "character_drafts",
@@ -40,8 +40,9 @@ for (const item of cases) {
       } finally { db.close(); }
     } finally { rmSync(home, { recursive: true, force: true }); }
   });
-  // B10-R3: v2 still refuses the old format on open; only the explicit upgrade runner may advance it.
-  for (const version of [0, ...(item.version > 1 ? [item.version - 1] : []), item.version + 1]) test(`RAC-2365 ${item.name} refuses current nonempty schema at version ${version} without changing facts or bytes`, () => {
+  // B10-R3: changing the version of an existing store belongs to the explicit upgrade runner.
+  const otherVersions = [...Array.from({ length: item.version }, (_, version) => version), item.version + 1];
+  for (const version of otherVersions) test(`RAC-2365 ${item.name} refuses current nonempty schema at version ${version} without changing facts or bytes`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${item.name}-refusal-`)), file = join(home, item.file);
     try {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });

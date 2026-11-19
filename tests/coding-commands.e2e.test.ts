@@ -139,6 +139,7 @@ test("Coding A1 A2 B35-R7 the / menu sends the exact prompt and /init writes onl
   await waitFor(`posts.some(one=>/\\/runs$/.test(one.path))`, 30_000);
   const body = await evaluate<Record<string, unknown>>(`JSON.parse(posts.find(one=>/\\/runs$/.test(one.path)).body)`);
   assert.equal(body.task, filled);
+  assert.equal(body.command_prompt, true);
   assert.ok(!JSON.stringify(body).includes("Bash(rm"), "the file's allowed-tools are not read");
   await owner.waitFor(`!document.querySelector(${JSON.stringify(`${CODING_COMPOSER} [data-composer-chip]`)})`, 10_000);
   await waitFor(`document.querySelector('.coding-turn[data-kind=user]')?.textContent.includes('给文件补测试')`, 60_000);

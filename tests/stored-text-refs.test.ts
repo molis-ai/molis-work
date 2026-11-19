@@ -109,7 +109,7 @@ function scratch(t: TestContext) {
 const cardBody = (card_id: string, outcome?: string) => JSON.stringify({ card_id, work_id: "w1", revision: 2, run_id: null, title: "t", summary: "s", provider: "Todo", capability_title: "c",
   effect: "write", reference, input: {}, input_schema: {}, editable: [], missing: [], status: "failed", ...(outcome === undefined ? {} : { outcome }), created_at: "2026-11-01", updated_at: "2026-11-01" });
 
-test("BL-action-card-outcome-text: the Assistant store 1 → 2 keeps an outcome already written as its words", t => {
+test("BL-action-card-outcome-text: upgrading the Assistant store from v1 keeps an outcome already written as its words", t => {
   const path = join(scratch(t), "assistant.db"), db = new DatabaseSync(path);
   t.after(() => db.close());
   db.exec(ASSISTANT_STORE_BASELINE.schema);
@@ -120,7 +120,7 @@ test("BL-action-card-outcome-text: the Assistant store 1 → 2 keeps an outcome 
   insert.run("long", cardBody("long", "长".repeat(2100)));
   db.exec("PRAGMA user_version = 1");
   runSqliteUpgrade(db, path, ASSISTANT_STORE_BASELINE);
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2);
+  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, ASSISTANT_STORE_BASELINE.version);
   const body = (id: string) => JSON.parse(String((db.prepare("SELECT body FROM assistant_cards WHERE card_id = ?").get(id) as { body: string }).body)) as { outcome?: OwnedTextRef; title: string };
   assert.deepEqual(body("said").outcome, { literal: "结果未确认：连接中断。请到原处核对，不会自动重试" });
   assert.equal(body("said").title, "t", "the rest of the card is as it was");

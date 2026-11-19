@@ -91,7 +91,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => fromRequest(request, ["before", "history_before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "history_before", "limit"]), body: {} }) },
   // A long session may first have the round's own model write a digest of its earlier rounds: that wait runs beside the project's queue.
   "coding.start-run": { definition: define("runs.start", /* @version action.coding.runs.start */ 1, "开始一轮编码", "在已授权的工作目录按所选方式（讨论、规划、修改、执行、评审、并行写入）开始一轮；写操作仍经审查", "command",
-      open({ ...session, task: { type: "string", maxLength: 100_000 }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, worktree_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
+      open({ ...session, task: { type: "string", maxLength: 100_000 }, command_prompt: { const: true }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, worktree_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
       ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   // A picture pasted into the composer, kept by the platform as this session's attachment (A3); the material service reads only inside an action.

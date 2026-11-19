@@ -30,23 +30,22 @@ function drawText(page: Page, node: HTMLElement, run: RunView, turn: TurnView, w
  */
 function roundPictures(page: Page, node: HTMLElement, run: RunView) {
   if (node.querySelector(":scope > .coding-turn__pictures")) return;
-  const { readText, s } = page, row = el("ul", "", "coding-turn__pictures"), session = s.current;
+  const { readText, s } = page, row = el("ul", "", "coding-turn__pictures");
   const images = run.frozen.image_materials!;
   row.setAttribute("aria-label", readText("coding.images.sent", { n: images.length }));
   node.append(row);
-  void api<{ images: { material_id: string; media_type: string; data: string }[] }>(page, sessionPath(session, run.ref.run_id) + "/images").catch(() => null).then(result => {
+  void api<{ images: { material_id: string; media_type: string; data: string }[] }>(page, sessionPath(s.current, run.ref.run_id) + "/images").catch(() => null).then(result => {
     if (!row.isConnected) return;
     for (const image of images) {
-      const item = el("li"), open = el("button", "", "coding-turn__picture");
+      const open = el("button", "", "coding-turn__picture");
       const found = result?.images.find(item => item.material_id === image.material_id);
       open.type = "button";
       open.title = image.title;
       open.setAttribute("aria-label", readText("coding.images.open", { name: image.title }));
       open.disabled = !found;
-      item.append(open);
-      row.append(item);
+      row.appendChild(el("li")).append(open);
       if (!found) { open.textContent = readText("coding.images.unreadable", { name: image.title }); continue; }
-      const src = "data:" + found.media_type + ";base64," + found.data, thumb = document.createElement("img");
+      const src = "data:" + found.media_type + ";base64," + found.data, thumb = el("img");
       thumb.src = src; thumb.alt = "";
       open.append(thumb);
       open.onclick = () => window.molisPicture?.(open, { src, title: image.title, close: readText("coding.images.close") });

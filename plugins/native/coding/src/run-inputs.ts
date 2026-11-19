@@ -57,7 +57,7 @@ export const codingRunControlInput: ActionSchema = {
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
     controlBranch("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
-      mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: words(200),
+      mode: { enum: [...AGENT_STEER_MODES] }, require_running: { const: true }, about: words(200), command_prompt: { const: true },
       materials: { type: "array", maxItems: CODING_MATERIALS_MAX, items: { type: "object" } } }, ["text"]),
     controlBranch("withdraw", { input_id: words(200) }, ["input_id"]),
     controlBranch("stop", {}, []),
@@ -174,7 +174,7 @@ export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInp
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
-  if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000, true),
+  if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000, body.command_prompt === true),
     ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
     ...(body.require_running === true ? { require_running: true as const } : {}),

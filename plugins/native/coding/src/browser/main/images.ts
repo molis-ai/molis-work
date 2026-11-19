@@ -77,10 +77,10 @@ export function codingImages(page: Page, sessionId: () => string, model: () => {
       const file = named(given);
       if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) return { state: "failed", reason: readText("coding.images.only-types") };
       if (file.size > LIMIT) { oversize.add(given); return { state: "failed", reason: readText("coding.images.over-limit", { size: size(file.size) }) }; }
-      const answer = await api<{ image: Omit<KeptImage, "material_id"> }>(page, sessionPath(sessionId()) + "/attachments", "POST", { name: file.name, data: await readBase64(file) }, signal);
+      const { image } = await api<{ image: Omit<KeptImage, "material_id"> }>(page, sessionPath(sessionId()) + "/attachments", "POST", { name: file.name, data: await readBase64(file) }, signal);
       const ref = "image-" + crypto.randomUUID();
-      kept.set(ref, { material_id: ref, ...answer.image });
-      return { state: "attached", ref, title: answer.image.title, meta: readText("coding.images.kept", { size: size(answer.image.byte_length) }) };
+      kept.set(ref, { material_id: ref, ...image });
+      return { state: "attached", ref, title: image.title, meta: readText("coding.images.kept", { size: size(image.byte_length) }) };
     },
     take(materials) {
       // 「不带图发」 holds for the send it was chosen for: the composer takes the pictures off with the words it sent.

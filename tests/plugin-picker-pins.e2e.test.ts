@@ -50,7 +50,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   })()`);
   const settled = (id: string) => waitFor(`(() => { const t = document.querySelector(${JSON.stringify(tile(id))}); return t && !t.classList.contains('is-busy'); })()`);
   const stayed = () => evaluate<boolean>("window.__stayed === true");
-  const dock = () => evaluate<string[]>("[...document.querySelectorAll('[data-dock-pins] [data-dock-pin]')].map(pin => pin.dataset.dockPin)");
+  const dock = () => evaluate<string[]>("[...document.querySelectorAll('[data-dock-pins] > *')].map(node => node.className)");
   return { ...b, centre, hover, press, away, key, state, settled, stayed, dock, frames };
 }
 
@@ -90,23 +90,23 @@ test("DOCK-02 a plugin the project does not have is grey, opens nothing, and can
   await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
   await frames();
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), surface, "pressing it goes nowhere");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"schedule\"]'))"), false, "and it is not in the Dock");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-pins] [data-plugin-id=\"schedule\"], [data-dock-pin]'))"), false, "and it is not in the Dock");
   // Colour: the name is the faint ink, a plugin the project has is the full one.
   const ink = await evaluate<{ grey: string; have: string }>(`({ grey: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("schedule")} .plugin-rail-item > span`)})).color, have: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("pages")} .plugin-rail-item > span`)})).color })`);
   assert.notEqual(ink.grey, ink.have, "grey is not the colour of a plugin in the project");
   void press;
 });
 
-test("DOCK-04 方案 C: the top strip holds 项目首页 alone, the switcher keeps nothing for it, and nothing is kept in the browser; Shelf has no entry", async t => {
+test("DOCK-04 方案 C: the top strip holds the first place alone (⌂ inside it), the switcher keeps nothing for it, and nothing is kept in the browser; Shelf has no entry", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { press, dock, evaluate, frames, hover } = b;
-  assert.deepEqual(await dock(), ["home"]);
+  assert.deepEqual(await dock(), ["top-corner"]);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-choice], .dock-keep, .plugin-rail-mark, .plugin-rail-tile.is-kept, [data-dock-more]'))"), false, "no pin, no kept mark, no +N");
   // Opening a plugin from the switcher puts it in a tab, not in the Dock.
   await hover(tile("pages"));
   await press(`${tile("pages")} > .plugin-rail-item`); await frames();
-  assert.deepEqual(await dock(), ["home"], "the Dock is still 项目首页 alone");
+  assert.deepEqual(await dock(), ["top-corner"], "the Dock is still the first place alone");
   assert.equal(await evaluate("localStorage.getItem('molis-work:dock-pins')"), null, "nothing is written for the Dock");
   // Shelf is a 常开插件 in the side panel, so it has no entry here.
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(tile("shelf"))}))`), false, "Shelf is not in the switcher");
@@ -515,9 +515,10 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, command, sessionId, waitFor } = b;
-  await waitFor("typeof window.molisRailShortcuts === 'function' && document.querySelector('.dock-pins [data-dock-pin]')");
+  await waitFor("typeof window.molisRailShortcuts === 'function' && document.querySelector('.dock-pins [data-corner-home]')");
   const candidates = () => evaluate<Array<{ id: string; dock: boolean; extension: boolean }>>(`window.molisRailShortcuts().map(node => ({
-    id: node.dataset.dockPin || node.dataset.pluginId, dock: node.hasAttribute('data-dock-pin'), extension: Boolean(node.closest('.plugin-picker-extend'))
+    // ⌥1 is the project home, the row of the first place's list (§4「底栏第十三版」第 1 条).
+    id: node.hasAttribute('data-corner-home') ? 'home' : node.dataset.pluginId, dock: Boolean(node.closest('.top-corner')), extension: Boolean(node.closest('.plugin-picker-extend'))
   }))`);
   const controls = await evaluate<string[]>("[...document.querySelectorAll('.plugin-picker-extend [data-plugin-id]')].map(node => node.dataset.pluginId)");
   assert.ok(controls.length, "the real switcher renders platform extension controls");
@@ -527,8 +528,8 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
 
   // Observe the original click route; the keyboard handler must select the same node as a pointer click.
   await evaluate(`document.addEventListener('click', event => {
-    const node = event.target.closest('.dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]');
-    if (node) window.__shortcutClick = node.dataset.dockPin || node.dataset.pluginId;
+    const node = event.target.closest('.top-corner [data-corner-home], .plugin-rail-items [data-plugin-id]');
+    if (node) window.__shortcutClick = node.hasAttribute('data-corner-home') ? 'home' : node.dataset.pluginId;
   }, true)`);
   const press = async (digit: number) => {
     for (const type of ["rawKeyDown", "keyUp"]) await command("Input.dispatchKeyEvent", {

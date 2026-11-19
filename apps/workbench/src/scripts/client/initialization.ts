@@ -69,7 +69,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       membership: pluginMembership,
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
-      leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       pagePlugin: () => tabWorkspace?.pagePlugin?.() || null,

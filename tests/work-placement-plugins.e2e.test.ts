@@ -85,11 +85,11 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const describe = (object: { kind: string; id: string; project_id: string | null }) => evaluate<Description>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
-  // The project home is the Dock's first button (07-S2: not a tab); a plugin tab restored from before may be in front of it.
+  // The project home is in the list under the top strip's first place (§4「底栏第十三版」第 1 条; not a tab); a plugin tab restored from before may be in front of it.
   const projectHome = async (project: string) => {
     await go(`/projects/${project}/`);
-    await waitFor("document.querySelector('[data-dock-pin=home]')", 15_000);
-    if (!await evaluate<boolean>("Boolean(document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]'))")) await click("[data-dock-pin=home]");
+    await waitFor("document.querySelector('[data-top-corner-toggle]')", 15_000);
+    if (!await evaluate<boolean>("Boolean(document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]'))")) await click("[data-corner-home]");
     await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')", 15_000);
   };
   const typeInto = (selector: string, value: string) => viewFor(selector).evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);

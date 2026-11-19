@@ -3,11 +3,13 @@
  *
  * The strip holds tabs and nothing else. The current tab is an ear grown on its sheet: paper-coloured, joined to the sheet below
  * with two concave corners, and, while its column has the focus, a 2px accent line on top. Every other tab is words on the desk.
- * 项目首页 is the one fixed place, a glyph before a hairline; it is the project home's tab, so the strip draws no second one. Any
- * other plugin is reached from ＋ or ⌘K, and its own page is a tab. A cover (settings, the market) is a tab like the others, after them, with its whole name and its close
+ * The first place, 「项目 › 项目主页」 with ⌂ in it (§4「底栏第十三版」第 1 条; mock helm.html, screen 34), is the one fixed piece,
+ * before a hairline; it is the project home's tab, so the strip draws no second one, and its list changes the project. Any
+ * plugin is reached from ＋ or ⌘K, and its own page is a tab; the start page hangs under ＋ (POLISH-04). A cover (settings, the market) is a tab like the others, after them, with its whole name and its close
  * (POLISH-06). Over the side sheet stands the name of the view it shows; it opens the list of the side's views. The right end
  * holds three controls: the side's switch, the layout button and the project (POLISH-05). A phone has one row (POLISH-07): the
- * way back, the current tab (the side view's name while the side shows), 全部标签, ＋, the side's switch, the project.
+ * way back (not under 340px), the first place (its ⌂ alone while a tab is current), the current tab (the side view's name while
+ * the side shows), 全部标签, ＋, the side's switch, the project.
  *
  * These rules follow the work line's in the page (page-assets.ts), so they are the last word on the strip. Written without spaces
  * after `:` and `;`, since the host only strips comments and indentation.
@@ -24,8 +26,8 @@ const HOVER = "var(--dur-hover) var(--ease-quint)";
 const PANE = "html body.immersive-workbench:not([data-pane-embedded]) .tab-workspace[data-split] .tab-workspace-panes>.tab-pane";
 const PANE_TABS = `${PANE}>.tab-strip`;
 /** The ears, each marked `data-ear` by the script that knows it: the current tab of a strip (tab-workspace-strip.ts; none while
- * a cover shows), 项目首页 while the project home shows (navigation-presentation.ts), the side sheet's view (immersive-shell.ts). */
-const TOP_EAR = `${TOP} :is(.tab-item,.dock-pin,.side-ear)[data-ear]`;
+ * a cover shows), the first place while the project home shows (top-corner.ts), the side sheet's view (immersive-shell.ts). */
+const TOP_EAR = `${TOP} :is(.tab-item,.top-corner-cell,.side-ear)[data-ear]`;
 const PANE_EAR = `${PANE_TABS} .tab-item[data-ear]`;
 const EARS = `${TOP_EAR},${PANE_EAR}`;
 /** The ears whose column has the focus: the strip, the Dock and the side's tab each carry `data-unfocused` while it is elsewhere. */
@@ -43,16 +45,33 @@ ${TOP}{position:relative;gap:2px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-
 ${TOP}:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:top-strip-shown 0s forwards;animation-delay:3s}
 @keyframes top-strip-shown{to{visibility:visible}}
 
-/* 项目首页: a glyph, then a hairline. */
+/* The first place, 「项目 › 项目主页」 (§4「底栏第十三版」第 1 条), then a hairline. It is the project home's tab, so it grows on
+   the sheet while that page shows; pressed, it drops its list: the projects on the left, the chosen one's pages on the right. */
 ${TOP}>.dock-pins{order:1;align-self:stretch;flex:0 1 auto;display:flex;align-items:center;height:auto;margin:0;padding:0 0 0 10px;gap:2px;border-radius:0;background:none;box-shadow:none}
-${TOP}>.dock-pins::before,${TOP} .dock-pin[aria-current]::after,${TOP}>.plugin-picker::after{content:none}
+${TOP}>.dock-pins::before,${TOP}>.plugin-picker::after{content:none}
 ${TOP}>.dock-pins::after{content:"";flex:none;width:1px;height:16px;margin:0 0 0 8px;background:var(--line-strong)}
-${TOP} .dock-pin{flex:none;width:30px;height:var(--ear-rest);padding:0;border-radius:8px;background:transparent;box-shadow:none;color:var(--ink-soft);transition:background-color ${HOVER},color ${HOVER}}
-${TOP} .dock-pin:not([data-ear]):hover{transform:none;background:var(--nav-hover);color:var(--ink)}
-${TOP} .dock-pin svg{width:16px;height:16px}
-${TOP} .dock-pin[aria-current]:not([data-ear]){color:var(--ink)}
-${TOP} .dock-pin.is-fixed{margin-right:0}
-.dock-pin-name{display:none}
+${TOP} .top-corner{display:contents}
+${TOP} .top-corner-cell{flex:none;display:inline-flex;align-items:center;gap:6px;max-width:360px;height:var(--ear-rest);padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--ink-soft);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+${TOP} .top-corner-cell:not([data-ear]):is(:hover,[aria-expanded="true"]){background:var(--nav-hover);color:var(--ink)}
+${TOP} .top-corner-cell>svg{flex:none;width:12px;height:12px;color:var(--faint)}
+${TOP} .top-corner-cell>svg:first-child{width:16px;height:16px;color:currentColor}
+${TOP} .top-corner-project-name{min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+${TOP} .top-corner-page-name{color:var(--ink);font-weight:500}
+${TOP} .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--lift-2);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
+${TOP} .top-corner-list[hidden]{display:none}
+${TOP} .top-corner-projects{display:flex;flex-direction:column;min-height:0;padding:8px;border-right:1px solid var(--line);background:var(--desk)}
+${TOP} .top-corner-right{min-height:0;padding:8px;overflow:auto}
+${TOP} .top-corner-head{display:flex;align-items:baseline;gap:8px;margin:2px 8px 6px;color:var(--muted);font-size:11px}
+${TOP} .top-corner-head>strong{color:var(--ink);font-size:12px;font-weight:500}
+${TOP} .top-corner-rows{display:grid;gap:2px;min-height:0;overflow:auto}
+${TOP} :is(.top-corner-project,.top-corner-page){display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;text-decoration:none;cursor:pointer}
+${TOP} :is(.top-corner-project,.top-corner-page):hover{background:var(--nav-hover)}
+${TOP} :is(.top-corner-project[aria-pressed="true"],.top-corner-page[aria-current]){background:var(--nav-active)}
+${TOP} :is(.top-corner-project,.top-corner-page)>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
+${TOP} :is(.top-corner-project,.top-corner-page)>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+${TOP} .top-corner-project>small{color:var(--muted);font-size:11px}
+${TOP} .top-corner-manage{margin-top:8px;padding:6px 8px;border-radius:8px;color:var(--muted);font-size:12px;text-decoration:none}
+${TOP} .top-corner-manage:hover{background:var(--nav-hover);color:var(--ink)}
 
 /* The tabs take what they need and ＋ follows them. What they need is written by the script that shares their widths
    (--tabs-hug: every tab at its own width; --tabs-floor: every tab at its narrowest). Where the strip runs short the tabs narrow
@@ -88,11 +107,10 @@ ${TABS} .tab-add-button{display:none}
 /* An ear: as tall as the strip from its top edge down, paper, joined to the sheet by a concave corner on each side. These
    follow the rules of a tab and of 项目首页 at rest, which they outweigh or equal. */
 ${EARS}{align-self:flex-end;box-sizing:border-box;height:var(--ear-rise);padding-bottom:var(--ear-foot);border-radius:10px 10px 0 0;background-color:var(--paper);box-shadow:none;color:var(--ink);font-weight:500;transform:none;filter:drop-shadow(0 -1px 1.5px color-mix(in srgb,var(--shadow-color) 9%,transparent))}
-${TOP} :is(.tab-item,.dock-pin)[data-ear],${PANE_EAR}{position:relative}
+${TOP} :is(.tab-item,.top-corner-cell)[data-ear],${PANE_EAR}{position:relative}
 ${TOP_EAR}::before,${TOP_EAR}::after,${PANE_EAR}::before,${PANE_EAR}::after{content:"";display:block;position:absolute;bottom:0;width:10px;height:10px;pointer-events:none}
 ${TOP_EAR}::before,${PANE_EAR}::before{right:100%;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--paper) 10px)}
 ${TOP_EAR}::after,${PANE_EAR}::after{left:100%;background:radial-gradient(circle at 100% 0,transparent 9.5px,var(--paper) 10px)}
-${TOP} .dock-pin.is-fixed::before{content:none}
 /* Without the focus the ear stays its sheet's paper (the strip's older rule gave such a tab a ground of its own). */
 ${TABS}[data-unfocused] .tab-item[data-ear]{background:var(--paper)}
 ${TOP_FOCUSED},${PANE_FOCUSED}{background-image:linear-gradient(var(--accent),var(--accent));background-size:calc(100% - 22px) 2px;background-position:50% 0;background-repeat:no-repeat}
@@ -106,6 +124,16 @@ ${TOP} .plugin-picker-trigger[aria-expanded="true"]{background:var(--nav-active)
 ${TOP} .plugin-picker-trigger>svg{width:14px;height:14px}
 ${TOP} .plugin-picker-current{display:none}
 ${TOP} .plugin-picker-popover:not([hidden]){animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
+/* The start page hangs under ＋ (POLISH-04; the strip's script sets --start-left from ＋, inside the window): 560px, search at its
+   head, then one line per entry. What an entry is shows on that same line only while the row is looked at, so nothing moves. */
+${TOP} .plugin-picker-popover{left:var(--start-left,8px);right:auto;width:min(560px,calc(100vw - 16px))}
+${TOP} .plugin-picker-popover .plugin-rail-items{grid-template-columns:minmax(0,1fr)}
+${TOP} .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone]{grid-template-columns:16px minmax(0,max-content) minmax(0,1fr) auto;grid-template-rows:auto}
+${TOP} .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone]>:is(.plugin-rail-where,kbd){grid-column:4}
+${TOP} .plugin-picker-popover .plugin-rail-item :is(.plugin-rail-hint,.plugin-rail-confirm){grid-column:3;grid-row:1}
+${TOP} .plugin-picker-popover .plugin-rail-item .plugin-rail-hint{opacity:0;transition:opacity ${HOVER}}
+${TOP} .plugin-picker-popover :is(.plugin-rail-tile:not(.is-confirming):is(:hover,:focus-within),.plugin-rail-items>.plugin-rail-item:is(:hover,:focus-visible)) .plugin-rail-hint{opacity:1}
+@media (pointer:fine){${TOP} .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone]{min-height:36px}}
 ${TOP}>.desktop-titlebar-drag{order:3;flex:1 1 0;width:auto;min-width:0}
 
 /* The side sheet's own tab: the view it shows, by name, 18px in from the sheet's left edge. The tabs stop before the side's column. */
@@ -165,10 +193,15 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP}{--dock-btn:44px;--ear-rise:44px;--ear-foot:0px;padding:0 4px;gap:0;flex-wrap:nowrap}
   ${TOP}>.workspace-history{order:0;gap:0;padding:0}
   ${TOP} [data-workspace-history="forward"]{display:none}
-  ${TOP}>.dock-pins{flex:none;padding:0;overflow:visible}
+  /* Static, so the first place's list hangs from the whole row (8px in from each side), not from the place's own width. */
+  ${TOP}>.dock-pins{position:static;flex:none;padding:0;overflow:visible}
   ${TOP}>.dock-pins::after{margin:0 4px}
-  ${TOP} .dock-pin{width:44px;height:44px}
-  ${TOP}>.dock-pins:not(:has([data-ear])),${TOP} .dock-pin:not([data-ear]){display:none}
+  ${TOP} .top-corner-cell{height:44px;padding:0 8px}
+  ${TOP} .top-corner-project-name{max-width:96px}
+  ${TOP} .top-corner-list{right:8px;grid-template-columns:minmax(0,2fr) minmax(0,3fr)}
+  /* The list's rows are 44px targets here, as every list of the strip is. */
+  ${TOP} :is(.top-corner-project,.top-corner-page){height:44px}
+  ${TOP} .top-corner-manage{display:flex;align-items:center;min-height:44px;padding-block:0}
   /* The current piece is a 36px chip drawn inside a 44px target. */
   ${TOP_EAR}{position:relative;isolation:isolate;height:44px;padding-bottom:0;border-radius:0;background-color:transparent;filter:none}
   ${TOP_FOCUSED}{background-image:none}
@@ -207,10 +240,21 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
   ${TOP}>.side-views{left:8px!important;right:8px;max-width:none}
   ${TOP}>.side-views>.tab-item{height:44px}
 }
+/* At 540px and under the first place names the page alone, and its list is two parts, the projects above (§4 第 6 条). */
+@media (max-width:540px){
+  ${TOP} .top-corner-project-name,${TOP} .top-corner-cell>svg:nth-of-type(2){display:none}
+  ${TOP} .top-corner-list{grid-template-columns:minmax(0,1fr)}
+  ${TOP} .top-corner-projects{border-right:0;border-bottom:1px solid var(--line)}
+  /* While another page shows, the current tab names it: the place is its ⌂ alone, a 44px target that still opens the list. */
+  ${TOP} .top-corner-cell:not([aria-current]){justify-content:center;width:44px;padding:0}
+  ${TOP} .top-corner-cell:not([aria-current])>:not(svg:first-child){display:none}
+}
 /* Under 340px the row gives up its side margins and its hairline and the current tab is its 98px, no wider: the 44px targets,
    the tab and 全部标签 are the whole 320 (07-1 S3). */
 @media (max-width:340px){
   ${TOP}{padding:0}
+  /* The first place is always in the row now, so the way back gives it its 44px (the mock's phone row has no back). */
+  ${TOP}>.workspace-history{display:none}
   ${TOP}>.dock-pins::after{content:none}
   ${TABS} .tab-item[data-ear]:not([data-pinned]){flex:none;width:98px}
   ${TABS}>.tab-view-chip.is-exclusive>svg{display:none}
@@ -226,8 +270,10 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
 }
 @media (pointer:coarse) and (min-width:761px){
   ${TOP}{--dock-btn:44px}
-  ${TOP} .dock-pin{width:44px;height:44px}
-  ${TOP} .dock-pin[data-ear]{height:44px;padding-bottom:0}
+  ${TOP} .top-corner-cell{height:44px}
+  ${TOP} .top-corner-cell[data-ear]{height:44px;padding-bottom:0}
+  ${TOP} :is(.top-corner-project,.top-corner-page){height:44px}
+  ${TOP} .top-corner-manage{display:flex;align-items:center;min-height:44px;padding-block:0}
   ${TOP} .plugin-picker-trigger{width:44px;height:44px}
   ${TOP}>.side-views>.tab-item{height:44px}
   ${TABS}>.tab-view-chip .tab-view-chip-close{width:44px;height:44px;margin:-8px 0}

@@ -31,7 +31,8 @@ const KINDS: Record<string, string> = {
   "[data-assistant-composer] [data-composer-send]": "assistant send",
   "[data-assistant-composer] [data-composer-receiver]": "assistant receiver",
   "[data-plugin-picker-toggle]": "plugin switcher",
-  ".dock-pin": "dock",
+  // §4「底栏第十三版」第 1 条: ⌂ is in the first place, 「项目 › 项目主页」, and its list holds the projects and their pages.
+  ".top-corner-cell": "first place",
   // 07-1 S4b: the bar's side button and the titlebar's Home tools are gone; the side's glyphs (Issue's among them) are tabs.
   ".navigator-project-selector": "project",
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
@@ -94,7 +95,7 @@ const SHELL_CONTROLS = `(() => {
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
     for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, select, [role=tab])")) {
-      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, .navigator-project-menu-popover, [data-compose-menu]")) continue;
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, .top-corner-list, .navigator-project-menu-popover, [data-compose-menu]")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
       const kind = Object.entries(kinds).find(([selector]) => el.matches(selector))?.[1];
@@ -132,7 +133,7 @@ const ROW_FIT = `(() => {
   // The strip's targets (specs/screen-polish §3 方案 C): 项目首页, ＋, the side's switch, the layout button and the project. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
   // layout audit, so they are left out here.
   const boxes = [...document.querySelectorAll(".workbench-header[data-dock] :is(button, summary, input, textarea, [role=tab], a[href])")]
-    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
+    .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, .top-corner-list, .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
     .map(el => ({ name: el.getAttribute("aria-label") || el.textContent.trim().slice(0, 12), box: el.getBoundingClientRect() }))
     .filter(item => item.box.width >= 2)
     .sort((a, b) => Math.round(a.box.top / 20) - Math.round(b.box.top / 20) || a.box.left - b.box.left);
@@ -146,10 +147,10 @@ const ROW_FIT = `(() => {
   return { count: boxes.length, vw, overlap: Math.round(overlap * 10) / 10, where, outside: Math.round(outside * 10) / 10, width: boxes.reduce((sum, item) => sum + item.box.width, 0) };
 })()`;
 
-/** The glyphs fixed at the top's start: 项目首页 alone (specs/screen-polish §3 方案 C; no plugin is kept there since the user's
- * 2026-11-18「按最新设计为准」), every plugin reached from ＋. */
-const TOP_PINS = `(() => { const pins = [...document.querySelectorAll("[data-dock-pins] [data-dock-pin]")];
-  return { all: pins.map(pin => pin.dataset.dockPin), shown: pins.filter(pin => !pin.hidden && pin.getClientRects().length).map(pin => pin.dataset.dockPin) }; })()`;
+/** What is fixed at the top's start: the first place alone (§4「底栏第十三版」第 1 条, ⌂ inside it; no plugin is kept there since
+ * the user's 2026-11-18「按最新设计为准」), every plugin reached from ＋. */
+const TOP_PINS = `(() => { const pins = [...document.querySelectorAll("[data-dock-pins] > *")];
+  return { all: pins.map(pin => pin.className), shown: pins.filter(pin => pin.querySelector("[data-top-corner-toggle]")?.getClientRects().length).map(pin => pin.className) }; })()`;
 
 /** Every popover the bar opens, with the controls inside it that are shorter or narrower than 44px. The notices are the island's own rows,
  * fed by an answer to its read of them; the strip has a page object to offer. `present` names what must be in the list, so a
@@ -160,6 +161,7 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the strip", "[data-assistant-composer] .mw-composer__input", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-plugin-toggle]"]],
+  ["the first place's list", "[data-top-corner-toggle]", "[data-top-corner-list]", ["[data-corner-project]", "[data-corner-home]", ".top-corner-manage"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
   ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
@@ -380,7 +382,7 @@ const PANEL_BODY = `(async () => {
 })()`;
 
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
-const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
+const IN_SHELL = /bar-composer|assistant-composer|dock-pin|top-corner|bar-side|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
@@ -707,9 +709,9 @@ for (const scheme of ["light", "dark"] as const) {
         assert.ok(row.overlap <= 0.5, `${name} · ${width}: no target of the second row sits on its neighbour (${row.overlap}px at ${row.where}; ${JSON.stringify(row)})`);
         assert.equal(row.outside, 0, `${name} · ${width}: and none leaves the window (${JSON.stringify(row)})`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar and the strip lay out cleanly with 44px targets`);
-        // POLISH-07: the fixed glyph is 项目首页 alone, no plugin is kept at the top, and a phone's one row shows it only while
-        // the project's home is the current page.
-        assert.deepEqual(await w.topPins(), { all: ["home"], shown: name === "home" ? ["home"] : [] }, `${name} · ${width}: 项目首页 is the top's only fixed glyph`);
+        // POLISH-07: the first place is all that is fixed at the top, no plugin is kept there, and a phone's one row always
+        // holds it (§4「底栏第十三版」第 1 条: it is how the project is changed).
+        assert.deepEqual(await w.topPins(), { all: ["top-corner"], shown: ["top-corner"] }, `${name} · ${width}: the first place is the top's only fixed piece`);
       }
     }
     // A phone's one row has no layout button (specs/screen-polish §3 方案 C, POLISH-07: one column shows, and the row has no room
@@ -733,7 +735,7 @@ for (const scheme of ["light", "dark"] as const) {
           `${name} · ${screen} · ${width}×${height}: every control of the strip and the bar is a 44px target`);
         assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · ${screen}: every control is a known one`);
         assert.ok(controls.some(control => control.kind === "layout"), `${name} · ${screen}: the layout button is on the strip, so it is among the 44px targets measured`);
-        assert.deepEqual(await w.topPins(), { all: ["home"], shown: ["home"] }, `${name} · ${screen}: POLISH-05 项目首页 is the top's only fixed glyph`);
+        assert.deepEqual(await w.topPins(), { all: ["top-corner"], shown: ["top-corner"] }, `${name} · ${screen}: the first place is the top's only fixed piece`);
         assert.deepEqual(await w.shellFindings(), [], `${name} · ${screen} · ${width}×${height}: the bar and the strip lay out cleanly with 44px targets`);
       }
     }

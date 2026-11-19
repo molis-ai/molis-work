@@ -595,9 +595,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // the two buttons that get more plugins, every plugin with its own Dock button), then the person's own tray, the side's
     // glyphs and the project, whose menu holds the person. The foot is the work line alone, with the Assistant's input in
     // its slot and the side panel beside it.
+    // §4「底栏第十三版」第 1 条: the Dock is the first place, ⌂ inside it.
     // specs/screen-polish §3 方案 C (POLISH-05): no tray of the person's own; the side's view name, its list, then the side's switch, the layout button and the project.
     assert.doesNotMatch(browser, /class="bar-side bar-own"/);
-    assert.match(browser, /<header class="workbench-header immersive-titlebar" data-dock[^>]*>[\s\S]*data-dock-pins[\s\S]*data-titlebar-tabs[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-side-ear[\s\S]*data-side-tabs data-side-menu hidden[\s\S]*data-side-toggle[\s\S]*data-layout-open[\s\S]*<div class="titlebar-end">[\s\S]*data-project-menu[\s\S]*<\/header>/);
+    assert.match(browser, /<header class="workbench-header immersive-titlebar" data-dock[^>]*>[\s\S]*data-dock-pins>\s*<div class="top-corner" data-top-corner>[\s\S]*data-top-corner-toggle[\s\S]*data-titlebar-tabs[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-side-ear[\s\S]*data-side-tabs data-side-menu hidden[\s\S]*data-side-toggle[\s\S]*data-layout-open[\s\S]*<div class="titlebar-end">[\s\S]*data-project-menu[\s\S]*<\/header>/);
     assert.match(browser, /class="workbench-bar" data-work-bar[^>]*>\s*<div class="work-line"[\s\S]*data-work-line-head[\s\S]*data-assistant-island data-system-view-owner="assistant"[\s\S]*data-assistant-composer[\s\S]*class="mw-composer__input"[\s\S]*id="side-panel"/);
     assert.doesNotMatch(browser.slice(browser.indexOf('class="workbench-bar"'), browser.indexOf('id="side-panel"')), /data-plugin-picker|data-dock-pins|data-project-menu/, "the foot holds the line, not the plugins or the project");
     // The side's one switch is the top strip's (specs/screen-polish §3 方案 C, POLISH-05; matched in the header above): the foot has none (07-1 S4b).

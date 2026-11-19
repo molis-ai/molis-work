@@ -23,17 +23,17 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await waitFor("!!document.querySelector('[data-goal-kanban] details[open][data-layer-open]')");
   await click('[data-plugin-picker-popover] [data-plugin-id="inbox"]');
   await waitFor(shows("inbox"));
-  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin]').length"), 1, "the Dock is 项目首页 alone");
-  // 项目首页 takes the pane home, and is then the current one.
-  await click('[data-dock-pin="home"]');
-  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]') && document.querySelector('[data-dock-pin=home]').getAttribute('aria-current') === 'page'");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-dock-pins] > *')].map((node) => node.className)"), ["top-corner"], "the Dock is the project's first place alone");
+  // 项目主页 in that place's list takes the pane home, and the place is then the current one (§4「底栏第十三版」第 1 条).
+  await click('[data-corner-home]');
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]') && document.querySelector('[data-top-corner-toggle]').getAttribute('aria-current') === 'page'");
 
   // Settings: named in the switcher and the title, not claimed by the Dock underneath.
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings' && !!document.querySelector('[data-cover-close]')`);
   await waitFor("document.querySelector('[data-plugin-picker-current] .is-cover')?.textContent.includes('设置')");
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pins] [aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
   await waitFor("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))"), true,

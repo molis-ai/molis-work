@@ -33,7 +33,7 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor(`document.body.dataset.desktopSurface === 'home' && document.querySelector('${PLUS}') && document.querySelector('[data-dock-pin=home]')`, 15_000);
+  await waitFor(`document.body.dataset.desktopSurface === 'home' && document.querySelector('${PLUS}') && document.querySelector('[data-top-corner-toggle]')`, 15_000);
   const mac = await evaluate<boolean>("/Mac|iP/.test(navigator.platform)");
   const key = async (name: string, code: string, modifiers = 0) => {
     // A plain ↵ carries its text, so a focused button activates as under a real key; a chord does not.
@@ -82,7 +82,7 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   assert.equal(await evaluate(`document.querySelector('${TILE("feed")} .plugin-rail-where')`), null, "a plugin that is not open says nothing");
   await click(TILE("goals"));
   await waitFor(`document.querySelector('${START}').hidden`);
-  await click("[data-dock-pin=home]");
+  await click("[data-corner-home]");
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length`), 1, "recall does not open a second Goals tab");
 
@@ -343,7 +343,7 @@ test("PFG-24 07-AUDIT 口径 8 ① Goals open in the other column is recalled th
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const project = `${origin}/projects/${projectId}/`;
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
-  await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-dock-pin=home]')`, 15_000);
+  await waitFor(`document.querySelector('${PLUS}') && document.querySelector('[data-top-corner-toggle]')`, 15_000);
   // Two columns, both on the project home; the split's new column (the second) takes the focus.
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open')`);
@@ -406,7 +406,7 @@ test("PFG-24 口径 8 ② a Dataset record found from the other column opens in 
   await dataset.waitFor("document.querySelector('[data-dataset-editor-status]').textContent === '已保存'");
   const id = await dataset.evaluate<string>("document.querySelector('[data-dataset-id]').dataset.datasetId");
   // The first column keeps Dataset's tab while it shows the home, so the split's new column starts on the home and holds nothing.
-  await click("[data-dock-pin=home]");
+  await click("[data-corner-home]");
   await click("[data-layout-open]"); await click("[data-layout-split=right]");
   await waitFor(`${stored}?.panes.length === 2`);
   const [first, second] = await evaluate<string[]>(`${stored}.panes.map(pane => pane.id)`);

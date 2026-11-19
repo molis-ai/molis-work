@@ -119,7 +119,8 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
     await b.waitFor(visible(selector), 15_000);
     await b.click(selector);
   };
-  const home = () => open('[data-dock-pin="home"]');
+  // The project home is a row of the list under the top strip's first place (§4「底栏第十三版」第 1 条).
+  const home = async () => { await open('[data-top-corner-toggle]'); await b.click('[data-corner-home]'); };
   // Each owner answers the home under one budget; a slow one shows 重试, which openRow presses as a person would (fixtures/home-rows.ts).
   const openRow = async (selector: string, owner: string) => { await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector); };
   await openRow(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title', "inbox");
@@ -203,7 +204,7 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
   await b.click('[data-layout-open]');
   await b.click('[data-layout-split="right"]');
   await b.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  await b.click('[data-dock-pin="home"]');
+  await b.click('[data-corner-home]');
   const frame = "document.querySelector('iframe[data-pane-key=\"plugin:home\"]:not([hidden])')";
   await b.waitFor(`${frame}?.contentDocument?.querySelector(${JSON.stringify(start)})`);
   const from = await b.evaluate<string>(`${frame}.dataset.paneOwner`);

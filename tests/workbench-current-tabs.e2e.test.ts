@@ -159,7 +159,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       await Promise.all([chrome.event("Page.domContentEventFired"), page.command("Page.navigate", { url })]);
       // A restored split draws tabs in each pane, while a single pane uses the titlebar strip; the project home has no tab
       // (07-S2, 口径 3) and the strip has no ＋ of its own (WLN-16: the start page is), so the top strip is drawn once its pins are.
-      await page.wait("[...document.querySelectorAll('[data-dock] .dock-pin, [data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
+      await page.wait("[...document.querySelectorAll('[data-dock] .top-corner-cell, [data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
         describe: "JSON.stringify({url:location.href,title:document.title,readyState:document.readyState,body:document.body?.innerText.slice(0,1200),panes:document.querySelectorAll('[data-tab-pane]').length})",
       });
     };

@@ -243,9 +243,6 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]):is(.dock-pin, .bar-chat) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
-  ${SHELL} .dock-pin[aria-current]::after {
-    content: ""; position: absolute; left: 50%; bottom: 3px; width: 3px; height: 3px; margin-left: 0px; border-radius: 50%; background: var(--accent); pointer-events: none;
-  }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   ${SHELL} .workbench-bar :is(.dock-pin, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
 
@@ -286,8 +283,6 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .dock-pins { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; height: 44px; margin-left: 12px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
   ${SHELL} .dock-pins::before { content: ""; position: absolute; left: -9px; top: 12px; width: 1px; height: 20px; background: var(--line-strong); pointer-events: none; }
   ${SHELL} .dock-pins:empty { display: none; }
-  /* 项目首页 stays put. */
-  ${SHELL} .dock-pin.is-fixed { margin-right: 8px; }
 
   /* The resident Assistant: the platform composer (unified-input K3) as wide as its column allows; the bar keeps its rest
      height and grows with it. */

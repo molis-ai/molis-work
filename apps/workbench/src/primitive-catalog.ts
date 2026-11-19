@@ -64,24 +64,25 @@ function iconInventoryPlugins(): CatalogPluginIcon[] {
 }
 
 /**
- * The top strip and the bottom line exactly as the workbench composes them, on a strip of desk: 项目首页, the tabs' place and
- * the start page's ＋ with the project at the top; the work line with the one input at the bottom. 项目首页 is filled the way
- * the workbench client fills it; the start page opens with the same popover.
+ * The top strip and the bottom line exactly as the workbench composes them, on a strip of desk: the first place
+ * (「项目 › 项目主页」), the tabs' place and the start page's ＋ with the project at the top; the work line with the one input
+ * at the bottom. The start page opens with the same popover.
  */
 function renderBarSpecimen(): string {
   const primitives = { readText: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
   const project = { project_id: "project-demo", display_name: "Molis Work 示例项目" };
   const monogram = renderProjectMonogram(project.display_name, project.project_id, escapeHtml);
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
+  // The first place, 「项目 › 项目主页」 with ⌂ in it, as the project home's tab (§4「底栏第十三版」第 1 条).
+  const corner = `<div class="top-corner" data-top-corner><button type="button" class="top-corner-cell" aria-current="page" aria-expanded="false" aria-label="${project.display_name} › 项目主页">${icon("home")}<span class="top-corner-project-name">${project.display_name}</span>${icon("chevron-right")}<span class="top-corner-page-name">项目主页</span>${icon("chevron-down")}</button></div>`;
   const strip = renderImmersiveHeader(primitives, false, [], {
+    corner,
     enabled: SAMPLE_PROJECT_PLUGINS,
     rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const bar = renderWorkbenchBar(primitives, { head: project.display_name });
-  const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
-  const pins = pin("home", "home", "项目首页", ' aria-current="page"');
-  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip.replace('<div class="dock-pins" data-dock-pins></div>', `<div class="dock-pins" data-dock-pins>${pins}</div>`)}${bar}</div>`;
+  return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip}${bar}</div>`;
 }
 
 /** The board shows the bar in its own workbench context: the page the iframe below loads. */
@@ -131,9 +132,6 @@ const BAR_SPECIMEN_SCRIPT = `
       toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
       return;
     }
-    const pin = event.target.closest("[data-dock-pin]");
-    if (!pin) return;
-    stage.querySelectorAll("[data-dock-pin]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
   });
   document.addEventListener("click", (event) => {
     if (!stage.contains(event.target)) { setPicker(false); stage.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open")); }

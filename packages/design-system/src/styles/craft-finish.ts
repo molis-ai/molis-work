@@ -111,9 +111,10 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     if (row) requestAnimationFrame(() => settleOpened(document.querySelector(".immersive-home .home-erow-wrap.is-open .home-erow__slot")));
   });
 
-  /* ⌥1…⌥9 open the first nine tools of the rail, Home first. Typing, terminals and menus keep their keys. */
-  const railShortcuts = () => [...document.querySelectorAll(".dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]")]
-    .filter((node) => node.getClientRects().length).slice(0, 9);
+  /* ⌥1 opens the project home (the top strip's first place lists it, hidden until its list opens); ⌥2…⌥9 the start page's first
+   * entries while it shows. Typing, terminals and menus keep their keys. */
+  const railShortcuts = () => [...document.querySelectorAll(".top-corner [data-corner-home]"),
+    ...[...document.querySelectorAll(".plugin-rail-items [data-plugin-id]")].filter((node) => node.getClientRects().length)].slice(0, 9);
   document.addEventListener("keydown", (event) => {
     if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
     const digit = /^Digit([1-9])$/.exec(event.code);

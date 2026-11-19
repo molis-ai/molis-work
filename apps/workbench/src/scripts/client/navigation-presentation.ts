@@ -1,4 +1,5 @@
 import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
+import { TOP_CORNER_PART } from "./top-corner.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -27,9 +28,9 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(readText) => {
   document.addEventListener('click', dismiss);
 }`;
 
-/** The Dock in the top strip (specs/screen-polish §3 方案 C): 项目首页 alone, the one fixed place; it stands as the ear on its sheet
- * while the project home shows. Any other plugin is reached from ＋ (the start page) or ⌘K, and its own page is a tab like any
- * other. A plugin that did not start carries the amber point in the start page and on its tab. */
+/** The top strip's script (specs/screen-polish §3 方案 C, §4「底栏第十三版」第 1 条): its first place, 「项目 › 项目主页」, stands as
+ * the ear on its sheet while the project home shows (top-corner.ts). Any other plugin is reached from ＋ (the start page) or ⌘K,
+ * and its own page is a tab like any other. A plugin that did not start carries the amber point in the start page and on its tab. */
 export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
   const dock = document.querySelector('[data-dock]');
@@ -89,10 +90,18 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     });
     box.replaceChildren(title, rows);
   };
+  // POLISH-04: the start page hangs under ＋, its left edge at ＋'s, moved in only as far as the window needs.
+  const placeStart = () => {
+    const plus = pickerToggle.getBoundingClientRect();
+    pickerPopover.style.setProperty('--start-left', Math.round(Math.max(8, Math.min(plus.left, innerWidth - 8 - pickerPopover.offsetWidth))) + 'px');
+  };
+  addEventListener('resize', () => { if (pickerPopover && !pickerPopover.hidden) placeStart(); });
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
-    if (open) dressStart();
+    // One list at a time: the start page closes the first place's.
+    if (open) { setCorner(false); dressStart(); }
     pickerPopover.hidden = !open;
+    if (open) placeStart();
     toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
     if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
@@ -119,10 +128,10 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   // started on, so it is a click.
   const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
   let paintQueued = false, tabsWait = 0;
-  // 项目首页 never shrinks: its tray is at least as wide as it is (with its name while it is the current one), and the tabs
-  // beside it give the room. Set after the pin is painted, and only when it changed.
+  // The first place never shrinks: its tray is at least as wide as it is, and the tabs beside it give the room. Set after it is
+  // painted, and only when it changed.
   const holdHome = () => {
-    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-dock-pin]');
+    const tray = dock.querySelector('[data-dock-pins]'), home = tray?.querySelector('[data-top-corner-toggle]');
     if (!home) return;
     const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
     if (tray.style.minWidth !== need) tray.style.minWidth = need;
@@ -146,7 +155,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
         put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
         nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
         current.parentElement?.classList.remove('is-split');
-        dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => { button.removeAttribute('aria-current'); button.removeAttribute('data-ear'); });
+        paintCorner(false, false);
         holdHome(); drawn();
         return;
       }
@@ -154,19 +163,14 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
       put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
       nameSwitcher(entries.map((entry) => nameOf(entry.plugin)));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
-      dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
-        const id = button.dataset.dockPin;
-        const on = entries.some((entry) => entry.plugin === id && entry.focused);
-        if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
-        // 项目首页 has no tab of its own in the strip: its glyph here is that tab, and grows on the sheet while the page shows.
-        button.toggleAttribute('data-ear', on && host.pagePlugin?.() === id);
-      });
+      // The project home has no tab of its own in the strip: the first place is that tab, and grows on the sheet while it shows.
+      const home = entries.some((entry) => entry.plugin === 'home' && entry.focused);
+      paintCorner(home, host.pagePlugin?.() === 'home');
       holdHome(); drawn();
     });
   };
 
-  /* The Dock: 项目首页 alone (specs/screen-polish §3 方案 C). */
-  const pins = dock.querySelector('[data-dock-pins]');
+${TOP_CORNER_PART}
   // A plugin that did not start keeps its place and its stage says why; its entry in the start page carries the amber point
   // (and its tab, tab-workspace-strip.ts).
   rail().forEach((item) => {
@@ -179,20 +183,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     item.append(dot);
   });
   let dockPainted = false;
-  const paintDock = () => {
-    const source = railItem('home');
-    if (pins && source && !pins.querySelector('[data-dock-pin]')) {
-      const pin = document.createElement('button'), name = document.createElement('span'), glyph = glyphOf('home');
-      pin.type = 'button'; pin.className = 'dock-pin is-fixed'; pin.dataset.dockPin = 'home';
-      pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source));
-      if (glyph) pin.append(glyph);
-      // The current one reads its name in the top strip (specs/work-line §4.2).
-      name.className = 'dock-pin-name'; name.textContent = labelOf(source); pin.append(name);
-      pins.append(pin);
-    }
-    dockPainted = true;
-    paintCurrent();
-  };
+  const paintDock = () => { dockPainted = true; paintCurrent(); };
 
   /* Removing asks once, in the tile's own second line, and gives up by itself. */
   let asking = null;
@@ -245,14 +236,6 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const beside = target.closest('[data-rail-beside]'), reopen = target.closest('[data-rail-reopen]');
     if (beside) { setPicker(false); host.openBeside?.(beside.dataset.railBeside); return; }
     if (reopen) { setPicker(false); host.startPage?.()?.reopen(Number(reopen.dataset.railReopen)); return; }
-    const pin = target.closest('[data-dock-pin]');
-    if (pin) {
-      const id = pin.dataset.dockPin;
-      // Pressed again while the project home shows, 项目首页 puts back what was there before it.
-      if ((!host.pagePlugin || host.pagePlugin() === id) && host.leavePlugin?.(id)) return;
-      host.open?.(id, railItem(id));
-      return;
-    }
     // Choosing a plugin in the switcher (or the market or studio at its head) closes it.
     if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .plugin-picker-extend [data-plugin-id]')) requestAnimationFrame(() => setPicker(false));
   });

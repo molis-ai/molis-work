@@ -122,7 +122,7 @@ for (const destination of ["home", "settings"] as const) {
     const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
     await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
     await waitFor("globalThis.__refreshHeld === true", 10_000);
-    await click(destination === "home" ? '[data-dock-pin="home"]' : '[data-directory-open="settings"]');
+    await click(destination === "home" ? '[data-corner-home]' : '[data-directory-open="settings"]');
     await waitFor(destination === "home" ? "document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')"
       : "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'");
     const title = await evaluate<string>("document.title");

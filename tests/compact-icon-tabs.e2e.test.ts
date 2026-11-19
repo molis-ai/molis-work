@@ -15,7 +15,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await navigate(() => command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): Goals' own page is an ordinary tab that can be pinned.
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pin=home]') && !document.querySelector('[data-dock-pin=goals]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-top-corner-toggle]') && !document.querySelector('[data-dock-pin]')");
   // 07-S2 (口径 3): the project home is the Dock's, not a tab, so the first tab pinned here is Goals' own page, opened from ＋.
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface==='goals' && document.querySelector('.tab-item[data-tab-kind=plugin][data-plugin=goals]')");

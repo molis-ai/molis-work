@@ -191,21 +191,22 @@ function undoChip(_L: Say): string {
   return `<button type="button" class="tab-undo-chip" data-nav-undo data-reopened="${escapeHtml(uiText.text("workbench.navigation-specimens.reopened-plugin", { plugin: "Feed" }))}" style="${hueVars(P.feed.hue)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)} (⌘⇧T)">${icon("undo")}<span>${escapeHtml(label)}</span></button>`;
 }
 
-/** 项目首页 in the strip (navigation-presentation.ts), the one fixed place; while the project home shows it is the ear. */
-function dockPin(current = false): string {
-  const name = escapeHtml(uiText.text("workbench.navigation-specimens.project-home"));
-  return `<button type="button" class="dock-pin is-fixed" aria-label="${name}" title="${name}"${current ? ' aria-current="page" data-ear' : ""}>${icon("home")}</button>`;
+/** The first place, 「项目 › 项目主页」 with ⌂ in it (settings-navigation.ts renderProjectCorner; §4「底栏第十三版」第 1 条): the
+ * one fixed piece of the strip; while the project home shows it is the ear. Pressed in the product, it opens the projects' list. */
+function firstPlace(current = false): string {
+  const project = escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp")), home = escapeHtml(uiText.text("workbench.navigation-specimens.project-home"));
+  return `<div class="top-corner"><button type="button" class="top-corner-cell" aria-expanded="false" aria-label="${project} › ${home}"${current ? ' aria-current="page" data-ear' : ""}>${icon("home")}<span class="top-corner-project-name">${project}</span>${icon("chevron-right")}<span class="top-corner-page-name">${home}</span>${icon("chevron-down")}</button></div>`;
 }
 
 /**
  * The top strip as the product draws it (immersive-shell.ts renderImmersiveHeader, filled as its scripts fill it): history,
- * 项目首页, the tabs with the current one an ear on its sheet, ＋; over the side sheet its own tab; at the
+ * the first place, the tabs with the current one an ear on its sheet, ＋; over the side sheet its own tab; at the
  * right end the side's switch, the layout button and the project. Below it a strip of paper stands for the sheets.
  */
 function titlebar(readText: Say, state: "ok" | "wrong"): string {
   const r = sample(readText), wrong = state === "wrong", suffix = wrong ? "wrong" : "ok";
   const history = `<div class="mw-group workspace-history">${renderButton({ label: uiText.text("workbench.navigation-specimens.previous"), icon: "back", variant: "ghost", size: "sm", iconOnly: true, className: "workspace-history-button", attrs: { "data-workspace-history": "back" } })}${renderButton({ label: uiText.text("workbench.navigation-specimens.next"), icon: "arrow", variant: "ghost", size: "sm", iconOnly: true, disabled: true, className: "workspace-history-button", attrs: { "data-workspace-history": "forward" } })}</div>`;
-  const pins = `<div class="dock-pins">${dockPin()}</div>`;
+  const pins = `<div class="dock-pins">${firstPlace()}</div>`;
   const pinned = tab(readText, { label: r.doc1, glyph: "note", pinned: true, glyphOnly: true });
   const tabs = pinned + mainTabs(readText, state) + (wrong ? tab(readText, { label: uiText.text("workbench.navigation-specimens.receipts"), glyph: "package", head: true, warn: true, readerLabel: `${uiText.text("workbench.navigation-specimens.receipts")} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` }) : "");
   const undo = wrong ? undoChip(readText) : "";

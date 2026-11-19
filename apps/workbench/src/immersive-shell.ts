@@ -226,7 +226,7 @@ export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: 
 }
 
 /** What the top strip carries beyond history, tabs and the right side's glyphs: the plugins' way around and the project. */
-export interface TopStripNavigation { readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string }
+export interface TopStripNavigation { readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string; readonly corner?: string }
 
 /** A panel may name an alias inside its HTML; only unmarked panels acquire their owner's identity from the wrapper. */
 export function directoryPanelIdentity(owner: string, panel: string): { ids: string[]; wrap: boolean } {
@@ -255,9 +255,10 @@ export function renderDirectoryPluginSections(
 }
 
 /**
- * The top strip (specs/screen-polish §3 方案 C「纸上的页签」; specs/work-line §4.2, WLN-16): the way back; 项目首页 and the plugins
- * chosen to stay, each a glyph; the work area's tabs, the current one grown on its sheet; ＋, which opens the start page (search,
- * the market and the studio, then every plugin with the buttons that keep it in the strip or add it to the project). Over the
+ * The top strip (specs/screen-polish §3 方案 C「纸上的页签」; specs/work-line §4.2, WLN-16): the way back; the first place,
+ * 「项目 › 项目主页」 with ⌂ in it, whose list changes the project (`nav.corner`, §4「底栏第十三版」第 1 条); the work area's tabs,
+ * the current one grown on its sheet; ＋, which opens the start page (search, the market and the studio, then every plugin with
+ * the button that adds it to the project or takes it out). Over the
  * side sheet stands the name of the view it shows, which opens the list of the side's views (side-panel.ts). The right end holds
  * three controls and no more (POLISH-05): the side's switch, the one layout button (07-S2, 口径 6) and the project, a round
  * button whose menu holds the project and the person; the sync mark joins them only while it has something to say.
@@ -265,7 +266,7 @@ export function renderDirectoryPluginSections(
  */
 export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, sideTabs: readonly SidePanelPluginTab[] = [], nav?: TopStripNavigation): string {
   const { icon } = primitives;
-  const pins = nav ? `<div class="dock-pins" data-dock-pins></div>` : "";
+  const pins = nav ? `<div class="dock-pins" data-dock-pins>${nav.corner ?? ""}</div>` : "";
   const picker = nav ? `<div class="plugin-picker" data-plugin-picker>
       <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${uiText("workbench.immersive-shell.switch-plugin")}" title="${uiText("workbench.immersive-shell.switch-plugin")} ⌘K">${icon("plus")}<span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${uiText("workbench.immersive-shell.project-home")}</span></span></button>
       <div class="plugin-picker-popover" data-plugin-picker-popover hidden>

@@ -12,7 +12,7 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): Goals' own page is a tab with a short name beside
   // the two Goal tabs.
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-dock-pin=home]') && !document.querySelector('[data-dock-pin=goals]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.workbench-header[data-dock-drawn] [data-top-corner-toggle]') && !document.querySelector('[data-dock-pin]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');

@@ -36,7 +36,7 @@ test("SCS-11: an ordinary signed plugin opens its original form and exact origin
     await b.click(start);
     await child.waitFor(`${dialog}?.open && ${dialog}.contains(document.activeElement)`, 15_000);
   };
-  const backHome = async () => { await b.click('[data-dock-pin="home"]'); await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`); };
+  const backHome = async () => { await b.click('[data-corner-home]'); await b.waitFor(`!!document.querySelector(${JSON.stringify(start)})`); };
   const submit = async (text: string) => {
     await child.evaluate(`(() => { const field=${dialog}.querySelector('[name="text"]');
       field.value=${JSON.stringify(text)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);

@@ -197,6 +197,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       const reveal = (element) => {
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
+        // The project home and the other projects are in the list under the top strip's first place (§4「底栏第十三版」第 1 条).
+        const corner = element.closest('[data-top-corner-list]');
+        if (corner && corner.hidden) document.querySelector('[data-top-corner-toggle]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
         // The side opens from its switch at the right end of the top strip (specs/screen-polish §3 方案 C, POLISH-05).
         const sideSwitch = document.querySelector('[data-side-toggle]');

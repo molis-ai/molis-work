@@ -52,6 +52,39 @@ function renderProjectSwitcher(
   return `<details class="${className} navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="${uiText("workbench.settings-navigation.switch-project")}">${currentProject ? renderProjectMonogram(currentProject.display_name, currentProject.project_id, escapeHtml) : icon("database")}<strong title="${escapeHtml(currentName)}">${escapeHtml(currentName)}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>${uiText("workbench.settings-navigation.switch-project")}</span><nav>${options.map((project) => `<a class="navigator-project-option${project.project_id === currentProject?.project_id ? " is-current" : ""}" href="${href(`/projects/${encodeURIComponent(project.project_id)}/`)}"${project.project_id === currentProject?.project_id ? ' aria-current="page"' : ""}><span>${renderProjectMonogram(project.display_name, project.project_id, escapeHtml)}<strong>${escapeHtml(project.display_name)}</strong></span>${project.project_id === currentProject?.project_id ? icon("check") : ""}</a>`).join("")}</nav><a class="navigator-project-manage" href="${desktopShell ? withDesktopQuery(manageHref) : manageHref}">${icon("database")}<span>${uiText("workbench.settings-navigation.manage-projects")}</span></a>${settingsLink}<!-- project-menu-extra --></div></details>`;
 }
 
+/**
+ * The top strip's first place (specs/screen-polish §4「底栏第十三版」第 1 条; mock helm.html, screen 34): 「项目 › 项目主页」,
+ * which is where you are, where to go, and the project home's own tab in one (the script lights it while the home shows). It
+ * always opens the list: the projects on the left, the chosen one's pages on the right; looking changes nothing, choosing goes
+ * there. A project's pages are its home for now: its work items join the right column with the work-item switch (batch 37-2).
+ */
+function renderProjectCorner(
+  currentProject: WebProjectNavigation | null,
+  projects: readonly WebProjectNavigation[],
+  desktopShell: boolean,
+  manageHref = "/",
+): string {
+  const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
+  const options = projects.length ? projects : currentProject ? [currentProject] : [];
+  const name = currentProject?.display_name ?? uiText.text("workbench.settings-navigation.choose-project");
+  const home = uiText.text("workbench.settings-navigation.project-home");
+  const switchLabel = uiText.text("workbench.settings-navigation.switch-project");
+  const isCurrent = (project: WebProjectNavigation) => project.project_id === currentProject?.project_id;
+  const projectRow = (project: WebProjectNavigation) => `<button class="top-corner-project" type="button" data-corner-project="${escapeHtml(project.project_id)}" aria-pressed="${isCurrent(project)}">${icon(isCurrent(project) ? "folder-open" : "folder")}<span>${escapeHtml(project.display_name)}</span>${isCurrent(project) ? `<small>${uiText("workbench.settings-navigation.current")}</small>` : ""}</button>`;
+  // The current project's home is pressed (the page's script opens it as a tab); another project's is that project's address.
+  const homeRow = (project: WebProjectNavigation) => isCurrent(project)
+    ? `<button class="top-corner-page" type="button" data-corner-home>${icon("home")}<span>${escapeHtml(home)}</span></button>`
+    : `<a class="top-corner-page" href="${href(`/projects/${encodeURIComponent(project.project_id)}/`)}">${icon("home")}<span>${escapeHtml(home)}</span></a>`;
+  const pages = (project: WebProjectNavigation) => `<div class="top-corner-pages" data-corner-pages="${escapeHtml(project.project_id)}"${isCurrent(project) ? "" : " hidden"}><p class="top-corner-head"><strong>${escapeHtml(project.display_name)}</strong><small>${uiText("workbench.settings-navigation.choose-to-go")}</small></p>${homeRow(project)}</div>`;
+  return `<div class="top-corner" data-top-corner>
+    <button class="top-corner-cell" type="button" data-top-corner-toggle aria-expanded="false" aria-controls="top-corner-list" aria-label="${escapeHtml(`${name} › ${home} · ${switchLabel}`)}" title="${escapeHtml(switchLabel)}">${icon("home")}<span class="top-corner-project-name">${escapeHtml(name)}</span>${icon("chevron-right")}<span class="top-corner-page-name">${escapeHtml(home)}</span>${icon("chevron-down")}</button>
+    <div class="top-corner-list" id="top-corner-list" data-top-corner-list role="group" aria-label="${escapeHtml(switchLabel)}" hidden>
+      <section class="top-corner-projects"><p class="top-corner-head"><strong>${uiText("workbench.settings-navigation.projects")}</strong></p><div class="top-corner-rows">${options.map(projectRow).join("")}</div><a class="top-corner-manage" href="${href(manageHref)}">${uiText("workbench.settings-navigation.manage-projects")}</a></section>
+      <section class="top-corner-right">${options.map(pages).join("")}</section>
+    </div>
+  </div>`;
+}
+
 function renderDesktopProjectChrome(
   currentProject: WebProjectNavigation | null,
   projects: readonly WebProjectNavigation[],
@@ -127,5 +160,5 @@ function renderProjectSettingsNavigation(
 }
 
 
-  return { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation };
+  return { settingsContextHref, renderProjectSwitcher, renderProjectCorner, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation };
 }

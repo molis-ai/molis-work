@@ -1,0 +1,37 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.1.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "cfb842e411ff446d06ca00d0c3875c6b4bbace85",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Official main commit cfb842e4 (Prologue PR #138 on top of PR #137 d7fb690c): Phases A–C systematic security, harness hardening, consumer-port adoption (StorageGuard, CommandDispatchGuard, McpRequestGuard, DynamicTool, SubagentEvent, protocol capabilities), and consumer CI follow-up fixes. No vendor patch."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.1.0-rc.1.tgz",
+    "bytes": 1494922,
+    "sha256": "ddf44202aca998473acf0d1757f6cd5e6831cc33cf99acab13b426849bbe2580",
+    "integrity": "sha512-RtF/WmysRhDb1zVH80k4WCjIgy2+w1gooVd1YubXc9Eg77iz36UW9Zwnl/cUaN3TLTwsdXnkrBCxsYRIs58tKQ=="
+  },
+  "build": {
+    "node": "24.15.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Extract two independent clean archives from official main commit cfb842e411ff446d06ca00d0c3875c6b4bbace85 (Prologue PR #138 over PR #137 d7fb690c).",
+      "Verify full QUALITY_BASE=origin/main pnpm quality (437/437 Vitest files, 5,466 tests, public-api, quality-ratchet, check-doc-links, clean-consumer, Rust fmt/clippy/test).",
+      "Run pnpm install --frozen-lockfile --offline, pnpm build, and pnpm -C packages/sdk pack in both archives and confirm byte-identical tarballs via cmp -s."
+    ],
+    "packedOn": "2026-11-19",
+    "note": "First 0.1.0-rc.1 official package with first-class consumer ports and verified consumer CI follow-ups."
+  }
+}

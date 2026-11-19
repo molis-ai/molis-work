@@ -9,7 +9,7 @@ import { answerPending, readPendingQuestion, childQuestionScope } from "./prolog
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type SubagentHandle } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -45,10 +45,11 @@ import type { ReviewDecisionStore } from "../review-decisions.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, storageGuard: StorageGuard, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
   return createRuntime({
     app: options.app,
     host,
+    storageGuard,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
     ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
@@ -645,7 +646,10 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
     async subscribe(run, changed) {
       const listen = (parentRunId: string) => { if (parentRunId === run.run_id) changed(); };
       deps.state.subagentListeners.add(listen);
-      return () => { deps.state.subagentListeners.delete(listen); };
+      const stopSdk = deps.runtime.subagents.subscribe(event => {
+        if (event.handle.parentRun.id === run.run_id) changed();
+      });
+      return () => { deps.state.subagentListeners.delete(listen); stopSdk(); };
     },
     command: async (run, id, input, control) => {
       const child = deps.runtime.subagents.list().find(one => one.ref.id === id && one.parentRun.id === run.run_id && one.parentSession.id === run.session_id);

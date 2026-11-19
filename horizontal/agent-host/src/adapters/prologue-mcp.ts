@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createPrologueError, isPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
+import { createPrologueError, isPrologueError, redactMcpError, type ExactRef, type McpRequestGuard, type Runtime, type ToolAbort } from "@prologue/sdk";
 import { realpath } from "node:fs/promises";
 import { realpathSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -85,6 +85,7 @@ async function listMcpConfigurations(runtime: Runtime, view: (saved: Saved, vers
 
 interface McpLibraryOptions {
   withDispatchGuard<T>(guard: DispatchControl, operation: () => Promise<T>): Promise<T>;
+  requestGuard(transport: McpTransport): McpRequestGuard;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
   saveConnection?: SaveMcpConnection;
@@ -162,6 +163,7 @@ interface McpState {
   holdDirectory(saved: Saved): Promise<ReviewDecisionControl & { identity?: string }>;
   resolveHost(saved: Saved): ReturnType<typeof resolveHostCredential>;
   withDispatchGuard: McpLibraryOptions["withDispatchGuard"];
+  requestGuard: McpLibraryOptions["requestGuard"];
   refreshSelected(saved: Saved): Promise<void>;
 }
 
@@ -190,17 +192,11 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
     const control = await state.holdDirectory(saved);
     const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
     const identity = control.identity && connectionDigest([connectionId, saved.transport, control.identity]);
-    const transport: Extract<McpTransport, { kind: "stdio" }> = { source: id, connection: connectionId, kind: "stdio", control, identity, responses: new Map() };
+    const transport: Extract<McpTransport, { kind: "stdio" }> = { source: id, connection: connectionId, kind: "stdio", control, identity };
     await connectTransport(state, transport, dispatch,
       () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref,
         executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms,
-        assertResponseCurrent: request => {
-          if (request.method !== "tools/call") return;
-          const check = transport.responses.get(request.requestId);
-          transport.responses.delete(request.requestId);
-          if (transport.session !== request.sessionId || !check) throw createPrologueError("EFFECT_NOT_AUTHORIZED", "The original MCP reply is no longer authorized.");
-          check();
-        },
+        guard: state.requestGuard(transport),
       } }));
   } else {
     if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
@@ -224,7 +220,8 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
     const transport: McpTransport = { source: id, connection: connectionId, kind: "http", endpoint: saved.endpoint!, credential: credentialRef, identity,
       control: { beforeEffect: assertCurrent, assertCurrent } };
     await connectTransport(state, transport, dispatch,
-      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } }));
+      () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms,
+        guard: state.requestGuard(transport), ...(credentialRef ? { credentialRef } : {}) } }));
   }
   if (invalidated.has(id)) { await closeConnections(state, id); throw new Error("MCP 账号已改变，请重新连接"); }
   if (abort.signal.aborted) { await closeConnections(state, id);throw new Error("连接已取消"); }
@@ -361,7 +358,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
     return { assertCurrent, beforeEffect: async () => { await assertDirectory(saved); assertCurrent(); } };
   };
   const state: McpState = { runtime, transports, linked, invalidated, held, assertDirectory, holdDirectory, resolveHost, withDispatchGuard: options.withDispatchGuard,
-    refreshSelected: async saved => { await refreshSelected(saved); } };
+    requestGuard: options.requestGuard, refreshSelected: async saved => { await refreshSelected(saved); } };
   const reconnecting = new Map<string, Promise<void>>();
   const prepare = async (owner: AgentSkillOwner, ref: AgentMcpSourceRef, callOptions: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => {
     const { saved, version } = await held(owner, ref.server);

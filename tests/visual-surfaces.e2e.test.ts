@@ -5,7 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 /**
  * Lightweight deterministic-surface & side-files readiness regression (W4-12 / VUX-TOAST-01).
  * The full 11-surface x 3-width x 2-scheme screenshot & computed-style capture runner used by
- * `pnpm visual:compare` lives in `scripts/visual-capture.mts` so CI full-suite does not spend ~9 minutes
+ * `pnpm visual:compare` lives in `tests/fixtures/visual-capture.mts` so CI full-suite does not spend ~9 minutes
  * generating unconsumed screenshots.
  */
 

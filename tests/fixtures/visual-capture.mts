@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBrowser } from "../tests/fixtures/goal-browser.js";
-import { REVIEW_EVIDENCE } from "../tests/fixtures/review-evidence.js";
+import { openGoalBrowser } from "./goal-browser.js";
+import { REVIEW_EVIDENCE } from "./review-evidence.js";
 
 /**
  * Full visual-comparison capture runner invoked by `scripts/visual-compare.mjs` (W4-12 / W5-05):
  * captures all key surfaces at 1440, 1024 and 390 wide in light and dark plus computed-style snapshots at 1440.
- * Kept outside `tests/` so CI `full-suite` does not spend ~9 minutes generating unconsumed screenshots on every run;
- * deterministic picture settlement and readiness checks remain in `tests/visual-surfaces.e2e.test.ts`.
+ * Kept under `tests/fixtures/` (not `tests/*.test.ts`) so CI `full-suite` does not spend ~9 minutes generating
+ * unconsumed screenshots on every run; deterministic picture settlement and readiness checks remain in
+ * `tests/visual-surfaces.e2e.test.ts`.
  */
 
 const WIDTHS = [

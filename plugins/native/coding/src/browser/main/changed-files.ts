@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
-import { changeTally, editedPaths } from "./change-tally.js";
+import { editedPaths } from "../../timeline.js";
+import { changeTally } from "./change-tally.js";
 import { terminal } from "./composer-state.js";
 import type { Page } from "./page.js";
 
@@ -14,6 +15,7 @@ export function renderChanged(page: Page): void {
   const run = s.lastRun, paths = run && terminal(run.phase) ? editedPaths(run) : [];
   count.hidden = !paths.length;
   count.textContent = paths.length ? String(paths.length) : "";
+  q("[data-coding-results-open]").setAttribute("aria-label", uiText.text("coding.results.title") + (paths.length ? " · " + uiText.text("coding.round.card.delivered-files", { count: paths.length }) : ""));
   section.hidden = !paths.length;
   if (!run || !paths.length) { list.replaceChildren(); delete list.dataset.content; return; }
   const tally = changeTally(page, run.ref.run_id), lines = new Map(tally?.files.map(file => [file.path, file]));

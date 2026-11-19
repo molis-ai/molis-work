@@ -16,7 +16,9 @@ export const CODING_POLISH_STYLES = `
    them, or failed, says so in a word. The time shows when the row is pointed at, or under the name where there is no pointer. */
 .mw-dir-row.coding-session-row .coding-session-state { display:inline-flex; align-items:center; gap:4px; max-width:9em; }
 .mw-dir-row.coding-session-row .coding-session-state[data-quiet=true] { --ring-size:13px; gap:0; padding:0 3px; background:transparent; }
-.coding-session-state[data-word]::after { content:attr(data-word); }
+/* The word is drawn, not written: the chip's text stays the state's whole sentence. Its empty text alternative (the second
+   declaration, where the engine knows it) keeps a screen reader from reading the word after the sentence. */
+.coding-session-state[data-word]::after { content:attr(data-word); content:attr(data-word) / ""; }
 .coding-session-state[data-word]::after, .coding-session-pre { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-session-pre { color:var(--muted); }
 @media (hover:hover) and (pointer:fine) {
@@ -42,14 +44,15 @@ export const CODING_POLISH_STYLES = `
 .coding-prep-line { list-style:none; display:flex; align-items:center; gap:8px; min-height:32px; padding:0 12px; border-radius:8px; background:var(--surface-soft,var(--rail)); color:var(--muted); font-size:12px; cursor:pointer; }
 .coding-prep-line::-webkit-details-marker { display:none; }
 .coding-prep-line:hover { color:var(--ink); }
-.coding-prep-line::after { content:""; flex:none; width:6px; height:6px; margin-left:auto; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); transition:transform var(--dur-hover,130ms) var(--ease-quint); }
-.coding-prep[open] > .coding-prep-line::after { transform:rotate(45deg); }
+/* Both folds are the shared disclosure (it opens to its natural height); their summaries carry a state ring, so they bring the same 12px chevron themselves. */
+.coding-prep > summary > svg:last-child, .coding-run-details > summary > svg:last-child { flex:none; width:12px; height:12px; margin-left:auto; opacity:.72; transition:transform var(--dur-move) var(--ease-quint); }
+.coding-prep:not([open]) > summary > svg:last-child, .coding-run-details:not([open]) > summary > svg:last-child { transform:rotate(-90deg); }
 .coding-prep[open] > .coding-prep-line { margin-bottom:8px; }
 .coding-prep-mark { --ring-size:13px; flex:none; display:inline-flex; align-items:center; }
 .coding-prep-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-prep[data-attention=true] > .coding-prep-line { background:color-mix(in srgb,var(--amber) 12%,transparent); color:var(--ink); }
 .coding-prep > :is(.coding-env-checklist,.coding-round-materials) { width:100%; margin:0 0 8px; }
-@media (prefers-reduced-motion:reduce) { .coding-prep-line::after, .coding-run-more-toggle svg { transition:none; } }
+@media (prefers-reduced-motion:reduce) { .coding-prep > summary > svg:last-child, .coding-run-details > summary > svg:last-child, .coding-run-more-toggle svg { transition:none; } }
 
 /* 6.3 An ended round is one line: how it ended, what it changed, and the one thing to do next. */
 .coding-run-card { padding:8px 12px; }
@@ -62,7 +65,7 @@ export const CODING_POLISH_STYLES = `
 .coding-run-more { margin:8px 0 0 28px; }
 .coding-run-more[hidden] { display:none; }
 .coding-run-actions .coding-run-more-toggle { width:28px; min-width:28px; padding:0; justify-content:center; color:var(--muted); }
-.coding-run-more-toggle svg { transition:transform var(--dur-hover,130ms) var(--ease-quint); }
+.coding-run-more-toggle svg { transition:transform var(--dur-hover) var(--ease-quint); }
 .coding-run-more-toggle[aria-expanded=true] svg { transform:rotate(180deg); }
 .coding-run-more :is(.coding-run-files,.coding-run-reason) { margin-left:0; }
 .coding-run-more-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
@@ -96,8 +99,6 @@ export const CODING_POLISH_STYLES = `
 .coding-changed-file b { font-weight:500; }
 .coding-run-details > summary { list-style:none; margin-bottom:0; cursor:pointer; }
 .coding-run-details > summary::-webkit-details-marker { display:none; }
-.coding-run-details > summary::after { content:""; flex:none; width:6px; height:6px; border-right:1.5px solid var(--muted); border-bottom:1.5px solid var(--muted); transform:rotate(-45deg); }
-.coding-run-details[open] > summary::after { transform:rotate(45deg); }
 .coding-run-details[open] > summary { margin-bottom:12px; }
 .coding-result .coding-run-details > summary h3 { color:var(--muted); font-size:12px; }
 

@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderEmpty, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage, el, part } from "./dom.js";
 import { svg } from "./taskboard-format.js";
 import { drawOutlineRow } from "./taskboard-outline.js";
@@ -116,11 +116,9 @@ function drawGroup(state: State, group: BoardGroup): HTMLElement {
 
 /** The board of a session with no plan and no subtask yet: what it is for, and where such work starts. */
 function emptyBoard(state: State): HTMLElement {
-  const box = el("div", "", "mw-empty coding-board-empty"), mark = el("span", "", "mw-empty__mark");
-  box.dataset.slot = "empty";
-  mark.innerHTML = svg("board");
-  box.append(mark, el("h2", uiText.text("coding.board.empty-title")), el("p", state.empty));
-  return box;
+  const box = el("div");
+  box.innerHTML = renderEmpty({ icon: "board", title: uiText.text("coding.board.empty-title"), body: state.empty, className: "coding-board-empty" });
+  return box.firstElementChild as HTMLElement;
 }
 
 function drawBoard(state: State) {

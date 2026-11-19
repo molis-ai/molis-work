@@ -97,9 +97,9 @@ function mountReview(page: Page) {
     lifetime, translate: readText, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
     onRunOpen: () => { s.changeItem = ""; s.reportItem = ""; renderArtifacts(page); },
     // Reading a round's changes also tells how many lines it added and removed: its line in the conversation says so from then on.
-    onRead: (runId, files) => {
-      noteChangeTally(page, s.current, runId, files);
-      const run = s.allRuns.find(item => item.ref.run_id === runId);
+    onRead: (runId, files, netGroups) => {
+      // The reader reads again on every switch of file or layout: the conversation redraws only when the count changed.
+      const run = noteChangeTally(page, s.current, runId, files, netGroups) && s.allRuns.find(item => item.ref.run_id === runId);
       if (run) renderRuns(page, [run], s.allRuns);
     },
     appendDraft: task => refs.draft.append(s.current, text => {

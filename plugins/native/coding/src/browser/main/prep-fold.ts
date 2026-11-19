@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { buildEnvironmentChecklistHtml, buildRoundMaterialsHtml, environmentAttention, roundMaterialCount } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { terminal } from "./composer-state.js";
@@ -16,10 +16,11 @@ type Readiness = Page["s"]["state"]["environment_readiness"];
 function foldOf(parent: Element): HTMLDetailsElement {
   let fold = parent.querySelector<HTMLDetailsElement>(":scope > [data-coding-prep]");
   if (fold) return fold;
-  fold = el("details", "", "coding-prep");
+  fold = el("details", "", "coding-prep mw-disclosure");
   fold.dataset.codingPrep = "";
   const summary = el("summary", "", "coding-prep-line");
   summary.append(el("span", "", "coding-prep-mark"), el("span", "", "coding-prep-text"));
+  summary.insertAdjacentHTML("beforeend", icon("chevron-down"));
   // Once the person opens or closes it, the fold is theirs: later draws leave it as they left it.
   summary.addEventListener("click", () => { fold!.dataset.chosen = "true"; });
   fold.append(summary);
@@ -98,13 +99,13 @@ export function runPrep(page: Page, block: HTMLElement, run: RunView, last: bool
 /**
  * The environment was read again. The newest round's fold says what it says now, and is made right under the task when the
  * round had nothing to fold until this read; a round that is no longer the newest gives the environment up (it is the
- * session's environment now, not that round's).
+ * session's environment now, not that round's). `drawn` are the rounds this same pass has just drawn, fold included.
  */
-export function refreshRunPrep(page: Page): void {
+export function refreshRunPrep(page: Page, drawn: ReadonlySet<string> = new Set()): void {
   const { s, turns } = page, newest = s.lastRun?.ref.run_id;
   for (const block of turns.querySelectorAll<HTMLElement>(":scope > [data-run]")) {
     const last = block.dataset.run === newest, had = block.querySelector(":scope > [data-coding-prep]");
-    if (!last && !had?.querySelector(":scope > [data-coding-env-checklist]")) continue;
+    if (drawn.has(block.dataset.run ?? "") || (!last && !had?.querySelector(":scope > [data-coding-env-checklist]"))) continue;
     const run = last ? s.lastRun : s.allRuns.find(one => one.ref.run_id === block.dataset.run);
     const fold = run ? runPrep(page, block, run, last) : null;
     if (!fold || had) continue;

@@ -46,15 +46,19 @@ ${SHELL}:is(body,.mw-catalog-bar-stage){--dock-min:98px;--foot-input:640px}
 ${SHELL} .work-line-slot{--bar-row:74px}
 ${SHELL} .work-line-slot>.bar-center>.assistant-composer{padding-block:0}
 ${SHELL} .work-line-slot .mw-composer__box{border-radius:20px}
-${REST_COMPOSER}>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:6px 4px 4px}
-${REST_COMPOSER}:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
-${REST_COMPOSER}:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
-${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{grid-area:1/1/2/-1;padding:0 var(--counts-room,176px) 0 8px}
-${REST_COMPOSER}>.mw-composer[data-rest] .mw-compose__anchor{grid-area:2/1}
-${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__to{grid-area:2/2;anchor-name:--assistant-receiver}
-${REST_COMPOSER}>.mw-composer[data-rest] :is(.mw-composer__more,.mw-composer__controls){grid-area:2/4}
-${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__end{grid-area:2/5}
-${REST_COMPOSER}>.mw-composer[data-rest]~.assistant-attention{position:absolute;position-anchor:--assistant-receiver;top:anchor(center);right:auto;left:calc(anchor(right) + 6px);translate:0 -50%}
+${REST_COMPOSER}{
+  &>.mw-composer[data-rest]{
+    &>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:6px 4px 4px}
+    & .mw-composer__text{grid-area:1/1/2/-1;padding:0 var(--counts-room,176px) 0 8px}
+    & .mw-compose__anchor{grid-area:2/1}
+    & .mw-composer__to{grid-area:2/2;anchor-name:--assistant-receiver}
+    & :is(.mw-composer__more,.mw-composer__controls){grid-area:2/4}
+    & .mw-composer__end{grid-area:2/5}
+    &~.assistant-attention{position:absolute;position-anchor:--assistant-receiver;top:anchor(center);right:auto;left:calc(anchor(right) + 6px);translate:0 -50%}
+  }
+  &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
+  &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
+}
 /* The words stop before the counts: the room is the text's column, so the input itself never lies under them. */
 ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px)}
 /* The account bar: who you are (sync is a dot on the avatar), then 通知, 插件 and 设置 as round keys; no ink-blue solid here. */
@@ -373,4 +377,4 @@ html[data-craft-still] .work-stack-card:hover{transform:none}
 }
 `;
 /** The sheet as the page gets it: the notes above are for whoever reads this file. */
-export const WORK_LINE_STYLES = SHEET.replace(/\/\*[\s\S]*?\*\/\s*/g, "");
+export const WORK_LINE_STYLES = SHEET.replace(/\/\*[\s\S]*?\*\/\s*/g, "").replace(/\n\s*/g, "");

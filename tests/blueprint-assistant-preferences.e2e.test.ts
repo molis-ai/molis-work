@@ -38,19 +38,21 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   const done = await person.invoke(blueprintActions.apply, request);
   assert.equal(done.steps[0]?.state, "applied");
 
-  assert.ok(b.projectId);
-  const settingsUrl = origin + "/settings/assistant?project=" + encodeURIComponent(b.projectId);
-  await navigate(() => command("Page.navigate", { url: settingsUrl }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
   await waitFor("document.querySelector('[data-lookback-count]')?.value === '2' && document.querySelector('[data-lookback-unit]').value === 'weeks'");
   assert.equal(await evaluate("document.querySelector('[data-assistant-budget-input]').value"), "4500");
   await evaluate("document.querySelector('[data-lookback-count]').value='3'; document.querySelector('[data-lookback-unit]').value='days'");
   await click("[data-assistant-lookback] button[type=submit]");
   await waitFor("!document.querySelector('[data-assistant-lookback] button[type=submit]').disabled");
-  // AUT-06: changing the project suggestions switch uses its own owner alongside the adopted lookback.
+  // AUT-06: the project settings directory opens both owner-backed controls.
+  assert.ok(b.projectId);
+  const projectSettings = origin + "/projects/" + encodeURIComponent(b.projectId) + "/?settings=assistant";
+  const openProjectSettings = () => navigate(() => command("Page.navigate", { url: projectSettings }, sessionId));
+  await openProjectSettings();
   await waitFor("document.querySelector('[data-assistant-offers]:enabled:checked')");
   await evaluate("document.querySelector('[data-assistant-offers]').click()");
   await waitFor("document.querySelector('[data-assistant-offers]:enabled:not(:checked)')");
-  await b.reloadPage();
+  await openProjectSettings();
   await waitFor("document.querySelector('[data-lookback-count]')?.value === '3' && document.querySelector('[data-lookback-unit]').value === 'days'");
   await waitFor("document.querySelector('[data-assistant-offers]:enabled:not(:checked)')");
   assert.deepEqual(JSON.parse(store.setting(actor, "lookback")!), { count: 3, unit: "days" });
@@ -64,7 +66,7 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   const change = { key: cap, layer: "personal", expected_revision: budget!.revision, request_id: "cost-limit", change: { set: 6000 } };
   const receipt = await raw.invoke(caller, write, change);
   assert.equal(store.setting(actor, "daily_tokens"), "6000");
-  await b.reloadPage();
+  await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
   await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '6000'");
   await click("[data-budget-inherit]");
   await waitFor("document.querySelector('[data-assistant-budget-input]')?.value === '' && document.querySelector('[data-budget-inherit]').hidden");

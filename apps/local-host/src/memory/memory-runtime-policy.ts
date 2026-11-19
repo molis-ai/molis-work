@@ -70,6 +70,13 @@ function scoped(caller: AgentMemoryCaller, target: Pick<Target, "scope" | "owner
       && target.owner === characterOwner(caller.project_id, caller.character_id);
 }
 
+/** A candidate's trusted project ownership permits its management before any formal memory exists. */
+function scopedAccess(caller: AgentMemoryCaller, target: Request["target"], action: Request["action"], state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) {
+  return scoped(caller, target, state) || caller.person === true && caller.purpose === "management" && !!caller.project_id
+    && target.scope === "character" && target.ref.kind === "memory-candidate" && (action === "manage-read" || action === "delete")
+    && state.owner.candidateOwners(caller.project_id).some(row => row.scope === "character" && row.owner === target.owner);
+}
+
 function inspection(caller: AgentMemoryCaller, request: Parameters<NonNullable<Options["authorizePurgeInspection"]>>[1], state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) {
     const binding = caller.memory_session;
     if (!binding || caller.person !== true || caller.consumer !== "ui" || caller.purpose !== "management" || state.deletion
@@ -131,13 +138,13 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
   const decide = <T>(caller: AgentMemoryCaller, state: State, combine: (one: (request: Request) => boolean) => T): T => {
     const facts = forgettingBatch(state.owner);
     const answer = combine(request => permitted(caller, request, state, facts.forgetting)
-      && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
+      && (!request.before || scopedAccess(caller, request.before, request.action, state) && namespaceAllowed(caller, request.before.namespace)));
     // The decision is used only after this returns: a change during the batch fails the whole call (`memory.conflict`), never half old, half new.
     facts.close();
     return answer;
   };
   const permitted = (caller: AgentMemoryCaller, request: Request, state: State, forgetting: () => MemoryForgettingPhase) => {
-    if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
+    if (request.appId !== "io.molis.work" || !scopedAccess(caller, request.target, request.action, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
     // Management reads are needed by the SDK's existing delete preflight; public App management reads filter these identities.
     // No accepted target can enter model use or a new mutation while physical cleanup is pending.
     if (request.action !== "delete" && !(request.action === "manage-read" && caller.person === true && caller.purpose === "management")

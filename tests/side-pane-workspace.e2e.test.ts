@@ -17,6 +17,43 @@ const strip = "[data-side-tabs]";
 const current = `document.querySelector('${strip} [role=tab][aria-selected=true]')?.dataset.sideTab`;
 const stored = "JSON.parse(localStorage.getItem('molis-work-tab-workspace:' + document.body.dataset.projectId) || 'null')";
 
+test("QEA-10 a glyph stays anchored when its expanded strip overflows by one pixel, including after refocus", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector('${strip} [data-side-tab=computer]')?.checkVisibility()`);
+  const result = await evaluate<Array<{ delta: number; overflow: number; scroll: number; folded: boolean; restored: number }>>(`(async () => {
+    await document.fonts.ready;
+    const row = document.querySelector('${strip}'), trigger = row.querySelector('[data-side-tab=computer]'), icon = trigger.querySelector('.tab-item-icon');
+    const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    Object.assign(row.style, { flex: 'none', maxWidth: 'none', width: 'max-content' });
+    trigger.focus({ focusVisible: true, preventScroll: true }); await frame();
+    const expanded = row.scrollWidth;
+    trigger.blur(); await frame();
+    // A normal fractional layout boundary: integer clientWidth hides part of the actual overflow.
+    row.style.width = (expanded - 1.125) + 'px'; await frame();
+    const results = [];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = icon.getBoundingClientRect().left;
+      trigger.focus({ focusVisible: true, preventScroll: true }); await frame();
+      const focused = { delta: icon.getBoundingClientRect().left - before, overflow: row.scrollWidth - row.clientWidth, scroll: row.scrollLeft };
+      trigger.blur(); await frame();
+      results.push({ ...focused, folded: !trigger.parentElement.classList.contains('is-grown'), restored: icon.getBoundingClientRect().left - before });
+    }
+    return results;
+  })()`);
+  for (const state of result) {
+    assert.equal(state.overflow, 1, "the browser reports exactly one pixel of overflow");
+    assert.ok(Math.abs(state.delta) <= 0.5, `focus keeps the glyph anchored: ${JSON.stringify(state)}`);
+    assert.ok(state.scroll > 0, "the real scroller compensates for the overflow");
+    assert.equal(state.folded, true, "blur folds the tab again");
+    assert.ok(Math.abs(state.restored) <= 0.5, "blur restores the folded glyph's position");
+  }
+});
+
 test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, close and come back, recall an open view and keep their views loaded", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;

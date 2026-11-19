@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 
-import { AgentHost, assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
-import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { assistantServiceFor, ComputerDesk, ensureSystemAgentService, MolisWorkLocalHost, handleAgentReviewHttp, installHostUiText, resolveWebLocale, runWithLocale, WebSessions, webPageToken, withWebSessionRequest } from "@molis-ai/molis-work-app-local-host";
+import type { AgentReviewRequest, AgentReviewDecisions } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -407,4 +407,52 @@ for (const withdrawn of ["session", "computer", "work"] as const) test(`BL-360: 
   const receipt = queue.receipt("original-review");
   assert.equal(receipt?.status, "pending"); assert.equal(receipt?.decided_by, null); assert.equal(receipt?.effect_settled, false);
   assert.equal(await decisions.store.read(queue.get("original-review")!.reference), undefined);
+});
+
+// QEA-21: the queue owns actionable decisions; neither the HTTP projection nor a page guesses from pending alone.
+test("QEA-21 a revoked live review only offers rejection, while a disconnected pending offers no decision", async () => {
+  const item = await fixture();
+  try {
+    let held = true, effects = 0;
+    const request: AgentReviewRequest = { ...pending("held-operation"), reference: { ...pending("held-operation").reference, owner: { ...pending("held-operation").reference.owner, install_id: "original" } }, run: null, kind: "tool-operation",
+      operation: { kind: "git-operation", operation_id: "operation-held-123", workspace_id: "main" },
+      document: { kind: "tool-operation", tool: "git-commit", summary: "Commit reviewed files", fields: [] } };
+    item.agentHost.reviews.request(request, { plugin_id: request.plugin_id, install_id: "original", holds: () => held });
+    item.agentHost.reviews.registerDecisionHandler(request.review_id, async (input, commit) => {
+      const receipt = await commit();
+      if (input.decision === "approve") { item.agentHost.reviews.consumeApproval(input.review_id); effects++; }
+      return receipt;
+    });
+    type Listed = { html: string; reviews: Array<{ decisions: AgentReviewDecisions }> };
+    const read = async (): Promise<Listed> => (await fetch(`${item.base}/api/agent/reviews?workspace_id=main`)).json() as Promise<Listed>;
+    const decide = (decision: "approve" | "reject") => fetch(`${item.base}/api/agent/reviews/decide`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ review_id: request.review_id, version: request.reference.version, decision }),
+    });
+    assert.match((await read()).html, /data-agent-review-approve/);
+    held = false;
+    const revoked = await read();
+    assert.doesNotMatch(revoked.html, /data-agent-review-approve/, "do not offer an approval that the owner refuses");
+    assert.match(revoked.html, /data-agent-review-reject/);
+    assert.equal(revoked.reviews[0]?.decisions.approve.code, "agent.review_not_permitted");
+    assert.equal(revoked.reviews[0]?.decisions.reject.available, true);
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "pending", "reading records no decision");
+    const denied = await decide("approve");
+    assert.equal(denied.status, 403, "the current HTTP boundary preserves the owner authority refusal");
+    assert.equal((await denied.json() as { code: string }).code, "agent.review_not_permitted", "the owner rejects forged or stale approval");
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "pending");
+    assert.equal((await decide("reject")).status, 200);
+    assert.equal(item.agentHost.reviews.receipt(request.review_id)?.status, "rejected");
+    assert.equal((await read()).reviews[0]?.decisions.approve.available, false);
+    assert.equal((await read()).reviews[0]?.decisions.reject.available, false);
+    assert.equal(effects, 0);
+
+    item.agentHost.reviews.restoreDecision({ ...request, reference: { ...request.reference, id: "no-execution" }, review_id: "no-execution", operation: { ...request.operation!, operation_id: "no-execution-123" } }, null);
+    const disconnected = await read();
+    assert.doesNotMatch(disconnected.html, /data-agent-review-(approve|reject)=/);
+    assert.equal(disconnected.reviews[1]?.decisions.approve.available, false);
+    assert.equal(disconnected.reviews[1]?.decisions.reject.code, "agent.capability_unavailable");
+    await assert.rejects(item.agentHost.reviews.respond({ version: "proposal-1", review_id: "no-execution", decision: "reject", actor_id: "user" }), { code: "agent.capability_unavailable" });
+    assert.equal(item.agentHost.reviews.receipt("no-execution")?.status, "pending");
+    assert.equal(effects, 0);
+  } finally { item.server.close(); }
 });

@@ -73,9 +73,7 @@ export interface AssistantCard {
         options?: Array<{
             value: string;
             label: string;
-            description?: string;
         }>;
-        multiple?: boolean;
         input?: "date" | "datetime";
     }>;
     missing: Array<{
@@ -97,12 +95,6 @@ export interface AssistantCard {
     };
     created_at: string;
     updated_at: string;
-}
-
-export interface AssistantCardChoice {
-    value: string;
-    label: string;
-    description?: string;
 }
 
 export interface AssistantCharacter {
@@ -296,6 +288,7 @@ export interface AssistantMaterialText {
 
 export interface AssistantMemory {
     memory_id: string;
+    version: number;
     scope: "personal" | "project" | "character";
     project_id?: string;
     text: string;
@@ -467,7 +460,6 @@ export interface AssistantPreparedCard {
         title: string;
         text: string;
     }>;
-    choices?: Record<string, AssistantCardChoice[]>;
 }
 
 export interface AssistantRecovery {
@@ -941,7 +933,7 @@ export interface AssistantWorkView {
     schedule_survives_close?: boolean;
     unsettled?: AssistantUnsettledChange[];
     undoable?: AssistantUndoable[];
-    memory_candidates?: AssistantMemoryCandidate[];
+    memory_candidates?: AssistantMemoryCandidate[] | null;
     memory_changes?: MemoryChange[];
     jobs?: AssistantBackgroundJob[];
     usage?: {

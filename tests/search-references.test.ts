@@ -3,7 +3,8 @@ import test from "node:test";
 
 import { searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { findReferenceCandidates } from "@molis-ai/molis-work-service-search";
+import { findReferenceCandidates, readReferences } from "@molis-ai/molis-work-service-search";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { person, referenceOwners as fixture } from "./fixtures/reference-owners.js";
 
 // specs/ai-interaction-experience H3: the objects a person may pick for a question that asks for one. The Host's read of a
@@ -31,4 +32,21 @@ test("AC-24 the candidate search is a read for people and their pages, never off
   assert.deepEqual(inspectActionDeclarations([searchActions.references], undefined), []);
   assert.equal(searchActions.references.action.kind, "query");
   assert.deepEqual(searchActions.references.action.audiences, ["user", "plugin"]);
+});
+
+test("QEA-13 reference reads preserve cancellation instead of calling it an unavailable object", async t => {
+  const f = await fixture(t);
+  const abort = new AbortController();
+  const reason = new ActionError("actions.cancelled", "selection ended");
+  const access = f.access({ ...person("a"), signal: abort.signal });
+  const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
+  const original = access.client.invoke.bind(access.client);
+  const reading = readReferences({ ...access, client: { ...access.client, discover: access.client.discover.bind(access.client),
+    invoke: async (...args) => { entered.resolve(); await released.promise; return original(...args); },
+  } }, [{ kind: "goal", id: "g1" }]);
+  const rejected = assert.rejects(reading, error => error === reason);
+  await entered.promise;
+  abort.abort(reason); released.resolve();
+  await rejected;
+  assert.ok((await readReferences(f.access(person("a")), [{ kind: "goal", id: "g1" }]))[0], "a new valid read still succeeds");
 });

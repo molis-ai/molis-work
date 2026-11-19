@@ -200,13 +200,22 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
   } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('SYS-15-S1 Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched', mac, async () => {
+for (const installation of ['retained', 'lifecycle'] as const) {
+test(`QEA-81 SYS-15-S1 Host restores ${installation} installed actions and scheduled operations, retains data across restart and leaves authoring untouched`, mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-headless-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const fixture = await publishedFixture(home, 'project'), { release, ref } = fixture;
+  const fixture = await publishedFixture(home, 'project', false, [], installation === 'lifecycle'), { release, ref } = fixture;
   let host = new MolisWorkLocalHost({ homeDirectory: home });
   const action = (operation: string) => ({ capability_id: exposedActionId(release, operation), version: 1, provider_id: 'plugin:' + release.pluginId });
   try {
+    if (installation === 'lifecycle') {
+      const installed = await host.withProject(ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+        actions: { registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: DEMO_PROJECT_ID } }));
+      await installed.lifecycle('install', release, { consent: true });
+      const record = installed.records()[0]!;
+      assert.equal(record.publisher_trust, 'unsigned', 'normal Studio installs have no signed package archive');
+      await installed.platform.runtime.regrant(record.install_id, 'capabilities:call', true); // The person enables scheduling, as in the retained fixture.
+    }
     await host.inspectActions(caller, ref);
     const client = host.actionClient(ref), discovered = await client.discover(caller);
     assert.equal(discovered.filter(view => view.capability_id.startsWith('generated.')).length, 3);
@@ -253,6 +262,7 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
     assert.equal(await host.actionClient(ref).invoke(caller, action('read'), null), 'scheduled');
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+}
 
 // SECURITY-INVARIANTS S-task-grant-subjects ⑩: what the person let a project installation's background tasks read goes with that installation when it
 // is uninstalled there (the installed-plugin lifecycle's `forget`), and only that: the same installation's tasks in another project, and

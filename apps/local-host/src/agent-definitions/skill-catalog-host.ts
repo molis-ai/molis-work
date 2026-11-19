@@ -10,7 +10,7 @@ import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILLS_PROVIDER_ID, skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
-import { hostCompleteText, type HostCompleteText } from "../host-complete-text.js";
+import { hostTextForCommit, type HostCompleteText } from "../host-complete-text.js";
 import { resolveModelPrompt } from "./instructions.js";
 import { SkillWorkshop } from "./skill-workshop.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
@@ -41,7 +41,7 @@ export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: strin
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string, completion?: HostCompleteText | null) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home);
   const ports = skillCatalogPorts(home, source, definitions, scopeInstallations, true, undefined, systemSkillsDirectory);
-  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const model = () => hostTextForCommit(home, completion);
   const workshop = new SkillWorkshop({ drafts: definitions.skillDrafts, withSkills: ports.withSkills,
     release: (pluginId, keyId, version) => { try { return packages.load(pluginId, keyId, version).packaged; } catch { return undefined; } },
     savedAt: (pluginId, keyId) => new Map(packages.retainedVersions(pluginId, keyId).map(row => [row.version, row.saved_at])),

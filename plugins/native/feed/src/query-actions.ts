@@ -1,6 +1,6 @@
 import { feedPageSchema, feedPageInput, feedPageOffset } from "./page-input.js";
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -87,10 +87,6 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
   authStatus(): ConnectorAuthStatus | Promise<ConnectorAuthStatus>;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
 }): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => run(input as I, caller),
-  });
   const snapshot = (input: Readonly<Record<string, string>>): FeedDirectorySnapshot => {
     const page = feedPageInput(input);
     const current = feed.directory(projectId, page);

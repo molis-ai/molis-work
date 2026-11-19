@@ -13,7 +13,7 @@ function ownMatch(match: DeclaredPageRouteMatch | null): DeclaredPageRouteMatch 
 }
 
 export type GoalsReadRoute =
-  | { kind: "refresh"; collection: GoalDocumentCollection; goal_id?: string }
+  | { kind: "refresh"; collection: GoalDocumentCollection; goal_id?: string; projection?: "collection" }
   | { kind: "momentum"; collection: "current" | "archive"; goal_id: string }
   | { kind: "document"; collection: GoalDocumentCollection; goal_id: string };
 export interface GoalsRouteError { status: 400 | 404; error: string; code?: typeof GOAL_NOT_FOUND }
@@ -30,7 +30,12 @@ export function goalsReadRouteOf(declared: DeclaredPageRouteMatch | null): { rou
     return { route: { kind: "momentum", collection, goal_id: match.params.goal_id?.trim() || "" } };
   }
   if (collection !== "current" && collection !== "archive" && collection !== "trash") return { status: 400, error: "Goal 正文集合无效" };
-  if (refresh) return { route: { kind: "refresh", collection, goal_id: match.params.goal_id?.trim() || undefined } };
+  if (refresh) {
+    const projection = match.params.projection;
+    if (projection !== undefined && projection !== "collection") return { status: 400, error: "Goal 请求参数无效" };
+    return { route: { kind: "refresh", collection, goal_id: match.params.goal_id?.trim() || undefined,
+      ...(projection ? { projection } : {}) } };
+  }
   return { route: { kind: "document", collection, goal_id: match.params.goal_id ?? "" } };
 }
 

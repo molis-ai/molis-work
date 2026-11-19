@@ -9,6 +9,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { CodingEnvironmentReadiness } from "../../environment-state.js";
 import type { RunCard } from "../actions.js";
 import type { CharacterRef } from "../characters.js";
 import type { ModelChoice } from "../composer-model.js";
@@ -240,7 +241,7 @@ export interface SessionData extends UsageData {
   readonly saved_history?: import("../saved-history.js").SavedHistory;
   readonly session: SessionRecord & {
     readonly runtime_session_id: string;
-    readonly queued_inputs?: readonly unknown[];
+    readonly queued_inputs?: readonly import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     readonly queued?: QueuedRound | null;
     readonly priority?: boolean;
     readonly goal_title?: string;
@@ -317,27 +318,7 @@ export interface StateRead {
   readonly project_runtime_id?: string;
   /** Whether the next round reads the output's instruction files, and if not the first thing to change (`ProjectDirectories.instructions`). */
   instructions?: ProjectDirectories["instructions"];
-  readonly environment_readiness?: {
-    readonly workspace_id: string;
-    readonly canonical_path?: string;
-    readonly status: "ready" | "attention";
-    readonly branch: string | null;
-    readonly head_commit: string | null;
-    readonly dirty_count: number;
-    readonly git_conflicted_count: number;
-    readonly git_merging: boolean;
-    readonly is_git_repo: boolean;
-    readonly deps_manager: string | null;
-    readonly deps_installed: boolean;
-    readonly script_names: readonly string[];
-    readonly ports: readonly number[];
-    readonly package_json_invalid?: boolean;
-    readonly env_template: string | null;
-    readonly env_keys: readonly string[];
-    readonly has_local_env: boolean;
-    readonly worktrees: { readonly active: number; readonly problem_count: number; readonly cleanup_count: number };
-    readonly checked_at: string;
-  } | null;
+  readonly environment_readiness?: CodingEnvironmentReadiness | null;
   readonly [field: string]: unknown;
 }
 

@@ -27,6 +27,9 @@ import { atomicWriteFileSync } from "./atomic-write.js";
 import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "../versioned-file.js";
 import { readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
+/** Automatic services may use an already unlocked Keychain store without initiating access themselves. */
+export interface SecretStoreAccess { readonly keychain?: "allow" | "cached" }
+
 export interface SecretStore {
   put(authRef: string, plaintext: string): void;
   get(authRef: string): string | null;
@@ -160,7 +163,8 @@ function readKeychainService(service: string): string | null {
   }
 }
 
-function readKeychain(): string | null {
+function readKeychain(access: SecretStoreAccess = {}): string | null {
+  if (access.keychain === "cached") throw new Error("Keychain access requires an explicit credential operation; automatic access was not attempted");
   return readKeychainService(KEYCHAIN_SERVICE);
 }
 
@@ -255,7 +259,7 @@ function masterInfo(kind: SecretStoreBackendKind, key: Buffer): ResolvedMaster {
 }
 
 /** Reads an already selected backend. An empty map may have other, separately sealed owner data depending on this key. */
-function readExistingMasterKey(backend: SecretStoreBackendKind): ResolvedMaster {
+function readExistingMasterKey(backend: SecretStoreBackendKind, access: SecretStoreAccess = {}): ResolvedMaster {
   if (backend === "aes-gcm-file") {
     const key = readInstallKeyFile(installKeyPath());
     if (!key) throw new Error("install key file is unavailable or invalid; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore this Home's original feed/secrets.key, then restart Molis Work or the affected MCP connection. A new environment key cannot replace this recorded file backend. See docs/system/HOME-DATA.md#original-key-recovery.");
@@ -266,14 +270,14 @@ function readExistingMasterKey(backend: SecretStoreBackendKind): ResolvedMaster 
     if (!key) throw new Error("Molis Work encryption key is unavailable; refusing to rotate existing secrets. Even an empty vault may have sealed Home data that needs its original key. Restore the original MOLIS_WORK_ENCRYPTION_KEY, then restart Molis Work or the affected MCP connection. A new value cannot recover existing ciphertext. See docs/system/HOME-DATA.md#original-key-recovery.");
     return masterInfo(backend, key);
   }
-  const raw = readKeychain(), key = raw ? Buffer.from(raw, "base64") : null;
+  const raw = readKeychain(access), key = raw ? Buffer.from(raw, "base64") : null;
   if (!key || key.length !== 32) throw new KeychainUnavailableError();
   return masterInfo(backend, key);
 }
 
-function resolveMasterKey(): ResolvedMaster {
+function resolveMasterKey(access: SecretStoreAccess): ResolvedMaster {
   const persisted = loadFile();
-  if (fs.existsSync(secretsPath())) return readExistingMasterKey(persisted.backend);
+  if (fs.existsSync(secretsPath())) return readExistingMasterKey(persisted.backend, access);
   const envRaw = readProductEnv("ENCRYPTION_KEY");
   if (envRaw) {
     const key = parseEnvKey(envRaw);
@@ -281,7 +285,7 @@ function resolveMasterKey(): ResolvedMaster {
   }
 
   if (preferKeychain()) {
-    let b64 = readKeychain();
+    let b64 = readKeychain(access);
     if (!b64) {
       const generated = randomBytes(32).toString("base64");
       // 这个 Home 还没有 keychain 后端密文，但钥匙串条目是全机共用的：别的 Home
@@ -677,13 +681,13 @@ function buildStore(master: ResolvedMaster): SecretStore {
  * Listing local configuration must not request Keychain access merely because
  * its service also supports authenticated operations.
  */
-export function createLazyFileSecretStore(homeDirectory = resolveMolisWorkHome()): SecretStore {
+export function createLazyFileSecretStore(homeDirectory = resolveMolisWorkHome(), access: SecretStoreAccess = {}): SecretStore {
   const home = path.resolve(homeDirectory);
-  const open = () => runWithMolisWorkHome(home, createFileSecretStore);
+  const open = () => runWithMolisWorkHome(home, () => createFileSecretStore(access));
   return {
     put: (ref, value) => open().put(ref, value),
     get: (ref) => runWithMolisWorkHome(home, () =>
-      peekSealedEntry(ref) === null ? null : createFileSecretStore().get(ref)),
+      peekSealedEntry(ref) === null ? null : createFileSecretStore(access).get(ref)),
     delete: (ref) => open().delete(ref),
     createIfAbsent: (ref, value) => open().createIfAbsent(ref, value),
     deleteIfPresent: (ref) => open().deleteIfPresent(ref),
@@ -691,7 +695,7 @@ export function createLazyFileSecretStore(homeDirectory = resolveMolisWorkHome()
   };
 }
 
-export function createFileSecretStore(): SecretStore {
+export function createFileSecretStore(access: SecretStoreAccess = {}): SecretStore {
   const key = cacheKey();
   const hit = storeCache.get(key);
   if (hit) return hit;
@@ -699,7 +703,7 @@ export function createFileSecretStore(): SecretStore {
   if (failure) throw failure;
   let master: ResolvedMaster;
   try {
-    master = withSecretsLock(() => resolveMasterKey());
+    master = withSecretsLock(() => resolveMasterKey(access));
   } catch (error) {
     if (error instanceof KeychainUnavailableError) keychainFailures.set(key, error);
     throw error;

@@ -456,4 +456,5 @@ export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
+export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

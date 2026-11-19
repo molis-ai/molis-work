@@ -3,7 +3,7 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { isFrozenRegisteredManifest, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
-import { installedVersion, type InstalledRelease } from "./installed-release.js";
+import { installedVersion, sameInstalledRelease, type InstalledRelease } from "./installed-release.js";
 import { FRAME_QUERY } from "./plugin-builder-surface.js";
 
 type Release = Omit<SurfaceInstallationRef, "scope">;
@@ -12,10 +12,7 @@ export function installedPageRelease({ install_id, installation_generation, vers
   return Object.freeze({ install_id, installation_generation, version, manifest_digest });
 }
 
-export function sameInstalledRelease(expected: Release, actual: Release | null | undefined): boolean {
-  return actual?.install_id === expected.install_id && actual.installation_generation === expected.installation_generation
-    && actual.version === expected.version && actual.manifest_digest === expected.manifest_digest;
-}
+export { sameInstalledRelease };
 
 export const installedStageIdentity = (scope: SurfaceInstallationRef["scope"], record: Release): SurfaceInstallationRef =>
   ({ scope, ...installedPageRelease(record) });

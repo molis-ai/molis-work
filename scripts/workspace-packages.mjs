@@ -604,25 +604,8 @@ export const WORKSPACE_PACKAGES = [
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
   }),
-  entry("plugins/official-integrations/web-query", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "experimental",
-    capabilities: [
-      "connector.web-query.v1",
-      "signal-adapter.web-query.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
-    ]
-  }),
   entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "production",
-    capabilities: [
-      "connector.youtube.v1",
-      "signal-adapter.youtube.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
-    ]
+    maturity: "production"
   }),
   entry("tooling/plugin-cli", "@molis-ai/molis-work-contracts/platform/tooling", {
     maturity: "production",

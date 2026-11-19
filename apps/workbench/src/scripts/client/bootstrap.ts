@@ -85,7 +85,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let selected = q("[data-goal-view]:not([hidden])")?.dataset.goalView || (collectionView ? "" : state.active_goal_id) || "";
     const initialHistoryState = history.state && typeof history.state === "object" ? history.state : {};
     history.replaceState({ ...initialHistoryState, goalId: selected }, "", location.href);
-    let syncing = false;
     let deferredClients = null;
     let boardLifetime = null;
     let boardVisibleSignal = null;

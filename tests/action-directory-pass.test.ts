@@ -143,6 +143,30 @@ test("RAC-1134 a list of allowed actions answers the same in a directory as one 
   assert.deepEqual(calls.map(call => call.status), ["fulfilled", "fulfilled", "rejected", "rejected", "rejected"], "a call outside a directory checks the list itself");
 });
 
+test("QEA-98 repeated current checks of one action do not enumerate unrelated allowed actions", () => {
+  const { service, definitions } = askingService(1);
+  let unrelatedReads = 0;
+  const allowed = [{ capability_id: definitions[0]!.capability_id, version: 1, provider_id: provider.provider_id },
+    ...Array.from({ length: 100 }, (_, i) => ({ get capability_id() { unrelatedReads++; return `unrelated.read-${i}`; }, version: 1 }))];
+  const caller = { ...asking, allowed_actions: allowed };
+  inDirectoryPass(() => {
+    assert.deepEqual(service.invokeSync(caller, definitions[0]!, {}), { ok: true });
+    assert.deepEqual(service.invokeSync(caller, definitions[0]!, {}), { ok: true });
+    assert.equal(unrelatedReads, 0, "rechecking a known allowed first action does not construct a full index");
+    assert.ok(authority.asked >= 4, "dispatch and result delivery still check current authority each time");
+    allowed[0]!.provider_id = "other";
+    assert.throws(() => service.invokeSync(caller, definitions[0]!, {}), { code: "actions.forbidden" });
+    allowed[0]!.provider_id = provider.provider_id;
+    allowed[0]!.version = 2;
+    assert.throws(() => service.invokeSync(caller, definitions[0]!, {}), { code: "actions.forbidden" });
+    allowed[0]!.version = 1;
+    assert.deepEqual(service.invokeSync(caller, definitions[0]!, {}), { ok: true });
+    allowed.splice(0, 1);
+    assert.throws(() => service.invokeSync(caller, definitions[0]!, {}), { code: "actions.forbidden" });
+  });
+  assert.throws(() => service.invokeSync(caller, definitions[0]!, {}), { code: "actions.forbidden" });
+});
+
 test("D0012 nested directory passes share a read and restore the outer pass after throws", () => {
   const owner = {}; let reads = 0;
   inDirectoryPass(() => {

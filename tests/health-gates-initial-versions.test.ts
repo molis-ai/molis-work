@@ -52,6 +52,19 @@ test("U0-03: first-party version constants are checked in source, independently 
   assert.equal(sourceVersionProblems(file, 'const GITHUB_API_VERSION = 2;').length, 1);
 });
 
+test("QEA-80: only the registered imported document fixed format can advance from 1 to 2 without rewriting its history", () => {
+  const file = "packages/contracts/src/modules/artifacts.ts", entry = "artifact.io.molis.work.document";
+  const source = (version: number, key = entry) => `export const IMPORTED_DOCUMENT_SCHEMA_VERSION = /* @version ${key} */ ${version};`;
+  assert.deepEqual(sourceVersionProblems(file, source(2)), []);
+  assert.equal(sourceVersionProblems(file, source(3)).length, 1);
+  assert.equal(sourceVersionProblems(file, source(2, "artifact.example.other")).length, 1);
+  assert.equal(sourceVersionProblems("packages/contracts/src/modules/other.ts", source(2)).length, 1);
+  assert.equal(sourceVersionProblems(file, "const OTHER_VERSION = /* @version artifact.example.other */ 2;").length, 1);
+  const checkTable = (version: number) => initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries: { [entry]: version } });
+  assert.deepEqual(checkTable(2), []);
+  assert.match(checkTable(3)[0]!, /expected 2/u);
+});
+
 // specs/upgrade-continuity/upgrade-chain-design.md §11.1: a persistent format above 1 is let through by a registered chain with
 // consecutive steps and a replay that passed; nothing else ever is. The rebuild window needs none of this while everything is 1.
 const CATALOG = "apps/local-host/src/project-catalog-contract.ts";

@@ -1,36 +1,13 @@
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { IntelligenceIntentClientV1, SearchIntentExactResultV1 } from "@adeptify/intelligence-client";
-import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import type { PluginSourcePullClient, RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceHistoryRelease } from "./source-history.js";
 export type FeedSourceSyncInput = { idempotencyKey: string } & FeedSyncExecution;
-export type IntelligenceCollectRequest = Parameters<IntelligenceIntentClientV1["executeExact"]>[0];
-/** What a sync reads of one collected material: the search layer's richer material fits it, and so does what the platform hands a Runtime Feed. */
-export interface CollectedMaterial {
-  readonly id: string; readonly candidateId: string; readonly canonicalUrl: string; readonly title: string; readonly sourceName: string; readonly publishedAt?: string;
-  readonly preview: string; readonly contentRef: string; readonly contentHash: string; readonly contentType: string; readonly characterCount: number;
-  readonly capturedAt: string; readonly provenance: object;
-}
-/** What a sync reads of a pull's result; `SearchIntentExactResultV1` fits it, and so does the platform's `SourcePullResult` once renamed. */
-export interface IntelligenceCollectResult extends Pick<SearchIntentExactResultV1, "outcome"> {
-  readonly operationId: string; readonly intentFingerprint: string; readonly requirementMet: boolean; readonly materials: readonly CollectedMaterial[];
-  readonly receipts: readonly object[]; readonly warnings: readonly string[]; readonly budget: object;
-}
-export interface PublicFeedRuntime {
-  intelligenceCollect: { executeExact(request: IntelligenceCollectRequest, options?: { signal?: AbortSignal }): Promise<IntelligenceCollectResult> };
-  content: { has(contentRef: string): boolean };
-  /** The evidence bodies this runtime has written so far, including those of a pull that never reached a result. */
-  writtenContentRefs?(): readonly string[];
-  publicFeedReceipt?(): RssFetchReceipt | null;
-  /** Forgets this pull's search record, for a pull the sync refused before committing it; absent when the runtime keeps none. */
-  discard?(): Promise<void>;
-  shutdown(): Promise<void>;
-}
 export interface FeedSourceProviders {
   listCatalog(): readonly { sourceId: string; enabled: boolean; feedUrl: string; name: string }[];
-  customRss: { definitionId: string; normalizeUrl(value: string): string; host(url: string): string };
-  youtube: { definitionId: string; host: string; normalizeChannel(value: string): string; feedUrl(channel: string): string };
+  customRss: { definitionId: string; normalizeUrl(value: string): string };
+  youtube: { definitionId: string; normalizeChannel(value: string): string };
   gmail: { defaultScope: string; parseScope(value: string): string | null };
   rss: {
     isSourceKind(kind: string): boolean;
@@ -49,8 +26,8 @@ export interface FeedSourcePorts {
   syncRepository?(source: FeedSourceRecord, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
-  /** `operationId` and `hold` are for a Runtime pull: `hold` names the bodies about to be written, before any is. The Host's runtime ignores both. */
-  createRuntime(source: FeedSourceRecord, operationId?: string, hold?: (contentRefs: readonly string[]) => Promise<void>): PublicFeedRuntime;
+  /** The platform owns planning, fetching and its search records; Feed owns the source and the references its runs hold. */
+  sourcePull?: Pick<PluginSourcePullClient, "plan" | "pull" | "forget">;
   transaction<T>(operation: () => T): T;
   /**
    * One write that may wait for the caller's authority first (the Runtime: `createFeedWriter().commit`). Absent, a write is `transaction`.

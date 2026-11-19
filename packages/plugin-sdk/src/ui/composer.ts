@@ -135,6 +135,8 @@ export type MwComposerOptions = {
 } & (
   | { kind: "plain"; labels: MwComposerLabels; state?: "sending" | "failed" | "unknown" }
   | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: MwComposerReceiver; state?: "sending" | "running" | "failed" | "unknown";
+      /** The target still runs while a supplement failed; request feedback does not turn that Run idle. */
+      running?: boolean;
       /** The target also takes 下一轮再做 while no turn runs (a work that has run before): the split button and its menu are drawn idle too. */
       idleDelivery?: boolean;
       /** Pause as the target words it now (暂停, 继续…), drawn beside stop while a turn runs; `busy` while the change is on its way. */
@@ -200,8 +202,8 @@ function startGroup(options: MwComposerOptions, disabled: boolean): string {
  *  next-turn delivery without one (idleDelivery, 2026-11-09 audit fix), the split button stands in the send's place. */
 function sendControl(options: MwComposerOptions, state: ShellState | undefined, empty: boolean): string {
   const busy = state === "sending" || state === "unknown" || state === "disabled";
-  const idle = state !== "running";
-  if (options.kind === "ai" && !busy && (state === "running" || options.idleDelivery || options.delivery && options.delivery !== "next-boundary")) {
+  const idle = state !== "running" && !(options.kind === "ai" && options.running);
+  if (options.kind === "ai" && !busy && (!idle || options.idleDelivery || options.delivery && options.delivery !== "next-boundary")) {
     const { labels } = options;
     const toggle = renderButton({
       label: labels.delivery, variant: "primary", size: "icon", icon: "chevron-down", iconOnly: true,
@@ -224,7 +226,7 @@ function sendControl(options: MwComposerOptions, state: ShellState | undefined, 
 function endGroup(options: MwComposerOptions, state: ShellState | undefined): string {
   const mic = options.voice ? renderButton({ label: options.voice, variant: "ghost", size: "icon", icon: "mic", iconOnly: true,
     attrs: { title: options.voice, "aria-disabled": "true", "data-composer-voice": "" } }) : "";
-  const running = options.kind === "ai" && state === "running";
+  const running = options.kind === "ai" && (state === "running" || options.running) && !["sending", "unknown", "disabled"].includes(state ?? "");
   const pause = running && options.pause ? renderButton({ label: options.pause.label, variant: "ghost", size: "sm", disabled: options.pause.busy === true,
     attrs: { title: options.pause.title, "data-composer-pause": "" } }) : "";
   const stop = running ? renderButton({ label: options.labels.stop, variant: "danger-outline", size: "sm", attrs: { title: options.labels.stopTitle, "data-composer-stop": "" } }) : "";

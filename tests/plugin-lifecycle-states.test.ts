@@ -541,6 +541,21 @@ test("an install over kept data that the person uninstalled meanwhile is not tak
   assert.deepEqual(runtime.get(id), chosen, "the record keeps what the person chose; it does not go back to the one that kept the data");
 });
 
+test("QEA-119 taking back an older install attempt leaves a newer edition of that installation running", async () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: v1, deployment: "local", grants: [] }).install;
+  const id = first.install_id;
+  await runtime.start(id);
+  try {
+    const { install: upgraded } = await runtime.upgrade({ install_id: id, definition: v2 });
+    assert.equal(upgraded.installation_generation, first.installation_generation);
+    assert.equal(await code(() => runtime.abandonInstall(first)), "plugin.install_replaced");
+    assert.deepEqual(runtime.get(id), upgraded);
+    assert.ok(runtime.contribution(id), "the later edition still runs");
+  } finally { if (runtime.get(id).state === "running") await runtime.stop(id); }
+});
+
 test("a reinstall of a generated plugin may use an older release; a Host that ships a version always installs it", async () => {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const v1 = probe("1.0.0", { sandbox: true }), v2 = probe("2.0.0", { sandbox: true, compatible: ["1.0.0"] });

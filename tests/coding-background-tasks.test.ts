@@ -1,8 +1,9 @@
+import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
+import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -80,8 +81,8 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   await seed(without, [["w1", "running", later(98)]]);
   assert.ok(!home.host.status().projects.some(project => project.project_id === unopened.project_id), "the Home never opened the third project");
 
-  const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
-  const rows = attention.background_tasks;
+  const attention = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
+  const rows = attention.background_tasks.tasks;
   assert.deepEqual(rows.map(row => [row.project_name, row.subject.id, row.state, row.waiting]), [
     ["Alpha", "a4", "answer", true], ["Alpha", "a9", "round-ended", false], ["Alpha", "a8", "queued", true], ["Alpha", "a7", "answer", true],
     ["Alpha", "a6", "paused", true], ["Alpha", "a3", "approval", true], ["Alpha", "a1", "running", false],
@@ -115,7 +116,7 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   // W5-01-CODING-50: Coding answers the same read in the selected language, including the plural forms.
   const english = await fetch(home.origin + "/api/attention", { headers: { cookie: LOCALE_COOKIE + "=en", accept: "application/json" } });
   assert.equal(english.status, 200);
-  const localized: HomeBackgroundTaskRow[] = (await english.json()).background_tasks;
+  const localized: HomeBackgroundTaskRow[] = (await english.json()).background_tasks.tasks;
   const unsaid = ({ step: _step, details: _details, open: _open, ...row }: HomeBackgroundTaskRow) => row;
   assert.deepEqual(localized.map(unsaid), rows.map(unsaid));
   assert.deepEqual(said(localized), {
@@ -138,8 +139,8 @@ test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: 
   // The person closes the project and opens it again: Coding stops and starts, with a new activation; the Home process does not restart.
   assert.equal(await home.host.closeProject(project.reference), true);
   await startProjectPlugins(home.host, project.reference);
-  const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
-  const row = attention.background_tasks.find(item => item.subject.id === "r1");
+  const attention = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
+  const row = attention.background_tasks.tasks.find(item => item.subject.id === "r1");
   assert.deepEqual(row && [row.state, row.waiting, row.step, row.details], ["running", false, { text: "进行中" }, []],
     "the round goes on in the Home's agent host; only the Home process starting would cut it");
   // BL-540: the boundary comes from the platform's Home Host startup timestamp (`context.host_started_at`), never `process`.
@@ -199,7 +200,7 @@ test("W5-01-CODING-36 the Home lists what any plugin declares for it: another pl
   const a = rig.project("A").project_id, b = rig.project("B").project_id;
   plugin.state.answer = project => ({ source: SOURCE, tasks: [task(project, project === a ? "2026-10-01T10:00:00.000Z" : "2026-10-01T11:00:00.000Z")] });
 
-  const rows = await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog);
+  const { tasks: rows } = await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog);
   assert.deepEqual(rows.map(row => [row.project_name, row.origin, row.subject.id, row.state, row.waiting, row.step, row.serves, row.open?.id]), [
     ["B", SOURCE, `job-${b}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${b}`],
     ["A", SOURCE, `job-${a}`, "running", false, { text: "跑了 3 项" }, [{ kind: "note", id: "n1" }], `job-${a}`],
@@ -213,7 +214,7 @@ test("W5-01-CODING-36 the Home lists what any plugin declares for it: another pl
 test("W5-01-CODING-37, WLN-34 a plugin's answer is checked before the page draws it: a row that is not well formed draws nothing, and a command that is not the answering provider's own action is not offered", { timeout: 60_000 }, async t => {
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   const rig = await backgroundRig(t, plugin, ["A"]);
-  const ask = async (answer: unknown) => { plugin.state.answer = () => answer; return await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog); };
+  const ask = async (answer: unknown) => { plugin.state.answer = () => answer; return (await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)).tasks; };
 
   assert.deepEqual(await ask({ source: { ...SOURCE, surface: "../elsewhere" }, tasks: [fixtureTask()] }), [], "a surface that is not a plain name draws nothing");
   assert.deepEqual(await ask({ source: SOURCE, tasks: "none" }), [], "tasks that are not a list draw nothing");
@@ -259,8 +260,8 @@ test("W5-01-CODING-39 asking for the list writes nothing in a project, and a can
   const snapshot = () => JSON.stringify({ sessions: store.db.prepare("SELECT * FROM coding_sessions ORDER BY session_id").all(),
     objects: store.db.prepare("SELECT type, name FROM sqlite_master ORDER BY name").all(), journal: store.db.prepare("SELECT count(*) AS n FROM events").get() });
   const before = snapshot();
-  const attention = await home.web.get<{ background_tasks: HomeBackgroundTaskRow[] }>("/api/attention");
-  assert.deepEqual(attention.background_tasks.map(row => row.subject.id), ["q1"]);
+  const attention = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
+  assert.deepEqual(attention.background_tasks.tasks.map(row => row.subject.id), ["q1"]);
   assert.equal(snapshot(), before, "the project's database is as it was");
 
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));

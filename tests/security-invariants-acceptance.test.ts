@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -9,8 +9,9 @@ import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { openAcceptance } from "@molis-ai/molis-work-module-acceptance";
+import { AcceptanceCommitIntents, openAcceptance, purgeAcceptanceProject } from "@molis-ai/molis-work-module-acceptance";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
@@ -84,9 +85,8 @@ test("S-acceptance-person-decides APR-15: only the person's own page call accept
   ]);
   const storedDecision = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(committed.record.decision_id));
   assert.equal(storedDecision?.actor_id, LOCAL_PERSON_ACTOR_ID);
-  const noPendingIntent = openAcceptance(home);
-  try { assert.equal(noPendingIntent.service.pendingCommitIntents(a.project_id).length, 0, "a successful acceptance commit removes its durable intent"); }
-  finally { noPendingIntent.close(); }
+  // QEA-117: the normal atomic writer does not create legacy recovery files.
+  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "a successful atomic commit creates no legacy intent");
   assert.equal(storedDecision?.source.entry.source, "management");
   // After a delivery only the person changes what is asked.
   await assert.rejects(call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [{ ...REQUIREMENTS[0]!, statement: "随便" }, REQUIREMENTS[1]!] }), code("acceptance.requirements_fixed"));
@@ -273,6 +273,52 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
   assert.equal(await env.host.withProject(ref, ({ store }) => projectApprovalRules(store.db, pid).read(false).rules.some(rule => rule.id === "mid-commit-rule")), false);
 
+  // QEA-84: the second database's final COMMIT must not leave acceptance committed on its own.
+  await env.host.withProject(ref, ({ store }) => {
+    store.db.exec(`
+      CREATE TABLE qea_acceptance_parent (id INTEGER PRIMARY KEY);
+      CREATE TABLE qea_acceptance_child (parent_id INTEGER REFERENCES qea_acceptance_parent(id) DEFERRABLE INITIALLY DEFERRED);
+      CREATE TRIGGER qea_acceptance_final_commit AFTER INSERT ON project_review_decisions
+      BEGIN INSERT INTO qea_acceptance_child(parent_id) VALUES (1); END;
+    `);
+  });
+  const commitRequest = { reference: v2Gated.reference, choice_id: "accept:r2", request_key: "qea-final-commit" };
+  try {
+    await assert.rejects(env.web.post(`${approvalsPrefix}/decide`, commitRequest));
+  } finally {
+    await env.host.withProject(ref, ({ store }) => { store.db.exec("DROP TRIGGER qea_acceptance_final_commit; DROP TABLE qea_acceptance_child; DROP TABLE qea_acceptance_parent;"); });
+  }
+  const afterCommitRefusal = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
+  assert.equal(afterCommitRefusal.requirements.find(item => item.id === "r2")?.person, "pending", "final project COMMIT refusal must roll back the acceptance decision");
+  assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
+  // QEA-85: COMMIT succeeds, then connection cleanup fails. The original receipt wins over the cleanup error.
+  const cleanupFault = await env.host.withProject(ref, ({ store }) => {
+    const original = store.db.pragma.bind(store.db);
+    return t.mock.method(store.db, "pragma", (sql, options) => {
+      const result = original(sql, options);
+      if (sql === "busy_timeout=5000") throw new Error("qea-post-commit-cleanup");
+      return result;
+    });
+  });
+  let recovered: { record: ProjectTrustedDecision; replayed: boolean };
+  try {
+    recovered = await env.web.post(`${approvalsPrefix}/decide`, commitRequest);
+    assert.equal(recovered.replayed, true, "a cleanup failure reads back the committed decision");
+  } finally { cleanupFault.mock.restore(); }
+  const repeated = await env.web.post<{ record: ProjectTrustedDecision }>(`${approvalsPrefix}/decide`, commitRequest);
+  const acceptanceRows = openSqliteConnection(homeSqlitePath(env.home, "acceptance"), { readonly: true });
+  try {
+    assert.equal(acceptanceRows.prepare("SELECT count(*) AS n FROM acceptance_decisions WHERE decision_id=? AND requirement_id='r2'").get(recovered.record.decision_id)?.n, 1,
+      "the same-key replay does not append another item decision");
+  } finally { acceptanceRows.close(); }
+  await env.host.withProject(ref, ({ store }) => {
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM project_review_decisions WHERE decision_id=?").get(recovered.record.decision_id)?.n, 1);
+  });
+  assert.equal(repeated.record.decision_id, recovered.record.decision_id, "same-key retry retains the original decision");
+  const afterCommitRetry = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
+  assert.equal(afterCommitRetry.requirements.find(item => item.id === "r2")?.person, "accepted");
+  assert.equal(afterCommitRetry.requirements.find(item => item.id === "r2")?.decision?.decision_id, recovered.record.decision_id);
+
   // Applied decision history: settled v1 ReviewReference reopens frozen facts + decision receipt even after v2, and appears in authorization review history.
   const reopenedWeb = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, { reference: v1Gated.reference });
   const reopenedMcp = await mcp<ReviewRequest>("molis_work_v1_review_request", { reference: v1Gated.reference });
@@ -287,7 +333,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.ok(historyRows.some(row => row.id === v1Committed.record.decision_id && row.person === LOCAL_PERSON_ACTOR_ID));
 });
 
-test("APR-15: an acceptance decision whose project commit did not land is recovered once from its durable commit intent", { timeout: 60_000 }, async t => {
+test("QEA-117 APR-15: an existing acceptance decision whose project commit did not land is recovered once from its durable commit intent", { timeout: 60_000 }, async t => {
   const { home, a, host, call } = await rig(t);
   await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
   await call(agent(a.project_id), acceptanceActions.deliver, { subject: SUBJECT, version: "v1" });
@@ -303,18 +349,55 @@ test("APR-15: an acceptance decision whose project commit did not land is recove
   const opened = openAcceptance(home);
   try {
     opened.service.decide({ project_id: a.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, person: true, session: null },
-      { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }, record.decision_id,
-      (_view, recordIntent) => recordIntent(record));
-    assert.equal(opened.service.pendingCommitIntents(a.project_id).length, 1, "the acceptance transaction keeps the platform record as an intent");
+      { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }, record.decision_id);
+    // Existing on-disk format written by the former two-commit implementation.
+    const intentDirectory = join(home, "acceptance", "commit-intents");
+    mkdirSync(intentDirectory, { recursive: true });
+    writeFileSync(join(intentDirectory, `${record.decision_id}.json`), JSON.stringify({
+      decision_id: record.decision_id, project_id: a.project_id, record_json: JSON.stringify(record), created_at: record.decided_at,
+    }));
+    assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 1);
   } finally { opened.close(); }
   assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id)), null,
     "the simulated project commit failure leaves the platform record missing");
   await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
   const restored = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id));
   assert.equal(restored?.decision_id, record.decision_id);
-  const after = openAcceptance(home);
-  try { assert.equal(after.service.pendingCommitIntents(a.project_id).length, 0, "the intent is removed after the idempotent restore"); }
-  finally { after.close(); }
+  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "the intent is removed after the idempotent restore");
+  // Simulate a crash after restoring the project record but before deleting the old intent.
+  writeFileSync(join(home, "acceptance", "commit-intents", `${record.decision_id}.json`), JSON.stringify({
+    decision_id: record.decision_id, project_id: a.project_id, record_json: JSON.stringify(record), created_at: record.decided_at,
+  }));
   await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
+  assert.deepEqual(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id)), restored,
+    "recovery of an already committed record preserves the complete original decision");
   assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).count()), 1, "a second recovery does not duplicate the decision");
+  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "the replayed intent is cleared");
+});
+
+
+test("QEA-117: failed project purge keeps acceptance rows and existing recovery intents until the database commits", { timeout: 60_000 }, async t => {
+  const { home, a, call } = await rig(t);
+  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
+  const directory = join(home, "acceptance", "commit-intents");
+  mkdirSync(directory, { recursive: true });
+  const intent = { decision_id: "purge-recovery", project_id: a.project_id, record_json: "{}", created_at: "2026-11-17T00:00:00.000Z" };
+  writeFileSync(join(directory, `${intent.decision_id}.json`), JSON.stringify(intent));
+  const db = openSqliteConnection(homeSqlitePath(home, "acceptance"));
+  try {
+    db.exec(`
+      CREATE TABLE qea_purge_parent (id INTEGER PRIMARY KEY);
+      CREATE TABLE qea_purge_child (parent_id INTEGER REFERENCES qea_purge_parent(id) DEFERRABLE INITIALLY DEFERRED);
+      CREATE TRIGGER qea_purge_commit AFTER DELETE ON acceptance_subjects
+      BEGIN INSERT INTO qea_purge_child(parent_id) VALUES (1); END;
+    `);
+    assert.throws(() => purgeAcceptanceProject(home, a.project_id), /FOREIGN KEY constraint failed/u);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_subjects WHERE project_id=?").get(a.project_id)?.n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_requirements").get()?.n, REQUIREMENTS.length);
+    assert.deepEqual(new AcceptanceCommitIntents(home).list(a.project_id), [intent], "COMMIT failure preserves the original recovery record");
+    db.exec("DROP TRIGGER qea_purge_commit; DROP TABLE qea_purge_child; DROP TABLE qea_purge_parent;");
+    purgeAcceptanceProject(home, a.project_id);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_subjects WHERE project_id=?").get(a.project_id)?.n, 0);
+    assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "successful retry clears the recovery file after database commit");
+  } finally { db.close(); }
 });

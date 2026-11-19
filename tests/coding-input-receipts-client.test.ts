@@ -28,7 +28,8 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const factory = vm.runInNewContext(`${pageTextScript("zh", "coding")}\n(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: () => new Node(), documentElement: {} }, crypto: { randomUUID: () => `u${++uuid}` },
   }) as (ports: object) => {
-    steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
+    steer(id: string, run: string, text: string, mode: string, materials?: readonly unknown[], acknowledge?: () => void): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
+    observe(id: string, keys: readonly (string | undefined)[]): void;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
   };
   const paths: string[] = [];
@@ -41,6 +42,38 @@ const lostAnswer = () => Object.assign(new Error("ui_host"), { code: "ui_host.ou
 /** The round's record before it shows the supplement. */
 const nothing = { turns: [] };
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
+
+test("QEA-45: a retry identity includes its target and exact materials; a queued owner receipt acknowledges only the latest matching submission", async () => {
+  const { ui, sent } = receipts(() => Promise.reject(lostAnswer()));
+  const material = { ref: { subject: { kind: "todo.item", id: "one" }, pin: { mode: "current", read_revision: "r1" } }, title: "selected" };
+  let old = 0, current = 0;
+  await assert.rejects(ui.steer("s", "r1", "原话", "next-boundary", [material], () => old++));
+  await assert.rejects(ui.steer("s", "r1", "原话", "next-boundary", [material], () => current++));
+  assert.equal(sent[1]!.key, sent[0]!.key);
+  ui.observe("other-session", [String(sent[1]!.key)]); ui.observe("s", []);
+  assert.equal(current, 0, "no receipt and another session never imply delivery");
+  ui.observe("s", [String(sent[1]!.key)]); ui.observe("s", [String(sent[1]!.key)]);
+  assert.deepEqual([old, current], [0, 1], "the latest explicit retry is the invocation that owns settlement");
+  await assert.rejects(ui.steer("s", "r1", "原话", "next-boundary", [material]));
+  await assert.rejects(ui.steer("s", "r2", "原话", "next-boundary", [material]));
+  await assert.rejects(ui.steer("s", "r2", "原话", "after-run", [material]));
+  await assert.rejects(ui.steer("s", "r2", "原话", "after-run", [{ ...material, ref: { ...material.ref, pin: { mode: "current", read_revision: "r2" } } }]));
+  assert.equal(new Set(sent.slice(2).map(body => body.key)).size, 4);
+});
+
+test("QEA-45: a refused retry cannot erase the unknown outcome of its earlier attempt", async () => {
+  for (const code of ["coding.material_unreadable", "RUNTIME_IDEMPOTENCY_CONFLICT"]) {
+    let calls = 0, acknowledged = 0;
+    const { ui, sent } = receipts(() => Promise.reject(++calls === 1 ? lostAnswer() : Object.assign(new Error("retry refused"), { code })));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await assert.rejects(ui.steer("s", "r", "保留同一条补充", "after-run", [], () => acknowledged++));
+      assert.equal(ui.bubble("s", nothing)?.dataset.lost, "1", "a refusal of the retry cannot prove the earlier attempt failed");
+    }
+    assert.equal(new Set(sent.map(body => body.key)).size, 1, "a third attempt must never create a second input identity");
+    ui.observe("s", [String(sent[0]!.key)]);
+    assert.equal(acknowledged, 1); assert.equal(ui.bubble("s", nothing), null);
+  }
+});
 
 test("the shared request helper keeps a failed supplement's original identity until the person retries it", async () => {
   for (const failure of ["network", "malformed"] as const) {

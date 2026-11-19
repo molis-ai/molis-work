@@ -49,15 +49,9 @@ export function renderGitBrowserDirectory(): string {
       <section class="git-sc-conflicts" data-git-conflicts aria-label="${uiText("git.conflict.region")}" hidden>
         <p class="git-sc-note" data-git-conflict-note></p>
         <ul class="git-sc-conflict-list" data-git-conflict-list></ul>
-        <div class="git-sc-conflict-editor" data-git-conflict-editor hidden>
-          <p class="git-sc-note" data-git-conflict-file></p>
-          <div class="git-sc-picks" data-git-conflict-picks></div>
-          <textarea class="mw-textarea git-sc-conflict-text" rows="14" data-git-conflict-text spellcheck="false" aria-label="${uiText("git.conflict.text-label")}"></textarea>
-          <p class="git-sc-note" data-git-conflict-state role="status"></p>
-          <div class="git-sc-actions"><button class="mw-btn mw-btn--primary" type="button" data-git-conflict-resolve disabled>${uiText("git.conflict.resolve")}</button></div>
-        </div>
         <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-merge-abort>${uiText("git.conflict.abort")}</button></div>
       </section>
+      <div class="git-sc-note" data-git-draft-status data-state="ready" role="status" hidden><span data-git-draft-note></span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-git-draft-retry hidden>${uiText("common.control.retry")}</button></div>
       <p class="git-sc-note" data-git-sc-status role="status"></p>
       <ol class="git-sc-log" data-git-operations aria-label="${uiText("git.ops.label")}"></ol>
     </section>
@@ -79,6 +73,15 @@ export function renderGitBrowserResult(): string {
       <p data-git-result-status role="status"></p>
     </section>
     <section data-git-reviews aria-label="${uiText("git.result.reviews")}" hidden></section>
+        <div class="git-sc-conflict-editor" data-git-conflict-editor hidden>
+          <p class="git-sc-note" data-git-conflict-file></p>
+          <div class="git-sc-picks" data-git-conflict-picks></div>
+          <textarea class="mw-textarea git-sc-conflict-text" rows="14" data-git-conflict-text spellcheck="false" aria-label="${uiText("git.conflict.text-label")}"></textarea>
+          <p class="git-sc-note" data-git-conflict-state role="status"></p>
+          <details data-git-conflict-current hidden><summary>${uiText("git.conflict.current-file")}</summary><textarea class="mw-textarea git-sc-conflict-text" rows="10" data-git-conflict-disk readonly spellcheck="false" aria-label="${uiText("git.conflict.current-file")}"></textarea></details>
+          <div class="git-sc-actions" data-git-conflict-changed hidden><button class="mw-btn mw-btn--secondary" type="button" data-git-conflict-keep-edit>${uiText("git.conflict.keep-edit")}</button><button class="mw-btn mw-btn--ghost" type="button" data-git-conflict-use-disk>${uiText("git.conflict.use-disk")}</button></div>
+          <div class="git-sc-actions"><button class="mw-btn mw-btn--primary" type="button" data-git-conflict-resolve disabled>${uiText("git.conflict.resolve")}</button></div>
+        </div>
     <div data-git-diff></div></div>
   </section>`;
 }

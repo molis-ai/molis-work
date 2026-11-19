@@ -1,36 +1,39 @@
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
 import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { act, button, esc, kitOf, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
+import { act, button, esc, kitOf, linkedKitEntry, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
 import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
 import { packViews, type View } from "./view.js";
+import type { KitSettingsPage } from "./writing-context.js";
 
 // The 「能力包」 page (decided scheme A, docs/design/capability-pack/README.md): the pack list beside one pack; an entry of the pack opens
 // in the pack's place under a way back. One read of `kit.catalog.list` draws it all; the toolbar stays, everything under it is redrawn.
 
-export function mountKit(root: HTMLElement): () => void {
+export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void {
   const project = root.dataset.project ?? "";
   const $ = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-kit-${name}]`)!;
   const body = $("body"), notice = $("notice"), search = $<HTMLInputElement>("search"), kindSelect = $<HTMLSelectElement>("kind"), groupSelect = $<HTMLSelectElement>("group");
   const pluginsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/plugins`;
   const view: View = { query: "", kind: "all", group: "all", detail: false };
-  const link = new URLSearchParams(root.closest<HTMLElement>("[data-settings-source]")?.dataset.settingsSearch ?? location.search);
+  const address = page ?? { address: () => new URL(location.href), replace: (next: URL) => history.replaceState(history.state, "", next) };
+  const link = address.address().searchParams;
   let followLink = Boolean(link.get("install") && (link.get("skill") || link.get("role")));
   const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
-  let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined;
+  let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined, disposed = false;
 
   const say = (text: string, tone: "success" | "danger" = "success", next?: { label: string; attrs: Record<string, AttrValue> }) => notify(notice, text, tone, next);
 
-  const writing = skillWriting({ root, project, view, kit: () => kit, load: () => load(), draw: focus => draw(focus), say,
+  const writing = skillWriting({ root, project, address, active: () => !disposed, view, kit: () => kit, load: () => load(), draw: focus => draw(focus), say,
     show(entry) { view.query = ""; search.value = ""; view.kind = "all"; kindSelect.value = "all"; view.group = "all"; groupSelect.value = "all"; open(entry.pack, entry.key); } });
+  page?.retain({ beforeReplace: writing.beforeReplace, dispose() { disposed = true; writing.dispose(); } });
   async function load(retitle = false): Promise<void> {
     const mine = ++turn, language = selectedLanguage();
     requestedLanguage = language;
     failure = undefined;
     try {
       const catalog = await post<KitCatalog>(project, "list");
-      if (mine !== turn || !root.isConnected) return;
+      if (mine !== turn || disposed) return;
       if (retitle && kit) {
         const before = translatedView(kit, view.importing);
         updateKitWords(kit, catalog);
@@ -40,21 +43,16 @@ export function mountKit(root: HTMLElement): () => void {
       kit = kitOf(catalog);
       if (followLink) {
         followLink = false;
-        const install = link.get("install");
-        const selected = catalog.entries.find(entry => entry.source.kind === "plugin" && entry.source.install_id === install
-          && (entry.kind === "skill" && entry.skill.ref.skill_id === link.get("skill")
-            && entry.skill.ref.installation_generation === link.get("generation") && String(entry.skill.ref.version) === link.get("version")
-            || entry.kind === "role" && entry.ref.kind === "plugin" && entry.ref.owner_id === link.get("owner")
-            && entry.ref.role_id === link.get("role") && entry.source.version === link.get("version")));
+        const selected = linkedKitEntry(catalog, link);
         if (selected) open(selected.pack, selected.key);
         else say(readText("workbench.automation.item-changed"), "danger");
       }
     } catch (cause) {
-      if (mine !== turn || !root.isConnected) return;
+      if (mine !== turn || disposed) return;
       if (retitle && kit) { requestedLanguage = undefined; say((cause as Error)?.message || readText("workbench.kit.host-did-not-respond"), "danger"); return; }
       failure = cause;
     }
-    if (mine === turn && root.isConnected) draw();
+    if (mine === turn) draw();
   }
 
   function translatedView(source: Kit, importing: View["importing"]): string {
@@ -73,6 +71,7 @@ export function mountKit(root: HTMLElement): () => void {
 
   // ---------- drawing ----------
   function draw(focus?: "detail" | "list" | "from" | "import" | WritingFocus): void {
+    if (disposed) return;
     if (failure) {
       body.innerHTML = renderEmpty({ icon: "alert", title: readText("workbench.kit.read-failed"), body: (failure as Error)?.message || readText("workbench.kit.host-did-not-respond"), className: "mw-empty--error",
         action: `<div class="kit-chips">${button(readText("common.control.retry"), { icon: "refresh", attrs: act("retry") })}</div>` });
@@ -158,7 +157,7 @@ export function mountKit(root: HTMLElement): () => void {
   groupSelect.addEventListener("change", () => { view.group = groupSelect.value as View["group"]; draw(); });
   listenForImports(root, project, view, focus => draw(focus), say);
   draw();
-  void load().then(() => writing.fromAddress());
+  void load().then(() => { if (!disposed) return writing.fromAddress(); });
   return () => {
     const language = selectedLanguage();
     if (language !== requestedLanguage && root.getClientRects().length) void load(true);

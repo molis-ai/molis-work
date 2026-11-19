@@ -1,3 +1,4 @@
+import type { UiPageDrafts } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { UiClientTranslate, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -19,6 +20,7 @@ export interface DecisionOutcome { readonly workspaceId?: string | null; readonl
 
 /** What the Git bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Git in. */
 export interface GitFactoryHost {
+  readonly drafts: UiPageDrafts;
   readonly root?: ParentNode;
   mountPluginClient(root: Element): GitLifetime | null;
   /** A platform path in the current project. */
@@ -40,6 +42,7 @@ export interface GitFactoryHost {
 
 /** What Git's client uses: the factory's host with the requests Git makes and the ports of the page it is mounted in. */
 export interface GitHost {
+  readonly drafts: UiPageDrafts;
   readonly root?: ParentNode;
   mountPluginClient(root: Element): GitLifetime | null;
   /** One request to Git's routes (a failure is an Error). */
@@ -101,7 +104,7 @@ export interface ReviewResult { readonly review: ReviewRecord; readonly outcome:
 export interface ResultRow { readonly result: ReviewResult; saved?: { readonly result: ReviewResult; readonly reference: { readonly version: number } }; readonly unavailable?: string }
 export interface ResultsAnswer { readonly results: ResultRow[] }
 
-export interface OperationRecord { readonly review_id: string; readonly tool: string; readonly outcome: string; readonly detail?: string; readonly failure_reason?: string; readonly summary?: string }
+export interface OperationRecord { readonly operation_id: string; readonly review_id: string; readonly tool: string; readonly outcome: string; readonly detail?: string; readonly failure_reason?: string; readonly summary?: string }
 export interface Remote { readonly name: string }
 export interface SourceSummary {
   readonly branch: string | null;
@@ -117,7 +120,7 @@ export interface SourceSummary {
   readonly revision: string;
 }
 export interface SummaryAnswer { readonly summary: SourceSummary | null; readonly workspace: { readonly workspace_id: string }; readonly draft?: string; readonly message?: string }
-export interface ConflictAnswer { readonly outcome: string; readonly message?: string; readonly ours: string; readonly theirs: string; readonly conflicts: number; readonly text: string }
+export interface ConflictAnswer { readonly revision: string; readonly outcome: string; readonly message?: string; readonly ours: string; readonly theirs: string; readonly conflicts: number; readonly text: string }
 export type PrSupportAnswer = Extract<WorkspaceGitResult, { message: string }>;
 
 /** What Git hands back to the bundle that mounts it. */
@@ -125,6 +128,8 @@ export interface GitBrowser {
   refresh(): Promise<void>;
   /** Shows another of the project's folders: the page that mounts Git keeps where it looks. */
   browse(workspaceId: string): void;
+  /** Saves a suggestion for the exact workspace; existing handwritten text is retained. */
+  offerCommitDraft(workspaceId: string, message: string): Promise<"applied" | "suggested">;
   afterDecision(outcome: DecisionOutcome): Promise<void>;
   show(face: string): void;
 }

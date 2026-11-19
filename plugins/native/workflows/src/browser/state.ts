@@ -26,6 +26,8 @@ export function readyState(page: WorkflowsPage, link: WorkflowLink): Ready {
   if (chain && index >= 0) {
     const absent = chain.stations.slice(index, index + 2).find((station) => station.availability?.available === false);
     if (absent) return { ready: false, reason: absent.availability?.reason ?? "", raw: true };
+    // Preparation is already recorded; resuming sends that output without running its model or rule again.
+    if (chain === ui.instance?.chain && ui.instance.steps[index]?.pending) return { ready: true, reason: "" };
   }
   if (link.kind === "manual") return { ready: true, reason: "" };
   if (link.kind === "judgment") {

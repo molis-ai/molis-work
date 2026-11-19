@@ -104,6 +104,7 @@ export interface LingguangPage {
   publishContext(unsaved: boolean): void;
   closingBlank(): void;
   fillEditor(record: Spark): void;
+  resumeEditor(id: string): void;
   closeWorkspace(): void;
   save(): Promise<Spark | null>;
   queueSave(): void;

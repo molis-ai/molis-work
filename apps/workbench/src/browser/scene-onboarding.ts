@@ -49,7 +49,9 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
   }
   function setStatus(status: BlueprintAdoptionReadResult) {
     for (const step of status.apply_steps) applied.set(step.part_id, step);
-    if (status.latest_undo) { undo = status.latest_undo; for (const step of status.latest_undo.steps) undone.set(step.part_id, step); }
+    undo = status.latest_undo ?? undefined;
+    undone.clear();
+    for (const step of status.latest_undo?.steps ?? []) undone.set(step.part_id, step);
   }
   function remember(id: string, destination?: string | null) {
     adopted = id; targetProject = destination ?? undefined; viewingResult = true;
@@ -99,9 +101,15 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     for (const step of done.steps) applied.set(step.part_id, step);
   }
   async function reverse(op: "revert" | "remove") {
-    undo ??= { operation: op, request_id: crypto.randomUUID() };
-    const done = await request<BlueprintAdoptionUndoResult>(api + undo.operation, { body: { adoption_id: adopted, request_id: undo.request_id } });
-    undo = done.undo; for (const step of done.undo.steps) undone.set(step.part_id, step);
+    const attempt = undo ?? { operation: op, request_id: adopted + ":" + op };
+    try {
+      const done = await request<BlueprintAdoptionUndoResult>(api + attempt.operation, { body: { adoption_id: adopted, request_id: attempt.request_id } });
+      undo = done.undo;
+      for (const step of done.undo.steps) undone.set(step.part_id, step);
+    } catch (failure) {
+      if (preview) watch(preview.preview_id);
+      throw failure;
+    }
   }
   async function showPreview(current: BlueprintDraftResult["draft"], dest: BlueprintAdoptionTarget, edits: BlueprintPreviewChange[], reset = true) {
     const result = await request<BlueprintAdoptionPreviewResult>(api + "preview", { body: {

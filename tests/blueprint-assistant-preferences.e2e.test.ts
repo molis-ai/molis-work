@@ -112,9 +112,19 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     assert.equal(db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='daily_tokens'").get(caller.actor_id), undefined);
     db.exec("DROP TRIGGER budget_unavailable");
     await b.reloadPage(); await waitFor(partial);
+    const adoptionId = await evaluate<string>("new URL(location.href).searchParams.get('adoption')");
+    for (const index of [1, 2]) {
+      await click(`[data-scene-aside] button:nth-of-type(${index})`);
+      await waitFor("!!document.querySelector('[data-scene-error]:not([hidden])') && document.querySelector('[data-scene-workspace]').getAttribute('aria-busy') !== 'true'");
+      const status = await person.invoke(blueprintActions.read, { adoption_id: adoptionId });
+      assert.equal(status.latest_undo, null);
+      assert.ok(status.apply_steps.some(step => step.state === "pending_verification"));
+      await waitFor(partial);
+    }
     await click(".arrival-bar .bar-end .mw-btn--primary");
     await waitFor("document.querySelectorAll('[data-scene-main] details').length === 4 && !document.querySelector('.arrival-bar .bar-end .mw-btn--primary') && document.querySelector('[data-scene-aside] button')");
     assert.deepEqual(db.prepare("SELECT value, revision FROM assistant_settings WHERE actor_id=? AND key='lookback'").get(caller.actor_id), appliedRange);
+    assert.equal((await person.invoke(blueprintActions.read, { adoption_id: adoptionId })).latest_undo, null);
     assert.equal(db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='daily_tokens'").get(caller.actor_id)!.value, "5000");
     assert.equal(db.prepare("SELECT count(*) AS n FROM assistant_settings WHERE key LIKE 'preferences/receipt/%' AND actor_id=?").get(caller.actor_id)!.n, 2);
   } finally { db.close(); }

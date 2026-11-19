@@ -9,7 +9,8 @@ import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionCardView, draftActionCard, runActionCard, type ActionCard, type ActionCardPorts } from "@molis-ai/molis-work-plugin-sdk";
 import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ASSISTANT_STORE_BASELINE, PROJECT_DATABASE_BASELINE, assistantCardHtml, pluginSyncDatabaseDeclaration, upgradePluginLibrary } from "@molis-ai/molis-work-app-local-host";
+import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
+import { ASSISTANT_STORE_BASELINE, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA, assistantCardHtml, pluginSyncDatabaseDeclaration, upgradePluginLibrary } from "@molis-ai/molis-work-app-local-host";
 import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import { registration as workBrief } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
@@ -132,7 +133,7 @@ test("BL-action-card-outcome-text: the Assistant store 1 → 2 keeps an outcome 
 test("BL-action-card-outcome-text: the project library 4 → 5 rewrites only Coding's stored cards", t => {
   const path = join(scratch(t), "molis-work.db"), db = new DatabaseSync(path);
   t.after(() => db.close());
-  db.exec(PROJECT_DATABASE_BASELINE.schema);
+  db.exec(PROJECT_DATABASE_VERSION_3_SCHEMA + PROJECT_APPROVALS_SCHEMA_SQL);
   const install = db.prepare("INSERT INTO plugin_runtime_installs(install_id, record_json, publisher_trust) VALUES (?, ?, 'host')");
   const official = { plugin_id: codingRegistration.manifest.plugin_id, publisher_signature: codingRegistration.manifest.publisher.signature, publisher_trust: "host" };
   install.run("install-coding", JSON.stringify({ install_id: "install-coding", ...official }));
@@ -147,7 +148,7 @@ test("BL-action-card-outcome-text: the project library 4 → 5 rewrites only Cod
   put.run("install-copy", "cards:s1", value(["不是官方安装"]));
   db.exec("PRAGMA user_version = 4");
   runSqliteUpgrade(db, path, PROJECT_DATABASE_BASELINE);
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
+  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, PROJECT_DATABASE_BASELINE.version);
   const read = (install_id: string, key: string) => JSON.parse(String((db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id = ? AND item_key = ?").get(install_id, key) as { item_value: string }).item_value));
   assert.deepEqual(read("install-coding", "cards:s1").cards.map((card: { outcome?: unknown }) => card.outcome), [{ literal: "后台没有完成" }, undefined, undefined]);
   assert.equal("outcome" in read("install-coding", "cards:s1").cards[2], false, "an empty sentence was no outcome");

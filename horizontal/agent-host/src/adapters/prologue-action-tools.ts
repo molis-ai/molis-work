@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
+import { DEFAULT_TOOL_LIMITS, type DynamicTool, type EffectOrigin, type PackParameterBranches, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { knowledgeRefFromDigestHex, knowledgeSubjectHashInput } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -150,6 +150,33 @@ async function currentAction(actions: NonNullable<AgentFrozenRole["actions"]>, v
   if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
   if (!isDeepStrictEqual(current.action, view.action) || current.operation !== view.operation) throw new ActionError("actions.definition_changed", "The action contract changed; start a new run with its current version");
   return current;
+}
+
+/**
+ * Project a round's action/gateway pack and live executors into ephemeral Session-scoped `DynamicTool`
+ * entries so per-round tools never register in the process-global `PackRegistry` or `ToolCatalog`.
+ */
+export function packToDynamicTools(
+  pack: ScenarioPack,
+  executors: Readonly<Record<string, ToolRunner>>,
+  parameterBranches?: PackParameterBranches,
+): readonly DynamicTool[] {
+  const result: DynamicTool[] = [];
+  for (const tool of pack.tools) {
+    const run = executors[tool.executor];
+    if (!run) {
+      if (tool.optional === true) continue;
+      throw new Error(`Missing executor "${tool.executor}" for dynamic tool "${tool.registration.name}"`);
+    }
+    const name = tool.registration.name;
+    result.push({
+      registration: tool.registration,
+      run,
+      ...(parameterBranches ? { parameterBranches: () => parameterBranches(name) } : {}),
+      ...(tool.afterWriteCheck === true ? { afterWriteCheck: true as const } : {}),
+    });
+  }
+  return result;
 }
 
 /** The round's suggest tool: names one of its own action tools, records the suggestion in its result, runs nothing. */

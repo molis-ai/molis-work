@@ -1,4 +1,5 @@
 import type { SkillDisplayWords } from "./skill-display-words.js";
+import { resolveCategoryPlaceholders, type CategoryAccounts } from "./skill-connector-categories.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -21,6 +22,8 @@ export interface CatalogSkill {
   availability: SkillAvailability;
   /** A pack that comes with the system says how its Skills start; every other Skill is `off` until the person enables it. */
   default_state?: "auto" | "manual";
+  /** The accounts that stand in for the Skill's declared connector categories now (ASC-38～40); absent when it declares none. */
+  category_accounts?: CategoryAccounts;
   /** The captured snapshot still holds (installation identity); no owner is reopened. */
   assertCurrent(): void;
   /** Recheck the publisher against the pins one boundary read after an await, never per Skill. */
@@ -160,7 +163,9 @@ export class SkillCatalog {
         const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), round = caller.skill_round;
         const reason = this.refusal(skill, ref, caller, settings.get(key))
           ?? (round?.round && !round.named.some(named => isDeepStrictEqual(named, ref)) ? this.pick(skill!, caller, round.round) : undefined);
-        return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: (skill!.display ?? skill!.declaration).name, body: skill!.body };
+        return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: (skill!.display ?? skill!.declaration).name,
+          // What the model reads: the declared categories' placeholders filled with the accounts they use now (ASC-38～40).
+          body: resolveCategoryPlaceholders(skill!.body, skill!.declaration.connector_categories ?? [], skill!.category_accounts ?? new Map(), caller.locale) };
       }) };
     });
   }

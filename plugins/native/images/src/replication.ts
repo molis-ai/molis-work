@@ -6,9 +6,7 @@ import type { PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platf
 import type { GeneratedImage } from './contract.js';
 import { imagesErrors } from './error.js';
 import { readPortableImage, preparedImages,validatePortableImage, type PortableImage } from './sync-files.js';
-
-
-const columns=['id','project_id','connection_name','api_format','model','prompt','size','aspect_ratio','status','error','created_at','finished_at'] as const;
+import { portableColumns as columns } from "./portable-record.js";
 type RecordValue=Record<(typeof columns)[number],string|null>;
 interface Wire {format:/* @version format.images.portable */ 1;spaceId:string;project:{id:string;title:string};record:RecordValue;images:PortableImage[]}
 function keyParts(key:string){const p:unknown=JSON.parse(key);if(!Array.isArray(p)||p.length!==3||p[1]!=='image'||!p.every(v=>typeof v==='string'&&v.length>0&&v.length<=80))throw imagesErrors.invalid('图片资产标识无效');return {projectId:String(p[0]),id:String(p[2])};}

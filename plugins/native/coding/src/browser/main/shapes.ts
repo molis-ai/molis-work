@@ -1,6 +1,8 @@
+import type { KeptImage } from "./images.js";
 import type {
   AgentMaterialChecklistItem,
   AgentMaterialDeliveryMode,
+  AgentRunCodeIntelligence,
   AgentRunInstructions,
   AgentRunUsage,
   AgentMcpServerView as McpServer,
@@ -9,6 +11,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { CodingEnvironmentReadiness } from "../../environment-state.js";
 import type { RunCard } from "../actions.js";
 import type { CharacterRef } from "../characters.js";
 import type { ModelChoice } from "../composer-model.js";
@@ -119,6 +122,8 @@ export interface CommandReceipt {
 
 /** The setup a round was frozen with: what it was allowed to use. */
 export interface FrozenSetup {
+  /** Pictures the round was sent with (A3): names and references only; the bytes are read back through the session's route. */
+  readonly image_materials?: readonly { readonly material_id: string; readonly title: string; readonly media_type: string }[];
   readonly model_id: string;
   readonly role_id: string;
   readonly role_version: number;
@@ -150,6 +155,8 @@ export interface FrozenSetup {
   readonly prompts?: readonly { readonly prompt_id: string; readonly version: number; readonly layer: string; readonly user_revision?: number }[];
   /** The repository's instruction files the round was given, recorded once it started; absent on a round from before (batch12-design §3.6). */
   readonly instructions?: AgentRunInstructions;
+  /** Which languages the round could understand, checked when it started (A4); absent on a round without code understanding. */
+  readonly code_intelligence?: AgentRunCodeIntelligence;
 }
 
 /** A round as the session read gives it: loaded in full, or a summary of the rounds the page has not opened. */
@@ -241,7 +248,7 @@ export interface SessionData extends UsageData {
   readonly saved_history?: import("../saved-history.js").SavedHistory;
   readonly session: SessionRecord & {
     readonly runtime_session_id: string;
-    readonly queued_inputs?: readonly unknown[];
+    readonly queued_inputs?: readonly import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     readonly queued?: QueuedRound | null;
     readonly priority?: boolean;
     readonly goal_title?: string;
@@ -318,27 +325,7 @@ export interface StateRead {
   readonly project_runtime_id?: string;
   /** Whether the next round reads the output's instruction files, and if not the first thing to change (`ProjectDirectories.instructions`). */
   instructions?: ProjectDirectories["instructions"];
-  readonly environment_readiness?: {
-    readonly workspace_id: string;
-    readonly canonical_path?: string;
-    readonly status: "ready" | "attention";
-    readonly branch: string | null;
-    readonly head_commit: string | null;
-    readonly dirty_count: number;
-    readonly git_conflicted_count: number;
-    readonly git_merging: boolean;
-    readonly is_git_repo: boolean;
-    readonly deps_manager: string | null;
-    readonly deps_installed: boolean;
-    readonly script_names: readonly string[];
-    readonly ports: readonly number[];
-    readonly package_json_invalid?: boolean;
-    readonly env_template: string | null;
-    readonly env_keys: readonly string[];
-    readonly has_local_env: boolean;
-    readonly worktrees: { readonly active: number; readonly problem_count: number; readonly cleanup_count: number };
-    readonly checked_at: string;
-  } | null;
+  readonly environment_readiness?: CodingEnvironmentReadiness | null;
   readonly [field: string]: unknown;
 }
 
@@ -354,6 +341,8 @@ export interface RoundSelection {
   readonly materials: readonly unknown[];
   readonly character: CharacterRef | null;
   writer_assignments: readonly { readonly worktree_id: string; readonly task: string }[];
+  /** Pictures from the composer, kept by the platform; the round names them and the Agent Host reads them again (A3). */
+  readonly images?: readonly KeptImage[];
 }
 
 /** Other work under way that names the same files as the round about to start. */

@@ -61,6 +61,10 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   const archived = await post({ reference: { artifact_id: "pages-brief", version: 1 }, used: true });
   assert.equal(archived.status, 400);
   assert.equal((await archived.json() as { code: string }).code, "goals.artifact_input_unavailable");
+  // QEA-94: the compact Goal refresh keeps the artifact owner's current state, even without a Goal write.
+  library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 2 });
+  const refreshed = await (await fetchProject(`${origin}/api/board/refresh?view=current&goal_id=V1`)).text();
+  assert.match(refreshed, /data-goal-input-fixed>[\s\S]*?固定的第 2 版[\s\S]*?<small>[^<]*归档/);
   assert.equal((await (await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: false })).json() as { removed: boolean }).removed, true);
   assert.deepEqual((await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`)).json() as { inputs: unknown[] }).inputs, []);
   assert.ok(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "pages-brief", version: 2 }));
@@ -176,6 +180,8 @@ test("a proposed Feed input shows on the Goal as pending with 认可 and 移除;
   const after = await page();
   assert.match(rowOf(after, "binding-feed-a"), /data-goal-input-state[^>]*>已确认</);
   assert.doesNotMatch(rowOf(after, "binding-feed-a"), /data-goal-input-accept|data-goal-input-release/);
+  const refresh = await (await fetchProject(`${origin}/api/board/refresh?view=current&goal_id=V1`)).text();
+  assert.match(rowOf(refresh, "binding-feed-a"), /data-goal-input-state[^>]*>已确认</, "QEA-94 compact refresh retains current input binding facts");
 
   // Remove: the proposal is off the Goal, kept only as history.
   const removed = await post({ binding_id: "binding-feed-b", action: "remove" });

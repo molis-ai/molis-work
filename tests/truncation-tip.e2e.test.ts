@@ -13,7 +13,7 @@ const PLUGINS = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals",
 const pause = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 const TIP = "(() => { const tip = document.querySelector('body > .craft-tip[data-shown]'); return tip ? tip.textContent : null; })()";
 
-test("VUX-05: text cut short on the board, the project page and every plugin is shown whole by the tooltip; nothing is cut beyond recovery", { timeout: 1_800_000 }, async (t) => {
+test("VUX-05 QEA-171: text cut short on the board, the project page and every plugin is shown whole by the tooltip; nothing is cut beyond recovery", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const move = (x: number, y: number) => command("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, sessionId);
@@ -38,18 +38,38 @@ test("VUX-05: text cut short on the board, the project page and every plugin is 
       for (const item of held) {
         if (seen.has(item.at)) continue;
         seen.add(item.at);
-        const point = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-cut-audit="${item.index}"]');
-          if (!el) return null; el.scrollIntoView({ block: 'nearest', behavior: 'instant' }); const box = el.getBoundingClientRect();
+        const selector = JSON.stringify(`[data-cut-audit="${item.index}"]`);
+        const locate = () => evaluate<{ x: number; y: number } | null>(`(async () => { const el = document.querySelector(${selector});
+          if (!el) return null; el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const box = el.getBoundingClientRect();
           const x = box.x + Math.min(box.width / 2, 24), y = box.y + box.height / 2;
           return el.contains(document.elementFromPoint(x, y)) ? { x, y } : null; })()`);
-        if (!point) { skipped++; continue; }
         await move(1, 1);
         await pause(150);
-        await move(point.x, point.y);
-        await pause(800);
-        const shown = await evaluate<string | null>(TIP);
+        let point = await locate();
+        if (!point) { skipped++; continue; }
+        let shown: string | null = null, stayed = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt) {
+            // Measuring and scrolling the stressed tabs can move a label out from under the pointer.
+            await move(1, 1);
+            await pause(150);
+            const current = await locate();
+            if (!current) break;
+            point = current;
+          }
+          await move(point.x, point.y);
+          await pause(800);
+          ({ stayed, shown } = await evaluate<{ stayed: boolean; shown: string | null }>(`({
+            stayed: document.querySelector(${selector})?.contains(document.elementFromPoint(${point.x}, ${point.y})) === true,
+            shown: ${TIP}
+          })`));
+          if (stayed) break;
+        }
         checked++;
-        if (shown?.replace(/\s+/g, " ").trim() !== item.text) found.push(`${width} ${name}: ${item.at} "${item.text.slice(0, 60)}" shows ${shown === null ? "no tooltip" : `"${shown.slice(0, 60)}"`}`);
+        if (!stayed) found.push(`${width} ${name}: ${item.at} did not stay under the pointer`);
+        else if (shown?.replace(/\s+/g, " ").trim() !== item.text) found.push(`${width} ${name}: ${item.at} "${item.text.slice(0, 60)}" shows ${shown === null ? "no tooltip" : `"${shown.slice(0, 60)}"`}`);
       }
       t.diagnostic(`${width} ${name}: ${held.length} cut (${seen.size} kinds, ${skipped} covered), ${issues.length} issues, ${stressed} lengthened`);
       await move(1, 1);

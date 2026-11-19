@@ -1,87 +1,97 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderListToolbar, renderObjectRow, renderSettingRow, renderSettingsSection, renderSwitch } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+/** One "still tell me" exception of a rule being written: a switch whose label says which rule it belongs to (B27-AC01). */
+const exceptRow = (kind: string, label: string, checked: boolean) => renderSettingRow({
+  name: uiText.text(label), label: true, className: "mw-setting-row--sub",
+  control: renderSwitch({ checked, attrs: { "data-assistant-rule-except": kind } }),
+});
+
 /**
- * “助理”: what the Assistant may use (its own grants, separate from Coding's and external agents'), and what each
- * plugin contributes for it — with the exact gaps a plugin's developer can close.
+ * “助理”: when the Assistant may draw attention, how much it may use, what it may use (its own grants, separate from Coding's and
+ * external agents'), and what each plugin contributes for it — with the exact gaps a plugin's developer can close.
+ *
+ * Written like every settings page (specs/screen-polish/p5-settings.md): a title, then one card of rows, one control to a row.
+ * A row that needs more than one choice opens in place under itself — the places a rule may name (POLISH-31), how long to pause,
+ * the capabilities — and closes again; what is stored and how a rule is added are as they were.
  */
 export function renderAssistantSettings({ projectId }: { readText(text: string): string; projectId: string | null }): string {
+  const text = uiText.text;
   return `<section class="settings-document assistant-settings" aria-labelledby="settings-title" data-assistant-settings data-project="${projectId ? projectId.replace(/[^a-zA-Z0-9_.:-]/g, "") : ""}">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-assistant.assistant")}</h1></div>
+    <header class="settings-heading"><h1 id="settings-title">${uiText("workbench.settings-assistant.assistant")}</h1>
       <p>${uiText("workbench.settings-assistant.what-assistant-may-use-what-each-plugin-provides")}</p></header>
-    <section class="settings-section assistant-rules" aria-labelledby="assistant-rules-title" data-assistant-rules>
-      <h2 id="assistant-rules-title">${uiText("workbench.settings-assistant.attention-rules")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-assistant.when-assistant-may-draw-attention-rules-apply-exactly")}</p>
-      <div data-assistant-rules-list><p class="settings-muted">${uiText("workbench.settings-assistant.loading")}</p></div>
-      <form class="assistant-rule-form" data-assistant-rule-quiet>
-        <strong>${uiText("workbench.settings-assistant.stay-quiet-these-places")}</strong>
-        <div class="assistant-rule-surfaces" data-assistant-rule-surfaces></div>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-notify-failed-here")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${uiText("workbench.settings-assistant.still-tell-me-when-i-need-decide")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-reminder-i-set-comes")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-service-connection-needs-me")}</label>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("workbench.settings-assistant.add-rule")}</button>
+    ${renderSettingsSection({
+      title: text("workbench.settings-assistant.attention-rules"), id: "assistant-rules-title", attrs: { "data-assistant-rules": true },
+      body: `<div data-assistant-rules-list><p class="mw-settings-section__note">${uiText("workbench.settings-assistant.loading")}</p></div>
+      <form data-assistant-rule-quiet>
+        ${renderSettingRow({ name: text("workbench.settings-assistant.quiet-places"), hint: text("workbench.settings-assistant.quiet-places-hint"),
+          fold: { label: text("workbench.settings-assistant.choose-places"), labelAttrs: { "data-assistant-places-label": true }, body: `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-assistant.quiet-places")}" data-assistant-rule-surfaces></div>
+          ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-here", true)}
+          ${exceptRow("needs-decision", "workbench.settings-assistant.still-tell-me-when-i-need-decide", false)}
+          ${exceptRow("reminder", "workbench.settings-assistant.still-tell-me-when-reminder-i-set-comes", true)}
+          ${exceptRow("connection", "workbench.settings-assistant.still-tell-me-when-service-connection-needs-me", true)}
+          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.add-rule"), variant: "secondary", size: "sm", type: "submit" })}</div>` } })}
       </form>
-      <form class="assistant-rule-form" data-assistant-rule-pause>
-        <strong>${uiText("workbench.settings-assistant.pause-notices")}</strong>
-        <select class="mw-input" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
-          <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
-        </select>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${uiText("workbench.settings-assistant.still-notify-failed-paused")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="connection" checked> ${uiText("workbench.settings-assistant.still-tell-me-when-service-connection-needs-me")}</label>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("workbench.settings-assistant.pause")}</button>
+      <form data-assistant-rule-pause>
+        ${renderSettingRow({ name: text("workbench.settings-assistant.pause-notices"), hint: text("workbench.settings-assistant.pause-notices-hint"),
+          fold: { label: text("workbench.settings-assistant.pause"), body: `${renderSettingRow({ name: text("workbench.settings-assistant.how-long"), className: "mw-setting-row--sub",
+            control: `<select class="mw-select" data-assistant-rule-duration aria-label="${uiText("workbench.settings-assistant.how-long")}">
+            <option value="30">${uiText("workbench.settings-assistant.value-30-minutes")}</option><option value="60" selected>${uiText("workbench.settings-assistant.value-1-hour")}</option><option value="day">${uiText("workbench.settings-assistant.until-end-today")}</option>
+          </select>` })}
+          ${exceptRow("failed", "workbench.settings-assistant.still-notify-failed-paused", true)}
+          ${exceptRow("connection", "workbench.settings-assistant.still-tell-me-when-service-connection-needs-me", true)}
+          <div class="mw-setting-open__actions">${renderButton({ label: text("workbench.settings-assistant.start-pause"), variant: "secondary", size: "sm", type: "submit" })}</div>` } })}
       </form>
-      <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
-    </section>
-    <section class="settings-section assistant-usage" aria-labelledby="assistant-usage-title" data-assistant-usage>
-      <h2 id="assistant-usage-title">${uiText("workbench.settings-assistant.usage-cap")}</h2>
-      <p class="settings-muted" data-assistant-usage-today>${uiText("workbench.settings-assistant.loading")}</p>
-      <form class="assistant-rule-form" data-assistant-budget>
-        <label class="settings-field"><span>${uiText("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty")}</span>
-          <input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}"></label>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("common.control.save")}</button>
-      </form>
-      <p class="settings-muted">${uiText("workbench.settings-assistant.cap-no-new-turn-starts-what-ran-stays")}</p>
-      <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
-    </section>
-    <section class="settings-section" aria-labelledby="assistant-memory-title" data-assistant-memory>
-      <h2 id="assistant-memory-title">${uiText("workbench.settings-assistant.memory")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-assistant.assistant-uses-platform-memory-preferences-habits-under-personal")}</p>
-      <p class="settings-muted" data-assistant-memory-summary>${uiText("workbench.settings-assistant.loading")}</p>
-      <div class="settings-actions">
-        <a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/memory">${uiText("workbench.settings-assistant.open-personal-memories")}</a>
-        ${projectId ? `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(projectId)}/settings/memory">${uiText("workbench.settings-assistant.open-project-memories")}</a>` : ""}
-      </div>
-    </section>
-    <section class="settings-section assistant-computer" aria-labelledby="assistant-computer-title" data-assistant-computer>
-      <h2 id="assistant-computer-title">${uiText("workbench.settings-assistant.using-computer")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-assistant.when-assistant-can-see-macs-screen-operate-other")}</p>
-      <label class="settings-check"><input type="checkbox" data-computer-enable> ${uiText("workbench.settings-assistant.let-assistant-use-computer")}</label>
-      <p class="settings-muted" data-computer-perms></p>
-      <h3 class="settings-subhead">${uiText("workbench.settings-assistant.off-limits-apps")}</h3>
-      <p class="settings-muted">${uiText("workbench.settings-assistant.apps-assistant-never-even-looks-system-settings-keychain")}</p>
-      <div data-computer-forbidden><p class="settings-muted">${uiText("workbench.settings-assistant.loading")}</p></div>
-      <form class="assistant-rule-form" data-computer-forbid-form>
-        <input class="mw-input" type="text" data-computer-forbid-id placeholder="${uiText("workbench.settings-assistant.app-identifier-e-g-com-example-app")}" aria-label="${uiText("workbench.settings-assistant.app-identifier")}">
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${uiText("workbench.settings-assistant.add-off-limits")}</button>
-      </form>
-      <p class="settings-form-error" data-computer-error role="alert" hidden></p>
-    </section>
-    <p class="prompt-settings-notice" role="note">${uiText("workbench.settings-assistant.reads-used-directly-each-change-asks-confirm-its")}</p>
-    <div class="prompt-settings-tools">
-      <div class="mw-toggle-group settings-segmented" role="group" aria-label="${uiText("workbench.settings-assistant.scope")}" data-assistant-scope-group>
-        <button class="mw-toggle" type="button" data-assistant-scope="project" aria-pressed="true">${uiText("workbench.settings-assistant.current-project")}</button>
-        <button class="mw-toggle" type="button" data-assistant-scope="personal" aria-pressed="false">${uiText("workbench.settings-assistant.personal")}</button>
-      </div>
-      <input class="mw-input prompt-settings-search" type="search" data-assistant-capability-search placeholder="${uiText("workbench.settings-assistant.search-capabilities-plugins")}" aria-label="${uiText("workbench.settings-assistant.search-capabilities")}">
-    </div>
-    <div class="prompt-settings-body" data-assistant-capabilities aria-live="polite"><p class="settings-muted mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>
-    <details class="settings-section prompt-diagnostics" id="contributions" data-assistant-contributions>
-      <summary><strong>${uiText("workbench.settings-assistant.plugin-integration-diagnostics")}</strong><span class="settings-muted">${uiText("workbench.settings-assistant.what-each-plugin-provides-assistant-whether-its-objects")}</span></summary>
-      <div data-assistant-contributions-body><p class="settings-muted mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>
-    </details>
+      <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>`,
+    })}
+    ${projectId ? renderSettingsSection({
+      title: text("workbench.settings-assistant.project-suggestions"), id: "assistant-suggestions-title", attrs: { "data-assistant-suggestions": true },
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.offer-project-suggestions"), hint: text("workbench.settings-assistant.project-suggestions-note"), label: true,
+        control: renderSwitch({ disabled: true, attrs: { "data-assistant-offers": true } }) })}
+      <p class="settings-form-error" data-assistant-offers-error role="alert" hidden></p>`,
+    }) : ""}
+    ${renderSettingsSection({
+      title: text("workbench.settings-assistant.usage-cap"), id: "assistant-usage-title", attrs: { "data-assistant-usage": true },
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true } })}
+      <form data-assistant-budget>${renderSettingRow({ name: text("workbench.settings-assistant.daily-cap"), hint: text("workbench.settings-assistant.assistant-tokens-per-day-input-plus-output-empty"),
+        control: `<input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${uiText("workbench.settings-assistant.daily-cap")}">${renderButton({ label: text("common.control.save"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+      <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>`,
+    })}
+    ${renderSettingsSection({
+      title: text("workbench.settings-assistant.capabilities"), id: "assistant-capabilities-title",
+      body: renderSettingRow({ name: text("workbench.settings-assistant.capabilities-in-use"), hint: text("workbench.settings-assistant.reads-used-directly-each-change-asks-confirm-its"),
+        attrs: { "data-assistant-capabilities-fold": true },
+        fold: { label: text("workbench.settings-assistant.manage-capabilities"), body: `${renderListToolbar({ label: text("workbench.settings-assistant.search-capabilities"),
+          search: `<input class="mw-input" type="search" data-assistant-capability-search placeholder="${uiText("workbench.settings-assistant.search-capabilities-plugins")}" aria-label="${uiText("workbench.settings-assistant.search-capabilities")}">`,
+          end: `<div class="mw-toggle-group settings-segmented" role="group" aria-label="${uiText("workbench.settings-assistant.scope")}" data-assistant-scope-group>
+            <button class="mw-toggle" type="button" data-assistant-scope="project" aria-pressed="true">${uiText("workbench.settings-assistant.current-project")}</button>
+            <button class="mw-toggle" type="button" data-assistant-scope="personal" aria-pressed="false">${uiText("workbench.settings-assistant.personal")}</button>
+          </div>` })}
+        <div data-assistant-capabilities aria-live="polite"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>` } }),
+    })}
+    ${renderSettingsSection({
+      title: text("workbench.settings-assistant.memory"), id: "assistant-memory-title", attrs: { "data-assistant-memory": true },
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.memory-in-use"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-memory-summary": true },
+        control: `${renderButton({ label: text("workbench.settings-assistant.open-personal-memories"), variant: "secondary", size: "sm", href: "/settings/memory" })}${
+          projectId ? renderButton({ label: text("workbench.settings-assistant.open-project-memories"), variant: "secondary", size: "sm", href: `/projects/${encodeURIComponent(projectId)}/settings/memory` }) : ""}` })}`,
+    })}
+    ${renderSettingsSection({
+      title: text("workbench.settings-assistant.using-computer"), id: "assistant-computer-title", attrs: { "data-assistant-computer": true },
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.let-assistant-use-computer"), hint: text("workbench.settings-assistant.when-assistant-can-see-macs-screen-operate-other"), label: true,
+        control: renderSwitch({ attrs: { "data-computer-enable": true } }) })}
+      <p class="mw-settings-section__note" data-computer-perms></p>
+      <form data-computer-forbid-form>${renderSettingRow({ name: text("workbench.settings-assistant.off-limits-apps"), hint: text("workbench.settings-assistant.apps-assistant-never-even-looks-system-settings-keychain"),
+        control: `<input class="mw-input" type="text" data-computer-forbid-id placeholder="${uiText("workbench.settings-assistant.app-identifier-e-g-com-example-app")}" aria-label="${uiText("workbench.settings-assistant.app-identifier")}">${renderButton({ label: text("workbench.settings-assistant.add-off-limits"), variant: "secondary", size: "sm", type: "submit" })}` })}</form>
+      <div data-computer-forbidden></div>
+      <p class="settings-form-error" data-computer-error role="alert" hidden></p>`,
+    })}
+    ${renderSettingsSection({ body: renderObjectRow({
+      name: text("workbench.settings-assistant.plugin-integration-diagnostics"), hint: text("workbench.settings-assistant.what-each-plugin-provides-assistant-whether-its-objects"),
+      attrs: { id: "contributions", "data-assistant-contributions": true },
+      body: `<div data-assistant-contributions-body><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-assistant.loading")}</p></div>`,
+    }) })}
   </section>`;
 }
 
-/** Runs on the settings page only when the section is on show. No template interpolation inside. */
 export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
 globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const root = container.matches?.("[data-assistant-settings]") ? container : container.querySelector?.("[data-assistant-settings]");
@@ -98,29 +108,48 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const base = () => (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/assistant";
   const api = (path, payload) => molisWorkRequest(base() + path, { body: payload });
   const problem = (failure) => { const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); return note; };
+  const note = (text) => el("p", "mw-settings-section__note", text);
+  // The same markup as the SDK's renderSettingRow, for rows this page draws from what it read.
+  const settingRow = (name, hint, controls, tag = "div", className = "") => {
+    const row = el(tag, "mw-setting-row" + (className ? " " + className : "")), copy = el("span", "mw-setting-row__copy"), control = el("span", "mw-setting-row__control");
+    copy.append(el("strong", "", name)); if (hint) copy.append(el("span", "", hint));
+    control.append(...controls); row.append(copy, control); return row;
+  };
+  const switchOf = (checked, label) => {
+    const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = checked;
+    const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
+    if (label) toggle.setAttribute("aria-label", label);
+    return { control, toggle };
+  };
+  // Whether the Assistant brings up a project's new suggestions by itself (specs/automation-recommender §7): the person's, in every project.
+  const offers = root.querySelector("[data-assistant-offers]"), offersError = root.querySelector("[data-assistant-offers-error]");
+  if (offers && project) {
+    const offersPath = "/projects/" + encodeURIComponent(project) + "/api/automation/recommendations/offers";
+    molisWorkRequest(offersPath, { method: "GET" }).then((setting) => { offers.checked = setting.enabled === true; offers.disabled = false; },
+      (failure) => { offersError.hidden = false; molisWorkRequest.show(offersError, failure); });
+    offers.addEventListener("change", async () => {
+      const wanted = offers.checked;
+      offers.disabled = true; offersError.hidden = true;
+      try { offers.checked = (await molisWorkRequest(offersPath, { method: "POST", body: { enabled: wanted } })).enabled === true; }
+      catch (failure) { offers.checked = !wanted; offersError.hidden = false; molisWorkRequest.show(offersError, failure); }
+      finally { offers.disabled = false; }
+    });
+  }
   const EFFECT = { read: "workbench.settings-assistant.read", write: "workbench.settings-assistant.change", irreversible: "workbench.settings-assistant.irreversible" };
   function paint() {
     const query = String(search.value || "").trim().toLowerCase();
     const shown = rows.filter((row) => !query || [row.title, row.provider, row.description, row.capability_id].some((text) => String(text || "").toLowerCase().includes(query)));
     body.replaceChildren();
-    if (!shown.length) { body.append(el("p", "settings-muted", rows.length ? globalThis.t.text("workbench.settings-assistant.no-matching-capabilities") : globalThis.t.text("workbench.settings-assistant.no-capabilities-open-assistant-here"))); return; }
+    if (!shown.length) { body.append(el("p", "mw-settings-section__note", rows.length ? globalThis.t.text("workbench.settings-assistant.no-matching-capabilities") : globalThis.t.text("workbench.settings-assistant.no-capabilities-open-assistant-here"))); return; }
     const groups = new Map();
     shown.forEach((row) => { if (!groups.has(row.provider)) groups.set(row.provider, []); groups.get(row.provider).push(row); });
     groups.forEach((items, provider) => {
-      const section = el("section", "settings-section prompt-group");
       const off = items.filter((row) => !row.enabled).length;
-      section.append(el("h2", "prompt-group-title", provider + (off ? " · " + globalThis.t.text("workbench.settings-assistant.switched-off") + " " + off : "")));
-      const list = el("ul", "prompt-list");
+      body.append(el("h3", "mw-settings-subhead", provider + (off ? " · " + globalThis.t.text("workbench.settings-assistant.switched-off") + " " + off : "")));
+      const list = el("ul", "mw-setting-list");
       items.forEach((row) => {
-        const item = el("li", "prompt-row assistant-capability");
-        const head = el("label", "prompt-row-head");
-        const copy = el("div", "prompt-row-copy");
-        copy.append(el("strong", "", row.title), el("span", "settings-muted", (row.description || "")));
-        const meta = el("div", "prompt-row-meta");
-        meta.append(el("span", "prompt-tag", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect));
-        const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
-        const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-        toggle.setAttribute("aria-label", row.title);
+        const item = el("li", "assistant-capability");
+        const { control, toggle } = switchOf(row.enabled, row.title);
         const save = async (patch) => {
           const saved = await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, expected: row.expected, ...patch });
           window.dispatchEvent(new CustomEvent("molis:authorization-changed"));
@@ -134,12 +163,10 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
             if (body.contains(item)) { paint(); alert(molisWorkRequest.text(failure)); }
           }
         });
-        head.append(copy, meta, control);
-        item.append(head);
+        item.append(settingRow(row.title, row.description || "", [el("span", "assistant-capability-effect", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect), control]));
         // A change that can be undone runs when asked without a confirmation; the person may want it confirmed each time.
         if (row.reversible && row.enabled) {
-          const mode = el("label", "settings-muted assistant-capability-mode"), box = el("input"); box.type = "checkbox"; box.checked = Boolean(row.confirm_always);
-          mode.append(box, document.createTextNode(" " + globalThis.t.text("workbench.settings-assistant.ask-me-before-each-run-can-be-undone")));
+          const ask = switchOf(Boolean(row.confirm_always)), box = ask.toggle;
           box.addEventListener("change", async () => {
             box.disabled = true;
             try { Object.assign(row, await save({ confirm_always: box.checked })); }
@@ -149,27 +176,27 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
             }
             finally { box.disabled = false; }
           });
-          item.append(mode);
+          item.append(settingRow(globalThis.t.text("workbench.settings-assistant.ask-me-before-each-run-can-be-undone"), "", [ask.control], "label", "mw-setting-row--sub"));
         }
         list.append(item);
       });
-      section.append(list);
-      body.append(section);
+      body.append(list);
     });
   }
   const load = async () => {
-    body.replaceChildren(el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.loading")));
+    body.replaceChildren(note(globalThis.t.text("workbench.settings-assistant.loading")));
     try { rows = (await api("/capabilities")).capabilities; paint(); }
     catch (failure) { body.replaceChildren(problem(failure)); }
   };
   root.querySelectorAll("[data-assistant-scope]").forEach((button) => button.addEventListener("click", () => {
     scope = button.dataset.assistantScope;
     root.querySelectorAll("[data-assistant-scope]").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
-    contributions.dataset.loaded = ""; if (contributions.open) loadContributions();
+    contributions.dataset.loaded = ""; if (contributionsFold.open) loadContributions();
     load();
   }));
   search.addEventListener("input", paint);
-  const contributions = root.querySelector("[data-assistant-contributions]");
+  // The row's own <details>: a toggle does not bubble, so it is listened for where it happens.
+  const contributions = root.querySelector("[data-assistant-contributions]"), contributionsFold = contributions.querySelector("details");
   const contributionsBody = root.querySelector("[data-assistant-contributions-body]");
   const AREA = { context: "workbench.settings-assistant.object-context", results: "workbench.settings-assistant.result-links", capabilities: "workbench.settings-assistant.capability-descriptions" };
   const loadContributions = async () => {
@@ -191,10 +218,10 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         }
         list.append(row);
       });
-      contributionsBody.replaceChildren(data.contributions.length ? list : el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.no-plugin-opens-capabilities-assistant-here")));
+      contributionsBody.replaceChildren(data.contributions.length ? list : el("p", "mw-settings-section__note", globalThis.t.text("workbench.settings-assistant.no-plugin-opens-capabilities-assistant-here")));
     } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(problem(failure)); }
   };
-  contributions.addEventListener("toggle", () => { if (contributions.open) loadContributions(); });
+  contributionsFold.addEventListener("toggle", () => { if (contributionsFold.open) loadContributions(); });
   // Attention rules belong to the person, not to a project: always the Home's own route.
   const rulesApi = (path, payload) => molisWorkRequest("/api/assistant" + path, { body: payload });
   // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
@@ -204,52 +231,69 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");
+  const quietForm = root.querySelector("[data-assistant-rule-quiet]"), quietLabel = quietForm.querySelector("[data-assistant-places-label]");
+  const chosen = () => [...surfacesBox.querySelectorAll('[aria-pressed="true"]')].map((chip) => chip.dataset.assistantRuleSurface);
+  const paintChosen = () => { const count = chosen().length; quietLabel.textContent = count ? globalThis.t.text("workbench.settings-assistant.places-count", { count }) : globalThis.t.text("workbench.settings-assistant.choose-places"); };
   const paintPages = (pages) => {
+    const kept = new Set(chosen());
     surfacesBox.replaceChildren();
-    pages.forEach(({ page_id: id, label: name }) => { pageNames[id] = name; const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + name)); surfacesBox.append(label); });
+    pages.forEach(({ page_id: id, label: name }) => {
+      pageNames[id] = name;
+      const chip = el("button", "mw-choice"), label = el("span", "mw-choice__label", name), check = el("span", "mw-choice__check");
+      chip.type = "button"; chip.dataset.assistantRuleSurface = id; chip.setAttribute("aria-pressed", String(kept.has(id)));
+      check.setAttribute("aria-hidden", "true"); check.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-check"></use></svg>';
+      chip.append(label, check);
+      chip.addEventListener("click", () => { chip.setAttribute("aria-pressed", String(chip.getAttribute("aria-pressed") !== "true")); paintChosen(); });
+      surfacesBox.append(chip);
+    });
+    paintChosen();
   };
   const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
     + (rule.except.length ? globalThis.t.text("common.punctuation.semicolon") + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
     + (rule.until ? globalThis.t.text("common.punctuation.semicolon") + globalThis.t.text("workbench.settings-assistant.until") + " " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: rule.until, style: "datetime-with-seconds" } }) : "");
   const paintRules = (rules) => {
     rulesList.replaceChildren();
-    if (!rules.length) { rulesList.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }
-    const list = el("ul", "prompt-list");
+    if (!rules.length) { rulesList.append(note(globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }
+    const list = el("ul", "mw-setting-list");
     rules.forEach((rule) => {
-      const item = el("li", "prompt-row");
-      const head = el("div", "prompt-row-head");
-      const copy = el("div", "prompt-row-copy");
+      const item = el("li");
       const expired = rule.until && new Date(rule.until) <= new Date();
-      copy.append(el("strong", "", rule.label), el("span", "settings-muted", describe(rule) + (expired ? " · " + globalThis.t.text("workbench.settings-assistant.expired") : "")));
-      const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = rule.enabled;
-      const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-      toggle.setAttribute("aria-label", globalThis.t.text("workbench.settings-assistant.enable-rule", { label: rule.label }));
+      const { control, toggle } = switchOf(rule.enabled, globalThis.t.text("workbench.settings-assistant.enable-rule", { label: rule.label }));
       toggle.addEventListener("change", () => run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
       const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("common.control.delete")); remove.type = "button";
       remove.addEventListener("click", () => run(() => rulesApi("/rules/remove", { rule_id: rule.rule_id })));
-      head.append(copy, control, remove);
-      item.append(head); list.append(item);
+      item.append(settingRow(rule.label, describe(rule) + (expired ? " · " + globalThis.t.text("workbench.settings-assistant.expired") : ""), [control, remove]));
+      list.append(item);
     });
     rulesList.append(list);
   };
   const run = async (work) => {
     rulesError.hidden = true;
-    try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; }
+    try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); return true; } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; return false; }
+  };
+  // Adding a rule: the button waits for the answer, so a second press cannot add it twice; once added, the row closes again.
+  const add = async (form, rule, added) => {
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    const done = await run(() => rulesApi("/rules", { rule }));
+    submit.disabled = false;
+    if (!done) return;
+    added?.(); form.querySelector("details").open = false;
   };
   const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
   root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {
     event.preventDefault();
-    const form = event.currentTarget, surfaces = [...form.querySelectorAll("[data-assistant-rule-surface]")].filter((box) => box.checked).map((box) => box.value);
+    const form = event.currentTarget, surfaces = chosen();
     const except = exceptOf(form);
     const label = (surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + surfaces.map((id) => surfaceName(id)).join(globalThis.t.text("common.list.separator")) + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet-2") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")) + (except.length ? globalThis.t.text("common.punctuation.clause-separator") + except.map((kind) => globalThis.t.text(KIND[kind])).join(globalThis.t.text("common.list.separator")) + globalThis.t.text("workbench.settings-assistant.excepted") : "");
-    run(() => rulesApi("/rules", { rule: { kind: "quiet", surfaces, except, label } }));
+    add(form, { kind: "quiet", surfaces, except, label }, () => { surfacesBox.querySelectorAll('[aria-pressed="true"]').forEach((chip) => chip.setAttribute("aria-pressed", "false")); paintChosen(); });
   });
   root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget, choice = form.querySelector("[data-assistant-rule-duration]").value;
     const until = choice === "day" ? (() => { const end = new Date(); end.setHours(23, 59, 0, 0); return end; })() : new Date(Date.now() + Number(choice) * 60000);
     const except = exceptOf(form);
-    run(() => rulesApi("/rules", { rule: { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } }));
+    add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
   });
   run(() => rulesApi("/rules"));
   // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
@@ -285,7 +329,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; } };
   budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
   runUsage(() => usageApi());
-  if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
+  if (location.hash === "#contributions") { contributionsFold.open = true; loadContributions(); }
   load();
 
   // 使用电脑: the master switch (off by default), the helper's system-permission status, and the forbidden apps the person added.
@@ -301,15 +345,14 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const computerApi=(path,payload)=>molisWorkRequest("/api/computer"+path,{body:payload,fallback:globalThis.t.text("workbench.settings-assistant.not-done-please-try-again")});
     const paintForbidden = (forbidden) => {
       forbiddenEl.replaceChildren();
-      if (!forbidden || !forbidden.length) { forbiddenEl.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.have-not-added-any-off-limits-apps"))); return; }
-      const list = el("ul", "prompt-list");
+      if (!forbidden || !forbidden.length) return;
+      const list = el("ul", "mw-setting-list");
       forbidden.forEach((app) => {
-        const item = el("li", "prompt-row");
-        item.append(el("span", "", (app.name || app.bundle_id) + globalThis.t.text("common.punctuation.in-parens", { value: app.bundle_id })));
+        const item = el("li");
         const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-assistant.remove"));
         remove.type = "button";
         remove.addEventListener("click", () => runComputer(() => computerApi("/forbidden", { remove: app.bundle_id }).then((data) => paintForbidden(data.forbidden))));
-        item.append(remove);
+        item.append(settingRow(app.name || app.bundle_id, app.name && app.name !== app.bundle_id ? app.bundle_id : "", [remove]));
         list.append(item);
       });
       forbiddenEl.append(list);

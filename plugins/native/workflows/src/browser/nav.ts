@@ -40,6 +40,7 @@ export function emitCtx(page: WorkflowsPage) {
 export function setMode(page: WorkflowsPage, mode: Mode) {
   const { root, pop, space, view } = page;
   flushSave(page);
+  page.ui.busy = null; page.ui.handoff = null;
   if (pop.matches(":popover-open")) pop.hidePopover();
   if (mode === "list") view.replaceChildren();
   root.dataset.wfMode = mode;

@@ -7,6 +7,7 @@ import { counts, openMaterials } from "./controls.js";
 import { openMcp } from "./click-round.js";
 import { openMethods } from "./methods.js";
 import type { Page } from "./page.js";
+import { promptCommands } from "./prompt-commands.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
 
@@ -58,9 +59,18 @@ function choiceCommands(page: Page): CommandItem[] {
 
 /** The same commands in the composer's `/` (and ＋), the palette and the shortcuts; each says when it is not available. */
 export function codingCommands(page: Page): CommandItem[] {
+  // Built-in first, then the prompt commands the project and the person wrote (A2), whose slashes never take a built-in's.
+  const own = (page.refs.prompts ??= promptCommands(page)), builtIn = builtInCommands(page, own.init()), group = page.readText("coding.commands.builtin");
+  const prompts = own.commands(new Set(builtIn.map(command => command.slash)));
+  return [...builtIn.map(command => ({ ...command, group })), ...prompts];
+}
+
+/** `init` (A1) comes after what ＋ offers, at the head of the commands without a glyph. */
+function builtInCommands(page: Page, init: CommandItem): CommandItem[] {
   const { readText, q, s } = page, { commandsUi } = page.refs, open = !shut(page);
   return [
     ...choiceCommands(page),
+    init,
     ...intentCommands(page),
     { slash: "compact", label: uiText.text("coding.palette.compact"), hint: uiText.text("coding.palette.compact-hint"), keywords: ["摘要", "整理", "context"], enabled: Boolean(open && s.runtimeSessionId),
       run: async () => {

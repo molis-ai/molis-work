@@ -61,6 +61,8 @@ export const PERSISTENT_ENTRY_KEYS = Object.freeze(Object.fromEntries(PERSISTENT
 // The one first-party constant that is not held at 1. Its marker is what ties the literal to the table (scripts/generate-versions.mjs);
 // the same marker on any other constant, or on something that is no version string, lets nothing through.
 const PRODUCT_CONSTANT = "apps/local-host/src/product-version.ts#PRODUCT_VERSION";
+// QEA-80. Imported documents append a new fixed snapshot in 2. Existing 1 snapshots are read without rewriting their digests.
+const importedDocument = { entry: "artifact.io.molis.work.document", definition: "packages/contracts/src/modules/artifacts.ts#IMPORTED_DOCUMENT_SCHEMA_VERSION", current: 2 };
 
 /** Each persistent format's tooling/versions.json entry, by its definition: what a golden records it under. */
 export const PERSISTENT_FORMAT_ENTRIES = Object.freeze(Object.fromEntries([...PERSISTENT_CONSTANTS, ...[...PERSISTENT_ENTRIES].map(([entry, definition]) => [definition, entry])]));
@@ -219,6 +221,7 @@ export function initialVersionProblems({ manifests, hostViews, registrations, ve
     else if (kind && (!Number.isSafeInteger(version) || version < 1)) problems.add(`tooling/versions.json: ${key} must be a positive integer`);
     const definition = key === goalsSync.syncEntry ? goalsSyncDefinition : PERSISTENT_ENTRIES.get(key);
     if (definition && version !== 1) for (const problem of persistentVersionProblems(definition, version, chains)) problems.add(problem);
+    if (key === importedDocument.entry && version !== importedDocument.current) problems.add(`tooling/versions.json: ${key} = ${String(version)} (expected ${importedDocument.current})`);
   }
   return [...problems].sort();
 }
@@ -254,6 +257,12 @@ export function sourceVersionProblems(file, source, chains = new Map(), exceptio
         // A version written as a named constant is judged once, here (or not at all, when an exception names it); the marker pass below
         // skips the same literal, so one literal never produces two problems.
         if (value) named.add(value.getStart(tree));
+        if (`${file}#${name}` === importedDocument.definition) {
+          if (!value || markedNumber(value) !== importedDocument.current || markerAtEnd(source.slice(value.pos, value.getStart(tree))) !== importedDocument.entry) {
+            problems.push(`${file}: ${name} requires the registered fixed snapshot ${importedDocument.entry} at ${importedDocument.current}`);
+          }
+          continue;
+        }
         if (exceptions.has(`${file}#${name}`)) continue;
         if (value && ts.isRegularExpressionLiteral(value)) continue;
         if (value && `${file}#${name}` === PRODUCT_CONSTANT && ts.isStringLiteralLike(value) && markerAtEnd(source.slice(value.pos, value.getStart(tree))) === "product.release") continue;
@@ -313,7 +322,7 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
     try { return parse(text); } catch (error) { problems.push(`${file} cannot be read: ${error.message}`); return empty; }
   };
   const listed = table("tooling/versions.json", text => JSON.parse(text).versions ?? {}, {});
-  const versionEntries = Object.fromEntries(Object.entries(listed).filter(([key]) => PERSISTENT_ENTRIES.has(key) || key === goalsSync.syncEntry));
+  const versionEntries = Object.fromEntries(Object.entries(listed).filter(([key]) => PERSISTENT_ENTRIES.has(key) || key === goalsSync.syncEntry || key === importedDocument.entry));
   const exceptions = table("tooling/gates/version-exceptions.json", exceptionNames, new Set());
   problems.push(...initialVersionProblems({ manifests: [], hostViews: [], registrations: [], versionEntries, chains }));
   for (const file of files.filter(isCheckedSource)) problems.push(...sourceVersionProblems(file, read(file) ?? "", chains, exceptions));

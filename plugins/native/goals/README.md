@@ -14,6 +14,8 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 
 ## 从哪里读代码
 
+`goals.stage.read@1` 的可选 `projection: "collection"` 只读集合和同窗呈现状态，`selected` 为 null；省略时仍按当前选择读取正文。工作台后台目录刷新通过原声明页面路径传递该投影，Host不再补读正文、关系/规则和成果装饰，Goals只渲染目录及创建选择。工作台分别确认目录与正文已应用的平台cursor，Goals自己的日志cursor仍只表示Goal事实；隐藏正文、Frame与分栏实际可见性不由焦点推断。QEA-112–115验收范围包括公开动作、真实HTTP、隐藏输入、失败恢复及Inbox实际调用，实际结果见审查spec。
+
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
 
 | 文件 | 用途 |

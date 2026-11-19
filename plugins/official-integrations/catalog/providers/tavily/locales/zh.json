@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.tavily",
+  "locale": "zh",
+  "messages": {
+    "tavily.connection.auth-help": "在 Tavily 控制台复制 API Key（tvly- 开头）。连接时只读用量核对密钥，不算查询。",
+    "tavily.connection.inbound": "网页搜索（设为默认后使用）",
+    "tavily.connection.summary": "给 AI 用的网页搜索，每月有免费额度。",
+    "tavily.connection.token-label": "Tavily API Key",
+    "tavily.setup.open-tavily-api-keys": "打开 Tavily 控制台"
+  }
+}

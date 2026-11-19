@@ -178,7 +178,9 @@ export function installPageEvents(page: ShelfPage): void {
   }
   lifetime.listen(bench, "molis-work:select-item", async (event) => {
     const id = (event as CustomEvent<{ itemId?: string } | null>).detail?.itemId;
-    if (!id || page.selected?.item_id === id || page.selClip?.clip_id === id) return;
+    if (!id) return;
+    event.preventDefault();
+    if (page.selected?.item_id === id || page.selClip?.clip_id === id) return;
     try {
       if (page.editing) await stopEdit(page);
       if (!lifetime.alive || stageBusy(page)) return;

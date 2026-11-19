@@ -6,7 +6,7 @@ import { assertSubtaskWork } from "./assistant-subtask-binding.js";
 import { subtaskInputSessions } from "./assistant-subtask-inputs.js";
 import { changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
-import { catalogChoice, parseRoleRef, roleKey } from "./assistant-characters.js";
+import { assertStoredCharacter, catalogChoice, parseRoleRef, roleKey, storedCharacter } from "./assistant-characters.js";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
@@ -110,8 +110,8 @@ export class AssistantService {
       start: (work, text, current, continued_from) => this.hostStarted(() => this.dispatcher.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from })),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.reads.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notices.notice(current, state); void this.delegations.roundEnded(current).catch(() => undefined); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
-    this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs,
+    this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}), ...(ports.scopeActions ? { personActions: ports.scopeActions } : {}),
+      readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs, personRan: (work, view, input, output) => this.outcomes.recordResult(work, view, input, output, false),
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
@@ -211,7 +211,7 @@ export class AssistantService {
     if (input) input = mainSendInput(this.store, this.actorId, input, to => sendScope(to.scope, caller, to.executor));
     const original_input = sentOriginal(input, caller.original_input, writtenBy);
     let materials = checkMaterials(input.materials);
-    checkHeldImages(materials, this.materials.images);
+    checkHeldImages(materials, image => this.materials.holdsImage(image));
     const context = checkContext(input.context);
     const choice = input.executor;
     if (choice !== undefined && choice.kind !== "assistant" && !(choice.kind === "plugin" && typeof choice.plugin_id === "string" && choice.plugin_id)) throw assistantErrors.invalid("不认识的执行者");
@@ -433,8 +433,14 @@ async function defaultCharacter(store: AssistantStore, actorId: string, resolveR
 /** A choice of role checked against the roles the person may choose for this work now; a role that cannot run is refused, never swapped. */
 async function chooseCharacter(store: AssistantStore, actorId: string, characters: AssistantServicePorts["characters"], work: StoredWork,
   choice: AssistantCharacterRef | null | undefined, assertCurrent?: () => void): Promise<StoredWork> {
-  if (choice === undefined) return work;
-  if (choice === null) return work.character ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  if (choice === undefined) {
+    if (work.executor.kind === "assistant") assertStoredCharacter(work.character);
+    return work;
+  }
+  if (choice === null) {
+    assertCurrent?.();
+    return work.character !== undefined ? store.update(actorId, work.work_id, null, { character: undefined }, false) : work;
+  }
   const ref = parseRoleRef(choice);
   if (!ref) throw assistantErrors.invalid("角色选择无效");
   if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的角色在插件自己的会话里选择");
@@ -442,7 +448,8 @@ async function chooseCharacter(store: AssistantStore, actorId: string, character
   const catalog = await characters(work.project_ref ?? null), found = catalog ? catalogChoice(catalog, ref) : null;
   if (!found) throw assistantErrors.invalid(work.project_ref ? "这个项目里没有这个角色" : "没有这个角色");
   if (!found.available) throw assistantErrors.character_unavailable("所选角色已停用或还没保存成版本，请另选一个，或不指定角色", { action: "重新选择角色" });
-  if (roleKey(work.character?.ref) === roleKey(ref) && work.character?.title === found.character.title) return work;
+  const held = storedCharacter(work.character);
+  if (held && roleKey(held.ref) === roleKey(ref) && held.title === found.character.title && held.character_id === found.character.character_id) return work;
   assertCurrent?.();
   return store.update(actorId, work.work_id, null, { character: found.character }, false);
 }

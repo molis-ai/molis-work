@@ -11,6 +11,7 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
+  assert.ok(projectId);
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
@@ -69,11 +70,20 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   assert.equal(used.location?.title, "个人空间", "using it in a project does not move it");
   assert.ok(used.associations.some(link => link.type === "used_in" && link.label.includes(projectTitle)));
 
-  // 3. The project lists it and opens the same document; editing there changes the one in the personal space.
+  // 3. QEA-135: the project reads its related documents once and opens the original in the personal space.
+  const relatedPath = `/projects/${projectId}/api/placement/related?project_id=${encodeURIComponent(projectId)}`;
+  let relatedReads = 0;
+  const countRelated = (request: { method?: string; url?: string }) => {
+    if (request.method === "GET" && request.url === relatedPath) relatedReads++;
+  };
+  browser.server.on("request", countRelated);
+  t.after(() => { browser.server.off("request", countRelated); });
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor(`document.querySelector('[data-placement-open=${text(doc!.id)}]')`, 15_000);
   assert.match(await evaluate<string>("document.querySelector('[data-placement-related]').innerText"), /上线前检查清单[\s\S]*个人空间[\s\S]*只有你能打开/u);
   await screenshot("project-home");
+  assert.equal(relatedReads, 1);
+  browser.server.off("request", countRelated);
   // This action changes the top-level document. Observe its load before evaluating in the new context.
   await navigate(() => click(`[data-placement-open=${text(doc!.id)}]`));
   await waitFor("location.pathname === '/projects/personal/'", 15_000);

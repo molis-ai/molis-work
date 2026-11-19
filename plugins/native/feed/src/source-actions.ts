@@ -33,7 +33,7 @@ export const feedSourceActions = {
     { type: "object", properties: { kind: { enum: ["research_library", "rss", "web_query", "youtube_channel", "custom_rss"] }, name: text, repository: text, research_source: text,
       definition_id: text, query: text, channel_id: text, feed_url: text }, required: ["kind"], additionalProperties: false },
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
-  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", /* @version action.feed.sources.add_account */ 1, "添加账号来源", "为 GitHub 或 Gmail 添加一个账号来源；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
+  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", /* @version action.feed.sources.add_account */ 1, "添加账号来源", "为一个服务添加账号来源（service 是服务 id，如 github、gmail、notion、linear；只收 Feed 能按账号读的服务）；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
     closed({ service: { enum: [...FEED_ACCOUNT_SERVICES] }, name: { type: "string", minLength: 1, maxLength: 80 } }, ["service", "name"]),
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
   // The account is not a field of the source: it is the person's binding on the platform.

@@ -6,7 +6,9 @@ import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
 import { mkdtemp, mkdir, writeFile, symlink, rm, stat, realpath } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -17,7 +19,7 @@ import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
-import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
+import { CONTEXT_ONBOARDING_HOME_STORE, withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
 import { codeRoot, contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
@@ -428,6 +430,120 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     assert.equal(runWithMolisWorkHome(dir, () => createFileSecretStore().get(a.credential_ref!)), "access-a");
   });
 }
+
+async function waitForContext(read: () => Promise<ContextJourney>, condition: (round: ContextJourney) => boolean) {
+  for (let step = 0; step < 240; step++) {
+    const round = await read();
+    if (condition(round)) return round;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.fail("the onboarding round did not reach its expected state");
+}
+
+const contextSettled = (round: ContextJourney) => round.phase === "review" || round.phase === "failed";
+
+test("QEA-130 a finished onboarding summary cannot become reviewable after its model changes while Todo is still running", { timeout: 60_000 }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), "molis-context-model-change-")), id = randomUUID();
+  const pendingTodo = Promise.withResolvers<void>();
+  let todoSent = false, summaries = 0;
+  const model = await recordingTextModel(t, dir, async request => {
+    if (wireText(request).includes(TODO_ORGANIZE_BASIC.body.slice(0, 80))) {
+      todoSent = true;
+      await pendingTodo.promise;
+      return JSON.stringify({ candidates: [] });
+    }
+    const title = ++summaries === 1 ? "原模型摘要" : "当前模型摘要";
+    return `# ${title}\n项目进度与后续事项 [S1]`;
+  });
+  const served = await serveTestHost(t, { home: dir });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const route = "/api/onboarding/context", journey = `${route}/${id}`;
+  const read = () => served.web.get<ContextJourney>(journey);
+  const projects = async () => (await served.web.get<{ projects: Array<{ project_id: string }> }>("/api/settings/projects")).projects;
+  const materials = "本周跟进项目进度，记录待决定的日期与负责人。";
+  try {
+    await served.web.post(route, { id });
+    await served.web.post(`${journey}/selection`, { sources: [{ kind: "browser", selected: true, text: materials }] });
+    await served.web.post(`${journey}/start`, {});
+    const pending = await waitForContext(read, round => todoSent && round.synthesis?.completed === 1 && round.todo?.status === "pending");
+    assert.equal(pending.summary, null, "the completed model response is waiting for the side result before publishing");
+    assert.equal(summaries, 1);
+    await served.web.post("/api/settings/models/local-only", {
+      display_name: "本机 HTTP 模型", base_url: model.base, api_format: "anthropic-messages", enabled: true, prompt_cache: "off",
+      models: [{ model_id: "replacement-fixture-model", enabled: true }],
+    });
+  } finally { pendingTodo.resolve(); }
+  const failed = await waitForContext(read, contextSettled);
+  assert.deepEqual([failed.phase, failed.summary], ["failed", null]);
+  assert.match(failed.error!, /模型或连接已变化/);
+  const keptReference = failed.sources[0]?.references?.[0];
+  assert.ok(keptReference);
+  const keptText = await served.web.get<{ text: string }>(`${journey}/text/${keptReference.text.sha256}`);
+  assert.equal(keptText.text, `# 网页内容\n\n${materials}`);
+  assert.equal((await projects()).some(project => project.project_id === failed.project_id), false);
+  await served.web.post(`${journey}/start`, {});
+  const ready = await waitForContext(read, contextSettled);
+  assert.deepEqual([ready.id, ready.phase, ready.summary?.title, ready.project_id], [id, "review", "当前模型摘要", failed.project_id]);
+  assert.equal((await projects()).some(project => project.project_id === ready.project_id), false);
+  assert.equal(summaries, 2);
+});
+
+test("QEA-132 a model change during real onboarding note staging prevents publication and permits retry", { timeout: 60_000 }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), "molis-context-note-model-")), id = randomUUID();
+  const marker = "QEA132_NOTES";
+  let notes = 0;
+  const model = await recordingTextModel(t, dir, request => {
+    const prompt = wireText(request);
+    if (prompt.includes(TODO_ORGANIZE_BASIC.body.slice(0, 80))) return JSON.stringify({ candidates: [] });
+    if (prompt.includes(marker)) return ++notes === 1 ? "# 失效笔记\n原结果 [S1]" : "# 新笔记\n跟进项目进度 [S1]";
+    return "# 当前模型摘要\n保留的项目进度 [S1]";
+  });
+  homeAgentDefinitions(dir).save("system:onboarding/onboarding.notes", `${marker} 整理已给的材料及来源。`, null, "person");
+  const served = await serveTestHost(t, { home: dir });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const route = "/api/onboarding/context", journey = `${route}/${id}`;
+  const read = () => served.web.get<ContextJourney>(journey);
+  const notesDirectory = join(dir, CONTEXT_ONBOARDING_HOME_STORE.path, "journeys", id, "notes");
+  const resume = Promise.withResolvers<void>(), realWrite = fs.writeFile;
+  let written: string | undefined;
+  // Hold only the first real note I/O, after its bytes have been written. Releasing lets production decide whether to publish it.
+  const writing = t.mock.method(fs, "writeFile", async (...args: Parameters<typeof fs.writeFile>) => {
+    await realWrite(...args);
+    if (!written && typeof args[0] === "string" && args[0].startsWith(notesDirectory + "/")) {
+      written = args[0];
+      await resume.promise;
+    }
+  });
+  syncBuiltinESMExports();
+  try {
+    await served.web.post(route, { id });
+    await served.web.post(`${journey}/selection`, { sources: [{ kind: "browser", selected: true, text: "Ordinary project work with a date and owner.\n".repeat(3_000) }] });
+    await served.web.post(`${journey}/start`, {});
+    const pending = await waitForContext(read, round => Boolean(written) || round.phase === "failed");
+    assert.ok(written, pending.error ?? "the first note was not staged");
+    assert.match(await fs.readFile(written, "utf8"), /失效笔记/);
+    assert.deepEqual([pending.synthesis?.completed, pending.synthesis?.notes], [0, []]);
+    await served.web.post("/api/settings/models/local-only", {
+      display_name: "本机 HTTP 模型", base_url: model.base, api_format: "anthropic-messages", enabled: true, prompt_cache: "off",
+      models: [{ model_id: "replacement-fixture-model", enabled: true }],
+    });
+  } finally {
+    resume.resolve();
+    writing.mock.restore();
+    syncBuiltinESMExports();
+  }
+  const failed = await waitForContext(read, contextSettled);
+  assert.deepEqual([failed.phase, failed.summary, failed.synthesis?.completed, failed.synthesis?.notes], ["failed", null, 0, []]);
+  assert.match(failed.error!, /模型或连接已变化/);
+  assert.deepEqual(await fs.readdir(notesDirectory), [], "the rejected note and temporary file are both gone");
+  await served.web.post(`${journey}/start`, {});
+  const ready = await waitForContext(read, contextSettled);
+  assert.deepEqual([ready.id, ready.phase, ready.summary?.title], [id, "review", "当前模型摘要"]);
+  assert.deepEqual(ready.sources[0]?.references?.map(ref => ref.text), failed.sources[0]?.references?.map(ref => ref.text));
+  const published = await fs.readdir(notesDirectory);
+  assert.ok(published.length >= 2);
+  for (const name of published) assert.match(await fs.readFile(join(notesDirectory, name), "utf8"), /^# 新笔记/u);
+});
 
 test('HTTP control gate, persisted selection, Google PKCE start, cancellation and callback resume correct journey',async t=>{
   const dir=await home(t),id=randomUUID(),token='onboarding-control-test';/* Each write is the person's action through the page's door (B9), so the router answers with a Host. */const host=new MolisWorkLocalHost({homeDirectory:dir,completeText:null});hosts.set(dir,host);const handle=createContextOnboardingHttp({...pagesPorts(dir),model:async()=>({})},host);

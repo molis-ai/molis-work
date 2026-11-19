@@ -75,7 +75,7 @@ export function composerMenus(c: Composer): ComposerMenus {
     const menu = addMenu();
     if (!menu) return;
     if (c.picking) return show(menu, renderComposerPick(labels, c.picking.source, c.picking.query, c.picking.found), focus);
-    if (c.typed) return show(menu, renderComposerCommands(labels, narrowComposerCommands(options.commands ?? [], c.typed)), false);
+    if (c.typed) return show(menu, renderComposerCommands(labels, narrowComposerCommands(options.commands ?? [], c.typed), options.commandMenu, !c.typed.replace(/^[/、]/u, "").trim()), false);
     show(menu, renderComposerAddMenu(labels, { files: Boolean(options.attachments), ...(c.offersSources ? c.sources === undefined ? {} : { sources: c.sources } : { sources: "unavailable" as const }),
       commands: options.commands ?? [] }), focus);
   }

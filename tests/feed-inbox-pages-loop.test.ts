@@ -26,6 +26,7 @@ const generate = (store: PagesStore, record: PagesGenerationRecord, completeText
     completeText ? async input => ({ text: await completeText(input), validateResult: () => {} }) : undefined);
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+const modelAnswer = (data: Record<string, unknown>) => ({ value: JSON.stringify(data), validateResult() {} });
 function publishedPackage() {
   const path = "packages/twitter-ai-observation/daily-v1";
   const research = JSON.stringify({ source_records: [{ id: "s1", title: "作者自述", url: "https://example.com/source", summary: "待核验", read_scope: "SUMMARY_EXPORT", boundary: "未重读全文" }], findings: [{ id: "f1", claim: "一个有边界的观察", support: "材料支持有限", boundary: "不是效果证明", source_ids: ["s1"] }], unknowns: ["没有独立复现"] });
@@ -111,7 +112,7 @@ test("explicit auto admission separates positive, negative and review outcomes a
     assert.equal(entries.length, 2); assert.equal(entries.find(entry => entry.subject_id === ids[2])?.detail.needs_review, true);
     await feed.evaluateItems(DEMO_PROJECT_ID, ids);
     assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
-    await assert.rejects(planInformationWork(feed.snapshot(DEMO_PROJECT_ID), DEMO_PROJECT_ID, { prompt: "整理" }, async () => JSON.stringify({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
+    await assert.rejects(planInformationWork(feed.snapshot(DEMO_PROJECT_ID), DEMO_PROJECT_ID, { prompt: "整理" }, async () => modelAnswer({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -249,7 +250,7 @@ test("RAC-2409: the information planner cuts feed titles and source names to 200
   const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
     feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
     inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }] }, "project-a", { prompt: "整理" },
-    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+    async value => { shown = value; return modelAnswer({ message: "ok", action: null }); });
   const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
   const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
   assert.deepEqual([context.items[0]!.title, context.inbox[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
@@ -263,7 +264,7 @@ test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources i
   const sources = Array.from({ length: 25 }, (_, index) => ({ source_id: `s${index}`, name: `来源 ${index}`, enabled: true }));
   let shown = "";
   await planInformationWork({ sources, feed_items: [], inbox_entries: [] }, "project-a", { prompt: "整理" },
-    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+    async value => { shown = value; return modelAnswer({ message: "ok", action: null }); });
   const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
   const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[] };
   assert.equal(context.sources.length, 20, "at most 20 sources are described, like items and inbox entries");

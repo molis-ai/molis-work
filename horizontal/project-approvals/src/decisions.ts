@@ -108,7 +108,7 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
     },
     sameRequest,
     commit(input: TrustedReviewCommand, person: Person, frozenChoice: unknown, review: Pick<ProjectTrustedDecision, "publisher_signature" | "review" | "presentation">,
-      at: string, assertCurrent: () => void, originalId: string = randomUUID(), onPrepared?: (record: ProjectTrustedDecision) => void) {
+      at: string, assertCurrent: () => void, originalId: string = randomUUID()) {
       if (!db.inTransaction || person.source.kind !== "person" || person.actor_id !== person.source.actor_id
         || !person.actor_id.trim() || !person.source.entry.conversation_ref.trim() || !person.source.entry.message_ref.trim()
         || !["web", "management"].includes(person.source.entry.source)) {
@@ -126,7 +126,6 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
         choice_fingerprint: fingerprint(input, person.actor_id, frozenChoice), publisher_signature: review.publisher_signature, review: review.review,
         ...(review.presentation ? { presentation: review.presentation } : {}),
       };
-      onPrepared?.(record);
       db.prepare(`INSERT INTO project_review_decisions
         (decision_id, project_id, request_id, request_key, record_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)
       `).run(record.decision_id, projectId, input.reference.id, input.request_key, canonicalJsonText(record, "null"), at);

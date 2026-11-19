@@ -1,0 +1,19 @@
+{
+  "reason": "保留窄窗审查位置、组件板通知和刷新的位置确认。重开助理先读原文，输入栏随实际窗格位置重排。连续写入结束前合并现有的被动通知读取。",
+  "review": "specs/quality-experience-audit/report.md#第-122-批前三行预览和真实回复身份（QEA-203）。第 118、120 批原对账见同一报告。对照 f1e875d11e 独立构建，既有工作台脚本和四组工作台冷量各补登记 27 B，后者沿已验 Linux 差额。",
+  "assets": {
+    "/assets/molis-work-assistant-subtasks.js": 2,
+    "/assets/molis-work-plugin-frame.js": 124,
+    "/assets/molis-work-workbench.js": 507
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 254, "warm": 1 },
+    "arrival-empty/en": { "cold": 177, "warm": 1 },
+    "chooser/zh": { "cold": 165, "warm": 0 },
+    "chooser/en": { "cold": 80, "warm": 0 },
+    "workbench-default/zh": { "cold": 451, "warm": 0 },
+    "workbench-default/en": { "cold": 318, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 737, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 703, "warm": 0 }
+  }
+}

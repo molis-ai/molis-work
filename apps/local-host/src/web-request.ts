@@ -37,7 +37,6 @@ import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
-import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
 import { handleSubjectContextHttp } from "./subject-context-http.js";
 import { declaredStageRequests } from "./project-stage-data.js";
@@ -84,7 +83,7 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const readonly = request.method === "GET" || request.method === "POST" && url.pathname.endsWith("/api/home/events");
+  const readonly = request.method === "GET";
   const handle = async () => {
     const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
@@ -196,7 +195,8 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPluginSelection, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">, withMembershipRevision = false) {
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPluginSelection, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
+  { scope = "shell", withMembershipRevision = false }: { scope?: "shell" | "page"; withMembershipRevision?: boolean } = {}) {
   return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
@@ -210,12 +210,14 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
     const plugins = await ensureProjectPlugins(pluginPorts);
-    const prepared = await readRuntimeStageData(plugins, view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
+    const home = await homeStageHalves(localHost.homePlugins);
+    const stagePlugins = scope === "page" ? shown.filter(key =>
+      (builtinPluginByProjectKey(key) ?? home?.entries.find(entry => entry.project_plugin_id === key))?.manifest.plugin_id === pageMatch?.plugin_id) : shown;
+    const prepared = await readRuntimeStageData(plugins, stagePlugins, home,
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: ownerRead(owner) }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
-    // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
-    const inbox = view.stage_data?.inbox as InboxStageData | undefined;
-    if (inbox?.judgment) view = { ...view, inbox_judgment: inbox.judgment };
+    // A fragment consumes its matched owner's data, not the other stages or the Home shell.
+    if (scope === "page") return { ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) };
     const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, shown: view.shown_plugins, views: prepared?.views, page_owner: view.page_owner,
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
@@ -273,7 +275,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context, true), context.controlToken, context.goalActions,
+    projectWebView(context, { withMembershipRevision: true }), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
@@ -289,7 +291,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   workspaceMembershipRoute,
   ...goalsSettingsRoutes,
   ...projectProbeRoutes,
-  { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,
+  { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, projectWebView(context, { scope: "page" }), context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
   { id: "project-approvals", handle: ({ request, response, url, localHost, hostReference, serverOptions }) =>

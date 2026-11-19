@@ -1,3 +1,4 @@
+// QEA-26: Cognia public discovery, model wait/cancellation and actual drafts after migration to the shared binder.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node:fs";

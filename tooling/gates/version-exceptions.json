@@ -906,6 +906,12 @@
     "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
   },
   {
+    "file": "apps/local-host/src/connector-web-search.ts",
+    "name": "materials_v1",
+    "values": { "materials_v1": 1 },
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本（与 alchemist-search.ts 同一次 AnySearch 请求写法）。"
+  },
+  {
     "file": "apps/local-host/src/demo-project-id.ts",
     "name": "molis-work-v1-demo",
     "values": { "molis-work-v1-demo": 1 },
@@ -1032,12 +1038,6 @@
     "reason": "Diff 组件板示例里的一个文件路径，展示用，不是版本。"
   },
   {
-    "file": "plugins/native/feed/src/source-request.ts",
-    "name": "materials_v1",
-    "values": { "materials_v1": 2 },
-    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
-  },
-  {
     "file": "plugins/official-integrations/catalog/src/index.ts",
     "name": "adeptify-official-signature-v1",
     "values": { "adeptify-official-signature-v1": 1 },
@@ -1057,18 +1057,6 @@
   },
   {
     "file": "plugins/official-integrations/rss/src/index.ts",
-    "name": "adeptify-official-signature-v1",
-    "values": { "adeptify-official-signature-v1": 1 },
-    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
-  },
-  {
-    "file": "plugins/official-integrations/web-query/src/index.ts",
-    "name": "adeptify-official-signature-v1",
-    "values": { "adeptify-official-signature-v1": 1 },
-    "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
-  },
-  {
-    "file": "plugins/official-integrations/youtube/src/index.ts",
     "name": "adeptify-official-signature-v1",
     "values": { "adeptify-official-signature-v1": 1 },
     "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"

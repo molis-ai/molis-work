@@ -10,6 +10,7 @@ import { assistantCardHtml, cardView } from "./assistant-card-view.js";
 import { isExternalSessionObject, isExternalSessionSurface } from "./assistant-external-sessions.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
+import type { PersonActions } from "./assistant-executor.js";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
 
 const RUNTIME = "prologue";
@@ -37,6 +38,20 @@ interface OfferPorts {
   readonly jobs: Pick<AssistantJobs, "follow" | "claimForCard" | "linkCard">;
   createWork(title: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot, caller: OfferCaller): Promise<StoredWork>;
   fail(code: string, message: string): Error;
+  /** The person's own actions in a work's scope: the only way a card the Host placed for the person runs. */
+  personActions?(work: StoredWork): Promise<PersonActions>;
+  /** Such a card ran: kept as the work's result, with the undo its action declares. */
+  personRan?(work: StoredWork, view: ActionView, input: unknown, output: unknown): void;
+}
+
+/** A card the Host prepares for the person and places in a work it keeps for that purpose (`placeForPerson`). */
+export interface HostCardInput {
+  /** What the work is kept for (one work per key and project): a later card with the same key goes in the same work. */
+  key: string;
+  work_title: string;
+  scope: AssistantScope;
+  source: { surface: string; title?: string };
+  card: AssistantPreparedCard;
 }
 
 /** A page's prepared card, bounded and shaped as the contract says; anything else is refused before any check runs. */
@@ -62,7 +77,7 @@ function checkPreparedCard(card: AssistantPreparedCard | undefined, fail: (code:
   if (object !== undefined && (!object || typeof object.kind !== "string" || !object.kind || typeof object.id !== "string" || !object.id)) {
     throw fail("assistant.invalid", "来源对象写法不对");
   }
-  return { title: text(card.title, "按钮文字", 40), summary: text(card.summary, "说明", 600),
+  return { ...(card.choices ? { choices: card.choices } : {}), title: text(card.title, "按钮文字", 40), summary: text(card.summary, "说明", 600),
     reference: { capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, input: card.input,
     ...(card.editable ? { editable: [...card.editable] } : {}), ...(missing ? { missing } : {}), ...(materials ? { materials } : {}),
     ...(object ? { source_object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}),
@@ -77,8 +92,8 @@ function checkPreparedCard(card: AssistantPreparedCard | undefined, fail: (code:
 export class AssistantOffers {
   constructor(private readonly ports: OfferPorts) {}
 
-  async recordOffer(work: StoredWork, offer: AgentActionOffer, views: readonly ActionView[],
-    page?: Pick<StoredCard, "from" | "source_object" | "materials">): Promise<{ offer_id: string }> {
+  async recordOffer(work: StoredWork, offer: AgentActionOffer & Pick<AssistantPreparedCard, "choices">, views: readonly ActionView[],
+    page?: Pick<StoredCard, "from" | "source_object" | "materials" | "runs_as">): Promise<{ offer_id: string }> {
     const drafted = await draftActionCard(`card-${randomUUID()}`, offer, views, { ...this.rules(work), check: (view, input) => assertActionInput(view.action.input_schema, input) });
     // A round's suggestion belongs to that round; a card a page placed belongs to no round (it shows as coming from that page).
     const card: StoredCard = { ...drafted, work_id: work.work_id, run_id: page ? null : this.ports.store.rounds(work.work_id).at(-1)?.run_id ?? null, ...(page ?? {}) };
@@ -121,7 +136,7 @@ export class AssistantOffers {
     const client = await (await this.ports.authority(work)).actions?.(RUNTIME);
     if (!client) throw this.ports.fail("assistant.unsupported", "这里没有助理能用的能力");
     const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
-      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}) }, await client.discover(),
+      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) }, await client.discover(),
       { from: source, ...(card.source_object ? { source_object: card.source_object } : {}), ...(card.materials ? { materials: card.materials } : {}) });
     if (card.source_object) {
       const version = card.source_object.version;
@@ -129,6 +144,35 @@ export class AssistantOffers {
         revision: version === undefined || version === null ? null : String(version) }, `来自「${source.title ?? source.surface}」页面的操作卡`);
     }
     this.ports.store.setSetting(this.ports.actorId, `page-card:${messageId}`, JSON.stringify({ work_id: work.work_id, card_id: offer_id }));
+    return { work_id: work.work_id, card: cardView(this.ports.store.card(work.work_id, offer_id)) };
+  }
+
+  /**
+   * A card the Host prepared for the person (the project's automation suggestions, specs/automation-recommender §7): checked against
+   * the person's own actions in the work's scope, placed in the work kept for its key (made the first time), and run, when they click
+   * it, as them. An earlier card of the same key still open there is set aside: the newest says what is on offer now. No model round starts.
+   */
+  async placeForPerson(input: HostCardInput, caller: OfferCaller): Promise<{ work_id: string; card: AssistantCard }> {
+    if (!this.ports.personActions) throw this.ports.fail("assistant.unsupported", "这里不能放本人的建议卡");
+    const card = checkPreparedCard(input.card, this.ports.fail);
+    const setting = `host-card-work:${input.key}`;
+    const kept = this.ports.store.setting(this.ports.actorId, setting);
+    let work: StoredWork | undefined;
+    if (kept) {
+      try { work = this.ports.store.get(this.ports.actorId, kept); } catch { work = undefined; }
+      if (work && (work.archived || work.executor.kind === "plugin" || (work.scope.kind === "project" ? work.scope.project_id : null) !== (input.scope.kind === "project" ? input.scope.project_id : null))) work = undefined;
+    }
+    if (!work) {
+      work = await this.ports.createWork(input.work_title, input.scope, { source: input.source, captured_at: this.ports.now().toISOString() }, caller);
+      this.ports.store.setSetting(this.ports.actorId, setting, work.work_id);
+    }
+    for (const old of this.ports.store.cards(work.work_id)) {
+      if (old.runs_as === "person" && old.from?.surface === input.source.surface) dismissActionCard(old, this.store);
+    }
+    const actions = await this.ports.personActions(work);
+    const { offer_id } = await this.recordOffer(work, { title: card.title, summary: card.summary, reference: card.reference, input: card.input,
+      ...(card.editable ? { editable: card.editable } : {}), ...(card.missing ? { missing: card.missing } : {}), ...(card.choices ? { choices: card.choices } : {}) },
+      await actions.discover(), { from: input.source, runs_as: "person" });
     return { work_id: work.work_id, card: cardView(this.ports.store.card(work.work_id, offer_id)) };
   }
 
@@ -142,6 +186,14 @@ export class AssistantOffers {
     // What the card's controls hold (a pick, a day, a moment in the person's zone), as the strings the input takes.
     const values = cardInputValues(input.values, this.ports.timeZone);
     let job: Awaited<ReturnType<AssistantJobs["follow"]>> = null;
+    if (card.runs_as === "person") {
+      // The Host's card for the person: their own actions, and its result (with the undo it declares) kept on the work.
+      const actions = this.ports.personActions ? await this.ports.personActions(work) : null;
+      if (!actions) throw this.ports.fail("assistant.unsupported", "现在不能执行这张卡");
+      return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
+        authority: async () => ({ discover: () => actions.discover(), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => actions.invoke(reference, prepared) }),
+        started: async (view, output, claimed) => { this.ports.personRan?.(work, view, claimed.input, output); return false; } }));
+    }
     const ran = await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
       authority: async () => {
         const authority = await this.ports.authority(work);

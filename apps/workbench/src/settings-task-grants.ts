@@ -10,9 +10,9 @@ export function renderTaskGrantsSettings({ projectId }: { readText(text: string)
   return `<section class="settings-document task-grants-settings" aria-labelledby="task-grants-title" data-task-grants-settings data-project="${projectId}">
     <header class="settings-page-heading"><h1 id="task-grants-title">${uiText("workbench.settings-task-grants.access-approvals")}</h1>
       <p>${uiText("workbench.settings-task-grants.what-each-background-task-project-may-read-its")}</p></header>
-    <section class="settings-section" aria-labelledby="task-grants-tasks-title">
-      <h2 id="task-grants-tasks-title">${uiText("workbench.settings-task-grants.what-background-tasks-may-read")}</h2>
-      <div class="task-grants-page" data-task-grants-list aria-live="polite"><p class="task-grants-page__state">${uiText("workbench.settings-task-grants.loading")}</p></div>
+    <section class="settings-section mw-settings-section" aria-labelledby="task-grants-tasks-title">
+      <header class="mw-settings-section__head"><h2 id="task-grants-tasks-title">${uiText("workbench.settings-task-grants.what-background-tasks-may-read")}</h2></header>
+      <div class="mw-settings-section__rows"><div class="task-grants-page" data-task-grants-list aria-live="polite"><p class="task-grants-page__state">${uiText("workbench.settings-task-grants.loading")}</p></div></div>
     </section>
   </section>`;
 }

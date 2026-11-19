@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -40,6 +40,26 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     const packedLicense = async (prefix: string) => (await exec("tar", ["-xOf", path.join(output, packed.filename), `package/${prefix}LICENSE`])).stdout;
     assert.equal(await packedLicense(""), license); // CSL-03: read the actual npm archive, not only staging.
     const files = new Set<string>(packed.files.map((file: { path: string }) => file.path));
+    // QEA-68: the actual archive keeps the channel tools under their original package name, without a retired factory or manifest.
+    const youtubePrefix = "node_modules/@molis-ai/molis-work-integration-youtube/";
+    assert.ok(files.has(`${youtubePrefix}dist/channel.js`));
+    assert.equal(files.has(`${youtubePrefix}manifest.json`), false);
+    assert.equal(packed.bundled.includes("@molis-ai/molis-work-integration-web-query"), false);
+    assert.equal([...files].some(file => file.startsWith("node_modules/@molis-ai/molis-work-integration-web-query/")), false);
+    const extracted = path.join(temporary, "extracted");
+    await mkdir(extracted);
+    await exec("tar", ["-xf", path.join(output, packed.filename), "-C", extracted]);
+    const { stdout: channelResult } = await exec(process.execPath, ["--input-type=module", "--eval", `
+      const channel = await import('@molis-ai/molis-work-integration-youtube');
+      console.log(JSON.stringify({
+        id: channel.normalizeYouTubeChannelId('https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv'),
+        url: channel.youtubeChannelFeedUrl('UCabcdefghijklmnopqrstuv'),
+        retired: 'createYoutubeIntegrationPlugin' in channel || 'youtubeIntegrationManifest' in channel
+      }));
+    `], { cwd: path.join(extracted, "package") });
+    assert.deepEqual(JSON.parse(channelResult), {
+      id: "UCabcdefghijklmnopqrstuv", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv", retired: false,
+    });
     assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-cli/bin/molis-work-plugin.mjs"));
     assert.ok(files.has("dist/cli/main.js"));
     assert.equal([...files].some(file => file.startsWith("skills/goal-advance/")), false, "PEQ-14: the goal-advance Skill is not shipped");

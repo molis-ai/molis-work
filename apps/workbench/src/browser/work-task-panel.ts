@@ -8,7 +8,7 @@
 import { BACKGROUND_TASK_DONE_STATES, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTaskRow, BackgroundTasksReadResult, WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
-import { escapeHtml, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPlaceMenu, renderTaskCard, renderReplyMini, renderReplyPeek, renderTaskDecision, renderTaskMark, renderTaskPanel, renderTaskRow, type TaskRowView } from "../work-line-parts.js";
 import type { LineEventPress, WorkBarHost } from "./work-bar.js";
 import { installTaskFloatShell } from "./task-float-shell.js";
@@ -74,6 +74,26 @@ function installDecisionAnswers(host: WorkBarHost, request: TaskPanelLine["reque
   return { answer, revising: (task: BackgroundTaskRow, id: string) => revising === asked(task, id), busy: (task: BackgroundTaskRow, id: string) => deciding.has(asked(task, id)) };
 }
 
+/** The peek clips its rich content at three lines. A long code block fills that space by itself. */
+function replyExcerpt(from: HTMLElement): DocumentFragment {
+  const range = document.createRange();
+  range.selectNodeContents(from);
+  const figure = [...from.querySelectorAll<HTMLElement>(".assistant-code")].find(block => Number(block.dataset.lines) > 3);
+  const code = figure?.querySelector("pre > code");
+  const source = figure?.dataset.code;
+  if (code && source !== undefined) {
+    // Count three lines and their two separators in the source. A CRLF can straddle two syntax tokens.
+    let offset = source.split(/(\r\n?|\n)/, 5).join("").length;
+    const text = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+    for (let node = text.nextNode(); node; node = text.nextNode()) {
+      const length = (node as Text).length;
+      if (offset <= length) { range.setEnd(node, offset); break; }
+      offset -= length;
+    }
+  }
+  return range.cloneContents();
+}
+
 /**
  * With the dialog closed its way in stays above the input (WLN-35): the latest reply of the conversation in front with the task
  * mark and the button that opens the dialog, until the person presses the work, then only the mark and the button. A reply that
@@ -83,30 +103,68 @@ function installDialogRow(panel: string, paint: () => void): void {
   const island = document.querySelector<HTMLElement>("[data-assistant-island]"), dialog = island?.querySelector<HTMLElement>("[data-assistant-panel]");
   const thread = island?.querySelector<HTMLElement>("[data-assistant-thread]"), narrow = matchMedia("(max-width:760px)");
   if (!island || !dialog) return;
-  let folded = "", shown = "";
-  const latest = () => { const said = thread?.querySelectorAll<HTMLElement>(".assistant-msg--assistant"); return said?.length ? said[said.length - 1]!.dataset.text?.trim() ?? "" : ""; };
+  // Keep just the id of the reply the person put away in this window.
+  const KEPT = "molis.assistant.reply-folded";
+  let folded = (() => { try { return sessionStorage.getItem(KEPT) ?? ""; } catch { return ""; } })();
+  let shown = "", first = true;
+  let drawn: HTMLElement | null = null;
+  const workspace = document.querySelector<HTMLElement>(".tab-workspace");
+  const latest = () => {
+    const replies = thread?.querySelectorAll<HTMLElement>(":scope > [data-round] > .assistant-msg--assistant[data-reply-id]");
+    const node = replies?.[replies.length - 1];
+    const id = node?.dataset.replyId, words = node?.dataset.text;
+    return node && id && words?.trim() ? { node, id, words } : null;
+  };
+  // The reply reads as the dialog draws it: the bubble's own blocks (the Host's rendered reply), not its Markdown source. Its
+  // buttons stay in the dialog; the row has one way in. A named object is a button there whose words are part of the sentence,
+  // so it stays here as those words. A reply with nothing drawn yet shows its words as they are.
+  const draw = (body: HTMLElement, { node, words }: NonNullable<ReturnType<typeof latest>>) => {
+    const copy = replyExcerpt(node);
+    copy.querySelectorAll("button").forEach(button => button.matches(".assistant-inline-object") ? button.replaceWith(button.textContent ?? "") : button.remove());
+    for (const figure of copy.querySelectorAll(".assistant-code")) {
+      figure.removeAttribute("data-code"); figure.removeAttribute("data-paint");
+    }
+    if (copy.hasChildNodes()) body.replaceChildren(copy); else body.textContent = words.trim();
+  };
+  const fold = () => { if (!shown) return; folded = shown; try { sessionStorage.setItem(KEPT, folded); } catch { /* The fold then lasts this page. */ } row(); };
   // Whose words they are: the Character whose conversation is in front, else the Assistant.
   const who = () => { const tab = island.querySelector<HTMLElement>(".assistant-tab[data-current][data-character]"), name = tab?.querySelector(".assistant-tab-title")?.textContent?.trim();
     return name ? { name, character: true } : { name: uiText.text("workbench.common.assistant") }; };
-  const row = () => {
+  const row = (changes: MutationRecord[] = []) => {
     // The folded row stands at the line's right end, on the line and over nothing of the work (user decision 2026-11-15); the
     // line's mark leaves its wing room for it.
     const line = island.closest("[data-work-line]"), lineRow = line?.querySelector<HTMLElement>(".work-line-row") ?? island;
-    const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = lineRow.querySelector("[data-reply-mini]"), said = dialog.hidden && !narrow.matches ? latest() : "";
-    line?.toggleAttribute("data-mini", dialog.hidden && !(said && said !== folded));
-    if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = ""; return; }
+    const peek = island.querySelector<HTMLElement>("[data-reply-peek]"), mini = lineRow.querySelector("[data-reply-mini]");
+    const reply = dialog.hidden && !narrow.matches ? latest() : null;
+    // The reply a page finds when it opens under a cover (settings by its address) is the one before the cover: put away.
+    if (first && reply) { first = false; if (workspace?.hasAttribute("data-exclusive")) folded = reply.id; }
+    const visible = reply?.id === folded ? null : reply;
+    line?.toggleAttribute("data-mini", dialog.hidden && !visible);
+    if (!dialog.hidden && (peek || mini)) { peek?.remove(); mini?.remove(); shown = ""; drawn = null; return; }
     if (!dialog.hidden) return;
-    if (said && said !== folded) {
-      if (peek && shown !== said) peek.querySelector<HTMLElement>(".work-reply-peek-body")!.textContent = said;
-      else if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), body: escapeHtml(said), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
-      shown = said;
-    } else if (!mini) { peek?.remove(); shown = ""; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
+    if (visible) {
+      if (!peek) { mini?.remove(); island.insertAdjacentHTML("beforeend", renderReplyPeek({ who: who(), mark: renderTaskMark({ count: 0, panel }) })); paint(); }
+      if (!peek || drawn !== visible.node || changes.some(record => visible.node.contains(record.target))) {
+        draw(island.querySelector<HTMLElement>("[data-reply-peek] .work-reply-peek-body")!, visible);
+        drawn = visible.node;
+      }
+      shown = visible.id;
+    } else if (!mini) { peek?.remove(); shown = ""; drawn = null; lineRow.insertAdjacentHTML("beforeend", renderReplyMini(renderTaskMark({ count: 0, panel }))); paint(); }
   };
   new MutationObserver(row).observe(dialog, { attributes: true, attributeFilter: ["hidden"] });
-  if (thread) new MutationObserver(() => { if (dialog.hidden) row(); }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text"] });
-  // The person went back to the work: the reply folds away, and stays away until another comes.
-  document.addEventListener("pointerdown", event => { if (shown && event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) { folded = shown; row(); } }, true);
-  narrow.addEventListener("change", row); row();
+  if (thread) new MutationObserver(records => {
+    // A colouring slice inserts token nodes into the same code block; the preview already has its words.
+    if (!dialog.hidden) return;
+    const changes = records.filter(record => !(record.target instanceof Element && record.target.matches(".assistant-code pre > code")));
+    if (changes.length) row(changes);
+  }).observe(thread, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-text", "data-reply-id"] });
+  // The person went back to the work: the reply folds away, and stays away until another comes. A plugin's page is its own
+  // document, so a press in it comes as the frame's `molis:surface-interaction`.
+  document.addEventListener("pointerdown", event => { if (event.target instanceof Element && !event.target.closest("[data-work-bar],[data-work-task-float]")) fold(); }, true);
+  window.addEventListener("molis:surface-interaction", fold);
+  // So is a cover that comes over the work (settings, opened by a key as well): the person is reading that now.
+  if (workspace) new MutationObserver(() => { if (workspace.hasAttribute("data-exclusive")) fold(); }).observe(workspace, { attributes: true, attributeFilter: ["data-exclusive"] });
+  narrow.addEventListener("change", () => row()); row();
 }
 
 /** In a decision's field Enter sends the words and Escape puts the field away, neither reaching the dialog or the panel; elsewhere Escape closes the panel (`close` says whether it was open). */
@@ -124,7 +182,37 @@ function installDecisionKeys(close: () => boolean): void {
   });
 }
 
-export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string> } {
+/** One page-local attempt for all views of a task. The task's owner still decides its state and available commands. */
+function installTaskStops(host: WorkBarHost, { request, again }: Pick<TaskPanelLine, "request" | "again">, repaint: () => void, failed: (error: unknown) => void) {
+  const attempts = new Map<string, { state: "pending" } | { state: "succeeded"; after: number; source: BackgroundTaskRow["source"] }>();
+  return {
+    busy: (id: string) => attempts.has(id),
+    observe(issues: BackgroundTasksReadResult["issues"], started: number): boolean {
+      let changed = false;
+      for (const [id, attempt] of attempts) {
+        if (attempt.state !== "succeeded" || !(started > attempt.after)) continue;
+        const { provider_id, capability_id, version } = attempt.source;
+        if (issues.some(({ source }) => source.provider_id === provider_id && source.capability_id === capability_id && source.version === version)) continue;
+        attempts.delete(id);
+        changed = true;
+      }
+      return changed;
+    },
+    stop(task: BackgroundTaskRow): void {
+      const command = task.commands.find(one => one.role === "stop");
+      if (!command || attempts.has(task.id)) return;
+      attempts.set(task.id, { state: "pending" });
+      repaint();
+      // Mainline confirms that the task's owner still offers this exact command (WLN-39).
+      void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } })
+        .then(() => { attempts.set(task.id, { state: "succeeded", after: performance.now(), source: task.source }); })
+        .catch(error => { attempts.delete(task.id); failed(error); })
+        .finally(() => { repaint(); again(); });
+    },
+  };
+}
+
+export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take(result: BackgroundTasksReadResult, started: number): void; offline(since: string | null): void; place(subject: ActionSubject): void; rows(subject: ActionSubject): string; decisions(subject: ActionSubject): string; subjects(subject: ActionSubject): { provider_id: string; subject: ActionSubject }[]; waiting(): { key: string; provider: string; title: string; event: WorkLineEvent }[]; unreadable(): ReadonlySet<string> } {
   const { keyOf, press, hue, again, request } = line, events = { values: () => [...line.events()], get: (id: string) => [...line.events()].find(one => one.id === id) };
   const PANEL = "work-task-panel";
   // `carded`: the task whose card stands in the panel's place (WLN-36); `placing`: its 「改」 menu is open.
@@ -137,6 +225,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     back() { paintTasks(); shell.cards?.querySelector<HTMLElement>("[data-task-panel-list], [data-task-panel-close]")?.focus(); },
   });
   let accepting: { update(): void; destroy(): void } | undefined;
+  const stops = installTaskStops(host, line, () => repaint(), error => failed(error));
   const answers = installDecisionAnswers(host, request, { task: id => tasks.find(one => one.id === id), repaint: () => repaint(), again, failed: error => failed(error), go: task => go(task) });
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
   const decisionsOf = (list: readonly BackgroundTaskRow[], named: (task: BackgroundTaskRow) => boolean) => list.flatMap(task => task.decisions.map(decision => ({ task, decision })))
@@ -147,7 +236,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
   const row = (task: BackgroundTaskRow): TaskRowView => {
     const event = task.serves.map(subject => [...events.values()].find(one => one.subject.kind === subject.kind && one.subject.id === subject.id)?.title).find(Boolean);
     return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), serves: event ?? null,
-      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const } : {}) };
+      ...(task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task.id) } : {}) };
   };
   const servedBy = (task: BackgroundTaskRow) => task.serves.map(subject => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
   const card = (task: BackgroundTaskRow): string => {
@@ -156,7 +245,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const actions = placing
       ? renderPlaceMenu({ task: task.id, own, none: task.serves.length === 0,
           events: [...events.values()].filter(one => keyOf(one.subject) !== keyOf(task.subject)).map(one => ({ id: one.id, title: one.title, current: one === event && !own })) })
-      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id }) : "")
+      : (task.commands.some(command => command.role === "stop") ? button(uiText.text("workbench.work-line.stop"), { "data-task-control": "stop", "data-task": task.id, ...(stops.busy(task.id) ? { disabled: "" } : {}) }) : "")
         + (event ? button(uiText.text("workbench.work-line.go-to-event"), { "data-task-event": task.id }) : "") + (task.open ? button(task.open.label, { "data-task-go": task.id }) : "");
     return renderTaskCard({ id: task.id, panel: PANEL, decisions: decisionsOf([task], () => false), title: task.title, ring: task.state, state: [task.step?.text, ...task.details.map(line => line.text)].filter(Boolean).join(" · "),
       owner: { name: task.origin.title, glyph: task.origin.icon as PluginIconName, hue: hue.get(task.origin.surface) ?? "" }, who: task.executor.label,
@@ -183,21 +272,18 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     if (shown && slot) { accepting = line.acceptance(slot, { provider_id: shown.source.provider_id, subject: shown.subject }); accepting.update(); }
   };
   let unread: ReadonlySet<string> = new Set();
-  const takeTasks = (result: BackgroundTasksReadResult) => {
+  const takeTasks = (result: BackgroundTasksReadResult, started: number) => {
     unread = new Set(result.issues.map(issue => issue.source.provider_id));
-    const next = JSON.stringify(result.tasks.map(task => [task.id, task.title, task.state, task.step?.text, task.waiting, task.serves, task.commands.length, task.decisions.map(one => [one.id, one.ask, one.why, one.changes, one.answers.map(answer => answer.role)])]));
-    if (next === tasksShown) return;
+    const commandChanged = stops.observe(result.issues, started);
+    // Same command count need not mean the same command, details or navigation target.
+    const next = JSON.stringify(result.tasks);
+    if (next === tasksShown && !commandChanged) return;
     tasksShown = next; tasks = result.tasks; paintTasks();
   };
   const showTasks = (open: boolean) => open ? shell.show() : shell.hide();
   const backToCard = () => shell.back();
   installDialogRow(PANEL, () => paintTasks());
   const failed = (error: unknown) => request.toast?.(document.querySelector("[data-toast]") as never, error);
-  // The stop is the command the row carries; the mainline service checks it with the owner again (WLN-39).
-  const stopTask = (task: BackgroundTaskRow) => {
-    const command = task.commands.find(one => one.role === "stop");
-    if (command) void request(host.route("/api/mainline/tasks/command"), { body: { source: task.source, subject: task.subject, command } }).catch(failed).finally(again);
-  };
   const repaint = () => { paintTasks(); line.repaint(); };
   const go = (task: BackgroundTaskRow) => { if (!task.open) return; if (task.open.kind === "surface" || !task.open.id) host.openSurface(task.open.surface); else host.openItem(task.open.surface, task.open.id, task.open.title); };
   document.addEventListener("click", event => {
@@ -212,7 +298,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
       const control = target.closest<HTMLElement>("[data-task-control]"), opened = target.closest<HTMLElement>("[data-task-open]");
       const on = tasks.find(one => one.id === (control?.dataset.task ?? opened?.dataset.taskOpen));
       if (!on) return;
-      if (control?.dataset.taskControl === "stop") stopTask(on); else if (control) go(on);
+      if (control?.dataset.taskControl === "stop") stops.stop(on); else if (control) go(on);
       else { wanted = ""; showTasks(true); backToCard(); carded = on.id; placing = false; paintTasks(); }
       return;
     }
@@ -232,7 +318,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     const stop = target.closest<HTMLElement>('[data-task-control="stop"]'), task = tasks.find(one => one.id === (stop?.dataset.task ?? carded));
     if (!task) return;
     const to = target.closest<HTMLElement>("[data-place-to]"), served = servedBy(task);
-    if (stop) stopTask(task);
+    if (stop) stops.stop(task);
     else if (target.closest("[data-place-change]")) { placing = !placing; paintTasks(); }
     else if (to) {
       // Where it goes is the owner's record, changed through the mainline service; what is under way goes on (WLN-36).
@@ -250,7 +336,7 @@ export function installTaskPanel(host: WorkBarHost, line: TaskPanelLine): { take
     offline(since) { if (since === offlineSince) return; offlineSince = since; paintTasks(); },
     // The tasks done for one event, as its card lists them (WLN-09): what waits on the person first, each with the way to decide or to stop.
     rows: subject => [...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at))
-      .map(task => { const { serves: _serves, control, ...rest } = row(task); return renderTaskRow({ ...rest, ...(asks(task) && task.open && !task.decisions.length ? { control: "decide" as const } : control ? { control } : {}) }); }).join(""),
+      .map(task => { const { serves: _serves, control, busy, ...rest } = row(task); return renderTaskRow({ ...rest, ...(asks(task) && task.open && !task.decisions.length ? { control: "decide" as const } : control ? { control, busy } : {}) }); }).join(""),
     // What the tasks done for one event ask the person, at the head of its card (WLN-10): the ones that wait first, each answered on its own.
     decisions: subject => decisionsOf([...tasks].filter(task => task.serves.some(one => keyOf(one) === keyOf(subject))).sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at)),
       task => keyOf(task.subject) !== keyOf(subject)),

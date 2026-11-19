@@ -135,8 +135,7 @@ for (const mode of ["missing", "cancelled"] as const) {
     assert.equal((await ports.todoBatches()).length, 0);
     const store = openTodoStore(dir);
     try {
-      const access = { projectId: null, everything: true, actor: "user" as const, actorId: "test" };
-      assert.equal(store.list(access).length, 0);
+      assert.equal(store.database().get("SELECT count(*) AS items FROM todo_items")?.items, 0);
     } finally { store.close(); }
   });
 }

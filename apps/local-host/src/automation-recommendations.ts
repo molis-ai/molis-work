@@ -10,6 +10,8 @@ import { HOST_PROVIDER_ID } from "./local-host.js";
 import { createHash } from "node:crypto";
 import type { OnboardingDocumentsInput, OnboardingDocumentsResult } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { OnboardingTaker } from "./onboarding-takers.js";
+import { offersQuiet, setOffersQuiet } from "@molis-ai/molis-work-service-automation-recommender";
+import { lookedRecently, offerProjectAutomation, type AutomationOfferHooks } from "./automation-proactive.js";
 
 export interface RecommendationEntry {
   readonly service: AutomationRecommender;
@@ -21,6 +23,9 @@ export interface RecommendationEntry {
   readonly project: LocalHostProjectReference;
   /** The project's plugins that declare they keep a handed-over text as a document, read when the person saves. */
   readonly documentTakers: () => Promise<readonly OnboardingTaker[]>;
+  readonly home: string;
+  /** Where the Assistant's card goes, when the request came through a project page that has the Assistant. */
+  readonly assistant?: AutomationOfferHooks;
 }
 const door = webEntryDoor<RecommendationEntry>("automation-recommendations", () => "请从当前项目的本机页面打开建议");
 const a = automationRecommendationActions;
@@ -32,17 +37,37 @@ function control(entry: RecommendationEntry, caller: ActionExecutionContext) {
   return { assertCurrent, beforeEffect: async () => { await caller.beforeEffect(); assertCurrent(); } };
 }
 
+/** The project read as the person, only the files of its folders, nothing written (AUT-01). */
+function scanAs(entry: RecommendationEntry, caller: ActionExecutionContext) {
+  const assertCurrent = () => { requireSynchronous(caller.assert_authority_current?.()); };
+  const fileAction = { ...workspaceReadActions.file, provider_id: HOST_PROVIDER_ID };
+  const files = bindActionClient(entry.files, () => ({
+    actor_id: caller.actor_id, actor_kind: "user", project_id: caller.project_id, audience: "user", locale: caller.locale,
+    permissions: ["workspace:read"], signal: caller.signal, query_only: true, allowed_actions: [fileAction],
+    assert_authority_current: assertCurrent,
+  }));
+  return entry.service.scan(subject(entry, caller), { ...entry.source, locale: caller.locale, read: query => files.invoke(fileAction, query),
+    candidates: () => entry.candidates(caller) }, { assertCurrent, beforeEffect: caller.beforeEffect });
+}
+
 export const automationRecommendationProvider = () => webEntryProvider(AUTOMATION_PROVIDER_ID, "项目自动化建议", [
-  door.bind(a.scan, (entry, _input, caller) => {
-    const assertCurrent = () => { requireSynchronous(caller.assert_authority_current?.()); };
-    const fileAction = { ...workspaceReadActions.file, provider_id: HOST_PROVIDER_ID };
-    const files = bindActionClient(entry.files, () => ({
-      actor_id: caller.actor_id, actor_kind: "user", project_id: caller.project_id, audience: "user", locale: caller.locale,
-      permissions: ["workspace:read"], signal: caller.signal, query_only: true, allowed_actions: [fileAction],
-      assert_authority_current: assertCurrent,
-    }));
-    return entry.service.scan(subject(entry, caller), { ...entry.source, locale: caller.locale, read: query => files.invoke(fileAction, query),
-      candidates: () => entry.candidates(caller) }, { assertCurrent, beforeEffect: caller.beforeEffect });
+  door.bind(a.scan, (entry, _input, caller) => scanAs(entry, caller)),
+  door.bind(a.offer, async (entry, _input, caller) => {
+    if (!entry.assistant) return { offered: false, reason: "no-assistant" };
+    if (offersQuiet(entry.home, caller.actor_id)) return { offered: false, reason: "off" };
+    const who = subject(entry, caller);
+    if (lookedRecently(entry.home, who)) return { offered: false, reason: "recent" };
+    const report = await scanAs(entry, caller);
+    await caller.beforeEffect();
+    control(entry, caller).assertCurrent();
+    return offerProjectAutomation(entry.home, who, report, entry.assistant);
+  }),
+  door.bind(a.offers, (entry, _input, caller) => ({ enabled: !offersQuiet(entry.home, caller.actor_id) })),
+  door.bind(a.setOffers, async (entry, input, caller) => {
+    const guard = control(entry, caller);
+    await guard.beforeEffect();
+    setOffersQuiet(entry.home, caller.actor_id, !input.enabled, guard.assertCurrent);
+    return { enabled: input.enabled };
   }),
   door.bind(a.preference, (entry, input, caller) => entry.service.change(subject(entry, caller), input, control(entry, caller))),
   door.bind(a.save, (entry, input, caller) => entry.service.save(subject(entry, caller), input.save_token, control(entry, caller),

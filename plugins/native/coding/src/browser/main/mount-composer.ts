@@ -92,12 +92,7 @@ function mountCooperation(page: Page) {
   refs.inputReceipts = inputReceipts({
     api: s.ports.api, translate: readText, q, refresh: s.ports.refresh, find: <Found extends Element = HTMLElement>(selector: string) => root.querySelector<Found>(selector), receipts: host.receipts,
     landed: (sent, said) => {
-      if (s.current === sent.id && input.value === sent.text) {
-        input.value = "";
-        window.molisFit?.(input);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-      status(page, said);
+      if (s.current === sent.id) status(page, said);
     },
   });
 }

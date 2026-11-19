@@ -218,6 +218,17 @@ export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHo
 }
 
 /**
+ * The project's AI working for the person in one project, from a shell page's request: the person's own authority, narrowed to
+ * `permissions`, with the `agent` audience, so a provider that keeps something from a project's AI until the person allows it
+ * (external sessions behind the project's AI read permit, sessions-rebuild contract design §7.4) decides as it would for any agent.
+ * It never reaches more than the person's call would. Onboarding reads the sessions it organizes this way (batch 35 item 1).
+ */
+export function bindLocalWebProjectAiActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference,
+  permissions: readonly string[], entry: LocalWebEntry & { readonly signal?: AbortSignal } = {}): BoundActionClient {
+  return boundLocalWebClient(host, reference, permissions, entry, caller => ({ ...caller, audience: "agent", permissions: caller.permissions.filter(permission => permissions.includes(permission)) }));
+}
+
+/**
  * The person's client for one action a page reads by itself (a plugin's declared stage data, T-133): the same snapshot as
  * `bindLocalWebActions`, narrowed to that action. Its call carries only the permissions the action declares, of those the person's
  * local authority reaches, and reaches no other action; the installation's grants, its generation and its running state are checked

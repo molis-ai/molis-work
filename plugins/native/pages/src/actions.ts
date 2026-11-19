@@ -2,7 +2,7 @@ import { objectSchema as object, arraySchema as array, createActionDefinition } 
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
 import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
@@ -121,7 +121,7 @@ export const pagesActions = {
   // Continuing from an imported file parses it, which is a material read inside the action itself.
   artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ], { item_kind: PAGES_SUBJECT_KIND,
     // Its own documents, and the imported files it can read (artifact-positioning A3, A4b; PG-079).
-    artifact_types: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }, { artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1 }],
+    artifact_types: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }, ...IMPORTED_DOCUMENT_READ_TYPES],
     file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }), { scheduling: "concurrent" }),
   /** 「被谁引用」 (artifact-positioning 五.1): documents whose text links to a version in the 成果库. */
   artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", /* @version action.pages.artifacts.referrers */ 1, "文档", read),

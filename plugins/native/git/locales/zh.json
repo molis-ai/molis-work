@@ -201,6 +201,15 @@
     "git.upstream.ahead": "{upstream}：领先 {ahead}",
     "git.upstream.behind": "{upstream}：落后 {behind}",
     "git.upstream.both": "{upstream}：领先 {ahead} · 落后 {behind}",
-    "git.upstream.synced": "与 {upstream} 同步"
+    "git.upstream.synced": "与 {upstream} 同步",
+    "git.commit.use-suggestion": "采用建议说明",
+    "git.commit.workspace-unavailable": "原工作目录已不可用。",
+    "git.draft.saving": "正在保存编辑…",
+    "git.draft.failed": "编辑未能保存，请保留此页面并重试：{reason}",
+    "git.draft.not-ready": "请等待已保存的编辑读取完成。",
+    "git.conflict.changed": "文件已在编辑后发生变化。请核对当前文件，再选择保留编辑或载入当前内容。",
+    "git.conflict.keep-edit": "保留我的编辑",
+    "git.conflict.use-disk": "载入当前文件",
+    "git.conflict.current-file": "当前文件"
   }
 }

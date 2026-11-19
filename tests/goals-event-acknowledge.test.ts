@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -17,6 +17,7 @@ import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-mana
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { mcpGoalReviews } from "./fixtures/project-review-entry.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { closeAfter, closeInOrder } from "./fixtures/ordered-cleanup.js";
 
 /**
  * `goals.events.acknowledge` is how an external AI session says it read a note, a requirement or the person's decision on a Goal and how
@@ -87,19 +88,21 @@ async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
   };
   const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
   return { home, project_id, database_path: project.database_path, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller, withCatalog: withHostCatalog,
-    close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+    close: (first?: { error: unknown }) => closeInOrder("Goals ack Host rig", [["Local Host", () => host.close()], ["temporary Home", () => rm(home, { recursive: true, force: true })]], first) };
 }
 
 async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
-  // T405-OWNER-CI-01: finish the offline seed before the real Host takes the Home owner.
-  const project = await withCatalog({ homeDirectory }, catalog => catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }));
-  const host = createMolisWorkLocalHost({ homeDirectory });
-  // T405-OWNER-CI-02: failed setup must close every transport already started.
+  let host: ReturnType<typeof createMolisWorkLocalHost> | undefined;
+  // T405-OWNER-CI-02: failed setup must close every transport already started; BL-1017: each later step still runs when one throws.
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined, mcp: MolisWorkServer | undefined;
-  const close = async () => { await mcp?.close(); await served?.close(); await host.close(); await rm(directory, { recursive: true, force: true }); };
+  const close = (first?: { error: unknown }) => closeInOrder("Goals ack MCP rig", [["MCP server", () => mcp?.close()], ["web server", () => served?.close()],
+    ["Local Host", () => host?.close()], ["temporary directory", () => rm(directory, { recursive: true, force: true })]], first);
   try {
+    // T405-OWNER-CI-01: finish the offline seed before the real Host takes the Home owner.
+    const project = await withCatalog({ homeDirectory }, catalog => catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }));
+    host = createMolisWorkLocalHost({ homeDirectory });
     // The rig's Host is the Home's: the grants go through the access settings it serves.
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project, `runtime:${runtimeId}`);
@@ -109,13 +112,13 @@ async function mcpRig(runtimeId: string, stable: string | null) {
       { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
     mcp = running;
     const call = async (id: string, input: object) => JSON.parse(await running.callTool(TOOL(id), input));
-    return { mcp: running, call, host, actions, person, project_id, close };
-  } catch (error) { await close(); throw error; }
+    return { mcp: running, call, host, served, directory, actions, person, project_id, close };
+  } catch (error) { await close({ error }); throw error; }
 }
 
 test("RCPT-376: a stable-session MCP caller says how it will treat the person's note: one system record under the session, the note it answers, replayed by key", { timeout: 120_000 }, async () => {
   const r = await mcpRig("claude-code", "ack-sess-01234567");
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-MCP";
     const note = await r.person.invoke(goalsActions.create, { goal_id, title: "接口先行", outcome: "先交付接口", idempotency_key: "create" })
       .then(() => r.person.invoke(goalsActions.note, { goal_id, body: NOTE, idempotency_key: "note" }));
@@ -162,7 +165,7 @@ test("RCPT-376: a stable-session MCP caller says how it will treat the person's 
     // It says nothing about the Goal: the state is what it was before, and the person's note is still the person's.
     assert.equal((await r.person.invoke(goalsActions.state, { goal_id })).work_status, "open");
     assert.equal((await r.call("goals.events.read", { goal_id, event_id: note.event_id })).actor_kind, "user");
-  } finally { await r.close(); }
+  });
 });
 
 test("RCPT-377/378: only a note, a requirement or the person's decision is answered; an unknown or foreign record, and a cursor that does not fit, are refused and write nothing", { timeout: 120_000 }, async () => {
@@ -170,7 +173,7 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
   const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "kinds-session-1");
   const say = (goal_id: string, event_id: string, read_cursor: number, key: string, over: object = {}) =>
     r.actions.invoke(mcp, goalsActions.acknowledge, { ...r.input(goal_id, event_id, read_cursor, key), ...over });
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-KINDS", other = "ACK-OTHER";
     const note = await r.newGoal(goal_id), foreign = await r.newGoal(other);
     const management = new LocalMcpServer(withCatalog, "management", null, { homeDirectory: r.home,
@@ -230,12 +233,12 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
     // The edges are accepted: the note's own cursor, and the project's current one.
     await say(goal_id, note.event_id, noted.journal_seq, "edge-low");
     await say(goal_id, note.event_id, await r.cursor(goal_id), "edge-high");
-  } finally { await r.close(); }
+  });
 });
 
 test("RCPT-379: who is speaking comes from the call alone; a Runtime with no stable session writes nothing", { timeout: 120_000 }, async () => {
   const r = await hostRig("identity");
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-WHO", note = await r.newGoal(goal_id), read_cursor = await r.cursor(goal_id);
     const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "identity-session-9");
     for (const forged of [{ actor_id: "someone-else" }, { project_id: "foreign" }, { session_id: "borrowed" }, { actor_kind: "user" }, { by: { channel: "mcp", runtime_id: "codex", session_id: "x" } }]) {
@@ -262,20 +265,20 @@ test("RCPT-379: who is speaking comes from the call alone; a Runtime with no sta
       assert.equal(written.actor_id, caller.audit_actor_id ?? caller.actor_id, `${name}: the author is the caller's audit identity`);
     }
     // The real MCP server marks a Runtime without a stable session, and the action refuses it at dispatch.
-  } finally { await r.close(); }
+  });
   const sessionless = await mcpRig("claude-code", null);
-  try {
+  await closeAfter(sessionless.close, async () => {
     const goal_id = "ACK-NOSESSION", note = await sessionless.person.invoke(goalsActions.create, { goal_id, title: "无会话", outcome: "x", idempotency_key: "create" })
       .then(() => sessionless.person.invoke(goalsActions.note, { goal_id, body: NOTE, idempotency_key: "note" }));
     await assert.rejects(sessionless.call("goals.events.acknowledge", { goal_id, event_id: note.event_id, treatment: "noted", note: SAID, read_cursor: note.observed_event_cursor, idempotency_key: "k" }),
       (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && /稳定 Session/.test(error.message));
     assert.equal((await sessionless.person.invoke(goalsActions.events, { goal_id })).events.filter(event => operationOf(event as GoalWorkEventRecord) === "input_acknowledged").length, 0);
-  } finally { await sessionless.close(); }
+  });
 });
 
 test("RCPT-380: only an Agent or an MCP session may answer; a page, a workflow or a plugin may not, and another project's context is a scope mismatch", async () => {
   const plugin = goalsPlugin(), r = await hostRig("audience", plugin);
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-AUDIENCE", note = await r.newGoal(goal_id), read_cursor = await r.cursor(goal_id);
     const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "audience-session");
     const input = r.input(goal_id, note.event_id, read_cursor, "audience");
@@ -292,12 +295,12 @@ test("RCPT-380: only an Agent or an MCP session may answer; a page, a workflow o
     await assert.rejects(r.actions.invoke({ ...mcp, project_id: "foreign" }, goalsActions.acknowledge, input), { code: "actions.scope_mismatch" });
     assert.deepEqual(await r.acknowledged(goal_id), [], "nothing was written by any refusal");
     assert.deepEqual([goalsActions.acknowledge.action.audiences, goalsActions.acknowledge.action.plugin], [["agent", "mcp"], false]);
-  } finally { await r.close(); }
+  });
 });
 
 test("RCPT-381: a call cancelled, revoked or disabled before its handler writes no record and no idempotency entry, and leaves a 「未执行」 row without the content", { timeout: 60_000 }, async () => {
   const r = await hostRig("refused");
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-REFUSED", note = await r.newGoal(goal_id), read_cursor = await r.cursor(goal_id);
     const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "refused-session");
     const input = r.input(goal_id, note.event_id, read_cursor, "refused-key");
@@ -322,12 +325,12 @@ test("RCPT-381: a call cancelled, revoked or disabled before its handler writes 
     const first = await r.actions.invoke(mcp, goalsActions.acknowledge, input) as { replayed: boolean };
     assert.equal(first.replayed, false);
     assert.equal(await count(), before + 1);
-  } finally { await r.close(); }
+  });
 });
 
 test("RCPT-382: the timeline says which session read what, how it will be handled and what it said; 「你的」 only for the person's own record; English on an English page", { timeout: 120_000 }, async () => {
   const r = await mcpRig("claude-code", "ack-sess-01234567");
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-TIMELINE", note = await r.person.invoke(goalsActions.create, { goal_id, title: "时间线", outcome: "x", idempotency_key: "create" })
       .then(() => r.person.invoke(goalsActions.note, { goal_id, body: NOTE, idempotency_key: "note" }));
     const said = await r.call("goals.events.acknowledge", { goal_id, event_id: note.event_id, treatment: "later-step", note: SAID, read_cursor: note.observed_event_cursor, idempotency_key: "ack" });
@@ -361,7 +364,7 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
     // The meta line's type word comes from SYSTEM_TYPE_LABELS, which every system record shows in Chinese; this slice keeps that, so it is left out here.
     const body = html.replace(/<p class="event-meta">.*?<\/p>/, "").replaceAll(reference.title, "").replaceAll(SAID, "");
     assert.doesNotMatch(body, /\p{Script=Han}/u, "no Chinese is left around the person's words");
-  } finally { await r.close(); }
+  });
 });
 
 // RCPT-383: the callable contract is written down in tooling/gates/actions (the action-contract snapshot, which tests/action-contract-snapshot
@@ -390,6 +393,30 @@ test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for a
   }
 });
 
+test("BL-1017: when the rig's first close step throws, the web server and Host still close, the directory goes and that error is reported", { timeout: 120_000 }, async () => {
+  const r = await mcpRig("claude-code", null);
+  const closed: string[] = [], injected = new Error("BL-1017 injected MCP close failure");
+  const closeMcp = r.mcp.close.bind(r.mcp), closeServed = r.served.close.bind(r.served), closeHost = r.host.close.bind(r.host);
+  r.mcp.close = async () => { closed.push("MCP server"); await closeMcp(); throw injected; };
+  r.served.close = async () => { closed.push("web server"); return closeServed(); };
+  r.host.close = async () => { closed.push("Local Host"); return closeHost(); };
+  await assert.rejects(r.close(), error => error === injected, "the first failure is reported as it is");
+  assert.deepEqual(closed, ["MCP server", "web server", "Local Host"]);
+  await assert.rejects(stat(r.directory), { code: "ENOENT" }, "the rig's directory is gone");
+});
+
+test("BL-1017: the test's own error stays first when cleanup also fails, and every later step still runs", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "goals-ack-cleanup-"));
+  const ran: string[] = [], body = new Error("BL-1017 test failure"), shut = new Error("BL-1017 close failure");
+  const close = (first?: { error: unknown }) => closeInOrder("probe", [["first", () => { ran.push("first"); throw shut; }], ["second", () => { ran.push("second"); }],
+    ["temporary directory", () => rm(directory, { recursive: true, force: true })]], first);
+  await assert.rejects(closeAfter(close, async () => { throw body; }), error =>
+    error instanceof AggregateError && error.cause === body && error.errors[0] === body && error.errors[1] === shut && /test, first failed/.test(error.message));
+  assert.deepEqual(ran, ["first", "second"]);
+  await assert.rejects(stat(directory), { code: "ENOENT" });
+  assert.equal(await closeAfter(async () => {}, async () => "kept"), "kept", "a passing body keeps its result");
+});
+
 // The heading of a record is the first 80 characters of what was said, as whole characters (an emoji is one): never half of one, never short of 80.
 const HEADINGS = [
   { name: "the 80th character is a two-unit one", said: "a".repeat(79) + "😀" + "尾".repeat(10), heading: "a".repeat(79) + "😀" },
@@ -401,7 +428,7 @@ const HEADINGS = [
 test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 whole characters", { timeout: 120_000 }, async t => {
   const r = await hostRig("heading");
   const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "heading-session-1");
-  try {
+  await closeAfter(r.close, async () => {
     const goal_id = "ACK-HEADING", first = await r.newGoal(goal_id);
     const headingOf = async (event_id: string) => (await r.events(goal_id)).find(event => event.event_id === event_id)?.title;
     for (const [index, c] of HEADINGS.entries()) {
@@ -414,5 +441,5 @@ test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 w
         assert.equal(await headingOf(said.event_id), c.heading);
       });
     }
-  } finally { await r.close(); }
+  });
 });

@@ -15,7 +15,8 @@ import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/a
 const OLD_PATTERN = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 const oldReads = (file: { filename: string; stored?: unknown; text?: string }) => file.stored ? Boolean(file.text?.trim()) : OLD_PATTERN.test(file.filename);
 
-const pagesContinuer = () => artifactContinuers().get(IMPORTED_DOCUMENT_TYPE)!.find(item => item.plugin_id === PAGES_PLUGIN_ID)!;
+const importedType = (schema_version: number) => ({ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version });
+const pagesContinuer = () => artifactContinuers(importedType(1)).find(item => item.plugin_id === PAGES_PLUGIN_ID)!;
 
 test("RAC-418: Pages' continue list is the same, extension by extension, as before the declaration", () => {
   const continuer = pagesContinuer();
@@ -30,13 +31,17 @@ test("RAC-418: Pages' continue list is the same, extension by extension, as befo
 test("RAC-418: a plugin that declares .pdf appears for a PDF import and not for a Markdown one; one with no declaration takes every file", () => {
   // The files a continuer reads are on its continue action's intake (contract-design §2.3), not on the 成果 type it reads.
   const continueFrom = (plugin_id: string, file?: { extensions: string[] }) => defineArtifactContinueAction(plugin_id + ".continue", 1, "文档", [],
-    { item_kind: "document", artifact_types: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1 }], ...(file ? { file } : {}) });
+    { item_kind: "document", artifact_types: [importedType(1)], ...(file ? { file } : {}) });
   const source = (plugin_id: string, file?: { extensions: string[] }) => ({ plugin_id, name: plugin_id, surface: plugin_id, actions: [continueFrom(plugin_id, file)],
-    artifacts: { produces: [], consumes: [{ artifact_type_id: IMPORTED_DOCUMENT_TYPE, schema_version: 1 }] } });
-  const continuers = artifactContinuers([...artifactProducerSources(), source("example.pdf-reader", { extensions: [".pdf"] }), source("example.any")]).get(IMPORTED_DOCUMENT_TYPE)!;
+    artifacts: { produces: [], consumes: [importedType(1)] } });
+  const sources = [...artifactProducerSources(), source("example.pdf-reader", { extensions: [".pdf"] }), source("example.any")];
+  const continuers = artifactContinuers(importedType(1), sources);
   const listedFor = (filename: string) => continuers.filter(item => continuerReadsFile(item, { filename })).map(item => item.plugin_id).sort();
   assert.deepEqual(listedFor("report.pdf"), ["example.any", "example.pdf-reader"]);
   assert.deepEqual(listedFor("notes.md"), ["example.any", PAGES_PLUGIN_ID].sort());
+  // QEA-80: the same Pages action is offered once for each usable schema. A declared old-only consumer disappears in 2.
+  assert.deepEqual(artifactContinuers(importedType(2), sources).map(item => item.plugin_id), [PAGES_PLUGIN_ID]);
+  assert.deepEqual(artifactContinuers(importedType(3), sources), []);
 });
 
 test("RAC-418: the Manifest check refuses a file declaration that cannot work", () => {

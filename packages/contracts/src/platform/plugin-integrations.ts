@@ -19,8 +19,11 @@ export type PluginConnectionLink = WithConnectionLabel<ConnectorSetupLink>;
  * installation (S-57), and a binding carries only the references of the connection a source already holds.
  */
 
-/** What an integration does with a service's account: a Feed pulls from it, or the 成果库 imports a document through it. */
-export const INTEGRATION_KINDS = ["source", "document_import"] as const;
+/**
+ * What an integration does with a service's account: a Feed pulls from it, the 成果库 imports a document through it, or the platform's
+ * web search (`web_search.query@1`, specs/assistant-service-connections §13.7) asks it when the person made it the default source.
+ */
+export const INTEGRATION_KINDS = ["source", "document_import", "web_search"] as const;
 export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
 /**
@@ -192,6 +195,23 @@ export interface PluginConnectionServiceDeclaration {
    * sees them before installing and they are kept with the publisher they trusted. A plugin the Host builds never writes them.
    */
   readonly origins?: readonly string[];
+  /**
+   * The kinds of work the service stands in for, written as a skill's `connector_categories` (`project-tracker`, `chat`, `calendar`): a
+   * skill that names one is resolved to a connected account of a service that declares it (§13.7, ASC-38～40). At most 8.
+   */
+  readonly categories?: readonly string[];
+  /**
+   * What in a project says the person works with this service, read by the project's automation suggestions (specs/automation-recommender
+   * §7): a Git remote on one of `git_hosts`, a file or folder at one of `files` (a relative path, `/` at the end for a folder), or a
+   * dependency named in `dependencies` (a package name; `@scope/*` matches the scope). Each list at most 16 entries.
+   */
+  readonly project_hints?: PluginServiceProjectHints;
+}
+
+export interface PluginServiceProjectHints {
+  readonly git_hosts?: readonly string[];
+  readonly files?: readonly string[];
+  readonly dependencies?: readonly string[];
 }
 
 /** One thing the plugin does with a service of its own `connection_services`. */

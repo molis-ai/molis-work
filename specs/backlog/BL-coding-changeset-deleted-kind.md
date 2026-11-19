@@ -4,4 +4,6 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BL-coding-changeset-deleted-kind | 一轮里删了文件，「本轮固定变更」里看不到：`CodingFileChangeKind` 的 `deleted` 没有写入方，`createCodingChangeSet` 只写 `modified` 和 `added`。删文件走 `run-command` 的回执（`coverage: "text-reviews"` 说的就是这件事）或子任务合并的 `target: "deleted"`，都不进固定变更。先判断要不要把删除收进固定变更：要，就补写入方；不要，就收窄这个取值 | 第 02 批复查（2026-11-08） | 明确后续做 | 这是产品判断，收窄会把现在的缺口写死。SDK 的 `DiffFileEntry.kind` 和 `diff.state@1` 的 `files[].kind` 也有 `deleted`，第三方能画，不能随手去掉 | 无 | 低 | B／Coding、Files 与 Git（执行会话待分配） |
+| BL-coding-changeset-deleted-kind | Coding 保存「本轮变更」时，把有证据表明在本轮成功删除的文件列为「已删除」，显示文件路径。 | 第 02 批复查（2026-11-08） | 未实现 | 生成固定变更的 createCodingChangeSet 目前只写 added 和 modified。命令回执或子任务合并结果中的删除尚未进入清单。 | 无；第 02 批复查发现。执行批次 [99-1](../post-anticorruption-roadmap/reference/batches/99.md#batch-99-item-1)。 | 低 | B／Coding、Files 与 Git（执行会话待分配） |
+
+2026-11-18 用户决定。命令执行记录或子任务合并记录能证实本轮删掉了哪个文件，就保存对应路径与 deleted 状态。只有删除命令文字、执行结果未知或只看到文件已不在工作区，都不足以把删除归给本轮。SDK 的公开 Diff 仍支持 deleted。

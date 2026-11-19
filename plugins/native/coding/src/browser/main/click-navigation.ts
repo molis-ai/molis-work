@@ -22,7 +22,7 @@ async function openFace(page: Page, target: HTMLButtonElement) {
   directory.querySelector<HTMLElement>("[data-coding-goal-face]")!.hidden = face !== "goals";
   page.refs.filesFace.show(face === "files");
   directory.querySelectorAll("[data-coding-face]").forEach(button => button.setAttribute("aria-pressed", String(button === target)));
-  directory.querySelector(".mw-dir__label")!.textContent = face === "taskboard" ? "TaskBoard" : face === "goals" ? uiText.text("coding.face.goals") : face === "artifacts" ? uiText.text("coding.face.artifacts") : face === "files" ? uiText.text("coding.face.files") : uiText.text("coding.face.sessions");
+  directory.querySelector(".mw-dir__label")!.textContent = face === "taskboard" ? uiText.text("coding.face.taskboard") : face === "goals" ? uiText.text("coding.face.goals") : face === "artifacts" ? uiText.text("coding.face.artifacts") : face === "files" ? uiText.text("coding.face.files") : uiText.text("coding.face.sessions");
   if (face === "taskboard") {
     taskboard.showOutline();
     if (s.current) await readCurrent(page);

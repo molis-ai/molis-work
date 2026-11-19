@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
+import { ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   withContextJourneys,
@@ -42,11 +42,13 @@ import {
   stagedJourneyIds,
 } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
-import { configuredTextPort, type TextModelPort } from "./configured-text-port.js";
+import { ONBOARDING_TEXT_MODEL_MISSING, onboardingTextModel, type TextModelPort } from "./configured-text-port.js";
+import type { HostTextCommitResult } from "./host-complete-text.js";
 import { prepareContextDocument } from "./context-onboarding-documents.js";
+import { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
+import { partTitle, textParts } from "./context-onboarding-parts.js";
 import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { partTitle, textParts } from "./context-onboarding-text-parts.js";
 import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboarding.js";
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -63,8 +65,13 @@ export interface ContextOnboardingPorts {
   actions?: (home: string, projectId: string, original_file?: HostOfferedOriginalFile) => Promise<BoundActionClient>;
   /** The person's call of one taker's own declared Home action (drafts are made before the project exists), with its permissions only. */
   takeAtHome?: (definition: ActionDefinition, signal: AbortSignal) => BoundActionClient;
-  model?: (home: string) => Promise<TextModelPort>;
+  model?: (home: string) => Promise<TextModelPort<string>>;
   readSource?: typeof readContextSource;
+  /**
+   * The actions of an existing project's AI (not the person): the round reads the external sessions filed to that project through them,
+   * so the project's AI read permit decides (batch 35 item 1, sessions-rebuild contract design §7.4). None offered without it.
+   */
+  sessions?: (home: string, projectId: string, signal: AbortSignal) => Promise<BoundActionClient>;
   /** The plugins that declare they take a kind of onboarding material (`onboardingTakers`, contract-design §2.5); none offered without it. */
   takers?: (kind: OnboardingMaterialKind) => readonly OnboardingTaker[];
   /** The person's call of one taker's own declared action in the new project, with that action's permissions only (§7.7 C1). */
@@ -253,12 +260,6 @@ export function reopenContextJourney(home: string, id: string): ContextJourney {
   return withContextJourneys(home, store => store.save(journey));
 }
 
-/** Onboarding's own calls: its instructions, recorded under its own owner, with no other feature's role in front of them. */
-export async function contextModel(home: string, ports: ContextOnboardingPorts): Promise<TextModelPort> {
-  return ports.model ? ports.model(home)
-    : configuredTextPort(home, { owner: ONBOARDING_OWNER, timeoutMs: 180_000, unavailableReason: "材料已保存。请在设置中连接文字模型，再回来继续整理。" });
-}
-
 export function startContextJourney(home: string, id: string, ports: ContextOnboardingPorts): ContextJourney {
   const k = key(home, id);
   if (running.has(k)) return readContextJourney(home, id);
@@ -297,6 +298,14 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
   await running.get(key(home, id)); return readContextJourney(home, id);
 }
 
+/** The person's AI tool sessions as a source's files, through the Host's reader of them (BL-177); refused when this Host has none. */
+async function readSessionsSource(home: string, journey: ContextJourney, ports: ContextOnboardingPorts, signal: AbortSignal) {
+  if (!ports.sessions) throw new Error("这里读不了外部会话");
+  const read = await readOnboardingSessions(await ports.sessions(home, journey.project_id, signal), signal);
+  if ("refused" in read) throw new Error(read.refused);
+  return read;
+}
+
 async function organize(home: string, journey: ContextJourney, runEpoch: number, signal: AbortSignal, ports: ContextOnboardingPorts): Promise<void> {
   const isCurrent = () => {
     const latest = withContextJourneys(home, store => store.find(journey.id));
@@ -322,9 +331,13 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     for (const source of journey.sources.filter(s => s.selected)) {
       signal.throwIfAborted();
       if (source.references) continue;
+      // A new project has no sessions filed to it and no permit yet: the person chose them for the step after the project is made.
+      if (source.kind === "sessions" && !journey.existing) continue;
       source.error = undefined; save();
       try {
-        const input = await (ports.readSource ?? readContextSource)(home, source);
+        const sessions = source.kind === "sessions" ? await readSessionsSource(home, journey, ports, signal) : null;
+        const titles: Record<string, string> = sessions?.titles ?? {};
+        const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source);
         signal.throwIfAborted();
         const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
         const reading = source.reading?.total === input.files.length
@@ -347,6 +360,8 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
             reading.references.push(prevRef);
           } else {
             const read = await prepareContextDocument(home, journey.id, source.kind, file, signal, journey.secret_decisions);
+            const session = source.kind === "sessions" ? sessionKeyOf(file.path) : null;
+            if ("reference" in read && session) Object.assign(read.reference, { session_key: session, title: titles[file.path] ?? read.reference.title });
             if ("reference" in read) reading.references.push(read.reference);
             else if ("secret_hold" in read) (reading.held_secrets ??= []).push(read.secret_hold);
             else if ("issue" in read) reading.issues.push(read.issue);
@@ -376,22 +391,27 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     const unique = deduplicateSelectedReferences(selectedSources);
     save();
     if (!unique.length) {
+      // The sessions were the round's material and could not be read (the permit is off, say): the organizing does not run, and says why.
+      const refused = selectedSources.find(s => s.kind === "sessions" && s.error);
+      if (refused && journey.existing) throw new Error(refused.error);
       if (selectedSources.some(s => s.held_secrets?.length)) {
         throw new Error("检测到疑似密钥文件，默认未发送给模型；请先选择只发变量名、不发或原样发送。");
       }
       throw new Error("还没有读到正文，请检查来源范围后重试");
     }
-    const ai = await contextModel(home, ports);
+    const ai = await onboardingTextModel(home, ports.model);
     signal.throwIfAborted();
     journey.model = ai.runtimeLabel ?? null; save();
-    if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
+    if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? ONBOARDING_TEXT_MODEL_MISSING); }
     reachedModel = true;
     // Drafts come from the same materials, beside the overview; a failure there never stops the overview.
     const drafts = draftFromMaterials(home, journey, unique, signal, ports, save);
-    const raw = await summarizeContext(home, unique, ai, journey, signal, save);
+    const answer = await summarizeContext(home, unique, ai, journey, signal, save);
     await drafts;
+    signal.throwIfAborted();
     if (!isCurrent()) throw STALE_EPOCH;
-    const parsed = parseContextSummary(raw, unique);
+    answer.validateResult();
+    const parsed = parseContextSummary(answer.value, unique);
     const citedLabels = new Set(parsed.references.filter(r => r.used_in_summary).map(r => r.label));
     for (const source of selectedSources) {
       for (const ref of source.references ?? []) {
@@ -485,11 +505,11 @@ async function* batchesOf(items: AsyncIterable<Evidence>): AsyncGenerator<Eviden
 async function summarizeContext(
   home: string,
   references: ContextReference[],
-  ai: TextModelPort,
+  ai: TextModelPort<HostTextCommitResult>,
   journey: ContextJourney,
   signal: AbortSignal,
   save: () => unknown,
-): Promise<string> {
+): Promise<HostTextCommitResult> {
   const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
   if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [], batches: { done: 0, all: 0 }, timing: { ms: 0, calls: 0 } };
   const checkpoint = journey.synthesis;
@@ -514,11 +534,16 @@ async function summarizeContext(
       const labels = [...new Set(batch.flatMap(item => item.labels))];
       let note = await readStagedNote(home, journey.id, bKey);
       if (note === null) {
-        note = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+        const answer = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
         signal.throwIfAborted();
+        note = answer.value;
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
-        await stageNote(home, journey.id, bKey, note);
+        await stageNote(home, journey.id, bKey, note, () => {
+          signal.throwIfAborted();
+          answer.validateResult();
+        });
+        signal.throwIfAborted();
         checkpoint.notes.push(bKey);
       }
       notes.push({ labels, key: bKey }); inSize += JSON.stringify(batch).length; outSize += JSON.stringify({ labels, body: note }).length;
@@ -552,6 +577,7 @@ export function parseContextSummary(raw: string, references: ContextReference[])
   return { title: parts[1]!.trim(), body, references: references.map(r => ({ ...r, used_in_summary: cited.has(r.label) })) };
 }
 
+/**
 /**
  * The taker of `kind` this round uses (contract-design §2.5): the only one, or the one the person chose among several. Undefined when
  * there is none, or several and no choice.
@@ -673,6 +699,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const keep = [...new Set(kept.filter(value => !drafted || drafted.has(value)))];
   // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
   // round read it, never a path from the request (ONB-44, batch12-design §7.3).
+  // A round for an existing project only adds what it read: no blank start, and no folder handed on as a new project's.
+  if (journey.existing && !journey.adoption && (input.blank === true || typeof input.take === "string")) throw new Error("给已有项目补的材料只能采用整理结果");
   const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;
   const taker = wanted ? ports.takers?.("code_root").find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
   if (wanted && !journey.adoption && !(taker && root)) throw new Error("这个文件夹不能这样交出去：只有你自己选的、顶层有项目文件的文件夹，交给声明了能接手的插件");
@@ -684,7 +712,13 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   // import, kept apart from work done in the project later. The scope ends with the adoption.
   const job = withObservationSource("imported", () => Promise.resolve().then(async () => {
     try {
-      await ports.withCatalog({ homeDirectory: home }, async catalog => {
+      // A round for an existing project makes no project and leaves its folders and description as they are; the summary still goes to
+      // the documents taker this round uses, as a new project's does, so it is added when the project does not have it (adding it twice
+      // changes nothing).
+      if (journey.existing) await ports.withCatalog({ homeDirectory: home }, catalog => {
+        catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: journey.adoption!.documents!.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
+      });
+      else await ports.withCatalog({ homeDirectory: home }, async catalog => {
         await catalog.createProject({ display_name: journey.adoption!.title, actor_id: LOCAL_PERSON_ACTOR_ID, project_id: journey.project_id });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: journey.adoption!.documents!.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID });
         // Artifact imports use the platform service in every project.
@@ -701,7 +735,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         }
       });
       // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
-      if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
+      if (!journey.adoption!.blank && !journey.existing) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
       const client = await ports.actions(home, journey.project_id);
       const actions = Object.assign(client, { forOriginal: (path: string) => ports.actions!(home, journey.project_id, { path, install_id: ARTIFACTS_PLUGIN_ID }) });
@@ -711,7 +745,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       const handed = await importAdoptedMaterialsAndSummary({ home, id, journey, actions, documents: { client: keeper, action: documentsTaker.take } });
       await keepDrafts(home, journey, ports);
       await handToTaker(home, journey, handed, ports);
-      completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
+      if (!journey.existing) completeMolisWorkOnboarding(home, journey.project_id);
+      journey.phase = "complete"; journey.error = null;
       // The project now holds the materials; what the round staged goes. The project is made either way: a staging that cannot be
       // removed now is only space, and must not turn a finished project back into a failure.
       await removeJourneyStaging(home, id).catch(error => hostLog.warn("onboarding", "staging_not_removed", error));

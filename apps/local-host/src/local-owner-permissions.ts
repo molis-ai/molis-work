@@ -6,6 +6,7 @@ import { HOME_ACTION_PERMISSIONS, HOME_PROVIDER_ID } from "./home-actions.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_PROVIDER_ID } from "./connector-account-actions.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { connectorRecordActions } from "./connector-record-actions.js";
+import { WEB_SEARCH_MANAGE, WEB_SEARCH_QUERY } from "./web-search-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
@@ -60,7 +61,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
     [APPEARANCE_PROVIDER_ID, [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION]],
-    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, KIT_READ_PERMISSION]],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, WEB_SEARCH_QUERY, WEB_SEARCH_MANAGE, KIT_READ_PERMISSION]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     // Writing a Skill of one's own is the same: the package of own Skills is signed and installed here (batch 41).

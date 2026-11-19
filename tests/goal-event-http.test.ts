@@ -11,6 +11,7 @@ import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-a
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { closeInOrder } from "./fixtures/ordered-cleanup.js";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -975,14 +976,15 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
 
 test("onboarding initialize receipt has no retired aliases and persists onboarding source", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-event-http-onboarding-"));
-  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
-  const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
-  const server = createMolisWorkWebServer({
-    homeDirectory, localHost: host,
-    controlToken: TOKEN,
-  });
-  let store: LocalProjectDatabase | undefined;
+  let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let store: LocalProjectDatabase | undefined, failure: { error: unknown } | undefined;
   try {
+    host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+    const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
+    server = createMolisWorkWebServer({
+      homeDirectory, localHost: host,
+      controlToken: TOKEN,
+    });
     const origin = await listen(server);
     const initializedResponse = await fetch(`${origin}/api/onboarding/initialize`, {
       method: "POST",
@@ -1014,15 +1016,16 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
     store = new LocalProjectDatabase(project.database_path);
     const app = new GoalProjectApplication(store);
     assert.equal(app.goalEvents.readState(project.project_id, initialized.goal_id).intent.source_kind, "onboarding");
-  } finally {
-    try {
-      if (server.listening) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    } finally {
-      store?.close();
-      await host.close();
-      rmSync(homeDirectory, { recursive: true, force: true });
-    }
+  } catch (error) {
+    failure = { error };
   }
+  // BL-1017: every step runs even when an earlier one throws; the test's own error, else the first cleanup error, is reported.
+  await closeInOrder("Onboarding fixture", [
+    ["web server", () => server?.listening ? new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve())) : undefined],
+    ["project store", () => store?.close()],
+    ["Local Host", () => host?.close()],
+    ["temporary Home", () => rmSync(homeDirectory, { recursive: true, force: true })],
+  ], failure);
 });
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {

@@ -1,3 +1,4 @@
+// QEA-26: Images public actions, cancellation/revocation and stored jobs after migration to the shared binder.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -10,6 +11,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { readdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 const PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 async function fixture(t:test.TestContext,directory?:string) {
   const home=directory??await mkdtemp(join(tmpdir(),'images-actions-'));
@@ -72,7 +74,13 @@ test('Images connection revocation rejects late results and cannot fall back to 
   withConnectorConnections(f.home,store=>store.disconnect(auth.connection_id));release.resolve();
   // W5-01-IMGPORT-02: connection revocation cannot append even a failure business record.
   await new Promise(resolve=>setTimeout(resolve,300));
-  const {job:unchanged}=await f.client.invoke(actions.get,{id:job.id});assert.equal(unchanged.status,'running');assert.deepEqual(unchanged.images,[]);assert.equal(unchanged.error,'');
+  const {job:ended}=await f.client.invoke(actions.get,{id:job.id});
+  assert.equal(ended.status, "interrupted"); assert.ok(ended.finished_at); assert.deepEqual(ended.images, []);
+  const db = new DatabaseSync(join(f.home, "images", "images.db"), { readOnly: true });
+  try {
+    assert.deepEqual({ ...db.prepare("SELECT status, images_json, error, finished_at FROM jobs WHERE id=?").get(job.id) },
+      { status: "running", images_json: "[]", error: "", finished_at: null }, "the interrupted view performs no business write for the revoked caller");
+  } finally { db.close(); }
   const listed=await f.global.invoke(actions.connections,{});assert.equal(listed.connections[0]!.available,false);assert.equal(listed.auth_connections[0]!.state,'disconnected');
   await assert.rejects(f.client.invoke(actions.start,{request_id:'new',connection_id:connection.id,prompt:'second'}),{code:'images.key_required'});assert.equal(calls,1);
 });

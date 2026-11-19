@@ -126,7 +126,7 @@ function answer(url: URL, method: string, body: string | null, signal?: AbortSig
 window.molisWorkUiTransport = (input, init) => {
   const url = new URL(input, location.href), method = (init.method ?? "GET").toUpperCase();
   if (url.origin === location.origin && url.pathname === PREFIX + "/api/attention" && method === "GET") {
-    return Promise.resolve(json({ background_tasks: [], notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
+    return Promise.resolve(json({ background_tasks: { tasks: [], issues: [] }, notices: copy(S.notices), plugin_events_pending: 0, board_cursor: null }));
   }
   // The Host's word that something here may have changed (WLN-27): the page reads its attention on each word and on none else, so
   // the stand-in says it once on connecting and then stays quiet until the page closes the stream.

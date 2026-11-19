@@ -40,7 +40,7 @@ export function createWorkbenchStageRenderers(ports: {
     route_prefix: view?.route_prefix ?? "", shown_plugins: view?.shown_plugins ?? view?.enabled_plugins ?? [],
     ...(view?.stage_data && projectPluginId in view.stage_data ? { data: view.stage_data[projectPluginId] } : {}),
     ...(view?.stage_request?.[projectPluginId] ? { request: view.stage_request[projectPluginId] } : {}), primitives,
-    context: { project: view?.project ?? null, demo: view?.demo ?? false, cli_availability: view?.cli_availability ?? {}, client_data: { inbox_judgment: view?.inbox_judgment } },
+    context: { project: view?.project ?? null, demo: view?.demo ?? false, cli_availability: view?.cli_availability ?? {} },
     drawing: { mount: mountContributionsOf(pluginId), currentLocale, listJoin, formatDocumentDate: formatDate, renderList, prefixLocalLinks,
       renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: readText }),
       creatableKinds: creatableKinds(view ? shownPagePlugins(view) : [], pluginDirectoryFor(view?.plugin_directory)),

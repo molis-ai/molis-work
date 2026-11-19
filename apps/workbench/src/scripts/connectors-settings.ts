@@ -596,6 +596,17 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         box.querySelector('[data-connectors-no-results]').hidden = total > 0;
       };
       search?.addEventListener('input', filter);
+      // 按服务／按用途 (§13.7 ①B): both views are drawn; the switch shows one. A 要先连 mark in the use view opens that service's row.
+      const views = [...box.querySelectorAll('[data-connectors-view]')];
+      const showView = (which) => {
+        views.forEach(button => { const on = button.dataset.connectorsView === which; button.classList.toggle('is-current', on); button.setAttribute('aria-pressed', String(on)); });
+        box.querySelectorAll('[data-connectors-by-service]').forEach(node => { node.hidden = which !== 'service'; });
+        const uses = box.querySelector('[data-connectors-uses]'); if (uses) uses.hidden = which !== 'use';
+      };
+      views.forEach(button => button.addEventListener('click', () => showView(button.dataset.connectorsView)));
+      box.querySelectorAll('[data-connectors-uses] .connection-uses__go').forEach(link => link.addEventListener('click', event => {
+        event.preventDefault(); showView('service'); openService(link.getAttribute('href').slice('#connector-'.length));
+      }));
       box.querySelector('[data-connectors-reset]')?.addEventListener('click', () => { search.value = ''; filter(); search.focus(); });
       click('[data-connector-open]', button => openService(button.dataset.connectorOpen));
       const slots = box.querySelector('[data-plugin-slots]');

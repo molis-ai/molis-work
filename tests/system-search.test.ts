@@ -95,13 +95,13 @@ function registerPersonal(service: ActionService, memos: Note[]) {
 
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "todo:read", "search:read"] });
 
-async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number; onError?: (error: unknown, where: string) => void } = {}) {
+async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number; personalSpace?: string; onError?: (error: unknown, where: string) => void } = {}) {
   const home = await mkdtemp(join(tmpdir(), "system-search-"));
   const actions = new ActionService();
   let now = 1_000_000;
   let index = openTextSearchIndex({ homeDirectory: home });
   const make = () => new SearchService({ index, clock: options.clock ?? (() => now), freshMs: options.freshMs ?? 60_000, budgetMs: 5_000, refreshDelayMs: 5,
-    indexer: async project_id => ({ client: actions, caller: owner(project_id) }), ...(options.onError ? { onError: options.onError } : {}) });
+    indexer: async project_id => ({ client: actions, caller: owner(project_id) }), personalSpace: options.personalSpace, ...(options.onError ? { onError: options.onError } : {}) });
   let search = make();
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });
   return {
@@ -124,6 +124,45 @@ async function fixture(t: import("node:test").TestContext, options: { freshMs?: 
 const ask = (f: { actions: ActionService; search: SearchService }, caller: ActionCallContext, query: string, extra: Record<string, unknown> = {}) =>
   f.search.query({ client: f.actions, caller }, { query, ...extra });
 const ids = (response: { hits: Array<{ subject: { id: string } }> }) => response.hits.map(hit => hit.subject.id).sort();
+
+test("QEA-12 a cancelled query does not cancel the shared index or duplicate the next query's reads", async t => {
+  const f = await fixture(t);
+  const notes = source([{ id: "one", title: "quartz", body: "quartz body", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
+  const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
+  notes.onList = () => entered.resolve(); notes.hold = released.promise;
+  const abort = new AbortController(), reason = new ActionError("actions.cancelled", "query abandoned");
+  const first = assert.rejects(ask(f, { ...owner("a"), signal: abort.signal }, "quartz"), error => error === reason);
+  try {
+    await entered.promise;
+    abort.abort(reason);
+    const next = ask(f, owner("a"), "quartz");
+    released.resolve();
+    await first;
+    assert.deepEqual(ids(await next), ["one"]);
+    assert.equal(notes.lists, 1, "the next caller joins the existing owner refresh");
+    assert.equal(notes.reads, 1, "the shared owner reads each body once");
+    assert.equal(indexedDocuments(f.index, "a")[0]?.content, "quartz body", "the shared index really persisted the body");
+  } finally { released.resolve(); }
+});
+
+test("QEA-11 opening personal-space results preserves the original caller's cancellation", async t => {
+  const f = await fixture(t, { personalSpace: "personal-space" });
+  register(f.actions, source([{ id: "one", title: "quartz", body: "quartz body", version: 1 }]), { provider_id: "personal-notes", project_id: "personal-space" });
+  const hit = (await ask(f, owner("personal-space"), "quartz")).hits[0]!;
+  const entered = Promise.withResolvers<void>(), released = Promise.withResolvers<void>();
+  const abort = new AbortController(), reason = new ActionError("actions.cancelled", "open abandoned");
+  const invoke = f.actions.invoke.bind(f.actions);
+  t.mock.method(f.actions, "invoke", async (...args: Parameters<typeof invoke>) => {
+    if (args[1].capability_id === reader.capability_id) { entered.resolve(); await released.promise; }
+    return invoke(...args);
+  });
+  const opening = f.search.open({ client: f.actions, caller: { ...owner("a"), signal: abort.signal } }, { hit_id: hit.hit_id });
+  const rejected = assert.rejects(opening, error => error === reason);
+  try { await entered.promise; abort.abort(reason); released.resolve(); await rejected; }
+  finally { released.resolve(); }
+  assert.equal((await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id })).state, "ok");
+});
 /** Every document the index holds for one project, with its text: the catalog's pages, each entry read back whole by its key. */
 function indexedDocuments(index: ReturnType<typeof openTextSearchIndex>, project: string) {
   const rows: NonNullable<ReturnType<typeof index.document>>[] = [];

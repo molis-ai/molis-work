@@ -1,3 +1,4 @@
+import { createTestSourcePull } from "./fixtures/source-pull.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,7 +10,7 @@ import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest, PluginProjectDatabaseTransaction, PluginAttentionWriter,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { createPluginPlatform, createSourcePullRuntime, DEMO_PROJECT_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createInboxContentHandlers, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { createEvidenceContentStore, type SecretStore } from "@molis-ai/molis-work-storage";
@@ -396,8 +397,8 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
     deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 1 }) };
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "evidence") });
   let pulls = 0;
-  const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({
-    db, sourceCursor: source?.cursor, secretStore: secrets, content,
+  const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => createTestSourcePull({
+    db, secretStore: secrets, content,
     async fetch() {
       pulls++;
       return new Response('<?xml version="1.0"?><rss version="2.0"><channel><title>Recovered</title><link>https://example.com/</link>'

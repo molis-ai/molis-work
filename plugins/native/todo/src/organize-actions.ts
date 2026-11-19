@@ -1,5 +1,5 @@
 import { createActionDefinition, nullableSchema as nullable, objectSchema as object, arraySchema } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
 import { TODO_BATCH_SUBJECT_KIND } from "./batch-kind.js";
@@ -100,8 +100,6 @@ export function batchText(batch: TodoBatch): string {
 }
 
 export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const reading = <T>(run: (value: TodoOrganizer) => T) => ports.read(store => run(new TodoOrganizer(store)));
   const writing = <T>(caller: ActionExecutionContext, run: (value: TodoOrganizer) => T) => ports.write(caller, store => run(new TodoOrganizer(store)));
   type ExtractInput = typeof todoOrganizeActions.extract extends ActionDefinition<infer I, unknown> ? I : never;
@@ -144,10 +142,10 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
   };
   return [
-    bind(todoOrganizeActions.extract, extract, () => ports.modelAvailability()),
+    bind(todoOrganizeActions.extract, extract, { availability: () => ports.modelAvailability() }),
     // Onboarding's drafts (contract-design §2.5): the same organizer and request key, in the platform's shape.
     bind(todoOnboardingActions.draft, async (input, caller) => ({ batch: onboardingDraftBatch((await extract({ origin: "onboarding", title: input.title, request_id: input.request_id,
-      materials: input.materials.map(material => ({ title: material.title, text: material.text })) }, caller)).batch) }), () => ports.modelAvailability()),
+      materials: input.materials.map(material => ({ title: material.title, text: material.text })) }, caller)).batch) }), { availability: () => ports.modelAvailability() }),
     bind(todoOnboardingActions.get, (input, caller) => reading(value => ({ batches: input.ids.map(id => onboardingDraftBatch(value.get(id, ports.access(caller, "listed")))) }))),
     bind(todoOnboardingActions.keep, (input, caller) => writing(caller, value => {
       const access = ports.access(caller, "listed"), batch = value.get(input.id, access);

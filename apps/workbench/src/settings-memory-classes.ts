@@ -1,12 +1,13 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderObjectRow } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** The person's restrictions over the App's declared memory classes; never a permission grant. */
 export function renderMemoryClassSettings(): string {
   const field = (key: string, title: string, values: readonly (readonly [string, string])[]) =>
     `<label class="setting-copy"><span>${uiText(title)}</span><select class="mw-select" disabled data-memory-class="${key}" aria-label="${uiText(title)}">${values.map(([value, text]) => `<option value="${value}">${uiText(text)}</option>`).join("")}</select></label>`;
-  return `<section class="settings-section" aria-labelledby="memory-classes-title" data-memory-classes>
-    <h2 id="memory-classes-title">${uiText("workbench.settings-memory-classes.control-memory-class")}</h2>
-    <p class="settings-muted">${uiText("workbench.settings-memory-classes.choose-who-uses-which-memories-each-work-scene")}</p>
-    <form data-memory-class-form><fieldset class="mw-fieldset" disabled><legend class="mw-sr-only">${uiText("workbench.settings-memory-classes.control-memory-class")}</legend>
+  // One row of the 谁可以用 card: the restrictions open in place under it, like every row that needs more than one control.
+  return `<div data-memory-classes>${renderObjectRow({
+    name: uiText.text("workbench.settings-memory-classes.control-memory-class"), hint: uiText.text("workbench.settings-memory-classes.choose-who-uses-which-memories-each-work-scene"),
+    attrs: { "data-memory-classes-row": true },
+    body: `<form data-memory-class-form><fieldset class="mw-fieldset" disabled><legend class="mw-sr-only">${uiText("workbench.settings-memory-classes.control-memory-class")}</legend>
       <div class="memory-toolbar">
         ${field("consumer", "workbench.settings-memory-classes.consumer", [["agent", "workbench.settings-memory.agent-work"], ["assistant", "workbench.settings-memory.assistant"], ["ui", "workbench.settings-memory.interface-suggestions"], ["plugin", "workbench.settings-memory.plugins"], ["mcp", "workbench.settings-memory.external-ai-clients"]])}
         ${field("current_scene", "workbench.settings-memory-classes.work-scene", [["coding", "workbench.settings-memory.coding"], ["assistant", "workbench.settings-memory.assistant"], ["common", "workbench.settings-memory-classes.common"]])}
@@ -24,8 +25,7 @@ export function renderMemoryClassSettings(): string {
     <p class="settings-muted">${uiText("workbench.settings-memory-classes.choose-use-existing-settings-both-controls-save-remove")}</p>
     <p class="settings-muted" data-memory-class-status role="status" aria-live="polite"></p>
     <p class="settings-form-error" data-memory-class-error role="alert" hidden></p>
-    <ul class="memory-list" data-memory-class-list></ul>
-  </section>`;
+    <ul class="memory-list" data-memory-class-list></ul>` })}</div>`;
 }
 
 /** Bound by the existing page; read/save callbacks keep HTTP and preference ownership there. */

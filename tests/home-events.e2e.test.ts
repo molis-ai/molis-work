@@ -4,10 +4,10 @@ import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineWorkEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { ActionDefinition, ActionReference, WorkEventView, SubjectActionOffer, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionReference, type WorkEventView, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("an unknown plugin keeps its Home Events and contextual actions while the visible Home no longer requests Events", { timeout: 120_000 }, async t => {
+test("QEA-92/93 an unknown plugin keeps its event actions while retired Home Events HTTP routes refuse requests", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { localHost, store, projectId, command, sessionId, evaluate, waitFor, navigate, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
@@ -23,12 +23,13 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
     title: "确认记录", description: "更新插件自己的原记录", kind: "operation", scope: "project", audiences: ["user"], permissions: ["fixture:write"], subject_kinds: [subject.kind],
     input_schema: { type: "object", properties: { revision: { type: "integer" }, request_id: { type: "string" } }, required: ["revision", "request_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { done: { type: "boolean" } }, required: ["done"], additionalProperties: false } } };
-  let fail = false, writes = 0;
+  let fail = false, writes = 0, eventReads = 0;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.own-home-events", version: "1.0.0", name: "自有笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "home-events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["fixture:read", "fixture:write"].map(permission => ({ permission, required: false, reason: "操作原笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [events, context, offers, complete] },
     async start() { return { kind: "app", actions: [
       { ...events, handle: () => {
+        eventReads++;
         if (fail) throw new Error("private provider diagnostic must not appear in Home");
         const note = read(); return { source: { surface: "fixture-notes", title: "自有笔记", icon: "inbox" }, events: note.done ? [] : [{ event_id: "own-event", subject,
           occurred_at: new Date().toISOString(), placement: "today", category: "personal", title: "新插件提供的首页事项", summary: "由插件管理的记录", content: note.content, facts: [["版本", String(note.revision)]], needs_attention: true, open: null }] };
@@ -45,7 +46,8 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const prefix = "/projects/" + projectId;
   const window = { from: new Date(Date.now() - 60_000).toISOString(), to: new Date(Date.now() + 60_000).toISOString(), now: new Date().toISOString() };
-  const eventRead = () => web.post<{ events: WorkEventView[]; issues: string[] }>(prefix + "/api/home/events", window);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user" as const, permissions: ["home:read", "fixture:read"] };
+  const eventRead = () => localHost.actionClient(reference).invoke(person, { capability_id: "home.events.read", version: 1 }, window) as Promise<{ events: WorkEventView[]; issues: string[] }>;
   const ownEvent = (reply: Awaited<ReturnType<typeof eventRead>>) => reply.events.find(event => event.subject.kind === subject.kind && event.subject.id === subject.id);
   const request_id = crypto.randomUUID();
   try {
@@ -56,6 +58,12 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
     await waitFor("document.querySelector('[data-home-card]')");
     assert.equal(await evaluate("homeRequests.some(path=>path.endsWith('/api/home/events'))"), false);
     assert.equal(await evaluate("document.querySelector('[data-home-subject-kind=fixture-note]')"), null, "a separate Events declaration cannot invent a presentation");
+    const readsBefore = eventReads;
+    for (const path of ["/api/home/events", "/api/home/events/open"]) {
+      await assert.rejects(web.post(prefix + path, { retired: true }), { status: 404, message: "页面或接口不存在" });
+    }
+    assert.equal(eventReads, readsBefore, "retired URLs never enter the plugin's reader");
+    assert.equal(writes, 0);
     const actual = ownEvent(await eventRead());
     assert.ok(actual);
     assert.equal(actual.content, "插件自己的原始记录");
@@ -78,6 +86,10 @@ test("an unknown plugin keeps its Home Events and contextual actions while the v
     assert.ok(failed.issues.some(issue => issue.includes("笔记首页事项")));
     assert.ok(failed.issues.every(issue => !issue.includes("private provider diagnostic")));
     fail = false;
+    assert.equal(ownEvent(await eventRead())?.event_id, "own-event");
+    await runtime.regrant(install.install_id, "fixture:read", false);
+    assert.equal(ownEvent(await eventRead()), undefined, "a trusted person's explicit permissions cannot revive withdrawn installation grants");
+    await runtime.regrant(install.install_id, "fixture:read", true);
     assert.equal(ownEvent(await eventRead())?.event_id, "own-event");
     await runtime.stop(install.install_id);
     assert.equal(ownEvent(await eventRead()), undefined);

@@ -270,6 +270,39 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
   assert.equal(await env.host.withProject(ref, ({ store }) => projectApprovalRules(store.db, pid).read(false).rules.some(rule => rule.id === "mid-commit-rule")), false);
 
+  // QEA-84: the second database's final COMMIT must not leave acceptance committed on its own.
+  await env.host.withProject(ref, ({ store }) => {
+    store.db.exec(`
+      CREATE TABLE qea_acceptance_parent (id INTEGER PRIMARY KEY);
+      CREATE TABLE qea_acceptance_child (parent_id INTEGER REFERENCES qea_acceptance_parent(id) DEFERRABLE INITIALLY DEFERRED);
+      CREATE TRIGGER qea_acceptance_final_commit AFTER INSERT ON project_review_decisions
+      BEGIN INSERT INTO qea_acceptance_child(parent_id) VALUES (1); END;
+    `);
+  });
+  const commitRequest = { reference: v2Gated.reference, choice_id: "accept:r2", request_key: "qea-final-commit" };
+  try {
+    await assert.rejects(env.web.post(`${approvalsPrefix}/decide`, commitRequest));
+  } finally {
+    await env.host.withProject(ref, ({ store }) => { store.db.exec("DROP TRIGGER qea_acceptance_final_commit; DROP TABLE qea_acceptance_child; DROP TABLE qea_acceptance_parent;"); });
+  }
+  const afterCommitRefusal = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
+  assert.equal(afterCommitRefusal.requirements.find(item => item.id === "r2")?.person, "pending", "final project COMMIT refusal must roll back the acceptance decision");
+  assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
+  // QEA-85: the decision and its record commit in one library, so nothing runs after the COMMIT that could fail it; an answer lost after it
+  // is the same-key retry, which reads the committed decision back and writes no second one.
+  const recovered = await env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, commitRequest);
+  const repeated = await env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, commitRequest);
+  assert.equal(repeated.replayed, true, "a same-key retry reads back the committed decision");
+  await env.host.withProject(ref, ({ store }) => {
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM acceptance_decisions WHERE decision_id=? AND requirement_id='r2'").get(recovered.record.decision_id)?.n, 1,
+      "the same-key replay does not append another item decision");
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM project_review_decisions WHERE decision_id=?").get(recovered.record.decision_id)?.n, 1);
+  });
+  assert.equal(repeated.record.decision_id, recovered.record.decision_id, "same-key retry retains the original decision");
+  const afterCommitRetry = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
+  assert.equal(afterCommitRetry.requirements.find(item => item.id === "r2")?.person, "accepted");
+  assert.equal(afterCommitRetry.requirements.find(item => item.id === "r2")?.decision?.decision_id, recovered.record.decision_id);
+
   // Applied decision history: settled v1 ReviewReference reopens frozen facts + decision receipt even after v2, and appears in authorization review history.
   const reopenedWeb = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, { reference: v1Gated.reference });
   const reopenedMcp = await mcp<ReviewRequest>("molis_work_v1_review_request", { reference: v1Gated.reference });

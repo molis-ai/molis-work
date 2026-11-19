@@ -41,8 +41,11 @@ export {
   type UpgradeSqliteConnection,
 } from "./upgrade-snapshot.js";
 export { recoverSqliteRollbackJournals, type RollbackLibrary } from "./rollback-journal.js";
+export { assertSqliteDatabaseFiles, assertSqliteLibraryReady, sqliteLibraryDirectoryExists, sqliteRollbackSidecars, pendingSqliteRecovery } from "./sqlite-rollback-policy.js";
+export { withSqliteLibraryTransaction } from "./sqlite-library-transaction.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
+  assertSqliteBaselineShape,
   isSqliteSchemaStructureMismatch,
   isSqliteVersionRefusal,
   onUpgradePending,
@@ -78,7 +81,7 @@ export {
   PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
-export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
+export { type SecretStore, type SecretStoreAccess, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
   SECRET_STORE_FILE, assertSecretStoreWritable, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
 export { sealExistingHomePayload, openExistingHomePayload, assertExistingHomeKeyReference, type SealedHomePayload } from "./adapters/file-secret-store.js";

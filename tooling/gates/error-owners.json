@@ -405,7 +405,8 @@
     },
     "skills": {
       "paths": [
-        "packages/contracts/src/services/skills.ts"
+        "packages/contracts/src/services/skills.ts",
+        "packages/contracts/src/services/skill-errors.ts"
       ],
       "reason": "The Skill catalog, settings and import contract (specs/skill-packs/contract-design.md §6–§8), whose refusals are skills.* like its action ids. A new file only; the Host's Agent definition register that will serve the catalog keeps its agent_definitions owner."
     },

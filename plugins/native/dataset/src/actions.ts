@@ -1,7 +1,7 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
 import type { promoteDataset } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
@@ -66,7 +66,6 @@ export interface DatasetActionPorts extends DatasetStores {
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const { read, write } = ports;
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
     project(caller);
     if (!ports.promote) throw datasetErrors.unavailable("当前环境不能发出成果");
@@ -97,14 +96,14 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       if (!name || [...name].length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
       return write(caller, store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
-    }, () => ports.modelAvailability()),
+    }, { availability: () => ports.modelAvailability() }),
     bind(datasetActions.import, (input, caller) => write(caller, store => ({ dataset: store.importCsv(input.id, input.csv, project(caller), input.expected_version) }))),
     bind(datasetActions.export, (input, caller) => read(store => { const dataset = store.get(input.id, project(caller)); return { dataset, csv: toCsv(dataset) }; })),
     bind(datasetActions.versions, (input, caller) => read(store => ({ versions: store.listVersions(input.id, project(caller)) }))),
     bind(datasetActions.snapshot, (input, caller) => write(caller, store => ({ version: store.saveVersion(input.id, input.note, project(caller), input.expected_version) }))),
     bind(datasetActions.rollback, (input, caller) => write(caller, store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
-    bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
-    bind(datasetActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), { availability: publishable }),
+    bind(datasetActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, { availability: publishable }),
     bindArtifactContinue(datasetActions.artifactContinue, [DATASET_ARTIFACT_TYPE_ID], (artifact, caller) => write(caller, store => {
       const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
       const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });

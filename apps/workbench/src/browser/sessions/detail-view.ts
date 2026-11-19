@@ -77,12 +77,14 @@ function attributionLabel(row: ExternalSessionRow): string {
   return uiText.text("workbench.sessions.view-unfiled");
 }
 
-export function renderDetailPane(container: HTMLElement, emptyEl: HTMLElement, state: DetailViewState | null): void {
+export function renderDetailPane(container: HTMLElement, emptyEl: HTMLElement, state: DetailViewState | null, loading = false): void {
   if (!state) {
-    container.hidden = true;
+    container.hidden = !loading;
     container.removeAttribute("data-assistant-context");
-    container.innerHTML = "";
-    emptyEl.hidden = false;
+    container.innerHTML = loading
+      ? `<header class="sessions-detail-head"><button class="mw-btn mw-btn--ghost mw-btn--sm sessions-mobile-back" type="button" data-sessions-back>${icon("chevron-left")}<span>${uiText("workbench.sessions.back-to-list")}</span></button></header><div class="sessions-detail-empty" role="status">${uiText("workbench.sessions.source-reading")}</div>`
+      : "";
+    emptyEl.hidden = loading;
     return;
   }
   emptyEl.hidden = true;

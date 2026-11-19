@@ -1,0 +1,30 @@
+{
+  "reason": "按当前界面语言显示新的资料导入警告，并按原文读回已固定的 schema 1。现有资料脚本增加 38 B。相对已推送候选，同口径首屏最多增加 902 B 冷加载，热加载相同。",
+  "review": "PR #2101，合并基点 eaa6b47492。QEA-79/80 的真实资料导入、固定版本读回和跨语言验收。全插件冷额度各含同一量法下已核实的 Linux 路径差额 8 B。",
+  "userApproval": "2026-11-17，本会话选择「批准这次资源变更」。覆盖中文 edfbad487ed13f33cb345453、英文 d2cfe764e8fa4c8bc25d0542，首屏最多冷增 902 B、热增 0 B，现有资料脚本增 38 B，以及全插件 Linux 路径差额 8 B。",
+  "assets": {
+    "/assets/molis-work-knowledge.js": 38
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 663, "warm": 0 },
+    "arrival-empty/en": { "cold": 624, "warm": 0 },
+    "chooser/zh": { "cold": 663, "warm": 0 },
+    "chooser/en": { "cold": 624, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 701, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 662, "warm": 0 }
+  },
+  "entryApprovals": [
+    {
+      "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ]
+}

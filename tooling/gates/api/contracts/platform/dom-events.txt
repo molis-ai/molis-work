@@ -35,7 +35,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "announcement";
     readonly owner: "attention";
     readonly on: "document";
-    readonly detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()";
+    readonly detail: "the /api/attention answer ({ background_tasks: { tasks, issues }, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()";
     readonly summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, the board refreshes when its cursor moved, and on a project page the work line and the task panel paint from its line and tasks.";
 }, {
     readonly name: "molis-work:attention-refresh";
@@ -220,7 +220,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "tab-workspace";
     readonly on: "element";
     readonly detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }";
-    readonly summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.";
+    readonly summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling. A frame dispatch is cancelable: a plugin that handles the complete selection synchronously calls preventDefault to take responsibility for its reads, saves and navigation, so the frame does not also find and click a row. Claiming the request does not report success or cancel a business operation.";
 }, {
     readonly name: "molis-work:settings-embed";
     readonly kind: "announcement";
@@ -257,6 +257,20 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "Trusted shell-only TaskFloatRequest: open/close/forget with an opaque mount owner and lifecycle callbacks; never forwarded from a plugin frame.";
     readonly summary: "The separately bundled frame bridge asks the existing task panel to mount its independently authorized child projection. The panel alone owns visibility, cancellation and cache lifetime; the callback does not carry task facts or grant authority.";
+}, {
+    readonly name: "molis-work:task-role-picked";
+    readonly kind: "announcement";
+    readonly owner: "character-picker";
+    readonly on: "element";
+    readonly detail: "{ target, character?: { ref, title, character_id } | null, reset?: true }; null selects the Assistant, reset returns a new task to its defaults";
+    readonly summary: "A role picker changed the roles or applied a choice to its originating task.";
+}, {
+    readonly name: "molis-work:task-role-picker";
+    readonly kind: "request";
+    readonly owner: "character-picker";
+    readonly on: "document";
+    readonly detail: "{ target, project_id: string | null, selection?: CharacterTaskSelection | null, required?: boolean, new_work?: boolean }";
+    readonly summary: "Open the role picker over the requesting Assistant island in the task's own scope.";
 }, {
     readonly name: "molis-work:terminal-theme-change";
     readonly kind: "announcement";
@@ -541,6 +555,10 @@ export type DomEventName = (typeof DOM_EVENTS)[number]["name"];
 export type DomEventTarget = "window" | "document" | "element";
 
 export declare const PAGE_STATE_OWNERS: {
+    readonly "character-picker": {
+        readonly files: readonly ["apps/workbench/src/browser/characters/task-picker.ts"];
+        readonly state: "The task's role picker and its default and editor modes.";
+    };
     readonly "document-language": {
         readonly files: readonly ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"];
         readonly state: "The displayed words and language of one document.";

@@ -138,3 +138,29 @@ for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC
     assert.throws(() => ledger.record({ ...entry, granted_by: "host_build", grants: [{ kind: "project_reach", subject: first.subject }] } as never), code("plugin.state_invalid"));
   } finally { db.close(); }
 });
+
+test("QEA-146 installation cleanup checks every active subject before withdrawing only that installation", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(PLUGIN_TRUST_SCHEMA_SQL);
+  const ledger = new SqlitePluginConsentLedger(db);
+  try {
+    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1",
+      project_id: "A", install_id: "home-1", approved_capability_ids: ["goals.plugin.state"], at: "one" };
+    const a = ledger.grantProjectReach(entry);
+    const b = ledger.grantProjectReach({ ...entry, project_id: "B" });
+    const other = ledger.grantProjectReach({ ...entry, install_id: "home-2" });
+    const writeSubject = db.prepare("UPDATE plugin_consents SET subject = ? WHERE consent_id = ?");
+    writeSubject.run("missing scope", other.consent_id);
+    assert.throws(() => ledger.revokeProjectReach({ install_id: entry.install_id }, "two"), code("plugin.state_invalid"));
+    assert.equal(ledger.consent(a.consent_id)!.revoked_at, null);
+    assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
+    writeSubject.run(other.subject, other.consent_id);
+    db.prepare("UPDATE plugin_consents SET approved_capability_ids = ? WHERE consent_id = ?").run("[7]", b.consent_id);
+
+    assert.equal(ledger.revokeProjectReach({ install_id: entry.install_id }, "three"), 2);
+    assert.equal(ledger.consent(a.consent_id)!.revoked_at, "three");
+    assert.equal(db.prepare("SELECT revoked_at FROM plugin_consents WHERE consent_id = ?").get(b.consent_id)?.revoked_at, "three");
+    assert.deepEqual(ledger.consent(other.consent_id), other);
+    assert.equal(ledger.revokeProjectReach({ install_id: entry.install_id }, "four"), 0);
+  } finally { db.close(); }
+});

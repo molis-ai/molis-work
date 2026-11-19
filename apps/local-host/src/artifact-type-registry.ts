@@ -1,4 +1,5 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { ArtifactConsumerType } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { intakeMaterial, isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -147,16 +148,16 @@ export function artifactProducerSources(): readonly ArtifactProducerSource[] {
 }
 
 /**
- * For each 成果 type, the plugins that can continue from it: each intake that accepts `artifact` (contract-design §2.3), on the plugin's
- * continue action, with the files it reads of an imported one.
+ * The plugins that can continue from this exact type and schema: an intake that accepts `artifact` with it (contract-design §2.3), on the
+ * plugin's continue action, with the files it reads of an imported one. One per plugin.
  */
-export function artifactContinuers(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ReadonlyMap<string, readonly ArtifactContinuer[]> {
-  const continuers = new Map<string, ArtifactContinuer[]>();
+export function artifactContinuers(version: ArtifactConsumerType, sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ArtifactContinuer[] {
+  const continuers: ArtifactContinuer[] = [];
   for (const source of sources) for (const action of source.actions) {
     const material = intakeMaterial(action.action.intake, "artifact");
-    if (!material) continue;
-    for (const type of material.artifact_types) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [],
-      { plugin_id: source.plugin_id, plugin_title: source.name, action, ...(material.file ? { file: material.file } : {}) }]);
+    if (!material?.artifact_types.some(type => type.artifact_type_id === version.artifact_type_id && type.schema_version === version.schema_version)) continue;
+    continuers.push({ plugin_id: source.plugin_id, plugin_title: source.name, action, ...(material.file ? { file: material.file } : {}) });
+    break;
   }
   return continuers;
 }

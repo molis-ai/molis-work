@@ -2,6 +2,14 @@ import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 import type { AssistantSendResult, AssistantRequestResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
+import { characterSelectionView } from "./assistant-characters.js";
+
+function storedResult(body: string): AssistantRequestResult {
+  const result = JSON.parse(body) as AssistantRequestResult;
+  if (result.work.character === undefined) return result;
+  const { character, ...work } = result.work;
+  return { ...result, work: { ...work, ...characterSelectionView(character, work.executor) } };
+}
 
 /** The existing Send ledger: claiming writes; checking never creates or repeats a Send. */
 export class AssistantRequests {
@@ -9,7 +17,7 @@ export class AssistantRequests {
   read(actorId: string, requestId: string): { state: "unknown" | "not-sent" } | { state: "sent"; result: AssistantRequestResult } {
     const row = this.db.prepare("SELECT state, result FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null } | undefined;
     if (!row) return { state: "not-sent" };
-    return row.state === "done" && row.result ? { state: "sent", result: JSON.parse(row.result) as AssistantRequestResult } : { state: "unknown" };
+    return row.state === "done" && row.result ? { state: "sent", result: storedResult(row.result) } : { state: "unknown" };
   }
   /**
    * Claim one Send. A repeat of a finished Send returns its outcome; a repeat while the first is still in flight is
@@ -40,7 +48,7 @@ export class AssistantRequests {
     const row = this.db.prepare("SELECT state, result, work_id FROM assistant_requests WHERE actor_id=? AND request_id=?").get(actorId, requestId) as { state: string; result: string | null; work_id: string | null };
     if (workId !== undefined && row.work_id !== workId) throw assistantErrors.conflict("The request belongs to another Work");
     if (row.state !== "done" || !row.result) throw assistantErrors.pending_request("The original request is unconfirmed; it was not repeated");
-    const result = JSON.parse(row.result) as AssistantRequestResult;
+    const result = storedResult(row.result);
     if ((result.outcome === "stopped") !== stop) throw assistantErrors.conflict("The request belongs to another operation");
     if (("question_request" in result ? result.question_request?.operation : undefined) !== question) throw assistantErrors.conflict("The request belongs to another operation");
     return { claimed: false, result };

@@ -42,14 +42,14 @@ export async function renderGoalsPageRequest<TView extends GoalsPageCollections>
 
 /** Host supplies owner renderers; this composition has no Store, HTML templates or HTTP objects. */
 export interface GoalsReadRenderers {
-  refresh: (goalId: string | undefined, collection: GoalDocumentCollection) => string;
+  refresh: (goalId: string | undefined, collection: GoalDocumentCollection, projection?: "collection") => string;
   momentum: (goalId: string, collection: "current" | "archive") => string | null;
   document: (goalId: string, collection: GoalDocumentCollection) => string | null;
 }
 export function renderGoalsReadRoute(route: GoalsReadRoute, renderers: GoalsReadRenderers): { status: 200; html: string } | { status: 404; error: string; code?: typeof GOAL_NOT_FOUND } {
   let html: string | null;
   switch (route.kind) {
-    case "refresh": html = renderers.refresh(route.goal_id, route.collection); break;
+    case "refresh": html = renderers.refresh(route.goal_id, route.collection, route.projection); break;
     case "momentum": html = renderers.momentum(route.goal_id, route.collection); break;
     case "document": html = renderers.document(route.goal_id, route.collection); break;
   }

@@ -1,10 +1,11 @@
-import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { feedErrors } from "./contract/feed.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
-import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
+import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
 import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
-import { buildExactRequest } from "./source-request.js";
+import { sourcePullRequestFor } from "./source-request.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { receiptContentRefs, withReceiptContentRefs } from "./source-history.js";
 import { resolveSourceFaults, safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
@@ -28,8 +29,11 @@ export class PublicSourceSync {
     const write = <T>(operation: () => T): Promise<T> => this.commit(() => { beforeEffect.check(); return operation(); });
     await beforeEffect();
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
-    const request = buildExactRequest(source, operationId, this.ports.providers);
-    const planFingerprint = fingerprintSearchIntentExactV1(request);
+    const pull = this.ports.sourcePull;
+    if (!pull?.plan || !pull.pull) throw new ActionError("actions.dependency_missing", "Feed 没有取得公开来源的权限");
+    const request = sourcePullRequestFor(source, operationId, this.ports.providers);
+    const { intent_fingerprint: planFingerprint } = await pull.plan(request);
+    await beforeEffect();
     const prior = this.feed.sources.runByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
       const storedFingerprint = prior.receipt?.intent_fingerprint;
@@ -73,21 +77,18 @@ export class PublicSourceSync {
 
     // The run names a body before the Home's ledger is told of it and before it is written, so a pull that is cut off at any point
     // leaves every body it may have written named by a run: retrying it, or deleting the source, finds them.
-    const hold = this.ports.holdContent ? async (contentRefs: readonly string[]) => {
+    const hold = async (contentRefs: readonly string[]) => {
       await beforeEffect();
       running = { ...running, receipt: withReceiptContentRefs(running.receipt, contentRefs) };
       const named = running;
       await write(() => { this.feed.sources.upsertRun(named); });
-      await this.ports.holdContent!(source, contentRefs);
-    } : undefined;
-    const runtime = this.ports.createRuntime(source, operationId, hold);
-    try {
-      const result = await runtime.intelligenceCollect.executeExact(
-        request,
-        input.signal ? { signal: input.signal } : undefined,
-      );
+      await this.ports.holdContent?.(source, contentRefs);
       await beforeEffect();
-      return await this.commitPublicResult(source, running, result, runtime, write);
+    };
+    try {
+      const result = await pull.pull(request, { hold, ...(input.signal ? { signal: input.signal } : {}) });
+      await beforeEffect();
+      return await this.commitPublicResult(source, running, result, write);
     } catch (error) {
       // A pull that has already committed is done, whatever a judgment made of it afterwards: report that failure as it is. The guard below
       // counts the pull's own source write as one person's edit of another (it keeps the revision the source had when the pull started), so it
@@ -98,11 +99,9 @@ export class PublicSourceSync {
       // was fetched for the source as it was is never replayed into it (FI-C-05). A call that may no longer write leaves the record, which the
       // run still names.
       if (beforeEffect.refused) {
-        await runtime.discard?.().catch(() => undefined);
+        await pull.forget?.([operationId]).catch(() => undefined);
       }
       await beforeEffect();
-      await input.beforeEffect?.();
-      input.signal?.throwIfAborted();
       const updatedAt = new Date().toISOString();
       const errorCode = safeErrorCode(error);
       const interrupted: FeedSourceRunRecord = {
@@ -110,7 +109,6 @@ export class PublicSourceSync {
         phase: "interrupted",
         error_code: errorCode,
         // Bodies a pull wrote before it failed stay with its search record; the run names them so a deletion can find them.
-        receipt: withReceiptContentRefs(running.receipt, runtime.writtenContentRefs?.() ?? []),
         updated_at: updatedAt,
       };
       await write(() => {
@@ -141,22 +139,19 @@ export class PublicSourceSync {
         }
       });
       throw feedErrors.source_sync_interrupted(interruptedMessage(errorCode));
-    } finally {
-      await runtime.shutdown().catch(() => undefined);
     }
   }
 
   private async commitPublicResult(
     entrySource: FeedSourceRecord,
     running: FeedSourceRunRecord,
-    result: IntelligenceCollectResult,
-    runtime: PublicFeedRuntime,
+    result: SourcePullResult,
     write: <T>(operation: () => T) => Promise<T>,
   ): Promise<FeedSourceSyncResult> {
     const completedAt = new Date().toISOString();
-    const consumable = result.outcome === "completed" || (result.outcome === "partial" && result.requirementMet);
+    const consumable = result.outcome === "completed" || (result.outcome === "partial" && result.requirement_met);
     const rssSource = this.ports.providers.rss.isSourceKind(entrySource.kind);
-    const rssReceipt = rssSource ? runtime.publicFeedReceipt?.() ?? null : null;
+    const rssReceipt = rssSource ? result.http_receipt : null;
     let created = 0;
     let deduped = 0;
     let durableSource = entrySource;
@@ -166,32 +161,32 @@ export class PublicSourceSync {
       const latest = this.feed.sources.get(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {
-          const externalId = `${latest.kind}:${sourceDedupeScope(latest)}:${material.candidateId}`;
+          const externalId = `${latest.kind}:${sourceDedupeScope(latest)}:${material.candidate_id}`;
           const ingested = this.feed.ingestItem({
             source: latest,
             externalId,
             title: material.title,
             summary: material.preview.replace(/\s+/gu, " ").trim().slice(0, 320),
             body: material.preview.slice(0, 1_600),
-            url: material.canonicalUrl,
+            url: material.canonical_url,
             kind: "update",
             priority: "medium",
             tags: [latest.kind],
-            author: material.sourceName,
-            occurredAt: material.capturedAt,
+            author: material.source_name,
+            occurredAt: material.captured_at,
             material: {
               material_id: material.id,
-              canonical_url: material.canonicalUrl,
+              canonical_url: material.canonical_url,
               title: material.title,
-              source_name: material.sourceName,
-              published_at: material.publishedAt ?? null,
+              source_name: material.source_name,
+              published_at: material.published_at ?? null,
               preview: material.preview,
-              content_hash: material.contentHash,
-              content_ref: material.contentRef,
-              content_available: runtime.content.has(material.contentRef),
-              content_type: material.contentType,
-              character_count: material.characterCount,
-              captured_at: material.capturedAt,
+              content_hash: material.content_hash,
+              content_ref: material.content_ref,
+              content_available: material.content_available,
+              content_type: material.content_type,
+              character_count: material.character_count,
+              captured_at: material.captured_at,
               provenance: structuredClone(material.provenance) as unknown as Record<string, unknown>,
               selected_for_context: false,
             },
@@ -220,8 +215,8 @@ export class PublicSourceSync {
         error_code: errorCode,
         receipt: withReceiptContentRefs({
           schema: /* @version type.molis-work-feed-collection-receipt "molis-work-feed-collection-receipt-v{version}" */ "molis-work-feed-collection-receipt-v1",
-          intent_fingerprint: result.intentFingerprint,
-          requirement_met: result.requirementMet,
+          intent_fingerprint: result.intent_fingerprint,
+          requirement_met: result.requirement_met,
           receipts: structuredClone(result.receipts),
           budget: structuredClone(result.budget),
           warnings: [...result.warnings],
@@ -229,8 +224,7 @@ export class PublicSourceSync {
         }, [
           // The search record of this pull holds every material's body, whether or not an Item was kept for it.
           ...receiptContentRefs(running.receipt),
-          ...result.materials.map((material) => material.contentRef),
-          ...(runtime.writtenContentRefs?.() ?? []),
+          ...result.materials.map((material) => material.content_ref),
         ]),
         created_count: created,
         deduped_count: deduped,

@@ -1,3 +1,4 @@
+import { assistantAttachmentImage, assistantAttachments } from "./assistant-attachments.js";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginPageRequest } from "../plugin-page-authority.js";
@@ -55,7 +56,7 @@ import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { purgeAssistantProject } from "./assistant-project-purge.js";
-import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorKind, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { questionErrors } from "../agent-question-card.js";
 import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
@@ -187,7 +188,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
-    lastLocale: () => lastUsedLocale(ports.homeDirectory),
+    lastLocale: () => lastUsedLocale(ports.homeDirectory), attachments: assistantAttachments(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: (sessionId, control) => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args), control),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
@@ -216,7 +217,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         const snapshot = currentRoundPageContext(store.rounds(work.work_id).at(-1)?.context);
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
       }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic)),
-      project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      project_prompts: await assistantProjectPrompts(ports.localHost, work), attachmentImage: assistantAttachmentImage(servicePorts.attachments!),
       assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
       memory: task => service.memory.memoryForRound(work, task),
@@ -398,7 +399,12 @@ export const assistantPanelActions = {
   })),
   cards: panel("cards", /* @version action.assistant.panel.cards */ 1, "放下页面准备的操作卡", ofPanel, (entry, { body }) => of(entry).service.offers.offerFromPage(pageBody<AssistantPageCardInput>(body), scoped(entry))),
   attachments: panel("attachments", /* @version action.assistant.panel.attachments */ 1, "读出带来的文档", ofPanel,
-    async (entry, { body }) => ({ material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) })),
+    async (entry, { body }, caller) => {
+      // Read first, kept only if the page and the person's grant are still current (the platform's attachment write runs `beforeEffect` last).
+      const control = assistantPermissionCaller(caller, entry.page);
+      return { material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") },
+        { ...(caller.signal ? { signal: caller.signal } : {}), beforeEffect: control.beforeEffect }) };
+    }),
   notices: panel("notices", /* @version action.assistant.panel.notices */ 1, "记下通知已看或略过", ofPanel, (entry, { body }) => ({ settled: of(entry).service.notices.settleNotices(
     { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) }, body.state === "dismissed" ? "dismissed" : "seen") })),
   followupRemove: panel("followups.remove", /* @version action.assistant.panel.followups.remove */ 1, "移除一项跟进", ofPanel,
@@ -571,14 +577,20 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "POST" && parts.length === 1 && parts[0] === "memories") {
         const action = body.action === "update" || body.action === "disable" || body.action === "enable" || body.action === "remove" ? body.action : null;
         if (!action) throw assistantErrors.invalid("不支持的操作");
-        return { status: 200, body: { memories: await service.memory.changeMemory({ memory_id: String(body.memory_id ?? ""), action, ...(typeof body.text === "string" ? { text: body.text } : {}) }, ports.projectRef?.project_id ?? null) } };
+        const person = bindLocalWebActions(ports.localHost, ports.projectRef, [MEMORY_WRITE_PERMISSION], { signal: responseAbortSignal(response) });
+        await person.invoke(memoryActions.change, { memory_id: body.memory_id as string, action, expected_version: body.expected_version as number,
+          ...(body.text === undefined ? {} : { text: body.text as string }) });
+        return { status: 200, body: { memories: await service.memory.memories(ports.projectRef?.project_id ?? null) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.memory.saveMemoryPrefs(body as never) } };
       // What works suggest keeping: the person accepts (optionally reworded) or declines each.
-      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memory.memoryCandidates() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memory.memoryCandidates().catch(error => {
+        if (error instanceof ActionError && actionErrorKind(error) !== "internal") throw error;
+        throw new ActionError("actions.execution_failed", uiText.text("workbench.assistant-island.memory-candidates-unavailable"), { cause: error });
+      }) } };
       // Keeping or declining a suggestion is Memory's own action, with the version the panel saw (B9).
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && (parts[2] === "accept" || parts[2] === "discard")) {
-        return { status: 200, body: await settleMemoryCandidate(ports, parts[1]!, parts[2], body) };
+        return { status: 200, body: await settleMemoryCandidate(ports, parts[1]!, parts[2], body, responseAbortSignal(response)) };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules(), pages: pageChoices(await ports.pages()) } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: await service.followUps.addRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
@@ -696,8 +708,8 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
 }
 
 /** A suggestion kept (as it was, or reworded) or declined: Memory's `memory.candidates.*`, as the person, with the version the panel saw. */
-async function settleMemoryCandidate(ports: AssistantHttpPorts, candidate_id: string, decision: "accept" | "discard", body: Record<string, unknown>) {
-  const person = bindLocalWebActions(ports.localHost, undefined, [MEMORY_WRITE_PERMISSION]);
+async function settleMemoryCandidate(ports: AssistantHttpPorts, candidate_id: string, decision: "accept" | "discard", body: Record<string, unknown>, signal: AbortSignal) {
+  const person = bindLocalWebActions(ports.localHost, undefined, [MEMORY_WRITE_PERMISSION], { signal });
   const expected_version = Number(body.expected_version);
   const settled = decision === "accept"
     ? await person.invoke(memoryActions.accept, { candidate_id, expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) })

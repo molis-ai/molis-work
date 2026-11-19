@@ -6,10 +6,16 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
-// GITREF-02: keep this real Host confirmation, refusal, index and commit flow unchanged in both controlled refresh orders.
+// GITREF-02 QEA-133: real Host confirmation, refusal, index and commit, including an already prepared review through two Settings covers.
 for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host confirmation${holdLayout ? " (T405-GIT-04 show before layout)" : ""}`, { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "git");
+  let indexPreparations = 0, commitPreparations = 0;
+  browser.server.on("request", request => {
+    if (request.method !== "POST") return;
+    if (request.url?.endsWith("/prepare-index")) indexPreparations++;
+    if (request.url?.endsWith("/operations")) commitPreparations++;
+  });
   const prefix = `/projects/${browser.projectId}`, repo = join(browser.homeDirectory, "review-repo");
   await mkdir(repo);
   const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd: repo, encoding: "utf8" });
@@ -29,6 +35,15 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
   await browser.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-approve]')?.getClientRects().length");
   assert.equal(await child.evaluate("document.querySelector('[data-agent-review-approve]')"), null, "the review DOM never enters the child");
   const reviewId = await browser.evaluate<string>("document.querySelector('[data-agent-review-approve]').dataset.agentReviewApprove");
+  if (holdLayout) {
+    await browser.click(".navigator-project-settings");
+    await child.waitFor("document.body.hidden");
+    await browser.waitFor("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')");
+    await browser.click("[data-cover-close]");
+    const sameApproval = `[data-host-review-slot] [data-agent-review-approve=${JSON.stringify(reviewId)}]`;
+    await browser.waitFor(`document.querySelector(${JSON.stringify(sameApproval)})?.checkVisibility()`);
+    assert.equal(indexPreparations, 1, "returning to the same index review only reads it");
+  }
   for (const path of ["/api/agent/reviews", "/api/agent/reviews/decide", "/api/agent/reviews/recovery"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + path)},{method:'POST',headers:{'x-molis-context-page':'invented'},body:JSON.stringify({review_id:${JSON.stringify(reviewId)},decision:'approve'})}).then(r=>r.status)`), 403);
   }
@@ -100,12 +115,16 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
     await child.waitFor("window.reviewShownHeld > 0");
     await browser.click(".navigator-project-settings");
     await browser.waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings'");
+    await child.waitFor("document.body.hidden");
     await child.evaluate("releaseReviewShow()");
     assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-host-review-slot=\"7\"]'))"), false, "covered review-show waits before mounting");
     assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')"), true);
     await browser.click("[data-cover-close]");
+    await child.waitFor("!document.body.hidden");
+    assert.equal(await child.evaluate("document.querySelector('[data-git-results]').hidden"), false, "the accepted review stays in its result region");
     await browser.waitFor("(() => { const s = document.querySelector('[data-host-review-slot=\"7\"]'); return Boolean(s && getComputedStyle(s).visibility !== 'hidden' && s.querySelector('[data-agent-review-approve]')); })()");
     await browser.click(".navigator-project-settings");
+    await child.waitFor("document.body.hidden");
     await browser.waitFor("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')");
     await browser.click("[data-cover-close]");
     await browser.waitFor("(() => { const s = document.querySelector('[data-host-review-slot=\"7\"]'); return Boolean(s && getComputedStyle(s).visibility !== 'hidden' && s.querySelector('[data-agent-review-approve]')); })()");
@@ -122,8 +141,11 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
     await child.evaluate("releaseReviewLayout()");
   }
   await browser.waitFor(visibleApprove);
+  assert.equal(commitPreparations, 1, "showing the existing review never prepares another commit");
+  assert.equal(git("log", "-1", "--format=%s").trim(), "first", "the original commit is unchanged before confirmation");
   await browser.click("[data-host-review-slot] [data-agent-review-approve]");
   await browser.click("[data-page-dialog=confirm] [type=submit]");
   await child.waitFor("document.querySelector('[data-git-commit-message]').value===''");
   assert.equal(git("log", "-1", "--format=%s").trim(), "reviewed commit", "only a settled commit clears its draft");
+  assert.equal(git("rev-list", "--count", "HEAD").trim(), "2");
 });

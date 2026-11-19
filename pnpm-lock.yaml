@@ -1178,12 +1178,6 @@ importers:
 
   plugins/native/feed:
     dependencies:
-      '@adeptify/intelligence-client':
-        specifier: file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
-        version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
-      '@adeptify/search-evidence-layer':
-        specifier: file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
-        version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
@@ -1522,23 +1516,11 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
-  plugins/official-integrations/web-query:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-
   plugins/official-integrations/youtube:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   server:
     dependencies:

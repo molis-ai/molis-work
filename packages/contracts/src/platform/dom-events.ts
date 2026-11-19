@@ -59,6 +59,10 @@ export interface PageStateOwner {
 
 // The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
+  "character-picker": {
+    files: ["apps/workbench/src/browser/characters/task-picker.ts"],
+    state: "The task's role picker and its default and editor modes.",
+  },
   "document-language": {
     files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
     state: "The displayed words and language of one document.",
@@ -231,7 +235,7 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
-    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
+    detail: "the /api/attention answer ({ background_tasks: { tasks, issues }, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
     summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, the board refreshes when its cursor moved, and on a project page the work line and the task panel paint from its line and tasks.",
   },
   {
@@ -362,7 +366,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
     detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }",
-    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
+    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling. A frame dispatch is cancelable: a plugin that handles the complete selection synchronously calls preventDefault to take responsibility for its reads, saves and navigation, so the frame does not also find and click a row. Claiming the request does not report success or cancel a business operation.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",
@@ -386,6 +390,16 @@ export const DOM_EVENTS = [
     name: "molis-work:task-float", kind: "request", owner: "task-float", on: "document",
     detail: "Trusted shell-only TaskFloatRequest: open/close/forget with an opaque mount owner and lifecycle callbacks; never forwarded from a plugin frame.",
     summary: "The separately bundled frame bridge asks the existing task panel to mount its independently authorized child projection. The panel alone owns visibility, cancellation and cache lifetime; the callback does not carry task facts or grant authority.",
+  },
+  {
+    name: "molis-work:task-role-picked", kind: "announcement", owner: "character-picker", on: "element",
+    detail: "{ target, character?: { ref, title, character_id } | null, reset?: true }; null selects the Assistant, reset returns a new task to its defaults",
+    summary: "A role picker changed the roles or applied a choice to its originating task.",
+  },
+  {
+    name: "molis-work:task-role-picker", kind: "request", owner: "character-picker", on: "document",
+    detail: "{ target, project_id: string | null, selection?: CharacterTaskSelection | null, required?: boolean, new_work?: boolean }",
+    summary: "Open the role picker over the requesting Assistant island in the task's own scope.",
   },
   {
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",

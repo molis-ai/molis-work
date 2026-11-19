@@ -1,3 +1,4 @@
+import type { CodingImages } from "./images.js";
 import type { ComposerHandle, ComposerMention, ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { codingComposerLabels } from "../../composer-labels.js";
 import { createCodingTimeline } from "../../timeline.js";
@@ -111,7 +112,7 @@ export interface State {
   progressTicket: number;
   progressView: ProgressView | null;
   questionDrafts: Map<string, Record<string, unknown>>;
-  queuedInputs: readonly unknown[] | undefined;
+  queuedInputs: readonly import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined;
   queuedKey: string;
   recovery: boolean;
   recoveryBusy: boolean;
@@ -152,6 +153,10 @@ export interface Refs {
   commandsUi: CommandsClient;
   /** The platform's composer (unified-input-voice K4), mounted again for each session on show with that session's draft. */
   composer: ComposerHandle;
+  /** The composer's pictures for the session on show (A3), or null when no session is. */
+  images: CodingImages | null;
+  /** Prompt commands (A2): the project's and the person's own, and the one chosen for the next send. */
+  prompts?: import("./prompt-commands.js").PromptCommands;
   composerLabels?: ReturnType<typeof codingComposerLabels>;
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;

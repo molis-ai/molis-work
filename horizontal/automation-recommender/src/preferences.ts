@@ -94,3 +94,16 @@ export function forgetAutomationPreferences(home: string, project: string): void
     return rows.length === state.rows.length ? state : { ...state, rows };
   }, () => undefined);
 }
+
+/**
+ * Hide suggestions in a project without a report in hand (the Assistant's card: 「以后别再提」, AUT-07): each becomes a `hidden` choice,
+ * kept with its title, under a new revision. One already chosen keeps the newer choice.
+ */
+export function hideAutomationSuggestions(home: string, subject: Subject, items: readonly { id: string; title: string }[], assertCurrent: () => void = () => undefined): void {
+  mutate(home, state => {
+    const current = state.rows.find(candidate => equal(candidate, subject)) ?? empty;
+    const choices = [...current.choices.filter(choice => !items.some(item => item.id === choice.id)),
+      ...items.map(item => ({ id: item.id, title: item.title.slice(0, 200), choice: "hidden" as const }))];
+    return parse({ schema_version: version, rows: [...state.rows.filter(candidate => !equal(candidate, subject)), { ...subject, revision: randomUUID(), choices }] });
+  }, assertCurrent);
+}

@@ -47,6 +47,14 @@ const fresh = (): Arrangement => ({ groups: DEFAULT_GROUPS.map(name => ({ group_
 const conflict = (current: Mainline) => mainlineErrors.conflict("主线在别处刚改过，请看当前的排列后再试", { current });
 const missing = () => mainlineErrors.item_missing("主线上没有这件事项");
 
+function placeInGroup(arrangement: Arrangement, itemId: string, groupId?: string): void {
+  const open = arrangement.groups.reduce((total, group) => total + group.items.length, 0);
+  if (open >= MAINLINE_LIMITS.open_items) throw mainlineErrors.limit(`一条主线最多 ${MAINLINE_LIMITS.open_items} 件未完成的事项`);
+  const group = groupId === undefined ? arrangement.groups[0] : arrangement.groups.find(candidate => candidate.group_id === groupId);
+  if (!group) throw mainlineErrors.item_missing("主线上没有这一组");
+  group.items.push({ item_id: itemId, pinned: false });
+}
+
 interface ItemRow extends Record<string, SQLOutputValue> { item_id: string; name: string | null; source_kind: string | null; source_id: string | null; created_at: string }
 const itemOf = (row: ItemRow): WorkItem => ({ item_id: row.item_id, ...(row.name !== null ? { name: row.name } : {}),
   ...(row.source_kind !== null ? { source: { kind: row.source_kind, id: row.source_id! } } : {}), created_at: row.created_at });
@@ -70,6 +78,20 @@ export class MainlineStore {
     const row = this.db.prepare("SELECT item_id, name, source_kind, source_id, created_at FROM mainline_items WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
       .get(this.actorId, this.projectId, itemId) as ItemRow | undefined;
     return row ? itemOf(row) : null;
+  }
+
+  /** Resolve the name before a conversion asks the source owner to create anything. */
+  readConversionName(expected: string, itemId: string): string {
+    const name = this.lightItemName(itemId);
+    this.requireRevision(expected, this.arrangement().revision);
+    return name;
+  }
+
+  private lightItemName(itemId: string): string {
+    const item = this.item(itemId);
+    if (!item) throw missing();
+    if (!item.name) throw new ActionError("actions.input_invalid", "这件事项已经由对象变成，不能再变");
+    return item.name;
   }
 
   /** The item an object became, if it became one. */
@@ -109,11 +131,15 @@ export class MainlineStore {
     try { const result = work(); this.db.exec("COMMIT"); return result; } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
+  private requireRevision(expected: string | undefined, revision: string): void {
+    if (expected !== undefined && expected !== revision) throw conflict(this.read());
+  }
+
   /** One write: the arrangement as read, checked against `expected` when given, changed and saved under a new revision. */
   private write<T>(expected: string | undefined, change: (arrangement: Arrangement) => T): T {
     return this.transaction(() => {
       const { revision, arrangement } = this.arrangement();
-      if (expected !== undefined && expected !== revision) throw conflict(this.read());
+      this.requireRevision(expected, revision);
       const result = change(arrangement);
       const next = `${Number(revision.split(".")[0]) + 1}.${randomUUID()}`, at = this.now();
       this.db.prepare(`INSERT INTO mainline_arrangements (owner_actor_id, project_id, revision, arrangement, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -121,14 +147,6 @@ export class MainlineStore {
         .run(this.actorId, this.projectId, next, JSON.stringify(arrangement), at);
       return result;
     });
-  }
-
-  private place(arrangement: Arrangement, itemId: string, groupId?: string): void {
-    const open = arrangement.groups.reduce((total, group) => total + group.items.length, 0);
-    if (open >= MAINLINE_LIMITS.open_items) throw mainlineErrors.limit(`一条主线最多 ${MAINLINE_LIMITS.open_items} 件未完成的事项`);
-    const group = groupId === undefined ? arrangement.groups[0] : arrangement.groups.find(candidate => candidate.group_id === groupId);
-    if (!group) throw mainlineErrors.item_missing("主线上没有这一组");
-    group.items.push({ item_id: itemId, pinned: false });
   }
 
   private insert(item: WorkItem): void {
@@ -139,7 +157,7 @@ export class MainlineStore {
   /** A light item named so, at the end of the group (the first by default). */
   createLight(name: string, groupId?: string): WorkItem {
     const item: WorkItem = { item_id: randomUUID(), name: checkedName(name), created_at: this.now() };
-    return this.write(undefined, arrangement => { this.place(arrangement, item.item_id, groupId); this.insert(item); return item; });
+    return this.write(undefined, arrangement => { placeInGroup(arrangement, item.item_id, groupId); this.insert(item); return item; });
   }
 
   /** An object made into an item; one it already became is given back, wherever it is. */
@@ -150,7 +168,7 @@ export class MainlineStore {
     const item: WorkItem = { item_id: randomUUID(), source: { kind: source.kind, id: source.id }, created_at: this.now() };
     return this.write(undefined, arrangement => {
       if (this.itemOf(source)) return { item: this.itemOf(source)!, created: false };
-      this.place(arrangement, item.item_id, groupId); this.insert(item);
+      placeInGroup(arrangement, item.item_id, groupId); this.insert(item);
       return { item, created: true };
     });
   }
@@ -158,9 +176,7 @@ export class MainlineStore {
   /** A light item becomes the object made for it: what it holds stays; its name is read from the source from now on. */
   convert(expected: string, itemId: string, source: ActionSubject): WorkItem {
     return this.write(expected, () => {
-      const item = this.item(itemId);
-      if (!item) throw missing();
-      if (item.source) throw new ActionError("actions.input_invalid", "这件事项已经由对象变成，不能再变");
+      this.lightItemName(itemId);
       if (this.itemOf(source)) throw mainlineErrors.conflict("这个对象已经是另一件事项", { current: this.read() });
       this.db.prepare("UPDATE mainline_items SET name = NULL, source_kind = ?, source_id = ? WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?")
         .run(source.kind, source.id, this.actorId, this.projectId, itemId);
@@ -206,7 +222,7 @@ export class MainlineStore {
       } else {
         if (done < 0) return;
         const [entry] = arrangement.completed.splice(done, 1);
-        this.place(arrangement, itemId, arrangement.groups.some(candidate => candidate.group_id === entry!.from) ? entry!.from : undefined);
+        placeInGroup(arrangement, itemId, arrangement.groups.some(candidate => candidate.group_id === entry!.from) ? entry!.from : undefined);
       }
     });
   }
@@ -264,23 +280,34 @@ export class MainlineStore {
 
   /** Put in; an object already in the item stays as it was. The arrangement is not touched, so its revision stays. */
   hold(itemId: string, subject: ActionSubject): void {
+    this.transaction(() => this.insertHold(itemId, subject));
+  }
+
+  private insertHold(itemId: string, subject: ActionSubject): void {
     if (subject.kind === WORK_ITEM_KIND) throw new ActionError("actions.input_invalid", "事项不能装进事项");
-    this.transaction(() => {
-      if (!this.item(itemId)) throw missing();
-      if (this.holding(subject).includes(itemId)) return;
-      const count = (this.db.prepare("SELECT COUNT(*) AS n FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").get(this.actorId, this.projectId, itemId) as { n: number }).n;
-      if (count >= MAINLINE_LIMITS.held) throw mainlineErrors.limit(`一件事项最多装 ${MAINLINE_LIMITS.held} 个对象`);
-      this.db.prepare("INSERT INTO mainline_holds (owner_actor_id, project_id, item_id, subject_kind, subject_id, added_at) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(this.actorId, this.projectId, itemId, subject.kind, subject.id, this.now());
+    if (!this.item(itemId)) throw missing();
+    if (this.holding(subject).includes(itemId)) return;
+    const count = (this.db.prepare("SELECT COUNT(*) AS n FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").get(this.actorId, this.projectId, itemId) as { n: number }).n;
+    if (count >= MAINLINE_LIMITS.held) throw mainlineErrors.limit(`一件事项最多装 ${MAINLINE_LIMITS.held} 个对象`);
+    this.db.prepare("INSERT INTO mainline_holds (owner_actor_id, project_id, item_id, subject_kind, subject_id, added_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(this.actorId, this.projectId, itemId, subject.kind, subject.id, this.now());
+  }
+
+  /** Change the task's single placement in one transaction. A rejected destination leaves its existing holds intact. */
+  placeOnly(itemId: string | null, subject: ActionSubject): ActionSubject[] {
+    return this.transaction(() => {
+      if (itemId !== null) this.insertHold(itemId, subject);
+      this.db.prepare("DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ? AND (? IS NULL OR item_id != ?)")
+        .run(this.actorId, this.projectId, subject.kind, subject.id, itemId, itemId);
+      return this.holding(subject).map(id => ({ kind: WORK_ITEM_KIND, id }));
     });
   }
 
-  /** Taken out of one item, or of every item when `itemId` is null. */
-  release(itemId: string | null, subject: ActionSubject): void {
+  release(itemId: string, subject: ActionSubject): void {
     this.transaction(() => {
-      if (itemId !== null && !this.item(itemId)) throw missing();
-      this.db.prepare(`DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ?${itemId === null ? "" : " AND item_id = ?"}`)
-        .run(...[this.actorId, this.projectId, subject.kind, subject.id, ...(itemId === null ? [] : [itemId])]);
+      if (!this.item(itemId)) throw missing();
+      this.db.prepare("DELETE FROM mainline_holds WHERE owner_actor_id = ? AND project_id = ? AND subject_kind = ? AND subject_id = ? AND item_id = ?")
+        .run(this.actorId, this.projectId, subject.kind, subject.id, itemId);
     });
   }
 }

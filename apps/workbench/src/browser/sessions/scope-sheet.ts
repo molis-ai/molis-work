@@ -31,8 +31,17 @@ function renderConnectedRow(meta: SessionToolMeta, src: ExternalSessionScopeSour
   return `<div class="sessions-tool-row" data-scope-tool="${id}"><label class="sessions-tool-main"><input class="mw-check" type="checkbox" data-scope-allow="${id}"${checked ? " checked" : ""}${noConn ? " disabled" : ""}><span class="sessions-tool-copy"><strong>${escapeHtml(meta.display_name)}</strong><small>${escapeHtml(meta.vendor)} · ${uiText(isCloud ? "workbench.sessions.surface-cloud" : "workbench.sessions.surface-local")}</small></span></label><div class="sessions-tool-side">${side}</div></div>`;
 }
 
+function selectedToolSources(scope: SessionScopeWithMeta): Map<string, ExternalSessionScopeSource> {
+  const selected = new Map<string, ExternalSessionScopeSource>();
+  for (const source of scope.sources) {
+    const previous = selected.get(source.entry_id);
+    if (!previous?.allowed || source.allowed) selected.set(source.entry_id, source);
+  }
+  return selected;
+}
+
 function renderToolsPanel(scope: SessionScopeWithMeta, dirMode: "linked_projects" | "all"): string {
-  const byId = new Map(scope.sources.map((item) => [item.entry_id, item]));
+  const byId = selectedToolSources(scope);
   const connected = scope.tool_meta.filter((m) => m.group === "connected");
   const exportOnly = scope.tool_meta.filter((m) => m.group === "export_only");
   const unsupported = scope.tool_meta.filter((m) => m.group === "unsupported");
@@ -102,8 +111,7 @@ async function runPermitToggle(dlg: HTMLDialogElement, st: ScopeInternalState, p
 async function runSaveToolsScope(dlg: HTMLDialogElement, st: ScopeInternalState, repaint: () => void): Promise<void> {
   if (!st.scope) return;
   const notice = dlg.querySelector<HTMLElement>("[data-sessions-scope-notice]");
-  const prevAllowed = new Set(st.scope.sources.filter((s) => s.allowed).map((s) => s.entry_id));
-  const payload = st.scope.sources.filter((s) => s.adapter === "available").map((src) => {
+  const payload = [...selectedToolSources(st.scope).values()].filter((s) => s.adapter === "available").map((src) => {
     const check = dlg.querySelector<HTMLInputElement>(`[data-scope-allow="${CSS.escape(src.entry_id)}"]`);
     const rawConn = dlg.querySelector<HTMLSelectElement>(`[data-scope-conn="${CSS.escape(src.entry_id)}"]`)?.value || src.connection_id || "";
     const conn = src.connections.some((c) => c.connection_id === rawConn) ? rawConn : undefined;
@@ -113,7 +121,6 @@ async function runSaveToolsScope(dlg: HTMLDialogElement, st: ScopeInternalState,
   try {
     const saved = await sessionsApi.scopeSet({ sources: payload, expected_revision: st.scope.scope_revision });
     st.scope = saved;
-    if (payload.some((p) => p.allowed && !prevAllowed.has(p.entry_id))) void sessionsApi.discoveryRun({});
     if (notice) notice.textContent = uiText.text("workbench.sessions.scope-saved");
     for (const fn of st.listeners) fn(saved);
     dlg.close();

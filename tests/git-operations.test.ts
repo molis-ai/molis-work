@@ -359,3 +359,46 @@ test("S-53 reading the repository and preparing a review run no filter, fsmonito
   await commit.execute();
   assert.ok((await fs.readdir(ran)).includes("pre-commit"), "the approved commit runs the repository's hooks, as at a terminal");
 });
+
+test("QEA-40: a reviewed resolution can be followed immediately by a reviewed merge abort without an index-refresh detour", async t => {
+  const f = await conflictedRepository(t);
+  const head = (await f.git("rev-parse", "HEAD")).stdout.trim();
+  await f.prepared.execute();
+  assert.equal(await readFile(f.file, "utf8"), "reviewed resolution\n");
+  assert.equal((await f.git("show", ":nested/a.txt")).stdout, "reviewed resolution\n", "index and worktree contain the identical reviewed text");
+  const summary = await readGitSummary(f.workspace);
+  assert.equal(summary.merging, true);
+  const abort = await prepareGitOperation(f.workspace, summary.revision, { action: "merge-abort" });
+  await abort.execute();
+  assert.equal((await readGitSummary(f.workspace)).merging, false);
+  assert.equal((await f.git("rev-parse", "HEAD")).stdout.trim(), head);
+  assert.equal(await readFile(f.file, "utf8"), "main\n");
+});
+
+test("QEA-40 QEA-162 S-53: resolution refresh preserves other staged blobs and runs no extra repository helpers", async t => {
+  const f = await conflictedRepository(t);
+  await writeFile(path.join(f.root, "other.txt"), "staged\n");
+  await writeFile(path.join(f.root, "missing.txt"), "keep in index\n");
+  await f.git("add", "other.txt", "missing.txt");
+  const other = (await f.git("ls-files", "--stage", "other.txt", "missing.txt")).stdout;
+  await writeFile(path.join(f.root, "other.txt"), "edited\n");
+  await rm(path.join(f.root, "missing.txt"));
+  const filterRan = path.join(f.directory, "filter-ran"), hookRan = path.join(f.directory, "hook-ran");
+  const filter = path.join(f.directory, "filter.sh"), hooks = path.join(f.directory, "hooks");
+  await writeFile(filter, `#!/bin/sh\nprintf 'filter\\n' >> "${filterRan}"\ncat\n`, { mode: 0o755 });
+  await writeFile(path.join(f.root, ".git", "info", "attributes"), "other.txt filter=a=b\n");
+  await f.git("config", "filter.a=b.clean", filter);
+  await f.git("config", "filter.a=b.required", "true");
+  await mkdir(hooks);
+  await writeFile(path.join(hooks, "post-index-change"), `#!/bin/sh\nprintf 'hook\\n' >> "${hookRan}"\n`, { mode: 0o755 });
+  await f.git("config", "core.hooksPath", hooks);
+  const conflict = await readConflictFile(f.workspace, "nested/a.txt");
+  const prepared = await prepareGitOperation(f.workspace, conflict.revision, { action: "resolve", path: "nested/a.txt", content: "reviewed resolution\n" });
+  await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "preview and preparation do not execute the other file's clean filter");
+  await prepared.execute();
+  assert.equal((await f.git("ls-files", "--stage", "other.txt", "missing.txt")).stdout, other, "refresh cannot stage, remove or change unrelated entries");
+  assert.equal(await readFile(path.join(f.root, "other.txt"), "utf8"), "edited\n");
+  assert.equal((await f.git("show", ":nested/a.txt")).stdout, "reviewed resolution\n");
+  await assert.rejects(readFile(filterRan), { code: "ENOENT" }, "writing and refreshing the index do not execute the other file's clean filter");
+  assert.equal(await readFile(hookRan, "utf8"), "hook\n", "only the existing approved index update invokes post-index-change");
+});

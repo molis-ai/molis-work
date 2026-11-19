@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import {
-  PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, type ConnectorPullReceipt, type ConnectorPullRequest, type ConnectorSignalDraft, type PluginConnectorSourceClient, type RawEventAdapter,
+  PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, type ConnectorPullReceipt, type ConnectorPullRequest, type ConnectorSignalDraft, type PluginConnectorAccountState, type PluginConnectorSourceClient, type RawEventAdapter,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, holdPluginResult, inPluginInstance, pluginInvocationReadOnly } from "./action-scope.js";
@@ -31,7 +31,7 @@ export interface PluginConnectorPort {
       retainProvider(validate: () => void): void;
     }): Promise<ConnectorPullReceipt>;
   adapt(target: PluginConnectionTarget, integration_id: string, event: ConnectorRawEvent): Promise<ConnectorSignalDraft>;
-  accounts(service_ids: readonly string[]): Readonly<Record<string, { readonly bound: boolean }>>;
+  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, PluginConnectorAccountState>>>;
 }
 
 /**
@@ -100,8 +100,10 @@ export function createPluginConnectorSourceClient(manifest: PluginManifest, port
       }
       const scope = enter([PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION], false);
       currentFor(scope, [PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION], scope.caller.signal)();
-      const answer = port.accounts([...new Set(service_ids)]);
-      return Object.fromEntries(Object.entries(answer).map(([service, state]) => [service, { bound: state.bound === true }]));
+      const answer = await port.accounts([...new Set(service_ids)]);
+      currentFor(scope, [PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION], scope.caller.signal)();
+      return Object.fromEntries(Object.entries(answer).filter(([service]) => declared.has(service)).map(([service, state]) => [service, {
+        bound: state.bound === true, pullable: state.pullable === true, title: typeof state.title === "string" && state.title.trim() ? state.title.trim().slice(0, 120) : service }]));
     },
   });
 

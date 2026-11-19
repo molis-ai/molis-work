@@ -4,7 +4,8 @@ import type { ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis
 import { scheduleInstallations } from "./runtime-installations.js";
 import type { ScheduleRuntime } from "./runtime-actions.js";
 import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_REMINDER_WAKEUP, SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
-import { SCHEDULE_PLUGIN_ID } from "./manifest.js";
+import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import { scheduleManifest, SCHEDULE_PLUGIN_ID } from "./manifest.js";
 import { roundRole, type ScheduleTaskGrants } from "./task-grants.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handleScheduleTaskWakeup, type ScheduledTaskRunner } from "./wakeup.js";
@@ -53,7 +54,14 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   const missed = await noteMissedWakeup(runtime.db, projectId, input, now(), write);
   if (missed) return missed;
   if (input.capability_id === SCHEDULE_TASK_WAKEUP_CAPABILITY) {
-    return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write);
+    return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write, async turn => {
+      const delivered = turn.kind === "assistant";
+      await services.actions?.invoke(observationActions.report, { facts: [{
+        fact: "io.molis.work.schedule.task_turn", stage: delivered ? "completed" : "executed", outcome: delivered ? "succeeded" : "failed",
+        occurred_at: turn.created_at, work: { work_ref: turn.turn_id }, subjects: [{ kind: "schedule_task", id: turn.task_id }],
+        conditions: { plugin: { id: SCHEDULE_PLUGIN_ID, version: scheduleManifest.version } },
+      }] });
+    });
   }
   const observed = services.installations!.list();
   const views = input.capability_id === SCHEDULE_OPERATION_WAKEUP ? await services.actions!.dependencies!.discover() : [];

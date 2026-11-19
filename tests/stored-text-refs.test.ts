@@ -56,6 +56,7 @@ function keeper(now: string, subjects: Record<string, string | "missing"> = { t1
 }
 const run = (k: ReturnType<typeof keeper>, card: ActionCard) => runActionCard(card, { revision: card.revision, values: {} }, k.ports);
 
+// QEA-182 exercises persisted card results, the three upgrades and both display languages through their owners.
 test("BL-action-card-outcome-text: a card keeps its outcome as a platform key with the raw values, never a sentence", async () => {
   const k = keeper("2026-10-20T09:00:00Z", { t1: "3", gone: "missing" });
   const passed = await run(k, await k.draft({ todo_item_id: "x", title: "写周报", at: "2026-10-19T08:30:00Z" }));

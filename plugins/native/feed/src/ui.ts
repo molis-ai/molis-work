@@ -135,6 +135,8 @@ export interface FeedUiModel {
   readonly connector_auth: {
     readonly github: FeedUiConnectorStatus;
     readonly gmail: FeedUiConnectorStatus;
+    /** Every other service an account source can be added for and the Home can pull (BL-917). */
+    readonly others?: readonly { readonly service_id: string; readonly title: string; readonly bound: boolean }[];
   };
   readonly primitives: FeedUiPrimitives;
   readonly active?: boolean;
@@ -487,6 +489,9 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
   const catalogOptions = (defaultSource ? "" : `<option value="" disabled selected>${uiText("feed.ui.choose-feed")}</option>`) + model.source_catalog.map((source) => `<option value="${p.escape(source.id)}"${source === defaultSource ? " selected" : ""}>${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? uiText.text(kind === "gmail" ? "feed.ui.credentials-saved" : "feed.ui.connected") : uiText.text("feed.ui.disconnected");
+  const others = model.connector_auth.others ?? [];
+  const otherOptions = others.map(row => `<option value="${p.escape(row.service_id)}" data-feed-account-title="${p.escape(row.title)}">${p.escape(row.title)} · ${uiText(row.bound ? "feed.ui.connected" : "feed.ui.disconnected")}</option>`).join("");
+  const otherCard = others.length ? `<article class="feed-connector-card" data-feed-setup-kind="account" hidden><div><strong>${uiText("feed.add-source.other-account")}</strong></div><p>${uiText("feed.ui.other-account-explain")}</p><form class="feed-account-source" data-feed-add-account=""><label><span>${uiText("feed.ui.account-service")}</span><select data-feed-account-service required>${otherOptions}</select></label><label><span>${uiText("feed.ui.source-name")}</span><input data-feed-account-name required maxlength="80" value="${p.escape(others[0]!.title)}"></label><button class="mw-btn mw-btn--primary" type="submit">${uiText("feed.ui.create-source")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, others[0]!.service_id))}" data-feed-account-settings>${uiText("feed.ui.open-connectors")}</a></article>` : "";
   const choices = [
     ["research_library", "book", "feed.add-source.research-library", "feed.add-source.published-research"],
     ["custom_rss", "rss", "feed.add-source.rss-atom", "feed.add-source.paste-url"],
@@ -495,6 +500,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
     ["youtube_channel", "play", "feed.add-source.youtube", "feed.add-source.channel-id"],
     ["github", "tree", "feed.add-source.github", "feed.add-source.unread-notifications"],
     ["gmail", "message", "feed.add-source.gmail", "feed.add-source.mail-scope"],
+    ...(others.length ? [["account", "link", "feed.add-source.other-account", "feed.add-source.other-account-hint"] as const] : []),
   ];
   const sourceChoiceRows = choices.map(([kind, icon, title, hint]) => `<button type="button" class="feed-source-choice" data-feed-choose-kind="${kind}"><span class="feed-source-choice__mark" aria-hidden="true">${p.icon(icon)}</span><strong>${uiText(title)}</strong><small>${uiText(hint)}</small></button>`).join("");
   const taskPanels = renderTaskConfigPanels(model);
@@ -513,7 +519,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
 
           <p class="form-error" data-feed-add-error role="alert" hidden></p>
         </form>
-        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${uiText("feed.ui.git-hub-accounts-managed-settings-connectors-feed-uses")}</p><form class="feed-account-source" data-feed-add-account="github"><label><span>${uiText("feed.ui.source-name")}</span><input data-feed-account-name required maxlength="80" value="GitHub"></label><button class="mw-btn mw-btn--primary" type="submit">${uiText("feed.ui.create-source")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "github"))}">${uiText("feed.ui.open-connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${uiText("feed.ui.authorize-gmail-connectors-create-source-then-choose-its")}</p><form class="feed-account-source" data-feed-add-account="gmail"><label><span>${uiText("feed.ui.source-name")}</span><input data-feed-account-name required maxlength="80" value="Gmail"></label><button class="mw-btn mw-btn--primary" type="submit">${uiText("feed.ui.create-source")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${uiText("feed.ui.open-connectors")}</a></article>
+        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${uiText("feed.ui.git-hub-accounts-managed-settings-connectors-feed-uses")}</p><form class="feed-account-source" data-feed-add-account="github"><label><span>${uiText("feed.ui.source-name")}</span><input data-feed-account-name required maxlength="80" value="GitHub"></label><button class="mw-btn mw-btn--primary" type="submit">${uiText("feed.ui.create-source")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "github"))}">${uiText("feed.ui.open-connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${uiText("feed.ui.authorize-gmail-connectors-create-source-then-choose-its")}</p><form class="feed-account-source" data-feed-add-account="gmail"><label><span>${uiText("feed.ui.source-name")}</span><input data-feed-account-name required maxlength="80" value="Gmail"></label><button class="mw-btn mw-btn--primary" type="submit">${uiText("feed.ui.create-source")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${uiText("feed.ui.open-connectors")}</a></article>${otherCard}
       </section>
       <section data-feed-task-configs hidden>${taskPanels}</section>
       <p class="form-error" data-feed-source-error role="alert" hidden></p><p class="feed-source-progress" data-feed-source-progress role="status" hidden></p>

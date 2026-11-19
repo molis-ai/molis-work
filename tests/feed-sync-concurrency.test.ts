@@ -3,13 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
+import { createTestSourcePull, completedSourcePull } from "./fixtures/source-pull.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 
 // RAC-1212 BL-801: the paths that fail before the pull commits keep their old behaviour; these cases pin it.
 for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test(`Feed sync ignores the stale result after ${change} and releases its source lease`, { timeout: 15_000 }, async () => {
@@ -24,11 +23,13 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     signal: controller.signal, validate_authority: () => { if (!allowed) throw Object.assign(new Error("Revoked"), { code: "fixture.revoked" }); } };
   try {
     const runtime = await host.withRuntime(reference, value => value);
-    const factory = (): SourcePullRuntime => ({ intelligenceCollect: { async executeExact(request) {
-      requests++; if (wait) { entered.resolve(); await release.promise; }
-      return createCompletedIntentResultFixtureV1(request);
-    }, async shutdown() {} }, content: { write: () => ({ contentRef: "fixture" }), read: () => "", has: () => true,
-      inspect: () => ({ referenced: 0, available: 0, missing: 0, keyAvailable: true }) }, async shutdown() {} });
+    const factory = (db: typeof runtime.db) => {
+      const client = createTestSourcePull({ db });
+      return { ...client, async pull(request, options) {
+        requests++; if (wait) { entered.resolve(); await release.promise; }
+        return completedSourcePull(client, request, options);
+      } } satisfies typeof client;
+    };
     const sources = () => createLocalFeedSourceService(runtime.db, reference.project_id, factory);
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: feedManifest.plugin_id, plugin_id: feedManifest.plugin_id,
       title: "Feed", kind: "plugin", project_id: reference.project_id }, definitions: Object.values(feedSourceActions),
@@ -153,25 +154,22 @@ test("what a cancelled call judging its own work leaves is neither judged nor re
 /** The one material a pull the provider completes brings in; the judgments then run on it after the commit. */
 const COMMITTED_MATERIAL = {
   id: "material:committed-then-failed",
-  candidateId: "candidate:committed-then-failed",
-  canonicalUrl: "https://example.com/committed-then-failed",
+  candidate_id: "candidate:committed-then-failed",
+  canonical_url: "https://example.com/committed-then-failed",
   title: "已提交的材料",
-  sourceName: "Example",
+  source_name: "Example",
   preview: "提交之后判断才失败的正文",
-  contentRef: `molis-work-feed/sha256/${"c".repeat(64)}`,
-  contentHash: `sha256:${"c".repeat(64)}`,
-  contentHashProfile: "search-markdown-v1",
-  contentType: "text/markdown",
-  characterCount: 12,
-  capturedAt: "2026-08-29T08:00:00.000Z",
+  content_ref: `molis-work-feed/sha256/${"c".repeat(64)}`,
+  content_hash: `sha256:${"c".repeat(64)}`,
+  content_type: "text/markdown",
+  character_count: 12,
+  captured_at: "2026-08-29T08:00:00.000Z",
+  content_available: true,
   provenance: {
     operationId: "feed-operation", providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
     retrievedAt: "2026-08-29T08:00:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
     transportProfileFingerprint: `sha256:${"d".repeat(64)}`,
   },
-  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
-  truncated: false,
-  availability: "available",
 };
 
 /** A provider pull that commits one material; the judgment port then refuses, after the commit. */
@@ -183,22 +181,13 @@ async function committedPull(refuse: () => ActionError) {
   let committed: ReturnType<typeof reader.snapshot> | undefined;
   let pulls = 0;
   try {
-    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
-      intelligenceCollect: {
-        async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
-          pulls += 1;
-          return { ...createCompletedIntentResultFixtureV1(request), materials: [COMMITTED_MATERIAL] } as IntelligenceCollectResult;
-        },
-        async shutdown() {},
-      },
-      content: {
-        write() { return { contentRef: COMMITTED_MATERIAL.contentRef }; },
-        read() { return COMMITTED_MATERIAL.preview; },
-        has() { return true; },
-        inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
-      },
-      async shutdown() {},
-    }), undefined, {
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => {
+      const client = createTestSourcePull({ db });
+      return { ...client, async pull(request, options) {
+        pulls += 1;
+        return completedSourcePull(client, request, options, [COMMITTED_MATERIAL]);
+      } };
+    }, undefined, {
       captureJudgment: async () => { committed = reader.snapshot(DEMO_PROJECT_ID); throw refuse(); },
     });
     const source = service.register({ kind: "custom_rss", feed_url: "https://example.com/committed-then-failed.xml" }).source;

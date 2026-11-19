@@ -8,7 +8,7 @@ import { identifier, object, nullable, array, enumeration } from "./contract/goa
 import { resolveGoalsPageCollection, type GoalDocumentCollection } from "./document-routes.js";
 import { goalAcceptanceStatus, goalPresentationStates, type CaptureGoalPresentationStatus, type GoalPresentationStatus } from "./presentation.js";
 
-export interface GoalsStageInput { goal_id?: string; collection?: GoalDocumentCollection }
+export interface GoalsStageInput { goal_id?: string; collection?: GoalDocumentCollection; projection?: "collection" }
 export interface GoalsStageData {
   collection: GoalsDocumentCollectionView;
   presentation_states: Array<{ goal_id: string; status: GoalPresentationStatus }>;
@@ -17,7 +17,7 @@ export interface GoalsStageData {
 }
 const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read", /* @version action.goals.stage.read */ 1, "读取目标舞台",
   "读取当前项目的目标集合及所选目标正文、关系和规则；不启动工作或改变目标", "query",
-  object({ goal_id: identifier, collection: { type: "string", enum: ["current", "archive", "trash"] } }, []),
+  object({ goal_id: identifier, collection: { type: "string", enum: ["current", "archive", "trash"] }, projection: enumeration(["collection"]) }, []),
   object({ collection: goalsCollectionAction.action.output_schema!, selection: { type: "string", enum: ["current", "archive", "trash"] },
     presentation_states: array(object({ goal_id: identifier, status: enumeration(goalPresentationStates) })),
     selected: nullable(object({ goal_id: identifier, document: goalDocumentAction.action.output_schema! })) }));
@@ -36,14 +36,14 @@ export function createGoalsStageActionHandler(ports: {
   document(goalId: string, acceptance?: GoalAcceptanceViews): GoalEventDocumentView;
 }): ActionHandlerBinding {
   return { ...goalsStageAction, handle: (_caller, input, acceptance?: GoalAcceptanceViews) => {
-    const { goal_id, collection: requestedCollection } = input as GoalsStageInput;
+    const { goal_id, collection: requestedCollection, projection } = input as GoalsStageInput;
     const membership = ports.membership();
     const resolved = resolveGoalsPageCollection({ collection: requestedCollection ?? "current", ...(goal_id ? { goal_id } : {}) }, membership);
     const selection = "error" in resolved ? requestedCollection ?? "current" : resolved.route.collection;
     const visible = selection === "archive" ? membership.archived_goals : selection === "trash" ? membership.trashed_goals : membership.goals;
     // An absent selection is still a collection read; the page owner retains its existing missing-Goal response.
     const goalId = goal_id ?? (selection === "current" ? membership.active_goal_id : visible[0]?.goal.goal_id);
-    const selected = goalId && visible.some(item => item.goal.goal_id === goalId)
+    const selected = projection !== "collection" && goalId && visible.some(item => item.goal.goal_id === goalId)
       ? { goal_id: goalId, document: ports.document(goalId, acceptance) } : null;
     const presentation_states: GoalsStageData["presentation_states"] = [];
     const collection = ports.collection(membership, (goal_id, status) => presentation_states.push({ goal_id, status: goalAcceptanceStatus(status, acceptance?.get(goal_id)) }));

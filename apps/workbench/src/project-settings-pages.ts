@@ -66,7 +66,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderGuidance(guidance);
-    if (section === "memory") return renderMemorySettings({ readText, scope: "project", projectId: view.project!.project_id });
+    if (section === "memory") return renderMemorySettings({ scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     if (section === "kit") return renderKitSettings({ projectId: view.project!.project_id });
     // 项目设置 › 角色 (docs/design/role-scope, plan C): this project's default and members; the person's own roles are in Settings › 角色.

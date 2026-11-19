@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.deepseek-search",
+  "locale": "zh",
+  "messages": {
+    "deepseek-search.connection.auth-help": "用 DeepSeek 开放平台的 API Key（与模型调用同一把）。按成功的搜索请求从余额扣费，余额不足时搜索会被拒。连接时只读余额核对密钥，不扣费。",
+    "deepseek-search.connection.inbound": "网页搜索（设为默认后使用）",
+    "deepseek-search.connection.summary": "DeepSeek 的网页搜索，能搜文档，按成功请求计费。",
+    "deepseek-search.connection.token-label": "DeepSeek API Key",
+    "deepseek-search.setup.open-deepseek-api-keys": "打开 DeepSeek API Keys"
+  }
+}

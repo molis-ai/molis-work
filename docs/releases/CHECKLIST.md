@@ -58,6 +58,7 @@
 | 装进来的插件的 Home 库账本 | `plugin-libraries/plugin-libraries.db` | 1 | `user_version` | `apps/local-host/src/installed-plugin-libraries.ts#LEDGER_BASELINE` | 低版本升级，高版本拒绝 |
 | 插件的本机目录授权 | `plugin-directories/plugin-directories.db` | 1 | `user_version` | `apps/local-host/src/plugin-directory-store.ts#DIRECTORY_GRANTS_BASELINE` | 低版本升级，高版本拒绝 |
 | 插件原文件登记 | `plugin-originals/plugin-originals.db` | 1 | `user_version` | `apps/local-host/src/material-original-files.ts#ORIGINAL_FILES_BASELINE` | 低版本升级，高版本拒绝 |
+| 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 低版本升级，高版本拒绝（第 35 批新建，从版本 1 起） |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 记忆 | `memory/memory.db` | 3 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 清掉旧记忆的账本记录，保留开关并补空的按类别限制，下次启动永久删除两个旧布局记忆目录并建新的空遗忘文件；2 → 3 清洗 `memory_revisions` 只留 `{version, change, by, at}` 无正文归因并清掉非 `pending` 的 `memory_markers` 里的 `merge` 暂态字段，收紧读取校验；真实 Home 先备份），高版本拒绝；新Home创建完整reviewed偏好，不重设已有设置 |
@@ -71,10 +72,12 @@
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 3 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 低版本升级（2 → 3 新增技能草稿、已知答案、回放、来源四张空表，已有的技能设置与用量不动），高版本拒绝 |
 | 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 低版本升级，高版本拒绝 |
 | 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 低版本升级，高版本拒绝 |
+| 网页搜索设置 | `web-search/web-search.db` | 1 | `user_version` | `apps/local-host/src/web-search-store.ts#WEB_SEARCH_BASELINE` | 低版本升级，高版本拒绝 |
+| 网页搜索单次运行的证据表 | `:memory:` | 1 | `user_version` | `apps/local-host/src/connector-web-search.ts#SEARCH_RUN_BASELINE` | 不落盘：每次搜索新建、结束即丢，没有可不符的旧库 |
 | 引导 | `context-onboarding/context-onboarding.db` | 2 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级（1 → 2 把旅程里 Todo 批次的原样换成平台形状的草稿批次，快照置空、留批次 id；`todo_selected` 改名 `keep` 原样保留；Pages 的文档 id 补成对象地址；见不该有的形状拒绝升级、库保留），高版本拒绝 |
 | Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 低版本升级，高版本拒绝 |
 | Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 低版本升级，高版本拒绝 |
-| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 低版本升级，高版本拒绝 |
+| Images | `images/images.db` | 2 | `user_version` | `plugins/native/images/src/database.ts#IMAGES_DATABASE` | 低版本升级，高版本拒绝 |
 | Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/database.ts#JELLY_DATABASE` | 低版本升级，高版本拒绝 |
 | 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/database.ts#LINGGUANG_DATABASE` | 低版本升级，高版本拒绝 |
 | Pages | `pages/pages.db` | 1 | `user_version` | `plugins/native/pages/src/database.ts#PAGES_DATABASE` | 低版本升级，高版本拒绝 |
@@ -106,7 +109,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 版本号相同、结构不同的库**不一律拒绝**：`openBaselineHomeSqlite` 的只读结构核对只要求当前基线的每张表都在、且形状与基线一致，**允许额外的表**（项目库会带内置插件自己的表）；缺表或基线表形状不同才报 `storage.schema_structure_mismatch`；有表无版本报 `storage.schema_version_mismatch`，低版本报 `storage.upgrade_pending`，高版本报 `storage.store_too_new`。所以「同号旧形状」既不能推成必拒，也不能推成必收：已知旧同号形状（旧角色库为1但没有 `character_runs`；#661之前的连接库为1；记忆账本旧1带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1）里，带额外表的不一定被这套结构核对拒掉；其他 owner 自己的路径、权限、密钥与 JSON 检查也不是这个函数的保证，仍由各自入口负责；数字重新从1起算不证明这些旧形状会被接受。重建前不要用新构建打开旧 Home。这里只引用既有记录，没有重新读取真实Home。
 
 统一起点之前版本不符仍整体拒绝，不做历史读取转换、不自动升级；读路径任何时候都不转换，升级只由升级过程做。旧版本的逐段维护、采用、搬迁和残留清理计划全部取消；历史记录从Git查，不再作为安装步骤。待删的其他维护入口由[干净Home分片](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)收口。
-- 角色当前结构1保留character_runs原生执行记录、草稿与同步日志；既有检查记录的旧1没有character_runs，本单未重新读取旧Home；现行基线仍检查同号库的所属表是否齐全且形状一致；旧Home整体搬开后新建，不从Sessions或旧角色库迁移，原SQL与演练删除。
+- 角色当前结构 2。第 36 批的 1 → 2 升级只建空表，保留原生执行记录、草稿与同步日志。现行基线仍核对所属表的形状。
 - 「拒绝」在已有连接上是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本；版本相同且基线表齐全才放行；版本不符、有表无版本、同号缺表或基线表形状不同都报错并说明路径；版本错误另带找到的版本和期望的版本，结构错误说明与当前基线结构不符，不就地升级。**先只读核对再开可写连接**只是 `openBaselineHomeSqlite` 这个 wrapper 的顺序，公开 `applySqliteBaseline` 本身不做只读预检。目录库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`）。
 - Home Plugin Runtime当前结构1保留项目访问同意范围、批准能力及publisher_trust、plugin_consents与plugin_publishers；新Home启动按Manifest幂等登记常开同意，撤销不复活。旧项目/Runtime升级路线已取消，相关片删除工具。
 - Sessions已下线，用户2026-10-30确认删除其离线技术登记与reader；新Home不建sessions目录，未知旧目录不被快照读取，旧Home整体搬开后保留。

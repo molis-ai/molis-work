@@ -157,6 +157,11 @@ export class SandboxPackageStore {
     return manifest;
   }
 
+  /** The kept release for lifecycle controls. Turning off a package remains available after publisher revocation. */
+  packageForControl(record: PluginInstanceRecord | undefined): InstalledRelease | undefined {
+    return record?.publisher_trust === 'pinned' ? this.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
+  }
+
   /**
    * The Manifest an installation was installed with: its kept, signed bundle's, and only when that Manifest's digest is the installation's.
    * Undefined when the bundle is not there or does not verify: what owns a library is then unproven, and its library is kept (BL-915).

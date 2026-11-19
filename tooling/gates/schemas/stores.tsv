@@ -12,13 +12,14 @@ characters/characters.sqlite	modules/characters	2	c93cce5f71eea87a	1
 cognia/cognia.db	io.molis.work.cognia	1	63a6689796b99342	-
 connectors/connectors.db	apps/local-host	1	5c3dd2df5eeb56d8	-
 context-onboarding/context-onboarding.db	apps/local-host	2	6b6e720e44774d75	1
+conversation-attachments/conversation-attachments.db	apps/local-host	1	0ceb0c6ee4dc2273	-
 dataset/dataset.db	io.molis.work.dataset	1	3443d9eb65e01984	-
 evaluation/evaluation.db	horizontal/evaluation	1	c45a6b323aed5968	-
 external-sessions/external-sessions.db	horizontal/sessions	1	a2f89f0557afe6c3	-
 feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 form/form.db	io.molis.work.form	1	0e3c9d4717792190	-
 functions/functions.db	modules/functions	1	bd2d2c28207ec864	-
-images/images.db	io.molis.work.images	1	461b192cc642a221	-
+images/images.db	io.molis.work.images	2	0eb943ac8d0c510e	1
 issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
@@ -44,5 +45,6 @@ projects/catalog.db	apps/local-host	4	f704641f25a9cbb2	1,2,3
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-
+web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-
 work-brief/work-brief.db	io.molis.work.work-brief	2	57259b770650ee22	1
 workflows/workflows.db	io.molis.work.native.workflows	1	4bf4b5a14a13db76	-

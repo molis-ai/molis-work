@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, UNMARKED_IMAGES_NOTE, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -14,7 +14,7 @@ export interface HostTextRequestOptions {
   signal?: AbortSignal;
   beforeDispatch?(): void | Promise<void>;
   system?: string;
-  /** Trusted Host sources, accepted only by a configured model declaring vision. */
+  /** Trusted Host sources; refused only for a configured model marked as not seeing images (decision 51 ③). */
   images?: readonly PrologueInputImage[];
   structured?: PrologueStructuredRequest;
   onProgress?(event: PrologueTextProgress): void;
@@ -26,6 +26,8 @@ export type HostCompleteText = (prompt: string, options?: HostTextRequestOptions
 export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void; prompt_includes_cache?: boolean };
 export type HostTextGenerationFailure = Error & { execution?: PrologueInferenceError["execution"]; validateResult?: () => void };
 export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextGenerationResult>;
+export type HostTextCommitResult = Pick<HostTextGenerationResult, "value" | "validateResult">;
+export type HostTextForCommit = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextCommitResult>;
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
@@ -61,6 +63,12 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
   return generate && (async (prompt, request) => (await generate(prompt, request)).value);
 }
 
+/** The actual model's guard travels with its text through the owner's final authorization wait. Injected text has no model binding. */
+export function hostTextForCommit(homeDirectory: string, injected?: HostCompleteText | null): HostTextForCommit | undefined {
+  if (injected === undefined) return hostTextGeneration({ homeDirectory });
+  if (injected) return async (prompt, request) => ({ value: await injected(prompt, request), validateResult() {} });
+}
+
 /** Whether this Home has a usable text model set up: asks nothing of a model (the runtime overview's `waiting.model`). */
 export function hostHasTextModel(options: HostTextOptions = {}): boolean {
   return hostTextGeneration(options) !== undefined;
@@ -89,7 +97,8 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
           validatePrompt(prompt); request?.signal?.throwIfAborted();
           const before = current();
           if (!before) throw unavailable();
-          assertVisionInput(request, before.model.vision === true);
+          assertVisionInput(request, before.model.vision);
+          const sent = withUnmarkedImagesNote(request, before.model.vision);
           const config = { ...before.provider, model_id: before.model.model_id };
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
@@ -97,7 +106,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
           return guardedGeneration(() => completeTextRequest(config, before.provider.credential_ref, () => {
             if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
             return apiKey;
-          }, prompt, home, request, options.resolveInference,
+          }, prompt, home, sent, options.resolveInference,
           () => JSON.stringify(current()) !== JSON.stringify(before)), () => JSON.stringify(current()) !== JSON.stringify(before));
         };
       }
@@ -120,6 +129,7 @@ function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | 
   const { config } = initial;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
+    // A key from the environment has no model settings to mark: it stays a text-only model.
     assertVisionInput(request, false);
     const before = environmentState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
@@ -167,8 +177,15 @@ function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; 
   return { config: { base_url: validateTextModelUrl(base_url), api_format, model_id }, key };
 }
 
-function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {
-  if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");
+/** One rule with an Agent round's (decision 51 ③): only a model marked as not seeing images is refused; an unmarked one is sent the pictures. */
+function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean | undefined): void {
+  if (request?.images?.length && vision === false) throw new ActionError("actions.connection_required", "当前模型在模型设置里标为不能看图，原图未发送；请换一个能看图的模型");
+}
+
+/** An unmarked model sent pictures is told, as an Agent round's is, to say so if it cannot see them rather than guess. */
+function withUnmarkedImagesNote(request: HostTextRequestOptions | undefined, vision: boolean | undefined): HostTextRequestOptions | undefined {
+  if (!request?.images?.length || vision !== undefined) return request;
+  return { ...request, system: request.system ? `${request.system}\n\n${UNMARKED_IMAGES_NOTE}` : UNMARKED_IMAGES_NOTE };
 }
 
 // A prompt is counted in characters, like a schema's maxLength (Ajv counts code points), so text a schema accepts is not refused here for having two UTF-16 units a character.

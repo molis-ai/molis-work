@@ -595,7 +595,7 @@ test("IUI-07 IUI-08 IUI-10: an Attention peek clears old content on close and a 
   assert.equal([...requests.values()].filter(item => item.mode === "confirm" && item.status === 200).length, 1);
 });
 
-test("IUI-06: the original Attention more menu explains, removes and restores a known readable object", { timeout: 90_000 }, async t => {
+test("IUI-06 QEA-189: the original Attention menu removes and restores a known object through a background refresh", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const { projectId, store } = b;
@@ -617,7 +617,25 @@ test("IUI-06: the original Attention more menu explains, removes and restores a 
     await b.command("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: code, ...(key === "Enter" ? { text: "\r" } : {}) }, b.sessionId);
     await b.command("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: code }, b.sessionId);
   };
-  const read = () => b.evaluate<SurfaceHomeDisplay>(`molisWorkRequest(${quoted(endpoint)}, { method: "POST", body: {} })`);
+  const read = (body: Record<string, unknown> = {}) => b.evaluate<SurfaceHomeDisplay>(
+    `molisWorkRequest(${quoted(endpoint)}, { method: "POST", body: ${JSON.stringify(body)} })`);
+  // The real refresh goes through the registered announcement and the current project transport.
+  const backgroundRead = () => b.evaluate<string>(`new Promise((resolve, reject) => {
+    const send = window.fetch;
+    window.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      const body = url.pathname === ${quoted(endpoint)} && typeof init?.body === "string" ? JSON.parse(init.body) : null;
+      if (!body || body.count || body.correct) return send.call(window, input, init);
+      window.fetch = send;
+      try {
+        const response = await send.call(window, input, init);
+        const value = await response.clone().json();
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve(value.corrections_revision)));
+        return response;
+      } catch (error) { reject(error); throw error; }
+    };
+    window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: "refresh-work", capability_id: "feed.items.disposition" } }));
+  })`);
   await b.setViewport(1440, 900);
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + projectId + "/" }, b.sessionId));
@@ -644,15 +662,27 @@ test("IUI-06: the original Attention more menu explains, removes and restores a 
   const removed = (await read()).corrections_revision;
   assert.notEqual(removed, revision);
   assert.deepEqual([feed.getInboxEntry(projectId, original.entry_id).status, feed.getInboxEntry(projectId, original.entry_id).revision], ["open", original.revision]);
-  await b.click(defaults); await b.click(reset); await b.waitFor(visible(confirm));
+  await b.click(defaults);
+  assert.equal(await backgroundRead(), removed);
+  assert.equal(await b.evaluate(visible(reset)), true, "an unchanged refresh leaves the current menu open");
+  await b.click(reset); await b.waitFor(visible(confirm));
+  assert.equal(await backgroundRead(), removed);
+  assert.equal(await b.evaluate(`${visible(confirm)} && ${focus(cancel)}`), true, "the same revision keeps the confirmation and its focus");
   await b.click(cancel);
   assert.equal((await read()).corrections_revision, removed, "cancelling the position restore does not write");
   await b.click(recovery);
   await b.waitFor(`${visible(row)} && !${q(recovery)}`);
   const restored = (await read()).corrections_revision;
   assert.notEqual(restored, removed);
+  await b.click(defaults); await b.click(reset); await b.waitFor(visible(confirm));
+  await read({ correct: { correction: "reset", expected_revision: restored } });
+  const changed = (await read()).corrections_revision;
+  assert.notEqual(changed, restored);
+  assert.equal(await backgroundRead(), changed);
+  await b.waitFor(`!${q(confirm)} && ${focus(defaults)}`);
+  assert.equal((await read()).corrections_revision, changed, "the old confirmation cannot submit the changed revision");
   await b.click(defaults); await b.click(reset); await b.click(confirm);
   await b.waitFor(`${focus(defaults)} && !${q(confirm)}`);
-  assert.notEqual((await read()).corrections_revision, restored);
+  assert.equal(BigInt((await read()).corrections_revision), BigInt(changed) + 1n);
   assert.equal(feed.getFeedItem(projectId, item.item_id).revision, item.revision);
 });

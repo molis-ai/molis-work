@@ -450,3 +450,5 @@ QEA-136 保留 S-80 的包范围、声明和信任拒绝，使用真实安装记
 | 共享输入和 Coding 发送 | 设计系统批量发送草稿键，Host 按 Home 项目与安装判断。用浏览器构建产物复验前 500 条有效草稿保留及后续失效项清理。在隔离 Home 从 Coding 的正常按钮验证材料交付，迟到与混合失败仍可从原输入继续。 [主干草稿清理](https://github.com/molis-ai/molis-work/blob/517a4d78fa0f9abb4f673ac606932c003c4f2147/packages/design-system/src/browser/composer-sweep.ts#L23) |
 | 图片插件设置、生成与撤权 | 公共动作绑定交给 Images 服务。配置和凭据以新事务回执协调，隔离库 1→2 通过。撤权后的中断投影和原持久记录分开查证，实际浏览器在窄宽及中英文能恢复选择。 [主干动作与合同](https://github.com/molis-ai/molis-work/blob/517a4d78fa0f9abb4f673ac606932c003c4f2147/plugins/native/images/src/actions.ts#L27) |
 | 待办提醒、批量菜单、AI 整理 | Todo store 核用户确认的原提醒时间并记录批量实际变更。改期后拒绝旧请求，同次重试幂等。整批冲突回滚、键盘菜单与原整理调用通过。 [主干写入](https://github.com/molis-ai/molis-work/blob/517a4d78fa0f9abb4f673ac606932c003c4f2147/plugins/native/todo/src/store.ts#L43) |
+
+入队前的 QEA-204 从项目设置页核签名换版、重审与撤回，从原 SDK 设置行核项目分类、窄宽显示、语言和返回输入栏。新版本状态由 Workbench 词包显示，实际拒绝及同意由 Host 服务提供，独立快照还核对了原 Goals 内容和入屏字节。 [入队前复验](report.md#入队前复核主干设置页)

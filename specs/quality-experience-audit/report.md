@@ -1660,4 +1660,6 @@ Workbench 在每次同地址读取完成后的半秒归并被动提示。期间�
 
 对照 `e5e565411b` 的独立 Host 构建，67 条静态资源和十组首屏通过。静态最大增量为已验 Git 脚本的 8,403 B，最大冷加载增量为中文项目选择页的 2,202 B，最大热增 20 B。工作台中英文词包的组合内容地址为 `a1d9a7af2d1da66478dcb886` 与 `88a613c6a240ed771299bd80`。22 条需核准的加载条目均匹配现行许可，词包每页每种语言仍只下发一份。实测记录 `quality-audit-queue-resource-proof.json`。
 
+组合的设置、输入栏和签名插件 7 个相关文件共 60 项通过。签名场景补齐专用浏览器配置后，隔离 Home 发现旧测试沿用了三处旧分组标题，并把工作台设置的新版本状态用作插件运行时的拒绝反馈。按已合入词包和 Host 原拒绝语句更新对应预期。实操 3/3 通过，覆盖动作各出现一次、原同意与实际写入读回、增权版本须重审、取消与撤回后的写入结果、两种宽度的确认。主干夜间已登记的角色与 Coding 动作选择用例从当前候选的实际界面复验 1/1 通过。 [签名用例](../../tests/home-package-project-reach.e2e.test.ts#L172) · [拒绝归属](../../apps/local-host/src/plugin-project-reach-consent.ts#L92)
+
 入队使用工作树复核、最终头的 Verify 和 Full，以及 GitHub 合并队列对主干的组合 Verify。对应运行与合入记录随 PR 说明更新。 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [GitHub 检查](https://github.com/molis-ai/molis-work/pull/2101/checks)

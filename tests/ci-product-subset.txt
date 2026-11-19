@@ -449,12 +449,12 @@ tests/tab-reorder.test.ts
 tests/tab-split-drop.test.ts
 tests/tab-strip-share.test.ts
 tests/tab-workspace-ops.test.ts
+tests/tab-workspace-view.test.ts
 tests/text-stats-plugin.test.ts
 tests/todo-actions.test.ts
 tests/todo-from-inbox.test.ts
 tests/todo-organize.test.ts
 tests/typesafe-inference-port.test.ts
-tests/ui-audit-2026-09-22.test.ts
 tests/uninstall-catalog.test.ts
 tests/uninstall-receipt.test.ts
 tests/upgrade-chain.test.ts

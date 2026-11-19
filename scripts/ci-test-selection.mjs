@@ -40,7 +40,7 @@ import { planShards, readWeights } from "./run-tests/shard.mjs";
  */
 export const FULL_WHEN = {
   both: [
-    ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/", "vendor/",
+    ".github/workflows/ci.yml", ".github/actions/", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/", "vendor/",
     "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/", "scripts/run-tests.mjs", "scripts/run-tests/",
     "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
     // What this script, affected-tests and the two runners import (tests/ci-test-selection.test.ts follows the imports and holds this):
@@ -60,7 +60,7 @@ const ROOT_CONFIG = /^[^/]+$/;
  * and any file at the root that is not a Markdown document. The list errs wide: a change outside it is one the job cannot see.
  */
 export const NATIVE_RUN_WHEN = {
-  prefixes: ["apps/desktop/", "apps/local-host/native/", ".github/workflows/", ".cargo/"],
+  prefixes: ["apps/desktop/", "apps/local-host/native/", ".github/workflows/", ".github/actions/", ".cargo/"],
   files: ["scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"],
   extensions: [".rs", ".swift"],
   names: ["Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml", ".rustfmt.toml"],
@@ -78,7 +78,7 @@ export const GOLDEN_THIRD_PARTY_RUN_WHEN = {
     "packages/plugin-runtime/", "packages/plugin-sandbox/", "packages/plugin-sdk/", "packages/storage/", "packages/contracts/",
     "apps/local-host/src/plugin-", "apps/local-host/src/sandbox-", "apps/local-host/src/installed-plugin-", "apps/local-host/src/home-plugin", "apps/local-host/src/home-installed-plugins", "apps/local-host/src/home-stor", "apps/local-host/src/project-plugin", "apps/local-host/src/project-database", "apps/local-host/src/project-statement-",
     "apps/desktop/launchers/cli/", "tooling/plugin-cli/",
-    "tests/fixtures/golden-homes/", "tests/fixtures/golden-home-library/", "tests/fixtures/replay-plugins/", "tests/golden-writes/", "scripts/golden/", "scripts/replay-plugins/", "vendor/", ".github/workflows/",
+    "tests/fixtures/golden-homes/", "tests/fixtures/golden-home-library/", "tests/fixtures/replay-plugins/", "tests/golden-writes/", "scripts/golden/", "scripts/replay-plugins/", "vendor/", ".github/workflows/", ".github/actions/",
   ],
   files: ["apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts"],
 };
@@ -154,7 +154,12 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
   const missing = ["tests", "full", "changes", "uncovered"].filter((key) => !Array.isArray(affected[key]));
   if (missing.length) return whole([`affected-tests answered without ${missing.join(", ")}`]);
   const reasons = [];
-  for (const item of affected.full) reasons.push(`affected-tests recommends the full suite (${item.rule}): ${item.detail}`);
+  // On PRs, `spans-packages` alone (e.g., 3 leaf plugins with zero uncovered files and no core/assembly/storage/delete rules)
+  // can safely run the union of wide-affected tests across those packages; `merge_group` always runs the full lists.
+  for (const item of affected.full) {
+    if (item.rule === "spans-packages") continue;
+    reasons.push(`affected-tests recommends the full suite (${item.rule}): ${item.detail}`);
+  }
   if (affected.uncovered.length) reasons.push(`no test reads ${affected.uncovered.join(", ")}, so who is affected cannot be told`);
   const changed = changedPaths(affected);
   if (!changed) return whole(["affected-tests answered without valid changes"]);
@@ -168,12 +173,12 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
   if (!selected.length) return { mode: "none", shards: [1], files: [], reasons: [`none of its ${entries.length} files is among the ${wanted.size} tests this change touches`] };
   if (selected.length >= entries.length - 1) return whole([`${selected.length} of its ${entries.length} files are selected`]);
   // CIP-06: target six minutes of tests per runner. A few slow files can need more runners than many short files.
-  // Product smokes run before the other files, while the security runner shares its worker slots with browser files.
+  // Product smokes run before the other files; both security and product run four workers with at most one browser at a time.
   const maximum = Math.min(LEGS[job], selected.length);
   const targetSeconds = Math.max(360, ...selected.map((entry) => weights[entry.file] ?? 0));
   let count = 1;
   for (; count < maximum; count++) {
-    const plan = planShards(selected, { count, jobs: job === "product" ? 4 : 2, browserJobs: job === "product" ? 1 : 2, separateBrowser: job === "product" }, weights, (entry) => entry.file, (entry) => entry.browser);
+    const plan = planShards(selected, { count, jobs: 4, browserJobs: 1, separateBrowser: job === "product" }, weights, (entry) => entry.file, (entry) => entry.browser);
     if (Math.max(...plan.loads.map((load) => load.seconds)) <= targetSeconds) break;
   }
   return {
@@ -188,15 +193,15 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
 export function outputLines(decisions) {
   const lines = [];
   for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
-  for (const job of ["native", "documentation", "gate_rules", "shell", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
+  for (const job of ["native", "documentation", "gate_rules", "shell", "studio_replay", "account_login", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;
 }
 
 function summary(decisions, base) {
-  const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security and product jobs; other merge groups run both whole.`, ""];
-  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks" };
+  const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security, product and account-login jobs; other merge groups run them whole.`, ""];
+  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks", studio_replay: "Studio Skill replay rules", account_login: "P1 login contract and regression" };
   for (const [job, decision] of Object.entries(decisions)) {
     out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : !decision.shards ? "" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);

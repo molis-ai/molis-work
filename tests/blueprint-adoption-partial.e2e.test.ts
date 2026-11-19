@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { blueprintActions as actions } from "@molis-ai/molis-work-contracts/services/blueprints";
@@ -11,6 +12,7 @@ import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
@@ -116,6 +118,30 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
   probe.mock.restore();
   assert.ok(lost);
   assert.deepEqual(initial.steps.map(step => step.state), ["applied", "pending_verification"]);
+  const unknown = initial.steps[1]!;
+  assert.deepEqual(unknown, { part_id: "model", state: "pending_verification", request_id: initial.adoption_id + ":model" });
+  const pendingRow = "(document.querySelector('[data-scene-main] details[open]')?.textContent ?? '')";
+  const awaiting = `/待核对|Awaiting verification/i.test(${pendingRow})`;
+  const unavailableHint = `/原设置提供方当前不可用|original settings provider is unavailable/i.test(${pendingRow})`;
+  const executable = outcome === "manually changed" ? undefined : locateTestChrome();
+  const profile = executable ? await mkdtemp(join(tmpdir(), "molis-work-scene-status-")) : undefined;
+  let browser: ChromeHarness | undefined;
+  if (profile && executable) {
+    t.after(async () => {
+      try { await browser?.close(); }
+      finally { await rm(profile, { recursive: true, force: true }); }
+    });
+    browser = await ChromeHarness.start(profile, { executable });
+  }
+  const page = await browser?.page();
+  const resultPath = `/projects/${one.project_id}/onboarding?scene&adoption=${initial.adoption_id}`;
+  if (page && browser) {
+    await page.command("Page.enable");
+    await page.command("Network.setCookie", { name: "molis_work_locale", value: outcome === "replacement" ? "en" : "zh", url: env.origin });
+    await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: env.origin + resultPath })]);
+    await page.wait(awaiting);
+    assert.equal(await page.evaluate(unavailableHint), false);
+  }
   const preference = join(env.home, "jelly", "preferences.json");
   const saved = JSON.parse(await readFile(preference, "utf8"));
   assert.deepEqual(saved.selection, selected);
@@ -131,16 +157,29 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
   assert.deepEqual(blocked.steps[0], { part_id: "stale", state: "skipped", reason: "owner_unavailable" });
   const resumed = await a.invoke(actions.apply, request);
   assert.deepEqual(resumed.steps.map(step => step.state), ["applied", "pending_verification"]);
+  const unavailable = { ...unknown, current: "owner_unavailable" };
+  assert.deepEqual(resumed.steps[1], unavailable);
   const undoRequest = { adoption_id: initial.adoption_id, request_id: "undo-with-missing-owner" };
   const undone = await a.invoke(actions.revert, undoRequest);
   assert.deepEqual(undone.undo.steps.map(step => step.state), ["restored", "pending_verification"]);
-  assert.deepEqual(undone.undo.steps[1], initial.steps[1], "the unknown apply retains its original owner request");
+  assert.deepEqual(undone.undo.steps[1], unavailable, "the unknown apply retains its original request and reports the unavailable owner");
+  const stoppedStatus = await a.invoke(actions.read, { adoption_id: initial.adoption_id });
+  assert.deepEqual(stoppedStatus.apply_steps[1], unavailable);
+  assert.deepEqual(stoppedStatus.latest_undo?.steps[1], unavailable);
+  await page?.wait(`${awaiting} && ${unavailableHint}`);
   assert.equal(await a.invoke(projectSettingsCapabilities.runtime, []), null);
   assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved);
   if (outcome !== "replacement") {
     const enabled = await platform.supervisor.enable(jellyManifest.plugin_id);
     assert.equal(enabled.status, "running");
     assert.equal(env.host.homePlugins!.installation(jellyManifest.plugin_id)?.installation_generation, old.installation_generation);
+    const reenabledStatus = await a.invoke(actions.read, { adoption_id: initial.adoption_id });
+    assert.deepEqual(reenabledStatus.apply_steps[1], unknown);
+    assert.deepEqual(reenabledStatus.latest_undo?.steps[1], unknown);
+    if (page && browser) {
+      await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.reload")]);
+      await page.wait(`${awaiting} && !(${unavailableHint})`);
+    }
     const prefs = "/api/plugins/io.molis.work.jelly/preferences/";
     if (outcome === "manually changed") {
       const value = (await env.web.post<SettingsValues>(prefs + "read", { keys: [key] })).values[0]!;
@@ -177,10 +216,16 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
       const current = await successor.localPersonContext(one.reference);
       const restarted = bindActionClient(successor.actionClient(one.reference), () => current);
       const result = await restarted.invoke(actions.remove, { ...undoRequest, request_id: "remove-after-restart" });
-      assert.deepEqual(result.undo.steps, undone.undo.steps);
+      const replaced = { ...unknown, current: "owner_replaced" };
+      assert.deepEqual(result.undo.steps, [undone.undo.steps[0], replaced]);
       assert.equal(await restarted.invoke(projectSettingsCapabilities.runtime, []), null);
       const status = await restarted.invoke(actions.read, { adoption_id: initial.adoption_id });
-      assert.deepEqual(status.apply_steps[1], initial.steps[1]);
+      assert.deepEqual(status.apply_steps[1], replaced);
+      assert.deepEqual(status.latest_undo?.steps[1], replaced);
+      if (page && browser) {
+        await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: served.origin + resultPath })]);
+        await page.wait(`${awaiting} && /installation has changed/i.test(${pendingRow})`);
+      }
       assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved, "the replacement never receives an old request");
     } finally { await served.close(); }
   } finally { await successor.close(); }

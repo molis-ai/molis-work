@@ -1,17 +1,91 @@
 #!/usr/bin/env node
 // FSS-BG-01–05. Real read-only HTTP samples on the merge-base and candidate builds, with no absolute limits.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { isMainScript } from "../script-paths.mjs";
 import { LOCALES, withFirstScreenHost } from "../first-screen/host.mjs";
 import { sampleFirstScreen } from "../first-screen/http.mjs";
-import { GATED_PAGES, MEASURED_PAGES, comparisonRows, currentRows, firstScreenApprovalPath, readManifest, registeredPaths, removedManifestRows, requestKey } from "../first-screen/manifest.mjs";
-import { allowanceFiles, git, withBuiltBaseline } from "./page-assets-baseline.mjs";
+import { GATED_PAGES, MANIFEST, MEASURED_PAGES, comparisonRows, currentRows, firstScreenApprovalPath, parseManifest, readManifest, registeredPaths, removedManifestRows, requestKey } from "../first-screen/manifest.mjs";
+import { allowanceFiles, git, trustedRun, withBuiltBaseline } from "./page-assets-baseline.mjs";
 import { VISITS, readNewAllowances } from "./page-assets-policy.mjs";
+
+const CHECKER_SOURCES = [
+  import.meta.filename,
+  new URL("../first-screen/host.mjs", import.meta.url),
+  new URL("../first-screen/http.mjs", import.meta.url),
+  new URL("../first-screen/manifest.mjs", import.meta.url),
+];
+
+export function firstScreenMeasurementKey(rows) {
+  const hash = createHash("sha256");
+  for (const file of CHECKER_SOURCES) hash.update(readFileSync(file));
+  hash.update(JSON.stringify({ rows, node: process.version, platform: process.platform, arch: process.arch }));
+  return hash.digest("hex").slice(0, 24);
+}
+
+function validMeasurementMap(pages) {
+  if (!pages || typeof pages !== "object" || Array.isArray(pages)) return false;
+  for (const page of MEASURED_PAGES) {
+    for (const locale of LOCALES) {
+      const entry = pages[`${page}/${locale}`];
+      if (!entry || typeof entry !== "object" || !entry.totals || !entry.entries || typeof entry.entries !== "object") return false;
+      for (const visit of VISITS) if (!Number.isInteger(entry.totals[visit]) || entry.totals[visit] < 0) return false;
+      for (const size of Object.values(entry.entries)) {
+        if (!size || typeof size !== "object") return false;
+        for (const visit of VISITS) if (!Number.isInteger(size[visit]) || size[visit] < 0) return false;
+      }
+    }
+  }
+  return true;
+}
+
+export function firstScreenReportMatches(report, sha, key) {
+  return report?.sha === sha && report?.key === key && validMeasurementMap(report?.pages);
+}
+
+export async function cachedFirstScreenMeasurement({ sha, key, repo = process.env.GITHUB_REPOSITORY, token = process.env.GITHUB_TOKEN, fetch: get = globalThis.fetch, signal }) {
+  if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? "")) return null;
+  let temporary;
+  try {
+    const api = "https://api.github.com";
+    const request = async (route, binary = false) => {
+      const response = await get(`${api}/repos/${repo}/${route}`, {
+        headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}` },
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`cache request returned ${response.status}`);
+      return binary ? Buffer.from(await response.arrayBuffer()) : response.json();
+    };
+    const runs = await request(`actions/workflows/ci.yml/runs?head_sha=${sha}&status=success&per_page=20`);
+    for (const run of (runs.workflow_runs ?? []).filter(run => trustedRun(run, sha))) {
+      const list = await request(`actions/runs/${run.id}/artifacts?per_page=100`);
+      const artifact = (list.artifacts ?? []).find(item => item.name === `first-screen-${sha}-${key}` && !item.expired && item.size_in_bytes < 2_000_000);
+      if (!artifact) continue;
+      temporary = mkdtempSync(join(tmpdir(), "molis-first-screen-cache-"));
+      const archive = join(temporary, "measurement.zip");
+      writeFileSync(archive, await request(`actions/artifacts/${artifact.id}/zip`, true));
+      const contents = execFileSync("unzip", ["-p", archive, "measurement.json"], { encoding: "utf8", maxBuffer: 2 << 20, stdio: ["ignore", "pipe", "pipe"] });
+      const report = JSON.parse(contents);
+      rmSync(temporary, { recursive: true, force: true }); temporary = undefined;
+      if (firstScreenReportMatches(report, sha, key)) return report;
+    }
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    // Cache access is optional; the isolated Host build fallback below always enforces the gate.
+  } finally { if (temporary) rmSync(temporary, { recursive: true, force: true }); }
+  return null;
+}
+
+function readManifestAtCommit(root, sha) {
+  const present = git(root, "ls-tree", "--name-only", sha, "--", MANIFEST);
+  if (!present) return null;
+  return parseManifest(git(root, "show", `${sha}:${MANIFEST}`), `${sha.slice(0, 8)}:${MANIFEST}`);
+}
 
 export async function measureFirstScreen(root, rows, signal) {
   return withFirstScreenHost(root, { signal }, async host => {
@@ -81,6 +155,13 @@ export function firstScreenProblems(base, candidate, current, previous) {
       if (!old || !next) { errors.push(`${key}: incomplete page measurement`); continue; }
       const pageAllowances = records.filter(([, record]) => Object.hasOwn(record.pages ?? {}, key));
       const approvals = entryApprovals(records, page, locale, next);
+      const oldByApproval = new Map();
+      for (const [oldPath, oldSize] of Object.entries(old.entries)) {
+        const oldApprovalPath = firstScreenApprovalPath(oldPath, locale);
+        if (oldApprovalPath !== oldPath && !oldByApproval.has(oldApprovalPath)) {
+          oldByApproval.set(oldApprovalPath, oldSize);
+        }
+      }
       const packs = new Set();
       for (const [path, size] of Object.entries(next.entries)) {
         const approvalPath = firstScreenApprovalPath(path, locale);
@@ -88,7 +169,7 @@ export function firstScreenProblems(base, candidate, current, previous) {
           if (packs.has(approvalPath)) errors.push(`${key} ${path}: multiple paths for ${approvalPath}`);
           packs.add(approvalPath);
         }
-        const before = old.entries[path];
+        const before = old.entries[path] ?? (approvalPath !== path ? oldByApproval.get(approvalPath) : undefined);
         const large = before && VISITS.some(visit => size[visit] - before[visit] > 10_000);
         if (before && !large) continue;
         const reason = before ? "growth over 10 KB" : "new entry";
@@ -117,7 +198,7 @@ export function firstScreenProblems(base, candidate, current, previous) {
 
 async function main(signal) {
   const { values } = parseArgs({ options: {
-    base: { type: "string", default: "origin/main" }, root: { type: "string" },
+    base: { type: "string", default: "origin/main" }, root: { type: "string" }, output: { type: "string" },
     report: { type: "boolean" }, json: { type: "boolean" }, measure: { type: "string" }, pages: { type: "string" },
   } });
   if (values.json && !values.report) throw new Error("--json goes with --report");
@@ -142,15 +223,24 @@ async function main(signal) {
   const sha = git(root, "merge-base", "HEAD", values.base);
   if (!sha) throw new Error(`no merge-base for HEAD and ${values.base}`);
   const allowances = allowanceFiles(root, sha);
-  const { base, manifests } = await withBuiltBaseline(root, sha, signal, async checkout => {
-    const manifests = comparisonRows(readManifest(checkout, { optional: true }), rows);
-    const base = await measureFirstScreenApart(checkout, manifests.base, signal);
-    return { base, manifests };
-  }, { build: "build", offline: process.env.CI !== "true" });
+  const manifests = comparisonRows(readManifestAtCommit(root, sha), rows);
+  const baseKey = firstScreenMeasurementKey(manifests.base);
+  const cached = await cachedFirstScreenMeasurement({ sha, key: baseKey, signal });
+  let base, source;
+  if (cached) {
+    base = cached.pages;
+    source = "CI artifact";
+  } else {
+    source = "isolated Host builds";
+    base = await withBuiltBaseline(root, sha, signal, async checkout => {
+      const checkoutManifests = comparisonRows(readManifest(checkout, { optional: true }), rows);
+      return measureFirstScreenApart(checkout, checkoutManifests.base, signal);
+    }, { build: "build", offline: process.env.CI !== "true" });
+  }
   const candidate = await measureFirstScreenApart(root, manifests.candidate, signal);
   signal.throwIfAborted();
   const result = firstScreenProblems(base, candidate, allowances.current, allowances.previous);
-  const lines = [`First-screen budgets against ${sha} (isolated Host builds)`];
+  const lines = [`First-screen budgets against ${sha} (${source})`];
   for (const [key, measured] of Object.entries(candidate)) {
     const info = key.startsWith("workbench-demo/") ? " (report only)" : "";
     lines.push(`${key}${info}: ${VISITS.map(visit => `${visit} ${base[key].totals[visit]} → ${measured.totals[visit]} B`).join(", ")}`);
@@ -164,7 +254,18 @@ async function main(signal) {
     console.error(`First-screen budgets failed:\n- ${result.errors.join("\n- ")}`);
     if (Object.keys(result.draft.pages).length) console.error(`Draft allowance for review\n${JSON.stringify(result.draft, null, 2)}`);
     process.exitCode = 1;
-  } else console.log("First-screen budgets passed");
+  } else {
+    console.log("First-screen budgets passed");
+    if (values.output) {
+      if (git(root, "status", "--porcelain", "--untracked-files=no")) throw new Error("CI artifact requires a clean tracked checkout");
+      const head = git(root, "rev-parse", "HEAD");
+      const candidateKey = firstScreenMeasurementKey(manifests.candidate);
+      const file = resolve(values.output);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, JSON.stringify({ sha: head, key: candidateKey, pages: candidate }));
+      if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `artifact=first-screen-${head}-${candidateKey}\n`);
+    }
+  }
 }
 
 if (isMainScript(import.meta.url)) {

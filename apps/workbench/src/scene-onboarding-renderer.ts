@@ -5,6 +5,7 @@ import { sceneReviewPage, renderSceneReview } from "./browser/scene-review-view.
 import { sceneSettingValues } from "./browser/scene-setting-values.js";
 import { sceneOnboarding } from "./browser/scene-onboarding.js";
 import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";
+import { sceneOwnerStatusPacks, workbenchPlatformText } from "./platform-languages.js";
 import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 
 /** The preview may switch settings without navigating. Only load the labels declared by each settings owner. */
@@ -32,7 +33,8 @@ export function renderSceneOnboardingContent(options: MolisWorkOnboardingRenderO
     <p class="cx-error ob-error" data-scene-error role="alert" hidden></p>
     <aside data-scene-aside aria-label="${t("workbench.scene.all")}"></aside></section></div></div></div></main>`;
   const start = `<a class="mw-btn mw-btn--ghost arrival-back" href="${p.escapeHtml(back)}">${p.icon("back")}${t("common.control.back")}</a>`;
-  return { ownerText: sceneSettingText(p.catalogTextPacks), title: title + " · Molis Work", stage, start,
+  const statusText = { slot: "scene:workbench", producer: workbenchPlatformText.owner, packs: sceneOwnerStatusPacks };
+  return { ownerText: [statusText, ...sceneSettingText(p.catalogTextPacks)], title: title + " · Molis Work", stage, start,
     scripts: CONTROL_CLIENT_SCRIPT + ";(" + sceneOnboarding.toString() + ")(globalThis.molisWorkRequest," + readEventStream.toString() +
       ",(key,args)=>globalThis.t.text(key,args),ref=>globalThis.say.text(ref)," + sceneReviewPage.toString() + "," + renderSceneReview.toString() + "," +
       sceneSettingValues.toString() + ");" };

@@ -20,14 +20,7 @@ export const firstScreenApprovalPath = (path, locale) =>
 export const requestKey = (path, document, response = "finite") => document === undefined ? path : `${path} [${response} from ${document}]`;
 const rowKey = row => requestKey(row.entry, row.document ?? (row.response ? "<page>" : undefined), row.response);
 
-export function readManifest(root, { optional = false } = {}) {
-  const file = join(root, MANIFEST);
-  let text;
-  try { text = readFileSync(file, "utf8"); }
-  catch (error) {
-    if (optional && error.code === "ENOENT") return null;
-    throw error;
-  }
+export function parseManifest(text, file = MANIFEST) {
   const rows = JSON.parse(text);
   if (!Array.isArray(rows)) throw new Error(`${file}: expected an array of first-screen entries`);
   const keys = new Set();
@@ -48,6 +41,17 @@ export function readManifest(root, { optional = false } = {}) {
     }
   }
   return rows;
+}
+
+export function readManifest(root, { optional = false } = {}) {
+  const file = join(root, MANIFEST);
+  let text;
+  try { text = readFileSync(file, "utf8"); }
+  catch (error) {
+    if (optional && error.code === "ENOENT") return null;
+    throw error;
+  }
+  return parseManifest(text, file);
 }
 
 export const currentRows = rows => rows.filter(row => !row.baseOnly);

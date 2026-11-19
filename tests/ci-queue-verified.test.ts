@@ -129,10 +129,11 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
-/** The jobs that also wait for `test-selection`: the two test jobs, and the macOS Rust and Swift checks (用户 2026-11-04), skipped on a successful `none`. */
-const SELECTED_JOBS = [...TEST_JOBS, "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
-const BLOCKING = ["account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
-const RESULTS = ["ACCOUNT_LOGIN", "GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+/** The jobs that also wait for `test-selection`: the two test jobs, build, and the scoped checks. */
+const SELECTED_JOBS = [...TEST_JOBS, "build", "account-login", "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
+const BUILD_CONSUMERS = ["architecture-boundaries", "action-contracts", "account-login", "security-invariants", "golden-replay", "product-subset"];
+const BLOCKING = ["build", "account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
+const RESULTS = ["BUILD", "ACCOUNT_LOGIN", "GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
 const steps = (job: string) => jobBlock(job).split("\n      - ").slice(1);
 const scratch = () => { const directory = mkdtempSync(path.join(tmpdir(), "molis-queue-check-")); directories.push(directory); return directory; };
@@ -165,11 +166,13 @@ const CASES: Case[] = [
 ];
 // The two test jobs also read `test-selection`; here it chose some of their files, so on a pull request they run and only `queue-check`
 // decides (what they do for every other way the selection ends is tests/ci-test-selection.test.ts, RAC-1764).
-const contexts = (item: Case) => ({
+const contexts = (item: Case, buildResult = "success") => ({
   "github.event_name": item.event, "needs.queue-check.result": item.result, "needs.queue-check.outputs.verified": item.verified,
+  "needs.build.result": buildResult,
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
   "needs.test-selection.outputs.native_mode": "whole", "needs.test-selection.outputs.golden_third_party_mode": "whole",
   "needs.test-selection.outputs.documentation_mode": "code", "needs.test-selection.outputs.gate_rules_mode": "whole", "needs.test-selection.outputs.shell_mode": "whole",
+  "needs.test-selection.outputs.account_login_mode": "whole", "needs.test-selection.outputs.studio_replay_mode": "whole",
 });
 
 test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
@@ -180,14 +183,21 @@ test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothin
   assert.match(check, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
   assert.match(check, /PUSH_BEFORE: \$\{\{ github\.event\.before \}\}/, "the base the push's own gates would compare with");
   assert.doesNotMatch(check, /pnpm install/, "no dependencies");
-  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the eleven of today");
+  assert.deepEqual(blockingJobs(), BLOCKING, "the blocking jobs are the thirteen of today");
   for (const name of BLOCKING) {
     const job = jobBlock(name);
-    assert.match(job, SELECTED_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m, name);
+    const expectedNeeds = BUILD_CONSUMERS.includes(name) ? /^    needs: \[test-selection, queue-check, build\]$/m
+      : SELECTED_JOBS.includes(name) ? /^    needs: \[test-selection, queue-check\]$/m : /^    needs: \[queue-check\]$/m;
+    assert.match(job, expectedNeeds, name);
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(job)?.[1];
     assert.ok(condition, name);
     assert.ok(condition.startsWith("!cancelled() && "), `${name}: a cancelled run stops as before`);
     for (const item of CASES) assert.equal(Boolean(evaluateExpression(condition, contexts(item))), !item.skip, `${name} on ${item.event}, queue-check ${item.result}, verified ${JSON.stringify(item.verified)}`);
+    if (BUILD_CONSUMERS.includes(name)) {
+      for (const buildResult of ["failure", "cancelled", "skipped"]) {
+        assert.equal(Boolean(evaluateExpression(condition, contexts({ event: "pull_request", result: "skipped", verified: "", skip: false }, buildResult))), false, `${name} does not start when build is ${buildResult}`);
+      }
+    }
   }
 });
 
@@ -318,9 +328,9 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the eleven blo
     }
   }
 
-  assert.match(verify, /^    needs: \[account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
+  assert.match(verify, /^    needs: \[build, account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
-  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"]]) {
+  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"], ["ACCOUNT_LOGIN_MODE", "account_login_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);
   }
 });

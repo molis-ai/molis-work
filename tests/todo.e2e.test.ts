@@ -5,7 +5,7 @@ import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-wo
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { shouldSaveReviewScreenshots, specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, complete and undo, batch, detail editing, delete`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -16,8 +16,9 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    await mkdir(output, { recursive: true });
     await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
@@ -154,8 +155,9 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
     overdueId = store.create({ title: "逾期的方案", due_date: `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}` }, everything).item.id;
   } finally { store.close(); }
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    await mkdir(output, { recursive: true });
     await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
@@ -211,8 +213,9 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
     { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" }] });
   assert.equal(items().length, 0, "整理不会直接新建待办");
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    await mkdir(output, { recursive: true });
     await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };

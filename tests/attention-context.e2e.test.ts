@@ -53,3 +53,83 @@ for (const outcome of ["success", "missing", "network"] as const) {
     }
   });
 }
+
+// 56-1 BL-attention-404-by-code: a 404 that does not say the project is gone (a Host starting again) is a failure like any other, and an
+// open page reads again without a refresh; only the Host's `catalog.project_not_found` stops that address, on the read and on the stream.
+const GONE = "catalog.project_not_found";
+/** Answers the next `count` requests whose path holds `needle` with a 404, the way the Host would, before they leave the page. */
+const answer404 = (needle: string, code: string | null, count = 1) => `(() => {
+  const real = window.fetch; let left = ${count}; window.__fake404 = 0;
+  window.fetch = (input, init) => {
+    const url = new URL(typeof input === 'string' ? input : input.url, location.href);
+    if (left > 0 && (url.pathname + url.search).includes(${JSON.stringify(needle)})) {
+      left--; window.__fake404++;
+      return Promise.resolve(new Response(JSON.stringify(${code ? `{ error: 'gone', code: ${JSON.stringify(code)} }` : "{ error: 'Not Found' }"}), { status: 404, headers: { 'content-type': 'application/json' } }));
+    }
+    return real(input, init);
+  };
+})();`;
+const COUNT_ATTENTION = `window.__attentionEvents = 0; window.__attentionFailures = 0;
+  document.addEventListener('molis-work:attention', () => window.__attentionEvents++);
+  document.addEventListener('molis-work:attention-unreachable', () => window.__attentionFailures++);`;
+
+test("56-1 BL-attention-404-by-code an open project page reads again after a passing 404, and stops only once its project is deleted", { timeout: 120_000 }, async t => {
+  const b = await openAuditBrowser(t);
+  assert.ok(b, "56-1 needs the isolated test browser");
+  const project = await createProject(b.web, "Attention Passing");
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${encodeURIComponent(project.project_id)}/` }, b.sessionId));
+  const readPath = `/projects/${encodeURIComponent(project.project_id)}/api/attention?`;
+  const reads = () => b.evaluate<number>(`window.__auditRequests.filter(row => row.path.includes(${JSON.stringify(readPath)})).length`);
+  const refresh = () => b.evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await b.evaluate(COUNT_ATTENTION);
+  await refresh();
+  await b.waitFor("window.__attentionEvents > 0", 15_000);
+  // The Host is starting again: one read meets a 404 that names no project.
+  await b.evaluate(answer404(readPath, null));
+  await b.evaluate("window.__attentionEvents = 0; window.__attentionFailures = 0");
+  await refresh();
+  await b.waitFor("window.__fake404 === 1 && window.__attentionFailures > 0", 15_000);
+  // It is back: the same page, never refreshed, reads it again and paints it.
+  await new Promise(resolve => setTimeout(resolve, 700));
+  await refresh();
+  await b.waitFor("window.__attentionEvents > 0", 15_000);
+  // The project is deleted: the Host says so, and the page stops reading that address.
+  const before = await reads();
+  await b.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/delete`, { delete_confirmed: true, idempotency_key: "bl-attention-404-deleted" });
+  await refresh();
+  await b.waitFor(`window.__auditRequests.filter(row => row.path.includes(${JSON.stringify(readPath)})).length > ${before}`, 15_000);
+  await new Promise(resolve => setTimeout(resolve, 700));
+  const stopped = await reads();
+  for (let round = 0; round < 3; round++) { await refresh(); await new Promise(resolve => setTimeout(resolve, 700)); }
+  assert.equal(await reads(), stopped, "a deleted project's address is not read again");
+});
+
+test("56-1 BL-attention-404-by-code the attention stream connects again after a passing 404, and lets go only on the Host's word that the project is gone", { timeout: 120_000 }, async t => {
+  const b = await openAuditBrowser(t);
+  assert.ok(b, "56-1 needs the isolated test browser");
+  const page = `${b.origin}/projects/${encodeURIComponent(b.projectId!)}/`;
+  const streams = `window.__auditRequests.filter(row => row.path === '/api/attention/events').length`;
+  // The first connection of a freshly opened page meets a 404 that names no project.
+  const passing = await b.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: COUNT_ATTENTION + answer404("/api/attention/events", null) }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: page }, b.sessionId));
+  await b.command("Page.removeScriptToEvaluateOnNewDocument", { identifier: passing.identifier }, b.sessionId);
+  await b.waitFor("window.__fake404 === 1 && window.__attentionFailures >= 1", 15_000);
+  // It waits as a stream the Host never answered does (N54), then connects, and the stream's first word reads.
+  await b.waitFor(`${streams} > 0`, 45_000);
+  await b.waitFor("window.__attentionEvents > 0", 15_000);
+  // The stream says the project is gone: no retry, nothing said unreachable, and the reads of that address stop with it.
+  const gone = await b.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: COUNT_ATTENTION + answer404("/api/attention/events", GONE) }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: page }, b.sessionId));
+  await b.command("Page.removeScriptToEvaluateOnNewDocument", { identifier: gone.identifier }, b.sessionId);
+  await b.waitFor("window.__fake404 === 1", 15_000);
+  await new Promise(resolve => setTimeout(resolve, 1_500));
+  const attentionRequests = `${streams} + window.__auditRequests.filter(row => row.path.includes('/api/attention?')).length`;
+  const before = await b.evaluate<number>(attentionRequests);
+  for (let round = 0; round < 3; round++) {
+    await b.evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+    await new Promise(resolve => setTimeout(resolve, 700));
+  }
+  assert.equal(await b.evaluate("window.__attentionFailures"), 0, "a gone project is not a lost Host: nothing is said, nothing is retried");
+  assert.equal(await b.evaluate(`${streams}`), 0, "the stream is not connected again");
+  assert.equal(await b.evaluate<number>(attentionRequests), before, "and the gone address is not read again");
+});

@@ -1,7 +1,7 @@
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -38,7 +38,11 @@ async function codingServer() {
         return { ref: latest!.ref, frozen: latest!.frozen } as Output;
       }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: latest ? [latest.ref] : [] } as Output;
-      if (definition.capability_id === agent.readRun.capability_id) return latest as Output;
+      if (definition.capability_id === agent.readRun.capability_id) {
+        const [, run] = args as [unknown, { run_id: string }];
+        if (!latest || run.run_id !== latest.ref.run_id) throw new Error("round is not in this session");
+        return latest as Output;
+      }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
@@ -51,10 +55,10 @@ async function codingServer() {
     }); return { status: result.status, body: await result.json() as Record<string, unknown> };
   };
   const close = async () => { await new Promise<void>(resolve => server.close(() => resolve())); releaseProjectPlugins(); store.close(); rmSync(root, { recursive: true, force: true }); };
-  return { request, starts, close };
+  return { request, starts, close, blobDirectory: join(root, "conversation-attachments", "blobs") };
 }
 
-test("A3 a pasted picture is kept by the platform as Coding's attachment, goes with the round by reference, and reads back from it", async () => {
+test("A3 B35-R6 a pasted picture is kept by the platform as Coding's attachment, goes with the round by reference, and reads back from it", async () => {
   const f = await codingServer();
   try {
     const kept = await f.request("/attachments", "POST", { name: "首屏.png", data: PNG });
@@ -73,19 +77,20 @@ test("A3 a pasted picture is kept by the platform as Coding's attachment, goes w
     assert.equal(started.status, 200, JSON.stringify(started.body));
     assert.deepEqual(f.starts.at(-1)!.image_materials, [{ material_id: "image-1", title: image.title, media_type: "image/png", attachment: image.attachment }]);
 
-    const back = await f.request("/runs/run/images/image-1");
+    const back = await f.request("/runs/run/images");
     assert.equal(back.status, 200, JSON.stringify(back.body));
-    assert.deepEqual(back.body, { title: image.title, media_type: "image/png", data: PNG });
-    const other = await f.request("/runs/run/images/image-2");
+    assert.deepEqual(back.body, { images: [{ material_id: "image-1", title: image.title, media_type: "image/png", data: PNG }] });
+    const other = await f.request("/runs/other/images");
     assert.notEqual(other.status, 200, "only a picture the round carried reads back");
   } finally { await f.close(); }
 });
 
-test("A3 what is not a picture the model can be shown, or is over 5 MB, is refused before a round", async () => {
+test("A3 B35-R4 what is not a picture the model can be shown, or is over 5 MB, is refused before a round", async () => {
   const f = await codingServer();
   try {
     const text = await f.request("/attachments", "POST", { name: "notes.txt", data: Buffer.from("hello").toString("base64") });
     assert.notEqual(text.status, 200, "a text file is not a picture");
+    assert.deepEqual(existsSync(f.blobDirectory) ? readdirSync(f.blobDirectory) : [], [], "the rejected upload leaves no blob");
     const large = await f.request("/attachments", "POST", { name: "big.png", data: "A".repeat(Math.ceil(5 * 1024 * 1024 / 3) * 4 + 4) });
     assert.notEqual(large.status, 200, "over 5 MB is refused at the route");
     const start = await f.request("/runs", "POST", { task: "看图", intent: "edit", workspace_id: "work", provider_id: "p", model_id: "m",

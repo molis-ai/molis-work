@@ -169,10 +169,8 @@ assistant.panel.works.subtask.command	1	system.assistant-panel	command	operation
 assistant.panel.works.subtask.review	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	54d444f218b4	a2c799262a3c	3cfff55e5308
 assistant.panel.works.take_back	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	55c2e9d410a1	a2c799262a3c	3cfff55e5308
 assistant.panel.works.undo	1	system.assistant-panel	command	operation	home	write	concurrent	user	-	-	-	-	77f500e02234	a2c799262a3c	3cfff55e5308
-assistant.preferences.read	1	system.assistant-settings	query	query	home	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
-assistant.preferences.write	1	system.assistant-settings	command	operation	home	write	-	user	-	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 attention.waiting.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	88db02166b7c	6c35b8e1ec1c	-
-automation.adoption.adopt	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	5a8d8727efee	b9e8783b99d7	4fc9a7114184
+automation.adoption.adopt	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	5a8d8727efee	4ff86caad4d1	4fc9a7114184
 automation.adoption.undo	1	system.automation-adoption	command	operation	project	write	concurrent	user	-	-	-	-	9823c6092f57	cf0995398edb	-
 automation.recommendations.offer	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
 automation.recommendations.offers.get	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
@@ -183,14 +181,6 @@ automation.recommendations.scan	1	system.automation-recommendations	query	query	
 background.tasks.command	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	b72eab443ba0	5eeca3761a19	-
 background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	8d4343f573d8	92203e6141bb	-
 background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	b9c9586aef93	-
-blueprints.adoption.apply	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	6880e9daf8db	3ae7b9f4e9c9	-
-blueprints.adoption.preview	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	54b18c0538ba	b9b90369b3fc	-
-blueprints.adoption.read	1	system.blueprints	query	query	home	read	concurrent	user	-	-	-	-	ff6a65e570bf	16585b861409	-
-blueprints.adoption.remove	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	f07a86ac1999	780035b46268	-
-blueprints.adoption.revert	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	f07a86ac1999	b610b801ce80	-
-blueprints.drafts.read	1	system.blueprints	query	query	home	read	-	agent,user	-	-	-	-	192eefd4db4a	9beec398d0a4	5e0374458cf9
-blueprints.drafts.save	1	system.blueprints	command	operation	home	write	-	agent,user	-	-	-	-	5d96e7d34fb9	9beec398d0a4	5e0374458cf9
-blueprints.library.read	1	system.blueprints	query	query	home	read	-	user	-	-	-	-	3b1d9fa9ab60	0a2470dcc19d	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-
 characters.artifacts.preview	1	io.molis.work.characters	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 characters.create	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	5628c4ab377d	5479a296af31	-
@@ -223,7 +213,7 @@ characters.versions.restore	1	io.molis.work.characters	command	operation	project
 commands.personal.list	1	platform	query	query	project	read	-	plugin	commands:read	-	-	-	99334726611c	4fa862b577a9	-
 commands.project.list	1	platform	query	query	project	read	-	plugin	workspace:read	workspace	-	-	614f112549e5	4fa862b577a9	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
-connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	3557c7cf35bc	a2c799262a3c	-
+connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.cli.connect	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
 connectors.cli.install	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
@@ -244,9 +234,9 @@ connectors.plugin_slot.record.bind	1	system.connectors	command	operation	project
 connectors.plugin_slot.record.read	1	system.connectors	query	query	project	read	-	user	connectors:management:read	connector	-	-	1f19182fcdb1	270f9a44cee9	-
 connectors.plugin_slot.switch	1	system.connectors	command	operation	home	write	-	user	connectors:management:write	connector	molis.connector-usages-switch.input.v1	molis.connector-usages-switch.output.v1	ac6205c46996	c699e9a1cb27	-
 connectors.plugin_slot.usages	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
-connectors.records.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:records:read	connector	-	-	97cfc8b8a1f8	93b85e782320	-
+connectors.records.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:records:read	connector	-	-	7d42269d0825	d8b948bd0af2	-
 connectors.setup.execute	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
-connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	61775206790e	8cc5c5adc1fa	-
+connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	61775206790e	01c9e0b85ebb	-
 connectors.setup.resolve	1	system.connectors	command	operation	home	write	-	agent	connectors:management:write	connector	-	-	e3b5144a4126	a2c799262a3c	-
 connectors.usages.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	a343ab264882	5f20b95f01d0	-
 connectors.usages.switch	1	system.connectors	command	operation	home	write	concurrent	user	connectors:management:write	connector	-	-	e252a0385cf9	c74bb0f81d27	-
@@ -357,8 +347,6 @@ memory.operations.list	1	system.memory	query	query	home	read	-	user	memory:confi
 memory.page	1	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	4fe5fa189c4e	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-
 memory.pairs.resolve	1	system.memory	command	operation	home	write	-	user	memory:write	-	-	-	29218ac07da5	8cee623341f8	-
-memory.preferences.read	1	system.memory	query	query	home	read	-	agent,plugin,user	memory:configure	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
-memory.preferences.write	1	system.memory	command	operation	home	write	-	user	memory:configure	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 memory.prefs.read	1	system.memory	query	query	home	read	-	user	memory:configure	-	-	-	f0c071b0cd86	192b3d5adac1	-
 memory.prefs.write	1	system.memory	command	operation	home	write	-	user	memory:configure	-	-	-	180044f1f196	192b3d5adac1	-
 memory.recall	1	system.memory	query	query	home	read	concurrent	agent,mcp,user,workflow	memory:recall	-	-	-	58082104fed9	91c77f638c8a	5e0374458cf9
@@ -381,8 +369,6 @@ observation.evidence.get	1	system.observation	query	query	home	read	-	agent,mcp,
 observation.holds.list	1	system.observation	query	query	home	read	-	user	-	-	-	-	814623c6d0a4	c9fc92c80ac9	-
 observation.holds.put	1	system.observation	command	operation	home	write	-	user	-	-	-	-	7c8d670f04aa	bcb38438feb1	-
 observation.holds.release	1	system.observation	command	operation	home	write	-	user	-	-	-	-	ab8a98c36542	befa352c4966	-
-observation.preferences.read	1	system.observation	query	query	home	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
-observation.preferences.write	1	system.observation	command	operation	home	write	-	user	-	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 observation.records.query	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	24c9ca4a6bad	898c0c919f4f	-
 observation.report	1	system.observation	command	operation	home	write	-	plugin,user	-	-	-	-	0dd034973bce	8cfd08f953ae	eeb2d5d6b907
 observation.settings.get	1	system.observation	query	query	home	read	-	user	-	-	-	-	d746974fa9af	74d3467b1094	-
@@ -446,10 +432,8 @@ projects.directories.set_output	1	system.project-workspaces	command	operation	pr
 projects.directories.unmap_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	a2a089faf780	94a80960770d	-
 projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
 projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
-projects.settings.read	1	system.project-runtime	query	query	project	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
-projects.settings.write	1	system.project-runtime	command	operation	project	write	-	user	projects:settings	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-
 projects.workspace.git.inspect	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	5c51a17cf8a5	a2c799262a3c	-
 projects.workspace.git.operation.prepare	1	platform	command	operation	project	write	-	plugin	review:git-operation	workspace	-	-	3994c5ceffab	18a6c013818d	-
@@ -615,6 +599,7 @@ sessions.attribution.set	1	system.sessions	command	operation	home	write	-	user	s
 sessions.attribution.suggest	1	system.sessions	command	operation	home	write	concurrent	user	model:invoke,sessions:manage	-	-	-	3bfaa3357a43	3400d732abd7	613063238287
 sessions.connector.usages	1	system.sessions	query	query	home	read	concurrent	user	sessions:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 sessions.discovery.run	1	system.sessions	command	operation	home	write	-	user	sessions:manage	-	-	-	89c578d361bd	bf6ca46924fa	-
+sessions.history.authorize	1	system.sessions	query	query	home	read	concurrent	agent,user	sessions:history	-	-	-	78bddd2fb4c8	e58a97dbc051	-
 sessions.history.read	1	system.sessions	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	sessions:history	-	-	-	1e69a4dec0af	bf4917ccaaec	-
 sessions.list	1	system.sessions	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	sessions:read	-	-	-	8e0991882834	3aede7403e65	-
 sessions.project_ai_read.set	1	system.sessions	command	operation	home	write	-	user	sessions:manage	-	-	-	4e9ab6c0fa75	72e5122b9fe6	-

@@ -61,23 +61,29 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.equal(await purgeAssistantProject(home, "project-gone"), 0, "again: nothing left, and nothing needs the live service");
 });
 
-test("S-conversation-attachments: deleting a project drops the pictures only its Assistant works sent, and keeps one another work still shows", async t => {
+test("S-conversation-attachments: deleting a project drops the pictures only its Assistant works sent, with the same rule for documents (B35-R5)", async t => {
   const { home, store, gone, kept } = await assistantHome(t);
   const attachments = assistantAttachments(home);
-  // Two pictures (by their bytes): one only the deleted project's work sent, one both works sent.
   const picture = (tag: string) => Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from(tag)]).toString("base64");
   const only = await attachments.attach({ file_name: "only.png", data_base64: picture("only-in-the-deleted-project") });
   const shared = await attachments.attach({ file_name: "shared.png", data_base64: picture("in-both-projects") });
+  const sharedText = "Shared original";
+  const doc = (title: string, contents: string) => attachments.attach({ file_name: title, data_base64: Buffer.from(contents).toString("base64") });
+  const onlyDoc = await doc("only.txt", "Deleted project's original"), sharedDoc = await doc("shared.txt", sharedText);
   const material = (attached: typeof only) => ({ material_id: `image-${attached.title}`, kind: "image" as const, title: attached.title, explicit: true,
     image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } });
-  store.addRound(gone.work_id, { run_id: "run-pictures", text: "看图", materials: [material(only), material(shared)], context: null, started_at: new Date().toISOString() });
-  store.addRound(kept.work_id, { run_id: "run-shared", text: "看图", materials: [material(shared)], context: null, started_at: new Date().toISOString() });
+  const file = (attached: typeof onlyDoc) => ({ material_id: attached.title, kind: "file" as const, title: attached.title, explicit: true, file_attachment: attached.ref });
+  store.addRound(gone.work_id, { run_id: "run-pictures", text: "看图", materials: [material(only), material(shared), file(onlyDoc), file(sharedDoc)], context: null, started_at: new Date().toISOString() });
+  store.addRound(kept.work_id, { run_id: "run-shared", text: "看图", materials: [material(shared), file(sharedDoc)], context: null, started_at: new Date().toISOString() });
 
   await purgeAssistantProject(home, "project-gone", { stop: async () => undefined });
 
   assert.equal(attachments.holds(only.ref), false, "a picture no work names any more goes with its bytes");
   await assert.rejects(attachments.read(only.ref, { as: "image" }), { code: "material.attachment.not_found" });
   assert.equal(attachments.holds(shared.ref), true, "a picture the other project's work still shows stays");
+  await assert.rejects(attachments.read(onlyDoc.ref, { as: "original" }), { code: "material.attachment.not_found" });
+  const read = await attachments.read(sharedDoc.ref, { as: "original" });
+  assert.equal(Buffer.from(read.original!).toString("utf8"), sharedText);
 });
 
 test("a Home without an Assistant library has nothing to clear and gets none", async t => {

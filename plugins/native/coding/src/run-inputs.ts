@@ -72,9 +72,9 @@ export const codingRunControlInput: ActionSchema = {
 
 /** What the page sends to start, steer or answer a round, checked before it reaches the Host. */
 
-export function text(value: unknown, label: string, maximum = 200): string {
+export function text(value: unknown, label: string, maximum = 200, keepWhitespace = false): string {
   if (typeof value !== "string" || !value.trim() || value.length > maximum) throw codingFailure("coding.server.field-invalid", { label: { key: label }, maximum });
-  return value.trim();
+  return keepWhitespace ? value : value.trim();
 }
 
 /**
@@ -174,7 +174,7 @@ export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInp
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
-  if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000),
+  if (body.kind === "steer") return { kind: "steer", materials: materialSelection(body.materials ?? []), send: { text: text(body.text, "coding.field.supplement", 100_000, true),
     ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
     ...(body.require_running === true ? { require_running: true as const } : {}),

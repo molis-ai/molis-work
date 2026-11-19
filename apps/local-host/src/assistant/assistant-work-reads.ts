@@ -27,7 +27,7 @@ import { RUNTIME, sessionRef, belongsElsewhere, HANDOVER_MARK, whereNow, type As
 import { stateOf, spokenTurns, roundDiagnostics, stopInWords, presentActivity, type CapabilityTitles } from "./assistant-present.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
-import type { AssistantRoundMaterials } from "./assistant-round-materials.js";
+import type { AssistantMaterialAccess } from "./assistant-attachments.js";
 import { workTitle } from "./assistant-work-title.js";
 import { stepReview } from "./assistant-step-gate.js";
 
@@ -38,7 +38,7 @@ const roleMethod = (role: SignedRoleView, installation: SignedAgentInstallation)
 const sameSigned = (left: SignedAgentReference, right: SignedAgentReference) => left.kind === right.kind && left.entry_id === right.entry_id
   && left.source.plugin_id === right.source.plugin_id && left.source.plugin_version === right.source.plugin_version && left.source.publisher_signature === right.source.publisher_signature;
 
-export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles" | "rememberTitle" | "rememberedTitle"> & Pick<AssistantDispatch, "executorOf"> & Pick<AssistantRoundMaterials, "holdsImage"> & { continuations: Pick<AssistantContinuations, "state">; delegations: Pick<AssistantDelegations, "shown"> };
+export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles" | "rememberTitle" | "rememberedTitle"> & Pick<AssistantDispatch, "executorOf"> & Pick<AssistantMaterialAccess, "holdsImage"> & { continuations: Pick<AssistantContinuations, "state">; delegations: Pick<AssistantDelegations, "shown"> };
 
 /**
  * Reading a work: its rounds in the Assistant's session and the executor's, its state, the objects it relates to as

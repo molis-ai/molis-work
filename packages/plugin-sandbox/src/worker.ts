@@ -91,7 +91,7 @@ function sdk(callId: string): SandboxSdk {
       releaseOriginal: async recordKey => { await invoke('materials.releaseOriginal', [recordKey]); },
       // The whole file in parts of at most 256 KiB, each one a call the Host answers on its own; the revision of the first part is passed back with
       // every later one, so a file that changes in between is refused by the Host, not read as a mixture of two files.
-      attach: file => answer<Awaited<ReturnType<SandboxSdk['materials']['attach']>>>(invoke('materials.attach', [json(file)])),
+      attach: (file, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['attach']>>>(invoke('materials.attach', request ? [json(file), json(request)] : [json(file)])),
       // A picture comes in parts of at most 256 KiB, like an original file; its text comes in one answer.
       readAttachment: async (ref, request) => {
         if (request?.as !== 'image') return answer<Awaited<ReturnType<SandboxSdk['materials']['readAttachment']>>>(invoke('materials.readAttachment', [json(ref)]));

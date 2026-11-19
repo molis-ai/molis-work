@@ -180,14 +180,16 @@ class ContextJourneyStore {
     const row = this.db.prepare("SELECT body FROM journeys WHERE json_extract(body, '$.oauth_status') = 'pending' AND json_extract(body, '$.oauth_state') = ?").get(state) as { body: string } | undefined;
     return row ? JSON.parse(row.body) as ContextJourney : null;
   }
-  latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string | null } | null {
+  latestIncomplete(projectId?: string | null): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string | null } | null {
     const row = this.db.prepare(`SELECT body FROM journeys
       WHERE json_extract(body, '$.phase') != 'complete'
+      AND (CASE WHEN ? IS NULL THEN COALESCE(json_extract(body, '$.existing'), 0) = 0
+        ELSE json_extract(body, '$.existing') = 1 AND json_extract(body, '$.project_id') = ? END)
       AND (json_extract(body, '$.adoption') IS NOT NULL
         OR json_extract(body, '$.phase') != 'selecting'
         OR EXISTS (SELECT 1 FROM json_each(json_extract(body, '$.sources'))
           WHERE json_extract(value, '$.selected') = 1))
-      ORDER BY updated_at DESC, rowid DESC LIMIT 1`).get() as { body: string } | undefined;
+      ORDER BY updated_at DESC, rowid DESC LIMIT 1`).get(projectId ?? null, projectId ?? null) as { body: string } | undefined;
     if (!row) return null;
     const j = JSON.parse(row.body) as ContextJourney;
     return { id: j.id, phase: j.phase, updated_at: j.updated_at, title: j.adoption?.title ?? j.summary?.title ?? null };
@@ -199,7 +201,11 @@ class ContextJourneyStore {
       id, phase: "selecting", sources: [], model: null, error: null, summary: null,
       project_id: projectId ?? `project-onboarding-${id}`, ...(projectId ? { existing: true as const } : {}), document_id: null, updated_at: new Date().toISOString(),
     } satisfies ContextJourney), new Date().toISOString());
-    return this.get(id);
+    const journey = this.get(id);
+    if (journey.existing !== (projectId ? true : undefined) || (projectId && journey.project_id !== projectId)) {
+      throw new Error("这轮整理属于另一个项目");
+    }
+    return journey;
   }
   save(journey: ContextJourney): ContextJourney {
     journey.updated_at = new Date().toISOString();

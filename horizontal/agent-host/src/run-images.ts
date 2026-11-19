@@ -1,10 +1,10 @@
-import { CONVERSATION_ATTACHMENT_IMAGE_TYPES, CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
+import { CONVERSATION_ATTACHMENT_IMAGE_TYPES, CONVERSATION_ATTACHMENT_LIMITS, CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "./errors.js";
 import type { AgentStartAuthority } from "./index.js";
 
 /** The most pictures one Run carries: every model call of the Run sends them all again. */
-export const RUN_IMAGES_MAX = 6;
+export const RUN_IMAGES_MAX = CONVERSATION_ATTACHMENT_LIMITS.round_images;
 
 /**
  * Told to a model the settings do not mark as seeing images, when pictures go with its round or call (decision 51 ③): the pictures

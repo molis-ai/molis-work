@@ -120,7 +120,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
-  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ readText, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
+  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ readText, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, readBack, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
     current: () => (view && view.work.work_id === curId ? view : null), pickFile, expired: EXPIRED_IMAGE, block: () => blocks.materials,
     pending: () => materialsNow().filter((item) => !item.optional && !item.infoOnly).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })).concat(stripPending()) });
   const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ readText, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });

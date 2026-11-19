@@ -1,4 +1,4 @@
-import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, MaterialDocumentBatch, MaterialDocumentOptions, MaterialExtraction, MaterialExtractionOptions, MaterialSource, MaterialSourceContent, MaterialUpload } from "../services/materials.js";
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, ConversationAttachmentUploadRequest, MaterialDocumentBatch, MaterialDocumentOptions, MaterialExtraction, MaterialExtractionOptions, MaterialSource, MaterialSourceContent, MaterialUpload } from "../services/materials.js";
 import type { MaterialRef } from "./project-materials.js";
 
 export type { MaterialSourceContent } from "../services/materials.js";
@@ -90,7 +90,7 @@ export interface PluginMaterialsClient {
    * installation in this project (`ConversationAttachment`): a picture the model can be shown, or a document whose text the platform
    * reads once (PDF, Office, text, a picture's words, a recording). The same bytes attached again are the same attachment.
    */
-  attach?(upload: MaterialUpload, request?: { signal?: AbortSignal }): Promise<ConversationAttachment>;
+  attach?(upload: MaterialUpload, request?: ConversationAttachmentUploadRequest): Promise<ConversationAttachment>;
   /** Present for materials:read. Reads back one of this installation's attachments in this project; another's is `not_found`. */
   readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }

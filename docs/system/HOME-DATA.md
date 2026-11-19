@@ -38,7 +38,7 @@ Home 里有 37 种 SQLite 文件：权威库 33 种（Home 级 30 种，按项�
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 32 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（1）、memory（1）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、web-search、plugin-originals、conversation-attachments（1）、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions（1）、mainline（1） |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 32 | 项目库（1）、Alchemist 工作室库与搜索库、assistant（3）、memory（3）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、web-search、plugin-originals、conversation-attachments（1）、functions（1）、evaluation（1）、12 个个人插件库、Home Runtime 安装库、server、characters、external-sessions（1）、mainline（1） |
 | 自己的 meta 表 | 1 | `projects/catalog.db`（catalog_meta）；退役Sessions登记与reader已删除 |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。

@@ -1,6 +1,6 @@
 import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, ConversationAttachmentUploadRequest, MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
@@ -44,7 +44,7 @@ export interface PluginMaterialsPort {
   readOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & { readonly maxBytes?: number }): Promise<Uint8Array>;
   releaseOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch): Promise<void>;
   /** Keeps a file the person brought into this installation's conversation, as its attachment in its project (`ConversationAttachment`). */
-  attach?(owner: PluginAttachmentOwner, upload: MaterialUpload, options: PluginMaterialsDispatch): Promise<ConversationAttachment>;
+  attach?(owner: PluginAttachmentOwner, upload: MaterialUpload, options: PluginMaterialsDispatch & Pick<ConversationAttachmentUploadRequest, "expected_kind">): Promise<ConversationAttachment>;
   /** One of this installation's attachments in its project, read back; any other is not found. */
   readAttachment?(owner: PluginAttachmentOwner, ref: MaterialRef, request: ConversationAttachmentRequest, options: PluginMaterialsDispatch): Promise<ConversationAttachmentContent>;
   /** One part of the registered file, with the file's size and an opaque revision (PluginOriginalRangeRequest); the Host checks the bounds. */
@@ -118,8 +118,8 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
       return port.imageTextAvailable!();
     } } : {}),
     // A conversation attachment is this installation's, in this project: the owner comes from the activation, never from an argument.
-    ...(declared("materials:read") && port.attach ? { attach: (upload: MaterialUpload, request: { signal?: AbortSignal } = {}) =>
-      run("materials:read", { signal: request.signal }, options => port.attach!(attachmentOwner(), upload, options)) } : {}),
+    ...(declared("materials:read") && port.attach ? { attach: (upload: MaterialUpload, request: ConversationAttachmentUploadRequest = {}) =>
+      run("materials:read", { signal: request.signal }, options => port.attach!(attachmentOwner(), upload, { ...options, expected_kind: request.expected_kind })) } : {}),
     ...(declared("materials:read") && port.readAttachment ? { readAttachment: (ref: MaterialRef, request: ConversationAttachmentRequest) =>
       run("materials:read", { signal: request?.signal }, options => port.readAttachment!(attachmentOwner(), ref, { as: request?.as === "image" ? "image" : "text" }, options)) } : {}),
     ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains"> = {}) =>

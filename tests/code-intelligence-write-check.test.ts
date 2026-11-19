@@ -48,6 +48,33 @@ test("A4-2: elsewhere only the lines the change touched are formatted; a clean c
   assert.deepEqual(checked.checks.diagnostics, { state: "clean", source: "node" }, "pulled diagnostics");
 });
 
+test("B35-R8 a stale empty push cannot clear new diagnostics, including after the symbol tool opened the file", async t => {
+  const { root, intelligence } = round(t, { FAKE_LSP_STALE: "1" });
+  const path = "src/a.ts", before = "export const n = 1;\n";
+  writeFileSync(join(root, path), before);
+  await intelligence.symbolIndex({ args: { path } } as never);
+  for (const after of ["BAD new\n", "BAD new  \n"]) {
+    const checked = await intelligence.checkWrite({ path, before, after });
+    assert.equal(checked.text, "BAD new\n");
+    assert.equal(checked.checks.diagnostics.state, "errors");
+  }
+});
+
+test("B35-R8 unversioned diagnostics leave the current text unchecked", async t => {
+  const { intelligence } = round(t, { FAKE_LSP_UNVERSIONED: "1" });
+  const checked = await intelligence.checkWrite({ path: "src/new.go", before: undefined, after: "package test\n" });
+  assert.equal(checked.checks.diagnostics.state, "unchecked");
+});
+
+test("B35-R8 TypeScript's advertised pull reports the error in the current formatted document", async t => {
+  const { root, intelligence } = round(t, { FAKE_LSP_UNVERSIONED: "1", FAKE_LSP_TS_REQUEST: "1" });
+  const path = "src/pull.ts", before = "export const n = 1;\n";
+  writeFileSync(join(root, path), before);
+  const checked = await intelligence.checkWrite({ path, before, after: "BAD new  \n" });
+  assert.equal(checked.text, "BAD new\n");
+  assert.deepEqual(checked.checks.diagnostics, { state: "errors", source: "node", errors: [{ code: "1001", line: 1, text: "bad line" }], more: 0 });
+});
+
 test("A4-2 CLS-03: no server, no formatter or a failing one are said as such, never as clean", async (t) => {
   const { intelligence } = round(t, { FAKE_LSP_FORMAT_ERROR: "1" });
   const none = await intelligence.checkWrite({ path: "src/c.zig", before: undefined, after: "const x = 1;\n" });

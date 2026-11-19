@@ -46,7 +46,28 @@ function cardOutcomesAsText(db: SqliteBaselineDatabase): void {
   }
 }
 
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 2, upgrades: [{ from: 1, run: cardOutcomesAsText }], schema: `
+/** B35-R5: old picture resources did not survive restart. Keep the record of the picture with its final status. */
+function markExpiredPictures(db: SqliteBaselineDatabase): void {
+  const rows = db.prepare(`SELECT work_id, run_id, body FROM assistant_rounds AS round WHERE EXISTS (
+    SELECT 1 FROM json_each(round.body, '$.materials') WHERE json_extract(value, '$.kind') = 'image'
+      AND json_type(value, '$.image.resource_id') = 'text' AND json_type(value, '$.image.attachment') IS NULL
+  )`).all() as Array<{ work_id: string; run_id: string; body: string }>;
+  const write = db.prepare("UPDATE assistant_rounds SET body = ? WHERE work_id = ? AND run_id = ?");
+  for (const row of rows) {
+    const round = JSON.parse(row.body) as Omit<StoredRound, "materials"> & { materials: Array<AssistantMaterial & { image?: { resource_id?: string } }> };
+    round.materials = round.materials.map(item => {
+      if (item.kind !== "image" || !item.image?.resource_id || item.image.attachment) return item;
+      const { image: _expired, ...material } = item;
+      return { ...material, expired: true };
+    });
+    write.run(JSON.stringify(round), row.work_id, row.run_id);
+  }
+}
+
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 3, upgrades: [
+  { from: 1, run: cardOutcomesAsText },
+  { from: 2, run: markExpiredPictures },
+], schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -223,6 +244,15 @@ function readWorkCards(db: DatabaseSync, workId: string, latestPersonProvider: s
   return rows.map(row => JSON.parse(String(row.body)) as StoredCard);
 }
 
+function roundWithAttachmentRefs(round: StoredRound): StoredRound {
+  const materials = round.materials.map(item => {
+    if (!item.file_attachment) return item;
+    const { text: _text, ...reference } = item;
+    return reference;
+  });
+  return { ...round, materials };
+}
+
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
@@ -310,7 +340,7 @@ export class AssistantStore {
 
   addRound(workId: string, round: StoredRound): void {
     const position = Number((this.db.prepare("SELECT COALESCE(MAX(position),0)+1 AS next FROM assistant_rounds WHERE work_id=?").get(workId) as { next: number }).next);
-    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(round));
+    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(roundWithAttachmentRefs(round)));
     this.#changed(workId);
   }
 

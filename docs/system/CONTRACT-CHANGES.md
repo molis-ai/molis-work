@@ -60,6 +60,8 @@
 
 2026-11-05 用户明确决定：旧版跨范围移动在源已不可用、又完全缺少目标回执时停止自动续办，保留现存内容并提示待核对；撤回该旧态的自动恢复成功承诺，不新增SDK查找口或从隐藏历史重建请求。当前移动仍须在接受源遗忘前原子保存目标回执及历史；真实事务失败、已保存回执后的清理失败均保留原请求恢复要求。已接受的自动新增撤销只凭原change/undo/purge/独立决定的精确身份继续清理，不重新开放正文。输入输出schema不变，原错误码与权限不放宽；旧红日志、明确范围与验证保留在Memory spec。
 
+第 61 批复核修复保留既有动作身份。阶段一动作快照记录 `connectors.setup.prepare@1` 新增 `created`，`connectors.authorization.cancel@1` 新增可选的 `expected_status`，供采用者仅补偿自己的准备请求。`connectors.records.read@1` 的可选 `connector_category` 用于助理当前工作的账号约束，输出加 `account_label`。`automation.adoption.adopt@1` 增加可选的能力包去处。`feed.sources.add_account@1` 声明 `sources:pull_connector` 和并行调度，公开调用方须持有该权限，来源与事件仍同事务写入。各原调用方沿现行合同，持久化 schema 和 vendored SDK 沿当前版本。
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：

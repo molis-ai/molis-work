@@ -24,14 +24,14 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantControl, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { activeLocale, readText, pageLocale, type WebLocale } from "../web-locale.js";
+import { readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale, runBackgroundWorkIn } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type ActionView, type BoundActionClient, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type InferActionInput, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_WRITE_PERMISSION, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { responseAbortSignal, webEntryDoor, webEntryProvider, type WebEntryCall } from "../web-entry-actions.js";
 import { assistantCandidate } from "./assistant-memory-tools.js";
@@ -46,7 +46,9 @@ import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/ski
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantPermissionCaller } from "./assistant-work-permissions.js";
-import type { PersonActions } from "./assistant-executor.js";
+import type { AssistantPersonDecision } from "./assistant-executor.js";
+import { assistantPersonActions } from "./assistant-person-actions.js";
+import { assistantWorkConnections, prepareWorkConnectionAnswer, readWorkSkills } from "./assistant-work-connections.js";
 import type { AssistantStore } from "./assistant-store.js";
 import { readRoleVersion, resolveRoleCharacter } from "../characters-host.js";
 import { assistantResolveRole, assistantRoleCatalog } from "./assistant-characters.js";
@@ -83,7 +85,6 @@ const relatedSource = (service: AssistantService): RelatedWorksSource => ({ rela
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
 /** How long one working-out of the person's grants is reused by the calls that follow it. */
-const PERSON_CONTEXT_REUSE_MS = 2_000;
 
 export interface AssistantHttpPorts {
   localHost: MolisWorkLocalHost;
@@ -137,51 +138,13 @@ export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.delete(host);
 }
 
-const personCacheKey = (reference: LocalHostProjectReference | undefined) =>
-  JSON.stringify([reference?.project_id ?? "", activeLocale()]);
-
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = ports.localHost.assistantStore?.();
   if (!store) throw assistantErrors.executor_unavailable("宿主未装配助理工作存储");
-  // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
-  // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
-  // checked against its current definition, availability and grant owner when it is dispatched.
-  const contexts = new Map<string, { at: number; context: Promise<ActionCallContext> }>();
-  const personContext = (reference: LocalHostProjectReference | undefined): Promise<ActionCallContext> => {
-    const key = personCacheKey(reference), hit = contexts.get(key), now = Date.now();
-    if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.context;
-    const context = localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
-    contexts.set(key, { at: now, context });
-    context.catch(() => { if (contexts.get(key)?.context === context) contexts.delete(key); });
-    return context;
-  };
-  // What is offered there, likewise: reading several works' objects in one list asked for the same directory each time.
-  const directories = new Map<string, { at: number; views: Promise<readonly ActionView[]> }>();
-  const personClient = (reference: LocalHostProjectReference | undefined): PersonActions => {
-    const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
-    const key = personCacheKey(reference);
-    return {
-      discover: () => {
-        const hit = directories.get(key), now = Date.now();
-        if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.views;
-        const views = personContext(reference).then(context => client.discover(context));
-        directories.set(key, { at: now, views });
-        views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
-        return views;
-      },
-      invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
-    };
-  };
-  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the work's executor reads with.
-  const personBound = (reference: LocalHostProjectReference): BoundActionClient => {
-    const person = personClient(reference), client = ports.localHost.actionClient(reference);
-    return { discover: person.discover, invoke: async (definition, input, control, transport) => {
-      const caller = await personContext(reference);
-      return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
-    } };
-  };
+  const { personContext, personClient, personBound } = assistantPersonActions(ports.localHost, (reference, decision) =>
+    localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS, decision?.signal, decision));
   const definitions = () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations);
   // The shared Skill catalog, read as the person for an Assistant round: the Host's own entry freezes what the person named (§2.3).
   const skillReader = async (reference: LocalHostProjectReference | undefined, named: readonly SkillRef[]) => {
@@ -212,13 +175,14 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
         .catch(error => hostLog.warn("memory", "learning_not_queued", error));
     },
-    authority: async (work, origin, locale, namedSkills, autoSkills) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work), assertBeforeDispatch: () => threads.assertAuthority(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+    authority: async (work, origin, locale, namedSkills, autoSkills, categories) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work), assertBeforeDispatch: () => threads.assertAuthority(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.outcomes.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memory.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.dispatcher.noteDispatched(work, view), () => {
         const snapshot = currentRoundPageContext(store.rounds(work.work_id).at(-1)?.context);
         return snapshot ? { url: null, title: snapshot.source.title ?? snapshot.source.surface, provenance: "client_reported" } : undefined;
-      }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic)),
+      }, locale, namedSkills, service.delivery(work), autoSkills, (key, automatic) => store.policies.hold(WEB_ACTOR, key, automatic),
+      assistantWorkConnections(ports.homeDirectory, store, work, categories)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work), attachmentImage: assistantAttachmentImage(servicePorts.attachments!),
       assertBeforeDispatch: () => { if (ports.localHost.lifecycle() !== "running") throw assistantErrors.state("运行环境已经关闭"); },
       // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
@@ -257,7 +221,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         return bound;
       },
       skills: async project => (await skillReader(project, [])).invoke(skillCatalogActions.list, { applies_to: "assistant", states: ["auto", "manual"] }).then(found => found.skills),
-      readSkills: async (project, refs) => (await skillReader(project, refs)).invoke(skillCatalogActions.readBodies, { refs: [...refs] }).then(read => read.results) },
+      readSkills: (work, refs, categories) => readWorkSkills(store, work, categories, async () =>
+        (await skillReader(work.project_ref, refs)).invoke(skillCatalogActions.readBodies, { refs: [...refs] }).then(read => read.results)) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
     personActions: async (work, use, handed, executorPluginId) => {
@@ -271,7 +236,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The person's Home, for the reminders they set in Plugins.
     homeActions: async () => personClient(undefined),
     // Reading related objects back from their owners, as the person (the work's project, or the Home), and a material they handed in.
-    scopeActions: async work => personClient(work.project_ref), readMaterial: personMaterialReader(ports.localHost),
+    scopeActions: async (work, decision) => personClient(work.project_ref, decision), readMaterial: personMaterialReader(ports.localHost),
+    prepareConnectionAnswer: (work, questions, answers) => prepareWorkConnectionAnswer(ports.homeDirectory, store, work, questions, answers),
     // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
@@ -363,6 +329,12 @@ const ofReview = { ...ofItem, properties: { ...ofItem.properties, body: { type: 
   decision: { enum: ["approve", "reject"] }, version: { type: "string", minLength: 1, maxLength: 200 }, note: { type: "string", maxLength: 2000 }, subtask: body,
 }, required: ["decision", "version"], additionalProperties: false } } } as const;
 const scoped = (entry: AssistantPageEntry) => entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {};
+const cardDecision = (entry: AssistantPageEntry, caller: ActionExecutionContext): AssistantPersonDecision => {
+  const control = assistantPermissionCaller(caller, entry.page);
+  return { project_id: entry.ports.projectRef?.project_id ?? null, signal: caller.signal,
+    entry: entry.page ? undefined : caller.user_action, assertCurrent: control.assertCurrent,
+    beforeEffect: async () => { await control.beforeEffect(); } };
+};
 const panel = <const S extends ActionSchema, Output>(name: string, version: number, title: string, input_schema: S,
   handle: (entry: AssistantPageEntry, input: InferActionInput<S>, caller: ActionExecutionContext) => Output | Promise<Output>, metered = false, draft?: true) =>
   door.define({ capability_id: `assistant.panel.${name}`, version, title, description: `助理面板：${title}。`, scope: "home", input_schema, ...(metered ? { metered } : {}), ...(draft ? { draft } : {}) },
@@ -421,7 +393,8 @@ export const assistantPanelActions = {
     (entry, input) => of(entry).service.dispatcher.setExecutorMode(input.work_id, String(input.body.mode ?? ""))),
   takeBack: panel("works.take_back", /* @version action.assistant.panel.works.take_back */ 1, "收回委托的子任务", ofWork,
     (entry, input, caller) => of(entry).service.takeBack(input.work_id, assistantPermissionCaller(caller, entry.page))),
-  undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem, (entry, input) => of(entry).service.outcomes.undo(input.work_id, input.item)),
+  undo: panel("works.undo", /* @version action.assistant.panel.works.undo */ 1, "撤销一项已做的操作", ofItem,
+    (entry, input, caller) => of(entry).service.outcomes.undo(input.work_id, input.item, cardDecision(entry, caller))),
   budget: panel("works.budget", /* @version action.assistant.panel.works.budget */ 1, "设定工作用量上限", ofWork,
     (entry, input) => of(entry).service.budget.saveWorkBudget(input.work_id, input.body.budget_tokens)),
   askEachStep: panel("works.ask_each_step", /* @version action.assistant.panel.works.ask_each_step */ 1, "设定每步先问我", ofWork,
@@ -453,7 +426,7 @@ export const assistantPanelActions = {
   questionDraft: panel("works.question_draft", /* @version action.assistant.panel.works.question_draft */ 1, "保存问题的草稿", ofWork, (entry, input) => ({ ok: true,
     ...questionDrafts(of(entry).store).save(input.work_id, String(input.body.pending_id ?? ""), input.body.values, input.body.draft_revision) }), false, true),
   runCard: panel("works.cards.run", /* @version action.assistant.panel.works.cards.run */ 1, "执行一张操作卡", ofItem,
-    (entry, input) => of(entry).service.offers.runCard(input.work_id, input.item, { revision: Number(input.body.revision), values: input.body.values })),
+    (entry, input, caller) => of(entry).service.offers.runCard(input.work_id, input.item, { revision: Number(input.body.revision), values: input.body.values }, cardDecision(entry, caller))),
   dismissCard: panel("works.cards.dismiss", /* @version action.assistant.panel.works.cards.dismiss */ 1, "收起一张操作卡", ofItem, (entry, input) => of(entry).service.offers.dismissCard(input.work_id, input.item)),
   redoCard: panel("works.cards.redo", /* @version action.assistant.panel.works.cards.redo */ 1, "重新准备一张操作卡", ofItem, (entry, input, caller) => {
     // A stale card is prepared again only when asked: the request goes in as the page's words, nothing runs in its place.
@@ -693,7 +666,7 @@ async function answerQuestion(entry: AssistantPageEntry, workId: string, body: R
     ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
     ...(Array.isArray(body.answers) ? { answers: pageBody<Pick<Parameters<typeof service.outcomes.answer>[1], "answers">>(body).answers } : {}), ...answer };
   const authority = { ...entry.language(), ...(entry.ports.projectRef ? { project_ref: entry.ports.projectRef } : {}),
-    beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent };
+    beforeStart: async () => { await control.beforeEffect(); }, assertBeforeStart: control.assertCurrent, allowConnectionChoice: !entry.page };
   const draft = questionDrafts(store).read(workId)[input.pending_id];
   const submittedDraft = draft && isDeepStrictEqual(questionAnswer(draft), { ...(input.text === undefined ? {} : { text: input.text }), ...(input.answers === undefined ? {} : { answers: input.answers }) }) ? draft : undefined;
   const view = await (body.subtask === undefined ? service.outcomes.answer(workId, input, authority) : service.workSubtasks.answer(workId, {

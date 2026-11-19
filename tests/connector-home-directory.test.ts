@@ -47,6 +47,7 @@ test("RAC-2466 a service an installed package declares has its settings card, an
   const card = attached.find(entry => entry.connector_id === SERVICE);
   assert.ok(card, "the package's service has a card");
   assert.deepEqual([card.availability, card.feed_available, card.title], ["live", true, "Example feed"]);
+  assert.equal(card.uses?.includes("feed_source"), false, "SCAF-06: the Feed account-source use requires a Feed slot");
   assert.ok(card.method_options?.some(method => method.kind === "token" && method.support === "paste"), "its token can be pasted");
   assert.deepEqual(attached.map(entry => entry.connector_id).filter(id => id !== SERVICE), await builtinIds(), "the built-in cards are the same, in the same order");
   await detach(home);

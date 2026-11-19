@@ -198,7 +198,6 @@ export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
-export { runWebSearch, setWebSearchDefault, webSearchSettings } from "./connector-web-search.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";

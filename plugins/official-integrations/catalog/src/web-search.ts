@@ -55,6 +55,7 @@ const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
     identity: { request: (ctx) => ({ url: "https://api.deepseek.com/user/balance", headers: bearer(ctx) }), read: () => "DeepSeek API" },
     feed: NO_FEED,
     web_search: {
+      max_query_characters: 128,
       request: (ctx, query) => ({ url: "https://api.deepseek.com/v1/tools/search", method: "POST", headers: { ...bearer(ctx), "content-type": "application/json" },
         body: { query: query.q, count: query.count } }),
       read: (json) => results(asRecord(json)?.results, (row) => ({ title: text(row.title), url: text(row.url), snippet: text(row.snippet, row.summary),

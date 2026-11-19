@@ -1,5 +1,6 @@
 import type { CharacterRoleCatalog, CharacterRoleResolution } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { AgentActionReviewControl, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentQuestion, AgentQuestionAnswer } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
@@ -25,7 +26,7 @@ export interface SignedBinding { installation: SignedAgentInstallation; assertCu
 import type { StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
-import type { PersonActions } from "./assistant-executor.js";
+import type { AssistantPersonDecision, PersonActions } from "./assistant-executor.js";
 import type { AssistantMemorySourceRef } from "./assistant-inputs.js";
 import type { AssistantLandingPorts } from "./assistant-landing.js";
 
@@ -49,15 +50,16 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
   lastLocale?(): WebLocale;
   /** `namedSkills` and `autoSkills` are the round's own (`skill_round`): the Skills the person named, and false for 「这次不用技能」. */
-  authority(work: StoredWork, origin?: { source: "card" }, locale?: WebLocale, namedSkills?: readonly SkillRef[], autoSkills?: boolean): Promise<AgentStartAuthority>;
+  authority(work: StoredWork, origin?: { source: "card" }, locale?: WebLocale, namedSkills?: readonly SkillRef[], autoSkills?: boolean, categories?: ReadonlySet<string>): Promise<AgentStartAuthority>;
   /** How the person names a project, for the round's own description of where it runs. */
   projectTitle?(projectId: string): Promise<string | null>;
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
   personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", handed?: ExecutorHanded, executorPluginId?: string): Promise<BoundActionClient>;
-  /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
-  scopeActions?(work: Pick<StoredWork, "project_ref">): Promise<PersonActions>;
+  /** The person's own actions in a work's scope. An effect carries the current workbench decision. */
+  scopeActions?(work: Pick<StoredWork, "project_ref">, decision?: AssistantPersonDecision): Promise<PersonActions>;
+  prepareConnectionAnswer?(work: StoredWork, questions: readonly AgentQuestion[], answers: readonly AgentQuestionAnswer[] | undefined): Promise<() => void>;
   /**
    * A file of the project's folders, or a version the platform's materials service fixed, read back as the person through
    * `materials.read` in the work's project (Files retirement S5): only for a reference the person handed in, with the folder read it asks.
@@ -88,7 +90,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
     /** The Skills the catalog offers the Assistant in this scope and the person turned on (`skills.catalog.list@1`). */
     skills(project: LocalHostProjectReference | undefined): Promise<SkillCatalogEntry[]>;
     /** The bodies of the Skills the person named for one round, in one `skills.body.read@1`. */
-    readSkills(project: LocalHostProjectReference | undefined, refs: readonly SkillRef[]): Promise<SkillBodyReadResult[]>;
+    readSkills(work: StoredWork, refs: readonly SkillRef[], categories: Set<string>): Promise<SkillBodyReadResult[]>;
     /** A Skill one round accepted, as the catalog's record of uses keeps it. */
     recordSkillUse(use: SkillUse): void;
   };
@@ -101,6 +103,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
+  readonly allowConnectionChoice?: boolean;
   /** Attested by the protected send owner, never read from a business input. */
   original_input?: Omit<HostOfferedOriginalInput, "action">;
   project_ref?: LocalHostProjectReference;

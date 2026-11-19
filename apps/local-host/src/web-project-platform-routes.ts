@@ -327,7 +327,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     if (!assistant || context.url.pathname !== "/api/automation/recommendations/offer") return false;
     const ports = assistant;
     return await handleAutomationRecommendationsHttp(context, {
-      place: input => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference }),
+      place: (input, assertBeforeStart) => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference, assertBeforeStart }),
       notify: (work, count, dedupe) => { assistantServiceFor(ports).store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "result", work_id: work.work_id, work_title: work.title,
         text: assistantWords("workbench.assistant-notice.automation-found", { count }) }, dedupe); },
     });

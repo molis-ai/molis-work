@@ -103,5 +103,7 @@ export interface ConnectorSettingsCardView {
   readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
   /** What the service can be used for, read from its declarations (§13.7 ①B); absent for a service that declares no use. */
   readonly uses?: readonly ConnectorUse[];
+  /** Which uses have a currently accepted account in this Home. */
+  readonly ready_uses?: readonly ConnectorUse[];
 }
 

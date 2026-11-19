@@ -28,7 +28,7 @@ const SCENE = ["attention:write", "judgments:write"];
  * has its own permission).
  */
 const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map<ActionDefinition, readonly string[]>([
-  [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]],
+  [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]], [feedSourceActions.add_account, [CONNECTOR_PULL]],
   // Removing a source removes its items, with their Inbox entries and their links to Goals; an account source's binding is taken off it (T-121).
   [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write", CONNECTIONS]],
   // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
@@ -61,7 +61,7 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedItemActions.promote, ["attention:write", "context-ledger:write", EVIDENCE]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
-export const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick, feedRuleActions.create, feedRuleActions.update,
+export const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.add_account, feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick, feedRuleActions.create, feedRuleActions.update,
   // A promotion writes after Goals has answered, and Goals is asked through the caller's own directory.
   feedItemActions.promote]);
 /**

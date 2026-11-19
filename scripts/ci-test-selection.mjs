@@ -168,12 +168,12 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
   if (!selected.length) return { mode: "none", shards: [1], files: [], reasons: [`none of its ${entries.length} files is among the ${wanted.size} tests this change touches`] };
   if (selected.length >= entries.length - 1) return whole([`${selected.length} of its ${entries.length} files are selected`]);
   // CIP-06: target six minutes of tests per runner. A few slow files can need more runners than many short files.
-  // Product smokes run before the other files, while the security runner shares its worker slots with browser files.
+  // Product smokes run before the other files; both security and product run four workers with at most one browser at a time.
   const maximum = Math.min(LEGS[job], selected.length);
   const targetSeconds = Math.max(360, ...selected.map((entry) => weights[entry.file] ?? 0));
   let count = 1;
   for (; count < maximum; count++) {
-    const plan = planShards(selected, { count, jobs: job === "product" ? 4 : 2, browserJobs: job === "product" ? 1 : 2, separateBrowser: job === "product" }, weights, (entry) => entry.file, (entry) => entry.browser);
+    const plan = planShards(selected, { count, jobs: 4, browserJobs: 1, separateBrowser: job === "product" }, weights, (entry) => entry.file, (entry) => entry.browser);
     if (Math.max(...plan.loads.map((load) => load.seconds)) <= targetSeconds) break;
   }
   return {
@@ -188,15 +188,15 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
 export function outputLines(decisions) {
   const lines = [];
   for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
-  for (const job of ["native", "documentation", "gate_rules", "shell", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
+  for (const job of ["native", "documentation", "gate_rules", "shell", "studio_replay", "account_login", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;
 }
 
 function summary(decisions, base) {
-  const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security and product jobs; other merge groups run both whole.`, ""];
-  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks" };
+  const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security, product and account-login jobs; other merge groups run them whole.`, ""];
+  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks", studio_replay: "Studio Skill replay rules", account_login: "P1 login contract and regression" };
   for (const [job, decision] of Object.entries(decisions)) {
     out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : !decision.shards ? "" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);

@@ -36,6 +36,9 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Build
+        env:
+          # Golden replay never runs Whisper audio transcription; skipping WhisperKit saves ~3.5 minutes on macOS.
+          MOLIS_WORK_SKIP_NATIVE_WHISPER_BUILD: "1"
         run: pnpm build
 
       - name: Replay

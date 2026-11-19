@@ -12,7 +12,7 @@ on:
   # with main by hand before it merges.
   merge_group:
   workflow_dispatch:
-  # Nightly on main, for the Linux probe (it runs only on this and on a manual run, see the job); the other jobs run too.
+  # Nightly on main to run the full CI gate matrix and refresh main-branch caches.
   schedule:
     - cron: "0 19 * * *"
 
@@ -357,15 +357,17 @@ jobs:
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
           node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
-      # Rules that read the build, each mutation-verified or asserted on the built host: the page asset budget rules (a grown
-      # asset, a new asset, a raised budget, a slack left unlowered, a missing build and the laundering moves each fail; a route
-      # spelled as a regular expression other than the plugin pack pattern is refused, except one that splits the word `assets`
-      # itself, which the header of the script and spec §5a list as a limit); the page-event registry
+      # Product build contracts that assert on the real built workspace: the page-event registry
       # (packages/contracts/src/platform/dom-events.ts, scripts/gates/dom-events.mjs); storage baselines and release assets; one
       # workbench shell (no standalone pages); 成果 types have owner previews, writes match Manifests, process items stay out of
       # user lists.
-      - name: Build rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/first-screen-budget.test.mjs tests/first-screen-report.test.mjs tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
+      - name: Build product contracts hold
+        run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
+
+      # Gate self-tests that mutation-verify the build-gate scripts on scratch repositories; skipped when no gate/rule input changed.
+      - name: Build gate rules reject what they claim to
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/first-screen-budget.test.mjs tests/first-screen-report.test.mjs tests/plugin-styles-gate.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
@@ -377,8 +379,7 @@ jobs:
       # accepted or refused, is still in the corpus with the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
       # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
       # cannot hide a regression; every baseline row carries the digest of its answer, and `live` is accepted for the prompt
-      # example alone. Then the replay's own rules, failing on a scratch copy that breaks them. The generation smoke needs a model
-      # and is run by hand on an isolated Home.
+      # example alone. The generation smoke needs a model and is run by hand on an isolated Home.
       - name: Studio Skill replay
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -387,7 +388,11 @@ jobs:
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           pnpm studio:replay --base "$base"
-          node scripts/run-tests.mjs tests/studio-replay.test.ts
+
+      # The replay's own mutation tests on scratch copies; only needed when studio, skill, builder, or replay inputs change.
+      - name: Studio Skill replay rules reject what they claim to
+        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.studio_replay_mode == 'none') }}
+        run: node scripts/run-tests.mjs tests/studio-replay.test.ts
 
   # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client, on a workspace build
   # of their own (the same packages `pnpm workspace:verify` builds), beside `architecture-boundaries` so neither waits for the other.
@@ -596,8 +601,8 @@ jobs:
 
   account-login:
     name: P1 login contract and regression
-    needs: [queue-check]
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
+    needs: [test-selection, queue-check]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.account_login_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -643,7 +648,17 @@ jobs:
         run: |
           export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
           pnpm install --frozen-lockfile
+      # The upstream Auth commit SHA is immutable, so the built WASM worker and its npm dependencies are deterministic per revision.
+      - name: Cache Auth WASM fixture
+        id: auth-fixture-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .claude/auth-ci/worker/rust/build
+            .claude/auth-ci/worker/node_modules
+          key: auth-fixture-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.auth.outputs.revision }}
       - uses: ./.claude/auth-ci/.github/actions/account-fixture
+        if: ${{ steps.auth-fixture-cache.outputs.cache-hit != 'true' }}
         with:
           source: .claude/auth-ci
       - name: Chrome for the browser files
@@ -690,11 +705,19 @@ jobs:
           node scripts/account-provider.test.mjs
           node scripts/account-installation.test.mjs
           node scripts/central-account.test.mjs
-      - name: Auth web browser regression
+      - name: Cache Auth web build
+        id: auth-web-cache
+        uses: actions/cache@v4
+        with:
+          path: .claude/auth-ci/web/dist
+          key: auth-web-dist-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.auth.outputs.revision }}
+      - name: Build Auth web fixture
+        if: ${{ steps.auth-web-cache.outputs.cache-hit != 'true' }}
         run: |
           npm --prefix .claude/auth-ci/web ci
           npm --prefix .claude/auth-ci/web run build
-          MOLIS_WORK_SOURCE="$GITHUB_WORKSPACE" node .claude/auth-ci/web/scripts/v2-browser.test.mjs
+      - name: Auth web browser regression
+        run: MOLIS_WORK_SOURCE="$GITHUB_WORKSPACE" node .claude/auth-ci/web/scripts/v2-browser.test.mjs
 
   verify:
     name: Verify
@@ -734,6 +757,7 @@ jobs:
           DOCUMENTATION_MODE: ${{ needs.test-selection.outputs.documentation_mode }}
           GATE_RULES_MODE: ${{ needs.test-selection.outputs.gate_rules_mode }}
           SHELL_MODE: ${{ needs.test-selection.outputs.shell_mode }}
+          ACCOUNT_LOGIN_MODE: ${{ needs.test-selection.outputs.account_login_mode }}
           QUEUE_CHECK_RESULT: ${{ needs.queue-check.result }}
           QUEUE_VERIFIED: ${{ needs.queue-check.outputs.verified }}
           QUEUE_RUN_URL: ${{ needs.queue-check.outputs.run_url }}
@@ -749,7 +773,10 @@ jobs:
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$GITHUB_EVENT_NAME" = "merge_group" || return 1
             test "$TEST_SELECTION_RESULT" = "success" && test "$1" = "$2" && test "$3" = "skipped"
           }
-          test "$ACCOUNT_LOGIN_RESULT" = "success"
+          if [ "$ACCOUNT_LOGIN_RESULT" != "success" ]; then
+            test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
+            selected_skip "$ACCOUNT_LOGIN_MODE" none "$ACCOUNT_LOGIN_RESULT"
+          fi
           test "$GATES_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$HEALTH_GATE_RULES_RESULT" = "success" || selected_skip "$GATE_RULES_MODE" none "$HEALTH_GATE_RULES_RESULT"
@@ -790,6 +817,8 @@ jobs:
       documentation_mode: ${{ steps.select.outputs.documentation_mode }}
       gate_rules_mode: ${{ steps.select.outputs.gate_rules_mode }}
       shell_mode: ${{ steps.select.outputs.shell_mode }}
+      studio_replay_mode: ${{ steps.select.outputs.studio_replay_mode }}
+      account_login_mode: ${{ steps.select.outputs.account_login_mode }}
     steps:
       # The merge commit GitHub builds and its two parents: HEAD^1 is the base branch as merged, so the change is exactly the pull request's.
       - uses: actions/checkout@v6
@@ -833,7 +862,8 @@ jobs:
       matrix:
         shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
     env:
-      MOLIS_WORK_TEST_JOBS: 2
+      MOLIS_WORK_TEST_JOBS: 4
+      MOLIS_WORK_TEST_BROWSER_JOBS: 1
     steps:
       - uses: actions/checkout@v6
 
@@ -890,80 +920,6 @@ jobs:
           else
             pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }} --retries 1
           fi
-
-  # Decision #14 (specs/archive/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
-  # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
-  # not decide anything.
-  # It is deliberately NOT in `verify`'s needs and `continue-on-error` keeps a red run from marking the workflow red; branch
-  # protection is untouched. scripts/ci-linux-probe.mjs runs the test files one at a time (one MOLIS_WORK_HOME each, two at a
-  # time, one retry for a failure), marks each file darwin / live / browser from its own source, and leaves report.json,
-  # pass.txt and summary.md (also in this run's summary). A test file that fails is a result, not an error of the job.
-  # This workflow cancels a run when a newer push to the same pull request or to main arrives (concurrency above), and a run
-  # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
-  # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
-  # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
-  # The probe stays an information job. What its first run showed became tests/ci-product-subset.txt (W2-16), run by the
-  # `product-subset` job below, which is the one that joined Verify.
-  # One job no longer reaches every file (R-58, user 2026-10-26): the manual run 40219623393 spent its 85 minutes before the last 44
-  # files started, so the list is spread over six jobs (`--shard k/6`, every sixth runnable file of the sorted list; the six
-  # `linux-probe-k` artifacts together hold each file once). Each job installs uv, which the managed Python installer test
-  # (connector-managed-install, ASC-06/17) runs for real, at the version and action pin full-suite.yml uses.
-  # It runs nightly on main and on every manual workflow_dispatch, as before. PRs and pushes do not run the probe.
-  linux-probe:
-    name: Linux probe ${{ matrix.shard }}/6 (not required)
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6]
-    # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
-    # cancels the job like a newer push does, and the probe writes its partial report on that signal.
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      # The version is the root package.json "packageManager", the pin the other jobs use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
-
-      # ASC-06/17: the managed Python MCP test runs real uv against a local package registry (the same pin as full-suite.yml).
-      - name: uv for the managed Python installer tests
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-        with:
-          version: "0.12.19"
-          enable-cache: false
-
-      # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
-      - name: Build
-        run: pnpm build
-
-      # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
-      - name: Run this shard's non-browser test files and record which pass
-        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85 --shard ${{ matrix.shard }}/6
-
-      - name: Keep the report
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-probe-${{ matrix.shard }}
-          path: ${{ runner.temp }}/linux-probe
-          retention-days: 30
-          if-no-files-found: warn
 
   # Decision #14 (specs/archive/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
   # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the
@@ -1067,6 +1023,9 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Build
+        env:
+          # Golden replay never runs Whisper audio transcription; skipping WhisperKit saves ~3.5 minutes on macOS.
+          MOLIS_WORK_SKIP_NATIVE_WHISPER_BUILD: "1"
         run: pnpm build
 
       # The latest three, or every golden when the Prologue package changed or the selection gave no clean answer (UPG-11).

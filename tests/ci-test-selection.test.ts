@@ -103,11 +103,11 @@ test("RAC-1760 every file the selection, affected-tests and the two runners load
 });
 
 test("RAC-1761 CIP-06 selected runner counts follow duration and browser capacity", () => {
-  const selected = touching(...LIST.slice(0, 6));
+  const selected = touching(...LIST.slice(0, 8));
   const choose = (seconds: number) => decideJob({ job: "security", list: LIST, affected: affected({ tests: selected }), weights: Object.fromEntries(LIST.map(file => [file, seconds])) });
-  assert.deepEqual(choose(10).shards, [1], "six short files need one runner");
-  assert.deepEqual(choose(300).shards, [1, 2, 3], "six five-minute files need three two-worker runners");
-  assert.deepEqual(choose(600).shards, [1, 2, 3], "extra runners cannot make an indivisible ten-minute file faster");
+  assert.deepEqual(choose(10).shards, [1], "eight short files need one runner");
+  assert.deepEqual(choose(300).shards, [1, 2], "eight five-minute files need two four-worker runners");
+  assert.deepEqual(choose(600).shards, [1, 2], "extra runners cannot make an indivisible ten-minute file faster");
   const smokes = PRODUCT.filter(entry => entry.browser).map(entry => entry.file);
   const decision = decideJob({ job: "product", list: PRODUCT, affected: affected({ tests: touching(...smokes.slice(0, 3)) }), weights: Object.fromEntries(smokes.map(file => [file, 240])) });
   assert.deepEqual(decision.shards, [1, 2, 3], "serial browser smokes each need their own runner to fit six minutes");
@@ -184,7 +184,7 @@ test("RAC-1763 end to end: a document skips both jobs, a plugin change runs its 
   commit("docs");
   const docs = select(root);
   assert.equal(docs.code, 0, docs.text);
-  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
+  assert.deepEqual(docs.outputs, { security_mode: "none", security_shards: "[1]", product_mode: "none", product_shards: "[1]", security_files: "", product_only: "", native_mode: "none", documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", golden_third_party_mode: "none", golden_history_mode: "latest" }, docs.text);
 
   put("plugins/native/demo/src/thing.ts", "export function demoThingCount() { return 3; }\n");
   commit("demo");
@@ -340,9 +340,8 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
-  // The merge queue runs the blocking jobs and Verify (the two above among them, evaluated in the cases), and the selection, which there
-  // decides only `native-checks` (RAC-1907): the probe, which does not block, stays out of it.
-  assert.match(jobBlock("linux-probe"), /^    if: \$\{\{.*(?:== 'pull_request'|== 'schedule').*\}\}$/m, "linux-probe is not in the merge queue");
+  // The retired linux-probe job is no longer in ci.yml (superseded by full-suite.yml).
+  assert.doesNotMatch(workflow, /^  linux-probe:/m, "linux-probe has been retired from ci.yml");
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-test-selection.test.ts")), "a blocking job runs this file");
 });
 

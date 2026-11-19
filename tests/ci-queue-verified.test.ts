@@ -130,7 +130,7 @@ test("RAC-1900 the command: answers false without the environment, writes both o
 /** The two test jobs that joined Verify (decision #14, 2026-10-31): on a pull request they also wait for `test-selection`. */
 const TEST_JOBS = ["security-invariants", "product-subset"];
 /** The jobs that also wait for `test-selection`: the two test jobs, and the macOS Rust and Swift checks (用户 2026-11-04), skipped on a successful `none`. */
-const SELECTED_JOBS = [...TEST_JOBS, "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
+const SELECTED_JOBS = [...TEST_JOBS, "account-login", "golden-replay", "golden-replay-third-party", "native-checks", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "shell-checks"];
 const BLOCKING = ["account-login", "gates", "health-gate-rules", "architecture-boundaries", "action-contracts", "secret-scan", "native-checks", "shell-checks", ...TEST_JOBS, "golden-replay", "golden-replay-third-party"];
 const RESULTS = ["ACCOUNT_LOGIN", "GATES", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SECRET_SCAN", "NATIVE_CHECKS", "SHELL_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
 const TEST_RESULTS = ["SECURITY_INVARIANTS", "PRODUCT_SUBSET"];
@@ -170,6 +170,7 @@ const contexts = (item: Case) => ({
   "needs.test-selection.result": "success", "needs.test-selection.outputs.security_mode": "some", "needs.test-selection.outputs.product_mode": "some",
   "needs.test-selection.outputs.native_mode": "whole", "needs.test-selection.outputs.golden_third_party_mode": "whole",
   "needs.test-selection.outputs.documentation_mode": "code", "needs.test-selection.outputs.gate_rules_mode": "whole", "needs.test-selection.outputs.shell_mode": "whole",
+  "needs.test-selection.outputs.account_login_mode": "whole", "needs.test-selection.outputs.studio_replay_mode": "whole",
 });
 
 test("RAC-1901 ci.yml: queue-check runs on a push only, may read runs and nothing else, and a blocking job is skipped only on its success and true", () => {
@@ -320,7 +321,7 @@ test("RAC-1903 ci.yml: Verify records the queue's base, waits for the eleven blo
 
   assert.match(verify, /^    needs: \[account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection\]$/m);
   assert.ok(verify.includes("          TEST_SELECTION_RESULT: ${{ needs.test-selection.result }}"), "Verify receives the selector result directly");
-  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"]]) {
+  for (const [name, output] of [["SECURITY_MODE", "security_mode"], ["PRODUCT_MODE", "product_mode"], ["NATIVE_MODE", "native_mode"], ["ACCOUNT_LOGIN_MODE", "account_login_mode"]]) {
     assert.ok(verify.includes(`          ${name}: \${{ needs.test-selection.outputs.${output} }}`), `${output} reaches its own Verify verdict`);
   }
 });

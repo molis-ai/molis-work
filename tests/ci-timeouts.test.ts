@@ -86,12 +86,11 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   for (const name of limited) assert.ok(Object.hasOwn(JOBS, name), `${name}: a blocking job with a limit is in the JOBS table, so its limit is checked`);
 });
 
-test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, except the Linux probe's, which another change is editing", () => {
+test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes", () => {
   const names = [...workflow.matchAll(/^  ([a-z0-9-]+):\s*$/gm)].map((match) => match[1]!);
   let seen = 0;
   for (const name of names.slice(names.indexOf("queue-check"))) {
     const steps = installPnpmSteps(jobBlock(name));
-    if (name === "linux-probe") continue;
     for (const step of steps) {
       seen++;
       const limit = stepTimeoutIn(step);
@@ -99,7 +98,7 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
       assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 9, "the nine blocking jobs that install pnpm besides the Linux probe");
+  assert.equal(seen, 9, "the nine blocking jobs that install pnpm");
   for (const name of Object.keys(JOBS)) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
 });
 

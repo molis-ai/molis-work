@@ -1,7 +1,7 @@
 {
   "reason": "Coding 在回答发送期间保留同一问题卡，让晚到的拒绝能显示在原选择旁。",
-  "review": "MR19-10 / AC-08 在两个标签页交错提交时覆盖同一版本改为不可回答的显示更新。Coding 脚本实测从 408,526 增至 408,543 字节。",
+  "review": "MR19-10 / AC-08 验证两页同时回答时，同一版本改为不可回答或另一窗口更新已存草稿后，提交页仍保留原选择和回执。Coding 脚本从 408,525 增至 408,596 字节。",
   "assets": {
-    "/assets/molis-work-plugins/coding.js": 17
+    "/assets/molis-work-plugins/coding.js": 71
   }
 }

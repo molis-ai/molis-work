@@ -342,12 +342,23 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
         for (const reader of ['json', 'text']) { const read = response[reader].bind(response);
           response[reader] = async () => { const value = await read(); setTimeout(() => { window.__readsAfter++; }); return value; }; }
         return response; }
-      const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
+      const response = await original(...args);
+      if (args[1]?.method === 'PATCH' && args[1].body?.includes('"question_drafts"') && response.ok) window.__savedDraftRevision = (await response.clone().json()).input_revision;
+      if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
+  await otherPage.waitFor("Number.isSafeInteger(window.__savedDraftRevision)");
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
   await otherPage.waitFor("window.__sent === true");
+  // The draft the submitting tab held was saved. While its answer is in flight, another writer clears
+  // the saved choices. The editor should adopt the new draft without replacing the submitted card.
+  const revision = await otherPage.evaluate<number>("window.__savedDraftRevision");
+  const newDraft = "另一页已更新草稿";
+  const sessionUrl = `/projects/${projectId}/api/plugins/io.molis.work.coding/sessions/${session}`;
+  const saved = await opened.evaluate<{ input_revision: number }>(`molisWorkRequest(${JSON.stringify(sessionUrl)}, { method: "PATCH", body: ${JSON.stringify({ expected_input_revision: revision, draft: newDraft, question_drafts: {} })} })`);
+  assert.equal(saved.input_revision, revision + 1);
   await otherPage.evaluate(`document.querySelector('[data-coding-results-open]').click()`);
   await otherPage.waitFor(`window.__closedRead && document.querySelector(${JSON.stringify(card(coding))})?.dataset.answerable === 'false'`);
+  await otherPage.waitFor(`document.querySelector('[data-coding-input] .mw-composer__input').value === ${JSON.stringify(newDraft)}`);
   assert.equal(await otherPage.evaluate(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "a refreshed question retains the in-flight answer");
 
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);

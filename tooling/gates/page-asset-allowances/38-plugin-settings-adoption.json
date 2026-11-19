@@ -7,5 +7,64 @@
     "/assets/molis-work-workbench.js": 6936,
     "/assets/molis-work-plugins/jelly.js": 450,
     "/assets/molis-work-plugins/shelf.js": 3449
+  },
+  "userApproval": "一骏于 2026-11-18 回复「同意」，确认中英文启动词包在这四种页面随内容换名，以及按实测登记首次和再次打开的增量。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 5072,
+      "warm": 2368
+    },
+    "arrival-empty/en": {
+      "cold": 4886,
+      "warm": 2368
+    },
+    "chooser/zh": {
+      "cold": 4939,
+      "warm": 2235
+    },
+    "chooser/en": {
+      "cold": 4753,
+      "warm": 2235
+    },
+    "workbench-default/zh": {
+      "cold": 10751,
+      "warm": 2473
+    },
+    "workbench-default/en": {
+      "cold": 10567,
+      "warm": 2475
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 10751,
+      "warm": 2473
+    },
+    "workbench-all-plugins/en": {
+      "cold": 10567,
+      "warm": 2475
+    }
   }
 }

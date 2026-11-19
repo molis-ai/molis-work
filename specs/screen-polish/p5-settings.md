@@ -100,10 +100,11 @@
 
 ### 页面体积
 
-对照 main e5e565411b（#2127 的合并提交）的隔离构建量的下发字节（`node scripts/gates/page-assets.mjs --base origin/main`、`node scripts/gates/first-screen.mjs --base origin/main`，2026-11-18）：
+合并 main f5efe316a2（#2101）以后，对照它的隔离构建量的下发字节（`node scripts/gates/page-assets.mjs --base origin/main`、`node scripts/gates/first-screen.mjs --base origin/main`，2026-11-19）：
 
-- 资源：设置样式 −358、工作台样式 −454、工作台脚本 −42、Shelf 样式 −16、会话页脚本 −18；角色页脚本 +893、工作记录脚本 +410。两处增长是这两页在浏览器里画行，原来手拼的标记换成 SDK 的函数后，函数本身进了它们的脚本。
-- 首屏：工作台默认与全部插件，中英文都是冷 +109、热 +605；到达页与项目选择页冷 −454、热不变。工作台多出来的 605 字节在页面本身：它带着界面与语言的四行和项目常规页的两行，SDK 的行比原来手写的多一层包裹和读得出来的名字；冷启动里被变小的样式和脚本抵掉大半。
+- 资源：设置样式 −358、工作台样式 −454、工作台脚本 −39、Shelf 样式 −16、会话页脚本 −18；角色页脚本 +893、工作记录脚本 +410。两处增长是这两页在浏览器里画行，原来手拼的标记换成 SDK 的函数后，函数本身进了它们的脚本。
+- 首屏：工作台默认与全部插件，中英文都是冷 +112、热 +605；到达页与项目选择页冷 −454、热不变。工作台多出来的 605 字节在页面本身：它带着界面与语言的四行和项目常规页的两行，SDK 的行比原来手写的多一层包裹和读得出来的名字；冷启动里被变小的样式和脚本抵掉大半。
+- 合并前对照 main e5e565411b（#2127 的合并提交）量的是工作台脚本 −42、冷 +109，其余数字相同；差的 3 字节在工作台脚本里。
 - 都远低于 10 KB，没有新增资源，词包没有换名。许可在 `tooling/gates/page-asset-allowances/screen-polish-p5-rows.json`。
 
 铺开后的截图在 `.impeccable/qa/review/screen-polish/p5/rollout/`（不入库）。已删的旧样式：`.settings-record*`（只留角色页还在用的 `.settings-record-title`）和 `.settings-paths`。

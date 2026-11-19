@@ -28,10 +28,14 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
   await b.waitFor(selected);
   assert.deepEqual(await b.evaluate(`Array.from(${selected}.options, option => [option.value, option.textContent])`),
     [["", "不确定（照常发图）"], ["true", "能看图"], ["false", "不能看图"]]);
-  for (const value of ["", "false", "true", ""]) {
+  // Decision 51 ③: only "cannot read images" holds the screenshot back; unmarked sends it and tells the model to say so if it cannot see.
+  const states = ["", "false", "true", ""] as const;
+  let issues = 0;
+  for (const [index, value] of states.entries()) {
+    const last = index === states.length - 1;
     await v.go(settings); await b.waitFor(selected);
     if (value) await set("[data-model-vision]", value);
-    else if (namings.length) await set("[data-model-vision]", "");
+    else if (last) await set("[data-model-vision]", "");
     else await set("[data-model-name]", "只修改供应商名称");
     await b.click("[data-model-save]");
     await b.waitFor("!document.querySelector('[data-model-settings]').hasAttribute('aria-busy')", 20_000);
@@ -42,25 +46,26 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
     assert.equal(Object.hasOwn(model, "vision"), value !== "", "saving an unrelated field must not turn an absent declaration into false");
     await v.go(settings); await b.waitFor(selected);
     assert.equal(await b.evaluate(`${selected}.value`), value, "the saved state is rendered after navigation");
-    if (namings.length) break; // The last change clears a previously saved true declaration.
+    if (last) break; // The last change clears a previously saved true declaration.
     await v.viewport(480);
     assert.equal(await b.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     await b.evaluate(`(async () => { ${selected}.closest('label').scrollIntoView({ block: 'center', behavior: 'instant' }); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true; })()`);
     await v.shot(`settings-${value || "unset"}`); await v.viewport(1440);
     await v.go("/"); await v.chord(); await v.composerFocused(); await v.paste();
     await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
-    const previousCalls = requests.length;
+    const previousCalls = requests.length, previousNamings = namings.length;
     await v.send();
-    if (value === "true") {
-      await v.until("!$('[data-state]') && $('[data-issue-list] [data-issue-id]')", 20_000);
-      assert.equal(namings.length, 1);
-      assert.match(namings[0]!, /"type":"image"/, "the saved declaration enables the actual image attachment");
-      const [issue] = (await v.list()).items;
-      assert.equal((await v.read(issue!.id)).images.length, 1);
+    if (value !== "false") {
+      await v.until(`!$('[data-state]') && d.querySelectorAll('[data-issue-list] [data-issue-id]').length === ${issues + 1}`, 20_000);
+      issues++;
+      assert.equal(namings.length, previousNamings + 1);
+      assert.match(namings.at(-1)!, /"type":"image"/, "the screenshot goes with the naming call unless the model is marked as not reading images");
+      assert.equal(namings.at(-1)!.includes("看不到图片内容就直接说看不到"), value === "", "only an unmarked model is told to say when it cannot see");
+      assert.ok((await Promise.all((await v.list()).items.map(async item => (await v.read(item.id)).images.length))).every(count => count === 1));
     } else {
       await v.until("$('[data-state=attention]')?.textContent.includes('截图未发送给模型')", 20_000);
-      assert.equal(namings.length, 0); assert.equal(requests.length, previousCalls);
-      assert.equal((await v.list()).items.length, 0);
+      assert.equal(namings.length, previousNamings); assert.equal(requests.length, previousCalls);
+      assert.equal((await v.list()).items.length, issues);
       await v.press("[data-state=attention]");
       assert.equal(await v.ask("d.querySelectorAll('[data-issue-edit-shots] img').length"), 1, "the screenshot stays available for correction");
       assert.match(await v.ask<string>("$('[data-issue-flag]').textContent"), /设置 › 模型/);

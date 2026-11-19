@@ -27,7 +27,7 @@ export function openConfiguredModels(home: string): { storage: LocalSqliteStorag
 }
 
 /** Available text models from the same catalog, checked through metadata without decrypting credentials. */
-export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string; vision: boolean; reasoning_effort: boolean }[] {
+export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string; vision?: boolean; reasoning_effort: boolean }[] {
   const opened = openConfiguredModels(home);
   if (!opened) return [];
   try {
@@ -43,7 +43,7 @@ export function configuredModelChoices(home: string): { provider_id: string; mod
       return providers.flatMap(provider => {
         if (!currentModelConnection(store, byCredential.get(provider.credential_ref), provider)) return [];
         return provider.models.filter(model => model.enabled).map(model => ({
-          provider_id: provider.provider_id, model_id: model.model_id, vision: model.vision === true,
+          provider_id: provider.provider_id, model_id: model.model_id, ...(model.vision === undefined ? {} : { vision: model.vision }),
           reasoning_effort: model.reasoning_effort === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}`,
         }));
       });

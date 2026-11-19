@@ -146,6 +146,8 @@
 
 第 34 批已合入并交付历史发现、按页读取、搜索、确定性目录／worktree 自动归属、AI 归属建议、工作台「外部会话」表面及安全不变量；Gemini/Qoder/Kimi/MiniMax/Pi 的未知 schema 与 Kimi 双格式、`gh` 403 恢复也已有测试（`tests/sessions-service.test.ts`、`tests/sessions-adapters.test.ts`、`tests/sessions-search-assistant.test.ts`、`tests/sessions-workbench.test.ts`、`tests/sessions-workbench.e2e.test.ts`、`tests/security-invariants-external-sessions.test.ts`）；界面实物与本机已装外部工具实操待用户本人验收（[`BL-b34-sessions-acceptance`](../backlog/BL-b34-sessions-acceptance.md)）。冷启动引导导入（`SRB-09`）与持续跟进、直接控制发送、运行中交接（`SRB-04`、`SRB-05`、`SRB-17`、`SRB-18` 及 `SRB-03/06/08/10/11` 控制侧）按路线书第 45、60 批推进。
 
+第 35 批交付 SRB-09：Onboarding 给已有项目补材料时可选「AI 工具里的会话」。以项目 AI 的身份经 `sessions.list@1`、`sessions.history.read@1` 读，许可没开时由本人在这一步打开，没开就不整理会话、讲清原因；一个会话一份带时间与说话人的材料，重复导入复用原成果，会话增长记新版本，整理失败保留已读材料（`tests/context-onboarding-sessions.test.ts`）。真实外部工具实操待用户本人验收。
+
 ## 6. 接续事项
 
 2026-11-03 来源盘点（只读，供第 22 批）：各家会话的存放位置、列出与恢复命令、机器读出口和可信度，以及仓库现有的接入点与三份待合并的工具名单，见[来源盘点](source-inventory-2026-11.md)。

@@ -2,6 +2,10 @@ import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ProjectDeletedDeferred } from "../project-deleted-deferred.js";
+import { CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
+import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { forgetOwnedAttachments } from "../material-attachments.js";
+import { ASSISTANT_ATTACHMENT_OWNER } from "./assistant-attachments.js";
 import { assistantReceiptPrefix } from "./assistant-setting-records.js";
 import { AssistantRelations } from "./assistant-relations.js";
 import { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, type StoredWork } from "./assistant-store.js";
@@ -18,10 +22,25 @@ interface AssistantProjectLive {
 const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos", "assistant_jobs",
   "assistant_unsettled", "assistant_observed", "assistant_requests", "assistant_works"] as const;
 
+/** The conversation attachments a stored work or round names (the pictures its rounds sent), by digest. */
+function namedAttachments(bodies: Iterable<string>, into = new Map<string, MaterialRef>()): Map<string, MaterialRef> {
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) { for (const item of value) visit(item); return; }
+    if (!value || typeof value !== "object") return;
+    const ref = value as Partial<MaterialRef>;
+    if (ref.subject?.kind === CONVERSATION_ATTACHMENT_SUBJECT_KIND && typeof ref.subject.id === "string") { into.set(ref.subject.id, ref as MaterialRef); return; }
+    for (const item of Object.values(value)) visit(item);
+  };
+  for (const body of bodies) visit(JSON.parse(body));
+  return into;
+}
+const bodiesOf = (db: ReturnType<typeof openBaselineHomeSqlite>, sql: string, ...values: string[]) => (db.prepare(sql).all(...values) as Array<{ body: string }>).map(row => row.body);
+
 /**
  * The project is deleted: the Assistant's works that belong to it go, with their rounds, cards, notices, follow-ups,
  * background jobs (a job nobody follows is looked at no more), undo steps and the relations they recorded. A running
- * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The
+ * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The pictures
+ * those works' rounds sent go too, unless a work that stays names the same picture (the Assistant keeps them for the Home). The
  * conversation itself is the runtime's session record. Forwarding processes leave this step for the running owner,
  * which can close the work's original permission before removing its rows.
  * Returns how many works went.
@@ -42,6 +61,7 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
         }
       }
     }
+    const named = namedAttachments(works.flatMap(work => [JSON.stringify(work), ...bodiesOf(db, "SELECT body FROM assistant_rounds WHERE work_id = ?", work.work_id)]));
     const relations = new AssistantRelations(db);
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -54,6 +74,10 @@ export async function purgeAssistantProject(home: string, projectId: string, liv
       }
       db.exec("COMMIT");
     } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
+    if (named.size) {
+      const kept = namedAttachments([...bodiesOf(db, "SELECT body FROM assistant_works"), ...bodiesOf(db, "SELECT body FROM assistant_rounds")]);
+      await forgetOwnedAttachments(home, ASSISTANT_ATTACHMENT_OWNER, [...named].filter(([id]) => !kept.has(id)).map(([, ref]) => ref));
+    }
     return works.length;
   } finally { db.close(); }
 }

@@ -1,3 +1,4 @@
+import { buildCodeIntelligenceHtml } from "../../code-intelligence-parts.js";
 import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
@@ -65,37 +66,37 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
-function placeRoundMaterials(block: HTMLElement, run: RunView, ordered: HTMLElement[]) {
-  const html = buildRoundMaterialsHtml(run);
-  if (!html) {
-    block.querySelector(":scope > [data-coding-round-materials]")?.remove();
-    return;
-  }
-  let box = block.querySelector<HTMLElement>(":scope > [data-coding-round-materials]");
+/**
+ * A box drawn from HTML under the person's request, after the last of `after` already placed; kept across redraws, so a fold the
+ * person opened or closed stays as they left it. No HTML removes it.
+ */
+function placeBox(block: HTMLElement, ordered: HTMLElement[], attr: string, className: string, html: string, after: readonly string[]) {
+  let box = block.querySelector<HTMLElement>(`:scope > [${attr}]`);
+  if (!html) { box?.remove(); return; }
   if (!box || box.tagName !== "DIV") {
     box?.remove();
-    box = el("div", "", "coding-round-materials");
-    box.dataset.codingRoundMaterials = "";
+    box = el("div", "", className);
+    box.setAttribute(attr, "");
   }
   if (box.dataset.html !== html) {
     box.dataset.html = html;
     box.innerHTML = html;
   }
-  const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
-  ordered.splice(userIdx >= 0 ? userIdx + 1 : 0, 0, box);
+  ordered.splice(Math.max(ordered.findIndex(node => node.dataset.kind === "user"), ...after.map(name => ordered.findIndex(node => node.hasAttribute(name)))) + 1, 0, box);
 }
+
+const MATERIALS = "data-coding-round-materials", CODE = "data-coding-code-intel-box";
 
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
-  placeRoundMaterials(block, run, ordered);
+  placeBox(block, ordered, MATERIALS, "coding-round-materials", buildRoundMaterialsHtml(run), []);
+  // Which languages the round could understand sits under its materials: one fold, open only when something is not ready (A4).
+  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [MATERIALS]);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
   if (planCard) {
-    const matIdx = ordered.findIndex(node => node.hasAttribute("data-coding-round-materials"));
-    const userIdx = ordered.findIndex(node => node.dataset.kind === "user");
-    const anchor = matIdx >= 0 ? matIdx : userIdx;
-    ordered.splice(anchor >= 0 ? anchor + 1 : 0, 0, planCard);
+    ordered.splice(Math.max(...["user", MATERIALS, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
   }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {

@@ -1,6 +1,6 @@
 import { agentErrors } from "../errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentImageMaterial, AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { STEP_TOOLS } from "../execution-plan.js";
 import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
@@ -8,6 +8,7 @@ import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimeP
 import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";
 import { RunMemoryBinding } from "./prologue-run-memory.js";
 import { runStreamState } from "./prologue-stream.js";
+import { UNMARKED_IMAGES_NOTE } from "../run-images.js";
 
 /** What starting a round needs from the adapter (prologue.ts). */
 export interface RunStartContext {
@@ -27,7 +28,7 @@ type FrozenRole = NonNullable<AgentStartRequest["role"]>;
  */
 async function checkRoundStartable(context: RunStartContext, request: AgentStartRequest) {
   const { runtime, descriptor } = context;
-  const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(runtime.imageAttachments));
+  const { textMaterials, imageMaterials } = validateRunAttachments(request, Boolean(runtime.images));
   if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
   const model = await context.ports.modelConfiguration(request.model_selection);
   if (model === null) {
@@ -90,7 +91,8 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
       id: role.role_id,
       version: role.version,
       name: role.role_id,
-      instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
+      // Pictures for a model not marked either way go with a line telling it not to guess (decision 51 ③); one marked as not seeing them never starts.
+      instructions: [...role.prompts.map((prompt) => prompt.body), ...(materials.image_materials?.length && model.vision === undefined ? [UNMARKED_IMAGES_NOTE] : [])].join("\n\n"),
       tools: [...role.host_tools],
     },
     ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: provenance.frozen.compaction?.above_tokens ?? role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
@@ -114,6 +116,28 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
   };
 }
 
+/**
+ * The round's pictures as the runtime holds them for this Run, from the bytes the Host read for the caller (`execution.images`).
+ * A picture without its bytes refuses the round: it is never sent as a name alone. `release` lets every one go, once.
+ */
+export async function takeImagesIn(runtime: PrologueRuntimePort, wanted: readonly AgentImageMaterial[], execution: AgentStartExecution | undefined) {
+  const materials: Array<AgentImageMaterial & { resource: { id: string; revision: number } }> = [];
+  let released = false;
+  const release = () => {
+    if (released) return; released = true;
+    for (const one of materials) void runtime.images?.release(one.resource).catch(() => undefined);
+  };
+  try {
+    for (const image of wanted) {
+      const bytes = execution?.images?.find(one => one.material_id === image.material_id)?.bytes;
+      if (!bytes || !runtime.images) throw agentErrors.capability_unavailable(`图片「${image.title}」没有读到，没有发给模型`);
+      const taken = await runtime.images.intake({ bytes, name: image.title });
+      materials.push({ ...image, resource: taken.resource });
+    }
+  } catch (error) { release(); throw error; }
+  return { materials, release };
+}
+
 /** Start one round of a session already checked as idle: the runtime runs it, and the store follows it from its first event. */
 export async function startPrologueRun(context: RunStartContext, request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
   const { runtime, store } = context;
@@ -124,13 +148,19 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   const frozen = { ...freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: runtime.defaultContextWindowTokens, callId: execution?.call_id }),
     ...(original ? { original_input: original.ref } : {}), ...(request.continued_from ? { continued_from: request.continued_from } : {}) };
 
-  await execution?.beforeStart?.();
-  requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+  // The pictures are taken in for this Run only and let go when it is over (or refused): their own copy is the caller's attachment.
+  const images = await takeImagesIn(runtime, imageMaterials, execution);
+  const held = { ...execution, disposeDispatch: () => { execution?.disposeDispatch?.(); images.release(); } };
+  try {
+    await execution?.beforeStart?.();
+    requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
+  } catch (error) { images.release(); throw error; }
   const memoryBinding = new RunMemoryBinding(role.memory, execution?.beforeDispatch);
-  const started = await runtime.startAgentRun({ ...startInput(request, memoryBinding.role(role), model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
-    { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) }).catch(error => { memoryBinding.close(); throw error; });
+  const started = await runtime.startAgentRun({ ...startInput(request, memoryBinding.role(role), model, mode, { text_materials: textMaterials, image_materials: images.materials },
+    { frozen, started_at: at }, held), ...(original ? { original_input: original } : {}) }).catch(error => { memoryBinding.close(); images.release(); throw error; });
 
   if (started.instructions) frozen.instructions = structuredClone(started.instructions);
+  if (started.code_intelligence) frozen.code_intelligence = structuredClone(started.code_intelligence);
   const state = runStreamState(model.protocol.startsWith("openai"), started);
   const ref: AgentRunRef = {
     run_id: started.run.ref.id,

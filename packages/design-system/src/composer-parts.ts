@@ -32,12 +32,16 @@ export function renderComposerDeliveryMenu(id: string, labels: MwComposerAiLabel
 /** One group of the ＋ menu: a registered source (its plugin's name and its own), this page's commands, or the files. */
 export interface ComposerMenuSource { readonly provider: string; readonly title: string }
 /** A `/` command; `at` is its place in the page's own list when the menu shows only some of them. */
-export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string; readonly keywords?: readonly string[]; readonly icon?: Parameters<typeof icon>[0]; readonly add?: false; readonly at?: number }
+export interface ComposerMenuCommand { readonly slash: string; readonly label: string; readonly hint?: string; readonly keywords?: readonly string[]; readonly icon?: Parameters<typeof icon>[0]; readonly add?: false; readonly at?: number;
+  /** The `/` menu group it is listed under; `warning` a short state beside it (「读不了」). */
+  readonly group?: string; readonly warning?: string }
+/** The `/` menu's groups in order, each with what it says while it has no command, and the menu's closing line (Coding A2). */
+export interface ComposerMenuGroups { readonly groups?: readonly { readonly label: string; readonly empty?: string }[]; readonly note?: string }
 
-/** One command as a menu row: its name first, what it does under it, and the `/word` that finds it where a shortcut stands. */
+/** One command as a menu row: its name first, what it does under it, a warning beside it, and the `/word` that finds it where a shortcut stands. */
 function commandItem(command: ComposerMenuCommand, at: number): string {
-  return renderMenuItem({ label: command.label, ...(command.icon ? { iconName: command.icon } : {}), ...(command.hint ? { description: command.hint, id: `mw-composer-command-${at}` } : {}), shortcut: `/${command.slash}`,
-    attrs: { "data-composer-command": String(at) } });
+  return renderMenuItem({ label: command.label, ...(command.icon ? { iconName: command.icon } : {}), ...(command.hint ? { description: command.hint, id: `mw-composer-command-${at}` } : {}),
+    ...(command.warning ? { badge: { label: command.warning, tone: "warning" as const } } : {}), shortcut: `/${command.slash}`, attrs: { "data-composer-command": String(at) } });
 }
 
 /**
@@ -57,9 +61,21 @@ export function renderComposerAddMenu(labels: MwComposerLabels, parts: { files: 
   return renderMenu({ items: files + sources + commands });
 }
 
-/** The `/` menu: every command the typed `/words` name, in one scrolling list (none says so). */
-export function renderComposerCommands(labels: MwComposerLabels, commands: readonly (ComposerMenuCommand & { at: number })[]): string {
-  return renderMenu({ items: commands.length ? renderMenuGroup({ label: labels.commands, items: commands.map((command) => commandItem(command, command.at)).join("") }) : line(labels.nothing) });
+/**
+ * The `/` menu: every command the typed `/words` name, in one scrolling list (none says so). With `menu`, the page's commands with no
+ * group come first under its own heading, then each group in its order; a group with none says its `empty` line, only while nothing
+ * is typed after `/` (`all`). The page's `note` closes the menu.
+ */
+export function renderComposerCommands(labels: MwComposerLabels, commands: readonly (ComposerMenuCommand & { at: number })[], menu: ComposerMenuGroups = {}, all = false): string {
+  const rows = (list: readonly (ComposerMenuCommand & { at: number })[]) => list.map((command) => commandItem(command, command.at)).join("");
+  const named = new Set((menu.groups ?? []).map((group) => group.label));
+  const own = commands.filter((command) => !command.group || !named.has(command.group));
+  const groups = (menu.groups ?? []).flatMap((group) => {
+    const under = commands.filter((command) => command.group === group.label);
+    return under.length ? [renderMenuGroup({ label: group.label, items: rows(under) })] : all && group.empty ? [renderMenuGroup({ label: group.label, items: line(group.empty, false) })] : [];
+  });
+  const items = (own.length ? renderMenuGroup({ label: labels.commands, items: rows(own) }) : "") + groups.join("");
+  return renderMenu({ items: (items || line(labels.nothing)) + (menu.note ? `<p class="mw-composer__menu-note">${escapeHtml(menu.note)}</p>` : "") });
 }
 
 /** The commands a typed `/words` names: each whose name, words, hint or keywords hold them, in the page's order (an empty `/` lists all). */
@@ -88,37 +104,10 @@ export function renderComposerMention(labels: MwComposerLabels, found: readonly 
   return renderMenu({ items: renderMenuGroup({ items: rows }) });
 }
 
-const line = (text: string) => `<p class="mw-composer__line" role="status">${escapeHtml(text)}</p>`;
+const line = (text: string, live = true) => `<p class="mw-composer__line"${live ? ` role="status"` : ""}>${escapeHtml(text)}</p>`;
 
-/** Fills a label's `{name}` and the like (the page's own filler: the SDK's `formatMessage`). */
-export type Fill = (text: string, values: Readonly<Record<string, string>>) => string;
-
-/**
- * One row of the attachment strip: `key` names it while it lives (the row is redrawn in its own element); `retry` offers 重试 on a
- * failed row; `thumb` is a read picture's own preview (an object URL), in place of the file mark.
- */
-export interface ComposerStripItem {
-  readonly key: string; readonly title: string; readonly state: "reading" | "attached" | "failed"; readonly reason?: string; readonly from?: string;
-  readonly retry?: boolean; readonly thumb?: string;
-}
-
-/**
- * The attachment strip (the board's upload rows): being read (`aria-busy`), read (with where a pick came from, or a picture's
- * preview) or refused with its reason, 重试 when trying again may help, and a remove (VUX-18).
- */
-export function renderComposerStrip(labels: MwComposerLabels, items: readonly ComposerStripItem[], fill: Fill): string {
-  if (!items.length) return "";
-  return `<ul class="mw-uploads mw-composer__files">${items.map((item) => {
-    const note = item.state === "reading" ? `<small>${escapeHtml(fill(labels.reading, { name: item.title }))}</small>`
-      : item.state === "failed" ? `<small class="is-failed">${escapeHtml(item.reason ?? "")}</small>` : item.from ? `<small>${escapeHtml(item.from)}</small>` : "";
-    const remove = fill(labels.remove, { name: item.title }), again = fill(labels.retryFile, { name: item.title });
-    const mark = item.thumb ? `<img class="mw-composer__thumb" src="${escapeHtml(item.thumb)}" alt="">` : icon(item.from ? "package" : "file");
-    const retry = item.state === "failed" && item.retry
-      ? renderButton({ label: labels.retry, variant: "ghost", size: "sm", attrs: { "aria-label": again, title: again, "data-composer-retry": item.key } }) : "";
-    return `<li class="mw-upload${item.state === "attached" ? "" : ` is-${item.state}`}" data-composer-file="${escapeHtml(item.key)}"${item.state === "reading" ? ' aria-busy="true"' : ""}><span class="mw-mark">${mark}</span><span>${escapeHtml(item.title)}${note}</span>${retry}${
-      renderButton({ label: remove, variant: "ghost", size: "icon", icon: "x", iconOnly: true, attrs: { title: remove, "data-composer-remove": item.key } })}</li>`;
-  }).join("")}</ul>`;
-}
+export { renderComposerStrip, type ComposerStripItem, type ComposerFill as Fill } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { ComposerFill as Fill } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The restored-draft line: when it was written, and how to throw it away. */
 export function renderComposerRestore(labels: MwComposerLabels, when: string, fill: Fill): string {
@@ -129,8 +118,9 @@ export function renderComposerRestore(labels: MwComposerLabels, when: string, fi
  * The line above the box (`notice`): a standing condition, not a message, so it is no live region; the text area points at it with
  * `aria-describedby` and it is read when the box has focus. `id` is the composer's own.
  */
-export function renderComposerNotice(id: string, notice: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null }): string {
+export function renderComposerNotice(id: string, notice: { text: string; tone: "readonly" | "info"; icon?: string; action?: { label: string } | null; also?: { label: string } | null }): string {
   const mark = notice.icon ?? (notice.tone === "readonly" ? "lock" : "");
   return `<div class="mw-composer__notice" id="${escapeHtml(id)}" data-tone="${notice.tone}">${mark ? icon(mark as PluginIconName) : ""}<span class="mw-composer__notice-text">${escapeHtml(notice.text)}</span>`
-    + `${notice.action ? renderButton({ label: notice.action.label, variant: "secondary", size: "sm", attrs: { "data-composer-notice": "" } }) : ""}</div>`;
+    + `${notice.action ? renderButton({ label: notice.action.label, variant: "secondary", size: "sm", attrs: { "data-composer-notice": "" } }) : ""}`
+    + `${notice.action && notice.also ? renderButton({ label: notice.also.label, variant: "ghost", size: "sm", attrs: { "data-composer-notice": "also" } }) : ""}</div>`;
 }

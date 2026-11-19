@@ -8,7 +8,7 @@ import type { ContextJourney, ContextSource, ContextSourceKind, ImportFile, Cont
 import { isStagedDigest } from "./context-onboarding-staging.js";
 
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
-const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
+const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat", "sessions"];
 const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
 /** A file onboarding takes in: the page's own rule (`contextFileSkip`), checked again here; explicit file picks may stage secret-like files so `prepareContextDocument` can hold them for the person's 3-way choice (`C2`, `S-onboarding-secret-hold`). */
 const supportedContextFile = (path: string, allowSecretName = false) => {
@@ -133,6 +133,8 @@ export async function readContextSource(home: string, source: ContextSource): Pr
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
   if (source.kind === "gmail") return readOnboardingGmail(home, source);
+  // Read through the round's project, as its AI: the service passes the reader its own client (context-onboarding-sessions.ts).
+  if (source.kind === "sessions") throw new Error("这里读不了外部会话");
   const derivedFiles = !source.files?.length && source.staged_digests && source.metadata
     ? includedContextFiles(source).flatMap(f => source.staged_digests?.[f.path] ? [{ path: f.path, staged: source.staged_digests[f.path]! }] : [])
     : undefined;

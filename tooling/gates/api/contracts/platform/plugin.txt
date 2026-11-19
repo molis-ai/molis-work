@@ -4577,6 +4577,10 @@ export interface PluginMaterialsClient {
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
+    attach?(upload: MaterialUpload, request?: {
+        signal?: AbortSignal;
+    }): Promise<ConversationAttachment>;
+    readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }
 
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {
@@ -4595,7 +4599,7 @@ export type PluginModelAvailability = ActionAvailability & {
 
 export interface PluginModelChoice extends PluginModelSelection {
     readonly label: string;
-    readonly vision: boolean;
+    readonly vision?: boolean;
     readonly reasoning_effort: boolean;
 }
 

@@ -64,7 +64,7 @@ export interface ShelfAiStatus {
     readonly selected: ShelfModelSelection | null;
     readonly choices: readonly (ShelfModelSelection & {
         readonly label: string;
-        readonly vision: boolean;
+        readonly vision?: boolean;
     })[];
 }
 

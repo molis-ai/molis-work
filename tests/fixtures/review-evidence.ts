@@ -4,6 +4,14 @@
  */
 export const REVIEW_EVIDENCE = process.env.MOLIS_WORK_REVIEW_EVIDENCE === "1" ? ".impeccable/review" : ".impeccable/qa/review";
 
+/**
+ * Routine review-screenshot PNG writes are opt-in so ordinary test runs and CI do not spend CDP + disk time encoding
+ * unread images. Failure diagnostics and pixel-assertion tests capture screenshots unconditionally.
+ */
+export function shouldSaveReviewScreenshots(): boolean {
+  return process.env.MOLIS_WORK_SAVE_SCREENSHOTS === "1" || process.env.MOLIS_WORK_REVIEW_EVIDENCE === "1";
+}
+
 /** The same location as a file URL, for tests that address it relative to the repository. */
 export function reviewEvidenceUrl(relative = ""): URL {
   return new URL(`../../${REVIEW_EVIDENCE}/${relative}`, import.meta.url);

@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel, type IssueModelBehavior } from "./fixtures/issue-model.js";
 import { putInput, readWork, sendBarrier, waitWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 import { CURRENT_WORK, UNSENT_WORDS } from "./fixtures/assistant-current-work.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7, D14 (stage 1e): in the Assistant, the person picks where words go while a
@@ -37,6 +37,7 @@ async function sendSeen(browser: SendBrowser, text: string) {
   } finally { await barrier.close(); await settled(browser); }
 }
 async function shot(browser: SendBrowser, name: string) {
+  if (!shouldSaveReviewScreenshots()) return;
   const evidence = reviewEvidenceUrl("ai-input-receipts/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL(name, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
 }

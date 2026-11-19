@@ -110,4 +110,5 @@ test("CIP-06 Full builds once and runs 24 shards in one wave while preserving wo
     "(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/'))";
   assert.ok(block.includes(`fail-fast: \${{ !${runsEveryFile} }}`));
   assert.ok(block.includes(`BAIL: \${{ !${runsEveryFile} && '--bail' || '' }}`));
+  assert.ok(block.includes("STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}"));
 });

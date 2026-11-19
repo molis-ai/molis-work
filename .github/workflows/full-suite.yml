@@ -206,13 +206,16 @@ jobs:
         shell: bash
         env:
           BAIL: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
+          # PR full-suite skips gate-meta self-tests (covered by ci.yml) and full-screen VUX crawls (covered by visual-audit.yml);
+          # nightly schedule, integration branches and manual runs still run every file.
+          STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}
           ONLY_FILES: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files || '' }}
         run: |
           if [ -n "$ONLY_FILES" ]; then
             read -r -a files <<< "$ONLY_FILES"
             node scripts/run-tests.mjs --skip-macos-only --timeout-seconds 900 --retries 1 $BAIL "${files[@]}" 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
           else
-            node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/${{ strategy.job-total }} --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+            node scripts/run-tests.mjs --skip-macos-only $STRATA_FLAGS --shard ${{ matrix.shard }}/${{ strategy.job-total }} --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
           fi
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.

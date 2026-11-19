@@ -20,11 +20,13 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 //   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
 //                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
 //                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
+//   --exclude-gate-meta     leave out CI/gate/health/runner self-tests (scripts/run-tests/strata.mjs) before --shard picks.
+//   --exclude-visual-audit  leave out the 13 full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
 // A run with a browser file first takes the machine's browser slot (scripts/machine-slot.mjs) and waits its turn for it.
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -32,7 +34,7 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false };
+const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false, excludeGateMeta: false, excludeVisualAudit: false };
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -44,6 +46,8 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--verbose") options.verbose = true;
   else if (name === "--retries") options.retries = whole(name, value(), 0);
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
+  else if (name === "--exclude-gate-meta") options.excludeGateMeta = true;
+  else if (name === "--exclude-visual-audit") options.excludeVisualAudit = true;
   else if (name === "--bail") options.bail = true;
   else if (name === "--shard") {
     const shard = /^(\d+)\/(\d+)$/.exec(value() ?? "");
@@ -61,6 +65,20 @@ if (options.skipMacosOnly) {
   const kept = targets.filter((file) => !macosOnly(file));
   console.log(`run-tests: left out ${targets.length - kept.length} macOS-only files of ${targets.length}`);
   targets.splice(0, targets.length, ...kept);
+}
+if (options.excludeGateMeta || options.excludeVisualAudit) {
+  const { isGateMetaTest, isVisualAuditTest } = await import("./run-tests/strata.mjs");
+  const repoPath = (file) => relative(root, resolve(file));
+  if (options.excludeGateMeta) {
+    const kept = targets.filter((file) => !isGateMetaTest(repoPath(file)));
+    console.log(`run-tests: left out ${targets.length - kept.length} gate-meta files of ${targets.length}`);
+    targets.splice(0, targets.length, ...kept);
+  }
+  if (options.excludeVisualAudit) {
+    const kept = targets.filter((file) => !isVisualAuditTest(repoPath(file)));
+    console.log(`run-tests: left out ${targets.length - kept.length} visual-audit files of ${targets.length}`);
+    targets.splice(0, targets.length, ...kept);
+  }
 }
 const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
 const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));

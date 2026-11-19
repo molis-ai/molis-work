@@ -6,7 +6,7 @@ import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 export function assertModelConfigurationEntries(entries: readonly { definition: PluginDefinition }[], home: PluginPlatformHome | null): void {
   const files = new Set<string>(), providers = new Set<string>();
   for (const { definition } of entries) {
-    const declaration = definition.manifest.model_configuration;
+    const declaration = definition.manifest.settings_entries?.model_configuration;
     if (!declaration) continue;
     const id = definition.manifest.plugin_id;
     if (!home || definition.execution === "sandbox") throw new Error(`插件 ${id} 的模型设置需要宿主执行与 Home`);
@@ -29,6 +29,12 @@ export function assertModelConfigurationEntries(entries: readonly { definition: 
       if (actions.length !== 1 || !action || action.operation !== (kind === "read" ? "query" : "command")
         || !action.action.permissions.length || action.action.permissions.some(permission => !permissions.has(permission))) {
         throw new Error(`插件 ${id} 的模型设置 ${kind} 必须指向自己的唯一动作并声明权限`);
+      }
+      const preferenceRef = definition.manifest.settings_entries![kind === "read" ? "read" : "write"];
+      const preferenceAction = definition.manifest.actions?.find(candidate =>
+        candidate.capability_id === preferenceRef.capability_id && candidate.version === preferenceRef.version);
+      if (!preferenceAction || action.action.permissions.some(permission => !preferenceAction.action.permissions.includes(permission))) {
+        throw new Error("模型偏好读写须沿用该插件模型设置动作的权限");
       }
     }
   }

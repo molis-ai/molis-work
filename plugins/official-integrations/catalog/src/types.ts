@@ -65,6 +65,7 @@ export interface CatalogWebResult {
 }
 
 export interface CatalogWebSearch {
+  readonly max_query_characters?: number;
   request(ctx: CatalogAuthContext, query: { readonly q: string; readonly count: number }): CatalogHttpRequest;
   read(json: unknown): CatalogWebResult[];
 }

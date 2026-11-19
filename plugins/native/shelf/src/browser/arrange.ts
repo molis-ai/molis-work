@@ -20,6 +20,7 @@ function dragStart(page: ShelfPage, event: Event): void {
   if (!page.arranging || !wrap || !transfer) return;
   event.stopPropagation();
   page.dragSlot = wrap.dataset.shelfActSlot || "";
+  page.dragRevision = page.snapshot.action_bar_revision;
   page.dragOrder = [...actionOrder(page)];
   wrap.dataset.dragging = "1";
   transfer.effectAllowed = "move";
@@ -53,7 +54,7 @@ async function drop(page: ShelfPage, event: Event): Promise<void> {
   page.dragSlot = "";
   page.dragOrder = null;
   try {
-    await saveSettings(page, { action_order: order });
+    await saveSettings(page, { action_order: order }, page.dragRevision);
   } catch (error) {
     if (!page.lifetime.alive) return;
     page.stickyHint = messageOf(error);

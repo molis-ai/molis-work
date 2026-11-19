@@ -152,7 +152,7 @@ test("BL-491 RAC-2629 an installed package chooses among the enabled models insi
   assert.equal(view.selection, undefined);
   assert.deepEqual(await r.ask({ op: "settings.save", choice: { provider_id: "fixture", model_id: "model" } }), { provider_id: "fixture", model_id: "model" });
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
-  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, provider_id: "fixture", model_id: "model" });
+  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 2, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
 });
 
 test("BL-491 RAC-2630 a package cannot save an address, a connection, a format, the reserved provider or anything unknown; nothing is written and no provider is made", mac, async t => {

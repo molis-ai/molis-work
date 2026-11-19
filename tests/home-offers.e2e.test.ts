@@ -98,7 +98,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["做完了", "忽略", "整理成文稿", "标记待核查"]);
     assert.equal(await evaluate("!!document.querySelector('[data-home-open-talk]')"), false, "Loaded offers must not restore the retired Talk entry");
     await capture("desktop-unknown-action");
-    // ASC-38/39: hold an actual refresh response while the real prepared offer is disabled.
+    // 服务接入 §10.6 ASC-38/39: hold an actual refresh response while the real prepared offer is disabled.
     await evaluate(`(() => {
       const original=window.fetch;
       const held=new Promise(resolve=>{window.releaseOfferRefresh=resolve});

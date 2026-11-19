@@ -22,6 +22,8 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
 // checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
 // section became a title over one card.
+// Batch 38 adds a project settings link to scene adoption. Removing only that link and its section from each of the 20 changed
+// renders reproduced main a8d998935d's length and SHA-256, including the desktop query. The 32 other records match directly.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);

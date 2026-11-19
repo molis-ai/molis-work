@@ -21,7 +21,7 @@ const base = (project: TestProject) => `/projects/${project.project_id}`;
 const adoptRef = { ...automationAdoptionActions.adopt, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID };
 const undoRef = { ...automationAdoptionActions.undo, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID };
 
-test("S-automation-adoption: only the person's Host card turns suggestions on — Agents, plugins, delegated calls, page cards and items not offered are refused", { timeout: 120_000 }, async t => {
+test("S-automation-adoption SCAF-01: only the person's current Host card can turn suggestions on in its project", { timeout: 120_000 }, async t => {
   const fixture = await openTestHome(t);
   const project = await fixture.createProject("Adoption boundary");
   const other = await fixture.createProject("Other project");
@@ -51,6 +51,8 @@ test("S-automation-adoption: only the person's Host card turns suggestions on �
     assert.deepEqual(await skills(), ["off", "off"], `${what}: nothing was turned on`);
   };
   const input = { adopt: [ids[0]], never: [], skill_state: "auto" };
+  const run = (from: TestProject, values: unknown) => fixture.web.post<{ status: string }>(
+    `${base(from)}/api/assistant/works/${offered.work_id}/cards/${card.card_id}/run`, { revision: card.revision, values });
 
   // Not offered to Agents: an Agent round can neither see nor call it.
   const agent: ActionCallContext = { ...person, audience: "agent", permissions: [] };
@@ -61,16 +63,13 @@ test("S-automation-adoption: only the person's Host card turns suggestions on �
   await refused({ ...person, host_plugin: { plugin_id: "io.molis.work.todo", install_id: "builtin:io.molis.work.todo", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id } } as ActionCallContext, input, "*", "a plugin's call");
   await refused({ ...person, delegated_by: "io.molis.work.todo" }, input, "*", "a delegated call");
   await refused({ ...person, actor_id: "someone-else" }, input, "actions.forbidden", "another actor");
-  // Only the project's latest card: an id from elsewhere, or the same item both on and hidden, is refused.
-  await refused(person, { ...input, adopt: ["f".repeat(64)] }, "actions.conflict", "an item the card did not list");
-  await refused(person, { adopt: [ids[0]], never: [ids[0]], skill_state: "auto" }, "actions.input_invalid", "on and hidden at once");
-  // Another project's card does not count there: that project has offered nothing.
-  await assert.rejects(fixture.host.actionClient(other.reference).invoke({ ...person, project_id: other.project_id }, adoptRef, input),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.conflict", "another project's card");
+  await refused(person, input, "actions.forbidden", "a person action without the original card decision");
+  await assert.rejects(run(other, input), /请在建议所属的项目里本人确认操作/u);
+  await assert.rejects(run(project, { ...input, adopt: ["f".repeat(64)] }));
   assert.deepEqual(await skills(), ["off", "off"]);
   // Undo only for this project's own adoptions.
   await assert.rejects(client.invoke(person, undoRef, { adoption_id: "00000000-0000-4000-8000-000000000000" }),
-    (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
 
   // A page cannot place a card for it: the page's card is checked against what the Assistant may use, and asking to run as the person is ignored.
   const page = await fetch(fixture.origin + base(project) + "/api/assistant/cards", { method: "POST",
@@ -87,7 +86,7 @@ test("S-automation-adoption: only the person's Host card turns suggestions on �
   const preferences = join(fixture.home, "config", "automation-recommendations.json");
   await rm(preferences, { force: true });
   await mkdir(preferences);
-  await assert.rejects(client.invoke(person, adoptRef, { adopt: [ids[0]], never: [ids[1]], skill_state: "auto" }), "the adoption fails as a whole");
+  assert.equal((await run(project, { adopt: [ids[0]], never: [ids[1]], skill_state: "auto" })).status, "failed");
   assert.deepEqual(await skills(), ["off", "off"], "the skill turned on before the failure is off again");
   await rm(preferences, { recursive: true });
 });

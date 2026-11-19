@@ -194,10 +194,10 @@ export class AssistantWorkReads {
    * The bodies of the Skills the person chose for one round, in one catalog read with them named (§2.3); a refused one refuses the
    * round, never swapped for another version. Each is recorded as used once the round accepts it.
    */
-  async readSkills(work: StoredWork, refs: readonly SkillRef[], names: ReadonlyMap<string, string> = new Map()): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
+  async readSkills(work: StoredWork, refs: readonly SkillRef[], names: ReadonlyMap<string, string>, categories: Set<string>): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
     const port = this.ports.methods;
     if (!port) throw assistantErrors.invalid("技能目录未装配");
-    const results = await port.readSkills(work.project_ref, refs);
+    const results = await port.readSkills(work, refs, categories);
     // SKL-16: every named Skill that cannot be read is said at once, with its own reason; the round does not start on the rest.
     const refused = results.flatMap(result => result.ok ? [] : [{ name: names.get(skillRefKey(result.ref)) ?? result.ref.skill_id, reason: result.reason, ...(result.detail ? { detail: result.detail } : {}) }]);
     if (refused.length) throw assistantErrors.invalid(namedSkillsRefused(refused));

@@ -7,7 +7,6 @@ import { subtaskInputSessions } from "./assistant-subtask-inputs.js";
 import { changeAssistantSessionLifecycle } from "./assistant-session-lifecycle.js";
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
 import { assertStoredCharacter, catalogChoice, parseRoleRef, roleKey, storedCharacter } from "./assistant-characters.js";
-import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
 import { assistantFailure } from "./assistant-error.js";
@@ -111,6 +110,7 @@ export class AssistantService {
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.reads.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notices.notice(current, state); void this.delegations.roundEnded(current).catch(() => undefined); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}), ...(ports.scopeActions ? { personActions: ports.scopeActions } : {}),
+      personUndo: (work, view, output) => this.outcomes.recordUndo(work, view, output),
       readSubject: (work, subject) => this.materials.readSubject(work, subject), authority: work => ports.authority(work, { source: "card" }), jobs: this.jobs, personRan: (work, view, input, output) => this.outcomes.recordResult(work, view, input, output, false),
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
@@ -281,16 +281,15 @@ export class AssistantService {
       if (created && input.character === undefined && !work.main && !work.delegated_by && work.executor.kind === "assistant" && this.ports.resolveRole) work = await defaultCharacter(this.store, this.actorId, this.ports.resolveRole, work, assertInput);
       if (created && work.main && work.character) work = this.store.update(this.actorId, work.work_id, null, { title: `与「${work.character.title}」的对话` }, false);
       if (materials.some(item => item.reference)) materials = await this.materials.readReferences(work, materials);
-      const handoffs: MethodHandoff[] = [];
-      if (materials.some(item => item.kind === "method")) materials = await this.materials.chosenMethods(work, materials, handoffs);
-      if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
+      const methods = await this.materials.chosenMethods(work, materials);
+      if (input.reask !== undefined) methods.chosen.push(await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME)));
       await caller.beforeStart?.();
       assertSendCurrent(stillCurrent);
       assertInput();
-      linkSent(this.store.relations, work, materials, created ? context : null);
+      linkSent(this.store.relations, work, methods.chosen, created ? context : null);
       const beforeStart = async () => { await caller.beforeStart?.(); if (input.subtask && !accepted) await this.workSubtasks.assert(input.subtask.binding, input.subtask.operation); };
       const assertBeforeStart = () => { assertInput!(); if (input.subtask) assertSubtaskWork(this.store, this.actorId, input.subtask.binding); };
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, beforeStart, assertBeforeStart, { id: input.request_id, subtask: input.subtask, handed: () => { handed = true; }, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent, ...(input.auto_skills === false ? { auto_skills: false as const } : {}) }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { accepted = true; for (const item of handoffs) item.accepted(); } });
+      const result = await this.dispatcher.dispatch(work, text, methods.chosen, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, beforeStart, assertBeforeStart, { id: input.request_id, subtask: input.subtask, handed: () => { handed = true; }, target: input.target, delivery: input.delivery, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input, reply_locale: caller.reply_locale, draftCurrent, connector_categories: methods.categories, ...(input.auto_skills === false ? { auto_skills: false as const } : {}) }, { assertCurrent: () => { for (const item of methods.handoffs) item.assertCurrent(); }, accepted: () => { accepted = true; for (const item of methods.handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       if (input.submission_id !== undefined) result.submission_id = input.submission_id;
       this.store.requests.finishRequest(this.actorId, input.request_id, result);

@@ -1,5 +1,6 @@
+import { jellyPreferenceActions } from "./model-configuration.js";
 import { syncBindings } from './sync-binding.js';
-import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createJellyActionHandlers } from "./actions.js";
 import { jellyErrors } from "./error.js";
@@ -42,7 +43,15 @@ export function createJellyPlugin(): PluginDefinition {
           }
         } }),
       }),
-      ...createJellyServiceHandlers({ modelSettings: () => settings(() => configuration.read()), saveModelSettings: input => settings(() => configuration.save(input)) }),
+      bindActionHandler(jellyPreferenceActions.read, input => {
+        if (!configuration.preferences) throw new ActionError("actions.unredeemed", "宿主未提供模型偏好读取");
+        return configuration.preferences.read(input);
+      }),
+      bindActionHandler(jellyPreferenceActions.write, input => {
+        if (!configuration.preferences) throw new ActionError("actions.unredeemed", "宿主未提供模型偏好写入");
+        return configuration.preferences.write(input);
+      }),
+      ...createJellyServiceHandlers({ modelSettings: () => settings(() => configuration.read({ preference_revision: true })), saveModelSettings: input => settings(() => configuration.save(input)) }),
     ] };
   } };
 }

@@ -466,7 +466,7 @@ test("BL-140: a menu open in the Goal document holds the background refresh unti
   await waitFor("window.__refreshes > 0", 10_000);
 });
 
-test("ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async t => {
+test("服务接入 §10.6 ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "user"); if (!browser) return;
   const { store, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
   // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.

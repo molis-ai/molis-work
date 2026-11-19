@@ -19,8 +19,8 @@ export const connectorSetupAction: ActionDefinition = {
       authentication: { type: "string", enum: ["none", "bearer", "oauth"] }, transport: { type: "string", enum: ["http", "sse"] },
     }, required: ["service_id", "method", "display_name", "expected_revision"], additionalProperties: false },
     output_schema: { type: "object", properties: { authorization_id: { type: "string", format: "uuid" }, status: { type: "string" },
-      setup: { type: "object" }, url: { type: "string" }, possible_duplicates: { type: "array", items: { type: "object" } } },
-      required: ["authorization_id", "status", "setup", "url", "possible_duplicates"], additionalProperties: false },
+      setup: { type: "object" }, url: { type: "string" }, possible_duplicates: { type: "array", items: { type: "object" } }, created: { type: "boolean" } },
+      required: ["authorization_id", "status", "setup", "url", "possible_duplicates", "created"], additionalProperties: false },
     result_view: { summary: "接入方案已准备", title_pointer: "/setup/display_name", link: { label: "继续接入", href_template: "/capabilities/connections?setup={/authorization_id}" },
       pending_connection: { authorization_pointer: "/authorization_id" } },
   },
@@ -57,7 +57,7 @@ export function connectorSetupHandler(home: string): ActionHandlerBinding {
     await caller.beforeEffect();
     const request = prepareConnectorAuthorization(home, plan, { actor_id: caller.actor_id, project_id: caller.project_id,
       ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}) });
-    return { authorization_id: request.id, status: request.status, setup: plan, url: `/capabilities/connections?setup=${request.id}`,
+    return { authorization_id: request.id, status: request.status, setup: plan, url: `/capabilities/connections?setup=${request.id}`, created: request.created,
       possible_duplicates: listConnectorConnectionViews(home, plan.service_id).filter(row => row.auth_method === plan.method)
         .map(row => ({ connection_id: row.connection_id, display_name: row.display_name, account_label: row.account_label, state: row.state, enabled: row.enabled })) };
   } };

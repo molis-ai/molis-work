@@ -1,3 +1,4 @@
+import { AssistantSettingRecords } from "./assistant-setting-records.js";
 import { AssistantActionPolicies } from "./assistant-action-policies.js";
 import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
@@ -204,6 +205,24 @@ export interface StoredCard {
   updated_at: string;
 }
 
+type UndoWrite = StoredUndo | (Pick<StoredUndo, "undo_id" | "work_id"> & { remove: true });
+
+function writeUndo(db: DatabaseSync, actorId: string, undo: UndoWrite): boolean {
+  if ("remove" in undo) {
+    return Boolean(db.prepare("DELETE FROM assistant_undos WHERE actor_id=? AND work_id=? AND undo_id=?").run(actorId, undo.work_id, undo.undo_id).changes);
+  }
+  db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
+    .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+  return true;
+}
+
+function readWorkCards(db: DatabaseSync, workId: string, latestPersonProvider: string | undefined): StoredCard[] {
+  const rows = latestPersonProvider === undefined ? db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId)
+    : db.prepare(`SELECT body FROM assistant_cards WHERE work_id=? AND json_extract(body,'$.runs_as')='person'
+      AND json_extract(body,'$.reference.provider_id')=? ORDER BY rowid DESC LIMIT 1`).all(workId, latestPersonProvider);
+  return rows.map(row => JSON.parse(String(row.body)) as StoredCard);
+}
+
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
@@ -218,6 +237,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly preferences: AssistantSettingRecords;
   readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
 
@@ -229,6 +249,7 @@ export class AssistantStore {
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
     this.noticeReceipts = assistantNoticeReceipts(db);
+    this.preferences = new AssistantSettingRecords(db);
     this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
@@ -306,8 +327,8 @@ export class AssistantStore {
     return card;
   }
 
-  cards(workId: string): StoredCard[] {
-    return this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId).map(row => JSON.parse(String(row.body)) as StoredCard);
+  cards(workId: string, latestPersonProvider?: string): StoredCard[] {
+    return readWorkCards(this.db, workId, latestPersonProvider);
   }
 
   card(workId: string, cardId: string): StoredCard {
@@ -391,8 +412,7 @@ export class AssistantStore {
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
   setting(actorId: string, key: string): string | null {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
-    return row ? String(row.value) : null;
+    return this.preferences.get(actorId, key);
   }
 
   /** The title last seen for an object with this identifier, whatever its kind (titles are kept as `object-title:<kind>:<id>`). */
@@ -404,8 +424,7 @@ export class AssistantStore {
   }
 
   setSetting(actorId: string, key: string, value: string): void {
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+    this.preferences.set(actorId, key, value);
   }
 
   /**
@@ -421,9 +440,8 @@ export class AssistantStore {
     return this.db.prepare("SELECT body FROM assistant_undos WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId).map(row => JSON.parse(String(row.body)) as StoredUndo);
   }
 
-  saveUndo(actorId: string, undo: StoredUndo): void {
-    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
-    this.#changed(undo.work_id);
+  saveUndo(actorId: string, undo: UndoWrite): void {
+    if (writeUndo(this.db, actorId, undo)) this.#changed(undo.work_id);
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */

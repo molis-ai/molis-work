@@ -32,8 +32,12 @@ function usage(host: PluginCliHost | undefined): string {
   return `Usage:\n${lines("molis-work-plugin", false)}\nThese two need the Molis Work app's Host; run them with molis-work, not molis-work-plugin:\n${lines("molis-work plugin", true)}`;
 }
 
-/** `dev` and `install` asked of the standalone `molis-work-plugin`, which has no Host to run them in. */
-const cliErrors = defineErrorCodes("plugin", { host_required: "unavailable" });
+/**
+ * `host_required`: `dev` and `install` asked of the standalone `molis-work-plugin`, which has no Host to run them in.
+ * `unsigned_development_required`: `dev` without `--allow-unsigned-development`, refused before the Host reads anything.
+ * `development_failed`: a `dev` run that stopped for a reason with no code of its own (the plugin's code threw, say); never a Manifest verdict.
+ */
+const cliErrors = defineErrorCodes("plugin", { host_required: "unavailable", unsigned_development_required: "invalid", development_failed: "internal" });
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -103,7 +107,7 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
   try {
     if (args[0] === "dev") {
       if (!host) throw cliErrors.host_required("dev 要在 Molis Work 本体的命令里跑：molis-work plugin dev …（仓库里是 node dist/cli/main.js plugin dev …）；molis-work-plugin 是不带 Host 的独立工具，不另建一套数据库");
-      if (args[4] !== "--allow-unsigned-development") throw new Error("开发源码执行需要 --allow-unsigned-development；grant 不是 OS sandbox");
+      if (args[4] !== "--allow-unsigned-development") throw cliErrors.unsigned_development_required("开发源码执行需要 --allow-unsigned-development；grant 不是 OS sandbox");
       const result = await host.runDevelopment({ directory: args[1]!, state_directory: args[2]!,
         grants: args[3]!.split(",").map(value => value.trim()).filter(Boolean), allow_unsigned_development: true, ...(devLocale === undefined ? {} : { locale: devLocale }) });
       output.stdout(`${JSON.stringify(result)}\n`);
@@ -144,9 +148,11 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
         : { state_machine_notes: ['此 Manifest 未声明状态机；有状态的插件可填写 state_machines。'] }) })}\n`);
     return 0;
   } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : "plugin.manifest_invalid";
-    output.stderr(`${JSON.stringify({ valid: false, code,
-      message: error instanceof Error ? error.message : "Plugin Manifest validation failed" })}\n`);
+    // Only `validate` reads a Manifest and nothing else, so only its uncoded failures are a Manifest verdict.
+    const dev = args[0] === "dev";
+    const message = error instanceof Error ? error.message : dev ? "Plugin development run failed" : "Plugin Manifest validation failed";
+    const code = error && typeof error === "object" && "code" in error ? error.code : dev ? cliErrors.development_failed(message).code : "plugin.manifest_invalid";
+    output.stderr(`${JSON.stringify({ ...(dev ? { developed: false } : { valid: false }), code, message })}\n`);
     return 1;
   }
 }

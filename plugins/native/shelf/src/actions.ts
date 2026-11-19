@@ -1,3 +1,4 @@
+import { SHELF_PREFERENCE_FIELDS } from "@molis-ai/molis-work-module-shelf/contract";
 import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
@@ -79,7 +80,7 @@ export const shelfActions = {
   extract: jobDefinition("jobs.extract", /* @version action.shelf.jobs.extract */ 1, "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read", "materials:original"]),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", /* @version action.shelf.jobs.cancel */ 1, "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", /* @version action.shelf.settings.read */ 1, "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
-  saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", /* @version action.shelf.settings.write */ 1, "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
+  saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", /* @version action.shelf.settings.write */ 1, "保存 Shelf 设置", "登记或移除本机工具；设备偏好经 shelf.preferences.write 保存", "command", { type: "object" }, { type: "object" }, write, LOCAL),
   clip: define<{ text: string; concealed?: boolean; types?: string[] }, { clip: ShelfClipboardRecord | null }>("clipboard.add", /* @version action.shelf.clipboard.add */ 1, "记录剪贴板",
     "记录本机剪贴板；密码等标记为隐藏的内容不会保存", "command",
     object({ text: { type: "string", maxLength: 2_000_000 }, concealed: { type: "boolean" }, types: { type: "array", maxItems: 50, items: { type: "string", maxLength: 200 } } }, ["text"]),
@@ -176,6 +177,8 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.cancelJob, async input => ({ job: await ports.cancelJob(input.job_id) })),
     bind(shelfActions.settings, () => ports.settings()),
     bind(shelfActions.saveSettings, input => {
+      if (Object.values(SHELF_PREFERENCE_FIELDS).flat().some(field => Object.hasOwn(input, field)))
+        throw shelfErrors.invalid("设备偏好请通过 shelf.preferences.write 按所见版本保存；此入口仅登记本机工具");
       const parsed = parseSettingsWriteBody(input);
       if ("error" in parsed) throw shelfErrors.invalid(parsed.error);
       return ports.saveSettings(parsed.ok);

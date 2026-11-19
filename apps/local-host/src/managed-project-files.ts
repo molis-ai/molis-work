@@ -28,7 +28,7 @@ async createProject(input: CreateMolisWorkProjectInput, synced=false, beforeEffe
       beforeEffect();
       this.projects.lifecycle.register(record, synced ? "project.sync_prepared" : "project.created", actorId);
       return record;
-    });
+    }, beforeEffect);
   }
 
 async provisionCreatedProject<T>(

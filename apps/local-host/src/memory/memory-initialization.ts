@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { defaultPrefs, isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
+import { defaultPrefs, isCompletePrefs, memoryErrors, savePreferenceLayer } from "@molis-ai/molis-work-service-memory";
 import { acquireStorageOwner, assertNoPendingHomeRestore, assertStorageOwner, syncPath, finishMemoryLedgerUpgrade, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, homeSqlitePath,
   initializeMemoryForgetting, inspectMemoryForgetting, MEMORY_LEDGER_STORE, openMemoryLedger, readStorageSpace, startMemoryForgettingGeneration, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
@@ -43,8 +43,8 @@ export function prepareMemoryHome(home: string, owner?: StorageOwner): boolean {
     if (newHome) ledger.transaction(() => {
       // A concurrent supported entry may have initialized the same fresh Home first; never overwrite its choice.
       if (ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal") || ledger.prefs(LOCAL_PERSON_ACTOR_ID, "project-default")) return;
-      ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "personal", defaultPrefs("personal", "reviewed"));
-      ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", defaultPrefs("project", "reviewed"));
+      savePreferenceLayer(ledger, LOCAL_PERSON_ACTOR_ID, "personal", defaultPrefs("personal", "reviewed"), false);
+      savePreferenceLayer(ledger, LOCAL_PERSON_ACTOR_ID, "project-default", defaultPrefs("project", "reviewed"), false);
       initialized = true;
     });
     if (!isCompletePrefs(ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal"))

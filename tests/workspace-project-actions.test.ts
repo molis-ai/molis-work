@@ -173,13 +173,24 @@ test("project directories are project settings: they refuse folders of other pro
     assert.deepEqual(after.directories.find(item => item.workspace_id === workspace.workspace_id)?.roles, ["input", "output"]);
     // BL-372: the project's Runtime pick is the same kind of setting. No pick is the Home default; a pick that is not offered is kept and
     // reported with its name, so it can be changed or put back; only a Runtime id or null is a pick.
-    const picked = async (body?: Record<string, unknown>) => (await call("/api/project-settings/runtime", body ? "POST" : "GET", body)).json() as Promise<{ runtimes: Array<{ runtime_id: string }>; selected: string | null; problem: string | null }>;
+    const picked = async (body?: Record<string, unknown>) => (await call("/api/project-settings/runtime", body ? "POST" : "GET", body)).json() as Promise<{ runtimes: Array<{ runtime_id: string }>; selected: string | null; revision: string; problem: string | null }>;
     const initial = await picked();
     assert.deepEqual([initial.selected, initial.problem], [null, null]);
     assert.ok(initial.runtimes.length >= 1, "the Runtimes that can host a session are listed");
+    // ONB-28, SPC-04: losing the HTTP response must not create a second revision.
+    const choice = { runtime_id: initial.runtimes[0]!.runtime_id, expected_revision: initial.revision, request_id: "runtime-one" };
+    const saved = await picked(choice);
+    assert.equal(saved.selected, choice.runtime_id, JSON.stringify(saved));
+    assert.notEqual(saved.revision, initial.revision);
+    assert.deepEqual(await picked(choice), saved);
+    assert.equal((await call("/api/project-settings/runtime", "POST", { ...choice, request_id: "stale" })).status, 409);
+    assert.equal((await call("/api/project-settings/runtime", "POST", { ...choice, runtime_id: null })).status, 409);
     const gone = await picked({ runtime_id: "gone-engine" });
     assert.equal(gone.selected, "gone-engine");
     assert.match(gone.problem ?? "", /gone-engine.*项目设置/);
+    assert.equal((await picked()).selected, "gone-engine");
+    // A revised picker can replace the stored offline runtime using the version it actually displayed.
+    assert.equal((await picked({ ...choice, expected_revision: gone.revision, request_id: "replace-offline" })).selected, choice.runtime_id);
     assert.equal((await call("/api/project-settings/runtime", "POST", { runtime_id: 5 })).status, 400);
     assert.deepEqual([(await picked({ runtime_id: null })).selected, (await picked()).problem], [null, null]);
     // The capability library lists them for the person who may run them, like any other action.

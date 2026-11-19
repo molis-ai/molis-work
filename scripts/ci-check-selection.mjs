@@ -26,7 +26,7 @@ const STUDIO_INPUTS = [
 ];
 const ACCOUNT_LOGIN_INPUTS = [
   ".github/", "horizontal/account/", "apps/desktop/", "apps/local-host/", "apps/workbench/",
-  "packages/contracts/", "packages/storage/", "packages/test-kit/", "packages/design-system/", "packages/ui-host/",
+  "packages/contracts/", "packages/kernel/", "packages/storage/", "packages/test-kit/", "packages/design-system/", "packages/ui-host/",
   "scripts/account-", "scripts/central-account.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs",
   "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs", "scripts/machine-slot.mjs", "vendor/",
 ];

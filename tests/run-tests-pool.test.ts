@@ -294,10 +294,17 @@ test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gat
     assert.equal(isVisualAuditTest(file), true, file);
     assert.equal(isGateMetaTest(file), false, `${file} is visual audit, not gate meta`);
   }
-  for (const file of ["tests/health-gates-lint.test.ts", "tests/ci-install.test.ts", "tests/run-tests-pool.test.ts", "tests/package-boundary-must-contain.test.mjs", "tests/studio-replay.test.ts"]) {
+  for (const file of ["tests/health-gates-lint.test.ts", "tests/ci-install.test.ts", "tests/ci-font-install.test.ts", "tests/run-tests-pool.test.ts", "tests/affected-tests.test.ts", "tests/studio-replay.test.ts"]) {
     assert.equal(isGateMetaTest(file), true, file);
   }
-  for (const file of ["tests/security-invariants-home-snapshot-entries.test.ts", "tests/todo.e2e.test.ts", "tests/goals-refresh.e2e.test.ts", "tests/plugin-manifest.test.ts"]) {
+  const ciWorkflow = readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  for (const name of readdirSync(path.join(root, "tests"))) {
+    const file = `tests/${name}`;
+    if (!/\.test\.(?:ts|mjs)$/.test(name) || !isGateMetaTest(file)) continue;
+    const covered = ciWorkflow.includes(name) || (file.startsWith("tests/health-gates-") && ciWorkflow.includes("tests/health-gates-*.test.ts"));
+    assert.equal(covered, true, `${file} excluded by --exclude-gate-meta must be covered by .github/workflows/ci.yml`);
+  }
+  for (const file of ["tests/security-invariants-home-snapshot-entries.test.ts", "tests/todo.e2e.test.ts", "tests/goals-refresh.e2e.test.ts", "tests/plugin-manifest.test.ts", "tests/package-boundary-must-contain.test.mjs"]) {
     assert.equal(isGateMetaTest(file), false, `${file} is a product/security test`);
     assert.equal(isVisualAuditTest(file), false, `${file} stays in PR full-suite`);
   }

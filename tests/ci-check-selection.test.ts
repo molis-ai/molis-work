@@ -36,7 +36,7 @@ test("CIP-05 shell, studio replay and account-login checks follow their own inpu
     assert.equal(decideChecks({ affected: change(file) }).studio_replay.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).studio_replay.mode, "none");
-  for (const file of ["horizontal/account/src/a.ts", ".github/actions/setup-work/action.yml", "apps/local-host/src/a.ts", "apps/workbench/src/a.ts", "packages/contracts/src/a.ts", "scripts/account-authentication.test.mjs", "unknown/file.toml"]) {
+  for (const file of ["horizontal/account/src/a.ts", ".github/actions/setup-work/action.yml", "apps/local-host/src/a.ts", "apps/workbench/src/a.ts", "packages/contracts/src/a.ts", "packages/kernel/src/a.ts", "scripts/account-authentication.test.mjs", "unknown/file.toml"]) {
     assert.equal(decideChecks({ affected: change(file) }).account_login.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).account_login.mode, "none");

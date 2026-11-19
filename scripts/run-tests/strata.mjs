@@ -25,7 +25,7 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
 
 const VISUAL_AUDIT_SET = new Set(VISUAL_AUDIT_TESTS);
 
-const GATE_META_PATTERN = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-|package-boundary-must-contain\.|doc-reference-gates\.|translation-check\.|package-inventory-gate\.|vendor-provenance\.|verify-release-versions\.|version-source\.|secret-scan\.|cursor-skill-links\.|native-checks\.|page-assets-budget\.|plugin-styles-gate\.|studio-replay\.|affected-tests\.)/u;
+const GATE_META_PATTERN = /^tests\/(?:health-gates-|ci-|run-tests-|first-screen-|doc-reference-gates\.|translation-check\.|package-inventory-gate\.|vendor-provenance\.|verify-release-versions\.|version-source\.|secret-scan\.|cursor-skill-links\.|native-checks\.|page-assets-budget\.|plugin-styles-gate\.|studio-replay\.|affected-tests\.)/u;
 
 const normalize = (file) => String(file).replaceAll("\\", "/").replace(/^\.\//u, "");
 

@@ -204,8 +204,18 @@ export interface PluginConnectorSourceClient {
   pull(request: ConnectorPullRequest, options?: { readonly signal?: AbortSignal }): Promise<ConnectorPullReceipt>;
   /** The integration's adapter on one raw event. Pure: it reads no account. */
   adapt(request: { readonly slot_id: string; readonly integration_id: string; readonly record_key: string; readonly event: ConnectorRawEvent }): Promise<ConnectorSignalDraft>;
-  /** For services the Manifest declares a slot for: whether the Home has a connected account of each. Only a boolean. */
-  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, { readonly bound: boolean }>>>;
+  /** For services the Manifest declares a slot for: whether the Home has a connected account of each, whether it can be pulled, and its name. */
+  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, PluginConnectorAccountState>>>;
+}
+
+/**
+ * What a plugin may know about a service it declares a slot for (BL-917): nothing about any account but whether one is connected; whether
+ * the Home has a source integration of the service, so it can be pulled at all; and the service's name as the person reads it.
+ */
+export interface PluginConnectorAccountState {
+  readonly bound: boolean;
+  readonly pullable: boolean;
+  readonly title: string;
 }
 
 export interface SourcePullOptions {

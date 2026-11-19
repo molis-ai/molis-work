@@ -10,6 +10,7 @@ import { functionsConnectionStatus } from "./judgment-rules-host.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import { callDiagnosticsView } from "./web-call-diagnostics.js";
 import { connectorSettingsView } from "./web-connector-settings.js";
+import { webSearchSettingsView } from "./web-search-http.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { modelTemplatePageData } from "./model-provider-setup.js";
@@ -42,7 +43,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|authorizations|characters|prompts|kit|memory|work-records|mcp|connectors|projects|diagnostics|update|running|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|authorizations|characters|prompts|kit|memory|work-records|mcp|connectors|web-search|projects|diagnostics|update|running|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -116,6 +117,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     runtimes,
     mcp_access,
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
+    ...(section === "web-search" && serverOptions.homeDirectory ? { web_search: await webSearchSettingsView(localHost) } : {}),
     projects,
     web_service: await webService.detect(),
     ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),

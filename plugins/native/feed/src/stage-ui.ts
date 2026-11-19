@@ -53,6 +53,7 @@ function buildFeedModel(
     connector_auth: {
       github: view.data.connector_auth?.github ?? { bound: false },
       gmail: view.data.connector_auth?.gmail ?? { bound: false },
+      ...(view.data.connector_auth?.others?.length ? { others: view.data.connector_auth.others } : {}),
     },
     out_rules: (view.data.snapshot.out_rules ?? []).map((rule) => ({
       admission: rule.admission,

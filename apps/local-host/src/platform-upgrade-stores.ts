@@ -1,4 +1,4 @@
-import { AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
+import { AUTOMATION_OFFERS_FILE, AUTOMATION_OFFERS_PATH, AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
@@ -155,6 +155,7 @@ const installedPreference = sandboxModelDeclaration("*").preference;
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_PREFERENCES_PATH, file: AUTOMATION_PREFERENCES_FILE },
+  { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_OFFERS_PATH, file: AUTOMATION_OFFERS_FILE },
   { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },

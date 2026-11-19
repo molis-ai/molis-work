@@ -16,7 +16,7 @@ test("the catalog's addresses are tried in the order they always were, each entr
   assert.deepEqual(catalogRouteIds, [
     "settings-address", "capabilities-redirect", "project-arrival", "search", "sessions", "composer-sources", "composer-drafts", "placement", "observation-ui", "observation-api", "functions", "blueprints", "onboarding", "desktop-capsule",
     "component-board", "settings-home", "model-settings", "settings-page", "plugin-settings-page", "connector-connections",
-    "connector-methods", "connectors-settings", "mcp-action-settings", "runtime-settings", "project-settings", "pty-client", "health", "runtime-overview", "upgrade-notice", "update-hold", "project-index",
+    "web-search-settings", "connector-methods", "connectors-settings", "mcp-action-settings", "runtime-settings", "project-settings", "pty-client", "health", "runtime-overview", "upgrade-notice", "update-hold", "project-index",
   ]);
   assert.equal(new Set(catalogRouteIds).size, catalogRouteIds.length);
 });

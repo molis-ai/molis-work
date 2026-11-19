@@ -38,14 +38,21 @@ test("ONB-22/23/28, PWA-36: the scene, settings page and Assistant share lookbac
   const done = await person.invoke(blueprintActions.apply, request);
   assert.equal(done.steps[0]?.state, "applied");
 
-  await navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
+  assert.ok(b.projectId);
+  const settingsUrl = origin + "/settings/assistant?project=" + encodeURIComponent(b.projectId);
+  await navigate(() => command("Page.navigate", { url: settingsUrl }, sessionId));
   await waitFor("document.querySelector('[data-lookback-count]')?.value === '2' && document.querySelector('[data-lookback-unit]').value === 'weeks'");
   assert.equal(await evaluate("document.querySelector('[data-assistant-budget-input]').value"), "4500");
   await evaluate("document.querySelector('[data-lookback-count]').value='3'; document.querySelector('[data-lookback-unit]').value='days'");
   await click("[data-assistant-lookback] button[type=submit]");
   await waitFor("!document.querySelector('[data-assistant-lookback] button[type=submit]').disabled");
+  // AUT-06: changing the project suggestions switch uses its own owner alongside the adopted lookback.
+  await waitFor("document.querySelector('[data-assistant-offers]:enabled:checked')");
+  await evaluate("document.querySelector('[data-assistant-offers]').click()");
+  await waitFor("document.querySelector('[data-assistant-offers]:enabled:not(:checked)')");
   await b.reloadPage();
   await waitFor("document.querySelector('[data-lookback-count]')?.value === '3' && document.querySelector('[data-lookback-unit]').value === 'days'");
+  await waitFor("document.querySelector('[data-assistant-offers]:enabled:not(:checked)')");
   assert.deepEqual(JSON.parse(store.setting(actor, "lookback")!), { count: 3, unit: "days" });
   await person.invoke(blueprintActions.apply, request);
   const undo = await person.invoke(blueprintActions.revert, { adoption_id: done.adoption_id, request_id: "return-window" });

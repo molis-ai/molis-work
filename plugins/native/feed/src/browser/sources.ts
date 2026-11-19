@@ -226,6 +226,14 @@ export function feedSources(page: FeedPage) {
     all<HTMLInputElement>("[data-source-schedule-interval],[data-source-schedule-enabled]", region).forEach(input => { input.disabled = mode.value !== "interval"; const label = input.closest("label"); if (label) label.hidden = input.disabled; });
     const enabled = q<HTMLInputElement>("[data-source-schedule-enabled]", region); if (mode.value === "interval" && enabled) enabled.checked = true;
   });
+  // Another service's account (BL-917): the name follows the picked service until the person edits it, and the link goes to that service.
+  page.listen("input", event => { const input = event.target instanceof HTMLInputElement && event.target.matches("[data-feed-account-name]") ? event.target : null; if (input) input.dataset.edited = "true"; });
+  page.listen("change", event => {
+    const service = event.target instanceof HTMLSelectElement && event.target.matches("[data-feed-account-service]") ? event.target : null; if (!service) return;
+    const card = service.closest("[data-feed-setup-kind]"), option = service.selectedOptions[0], name = card && q<HTMLInputElement>("[data-feed-account-name]", card), link = card && q<HTMLAnchorElement>("[data-feed-account-settings]", card);
+    if (name && !name.dataset.edited) name.value = option?.dataset.feedAccountTitle || service.value;
+    if (link) { const url = new URL(link.href, location.href); url.searchParams.set("connector", service.value); link.href = url.pathname + url.search; }
+  });
   page.listen("submit", event => {
     const form = event.target instanceof HTMLFormElement ? event.target : null; if (!form?.matches("[data-feed-add-account],[data-feed-add-form]")) return;
     event.preventDefault(); const button = form.querySelector<HTMLButtonElement>('button[type="submit"],[data-feed-source-register]') || q<HTMLButtonElement>(REGISTER);
@@ -233,7 +241,7 @@ export function feedSources(page: FeedPage) {
     void run(button, async () => {
       if (!form.reportValidity()) return;
       const check = page.guard();
-      const account = form.dataset.feedAddAccount, kind = button.dataset.feedSourceRegister || "";
+      const account = form.matches("[data-feed-add-account]") ? form.dataset.feedAddAccount || field(form, "[data-feed-account-service]") : "", kind = button.dataset.feedSourceRegister || "";
       const sourceValue = kind === "rss" ? field(form, "[data-feed-rss-definition]") : field(form, '[data-feed-source-value="' + CSS.escape(kind) + '"]');
       const body = account ? { service: account, name: field(form, "[data-feed-account-name]") } : { kind, name: field(form, "[data-feed-add-name]").trim(), ...(kind === "rss" ? { definition_id: sourceValue } : kind === "research_library" ? { repository: sourceValue, research_source: field(form, "[data-feed-research-source]") } : kind === "web_query" ? { query: sourceValue } : kind === "youtube_channel" ? { channel_id: sourceValue } : { feed_url: sourceValue }) };
       let id = form.dataset.createdSourceId;

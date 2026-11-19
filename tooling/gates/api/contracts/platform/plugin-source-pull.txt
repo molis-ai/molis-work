@@ -42,6 +42,12 @@ export declare const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 
 export declare const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
 
+export interface PluginConnectorAccountState {
+    readonly bound: boolean;
+    readonly pullable: boolean;
+    readonly title: string;
+}
+
 export interface PluginConnectorSourceClient {
     open(slot_id: string, integration_id: string): Promise<{
         readonly adapter: RawEventAdapter["adapter"];
@@ -55,9 +61,7 @@ export interface PluginConnectorSourceClient {
         readonly record_key: string;
         readonly event: ConnectorRawEvent;
     }): Promise<ConnectorSignalDraft>;
-    accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, {
-        readonly bound: boolean;
-    }>>>;
+    accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, PluginConnectorAccountState>>>;
 }
 
 export interface PluginEvidenceCollectorClient {

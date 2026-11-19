@@ -878,6 +878,12 @@
     "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本。"
   },
   {
+    "file": "apps/local-host/src/connector-web-search.ts",
+    "name": "materials_v1",
+    "values": { "materials_v1": 1 },
+    "reason": "搜索 SDK 请求里 resultProfile 的取值，由 SDK 定义，这里只是传过去，不是自有版本（与 alchemist-search.ts 同一次 AnySearch 请求写法）。"
+  },
+  {
     "file": "apps/local-host/src/demo-project-id.ts",
     "name": "molis-work-v1-demo",
     "values": { "molis-work-v1-demo": 1 },

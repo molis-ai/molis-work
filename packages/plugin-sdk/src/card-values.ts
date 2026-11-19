@@ -44,7 +44,8 @@ export function cardInputValues(values: unknown, zone: string | undefined): Reco
   if (!values || typeof values !== "object" || Array.isArray(values)) return {};
   return Object.fromEntries(Object.entries(values as Record<string, unknown>).map(([key, value]) => {
     if (typeof value === "string") return [key, value];
-    if (Array.isArray(value)) return [key, String(value[0] ?? "")];
+    // Several picks of a field that takes several go as their list; one pick, or none, as the one value.
+    if (Array.isArray(value)) return [key, value.length > 1 ? JSON.stringify(value.map(String)) : String(value[0] ?? "")];
     const held = (value ?? {}) as { date?: unknown; time?: unknown; picked?: unknown };
     if (typeof held.date === "string" && typeof held.time === "string") {
       return [key, held.date.trim() || held.time.trim() ? instantIn(held.date, held.time, zone) ?? `${held.date} ${held.time}`.trim() : ""];

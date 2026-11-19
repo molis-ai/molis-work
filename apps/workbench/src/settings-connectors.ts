@@ -1,10 +1,11 @@
 import { t as uiText, icon as designIcon, renderAlert, renderButton, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
-import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_USES, type ConnectorConnectionView, type ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { renderToggleGroup } from "@molis-ai/molis-work-design-system";
 import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, recommendedMethod, renderConnectorConnect, renderConnectorWays } from "./settings-connector-guide.js";
 import { connectionOrder, renderConnectionAccount, renderConnectionManage, serviceState } from "./settings-connector-account.js";
 import { connectorMark } from "./connector-marks.js";
-import { renderConnectionItem, renderConnectionProgress } from "./service-connection-parts.js";
+import { renderConnectionItem, renderConnectionProgress, renderConnectionUseMatrix, type ConnectionUseCell } from "./service-connection-parts.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
 import { renderPluginSlots } from "./settings-plugin-slots.js";
@@ -33,6 +34,7 @@ const DISPLAY_GROUPS: ReadonlyArray<{ id: string; title: string; directory: read
   { id: "chat", title: "workbench.settings-connectors.messages", directory: ["chat", "social"] },
   { id: "design", title: "workbench.settings-connectors.design", directory: ["design"] },
   { id: "crm", title: "workbench.settings-connectors.customers-sales", directory: ["crm"] },
+  { id: "search", title: "workbench.settings-connectors.web-search", directory: ["search"] },
 ];
 const MODEL_SERVICES: readonly string[] = ["model-api", "image-api"];
 
@@ -98,6 +100,27 @@ function renderServiceBody(card: ConnectorSettingsCardView, connections: readonl
   </div>`;
 }
 
+/**
+ * 按用途 (§13.7 ①B): the services that can do something for the person, one column per use, each cell from the directory's `uses` —
+ * what the services' declarations say, never a list kept here. A service with an enabled account can do it now; one without, once
+ * connected. A service not in yet has no row: there is nothing to connect.
+ */
+function renderUseView(cards: readonly ConnectorSettingsCardView[], connected: (serviceId: string) => boolean, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
+  const order = (card: ConnectorSettingsCardView) => DISPLAY_GROUPS.findIndex(group => group.id === displayGroup(card));
+  const rows = cards.map((card, index) => ({ card, index })).filter(({ card }) => card.uses?.length && card.availability !== "placeholder")
+    .sort((a, b) => Number(connected(b.card.connector_id)) - Number(connected(a.card.connector_id)) || order(a.card) - order(b.card) || a.index - b.index)
+    .map(({ card }) => {
+      const cell: ConnectionUseCell = connected(card.connector_id) ? "ready" : "connect";
+      return { id: card.connector_id, mark: renderConnectorMark(card.connector_id, escapeHtml), name: connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS),
+        cells: Object.fromEntries(card.uses!.map(use => [use, cell])) };
+    });
+  if (!rows.length) return "";
+  const uses = CONNECTOR_USES.map(id => ({ id, label: uiText.text(`workbench.connection-uses.${id.replace("_", "-")}`) }));
+  return `<div class="settings-connector-uses" data-connectors-uses hidden><p class="settings-connector-uses__lead">${uiText("workbench.connection-uses.lead")}</p>${renderConnectionUseMatrix({
+    label: uiText.text("workbench.connection-uses.by-use"), uses, rows, connectHref: id => `#connector-${id}`,
+  })}</div>`;
+}
+
 export function renderConnectorsSettings(
   view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project">,
   primitives: ConnectorsSettingsPrimitives,
@@ -119,6 +142,12 @@ export function renderConnectorsSettings(
       attrs: { "data-connector-item": card.connector_id, "data-connector-search": `${card.title} ${card.connector_id} ${purpose}`.toLowerCase() },
     }, readText);
   };
+  const connected = (serviceId: string) => of(serviceId).some(connection => connection.state === "connected" && connection.enabled !== false);
+  const useView = renderUseView(cards, connected, escapeHtml);
+  const viewSwitch = useView ? renderToggleGroup({ label: uiText.text("workbench.connection-uses.view"), className: "settings-connector-view", items: [
+    { value: "service", label: uiText.text("workbench.connection-uses.by-service"), current: true, attrs: { "data-connectors-view": "service" } },
+    { value: "use", label: uiText.text("workbench.connection-uses.by-use"), attrs: { "data-connectors-view": "use" } },
+  ] }) : "";
   const groups = DISPLAY_GROUPS.map(group => {
     const rows = cards.filter(card => displayGroup(card) === group.id).map((card, index) => ({ card, index })).sort((a, b) => rank(a.card) - rank(b.card) || a.index - b.index);
     return rows.length ? `<section class="settings-connector-subgroup" data-connector-subgroup="${group.id}"><h3>${uiText(group.title)}</h3>${rows.map(row => item(row.card)).join("")}</section>` : "";
@@ -140,9 +169,12 @@ export function renderConnectorsSettings(
     <div class="settings-body">
       <p class="settings-form-error" data-connectors-error role="alert" hidden></p>
       <div class="settings-connector-catalog" data-connectors-list>
-        <label class="settings-connector-field settings-connector-search"><span>${uiText("workbench.settings-connectors.search-services")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${uiText("workbench.settings-connectors.search-gmail-notion-feishu")}"></label>
-        <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${uiText("workbench.settings-connectors.no-service-matches-try-another-word")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${uiText("workbench.settings-connectors.clear-search")}</button></p>
-        ${groups}${orphanGroup}
+        <div class="settings-connector-tools"><label class="settings-connector-field settings-connector-search" data-connectors-by-service><span>${uiText("workbench.settings-connectors.search-services")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${uiText("workbench.settings-connectors.search-gmail-notion-feishu")}"></label>${viewSwitch}</div>
+        <div class="settings-connector-catalog" data-connectors-by-service>
+          <p class="settings-connector-empty" data-connectors-no-results role="status" hidden><span>${uiText("workbench.settings-connectors.no-service-matches-try-another-word")}</span><button type="button" class="mw-btn mw-btn--secondary" data-connectors-reset>${uiText("workbench.settings-connectors.clear-search")}</button></p>
+          ${groups}${orphanGroup}
+        </div>
+        ${useView}
       </div>
       ${renderPluginSlots(view, cards, connections, { readText, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
       ${CLIENT_TEMPLATES(primitives)}

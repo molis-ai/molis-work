@@ -18,6 +18,8 @@ export interface ContentSkill {
   applies_to?: PluginMethodDeclaration["applies_to"];
   /** Resource path (relative to the Skill's folder, e.g. `references/template.md`) to its text. */
   resources?: Record<string, string>;
+  /** The kinds of service the Skill needs (`project-tracker`), named in its body as `~~project tracker`. */
+  connector_categories?: string[];
 }
 
 export interface ContentPackageOptions {
@@ -46,7 +48,8 @@ export function contentPackageParts(publisher: string, options: ContentPackageOp
       return { path: `${folder}/${path}`, role: roleOf(path), media_type: "text/markdown", bytes: Buffer.byteLength(text), sha256: sha256(text) };
     });
     return { skill_id: skill.id, version: skill.version ?? 1, name: skill.name ?? skill.id, summary: `${skill.name ?? skill.id}的做法`, tools: [],
-      description: `用户要做${skill.name ?? skill.id}时使用。`, applies_to: skill.applies_to ?? "both", body, ...(resources.length ? { resources } : {}) };
+      description: `用户要做${skill.name ?? skill.id}时使用。`, applies_to: skill.applies_to ?? "both", body, ...(resources.length ? { resources } : {}),
+      ...(skill.connector_categories ? { connector_categories: skill.connector_categories } : {}) };
   });
   const manifest = { schema_version: 1, host_api_version: 1, plugin_id: options.pluginId ?? CONTENT_PLUGIN_ID, version: options.version ?? "1.0.0", name: "会议技能", kind: "content",
     publisher: { publisher_id: "example", signature: publisher }, entrypoints: [], permissions: [], capabilities: { provides: [], consumes: [] },

@@ -4,7 +4,7 @@
 // gets less than 1.8 times its longest successful run, measured on the completed runs from 2026-10-28 13:06Z to 2026-10-29 (the table).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { blockingJobs, jobBlock, workflow } from "./fixtures/ci-workflow.js";
+import { blockingJobs, jobBlock, setupWorkAction, workflow } from "./fixtures/ci-workflow.js";
 
 /** The least a blocking job may be given, in minutes. */
 const BLOCKING_FLOOR = 30;
@@ -12,6 +12,8 @@ const BLOCKING_FLOOR = 30;
 const CEILING = 60;
 /** Job -> its limit in minutes, the longest successful run of the sample in seconds, and whether it blocks the merge. */
 const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }> = {
+  // Shared Linux workspace build job consumed by downstream test jobs; bounded at the blocking floor.
+  build: { limit: 30, longest: 200, blocking: true },
   // New combined Auth WASM + Work browser fixture; bounded conservatively pending CI measurement.
   "account-login": { limit: 60, longest: 0, blocking: true },
   gates: { limit: 30, longest: 409, blocking: true },
@@ -26,15 +28,15 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   "golden-replay": { limit: 30, longest: 203, blocking: true },
   "golden-replay-third-party": { limit: 30, longest: 334, blocking: true },
 };
-/** The `Install pnpm` step took 66 seconds at the longest of 2547 in the sample. */
-const INSTALL_PNPM = { limit: 3, longest: 66 };
+/** The shared setup-work step covers Node, pnpm install (longest 66 s), cache restore, and pnpm install. */
+const SETUP_WORK = { limit: 8, longest: 180 };
 
 /** A job's limit: the number, then optional whitespace and a `#` comment (YAML keeps the comment out of the value). */
 const jobTimeoutIn = (text: string) => /^    timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
 const jobTimeout = (name: string) => jobTimeoutIn(jobBlock(name));
 /** A step's limit, the same way; a step line is indented four spaces further. */
 const stepTimeoutIn = (text: string) => /^        timeout-minutes: (\d+)(?:\s+#.*)?\s*$/m.exec(text)?.[1];
-const installPnpmSteps = (text: string) => text.split("\n      - ").filter((step) => step.startsWith("name: Install pnpm\n"));
+const setupWorkSteps = (text: string) => text.split("\n      - ").filter((step) => /^\s*uses: \.\/\.github\/actions\/setup-work\s*$/m.test(step));
 
 /**
  * The blocking-job floor for one job block (RAC-2411's check, so RAC-2425 can drive it with any text): a job-level
@@ -86,20 +88,21 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   for (const name of limited) assert.ok(Object.hasOwn(JOBS, name), `${name}: a blocking job with a limit is in the JOBS table, so its limit is checked`);
 });
 
-test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes", () => {
+test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm install) has a limit of a few minutes", () => {
+  assert.match(setupWorkAction, /npm install --global "\$\(node -p 'require\("\.\/package\.json"\)\.packageManager'\)"/, "setup-work installs the pinned pnpm");
   const names = [...workflow.matchAll(/^  ([a-z0-9-]+):\s*$/gm)].map((match) => match[1]!);
   let seen = 0;
   for (const name of names.slice(names.indexOf("queue-check"))) {
-    const steps = installPnpmSteps(jobBlock(name));
+    const steps = setupWorkSteps(jobBlock(name));
     for (const step of steps) {
       seen++;
       const limit = stepTimeoutIn(step);
-      assert.equal(limit, String(INSTALL_PNPM.limit), `${name}: the Install pnpm step has timeout-minutes: ${INSTALL_PNPM.limit}`);
-      assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
+      assert.equal(limit, String(SETUP_WORK.limit), `${name}: the setup-work step has timeout-minutes: ${SETUP_WORK.limit}`);
+      assert.ok(SETUP_WORK.limit * 60 >= 1.8 * SETUP_WORK.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 9, "the nine blocking jobs that install pnpm");
-  for (const name of Object.keys(JOBS)) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
+  assert.equal(seen, 10, "the ten blocking jobs that install pnpm and dependencies through setup-work");
+  for (const name of Object.keys(JOBS)) assert.equal(setupWorkSteps(jobBlock(name)).length, 1, `${name} runs setup-work once`);
 });
 
 // RAC-2425 (T-287 二审): a limit written with a trailing comment is still a limit, and a blocking job's limit line that is not a plain

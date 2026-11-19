@@ -20,20 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      # The version is the root package.json "packageManager", the pin the other jobs use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       - name: Build
         env:

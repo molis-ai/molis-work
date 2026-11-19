@@ -30,13 +30,13 @@ test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unk
 });
 
 test("CIP-05 shell, studio replay and account-login checks follow their own inputs", () => {
-  for (const file of ["scripts/task.sh", "tools/task.py", ".github/workflows/ci.yml", "scripts/gates/native-checks.mjs"]) assert.equal(decideChecks({ affected: change(file) }).shell.mode, "whole");
+  for (const file of ["scripts/task.sh", "tools/task.py", ".github/workflows/ci.yml", ".github/actions/setup-work/action.yml", "scripts/gates/native-checks.mjs"]) assert.equal(decideChecks({ affected: change(file) }).shell.mode, "whole");
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts") }).shell.mode, "none");
-  for (const file of ["skills/molis-plugin-dev/SKILL.md", "plugins/native/plugin-builder/src/a.ts", "apps/local-host/src/plugin-builder/skill.ts", "scripts/studio-replay.mts", "tests/studio-replay.test.ts"]) {
+  for (const file of ["skills/molis-plugin-dev/SKILL.md", ".github/actions/setup-work/action.yml", "plugins/native/plugin-builder/src/a.ts", "apps/local-host/src/plugin-builder/skill.ts", "scripts/studio-replay.mts", "tests/studio-replay.test.ts"]) {
     assert.equal(decideChecks({ affected: change(file) }).studio_replay.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).studio_replay.mode, "none");
-  for (const file of ["horizontal/account/src/a.ts", "apps/local-host/src/a.ts", "apps/workbench/src/a.ts", "packages/contracts/src/a.ts", "scripts/account-authentication.test.mjs", "unknown/file.toml"]) {
+  for (const file of ["horizontal/account/src/a.ts", ".github/actions/setup-work/action.yml", "apps/local-host/src/a.ts", "apps/workbench/src/a.ts", "packages/contracts/src/a.ts", "scripts/account-authentication.test.mjs", "unknown/file.toml"]) {
     assert.equal(decideChecks({ affected: change(file) }).account_login.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).account_login.mode, "none");
@@ -44,8 +44,8 @@ test("CIP-05 shell, studio replay and account-login checks follow their own inpu
 });
 
 const modes = { documentation_mode: "only", gate_rules_mode: "none", shell_mode: "none", studio_replay_mode: "none", account_login_mode: "none", native_mode: "none", security_mode: "none", product_mode: "none", golden_third_party_mode: "none" };
-const scope = (event: string, result = "success", extra: Record<string, string> = {}) => ({ "github.event_name": event, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", "needs.test-selection.result": result, ...Object.fromEntries(Object.entries({ ...modes, ...extra }).map(([k, v]) => [`needs.test-selection.outputs.${k}`, v])) });
-const skipped = ["account-login", "health-gate-rules", "architecture-boundaries", "action-contracts", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"];
+const scope = (event: string, result = "success", extra: Record<string, string> = {}) => ({ "github.event_name": event, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", "needs.build.result": "success", "needs.test-selection.result": result, ...Object.fromEntries(Object.entries({ ...modes, ...extra }).map(([k, v]) => [`needs.test-selection.outputs.${k}`, v])) });
+const skipped = ["build", "account-login", "health-gate-rules", "architecture-boundaries", "action-contracts", "native-checks", "shell-checks", "security-invariants", "product-subset", "golden-replay", "golden-replay-third-party"];
 test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains health gates and secrets, and uses the merge-group base", () => {
   for (const name of [...skipped, "gates", "secret-scan"]) {
     const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock(name))![1]!;
@@ -79,7 +79,7 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
 test("CIP-03 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {
   const step = jobBlock("verify").split("\n      - ").find(step => step.startsWith("name: Required package gate"))!;
   const script = stepScript(step);
-  const names = ["ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "HEALTH_GATE_RULES", "PACKAGE_BOUNDARIES", "ACTION_CONTRACTS", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
   const skippedNames = names.filter(name => !["GATES", "SECRET_SCAN"].includes(name));
   const env = { ...process.env, GITHUB_EVENT_NAME: "merge_group", QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [k.toUpperCase(),v])), ...Object.fromEntries(names.map(name => [`${name}_RESULT`, skippedNames.includes(name) ? "skipped" : "success"])) };
   const verdict = (over: Record<string,string> = {}) => spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { ...env, ...over }, encoding: "utf8" }).status;
@@ -92,14 +92,17 @@ test("CIP-03 Verify executes the real shell verdict and rejects unauthorized ski
   for (const event of ["push", "schedule", "workflow_dispatch"]) assert.notEqual(verdict({ GITHUB_EVENT_NAME: event }), 0, event);
 });
 
-test("CIP-06 Full expands independent runners while preserving worker caps and failure semantics", () => {
+test("CIP-06 Full builds once and runs 24 shards in one wave while preserving worker caps and failure semantics", () => {
+  const build = jobBlock("build", fullSuiteWorkflow);
+  assert.match(build, /run: pnpm build/);
   const block = jobBlock("shard", fullSuiteWorkflow);
-  const count = /shard: \[([^\]]+)\]/.exec(block)![1]!.split(",").map(Number);
-  assert.deepEqual(count, Array.from({ length: 48 }, (_, i) => i + 1));
+  assert.match(block, /^    needs: \[build\]$/m);
+  const shardExpr = /shard: \$\{\{ (.*) \}\}/.exec(block)![1]!;
+  assert.ok(shardExpr.includes("'[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]'"));
   assert.match(block, /max-parallel: 24/);
-  assert.match(block, /MOLIS_WORK_TEST_JOBS: 2/);
+  assert.match(block, /MOLIS_WORK_TEST_JOBS: 4/);
   assert.match(block, /MOLIS_WORK_TEST_BROWSER_JOBS: 1/);
-  assert.match(block, /--shard \$\{\{ matrix.shard \}\}\/48/);
+  assert.match(block, /--shard \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
   assert.match(block, /--retries 1 \$BAIL/);
   // The nightly run, integration branches and roadmap batch pull requests (decision 31) run every file; everything else stops
   // at the first failure. `fail-fast` and `--bail` must use the same condition.

@@ -50,7 +50,7 @@ const ruleInput = (file) => rootConfig(file) || starts(file, [".github/", "scrip
 const productSource = (file) => /^(?:apps|plugins|packages|horizontal|modules|server)\/(?:.*\/)?src\/.+\.(?:ts|tsx|js|css|scss)$/.test(file);
 const productTest = (file) => /^tests\/(?:[^/]+\.test\.(?:ts|mjs)|fixtures\/[^/]+\.(?:ts|mjs))$/.test(file) && !starts(file, GATE_RULE_TEST_INPUTS);
 const shellInput = (file) => /\.(?:sh|py)$/.test(file) || rootConfig(file)
-  || starts(file, [".github/workflows/", "scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"]);
+  || starts(file, [".github/workflows/", ".github/actions/", "scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"]);
 const studioInput = (file) => rootConfig(file) || packageConfig(file) || starts(file, STUDIO_INPUTS);
 const accountLoginInput = (file) => rootConfig(file) || packageConfig(file) || starts(file, ACCOUNT_LOGIN_INPUTS)
   || (!ordinaryDocument(file) && !productSource(file) && !productTest(file));

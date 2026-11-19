@@ -1,0 +1,37 @@
+name: Setup Molis Work
+description: Set up pinned Node.js, cached pnpm store, and workspace dependencies with local Node headers.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 24.15.0
+
+    # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
+    - name: Install pnpm
+      shell: bash
+      run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+    - name: Locate pnpm store
+      id: pnpm-store
+      shell: bash
+      run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache pnpm store
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.dir }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Install dependencies
+      # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
+      # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this).
+      # Caller steps must set timeout-minutes: 8 (GitHub composite actions do not support per-step timeout-minutes).
+      shell: bash
+      run: |
+        export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+        pnpm install --frozen-lockfile --prefer-offline

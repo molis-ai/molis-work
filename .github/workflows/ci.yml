@@ -80,6 +80,43 @@ jobs:
   # reaches its limit ends without success, so `Verify` fails. The `Install pnpm` steps have 3 minutes (the longest of 2547 took 66
   # seconds), the other install steps 5 (tests/ci-install.test.ts). tests/ci-timeouts.test.ts holds the table; raise a limit there
   # and here together, with the new measurement.
+  # Build once on Linux and share all dist/ directories across architecture-boundaries, action-contracts, account-login,
+  # security-invariants, golden-replay and product-subset instead of repeating `pnpm build` on ~19 runners.
+  build:
+    name: Build workspace
+    needs: [test-selection, queue-check]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack build outputs
+        run: |
+          find . \( -name node_modules -o -name .git \) -prune -o -name dist -type d -prune -print | sort | tar -cf - -T - | gzip -1 > "$RUNNER_TEMP/dist.tar.gz"
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist.tar.gz
+          retention-days: 1
+          compression-level: 0
+
   gates:
     name: Gates
     needs: [test-selection, queue-check]
@@ -108,23 +145,9 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       # Numbers that may only go down (giant units, tests reaching into package internals, vendored SDK packages, in-place schema
       # patches, compatibility markers, empty catch blocks, `as unknown as` casts, old names, conflicting translations, the
@@ -215,22 +238,9 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else here needs a build.
       - name: Build the contracts package
@@ -251,9 +261,9 @@ jobs:
       contents: read
       actions: read
     name: Package boundaries
-    needs: [test-selection, queue-check]
+    needs: [test-selection, queue-check, build]
     # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -274,22 +284,18 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
         with:
-          node-version: 24.15.0
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
 
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       - name: Test durations
         uses: actions/cache@v4
@@ -298,9 +304,9 @@ jobs:
           key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
-      # Boundary rules, then every workspace package built (`tsc` of each package also type-checks it, so a type error fails here).
+      # Boundary rules on the shared build outputs (`build` already ran `pnpm build` / `pnpm workspace:build`).
       - name: Verify package contracts and boundaries
-        run: pnpm workspace:verify
+        run: pnpm boundary:test && node scripts/check-package-boundaries.mjs
 
       # Actual base and candidate bytes, with one-use change allowances. No shared absolute budget.
       - name: Page asset budgets (against the merge-base)
@@ -322,15 +328,22 @@ jobs:
 
       # FSS-BG-05: real selected-Home requests, both builds measured by the candidate's first-screen checker.
       - name: First-screen budgets (against the merge-base)
+        id: first-screen
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm build
           base="$(node scripts/ci-health-base.mjs)"
-          node scripts/gates/first-screen.mjs --base "$base"
+          node scripts/gates/first-screen.mjs --base "$base" --output "$RUNNER_TEMP/first-screen/measurement.json"
+      - name: Save measured first screen
+        if: ${{ steps.first-screen.outputs.artifact != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.first-screen.outputs.artifact }}
+          path: ${{ runner.temp }}/first-screen/measurement.json
+          retention-days: 30
 
       # Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts,
       # per plugin, the rule blocks still there although an on-demand sheet could carry them (the first slice's splitter, read
@@ -401,9 +414,9 @@ jobs:
   # each: weighted shards of the same list (`--shard`), each file in exactly one leg. Full has its own CI workflow.
   action-contracts:
     name: Action and plugin contracts (${{ matrix.shard }}/2)
-    needs: [test-selection, queue-check]
+    needs: [test-selection, queue-check, build]
     # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -425,22 +438,9 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       - name: Test durations
         uses: actions/cache@v4
@@ -449,8 +449,14 @@ jobs:
           key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
-      - name: Build
-        run: pnpm workspace:build
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
+
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       - name: Action and plugin contracts
         run: pnpm test:contracts --shard ${{ matrix.shard }}/2
@@ -601,8 +607,8 @@ jobs:
 
   account-login:
     name: P1 login contract and regression
-    needs: [test-selection, queue-check]
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.account_login_mode == 'none') }}
+    needs: [test-selection, queue-check, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.account_login_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -640,14 +646,9 @@ jobs:
           persist-credentials: false
       - name: Verify contract source, version, hashes and generated types
         run: node .claude/auth-ci/contracts/unified-account/verify-product.mjs work "$GITHUB_WORKSPACE"
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-      - name: Install dependencies
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
       # The upstream Auth commit SHA is immutable, so the built WASM worker and its npm dependencies are deterministic per revision.
       - name: Cache Auth WASM fixture
         id: auth-fixture-cache
@@ -671,11 +672,19 @@ jobs:
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
           echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
+      - name: Cache CJK font
+        id: cjk-font-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/fonts/wqy-zenhei
+          key: cjk-font-wqy-zenhei-v1-${{ runner.os }}
+
       # The pages are Chinese first and the layout tests measure Chinese text; the runner image has no CJK font, so without one a
       # page that does not load the product's own Chinese face (a test page from a file) has no real glyphs and wraps differently
       # from a development machine. WenQuanYi, because the product's font stack does not name it: a font it names before the
       # bundled Inter (Noto Sans CJK SC) would also take over Latin text and change its width.
       - name: CJK font for the browser files
+        if: ${{ steps.cjk-font-cache.outputs.cache-hit != 'true' }}
         run: |
           # Keep the runner's signed repositories first. If their mirror cannot be reached,
           # install the same font from Ubuntu's signed Kernel.org mirror using isolated apt lists.
@@ -696,8 +705,24 @@ jobs:
           fi
           fc-list :lang=zh family | sort -u
 
-      - name: Build Work
-        run: pnpm build
+      - name: Activate CJK font cache
+        run: |
+          if [ "${{ steps.cjk-font-cache.outputs.cache-hit }}" != "true" ]; then
+            mkdir -p ~/.local/share/fonts/wqy-zenhei
+            cp -a /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc ~/.local/share/fonts/wqy-zenhei/
+          else
+            fc-cache -f ~/.local/share/fonts/wqy-zenhei
+            fc-list :lang=zh family | sort -u
+          fi
+
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
+
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
       - name: Authentication and installation isolation
         run: |
           export MOLIS_AUTH_SOURCE="$GITHUB_WORKSPACE/.claude/auth-ci"
@@ -722,7 +747,7 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
+    needs: [build, account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
     # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan, the Rust, Swift and shell checks, the security invariants and the product subset run here.
@@ -737,6 +762,7 @@ jobs:
 
       - name: Required package gate passed
         env:
+          BUILD_RESULT: ${{ needs.build.result }}
           ACCOUNT_LOGIN_RESULT: ${{ needs.account-login.result }}
           GATES_RESULT: ${{ needs.gates.result }}
           HEALTH_GATE_RULES_RESULT: ${{ needs.health-gate-rules.result }}
@@ -773,6 +799,7 @@ jobs:
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$GITHUB_EVENT_NAME" = "merge_group" || return 1
             test "$TEST_SELECTION_RESULT" = "success" && test "$1" = "$2" && test "$3" = "skipped"
           }
+          test "$BUILD_RESULT" = "success" || selected_skip "$DOCUMENTATION_MODE" only "$BUILD_RESULT"
           if [ "$ACCOUNT_LOGIN_RESULT" != "success" ]; then
             test "$GITHUB_EVENT_NAME" = "pull_request" || test "$DOCUMENTATION_MODE" = "only"
             selected_skip "$ACCOUNT_LOGIN_MODE" none "$ACCOUNT_LOGIN_RESULT"
@@ -851,10 +878,10 @@ jobs:
   # Whole lists and failed selections use all eight; only successful documentation-only groups skip runtime checks.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: [test-selection, queue-check]
+    needs: [test-selection, queue-check, build]
     # A push skips only when the queue verified it. PR none and pure-document merge groups may skip after a successful selection.
     # !cancelled() lets this job run when the auxiliary jobs were skipped or failed.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'none') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -877,22 +904,9 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       - name: Test durations
         uses: actions/cache@v4
@@ -901,9 +915,15 @@ jobs:
           key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
           restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
 
-      # SYS-15-F3 exercises real desktop terminals; workspace:build alone omits dist/web/pty-client.js.
-      - name: Build
-        run: pnpm build
+      # SYS-15-F3 exercises real desktop terminals; the shared build archive includes dist/web/pty-client.js.
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
+
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       # The files `test-selection` chose on a pull request, or (empty: not a pull request) every file of `test:security`.
       # A file that fails is run once more at once (one retry, as the full suite and the product subset do); one that then passes
@@ -940,8 +960,8 @@ jobs:
   # and a notice on the run say those did not run and that this is not a pass for them (scripts/ci-golden-replay.mjs). Skipped on ordinary-document changes only.
   golden-replay:
     name: Golden Home replay
-    needs: [test-selection, queue-check]
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
+    needs: [test-selection, queue-check, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -957,24 +977,18 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
         with:
-          node-version: 24.15.0
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
 
-      # The version is the root package.json "packageManager", the pin the other jobs use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # See product-subset: headers from this Node, and a step that hangs fails in minutes.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       # The latest three, or every golden when the Prologue package changed or the selection gave no clean answer (UPG-11).
       - name: Replay the golden Homes
@@ -1006,21 +1020,9 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24.15.0
-
-      # The version is the root package.json "packageManager", the pin the other jobs use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # See product-subset: headers from this Node, and a step that hangs fails in minutes.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
 
       - name: Build
         env:
@@ -1045,13 +1047,13 @@ jobs:
   # A trusted queue-verified push reuses that result, as the other required jobs do.
   product-subset:
     name: Product subset (${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: [test-selection, queue-check]
+    needs: [test-selection, queue-check, build]
     strategy:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3, 4, 5, 6]') }}
     # The same condition as `security-invariants`, with this job's mode.
-    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'none') }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -1067,27 +1069,19 @@ jobs:
           git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
           if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      # The tests import the built workspace packages and dist/; unpack the shared build from `build`.
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
         with:
-          node-version: 24.15.0
+          name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dist
 
-      # The version is the root package.json "packageManager", the pin the other jobs use.
-      - name: Install pnpm
-        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
-        timeout-minutes: 3
-
-      - name: Install dependencies
-        # node-gyp compiles node-pty (no linux-x64 prebuilt) and takes its headers from the Node actions/setup-node installed
-        # instead of fetching them from nodejs.org (that fetch hung on 2026-10-28; tests/ci-install.test.ts holds this). A step
-        # that hangs fails in minutes, not in the six-hour default.
-        timeout-minutes: 5
-        run: |
-          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
-          pnpm install --frozen-lockfile
-
-      # The tests import the built workspace packages and dist/; the same full build the probe makes.
-      - name: Build
-        run: pnpm build
+      - name: Unpack build outputs
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       # The browser smokes drive the Chrome that the ubuntu image has (the tests' own Chrome locator also looks at /usr/bin/google-chrome
       # on its own). The wrapper adds --no-sandbox, which a runner whose kernel restricts unprivileged user namespaces needs; the pages

@@ -486,7 +486,9 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
   assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
   assert.match(job, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the report is kept when the job is cancelled or stopped");
-  assert.match(job, /run: pnpm build$/m, "the tests import the built packages");
+  assert.match(jobBlock("build"), /run: pnpm build$/m, "the shared build job builds the workspace packages");
+  assert.match(job, /^    needs: \[test-selection, queue-check, build\]$/m, "product-subset consumes the shared build job");
+  assert.ok(job.includes("name: ci-dist-${{ github.run_id }}-${{ github.run_attempt }}"), "product-subset downloads the shared build archive");
   assert.ok(job.includes(`${TEST_CHROME}=`), "the browser smokes are told which Chrome to use");
   const timeout = Number(/^    timeout-minutes: (\d+)$/m.exec(job)?.[1]);
   const budget = Number(/--budget-minutes (\d+(?:\.\d+)?)/.exec(job)?.[1]);
@@ -504,7 +506,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.ok(budget + browserBudget <= 25, "the job stays within about 25 minutes of tests, so Verify in the merge queue is not held much longer");
   assert.ok(blockingJobs().includes("product-subset"), "Verify waits for it");
   const needs = workflow.split("\n").filter((line) => /^\s*needs:/.test(line) && line.includes("product-subset"));
-  assert.deepEqual(needs, ["    needs: [account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]"], "verify is the only job that needs it; the selector is an auxiliary dependency");
+  assert.deepEqual(needs, ["    needs: [build, account-login, gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]"], "verify is the only job that needs it; the selector is an auxiliary dependency");
   assert.ok(jobBlock("verify").includes("          PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}"), "its result reaches Verify's last step (judged in tests/ci-queue-verified.test.ts, RAC-1903)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 });

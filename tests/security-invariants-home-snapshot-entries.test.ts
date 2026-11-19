@@ -1,5 +1,4 @@
-// A CLI child starts under tsx and compiles cold; on a loaded CI runner that has taken more than 15 seconds, so each child
-// has a minute and each test two (status null was a timed-out child, not a refusal).
+// Child entries invoke the built CLI (`dist/cli/main.js`) and native-Node fixtures directly (avoiding repeated cold tsx startup).
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -18,7 +17,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-snapshot-small.js";
 
 const fixture = fileURLToPath(new URL("./fixtures/home-snapshot-entry-window.ts", import.meta.url));
-const cli = fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url));
+const cli = fileURLToPath(new URL("../dist/cli/main.js", import.meta.url));
 const selectedCli = fileURLToPath(new URL("./fixtures/home-snapshot-selected-cli.ts", import.meta.url));
 
 // PG094-CLI-04: initialize only these fresh CLI Homes before adding business files; unknown-Home fixtures stay unchanged.
@@ -29,7 +28,7 @@ async function initializeFreshCliHome(home: string) {
 function pausedEntry(t: TestContext, mode: "snapshot" | "cli" | "ledger", home: string, target: string) {
   const gate = join(dirname(home), ".entry-gate-" + randomUUID());
   execFileSync("mkfifo", [gate]);
-  const child = spawn(process.execPath, ["--import", "tsx", fixture, mode, home, target, gate],
+  const child = spawn(process.execPath, [fixture, mode, home, target, gate],
     { env: process.env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
   let stderr = "";
   child.stdout!.resume();
@@ -39,7 +38,7 @@ function pausedEntry(t: TestContext, mode: "snapshot" | "cli" | "ledger", home: 
   t.after(async () => { kill(); await closed; });
   t.signal.addEventListener("abort", kill, { once: true });
   const ready = new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => { kill(); reject(new Error("entry did not reach its barrier: " + stderr)); }, 15_000);
+    const timer = setTimeout(() => { kill(); reject(new Error("entry did not reach its barrier: " + stderr)); }, 45_000);
     child.once("message", value => { clearTimeout(timer); assert.deepEqual(value, { phase: { snapshot: "snapshot-payload", cli: "cli-runtime", ledger: "ledger-commit" }[mode] }); resolve(); });
     child.once("error", reject);
     void closed.then(value => { clearTimeout(timer); reject(new Error("entry closed before its barrier: " + JSON.stringify(value) + stderr)); });
@@ -63,7 +62,7 @@ function uninstaller(home: string, area: string, localHost?: MolisWorkLocalHost)
 }
 
 function snapshotPeer(home: string, destination: string) {
-  return spawnSync(process.execPath, ["--import", "tsx", cli, "home", "snapshot", "--home", home, "--to", destination, "--json"],
+  return spawnSync(process.execPath, [cli, "home", "snapshot", "--home", home, "--to", destination, "--json"],
     { env: process.env, encoding: "utf8", timeout: 60_000 });
 }
 
@@ -132,7 +131,7 @@ test("RAC-105-S-08 S-07: an explicitly selected Home CLI init fallback refuses b
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
   const database = join(f.home, "projects", "entry-window", "molis-work.db");
   const before = await snapshotBusinessFingerprint(f.home);
-  const invoke = () => spawnSync(process.execPath, ["--import", "tsx", selectedCli, f.home, "init", "--db", database,
+  const invoke = () => spawnSync(process.execPath, [selectedCli, f.home, "init", "--db", database,
     "--json", JSON.stringify({ project_id: "entry-window", idempotency_key: "entry-window" })],
     { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const refused = invoke();
@@ -150,7 +149,7 @@ test("ASR-02 RAC-105-S-08: the shipped installation CLI cannot open anonymous Ho
   const database = join(f.home, "projects", "anonymous-refused", "molis-work.db");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
-  const invoke = () => spawnSync(process.execPath, ["--import", "tsx", cli, "v1", "init", "--db", database,
+  const invoke = () => spawnSync(process.execPath, [cli, "v1", "init", "--db", database,
     "--json", JSON.stringify({ project_id: "anonymous-refused", idempotency_key: "anonymous-refused" })],
     { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const assertRefused = () => {
@@ -183,7 +182,7 @@ test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still initiali
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   const before = await snapshotBusinessFingerprint(f.home);
   const database = join(f.area, "standalone", "project.db");
-  const result = spawnSync(process.execPath, ["--import", "tsx", cli, "v1", "init", "--db", database,
+  const result = spawnSync(process.execPath, [cli, "v1", "init", "--db", database,
     "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
     { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   assert.equal(result.status, 0, result.stderr);
@@ -200,7 +199,7 @@ test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership bou
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   assert.throws(() => acquireStorageOwner(join(alias, "agent-runtime")), { code: "storage.owner.busy" });
   const before = await snapshotBusinessFingerprint(f.home);
-  const invoke = (home: string, target: string) => spawnSync(process.execPath, ["--import", "tsx", selectedCli, home, "init", "--db", target,
+  const invoke = (home: string, target: string) => spawnSync(process.execPath, [selectedCli, home, "init", "--db", target,
     "--json", JSON.stringify({ project_id: "alias", idempotency_key: "alias" })],
     { env: { ...process.env, MOLIS_WORK_HOME: home }, encoding: "utf8", timeout: 60_000 });
   for (const [home, target] of [[f.home, join(alias, "projects", "alias", "molis-work.db")], [alias, database]]) {
@@ -224,7 +223,7 @@ test("RAC-105-S-08 S-07: a catalog-owned project's never-delivered resident call
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
   const before = await snapshotBusinessFingerprint(f.home);
-  const invoke = () => spawnSync(process.execPath, ["--import", "tsx", selectedCli, f.home, "snapshot", "--db", project.database_path,
+  const invoke = () => spawnSync(process.execPath, [selectedCli, f.home, "snapshot", "--db", project.database_path,
     "--json", JSON.stringify({ project_id: project.project_id })],
     { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 60_000 });
   const refused = invoke(); assert.equal(refused.status, 1, refused.stderr);

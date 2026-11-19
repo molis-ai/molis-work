@@ -44,18 +44,30 @@ function checkPresentation(root, file, errors) {
   visit(ast);
 }
 
+const PLUGIN_IDENTITY_CACHE = new Map();
+
 function checkPluginIdentity(root, file, errors) {
   const source = fs.readFileSync(path.join(root, file), "utf8");
-  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const visit = node => {
-    if (ts.isStringLiteralLike(node) && RESERVED_UI.has(node.text)) errors.push(`${file}: a Plugin cannot declare the platform Artifact UI id`);
-    if ((ts.isPropertyAssignment(node) || ts.isVariableDeclaration(node)) && node.initializer && ts.isStringLiteralLike(node.initializer)
-      && node.initializer.text === "artifacts" && /^(?:project_plugin_id|.*PROJECT_PLUGIN_ID)$/u.test(node.name.getText(ast).replace(/["']/gu, ""))) {
-      errors.push(`${file}: a Plugin cannot declare the retired artifacts project key`);
+  const cacheKey = `${file}\0${source}`;
+  let cached = PLUGIN_IDENTITY_CACHE.get(cacheKey);
+  if (cached === undefined) {
+    cached = [];
+    if (source.includes("artifacts") || source.includes("\\")) {
+      const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false);
+      const visit = node => {
+        if (ts.isStringLiteralLike(node) && RESERVED_UI.has(node.text)) cached.push(`${file}: a Plugin cannot declare the platform Artifact UI id`);
+        if ((ts.isPropertyAssignment(node) || ts.isVariableDeclaration(node)) && node.initializer && ts.isStringLiteralLike(node.initializer)
+          && node.initializer.text === "artifacts" && /^(?:project_plugin_id|.*PROJECT_PLUGIN_ID)$/u.test(node.name.getText(ast).replace(/["']/gu, ""))) {
+          cached.push(`${file}: a Plugin cannot declare the retired artifacts project key`);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(ast);
     }
-    ts.forEachChild(node, visit);
-  };
-  visit(ast);
+    if (PLUGIN_IDENTITY_CACHE.size >= 4000) PLUGIN_IDENTITY_CACHE.clear();
+    PLUGIN_IDENTITY_CACHE.set(cacheKey, cached);
+  }
+  errors.push(...cached);
 }
 
 /** PG-077: replacing the former required Plugin shell must preserve the fact boundary and reserve its platform UI. */

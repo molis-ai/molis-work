@@ -1,13 +1,50 @@
-// Runs the probe's test files one at a time through scripts/run-tests.mjs (same environment and secret backend as a local
-// run, and one fresh MOLIS_WORK_HOME per file), a few files at once, and turns each run into a record.
+// Runs test files one at a time directly under `node --import tsx --test` (same isolated MOLIS_WORK_HOME, secret backend and
+// free loopback resident URL as a single-file local run, without spawning an intermediate run-tests.mjs Node process), a few
+// files at once, and turns each run into a record.
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { rmSync } from "node:fs";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { LIVE_ENVIRONMENT } from "./select.mjs";
 
-const RUNNER = fileURLToPath(new URL("../run-tests.mjs", import.meta.url));
 const TAIL_BYTES = 128 * 1024;
 const DETAIL_CHARS = 1800;
 const COUNTERS = ["tests", "pass", "fail", "cancelled", "skipped", "todo"];
+
+/**
+ * Prepares an isolated per-file test environment: a real-path temporary MOLIS_WORK_HOME, the file secret store (never touching
+ * Keychain), a free loopback MOLIS_WORK_WEB_URL (never reaching a real Home service on 4173/4207), and no inherited
+ * NODE_TEST_CONTEXT. Call `cleanup()` after the child process exits.
+ */
+export async function prepareIsolatedTestEnv(baseEnvironment = process.env) {
+  const temporary = await realpath(tmpdir());
+  const home = await mkdtemp(join(temporary, "molis-test-home-"));
+  const residentUrl = await new Promise((resolveUrl, reject) => {
+    const probe = createServer().once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => resolveUrl(`http://127.0.0.1:${port}`));
+    });
+  });
+  const environment = { ...baseEnvironment };
+  // This is a new test coordinator, including when a test verifies the runner.
+  delete environment.NODE_TEST_CONTEXT;
+  return {
+    home,
+    env: {
+      ...environment,
+      NODE_ENV: "test",
+      TMPDIR: temporary,
+      MOLIS_WORK_HOME: home,
+      MOLIS_WORK_WEB_URL: residentUrl,
+      MOLIS_WORK_SECRET_BACKEND: "file",
+      MOLIS_WORK_ENCRYPTION_KEY: "",
+    },
+    cleanup: () => rm(home, { recursive: true, force: true }),
+  };
+}
 
 // What the tests get: this process's environment without anything that switches a live test on, so a probe on a developer
 // machine cannot call a real model or service either.
@@ -34,20 +71,27 @@ export function failureDetail(output) {
 }
 
 // Process groups of the attempts running now. They are detached, so a signal to the probe does not reach them: a cancelled probe
-// stops them itself (stopRunning).
+// stops them itself (stopRunning). Active temp homes are tracked so an immediate signal exit leaves no stray directories.
 const running = new Set();
+const activeHomes = new Set();
 export function stopRunning() {
   for (const pid of running) { try { process.kill(-pid, "SIGKILL"); } catch { /* already gone */ } }
   running.clear();
+  for (const home of activeHomes) { try { rmSync(home, { recursive: true, force: true }); } catch { /* already gone */ } }
+  activeHomes.clear();
 }
 
 // One attempt: the whole process group is killed on timeout and again after the run, so a server a test left behind cannot
 // keep the job alive. The probe and the subset hand the tests `testEnvironment()`; the local parallel run of
 // scripts/run-tests.mjs hands its own environment (a live opt-in stays on) and the `node --test` flags it was given.
-export function runOnce(root, file, timeoutMs, { environment = testEnvironment(), testArgs = [] } = {}) {
+export async function runOnce(root, file, timeoutMs, { environment = testEnvironment(), testArgs = [] } = {}) {
+  const started = Date.now();
+  const isolated = await prepareIsolatedTestEnv(environment);
+  activeHomes.add(isolated.home);
   return new Promise((resolve) => {
-    const started = Date.now();
-    const child = spawn(process.execPath, [RUNNER, ...testArgs, file], { cwd: root, env: environment, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", ...testArgs, file], {
+      cwd: root, env: isolated.env, detached: true, stdio: ["ignore", "pipe", "pipe"],
+    });
     let tail = "";
     const keep = (chunk) => { tail = (tail + chunk).slice(-TAIL_BYTES); };
     child.stdout.setEncoding("utf8").on("data", keep);
@@ -55,12 +99,19 @@ export function runOnce(root, file, timeoutMs, { environment = testEnvironment()
     const killGroup = () => { try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ } };
     if (child.pid) running.add(child.pid);
     let timedOut = false;
+    let finished = false;
     const timer = setTimeout(() => { timedOut = true; killGroup(); }, timeoutMs);
     const finish = (code, signal, error) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       killGroup();
       running.delete(child.pid);
-      resolve({ code, signal, timedOut, error, output: tail, seconds: Math.round((Date.now() - started) / 100) / 10 });
+      const seconds = Math.round((Date.now() - started) / 100) / 10;
+      activeHomes.delete(isolated.home);
+      void isolated.cleanup().catch(() => { /* best-effort temp cleanup */ }).finally(() => {
+        resolve({ code, signal, timedOut, error, output: tail, seconds });
+      });
     };
     child.once("error", (error) => finish(null, null, String(error.message)));
     child.once("close", (code, signal) => finish(code, signal, null));

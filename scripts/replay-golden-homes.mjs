@@ -2,7 +2,7 @@
 // Replay the golden Homes (specs/upgrade-continuity/golden-replay-design.md §4, UPG2-01, UPG2-03, UPG2-05, UPG2-06): each one restored into a
 // temporary Home, opened by this build, checked, written to and restarted. Run it on the built workspace (`pnpm build`).
 //
-//   node scripts/replay-golden-homes.mjs [--latest N | --all] [--dir <directory>] [--json] [--debug]
+//   node scripts/replay-golden-homes.mjs [--latest N | --all | --golden <name>] [--dir <directory>] [--concurrency <n>] [--json] [--debug]
 //
 // The default is the latest 3. Exit 1 if any golden fails. A failure says which golden, where, which step and which code, and never what the data
 // was (UPG2-03); `--debug` adds the error's own message on stderr, for the person fixing it locally. A step this machine cannot run is no failure and
@@ -10,6 +10,7 @@
 //
 // "Upgrade to current" has no call of its own: the Host brings a Home up to date when it starts (U1 design §3, §4), and until U1 lands every
 // library has to already be at this build's version, which opening it enforces. So the first step below is the upgrade, today and after U1.
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -17,10 +18,13 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const scriptPath = fileURLToPath(import.meta.url);
+const root = path.resolve(path.dirname(scriptPath), "..");
 const args = process.argv.slice(2);
 const option = name => args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
 const debug = args.includes("--debug"), json = args.includes("--json");
+const singleGolden = option("--golden");
+const concurrency = Math.max(1, Number(option("--concurrency") ?? 1) || 1);
 const directory = path.resolve(option("--dir") ?? path.join(root, "tests/fixtures/golden-homes"));
 
 const { goldenFailure } = await import("./golden/failure.mjs");
@@ -49,6 +53,7 @@ const KNOWLEDGE_CATCH_UP_MILLISECONDS = 30_000;
 const THIRD_PARTY_NOT_RUN = "not-run";
 
 function selectedGoldens() {
+  if (singleGolden) return [singleGolden];
   let names;
   try { names = readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name); }
   catch (error) { if (error.code === "ENOENT") return []; throw error; }
@@ -328,11 +333,46 @@ async function replayGolden(name) {
   } finally { restored.remove(); }
 }
 
-refuseNetwork();
-scriptModel();
-const results = [];
+/** Run one golden in an isolated worker process so multiple goldens cannot share process.env or socket hooks. */
+function replayGoldenInWorker(name) {
+  const childArgs = ["--disable-warning=ExperimentalWarning", scriptPath, "--dir", directory, "--golden", name, "--json", ...(debug ? ["--debug"] : [])];
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, childArgs, { cwd: root, stdio: ["ignore", "pipe", debug ? "inherit" : "ignore"] });
+    const chunks = [];
+    child.stdout.on("data", chunk => chunks.push(chunk));
+    child.on("close", () => {
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if (Array.isArray(parsed?.results) && parsed.results.length === 1) return resolve(parsed.results[0]);
+      } catch { /* fall through to structured failure without private details */ }
+      resolve({ golden: name, ok: false, step: "worker", where: "-", code: "golden.unexpected_error" });
+    });
+    child.on("error", () => resolve({ golden: name, ok: false, step: "worker", where: "-", code: "golden.unexpected_error" }));
+  });
+}
+
+async function replayAll(goldens) {
+  if (singleGolden || concurrency <= 1 || goldens.length <= 1) {
+    refuseNetwork();
+    scriptModel();
+    const out = [];
+    for (const name of goldens) out.push(await replayGolden(name));
+    return out;
+  }
+  const out = new Array(goldens.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < goldens.length) {
+      const index = next++;
+      out[index] = await replayGoldenInWorker(goldens[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, goldens.length) }, worker));
+  return out;
+}
+
+const results = await replayAll(selectedGoldens());
 const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.platform}, not a pass` : result;
-for (const name of selectedGoldens()) results.push(await replayGolden(name));
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
 else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, discussion v1: ${item.steps.discussion_v1_refused} old files refused and kept, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);

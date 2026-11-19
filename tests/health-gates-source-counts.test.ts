@@ -39,6 +39,7 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["a commented catch in a template literal", "export const SCRIPT = `try { f(); } catch (e) { /* offline */ }`;", {}, true],
   ["real code and a script in one file: only the script is counted here", "try { f(); } catch {}\nexport const SCRIPT = `try { g(); } catch {}`;", { emptyCatchesInScripts: 1 }, true],
   ["the old product name in any case", "const a = 'GoalBoard'; const b = 'goalboard-v1-demo'; const c = process.env.GOALBOARD_HOME;", { oldNames: 3 }, true],
+  ["retired PG-097 platform names", "const a = process.env.MOLIS_JELLY_WHISPER_HELPER; const b = resolveFeedSecurityDirectory();", { oldNames: 2 }, true],
   ["board_id in its spellings", "const a = x.board_id; const b = boardId; const c = existing_board_id; const d = listBoardId; const e = BOARD_ID; const f = boardIds;", { oldNames: 6 }, true],
   ["names that merely contain board", "const a = dashboard_id; const b = dashboardId; const c = keyboardId; const d = boardIdentity; const e = DASHBOARD_ID; const f = KEYBOARD_IDS;", {}, true],
   ["BOARD_ID as the tail of an upper-case name", "const a = CONFLICTING_BOARD_ID; const b = BOARD_IDS;", { oldNames: 2 }, true],

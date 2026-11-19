@@ -147,6 +147,33 @@ test("SPC-04/ONB-28/30: one adoption writes both memory layers and another proje
   assert.equal(replayed.undo.steps[0]?.state, "restored");
   assert.deepEqual(await read(writing), afterManual, "lost undo replies replay the original full revision, preserving the intervening project edit");
 
+  // An undo that never reached the owner may retry after another layer changed the full revision.
+  const confirmed = await adopt(writing, "before-undo-dispatch", false);
+  assert.equal(confirmed.steps[0]?.state, "applied");
+  const beforeDispatch = t.mock.method(env.host, "actionClient", (...args: Parameters<typeof env.host.actionClient>) => {
+    const client = normalClient(...args);
+    return { ...client, async invoke(ctx: ActionCallContext, ref: ActionReference, input: unknown) {
+      if (ref.capability_id === memorySettingActions.write.capability_id && (input as SettingsWriteInput).recovery)
+        throw new Error("interrupted before the owner received the undo");
+      return client.invoke(ctx, ref, input);
+    } };
+  });
+  const resume = { adoption_id: confirmed.adoption_id, request_id: "resume-undo" };
+  assert.equal((await writing.invoke(blueprintActions.revert, resume)).undo.steps[0]?.state, "pending_verification");
+  beforeDispatch.mock.restore();
+  await writing.invoke(memorySettingActions.write, { key, layer: "project", expected_revision: (await read(writing)).current.revision,
+    request_id: "change-other-layer-during-undo", change: { set: manual } });
+  const conflict = (await writing.invoke(blueprintActions.revert, resume)).undo.steps[0];
+  assert.ok(conflict?.state === "failed" && conflict.error.code === "memory.setting_conflict", "the version conflict remains retryable");
+  assert.equal((await writing.invoke(blueprintActions.revert, resume)).undo.steps[0]?.state, "restored");
+  const restored = await read(writing);
+  assert.equal(restored.current.layers?.personal, undefined);
+  assert.deepEqual(restored.current.layers?.project, manual);
+  assert.equal((await writing.invoke(blueprintActions.remove, { ...resume, request_id: "remove-restored" })).undo.steps[0]?.state, "restored");
+  assert.deepEqual(await read(writing), restored);
+  await writing.invoke(memorySettingActions.write, { key, layer: "project", expected_revision: restored.current.revision,
+    request_id: "clear-project-before-shared-adoption", change: { inherit: true } });
+
   const again = await adopt(writing, "both-again", true);
   const byOther = await adopt(research, "keep-personal", false);
   assert.deepEqual(byOther.steps[0], { part_id: "base", state: "applied", outcome: "reused" });

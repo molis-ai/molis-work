@@ -12,8 +12,9 @@
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
- * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads
- * and the stream of that address, until it names another project (the chooser's). A lost stream is said once
+ * A failed read leaves what the page last showed: each part is a convenience. Only the Host's word that the project is gone (a 404
+ * with `catalog.project_not_found`) stops the reads and the stream of that address, until it names another project (the chooser's); any
+ * other 404 (a Host restarting, say) is a failure like the rest, and the stream connects again (BL-attention-404-by-code). A lost stream is said once
  * (`molis-work:attention-unreachable`, as of the last read) and connected again, twice as long after each loss (up to two minutes);
  * a hidden page keeps no stream (N54).
  */
@@ -105,9 +106,10 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     if (next !== key || commandChanged) { key = next; background = value; render(); }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
-  // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it (N54). It is kept by address: the
-  // project chooser's route follows the project chosen, and another one is asked.
+  // The Host said the project this address reads is gone: an old tab stops asking it (N54). It is kept by address: the project
+  // chooser's route follows the project chosen, and another one is asked. A 404 without that code (a Host starting again) is not this.
   const gone = new Set();
+  const GONE = "catalog.project_not_found";
   const LONGEST = 120000;
   // A stream that spoke and was lost connects again at once; one the Host never answered waits 30 s, then twice as long each time (N54).
   let heard = null, stream = null, listening = false, retry = 0, delay = 1000, lost = false, spoke = false;
@@ -139,7 +141,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     } catch (error) {
       if (reading !== current || address !== readAddress()) return;
       // Any other failure keeps what it showed; the next word from the stream reads again.
-      if (error && error.status === 404) { gone.add(route("/api/attention")); close(); }
+      if (error && error.status === 404 && error.code === GONE) { gone.add(route("/api/attention")); close(); }
       else { showTasks(null); document.dispatchEvent(new CustomEvent("molis-work:attention-unreachable", { detail: { since: heard } })); }
     }
     // Let the Host do other work between passive reads. Changes during the read or the next half second share one follow-up.
@@ -166,7 +168,12 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     try {
       const reply = await molisWorkRequest(eventsPath, { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
       if (stream !== connection || !listening) return;
-      if (reply.status === 404) { gone.add(route("/api/attention")); return; }
+      if (reply.status === 404) {
+        const refusal = await reply.json().catch(() => null);
+        if (stream !== connection || !listening) return;
+        // Gone like a read told it: let go of the stream and the shared lock too, so another window's own address can listen.
+        if (refusal && refusal.code === GONE) { gone.add(route("/api/attention")); discardRead(); close(); return; }
+      }
       if (reply.status !== 200 || !reply.body) throw new Error("no stream");
       const reader = reply.body.getReader(), decoder = new TextDecoder();
       let buffer = "";

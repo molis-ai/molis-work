@@ -46,6 +46,7 @@ import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { isCatalogIndexPath, redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
+import { catalogErrors } from "./project-catalog-contract.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
@@ -107,7 +108,9 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     if (resolved.kind === "project_not_found") {
-      sendJson(response, 404, { error: uiText.text("workbench.request.that-molis-work-project-was-not-found") });
+      // The catalog's code, so a page can tell this from a 404 that is not about the project (an open tab stops reading only on it).
+      const missing = catalogErrors.project_not_found(uiText.text("workbench.request.that-molis-work-project-was-not-found"));
+      sendJson(response, 404, { error: missing.message, code: missing.code });
       return;
     }
     url.pathname = resolved.pathname;

@@ -262,3 +262,21 @@ async function serveAttentionStream(t: TestContext, sources: AttentionSources) {
     },
   };
 }
+
+// 56-1 BL-attention-404-by-code: the Host says a project is gone with the catalog's own code, on the read and on the project's stream,
+// so an open page can tell it from a 404 that is not about the project (a Host starting again) and stop only on it.
+test("56-1 BL-attention-404-by-code a deleted or unknown project answers its attention read and stream with catalog.project_not_found", async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Attention Gone");
+  const base = `/projects/${encodeURIComponent(project.project_id)}`;
+  await home.web.get(`${base}/api/attention`);
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/delete`, { delete_confirmed: true, idempotency_key: "bl-attention-404-by-code" });
+  for (const path of [`${base}/api/attention`, `${base}/api/attention/events`, "/projects/never-was/api/attention", "/projects/never-was/api/attention/events"]) {
+    await assert.rejects(home.web.get(path), (error: { status?: number; code?: string }) => {
+      assert.deepEqual([error.status, error.code], [404, "catalog.project_not_found"], path);
+      return true;
+    });
+  }
+  // The Home's own read is not a project's, and still answers.
+  assert.ok(Array.isArray((await home.web.get<Attention>("/api/attention")).notices));
+});

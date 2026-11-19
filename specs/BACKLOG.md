@@ -16,6 +16,8 @@
 
 优先级：**高**＝影响正在用的功能或对外开放；**中**＝下一轮该做；**低**＝有需要再做。负责人按[轨道分工](post-anticorruption-roadmap/reference/tracks.md)及[事实主人](../docs/SSOT-MATRIX.md)注明维护职责。已有认领保留到实际交接；只确定了负责范围的写「执行会话待分配」。创作台、Sessions 和团队仍可整体待分配，相关轨道是协作者。
 
+2026-11-18 确认的 22 条独立工作中，7 条并入原有交付，15 条进入第 92～99 批。见[逐条归属、估时与开工 Prompt](post-anticorruption-roadmap/reference/backlog-dispatch-2026-11-18/README.md)与[第一轮三个会话的开工 Prompt](post-anticorruption-roadmap/reference/backlog-dispatch-2026-11-18/first-round.md)。
+
 ## 1. 待你验收
 
 按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 的真实 Home 已重建、待你试；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。第 16 批外观/首屏/组件板本人验收见 [BL-b16-appearance-acceptance](backlog/BL-b16-appearance-acceptance.md)；第 19 批 Work Brief 本人验收见 [BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)；第 41 批 Skill 选用与自写技能见 [BL-b41-acceptance](backlog/BL-b41-acceptance.md)；第 42 批 Skill 创作与改进的实物验收见 [BL-b42-acceptance](backlog/BL-b42-acceptance.md)；第 33 批 Coding 与材料恢复闭环本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)；第 32 批事项线、交办与结果回流、逐项认可见 [BL-b32-acceptance](backlog/BL-b32-acceptance.md)；第 34 批 Sessions 历史实现本人验收见 [BL-b34-sessions-acceptance](backlog/BL-b34-sessions-acceptance.md)。第 58 批子代理公共对话部件见 [BL-b58-subtask-acceptance](backlog/BL-b58-subtask-acceptance.md)。第 59 批助理与 Coding 的真实入口与恢复体验见 [BL-b59-subtask-acceptance](backlog/BL-b59-subtask-acceptance.md)。不要把本节整体当作可立即验收或已获认可。

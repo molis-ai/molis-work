@@ -1989,6 +1989,10 @@ export declare const goalEntryActions: {
             };
             result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
             required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2067,6 +2071,10 @@ export declare const goalEntryActions: {
             };
             result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
             required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2161,6 +2169,10 @@ export declare const goalEntryActions: {
             };
             result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
             required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2239,6 +2251,10 @@ export declare const goalEntryActions: {
             };
             result_scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference;
             required_actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionReference[];
+            required_roles?: readonly {
+                readonly input_type: string;
+                readonly output_type: string;
+            }[];
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;

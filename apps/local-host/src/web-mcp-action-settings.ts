@@ -92,6 +92,11 @@ export async function changeMcpActionAccess(home: string, host: MolisWorkLocalHo
   // This is a closure over the actual grant references, including scene rules and their declared subject offers.
   for (const view of dependencies) {
     for (const needed of view.action.required_actions ?? []) addDependency(needed);
+    for (const role of view.action.required_roles ?? []) {
+      for (const candidate of availableActions) {
+        if (candidate.action.input_type === role.input_type && candidate.action.output_type === role.output_type) dependencies.add(candidate);
+      }
+    }
     const scene = view.action.required_scene;
     if (!scene) continue;
     const key = JSON.stringify([scene.scene_id, scene.version]);

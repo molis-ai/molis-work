@@ -32,8 +32,8 @@ export function createPersonalPluginRegistrations(home:string,spaceId:string,use
         check();if(binding.scope==='home'||event.value===null)return;
         if(binding.scope==='home-with-projects'){
           const e=event.value as {spaceId?:unknown;project?:{id?:unknown;title?:unknown}|null};
-          const key:unknown=JSON.parse(event.key),p=e?.project;
-          if(e.spaceId!==spaceId||!Array.isArray(key)||key.length!==2||key[0]!=='todo'||typeof key[1]!=='string'||!key[1])throw new Error('SYNC_INVALID_TODO');
+          const key:unknown=JSON.parse(event.key),p=e?.project,prefix=binding.keyPrefix??binding.id;
+          if(e.spaceId!==spaceId||!Array.isArray(key)||key.length!==2||key[0]!==prefix||typeof key[1]!=='string'||!key[1])throw new Error('SYNC_INVALID_KEY');
           if(p===null)return;
           if(!p||typeof p.id!=='string'||!p.id||p.id.length>80||typeof p.title!=='string'||!p.title.trim()||p.title.length>120)throw new Error('SYNC_INVALID_PROJECT');
           await withCatalog({homeDirectory:home},async c=>{check();if(!c.listProjects().some(row=>row.project_id===p.id))await c.ensureSyncedProject({project_id:p.id as string,display_name:p.title as string,actor_id:userId},check);check();});projects.set(p.id,{title:p.title,enabled:true});check();return;

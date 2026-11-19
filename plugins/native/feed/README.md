@@ -84,7 +84,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - 不变量：
   - 捕捉场景的判断（规则可用哪些判断、哪些建议仍成立、怎样记录）在本包的 `createFeedSceneRuntime`；Host 的 `feed-scene.ts` 只接判断账本与可读的消息，不写判断（`tests/feed-inbox-scene-runtime.test.ts`）。
   - 拥有 `src/store/` 里的 11 张表和 `feed_out_rules`，不拥有 Attention 与情境账的表；不直接实现 GitHub 或 Gmail 协议。
-  - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在本插件的公开合同 `./contract`；RSS、YouTube 集成和平台的来源拉取用各自的码 `rss.*`、`youtube.*`、`actions.input_invalid`），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。
+  - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在本插件的公开合同 `./contract`，含 `feed.entry_not_found`；RSS、YouTube 集成和平台的来源拉取用各自的码 `rss.*`、`youtube.*`、`actions.input_invalid`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector.rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
   - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
   - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。

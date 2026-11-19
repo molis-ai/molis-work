@@ -48,7 +48,7 @@ test("ordinary saves receive trusted App scenes without taxonomy defaults and re
   assert.equal(f.options.policy.taxonomy!.scenes.default, undefined);
   assert.equal(f.options.policy.taxonomy!.lifecycles.default, undefined);
   const scenes = [
-    { who: caller("coding", { current_scene: undefined, plugin_id: "io.molis.work.coding" }), scene: "coding" },
+    { who: caller("coding", { current_scene: "coding", plugin_id: "io.molis.work.coding" }), scene: "coding" },
     { who: caller("assistant", { current_scene: undefined, consumer: "assistant" }), scene: "assistant" },
     { who: caller("common", { current_scene: undefined }), scene: "common" },
   ];

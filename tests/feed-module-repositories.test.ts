@@ -58,7 +58,7 @@ test("Feed and Attention repositories preserve Signal revisions and state across
       assert.throws(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry"), (error: unknown) => error instanceof ActionError
         && error.code === "attention.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 400);
       assert.throws(() => callAttention(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry")), (error: unknown) => error instanceof ActionError
-        && error.code === "inbox.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 404);
+        && error.code === "feed.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 404);
       assert.deepEqual(firstStore.db.prepare("SELECT * FROM events ORDER BY event_id").all(), priorEvents);
       const first = feed.commands.ingest({
         project_id: DEMO_PROJECT_ID,

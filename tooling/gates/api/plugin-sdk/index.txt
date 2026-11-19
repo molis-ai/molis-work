@@ -1085,6 +1085,7 @@ export declare function sandboxOperationActions(input: {
     version: number;
     title: string;
     scope: 'home' | 'project';
+    dualInstance?: boolean;
     upgradeOperation?: string;
     hasProjectDatabase?: boolean;
 }): ActionDefinition[];

@@ -350,8 +350,8 @@ test("S-68 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   assert.notEqual(owned.entry_id, old.entry_id);
   assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).some(entry => entry.entry_id === owned.entry_id), false);
   assert.equal(feed.snapshot(DEMO_PROJECT_ID).inbox_entries.some(entry => entry.entry_id === owned.entry_id), false);
-  assert.throws(() => feed.getInboxEntry(DEMO_PROJECT_ID, owned.entry_id), { code: "inbox.entry_not_found" });
-  assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, owned.entry_id, "done"), { code: "inbox.entry_not_found" });
+  assert.throws(() => feed.getInboxEntry(DEMO_PROJECT_ID, owned.entry_id), { code: "feed.entry_not_found" });
+  assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, owned.entry_id, "done"), { code: "feed.entry_not_found" });
   let relatedReads = 0;
   const unavailable = (): never => assert.fail("this test reads a Goal subject, not Feed content or a receive operation");
   const handlers = createInboxContentHandlers({
@@ -370,7 +370,7 @@ test("S-68 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   });
   t.after(stop);
   const viewCaller: ActionCallContext = { actor_id: OWNER, project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["inbox:read"] };
-  await assert.rejects(inbox.invoke(viewCaller, subjectDefinition, { subject_id: owned.entry_id }), { code: "inbox.entry_not_found" });
+  await assert.rejects(inbox.invoke(viewCaller, subjectDefinition, { subject_id: owned.entry_id }), { code: "feed.entry_not_found" });
   assert.equal(relatedReads, 0, "the owned alias never reaches the old Goal material resolver");
   const context = await inbox.invoke(viewCaller, subjectDefinition, { subject_id: old.entry_id }) as ActionSubjectContext;
   assert.equal(context.content, goal.outcome);

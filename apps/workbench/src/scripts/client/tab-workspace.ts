@@ -2,7 +2,7 @@ import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { sideItemOpenedTabs, sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
-import { pluginTabGlyphs } from "../../plugin-catalog.js";
+import { pluginNoReopenRecords, pluginSurfaceAliases, pluginTabGlyphs } from "../../plugin-catalog.js";
 import { readClientPluginDirectory, readClientPluginTitles } from "../../plugin-directory.js";
 import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withLayout, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
@@ -31,7 +31,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
-  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
+  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
   // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
   const SIDE_OPENED = ${sideOpenedTabs()};
@@ -64,7 +64,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   refreshPluginTitles();
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
+  const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES, SURFACE_ALIASES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
 ${TAB_WORKSPACE_PANES_PART}
 ${TAB_WORKSPACE_STRIP_PART}
   document.addEventListener("molis-work:language-changed", () => {

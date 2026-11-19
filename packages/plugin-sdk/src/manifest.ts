@@ -67,6 +67,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
+  if (manifest.memory_scene !== undefined && manifest.memory_scene !== "coding" && manifest.memory_scene !== "common") {
+    invalid('memory_scene 只能是 "coding" 或 "common"');
+  }
   if (!Array.isArray(manifest.entrypoints) || (manifest.entrypoints.length === 0 && manifest.kind !== "content")) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
   }

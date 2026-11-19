@@ -76,7 +76,7 @@ export async function populatedSnapshotHome(t: TestContext) {
   }
   for (const path of ["images/assets/retained.bin", "shelf/files/retained.bin", "artifacts/files/retained.bin", "plugin-files/install/retained.bin",
     "plugin-builder/project/design/retained.bin", "plugin-originals/files/retained.bin"]) await file(path, Buffer.from([0, 255, 17, 0, 3, 128, 10]));
-  for (const path of ["logs/fixture.log", "cache/derived.bin", "search/rebuildable.bin", "images/runners/fixture.db", "lingguang/models/rebuildable.bin",
+  for (const path of ["logs/fixture.log", "cache/derived.bin", "search/rebuildable.bin", "images/runners/fixture.db", "materials/models/rebuildable.bin",
     "browser/profile/private-state", "browser/downloads/private-state", "browser/uploads/private-state", "browser/fixture.pid"]) await file(path, "Excluded transient content", 0o600, false);
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "feed", "evidence") });
   const evidence = content.write("Retained evidence body").contentRef;

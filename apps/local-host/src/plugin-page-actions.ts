@@ -81,10 +81,15 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
       request.assertCurrent();
       for (const permission of permissions) context.requireGrant(permission);
     };
+    const roleRefs: ActionReference[] = own?.action.required_roles?.length
+      ? (await options.client.discover({ actor_id: options.caller.actor_id, project_id: request.project_id, permissions: context.grants, audience: "user", signal: request.signal }))
+        .filter(candidate => own.action.required_roles!.some(role => candidate.action.input_type === role.input_type && candidate.action.output_type === role.output_type))
+        .map(candidate => ({ capability_id: candidate.capability_id, version: candidate.version, provider_id: candidate.provider.provider_id }))
+      : [];
     const caller: ActionCallContext = { actor_id: options.caller.actor_id, project_id: request.project_id, permissions: context.grants,
       audience: own ? "user" : "plugin", signal: request.signal, locale: activeLocale() ?? undefined,
       ...(!own ? { host_plugin: routedPluginCaller(options.caller, request.project_id), plugin_install_id: context.install_id } : {}),
-      ...(own ? { allowed_actions: [{ ...reference, provider_id: options.provider }, ...(own.action.required_actions ?? [])] }
+      ...(own ? { allowed_actions: [{ ...reference, provider_id: options.provider }, ...(own.action.required_actions ?? []), ...roleRefs] }
         : { allowed_capability_ids: manifest.capabilities.consumes }),
       validate_authority: async () => { await request.beforeEffect(); check(); }, assert_authority_current: check };
     await request.beforeEffect();

@@ -42,13 +42,14 @@ export const pptManifest: PluginManifest = {
     { route_id: "ppt.outline_ai", method: "POST", path: "/ppt/:id/outline-ai", max_body_bytes: PPT_BODY_BYTES },
   ],
   permissions: [
-    ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke" && permission !== "pages:read",
-      reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : permission === "pages:read" ? "选一篇 Pages 文档生成大纲（经 Pages 的公开动作读取）" : "演示稿动作" })),
+    ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke",
+      reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : "演示稿动作" })),
+    { permission: "actions:delegate", required: true, reason: "按内容站协议从项目里已装的文档插件读取文字生成大纲" },
     { permission: "storage:private", required: true, reason: "本机演示稿库" },
     { permission: "artifact:write", required: true, reason: "把演示稿存为成果" },
     { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的演示稿" },
   ],
-  capabilities: { provides: [], consumes: ["pages.content.read", "pages.content.list"] },
+  capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿", title_text: { key: "ppt.artifacts.type-title" },
       preview: { capability_id: "ppt.artifacts.preview", version: /* @version action.ppt.artifacts.preview */ 1 }, pin: { capability_id: "ppt.artifacts.pin", version: /* @version action.ppt.artifacts.pin */ 1 },

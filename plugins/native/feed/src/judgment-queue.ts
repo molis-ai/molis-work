@@ -82,7 +82,7 @@ export class JudgmentQueue {
       try {
         const entry = this.reads.inboxEntry(queued.project_id, queued.entry_id);
         return entry.subject_type === "feed_item" && itemIds.has(entry.subject_id) ? [queued.entry_id] : [];
-      } catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") return []; throw error; }
+      } catch (error) { if (error instanceof ActionError && error.code === "feed.entry_not_found") return []; throw error; }
     });
     return this.takeEntries(own);
   }
@@ -114,7 +114,7 @@ export class JudgmentQueue {
       // Module events can occur inside a transaction that is later rolled back.
       let entry: InboxEntryRecord;
       try { entry = this.reads.inboxEntry(event.project_id, event.entry_id); }
-      catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") return; throw error; }
+      catch (error) { if (error instanceof ActionError && error.code === "feed.entry_not_found") return; throw error; }
       if (entry.status !== "open" && entry.status !== "in_progress") return;
       await judgeEach([
         () => this.ports.inboxJudgment?.(entry, caller),

@@ -33,6 +33,8 @@ import { lstatSync } from "node:fs";
 import { inspectSnapshotSqlite } from "@molis-ai/molis-work-storage";
 import { ORIGINAL_FILES_HOME_STORE } from "./material-original-files.js";
 import { CONVERSATION_ATTACHMENTS_HOME_STORE } from "./material-attachments.js";
+import { MATERIALS_HOME_STORE } from "./material-home.js";
+import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
@@ -40,7 +42,17 @@ import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, feed
   browserSnapshot, directoryAccessSnapshot, runtimeBackupSnapshot, excluded, type HomeStoreSnapshotPolicy, type HomeSnapshotStore, type HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapshotPolicy };
-const owned = (owner: string, ...stores: readonly Declaration[]): HomeSnapshotStore[] => stores.map(store => ({ ...store, owner, snapshot: store.snapshot ?? ordinarySnapshot }));
+function snapshotPolicyFromExclusions(exclusions?: readonly HomeStoreSnapshotExclusion[]): HomeStoreSnapshotPolicy {
+  if (!exclusions?.length) return ordinarySnapshot;
+  return {
+    entry: (_home, file) => {
+      const hit = exclusions.find(item => file === item.path || file.startsWith(item.path + "/"));
+      return hit ? excluded(hit.reason, hit.restore) : { kind: "keep" };
+    },
+  };
+}
+const owned = (owner: string, ...stores: readonly Declaration[]): HomeSnapshotStore[] =>
+  stores.map(store => ({ ...store, owner, snapshot: store.snapshot ?? snapshotPolicyFromExclusions(store.snapshot_exclusions) }));
 const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ path }));
 
 import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
@@ -75,7 +87,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
-      { ...ALCHEMIST_HOME_STORE, snapshot: alchemistSnapshot }, ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
+      { ...ALCHEMIST_HOME_STORE, snapshot: alchemistSnapshot }, ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
@@ -87,12 +99,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
       const declared = entry.manifest.databases?.home;
       const library = declared && pluginSyncDatabaseDeclaration(entry.manifest, declared);
-      const storeName = entry.home_store?.path ?? library?.store_name;
-      const snapshot: HomeStoreSnapshotPolicy = storeName === "images" ? {
-        entry: (_home, file) => /^runners(?:\/|$)/u.test(file) ? excluded("Image runner ownership locks", "preserve") : { kind: "keep" },
-      } : storeName === "lingguang" ? {
-        entry: (_home, file) => /^models(?:\/|$)/u.test(file) ? excluded("Re-downloadable transcription model cache") : { kind: "keep" },
-      } : ordinarySnapshot;
+      const snapshot = snapshotPolicyFromExclusions([...(entry.home_store?.snapshot_exclusions ?? []), ...(declared?.snapshot_exclusions ?? [])]);
       return [
         ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id, snapshot }] : [],
         ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, snapshot,

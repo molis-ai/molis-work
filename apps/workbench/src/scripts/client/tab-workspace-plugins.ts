@@ -143,7 +143,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // After a reload the plugin's page reopens the record that was open in it, quietly: a record that is gone is forgotten.
   const reopenRecord = (plugin) => {
     const itemId = openRecords[plugin];
-    if (!itemId || embedded || plugin === "feed" || state.panes.length > 1) return;
+    if (!itemId || embedded || NO_REOPEN_RECORDS.includes(plugin) || state.panes.length > 1) return;
     if (topLevelSurface(plugin)?.dataset.expanded === "true") return;
     setTimeout(() => jumpToRecord(plugin, itemId, true), 0);
   };

@@ -109,12 +109,6 @@ export declare const attentionErrors: import("platform/action-errors").ErrorCode
     readonly invalid_transition: "invalid";
 }>;
 
-export declare const inboxErrors: import("platform/action-errors").ErrorCodeRaisers<{
-    readonly entry_not_found: "not_found";
-    readonly invalid: "invalid";
-    readonly revision_conflict: "conflict";
-}>;
-
 export declare const isAttentionName: (value: unknown) => value is string;
 
 export declare const modulesAttentionResumptionContract: {

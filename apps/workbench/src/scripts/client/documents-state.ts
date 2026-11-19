@@ -147,7 +147,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
       if (ui?.documentTop != null && desktopSurfaceScroll.goals == null) desktopSurfaceScroll.goals = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "graph";
-      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (goalData ? "goals" : "home"));
+      const requestedDesktopSurface = ui?.workSurface ? canonicalSurface(ui.workSurface) : (goalData ? "goals" : "home");
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
         : "home";

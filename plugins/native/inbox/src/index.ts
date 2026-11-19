@@ -18,4 +18,5 @@ export { createInboxPlugin } from "./plugin.js";
 export { inboxContentActions, createInboxContentHandlers } from "./content-actions.js";
 export type { InboxBriefs, InboxItemBrief } from "./content-actions.js";
 
+export { inboxErrors } from "./errors.js";
 export { createInboxPagesHandlers, inboxPagesMaterialReference, inboxPagesRequestHash } from "./pages.js";

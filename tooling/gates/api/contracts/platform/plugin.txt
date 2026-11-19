@@ -323,6 +323,10 @@ export declare const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.re
 
 export declare const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
 
+export declare const ARTIFACT_DOCUMENT_INPUT_TYPE = "molis.artifacts.document.request.v1";
+
+export declare const ARTIFACT_DOCUMENT_OUTPUT_TYPE = "molis.artifacts.document.v1";
+
 export declare const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
 
 export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
@@ -621,6 +625,10 @@ export interface ActionMetadata {
     };
     readonly result_scene?: ActionSceneReference;
     readonly required_actions?: readonly ActionReference[];
+    readonly required_roles?: readonly {
+        readonly input_type: string;
+        readonly output_type: string;
+    }[];
     readonly result_subject?: {
         readonly id: string;
         readonly revision?: string;
@@ -2223,6 +2231,13 @@ export declare const CONTENT_PACKAGE_FILES: {
 
 export declare const DELIVERED_MATERIAL_KINDS: readonly DeliveredMaterialKind[];
 
+export declare const DOCUMENT_GENERATION_PROTOCOL: Record<DocumentGenerationRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const DOCUMENT_GENERATION_ROLES: readonly ["generate", "generations.get", "generations.list", "document.get"];
+
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
 export declare const DUE_REMINDERS_OUTPUT_TYPE = "molis.reminders.due.v1";
@@ -2432,6 +2447,8 @@ export type DeliveredMaterial = {
 
 export type DeliveredMaterialKind = DeliveredMaterial["kind"];
 
+export type DocumentGenerationRole = (typeof DOCUMENT_GENERATION_ROLES)[number];
+
 export interface DueReminder {
     reminder_id: string;
     due_at: string;
@@ -2542,6 +2559,10 @@ export declare const FILE_CONTENT_OUTPUT_SCHEMA: {
 };
 
 export declare const FILE_CONTENT_OUTPUT_TYPE = "molis.files.content.v1";
+
+export declare const FILE_COPY_INTAKE_INPUT_TYPE = "molis.file.intake.input.v1";
+
+export declare const FILE_COPY_INTAKE_OUTPUT_TYPE = "molis.file.intake.output.v1";
 
 export declare const FILE_ENTRIES_INPUT_SCHEMA: {
     readonly type: "object";
@@ -3127,6 +3148,7 @@ export interface HomePageSubject {
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
     readonly project_rows?: PluginProjectRowsDeclaration;
+    readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }
 
 export interface HomeStoreBaseline {
@@ -3150,6 +3172,13 @@ export interface HomeStoreDeclaration {
         readonly file?: string;
         readonly partition?: "project";
     };
+    readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
+}
+
+export interface HomeStoreSnapshotExclusion {
+    readonly path: string;
+    readonly reason: string;
+    readonly restore?: "preserve" | "reset";
 }
 
 export interface HostAgentContinuationReadyPayload {
@@ -3596,6 +3625,14 @@ export declare const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:rea
 
 export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
 
+export declare const PLUGIN_DATA_EXPORT_FORMAT: "molis-work-plugin-data";
+
+export declare const PLUGIN_DATA_EXPORT_PERMISSION = "plugin-data:export";
+
+export declare const PLUGIN_DATA_EXPORT_VERSION = 1;
+
+export declare const PLUGIN_DATA_PROVIDER_ID = "system.plugin-data";
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
 export declare const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
@@ -3959,6 +3996,33 @@ export interface PluginContextLedgerWriter {
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
+
+export interface PluginDataExportResult {
+    readonly format: typeof PLUGIN_DATA_EXPORT_FORMAT;
+    readonly version: typeof PLUGIN_DATA_EXPORT_VERSION;
+    readonly plugin_id: string;
+    readonly project_id: string | null;
+    readonly exported_at: string;
+    readonly sections: readonly PluginDataSectionSnapshot[];
+}
+
+export interface PluginDataSectionDeclaration {
+    readonly plugin_id: string;
+    readonly section_id: string;
+    readonly title: string;
+    readonly scope: "home" | "project";
+    readonly schema_version: number;
+    readonly tables: readonly string[];
+    readonly files: readonly string[];
+}
+
+export interface PluginDataSectionSnapshot {
+    readonly plugin_id: string;
+    readonly section_id: string;
+    readonly schema_version: number;
+    readonly title?: string;
+    readonly items: readonly unknown[];
+}
 
 export interface PluginDatabase extends PluginDatabaseReader {
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
@@ -4721,6 +4785,7 @@ export interface PluginManifest {
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
     presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
     work_terminals?: readonly import("platform/work-terminal").WorkTerminalObjectDeclaration[];
+    memory_scene?: "coding" | "common";
 }
 
 export interface PluginManifestDatabases {
@@ -5312,6 +5377,7 @@ export interface PluginRuntimeApi {
 
 export interface PluginRuntimeDeclaration {
     readonly scope: "home";
+    readonly dual_instance?: true;
 }
 
 export interface PluginRuntimeRepository {
@@ -7429,6 +7495,13 @@ export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, W
 
 export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
 
+export declare const WORK_GOAL_PROMOTION_PROTOCOL: Record<WorkGoalPromotionRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const WORK_GOAL_PROMOTION_ROLES: readonly ["directory.read", "create", "inputs.confirm"];
+
 export declare const WORK_ITEM_CREATE_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -8038,6 +8111,8 @@ export interface WorkExecutorWorkspace {
     path: string;
 }
 
+export type WorkGoalPromotionRole = (typeof WORK_GOAL_PROMOTION_ROLES)[number];
+
 export interface WorkItemCreateInput {
     name: string;
     request_id: string;
@@ -8385,6 +8460,8 @@ export declare function defineWorkflowContentActions(station: WorkflowStationSpe
     receive?: true;
 }): WorkflowContentActions;
 
+export declare function documentGenerationRoleOf(action: TypedActionShape): DocumentGenerationRole | null;
+
 export declare function eventTypeKey(eventTypeId: string, typeVersion: number): string;
 
 export declare function fileContentOf(input: {
@@ -8430,6 +8507,8 @@ export declare function isArtifactContinueAction(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isArtifactDocumentAction(action: TypedActionShape): boolean;
+
 export declare function isArtifactLinkSubjectsAction(action: {
     input_type?: string;
     output_type?: string;
@@ -8456,6 +8535,8 @@ export declare function isFileContentSource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
+
+export declare function isFileCopyIntakeAction(action: TypedActionShape): boolean;
 
 export declare function isFileEntriesSource(action: {
     input_type?: string;
@@ -8590,6 +8671,21 @@ export declare const platformPluginWiringContract: {
     readonly ssot: "docs/platform/PLUGIN-PLATFORM.md";
 };
 
+export declare const pluginDataActions: {
+    readonly sections: ActionDefinition<{
+        plugin_id?: string;
+        project_id?: string;
+    }, {
+        sections: PluginDataSectionDeclaration[];
+    }>;
+    readonly export: ActionDefinition<{
+        plugin_id: string;
+        project_id?: string;
+    }, PluginDataExportResult>;
+};
+
+export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files">): PluginDataSectionDeclaration[];
+
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly always_on: "invalid";
     readonly capability_denied: "invalid";
@@ -8711,6 +8807,8 @@ export declare function workExecutorRoleOf(action: {
     output_type?: string;
 }): WorkExecutorRole | null;
 
+export declare function workGoalPromotionRoleOf(action: TypedActionShape): WorkGoalPromotionRole | null;
+
 export declare const workTerminalActions: {
     readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;
     readonly open: ActionDefinition<WorkTerminalOpenInput, WorkTerminalOpenResult>;
@@ -8788,6 +8886,11 @@ type StrictTarget<T> = unknown extends T ? T : string extends keyof T ? (unknown
     readonly [K in keyof T]: StrictTarget<T[K]>;
 }) : {
     readonly [K in keyof T]: StrictTarget<T[K]>;
+};
+
+type TypedActionShape = {
+    readonly input_type?: string;
+    readonly output_type?: string;
 };
 
 type ValueOf<U, K extends PropertyKey> = U extends unknown ? (K extends keyof U ? U[K] : never) : never;

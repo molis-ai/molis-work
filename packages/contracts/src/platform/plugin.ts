@@ -19,6 +19,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-sync.js";
+export * from "./plugin-data-sections.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";

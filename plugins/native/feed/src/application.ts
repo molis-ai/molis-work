@@ -1,7 +1,7 @@
 import { FeedReads } from "./application-reads.js";
 import type { FeedItemPage } from "./contract/feed-page.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionEntryRecord, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType } from "./projection.js";
 
 import { callAttention } from "./application-errors.js";
@@ -281,6 +281,6 @@ function isFeedEntry(entry: AttentionEntryRecord): boolean {
 }
 
 function requireFeedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
-  if (!isFeedEntry(entry)) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
+  if (!isFeedEntry(entry)) throw feedErrors.entry_not_found("找不到这个 Inbox Entry");
   return entry;
 }

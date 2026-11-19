@@ -7,6 +7,7 @@ import { assertRestorableArtifactVersions, openProjectVersionStores, restoreArti
 import { LocalProjectDatabase } from "./project-database.js";
 import { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginDataSectionSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ImError } from "@molis-ai/molis-work-server";
 
 type Asset = Omit<RegisterArtifactVersionInput,"project_id"|"actor_id"|"team_share_authorized"> & {
@@ -14,14 +15,23 @@ type Asset = Omit<RegisterArtifactVersionInput,"project_id"|"actor_id"|"team_sha
 };
 interface AssetBundle {
   format:"molis-work-assets";version:/* @version format.asset.bundle */ 1;source_project_id:string;title:string;
-  goals:unknown[];artifacts:Asset[];
+  sections:PluginDataSectionSnapshot[];artifacts:Asset[];
   dependencies:{plugin_id:string;plugin_version:string;credential_required:boolean}[];
   notes:string[];
+}
+function validSection(section: unknown): section is PluginDataSectionSnapshot {
+  if (!section || typeof section !== "object") return false;
+  const s = section as Record<string, unknown>;
+  return typeof s.plugin_id === "string" && s.plugin_id.length > 0 && s.plugin_id.length <= 200
+    && typeof s.section_id === "string" && s.section_id.length > 0 && s.section_id.length <= 200
+    && typeof s.schema_version === "number" && Number.isSafeInteger(s.schema_version) && s.schema_version >= 1
+    && (s.title === undefined || (typeof s.title === "string" && s.title.length <= 200))
+    && Array.isArray(s.items) && s.items.length <= 100;
 }
 function bundleInput(value: unknown): AssetBundle {
   if (!value || typeof value !== "object") throw new ImError("assets.invalid","不是工作资产包");
   const b=value as AssetBundle;
-  if (b.format !== "molis-work-assets" || b.version !== /* @version format.asset.bundle */ 1 || typeof b.source_project_id !== "string" || !b.source_project_id || b.source_project_id.length > 200 || typeof b.title !== "string" || !Array.isArray(b.artifacts) || b.artifacts.length > 100 || !Array.isArray(b.goals) || b.goals.length > 100 || !Array.isArray(b.dependencies)) throw new ImError("assets.invalid","工作资产包格式无效");
+  if (b.format !== "molis-work-assets" || b.version !== /* @version format.asset.bundle */ 1 || typeof b.source_project_id !== "string" || !b.source_project_id || b.source_project_id.length > 200 || typeof b.title !== "string" || !Array.isArray(b.artifacts) || b.artifacts.length > 100 || !Array.isArray(b.sections) || b.sections.length > 100 || !b.sections.every(validSection) || !Array.isArray(b.dependencies)) throw new ImError("assets.invalid","工作资产包格式无效");
   for (const a of b.artifacts) {
     if (!a || typeof a.owner_actor_id !== "string" || !a.owner_actor_id || !a.producer || !a.content || !["inline","reference"].includes(a.content.kind)) throw new ImError("assets.invalid","成果内容无效");
     if (!a.origin || typeof a.title !== "string" || !a.title.trim() || typeof a.media_type !== "string") throw new ImError("assets.invalid","成果缺少来源、标题或媒体类型");
@@ -40,7 +50,7 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
     // never becomes a destination filesystem path or an arbitrary catalog identity.
     const snapshotDirectory=join(directory,"continuity");mkdirSync(snapshotDirectory,{recursive:true,mode:0o700});
     const snapshotPath=join(snapshotDirectory,encodeURIComponent(bundle.source_project_id)+".json");
-    const initial={source_project_id:bundle.source_project_id,project_id:"project-onboarding-"+randomUUID(),title:bundle.title,goals:bundle.goals,warnings:[]};
+    const initial={source_project_id:bundle.source_project_id,project_id:"project-onboarding-"+randomUUID(),title:bundle.title,sections:bundle.sections,warnings:[]};
     try{writeFileSync(snapshotPath,JSON.stringify(initial,null,2),{flag:"wx",mode:0o600});}
     catch(error){if(!(error && typeof error === "object" && "code" in error && error.code === "EEXIST"))throw error;}
     const snapshot=JSON.parse(readFileSync(snapshotPath,"utf8")) as typeof initial;
@@ -54,20 +64,20 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
     const installedPlugins=new SqlitePluginRuntimeRepository(store.db).list();
     const warnings=[...new Set(bundle.artifacts.filter(a=>!installedPlugins.some(p=>p.plugin_id===a.producer.plugin_id&&p.version===a.producer.plugin_version&&p.state!=="uninstalled"&&p.state!=="quarantined")).map(a=>`此目标项目尚未安装可用插件 ${a.producer.plugin_id}@${a.producer.plugin_version}，固定内容已保留。`)),
       ...bundle.artifacts.filter(a=>a.content.kind === "reference").map(a=>`成果 ${a.artifact_id} v${a.version} 需要重新连接来源；未导入私人凭据。`),
-      "目标接续摘要可读取；原项目的完整执行历史、权限和完成验收未迁移。"];
-    atomicWriteFileSync(snapshotPath,JSON.stringify({...snapshot,title:bundle.title,goals:bundle.goals,warnings},null,2));
+      "插件数据分段摘要可读取；原项目的完整执行历史、权限和认可记录未迁移。"];
+    atomicWriteFileSync(snapshotPath,JSON.stringify({...snapshot,title:bundle.title,sections:bundle.sections,warnings},null,2));
     return {restored:restored.length,project_id: project.project_id,warnings};
   } finally {store.close();}
 }
 /** The regular local Host and Artifact browser can read the restored versions. */
 export async function readRestoredAssets(directory: string, sourceProjectId: string) {
-  const snapshot=JSON.parse(readFileSync(join(directory,"continuity",encodeURIComponent(sourceProjectId)+".json"),"utf8")) as {source_project_id:string;project_id:string;goals:unknown[];warnings:string[]};
+  const snapshot=JSON.parse(readFileSync(join(directory,"continuity",encodeURIComponent(sourceProjectId)+".json"),"utf8")) as {source_project_id:string;project_id:string;sections:PluginDataSectionSnapshot[];warnings:string[]};
   if(snapshot.source_project_id!==sourceProjectId)throw new ImError("assets.invalid_destination","目标目录的来源项目不匹配");
   const project=await withCatalog({homeDirectory:directory},catalog=>catalog.getProject(snapshot.project_id));
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});
   try {
     const artifacts=openProjectVersionStores(store).artifacts.query.listArtifacts(project.project_id);
-    return {title:project.display_name,goals:snapshot.goals,artifacts,warnings:snapshot.warnings};
+    return {title:project.display_name,sections:snapshot.sections,artifacts,warnings:snapshot.warnings};
   } finally {store.close();}
 }
 

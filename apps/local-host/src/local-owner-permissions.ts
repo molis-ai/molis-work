@@ -33,6 +33,7 @@ import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillDra
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
 import { WORK_TERMINAL_PERMISSIONS, WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_DATA_EXPORT_PERMISSION, PLUGIN_DATA_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 /**
@@ -100,6 +101,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
     // Platform object work terminals: user-only actions, working for any plugin that declares `work_terminals` (PEQ-17).
     [WORK_TERMINAL_PROVIDER_ID, WORK_TERMINAL_PERMISSIONS],
+    // Unified plugin data sections and read-only business export (Audit #7, PEQ-09).
+    [PLUGIN_DATA_PROVIDER_ID, [PLUGIN_DATA_EXPORT_PERMISSION]],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

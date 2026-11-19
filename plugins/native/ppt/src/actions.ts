@@ -60,8 +60,8 @@ export const pptActions = {
     "让当前文字模型把一段文字或一篇 Pages 文档整理成幻灯片大纲，再按标题分页；演示稿已满 40 页又不替换时，不调用模型；模型失败、返回空或演示稿已变化时不写入", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
   outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", /* @version action.ppt.outline_pages */ 1, "可做成大纲的文档",
-    "列出当前项目里可以拿来生成大纲的 Pages 文档（以调用者自己的权限读取）；Pages 未启用或无权读取时返回空列表与原因", "query", object({}),
-    object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), [...read, "pages:read"]),
+    "列出当前项目里已装的文档内容站中可拿来生成大纲的文档（以调用者自己的权限按角色发现读取）；无可用内容站或无权读取时拒绝或返回空列表", "query", object({}),
+    object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), read),
   move: defineObjectMoveAction("ppt.placement.move", /* @version action.ppt.placement.move */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   copy: defineObjectCopyAction("ppt.placement.copy", /* @version action.ppt.placement.copy */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   searchEntries: pptSearchActions.entries,
@@ -105,7 +105,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const outlineSource = async (input: OutlineInput, caller: ActionCallContext): Promise<string> => {
     if ((input.text === undefined) === (input.page_id === undefined)) throw pptErrors.invalid("请给出一段文字，或选一篇文档");
     if (input.text !== undefined) return input.text;
-    if (!ports.readPage) throw new ActionError("actions.connection_required", "Pages 不可用，无法读取文档");
+    if (!ports.readPage) throw new ActionError("actions.connection_required", "当前项目没有可用的文档内容站，无法读取文档");
     const page = await ports.readPage(input.page_id!, caller);
     const body = page.body.trim();
     return /^#\s/u.test(body) ? body : `# ${page.title}\n\n${body}`;
@@ -157,7 +157,10 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     bind(pptActions.outlinePages, async (_input, caller) => {
       if (!ports.listPages) return { documents: [], unavailable_reason: t.text("ppt.actions.pages-unavailable") };
       try { return { documents: await ports.listPages(caller), unavailable_reason: null }; }
-      catch (error) { return { documents: [], unavailable_reason: error instanceof Error ? error.message : t.text("ppt.actions.pages-unreadable") }; }
+      catch (error) {
+        if (error instanceof ActionError && error.code === "actions.forbidden") throw error;
+        return { documents: [], unavailable_reason: error instanceof Error ? error.message : t.text("ppt.actions.pages-unreadable") };
+      }
     }),
     bind(pptActions.outline, async (input, caller) => {
       const current = ports.read(store => store.get(input.id, project(caller)));

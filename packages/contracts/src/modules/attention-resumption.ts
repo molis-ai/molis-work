@@ -1,4 +1,3 @@
-import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ActionSubject } from "../platform/action-subjects.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
@@ -146,15 +145,3 @@ export interface AttentionApi {
 }
 
 export { attentionErrors } from "./attention-errors.js";
-
-/**
- * Inbox's own error codes, every one `inbox.<reason>`. The Inbox entries are this module's facts, but the Feed plugin (which composes the module)
- * and the Inbox plugin (which lists and closes them) both refuse in the Inbox's name and share no other package, so the declaration is here.
- * Statuses are the ones the Inbox route answered for the codes' old names (`inbox_entry_not_found`, and the Pages code `pages.invalid` Inbox borrowed).
- */
-export const inboxErrors = defineErrorCodes("inbox", {
-  entry_not_found: "not_found",
-  invalid: "invalid",
-  /** The scene binding changed since the caller read it. */
-  revision_conflict: "conflict",
-});

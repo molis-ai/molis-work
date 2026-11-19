@@ -200,6 +200,7 @@ export function pluginTextViews(contribution: PluginContribution, activation: Pl
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
   // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
+    if (options.dualInstance?.(definition)) return undefined;
     throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
   }
   if (!options.home && options.dualInstance?.(definition)) return undefined;

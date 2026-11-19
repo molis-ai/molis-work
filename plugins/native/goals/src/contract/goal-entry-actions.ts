@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionIntake, ActionResultView, InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { WORK_GOAL_PROMOTION_PROTOCOL, type ActionDefinition, type ActionIntake, type ActionResultView, type InferActionInput, type WorkGoalPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
@@ -124,17 +124,21 @@ export const goalEntryActions = {
     "读取当前项目的目标资料：全部目标、关系和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
   decide: protectedDecision(decide, eventReview),
   eventReview,
-  create: goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
+  create: withPromotionRole(goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
     object({ title: identifier, outcome: text, why: text, business_logic: text, priority: { type: "number", minimum: 0, maximum: 100 },
       goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
       requirements: { type: "array", items: object({ requirement_id: text, statement: identifier, human_decision_required: boolean }, ["statement"]) },
       source_kind: { enum: [...goalIntentSourceKinds] }, idempotency_key: identifier }, ["title", "idempotency_key"]),
     object({ goal: object({ goal_id: text, project_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
-      recorded: { const: true }, completion_effect: { const: false } }), false, GOALS_START_INTAKE),
-  directoryItem: goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", /* @version action.goals.directory.read */ 1, "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
-    object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)),
-  inputsConfirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,
+      recorded: { const: true }, completion_effect: { const: false } }), false, GOALS_START_INTAKE), "create"),
+  directoryItem: withPromotionRole(goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", /* @version action.goals.directory.read */ 1, "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
+    object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)), "directory.read"),
+  inputsConfirm: withPromotionRole(goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,
     "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
     object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: { ...identifier, maxLength: 300 } }),
-    object({ binding: goalConfirmedInputSchema, replayed: boolean })),
+    object({ binding: goalConfirmedInputSchema, replayed: boolean })), "inputs.confirm"),
 } as const;
+
+function withPromotionRole<I, O>(definition: ActionDefinition<I, O>, role: WorkGoalPromotionRole): ActionDefinition<I, O> {
+  return { ...definition, action: { ...definition.action, ...WORK_GOAL_PROMOTION_PROTOCOL[role] } };
+}

@@ -29,8 +29,8 @@ function typeErrors(source: string): string[] {
 const EXACT = "type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;";
 
 const FACTS_API = ["configure", "intent", "isEventStateOwner", "listEvents", "listLatestEvents", "listLatestReports",
-  "listLatestTimeline", "readConfig", "readCurrentRequirements", "readEvent", "readIntentSourceKind", "readObservedEventCursor", "report",
-  "reportRecorded", "runImmediate", "selfSupportingSessions", "state"];
+  "listLatestTimeline", "readConfig", "readEvent", "readIntentSourceKind", "readObservedEventCursor", "readRequirementLinks", "report",
+  "runImmediate", "state"];
 const STATE_API = ["adoptOwner", "applyConcern", "citeDecision", "readProgressReceipt", "readWorkState", "recordNote", "recordProgress",
   "recordTrustedDecision", "requestDecision", "resumeWork", "setAgreement", "submitClosure"];
 const INTENT_API = ["recordArtifacts", "remember", "replay"];
@@ -63,17 +63,19 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
 // RAC-1770: the contract lives in the Goals plugin, with the runtime values it had; the platform contracts' three subpaths are gone.
 // Batch 44 (contract-design §9) took the project guidance's schemas out with the guidance, which the platform keeps.
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
-const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT", "GOAL_EVENT_EVIDENCE_MAX",
-  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change",
-  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
+// Batch 44-3 moved requirement judgments/evidence to the platform and updated Goals' decision-request schemas.
+const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT",
+  "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change", "changeInput",
+  "citedSubjects", "closure", "concern", "count", "decision", "decisionRequest", "effect", "effectInput", "enumeration", "eventType", "goalAcceptanceCriterionSchema",
   "goalAction", "goalArchiveResultSchema", "goalConfigSchema", "goalConfirmedInputSchema", "goalContractSchema", "goalDecisionMethods",
   "goalDecompositionReviewSchema", "goalDecompositionReviewStatuses", "goalDirectoryItemSchema", "goalEntryActions", "goalEventAcknowledgementCategories",
-  "goalEventAcknowledgementTreatments", "goalEventAssessmentKey", "goalEventBasisGaps", "goalEventBasisTiers", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
-  "goalEventDecisionPurposes", "goalEventEvidenceKinds", "goalEventFieldFormats", "goalEventJudgmentVerdicts", "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSatisfactionGrounds", "goalEventSchema",
-  "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds", "goalEventUserConclusionVerdicts",
+  "goalEventAcknowledgementTreatments", "goalEventClosureKinds", "goalEventConcernActions", "goalEventConcernStatuses", "goalEventDecisionEffectKinds",
+  "goalEventDecisionPurposes", "goalEventDecisionRequestStatuses", "goalEventFieldFormats", "goalEventNewDecisionEffectKinds", "goalEventNewDecisionPurposes",
+  "goalEventPageSchema", "goalEventRequirementCurrentStatuses", "goalEventSchema",
+  "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds",
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
-  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "identifier", "judgment", "judgmentInput",
+  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "identifier",
   "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningGraphIssueSchema", "planningImpactSchema",
   "progress",
   "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
@@ -153,10 +155,15 @@ const registered = (table: "goalEntryActions" | "goalPluginActions", key: string
 test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, the CLI names none, and the management tools carry the directory's words", () => {
   // CLI (PEQ-15): its Goals commands and their table were removed; it names no Goals action.
   assert.doesNotMatch(readFileSync(new URL("../apps/cli/src/command-dispatch.ts", import.meta.url), "utf8"), /\bGOALS\b|"goals\./u);
-  // Feed: the three entry actions a promotion calls.
-  const feed = referencesIn("plugins/native/feed/src/goal-promotion.ts", "GOALS");
-  assert.deepEqual(Object.keys(feed).sort(), ["create", "directoryItem", "inputsConfirm"]);
-  for (const [name, [id, version]] of Object.entries(feed)) assert.deepEqual([id, version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `Feed ${name}`);
+  // Feed (Audit #10): discovers the work-goal promotion provider by role (`workGoalPromotionRoleOf`), not by hardcoded action IDs.
+  const feedSource = readFileSync(new URL("../plugins/native/feed/src/goal-promotion.ts", import.meta.url), "utf8");
+  assert.match(feedSource, /workGoalPromotionRoleOf/u);
+  assert.doesNotMatch(feedSource, /"goals\.(create|directory\.read|inputs\.confirm)"/u);
+  for (const name of ["create", "directoryItem", "inputsConfirm"] as const) {
+    const entry = registered("goalEntryActions", name) as RegisteredAction & { action: { input_type?: string; output_type?: string } };
+    assert.ok(entry.action.input_type?.startsWith("molis.goal.promote."), `Goals ${name} tags its work-goal promotion input_type`);
+    assert.ok(entry.action.output_type?.startsWith("molis.goal.promote."), `Goals ${name} tags its work-goal promotion output_type`);
+  }
   // MCP: the one management operation Goals owns. The platform publishes the review operations.
   assert.deepEqual(Object.keys(MANAGEMENT_GOAL_ACTIONS).sort(), ["initialize"]);
   for (const [name, reference] of Object.entries(MANAGEMENT_GOAL_ACTIONS)) {

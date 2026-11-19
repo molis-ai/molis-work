@@ -24,6 +24,7 @@ export type HostCapabilityHandler<Runtime, Input, Output> = (runtime: Runtime, i
 /** What one discovery reads once and shares across its actions' dependency checks. */
 export interface DiscoveryPass {
   actions(): (reference: ActionReference) => ActionView | undefined;
+  all(): readonly ActionView[];
   scene(reference: Pick<ActionSceneDefinition, "scene_id" | "version">): ActionSceneView | undefined;
   bindings(reference: Pick<ActionSceneDefinition, "scene_id" | "version">): Promise<readonly ActionSceneUsage[]>;
   choices(): readonly SubjectOfferChoiceView[];

@@ -1,7 +1,8 @@
 import { syncBindings } from "./sync.js";
 import { randomUUID } from "node:crypto";
-import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { ActionError, DOCUMENT_GENERATION_ROLES, WORKFLOW_CONTENT_VERSIONS, documentGenerationRoleOf, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type DocumentGenerationRole, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors } from "./errors.js";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -26,10 +27,24 @@ const FEED = {
   admit: { capability_id: "feed.items.admit", version: /* @version action.feed.items.admit */ 1 },
   read: { capability_id: "feed.content.read", version: WORKFLOW_CONTENT_VERSIONS.read }, receive: { capability_id: "feed.content.receive", version: WORKFLOW_CONTENT_VERSIONS.receive },
 } as const satisfies Record<string, ActionReference>;
-const PAGES = {
-  generation: { capability_id: "pages.generations.get", version: /* @version action.pages.generations.get */ 1 }, generations: { capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1 },
-  get: { capability_id: "pages.get", version: /* @version action.pages.get */ 1 }, generate: { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1 },
-} as const satisfies Record<string, ActionReference>;
+
+type DocumentGeneratorRefs = Record<DocumentGenerationRole, ActionReference>;
+
+/** Discover the project's document-generation provider by typed role protocol (Audit #10). */
+async function discoverDocumentGenerator(discover: () => Promise<readonly ActionView[]>): Promise<DocumentGeneratorRefs> {
+  const byProvider = new Map<string, Partial<DocumentGeneratorRefs>>();
+  for (const view of await discover()) {
+    const role = documentGenerationRoleOf(view.action);
+    if (!role || !view.availability.available) continue;
+    const group = byProvider.get(view.provider.provider_id) ?? {};
+    group[role] = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    byProvider.set(view.provider.provider_id, group);
+  }
+  for (const group of byProvider.values()) {
+    if (DOCUMENT_GENERATION_ROLES.every(role => group[role])) return group as DocumentGeneratorRefs;
+  }
+  throw new ActionError("actions.connection_required", "当前项目没有可用的文稿生成插件");
+}
 
 /** Feed answers at most this many ids at once. */
 const BRIEF_BATCH = 200;
@@ -91,11 +106,13 @@ export function createInboxPlugin(): PluginDefinition {
       }
       return { items, sources };
     };
+    const docGen = () => discoverDocumentGenerator(() => directory.discover());
     const pages = createInboxPagesHandlers({
-      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>(PAGES.generation, { request_id: requestId })).record,
-      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>(PAGES.generations, {})).records,
-      readDocument: async id => (await ask<{ document: InboxPagesDocument }>(PAGES.get, { id })).document,
-      generate: (input) => ask(PAGES.generate, { ...input, inputs: [...input.inputs] }),
+      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>((await docGen())["generations.get"], { request_id: requestId })).record,
+      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>((await docGen())["generations.list"], {})).records,
+      readDocument: async id => (await ask<{ document: InboxPagesDocument }>((await docGen())["document.get"], { id })).document,
+      generate: async input => ask((await docGen()).generate, { ...input, inputs: [...input.inputs] }),
+      generateReference: async () => (await docGen()).generate,
       readMaterial: async (entryId, caller): Promise<InboxPagesInputSnapshot> => {
         await caller.validate_permissions?.(["inbox:read"]);
         caller.signal?.throwIfAborted();

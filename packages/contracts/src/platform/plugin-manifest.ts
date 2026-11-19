@@ -106,9 +106,14 @@ export interface ArtifactLinkDeclaration {
   proposal?: boolean;
 }
 
-/** The dual-instance mark (docs/system/GLOSSARY.md) is not here: only the Host's registration can say it (S-48). */
+/**
+ * Where a plugin runs (PG-011, PEQ-06). `scope: "home"` runs a Home instance shared across projects; adding
+ * `dual_instance: true` runs both a Home half and a project half. Only Host-build plugins or signed pinned
+ * sandbox packages may run with `scope: "home"` or `dual_instance: true` (S-48, S-80).
+ */
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
+  readonly dual_instance?: true;
 }
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
@@ -283,4 +288,6 @@ export interface PluginManifest {
   presentation?: import("./presentation.js").PresentationDeclaration;
   /** Which of this plugin's object kinds support the platform's object work terminal (`platform/work-terminal`, PEQ-17). */
   work_terminals?: readonly import("./work-terminal.js").WorkTerminalObjectDeclaration[];
+  /** Optional memory scene this plugin's sessions and runs belong to (`coding` or `common`, PEQ-09). */
+  memory_scene?: "coding" | "common";
 }

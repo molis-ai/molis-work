@@ -2,7 +2,7 @@ import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ATTENTION_NAME_PATTERN, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration } from "./pages-shapes.js";
+import type { InboxPagesDocument, InboxPagesGeneration } from "./pages-shapes.js";
 import type { InboxBriefs } from "./content-actions.js";
 import type { InboxJudgmentState, InboxJudgmentSummary } from "./route-handlers.js";
 
@@ -114,8 +114,7 @@ export const inboxActions = {
       expected_revision: { type: "integer", minimum: 1 } }, required: ["entry_id", "status", "expected_revision"], additionalProperties: false,
   }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write", "attention:write"]),
   pagesResults: action<Record<string, never>, { results: readonly InboxPagesResult[] }>("inbox.pages.results", /* @version action.inbox.pages.results */ 1, "生成的文稿", "读取当前项目由 Inbox 材料生成的文稿和运行状态", "query",
-    empty, { type: "object", properties: { results: { type: "array", items: generationSchema } }, required: ["results"] }, ["inbox:read", "pages:read"], undefined,
-    [{ capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1, provider_id: PAGES_PROVIDER_ID }]),
+    empty, { type: "object", properties: { results: { type: "array", items: generationSchema } }, required: ["results"] }, ["inbox:read", "pages:read"]),
   generatePages: action<InboxPagesInput, InboxGeneratedPages>("inbox.pages.generate", /* @version action.inbox.pages.generate */ 1, "整理成文稿", "根据所选事项生成文稿；重试同一任务时保持 request_id 不变", "command", {
     type: "object", properties: { request_id: { type: "string", pattern: "^[a-zA-Z0-9:_-]{8,128}$" }, entry_ids: ids,
       title: { type: "string", minLength: 1, maxLength: 80 }, instructions: { type: "string", minLength: 1, maxLength: 4000 },
@@ -127,10 +126,7 @@ export const inboxActions = {
   }, { type: "object", properties: { document: documentSchema, replayed: { type: "boolean" }, request_id: text, entry_ids: strings },
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
     // The material is Feed's, read again before the document is written: a client granted the generation must be granted Feed's material read with it.
-    [{ capability_id: "pages.generations.get", version: /* @version action.pages.generations.get */ 1, provider_id: PAGES_PROVIDER_ID },
-      { capability_id: "pages.get", version: /* @version action.pages.get */ 1, provider_id: PAGES_PROVIDER_ID },
-      { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1, provider_id: PAGES_PROVIDER_ID },
-      { capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 }], { cost: "metered" }),
+    [{ capability_id: "feed.items.material", version: /* @version action.feed.items.material */ 1 }], { cost: "metered" }),
   readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", /* @version action.inbox.judgment.read */ 1, "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",
       properties: { function_key: { type: "string" }, name: { type: "string" } }, required: ["function_key", "name"] } } }, required: ["function_key", "functions"],

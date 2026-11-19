@@ -1,5 +1,6 @@
 import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MEMORY_SESSION_BINDING_INPUT_TYPE, MEMORY_SESSION_BINDING_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/services/memory";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
 
@@ -62,6 +63,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => ({ ...childInput(request), command: body(request) }), toRequest: input => ({ method: "POST", params: childParams(input), query: {}, body: input.command }) },
   "coding.session-binding": { definition: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL),
       action: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL).action,
+        input_type: MEMORY_SESSION_BINDING_INPUT_TYPE, output_type: MEMORY_SESSION_BINDING_OUTPUT_TYPE,
         output_schema: closed({ session_id: id, project_id: id, archived: { type: "boolean" }, runtime: { anyOf: [{ type: "null" },
           closed({ runtime_id: id, session_id: id })] } }) } },
     toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },

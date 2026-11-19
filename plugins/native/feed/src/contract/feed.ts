@@ -157,6 +157,7 @@ export interface FeedModuleDependencies {
  */
 export const feedErrors = defineErrorCodes("feed", {
   contract_source_history_decision_required: "internal",
+  entry_not_found: "not_found",
   item_not_found: "not_found",
   source_not_found: "not_found",
   out_rule_not_found: "not_found",

@@ -4,6 +4,7 @@ import type { ArtifactReference, ArtifactVersionRecord, FixedVersionRecord, Proc
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginActionClient, PluginArtifactClient, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingResultDocumentHandler } from "@molis-ai/molis-work-plugin-coding";
+import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 
 /** Fixed Coding results and a fake platform around them, for the tests of Coding's text action and of the copy Shelf makes of it (W5-01-CODING). */
@@ -141,14 +142,24 @@ export function codingDocumentHandler(platform: FakePlatform): ActionHandlerBind
  */
 export async function startShelf(platform: FakePlatform, options: { connected?: Record<string, ArtifactReference>; receive?: ShelfResultPorts["receive"] } = {}) {
   const coding = codingDocumentHandler(platform), asked: string[] = [];
+  const codingView = {
+    capability_id: codingResultDocument.capability_id, version: codingResultDocument.version, operation: codingResultDocument.operation,
+    provider: { provider_id: CODING_PLUGIN, kind: "plugin" as const, title: "Coding", plugin_id: CODING_PLUGIN, project_id: PROJECT_ID },
+    action: codingResultDocument.action, availability: { available: true as const },
+  };
   const actions: PluginActionClient = {
     discover: async () => [],
     invokeQuery: async () => { throw new Error("a plugin-only action is reached by invoke"); },
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => {
-      asked.push(`${definition.capability_id}@${definition.version}`);
-      if (definition.capability_id !== coding.capability_id || definition.version !== coding.version) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
-      const answer: unknown = await coding.handle(callerFor(), input);
-      return answer as Output;
+    invoke: async () => { throw new Error("Shelf discovers document providers via actions.directory"); },
+    directory: {
+      discover: async () => [codingView],
+      check: async () => {},
+      invoke: async <Output>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => {
+        asked.push(`${reference.capability_id}@${reference.version}`);
+        if (reference.capability_id !== coding.capability_id || reference.version !== coding.version) throw new ActionError("actions.forbidden", "未知能力");
+        const answer: unknown = await coding.handle(callerFor(), input);
+        return answer as Output;
+      },
     },
   };
   const written: unknown[] = [];

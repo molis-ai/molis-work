@@ -321,6 +321,10 @@ export declare const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.re
 
 export declare const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
 
+export declare const ARTIFACT_DOCUMENT_INPUT_TYPE = "molis.artifacts.document.request.v1";
+
+export declare const ARTIFACT_DOCUMENT_OUTPUT_TYPE = "molis.artifacts.document.v1";
+
 export declare const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
 
 export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
@@ -619,6 +623,10 @@ export interface ActionMetadata {
     };
     readonly result_scene?: ActionSceneReference;
     readonly required_actions?: readonly ActionReference[];
+    readonly required_roles?: readonly {
+        readonly input_type: string;
+        readonly output_type: string;
+    }[];
     readonly result_subject?: {
         readonly id: string;
         readonly revision?: string;
@@ -2100,6 +2108,13 @@ export interface BoundActionClient {
 
 export declare const DELIVERED_MATERIAL_KINDS: readonly DeliveredMaterialKind[];
 
+export declare const DOCUMENT_GENERATION_PROTOCOL: Record<DocumentGenerationRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const DOCUMENT_GENERATION_ROLES: readonly ["generate", "generations.get", "generations.list", "document.get"];
+
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
 export declare const DUE_REMINDERS_OUTPUT_TYPE = "molis.reminders.due.v1";
@@ -2309,6 +2324,8 @@ export type DeliveredMaterial = {
 
 export type DeliveredMaterialKind = DeliveredMaterial["kind"];
 
+export type DocumentGenerationRole = (typeof DOCUMENT_GENERATION_ROLES)[number];
+
 export interface DueReminder {
     reminder_id: string;
     due_at: string;
@@ -2419,6 +2436,10 @@ export declare const FILE_CONTENT_OUTPUT_SCHEMA: {
 };
 
 export declare const FILE_CONTENT_OUTPUT_TYPE = "molis.files.content.v1";
+
+export declare const FILE_COPY_INTAKE_INPUT_TYPE = "molis.file.intake.input.v1";
+
+export declare const FILE_COPY_INTAKE_OUTPUT_TYPE = "molis.file.intake.output.v1";
 
 export declare const FILE_ENTRIES_INPUT_SCHEMA: {
     readonly type: "object";
@@ -4956,6 +4977,13 @@ export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, W
 
 export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
 
+export declare const WORK_GOAL_PROMOTION_PROTOCOL: Record<WorkGoalPromotionRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const WORK_GOAL_PROMOTION_ROLES: readonly ["directory.read", "create", "inputs.confirm"];
+
 export declare const WORK_ITEM_CREATE_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -5565,6 +5593,8 @@ export interface WorkExecutorWorkspace {
     path: string;
 }
 
+export type WorkGoalPromotionRole = (typeof WORK_GOAL_PROMOTION_ROLES)[number];
+
 export interface WorkItemCreateInput {
     name: string;
     request_id: string;
@@ -5908,6 +5938,8 @@ export declare function defineWorkflowContentActions(station: WorkflowStationSpe
     receive?: true;
 }): WorkflowContentActions;
 
+export declare function documentGenerationRoleOf(action: TypedActionShape): DocumentGenerationRole | null;
+
 export declare function fileContentOf(input: {
     subject: ActionSubject;
     revision: string;
@@ -5941,6 +5973,8 @@ export declare function isArtifactContinueAction(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isArtifactDocumentAction(action: TypedActionShape): boolean;
+
 export declare function isArtifactLinkSubjectsAction(action: {
     input_type?: string;
     output_type?: string;
@@ -5967,6 +6001,8 @@ export declare function isFileContentSource(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
+
+export declare function isFileCopyIntakeAction(action: TypedActionShape): boolean;
 
 export declare function isFileEntriesSource(action: {
     input_type?: string;
@@ -6117,6 +6153,8 @@ export declare function workExecutorRoleOf(action: {
     output_type?: string;
 }): WorkExecutorRole | null;
 
+export declare function workGoalPromotionRoleOf(action: TypedActionShape): WorkGoalPromotionRole | null;
+
 export declare const workTerminalActions: {
     readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;
     readonly open: ActionDefinition<WorkTerminalOpenInput, WorkTerminalOpenResult>;
@@ -6194,6 +6232,11 @@ type StrictTarget<T> = unknown extends T ? T : string extends keyof T ? (unknown
     readonly [K in keyof T]: StrictTarget<T[K]>;
 }) : {
     readonly [K in keyof T]: StrictTarget<T[K]>;
+};
+
+type TypedActionShape = {
+    readonly input_type?: string;
+    readonly output_type?: string;
 };
 
 type ValueOf<U, K extends PropertyKey> = U extends unknown ? (K extends keyof U ? U[K] : never) : never;

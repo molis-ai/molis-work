@@ -9,6 +9,10 @@ import { renderConnectionItem, renderConnectionProgress, renderConnectionUseMatr
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
 import { renderPluginSlots } from "./settings-plugin-slots.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+
+const imagePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.image_generation)?.project_plugin_id;
+const sourcePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.permissions.some(p => p.permission === "sources:pull_connector"))?.project_plugin_id;
 
 /**
  * 设置 › 服务连接, plan A of the service-connection decision (specs/assistant-service-connections §13.1, 2026-11-04): one column of
@@ -57,19 +61,20 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
   const { escapeHtml: e } = p;
   const active = connections.filter(connection => connection.state === "connected" && connection.enabled !== false);
   if (!active.length || card.availability !== "live") return "";
-  const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
+  const instructions: Array<{ text: string; label?: string; projectLabel?: string; href?: string; plugin?: string }> = [];
   if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-authorized-account-coding-s-mcp-settings-save"), label: uiText.text("workbench.settings-connectors.set-up-agent-tools"), href: "/settings/coding-settings" });
   if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: uiText.text("workbench.settings-connectors.connection-uses-provider-s-native-transport-under-advanced") });
   if (active.some(row => row.auth_method === "cli")) instructions.push({ text: uiText.text("workbench.settings-connectors.account-managed-client-machine-can-check-connection-view") });
   if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
+    const imagesPlugin = imagePluginId(), sourcePlugin = sourcePluginId();
     if (card.connector_id === "model-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-model-settings-then-pick-model-check"), label: uiText.text("workbench.settings-connectors.open-model-settings"), href: "/settings/models" });
-    else if (card.connector_id === "image-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), href: "/", plugin: "images" });
+    else if (card.connector_id === "image-api" && imagesPlugin) instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), projectLabel: uiText.text("workbench.connectors-settings.open-images"), href: "/", plugin: imagesPlugin });
     else if (card.connector_id === "typesafe") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-account-functions"), label: uiText.text("workbench.settings-connectors.see-functions"), href: "/capabilities/library" });
-    else if (card.uses?.includes("feed_source")) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
+    else if (card.uses?.includes("feed_source") && sourcePlugin) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), projectLabel: uiText.text("workbench.connectors-settings.open-feed-add-source"), href: "/", plugin: sourcePlugin });
     else if (card.connector_id !== "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.can-check-account-s-authorization-api-connection-doesn") });
   }
   if (!instructions.length) return "";
-  return `<section class="settings-connector-next" data-connector-next><h3>${uiText("workbench.settings-connectors.once-connected")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}" href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
+  return `<section class="settings-connector-next" data-connector-next><h3>${uiText("workbench.settings-connectors.once-connected")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}"${step.projectLabel ? ` data-connector-project-label="${e(step.projectLabel)}"` : ""} href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
 }
 
 /** The folded 高级 at the bottom of a service (§13.1 ② plan A): each account's own settings, then the other ways to connect. */

@@ -62,6 +62,7 @@ export const codingManifest: PluginManifest = {
   sync: codingSync,
   summary: "与 Agent 协作编写代码，完整记录每一轮。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
+  memory_scene: "coding",
   publisher: { publisher_id: "molis", signature: CODING_PUBLISHER_BINDING },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

@@ -76,6 +76,8 @@ export interface PluginWorkbenchRegistration {
   readonly clientUses?: readonly string[];
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
+  /** Built-in asset routes served from package specifiers under this plugin's own package (e.g. `{ "/assets/...": "<pkg>/editor" }`). */
+  readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
   readonly settingsClient?: string;
   /**
    * The rules of the settings pages this plugin's settings contributions draw. The settings sheet carries them, and so does the
@@ -88,6 +90,12 @@ export interface PluginWorkbenchRegistration {
    */
   readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;
+  /** Surface aliases routed to this plugin's canonical surface (e.g. Feed's `sources`). */
+  readonly surfaceAliases?: readonly string[];
+  /** Search hit kinds that jump to `searchRow` on the plugin's page instead of opening an item tab. */
+  readonly searchRecordKinds?: readonly string[];
+  /** Set `false` when reloading the plugin's page should not auto-reopen the previously selected record. */
+  readonly reopenRecord?: false;
   /**
    * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
    * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).

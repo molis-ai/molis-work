@@ -7,6 +7,7 @@ import { constants, gzipSync } from "node:zlib";
 import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { BASELINE_REGISTRY, baselinePackageFile, COMPOSER_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
@@ -161,9 +162,7 @@ export function createLocalWebAssets(ports: {
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"
           ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
-          : pathname === "/assets/molis-work-pages-editor.js"
-            ? pagesEditorAsset()
-          : bundledAppearanceFile(pathname);
+          : declaredPluginClientAsset(pathname) ?? bundledAppearanceFile(pathname);
       if (!loaded) return false;
       const body = loaded.contentType.startsWith("text/javascript") ? tightenServedJs(loaded.body.toString())
         : loaded.contentType.startsWith("text/css") ? tightenServedCss(loaded.body.toString()) : loaded.body;
@@ -190,13 +189,18 @@ export function createLocalWebAssets(ports: {
   return { servePtyClient, serveWorkbenchAsset };
 }
 
-function pagesEditorAsset(): { body: Buffer; contentType: string } | null {
-  try {
-    const filePath = requireAsset.resolve("@molis-ai/molis-work-plugin-pages/editor");
-    if (!fs.existsSync(filePath)) return null;
-    return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
-  } catch {
-    // A build without the Pages editor serves no editor (a 404), as when the file is missing.
-    return null;
+function declaredPluginClientAsset(pathname: string): { body: Buffer; contentType: string } | null {
+  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+    const specifier = entry.workbench.clientAssetSpecifiers?.[pathname];
+    const pkg = entry.project_runtime?.package_name ?? entry.runtime?.package_name;
+    if (!specifier || !pkg || !specifier.startsWith(pkg + "/")) continue;
+    try {
+      const filePath = requireAsset.resolve(specifier);
+      if (!fs.existsSync(filePath)) return null;
+      return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
+    } catch {
+      return null;
+    }
   }
+  return null;
 }

@@ -15,7 +15,8 @@ export interface AggregateReplicaContext {
         title: string;
     };
     hasReference?(projectId: string, reference: {
-        owner: 'goals' | 'artifacts';
+        owner: string;
+        collectionId?: string;
         assetId: string;
         version?: number;
     }): boolean;
@@ -28,6 +29,7 @@ export type BuiltinSyncBinding = ({
         authorize(): void;
     }) => SyncContentCodec;
     readonly scope: 'home' | 'home-with-projects' | 'projects';
+    readonly keyPrefix?: string;
     open(home: string, ownerId: string): {
         close(): void;
         replica(context: AggregateReplicaContext): SyncReplicaAdapter;
@@ -197,10 +199,14 @@ export interface PluginWorkbenchRegistration {
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];
+    readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
     readonly settingsClient?: string;
     readonly settingsStylesheet?: string;
     readonly pageClients?: Readonly<Record<string, string>>;
     readonly searchRow?: PluginSearchRow;
+    readonly surfaceAliases?: readonly string[];
+    readonly searchRecordKinds?: readonly string[];
+    readonly reopenRecord?: false;
     readonly recordRow?: PluginSearchRow;
     readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];
 }

@@ -289,8 +289,10 @@ const pages: Record<string, Draw> = {
 // / `&desktop=1` links on top-corner and bar-account minus one removed `/settings/sync?desktop=1` link). Keeping `/onboarding` unprefixed
 // in `prefixLocalLinks` (so the top-corner "New project" link `/onboarding?mode=new-project` does not 404 under `/projects/<id>`) removes
 // 16 characters (`/projects/golden`) from each of the 16 page-* records alone (final net +3840 zh / +3532 en on the 7 web pages and
-// +3870 zh / +3562 en on page-current-desktop). The 20 changed records were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with
-// RECORD unset; no Goals markup or JSON changed.
+// +3870 zh / +3562 en on page-current-desktop). On the merge of main 820c13d498 (#2157, B35-R1 Sessions onboarding link), all 20
+// moved by the exact same constants (+3840/+3870 zh, +3532/+3562 en, +382 settings-general*) over 820c13d498's records while the
+// other 32 matched directly. The 20 changed records were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset;
+// no Goals markup or JSON changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 // QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
 // `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.

@@ -12,9 +12,11 @@
 
 <a id="execution-batches"></a>
 
-## 01～91
+## 01～99
 
 2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
+
+2026-11-18 确认 22 条独立待办的归属。7 条并入 6 个原交付项，另外 15 条编为 92～99。各项按实际前置开工，第 90 批仍负责最终对账。见[正式排期与开工 Prompt](reference/backlog-dispatch-2026-11-18/README.md)。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -96,7 +98,7 @@
 |  | [底栏：第十三版](reference/batches/36a.md#batch-36a-item-2)（2026-11-17 改，[决定 53](reference/decisions.md#decision-53)） |
 |  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
 |  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
-|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
+|  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) · [BL-1062](../backlog/BL-1062.md) |
 |  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
 |  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
 | [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1) |
@@ -124,9 +126,9 @@
 |  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
-| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) |
+| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../backlog/BL-586.md) |
 |  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
-| [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) |
+| [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../backlog/BL-plugin-cli-dev-uncoded-errors.md) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/48.md#batch-48-item-3) |
 |  | [首次可用率与返修评测样本](reference/batches/48.md#batch-48-item-4) |
@@ -137,7 +139,7 @@
 | [52](reference/batches/52.md) | [每日简报、设置与中断恢复](reference/batches/52.md#batch-52-item-1) |
 |  | [初始日报与工作接续 Skill](reference/batches/52.md#batch-52-item-2) |
 |  | [官方场景包：个人事务与每日简报](reference/batches/52.md#batch-52-item-3) |
-| [53](reference/batches/53.md) | [回执与交互余项](reference/batches/53.md#batch-53-item-1) |
+| [53](reference/batches/53.md) | [回执与交互余项](reference/batches/53.md#batch-53-item-1) · [BL-959](../backlog/BL-959.md) |
 |  | [智能呈现第二片](reference/batches/53.md#batch-53-item-2) |
 |  | [主线第二片](reference/batches/53.md#batch-53-item-3) |
 | [54](reference/batches/54.md) | [本机语音](reference/batches/54.md#batch-54-item-1) |
@@ -149,7 +151,7 @@
 |  | [工作流查询与映射](reference/batches/55.md#batch-55-item-6) |
 |  | [旧 Office 与下载／转写恢复](reference/batches/55.md#batch-55-item-7) |
 |  | [连续两期场景](reference/batches/55.md#batch-55-item-8) |
-| [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) |
+| [56](reference/batches/56.md) | [Attention 唤醒、角标与系统通知](reference/batches/56.md#batch-56-item-1) · [BL-attention-404-by-code](../backlog/BL-attention-404-by-code.md) |
 |  | [切换后新入口文字与翻译复核](reference/batches/56.md#batch-56-item-2) |
 |  | [N22 全量迁移与收口](reference/batches/56.md#batch-56-item-3) |
 | [57](reference/batches/57.md) | [个人工作完整路径](reference/batches/57.md#batch-57-item-1)（M1 移到 [REL-5](#release-batch)） |
@@ -204,7 +206,7 @@
 | [72](reference/batches/72.md) | [复杂场景设计定稿 → 并入 77](reference/batches/72.md#batch-72-item-1)（2026-11-18） |
 | [73](reference/batches/73.md) | [技能包、工作流与生成插件导入导出](reference/batches/73.md#batch-73-item-1) |
 |  | [场景包与保存操作面导入导出](reference/batches/73.md#batch-73-item-2) |
-|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) |
+|  | [整份 Home 导出与导入 U7](reference/batches/73.md#batch-73-item-3) · [BL-knowledge-restore-partial-catalog](../backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../backlog/BL-tests-umask.md) |
 |  | [业务数据导出回读](reference/batches/73.md#batch-73-item-4) |
 | [74](reference/batches/74.md) | [个人同步完整交付 → SRV-5](reference/batches/74.md#batch-74-item-1) |
 | [75](reference/batches/75.md) | [本机使用统计](reference/batches/75.md#batch-75-item-1) |
@@ -240,12 +242,27 @@
 |  | [工作主干 9 插件 + 4 官方集成全面打磨](reference/batches/91b.md#batch-91b-item-2) |
 |  | [创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨](reference/batches/91b.md#batch-91b-item-3) |
 |  | [全站轻动效收口与三层自动化防回归门禁焊死](reference/batches/91b.md#batch-91b-item-4) |
+| [92](reference/batches/92.md) | [把图片下载的漏测命令补进手册](reference/batches/92.md#batch-92-item-1) |
+|  | [把「打开数据库会不会创建文件」写准确](reference/batches/92.md#batch-92-item-2) |
+|  | [让 Goals 测试即使报错也关干净](reference/batches/92.md#batch-92-item-3) |
+| [93](reference/batches/93.md) | [确认页面关掉时，两个正在做的请求各收到自己的取消原因](reference/batches/93.md#batch-93-item-1) |
+|  | [关掉侧栏浏览器后，清掉还没挂好的监听](reference/batches/93.md#batch-93-item-2) |
+| [94](reference/batches/94.md) | [重新安装同版本开发 App 后，用上刚编出来的版本](reference/batches/94.md#batch-94-item-1) |
+| [95](reference/batches/95.md) | [把 Feed 连数据库的旧函数名改准确](reference/batches/95.md#batch-95-item-1) |
+|  | [资讯更新点过「现在做」，睡醒后直接做](reference/batches/95.md#batch-95-item-2) |
+|  | [错过的任务统一留七天，到期一次说清跳过了几件](reference/batches/95.md#batch-95-item-3) |
+| [96](reference/batches/96.md) | [编辑一项定时任务时，只查这一项](reference/batches/96.md#batch-96-item-1) |
+|  | [定时任务失败时，开着的详情立刻显示原因](reference/batches/96.md#batch-96-item-2) |
+| [97](reference/batches/97.md) | [助理只汇报结果时，别占用继续干活的次数](reference/batches/97.md#batch-97-item-1) |
+|  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
+| [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
+| [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
 
 <a id="server-batch"></a>
 
 ## 服务端批
 
-排在 01～91 之后，开工时间由用户定；01～91 不等它。后续服务端需求继续加在这一批。
+排在 01～99 之后，开工时间由用户定；01～99 不等它。后续服务端需求继续加在这一批。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -278,7 +295,7 @@
 
 ## 发行批
 
-只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～91 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～99 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
 
 | 批次 | 批次内内容 |
 | --- | --- |

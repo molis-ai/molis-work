@@ -177,6 +177,8 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       row.append(node("summary", titleOf(part) + " · " + t(state)));
       if (step?.state === "failed") row.append(node("p", step.error.message));
       if (step?.state === "skipped") row.append(node("p", t(step.reason)));
+      if (step?.state === "pending_verification" && step.current)
+        row.append(node("p", t(step.current === "owner_replaced" ? "pending-owner-replaced" : "pending-owner-unavailable")));
       if (part.proposal.kind === "setting") row.append(node("p", t("proposed") + " · " + page.values.describe(part.proposal.key, part.proposal.value, part.model_selection)));
       main.append(row);
     }

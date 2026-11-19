@@ -2,7 +2,7 @@
 
 两个开发包版本号都一样，后装的 App 已复制成功，打开后 Home 却可能还在运行前一个包。
 
-预计 **6–12 工时**。维护范围为桌面与发版。正式交付项为 [94-1](../../batches/94.md#batch-94-item-1)。[原始待办](../../../../backlog/BL-desktop-same-version-install.md) · [派工总表](../README.md)
+预计 **6–12 工时**。维护范围为桌面与发版。正式交付项为 [94-1](../../batches/94.md#batch-94-item-1)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-desktop-same-version-install.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

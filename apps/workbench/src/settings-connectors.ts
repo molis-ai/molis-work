@@ -65,7 +65,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
     if (card.connector_id === "model-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-model-settings-then-pick-model-check"), label: uiText.text("workbench.settings-connectors.open-model-settings"), href: "/settings/models" });
     else if (card.connector_id === "image-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), href: "/", plugin: "images" });
     else if (card.connector_id === "typesafe") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-account-functions"), label: uiText.text("workbench.settings-connectors.see-functions"), href: "/capabilities/library" });
-    else if (card.feed_available) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
+    else if (card.uses?.includes("feed_source")) instructions.push({ text: uiText.text("workbench.settings-connectors.project-s-feed-add-source-choose-connected-api"), label: uiText.text("workbench.settings-connectors.choose-project-add-source"), href: "/", plugin: "feed" });
     else if (card.connector_id !== "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.can-check-account-s-authorization-api-connection-doesn") });
   }
   if (!instructions.length) return "";

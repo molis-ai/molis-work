@@ -20,10 +20,7 @@ export interface ConnectorDirectoryEntryWithSource extends ConnectorDirectoryEnt
   readonly declared_by: ConnectorDeclaredBy | null;
 }
 
-/**
- * The card for one declared service. A plugin's service says whether Feed can read it (an integration of kind `source` is declared
- * for it); a service the platform declares for its own use does not say.
- */
+/** The card for one declared service. A plugin's `feed_available` reports its source declaration. */
 function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: ConnectorWordReader, feedAvailable: boolean | undefined): ConnectorDirectoryEntry {
   const token = declaration.auth.methods.find(method => method.kind === "token");
   return {
@@ -61,8 +58,13 @@ function connectorUses(kinds: ReadonlySet<IntegrationKind> | undefined, declarat
 export function connectorDirectory(declarations: IntegrationDeclarationsView & Partial<Pick<IntegrationRegistry, "mcpOwner">>): readonly ConnectorDirectoryEntryWithSource[] {
   installHostUiText();
   const byService = new Map<string, Set<IntegrationKind>>();
+  const declaredSources = new Set<string>();
   for (const { declaration: { service_id, kind, integration_id } } of declarations.listIntegrations()) {
-    if (service_id === undefined || kind === "source" && integration_id !== service_id) continue;
+    if (service_id === undefined) continue;
+    if (kind === "source") {
+      declaredSources.add(service_id);
+      if (integration_id !== service_id) continue;
+    }
     const kinds = byService.get(service_id) ?? new Set<IntegrationKind>();
     kinds.add(kind);
     byService.set(service_id, kinds);
@@ -70,7 +72,7 @@ export function connectorDirectory(declarations: IntegrationDeclarationsView & P
   return declarations.connectionServices().map(service => {
     const { declaration, owner, word } = service;
     const uses = owner === PLATFORM_OWNER ? {} : connectorUses(byService.get(declaration.service_id), declaration);
-    const entry = directoryEntry(declaration, word, uses.uses?.includes("feed_source"));
+    const entry = directoryEntry(declaration, word, owner === PLATFORM_OWNER ? undefined : declaredSources.has(declaration.service_id));
     const method_options = connectorMethodsOf(service, declarations.mcpOwner?.(declaration.service_id));
     return {
       ...entry,

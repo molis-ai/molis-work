@@ -31,7 +31,8 @@ export function scheduleClient(host: ScheduleHost): void {
     if (drawn) { drawn = false; return; }
     const open = openNow(page);
     if (open.kind === "form" || page.creating || page.recovering || page.operationBusy) return false;
-    await refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false).catch(() => undefined);
+    // A page that could not be read this time keeps the change for the next check.
+    return refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false).then(() => true, () => false);
   });
   list.addEventListener("click", event => {
     const target = event.target as Element;

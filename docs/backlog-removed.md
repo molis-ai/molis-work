@@ -7,6 +7,7 @@
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
 | BL-1006 | 已完成并删除 | 2026-11-18：同一插件页的两个在途请求，离开（含带收尾动作的离开）各得自己的 `actions.cancelled`、撤权各得自己的 `actions.forbidden`，不共用错误对象；`PluginPageAuthority.finish` 带收尾动作时原先给所有在途请求同一个错误对象，改为逐个取原因（`apps/local-host/src/plugin-page-authority.ts`），用例在 `tests/security-invariants-plugin-pages.test.ts`（RAC-2442 BL-1006） |
+| BL-980 | 已完成并删除 | 2026-11-18：`openHomeSqliteFile`（`packages/storage/src/home-sqlite.ts`）的注释分开写只读与可写两种打开——只读遇缺失文件报错且不建文件，可写会建空库，`file:` URL 带 `mode=rw` 不建；行为未变，来源 [#1255 评审](https://github.com/molis-ai/molis-work/pull/1255#issuecomment-6392998821) 不挡合并第 4 项 |
 | BL-917 | 已完成并删除 | 第 61 批（2026-11-18）：Feed 账号来源扩到 Home 能按账号拉取的每个服务——平台 `services.sourcePull.accounts()` 答已连接、能否拉取与服务名，Feed「其他服务的账号」一处选服务；见 [服务矩阵 §3](../specs/assistant-service-connections/service-matrix.md) |
 | BL-action-card-outcome-text、BL-work-brief-source-name-text | 已完成并删除 | 2026-11-17：动作卡片结果与 Work Brief 来源名改存文字引用（`OwnedTextRef`），助理库 1→2、项目库 4→5、Work Brief 库 1→2 把旧句子转成 `{ literal }`（见 `docs/system/CONTRACT-CHANGES.md`「存下的句子改成文字引用」） |
 | BL-359、BL-360 | 已完成并删除 | 第 39 批（2026-11-16）：`AgentReviewQueue` 在拒绝、取消、到期与结算后释放执行闭包与宿主签发 caller（`horizontal/agent-host/src/reviews.ts`、`apps/local-host/src/plugin-callers.ts`、`tests/agent-review-lifecycle.test.ts`、`tests/prologue-git.test.ts`）；待审投影携带 `AgentReviewDecisions` 可决定性，恢复或撤权后不再提供无效批准按钮且保留草稿与焦点（`tests/agent-review-decisions.test.ts`、`tests/agent-review-http.test.ts`、`tests/agent-review-presenters.e2e.test.ts`）；见 [39.md](../specs/post-anticorruption-roadmap/reference/batches/39.md) |

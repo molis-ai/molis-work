@@ -82,6 +82,15 @@ P0（molis-ai/molis-work#2110）已经做掉的四处不重做：琥珀徽标改
 - **门禁。** `pnpm health:check`（两个巨大单元的登记行数变小：`createCodingTimeline` 228 → 225、`renderCodingWorkbench` 196 → 195，新增的部分提到了函数外面）、界面翻译（`node scripts/gates/translations.mjs --missing`，0 个问题）、页面资源和首屏两个门禁（`--base origin/main`）。体积按实测写在 `tooling/gates/page-asset-allowances/screen-polish-p4-coding.json`：Coding 脚本 +6168 B、样式 +6618 B；「全部插件」页冷启动 +1438 B（中文）、+1417 B（英文），热启动 +1451 B、+1430 B。没有新增路径，单项都低于 10 KB。
 - **走查。** 浅色、深色，1440、1024、390，截图在 `.impeccable/qa/review/screen-polish/p4/`（不入库）。
 
+### 2026-11-19：和 #2101 的冲突
+
+PR 开出后 main 进了 #2101（Coding 的环境检查卡改由读状态的那一段画，新增「环境检查未完成」和「重新检查」）。两边在五个文件上冲突，按两边的意图合并：
+
+- 环境检查卡仍在一轮的「准备」折叠行里。#2101 的三处意图由折叠行接住：环境读回来时最新一轮没有折叠行就新建在任务下面；不再是最新的那一轮交出环境卡；卡片内容直接写入。
+- 「环境检查未完成」算一件要人处理的事：折叠行展开、上琥珀，行上写出原因。
+- #2101 新加的用例里三处是预期变化（理由在注释里，没有放宽）：`tests/coding-environment-failure.e2e.test.ts`、`tests/coding-environment-recovery.e2e.test.ts` 按卡片在折叠行里的位置找；`tests/coding-git-handoff.e2e.test.ts` 先点开回合的明细再用「提交」。
+- 合并后重跑：整体构建、健康门禁、首屏通过；Coding 脚本对照新基点是 +6776 B（原来 +6168 B），许可按实测改了，仍没有新增路径、低于 10 KB。上面三个文件和 #2101 的环境检查单元用例通过。本机当时负载很高（load 20 上下），`coding-client-lifecycle`、`coding-workbench`、`coding-input-receipts`、`coding-action-cards` 四个浏览器文件各有一条超时，推送后单独重跑的结果见 PR。
+
 ## 没做和没验证的
 
 - POLISH-25（正文列宽度）和 POLISH-28（输入框底排）、对话栏和输入框的对齐：留给 P4 后半，等壳层的底栏。

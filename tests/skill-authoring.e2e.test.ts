@@ -15,8 +15,11 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const SHOTS = join(process.cwd(), ".impeccable/qa/review/skill-authoring");
 /** The replay's judge: a result that says `differs` differs from the known answer, the others match. */
-const judge = (prompt: string) => JSON.stringify({ results: [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)].map(([, index, output]) => output!.includes("differs")
-  ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] } : { index: Number(index), verdict: "match", differences: [] }) });
+const judge = (prompt: string) => JSON.stringify({ results: [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)].map(([, index, output]) => output!.includes("two-differs")
+  ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组", "少了截止日期"] }
+  : output!.includes("differs")
+    ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] }
+    : { index: Number(index), verdict: "match", differences: [] }) });
 
 test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparing, adopting, restoring and copying a Skill on the 「能力包」 page", { timeout: 300_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis42-improve-"));
@@ -26,7 +29,10 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   const completeText = async (prompt: unknown) => {
     const text = String(prompt);
     if (text.includes("你在对照技能回放的结果")) return judge(text);
-    if (text.includes("没有任何工具")) return text.includes("改过的做法") ? "周报：A 完成。（differs）" : "周报：按负责人分组。";
+    if (text.includes("没有任何工具")) {
+      if (text.includes("纯一致样本")) return "周报：按负责人分组。";
+      return text.includes("改过的做法") ? "周报：A 完成。（two-differs）" : "周报：按负责人分组。";
+    }
     return answers.shift() ?? "";
   };
   const f = await serveHomeRuntime(t, { completeText: completeText as never }), project = await f.project("Skill authoring");
@@ -123,7 +129,15 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.match(await text("[data-sk-bar]"), /先回放/);
   assert.match(await text(".sk-try"), /调用模型 3 次/);
 
-  // 回放：现在的第 1 版与草稿各跑一次；草稿和你的结果不一致；采用时就地问一次，不弹窗。
+  await page.click(act("sk-case-add"));
+  await page.wait("document.activeElement?.id === 'sk-case-title'");
+  await page.fill("#sk-case-title", "纯一致的周报");
+  await page.fill("#sk-case-task", "整理纯一致样本的进展");
+  await page.fill("#sk-case-expected", "周报：按负责人分组。");
+  await page.click("[data-sk-case-form] [type=submit]");
+  await page.wait("document.querySelectorAll('.sk-case').length === 2", { describe: state });
+
+  // 回放：先回放第 1 条（2 处出入），再回放第 2 条（一致）；第 1 条仍保持已回放，采用确认条仍报 2 处不同。
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
   await page.wait("!!document.querySelector('[data-sk-replay] .mw-replay-grid')", { describe: state });
   assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.mw-replay-cell')].map(cell => cell.dataset.verdict)"), ["match", "differs"]);
@@ -136,9 +150,14 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-compare", "how"));
   await page.wait("document.querySelector('.sk-what')?.innerText.includes('第 1 版 → 草稿')", { describe: state });
   await shot("compare-1440");
+  await page.click(act("sk-side", "try"));
+  await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2", { describe: state });
+  await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 2 版')", { describe: state });
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.sk-case [data-kit-act=sk-run]')].map(node => node.innerText.trim())"), ["再回放", "再回放"], "replaying the second case preserves the first case's replayed state");
   await page.click(act("sk-adopt"));
   await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
-  assert.match(await text("[data-slot=leave-bar]"), /还有 1 处不同，仍然采用吗/);
+  assert.match(await text("[data-slot=leave-bar]"), /还有 2 处不同，仍然采用吗/);
   assert.equal(await page.evaluate("document.querySelectorAll('[data-sk-bar] .mw-btn--primary').length"), 1, "one main act in view");
   await shot("confirm-1440");
   await page.click(act("sk-adopt-anyway"));
@@ -146,7 +165,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   [skill] = await mine();
   assert.deepEqual([skill?.ref.version, skill?.state], [2, "auto"], "adopting keeps the person's choice of state");
 
-  // 版本：列出全部；对照旧版；恢复第 1 版先开一份草稿（已知答案跟着技能走，要先回放），采用存成第 3 版。
+  // 版本：列出全部；对照旧版；恢复第 1 版先开一份草稿（已知答案跟着技能走，要先回放两条），采用存成第 3 版。
   await page.wait("document.querySelectorAll('.sk-version').length === 2", { describe: state });
   await page.click(act("sk-version-diff", "1"));
   await page.wait("!!document.querySelector('.sk-version-diff .sk-diff')", { describe: state });
@@ -155,6 +174,8 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-version-restore", "1"));
   await page.wait("!!document.querySelector('[data-sk-work] .sk-compare')", { describe: state });
   assert.match(await text("[data-sk-bar]"), /先回放/);
+  await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
+  await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2 && document.querySelectorAll('.sk-case [data-kit-act=sk-run]')[0].innerText.includes('再回放')", { describe: state });
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
   await page.wait("[...document.querySelectorAll('.mw-replay-cell')].some(cell => cell.dataset.verdict === 'match') && document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 3 版')", { describe: state });
   await page.click(act("sk-adopt"));
@@ -174,21 +195,26 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-close"));
   await page.wait("!document.querySelector('[data-sk-work]') && !!document.querySelector('.mw-list-detail')", { describe: state });
 
-  // 回执里的「打开草稿」：地址里带上草稿，打开页面就在它上面。
+  // 回执里的「打开草稿」：地址里带上草稿，打开页面就在它上面；关闭留下这份草稿，删除技能后它仍在顶部草稿区可见。
   await page.command("Page.navigate", { url: `${f.origin}/projects/${project.project_id}/settings/kit?draft=${kept!.draft_id}` });
   await page.wait("!!document.querySelector('[data-kit-body]')", { describe: state });
   await page.wait("document.querySelector('#sk-title')?.innerText.includes('「每周周报」的草稿') && !location.search.includes('draft=')", { describe: state });
-  await page.click(act("sk-discard"));
-  await page.wait(noticeHas("已放弃草稿"), { describe: state });
+  await page.click(act("sk-close"));
+  await page.wait("!document.querySelector('[data-sk-work]') && !!document.querySelector('.mw-list-detail')", { describe: state });
 
-  // 删除带撤销。
+  // 删除带撤销，且被删技能的未放弃草稿在顶部草稿区仍可打开和放弃。
   await page.click(act("skill-delete"));
   await page.wait(noticeHas("删除了「每周周报」"), { describe: state });
   assert.deepEqual(await mine(), []);
+  assert.ok(await page.evaluate(`!!document.querySelector('.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]')`), "an orphaned draft of a deleted Skill stays visible in the top drafts strip");
   await page.click(`[data-kit-notice] [data-kit-act="au-undelete"]`);
   await page.wait(noticeHas("恢复了"), { describe: state });
   [skill] = await mine();
   assert.deepEqual([skill?.name, skill?.state], ["每周周报", "auto"]);
+  await page.click(`.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]`);
+  await page.wait("!!document.querySelector('[data-sk-work]')", { describe: state });
+  await page.click(act("sk-discard"));
+  await page.wait(noticeHas("已放弃草稿"), { describe: state });
 
   // 改一份通用技能：说明不能直接改；「改一份我的」开草稿；写进占位符就列出来让你换成自己用的；采用时把原来的关掉。
   const systemSkill = "[...document.querySelectorAll('.kit-detail [data-kit-act=item]')].find(node => node.innerText.includes('分析与决策'))";
@@ -203,12 +229,14 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("document.querySelector('#sk-title')?.innerText.includes('「分析与决策」的草稿')", { describe: state });
   assert.ok((await page.evaluate<string>("document.querySelector('#au-body').value")).length > 100, "the copy starts from the original's body");
   assert.equal(await page.evaluate("document.querySelector('[data-sk-turn-off]').checked"), true);
-  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具。`);
+  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具，别改项目进度。`);
   await page.wait(saved, { describe: state });
   await page.click(act("sk-side", "compare"));
   await page.wait("!!document.querySelector('[data-sk-placeholder]')", { describe: state });
-  await page.fill("[data-sk-placeholder]", "Slack");
-  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack。/);
+  // Typing character by character with characters already present in the body must never rewrite unrelated text.
+  for (const step of ["项", "项目", "项目群", "", "S", "Sl", "Slack"]) await page.fill("[data-sk-placeholder]", step);
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack，别改项目进度。/);
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('#au-body').value"), /项目群进度|~~聊天工具进度/);
   assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').getAttribute('aria-label')"), "把 ~~聊天工具 换成");
   await page.wait(saved, { describe: state });
   await shot("copy-1440");
@@ -229,15 +257,15 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-review-conflict"));
   await page.wait(`document.activeElement?.hasAttribute('data-sk-conflict')`, { describe: state });
   const copyConflict = await text("[data-sk-conflict]");
-  assert.match(copyConflict, /结论发到 Slack。/);
-  assert.match(copyConflict, /结论发到 Teams。/);
+  assert.match(copyConflict, /结论发到 Slack，别改项目进度。/);
+  assert.match(copyConflict, /结论发到 Teams，别改项目进度。/);
   assert.match(copyConflict, /别处补充的实操说明。/);
   await page.click(act("sk-keep-edit"));
   await page.wait(saved, { describe: state });
   const settledCopy = await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id });
   assert.deepEqual([settledCopy.revision, settledCopy.replacements, settledCopy.fields.argument_hint],
     [updated.revision + 1, { "~~聊天工具": "Teams" }, "补充目标"]);
-  assert.match(settledCopy.fields.body, /结论发到 Teams。/);
+  assert.match(settledCopy.fields.body, /结论发到 Teams，别改项目进度。/);
   assert.doesNotMatch(settledCopy.fields.body, /别处补充的实操说明。/);
   // QEA-129: actual completed operations can have a late HTTP receipt. Every editor control follows the same busy state.
   const holdReceipt = (route: string) => page.evaluate(`(() => {
@@ -283,7 +311,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   const installedCopy = await api<SkillAuthoredSource>("source", { ref: copy.ref });
   assert.equal(installedCopy.when_not_to_use, "只想抄录原文时。");
   assert.equal(installedCopy.argument_hint, "补充目标");
-  assert.match(installedCopy.body, /结论发到 Teams。/);
+  assert.match(installedCopy.body, /结论发到 Teams，别改项目进度。/);
   assert.deepEqual([duringRevise, duringAdoption], [[true, true], [true, true]], "companion fields are protected for the same operation as the main fields");
 
   // 1024 与 390、深色：1024 时两栏变成页签；390 没有横向滚动。

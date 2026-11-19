@@ -25,7 +25,8 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
   const controller = new AbortController(), cancel = () => controller.abort(new ActionError("actions.cancelled", "技能设置请求已经结束"));
   const disconnected = () => { if (!response.writableEnded) cancel(); };
   request.once("aborted", cancel); response.once("close", disconnected);
-  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/skills", maxBodyBytes: 32_000,
+  // Draft creation/updates can carry a 20,000-char UTF-8 body plus a 20,080-char UTF-8 known answer (~125 KB in CJK).
+  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/skills", maxBodyBytes: 256_000,
     async handle({ method, pathname, body }) {
       const definition = pathname === "/api/skills/list" ? skillCatalogActions.list : pathname === "/api/skills/set" ? skillCatalogActions.setState : pathname === "/api/skills/body" ? skillCatalogActions.readBodies
         : pathname === "/api/skills/source" ? skillAuthoringActions.read : WORKSHOP_ROUTES.get(pathname);

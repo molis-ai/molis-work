@@ -1,0 +1,7 @@
+{
+  "reason": "第 42 批复查修复：占位符逐字输入改为从模板单次渲染（避免误改无关正文）、多已知答案采用确认条读取后端汇总差异数、已删技能及多余草稿在能力包顶部草稿区露出。脚本仍只在设置 › 能力包页加载，无新增资源或首屏变化。相对 merge-base d1188d6b46 独立构建实测 /assets/molis-work-kit.js 128251 → 129040（+789 B，许可 800 B），低于 10 KB。",
+  "review": "本修复分支独立构建实测（pnpm build 后 node scripts/gates/page-assets.mjs --base origin/main）；PR 评审复核时以 merge-base 重测。",
+  "assets": {
+    "/assets/molis-work-kit.js": 800
+  }
+}

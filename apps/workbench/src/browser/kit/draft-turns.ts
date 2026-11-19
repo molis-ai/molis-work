@@ -31,7 +31,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       const next = await reviseDraft(project, w.draft, w.ask);
       if (view.workshop !== w) return;
       w.changed = changedFields(w.draft.fields, next.fields);
-      w.draft = next; w.fields = fieldsOf(next.fields); w.replacements = { ...next.replacements }; w.ask = "";
+      w.draft = next; w.fields = fieldsOf(next.fields); w.replacements = { ...next.replacements }; w.placeholderBase = undefined; w.ask = "";
     } catch (cause) {
       w.askFailure = failureOf(cause).code === "skills.draft_conflict" ? await reloadConflict(w) : messageOf(cause);
     }
@@ -94,7 +94,10 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       return;
     } catch (cause) {
       const code = failureOf(cause).code, field = fieldOf(cause) as FieldName;
-      if (code === "skills.trial_differs") w.confirm = true;
+      if (code === "skills.trial_differs") {
+        const count = (failureOf(cause).body as { details?: { differences?: unknown } } | null)?.details?.differences;
+        w.confirm = typeof count === "number" && count > 0 ? count : true;
+      }
       else if (code === "skills.draft_conflict") w.adoptFailure = await reloadConflict(w);
       else if (code === "skills.trial_required") {
         await edit.refresh(w);

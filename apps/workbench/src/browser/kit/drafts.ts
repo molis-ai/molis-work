@@ -53,6 +53,8 @@ export interface Workshop {
   draft: SkillDraft;
   fields: Fields;
   replacements: Record<string, string>;
+  /** Snapshot of the wording fields with placeholders unexpanded, kept while editing placeholders so typing never rewrites unrelated text. */
+  placeholderBase?: Record<"description" | "when_not_to_use" | "body", string>;
   /** The Skill or source it was opened from, by name, for the heading. */
   name: string;
   /** The version the draft becomes when adopted (absent: a new Skill). */
@@ -74,7 +76,7 @@ export interface Workshop {
   runFailureCode?: string;
   caseForm?: CaseForm;
   caseErrors: Partial<Record<keyof SkillCaseFields, string>>;
-  confirm?: boolean;
+  confirm?: boolean | number;
   adopting?: boolean;
   adoptFailure?: string;
   errors: Partial<Record<keyof SkillAuthoredFields, string>>;
@@ -105,15 +107,29 @@ export function placeholdersOf(w: Workshop): string[] {
   const found = skillPlaceholders([original?.description ?? "", original?.when_not_to_use ?? "", original?.body ?? "", w.fields.description, w.fields.when_not_to_use, w.fields.body].join("\n"));
   return [...new Set([...Object.keys(w.replacements), ...found])];
 }
-/** Every replaced placeholder written out in the fields: the person types their own word, the draft says it everywhere. */
+const WORDING_KEYS = ["description", "when_not_to_use", "body"] as const;
+const restorePlaceholders = (text: string, replacements: Record<string, string>) =>
+  Object.entries(replacements).sort(([, a], [, b]) => b.length - a.length)
+    .reduce((value, [ph, own]) => own ? value.split(own).join(ph) : value, text);
+const renderPlaceholders = (template: string, replacements: Record<string, string>) => {
+  const active = Object.entries(replacements).filter(([, own]) => Boolean(own));
+  if (!active.length) return template;
+  const byKey = new Map(active);
+  const pattern = new RegExp(active.map(([ph]) => ph.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).sort((a, b) => b.length - a.length).join("|"), "gu");
+  return template.replace(pattern, match => byKey.get(match) ?? match);
+};
+/** Every replaced placeholder written out in the fields: renders from a placeholder template so keystroke-by-keystroke typing never touches unrelated text. */
 export function applyReplacements(w: Workshop, placeholder: string, value: string): void {
-  const before = w.replacements[placeholder], replace = (text: string) => {
-    let next = before ? text.split(before).join(placeholder) : text;
-    if (value.trim()) next = next.split(placeholder).join(value.trim());
-    return next;
-  };
-  for (const key of ["description", "when_not_to_use", "body"] as const) w.fields[key] = replace(w.fields[key]);
-  if (value.trim()) w.replacements[placeholder] = value.trim(); else delete w.replacements[placeholder];
+  if (!w.placeholderBase) {
+    w.placeholderBase = {
+      description: restorePlaceholders(w.fields.description, w.replacements),
+      when_not_to_use: restorePlaceholders(w.fields.when_not_to_use, w.replacements),
+      body: restorePlaceholders(w.fields.body, w.replacements),
+    };
+  }
+  const trimmed = value.trim();
+  if (trimmed) w.replacements[placeholder] = trimmed; else delete w.replacements[placeholder];
+  for (const key of WORDING_KEYS) w.fields[key] = renderPlaceholders(w.placeholderBase[key], w.replacements);
 }
 
 export const failureOf = (cause: unknown) => cause as UiRequestFailure;

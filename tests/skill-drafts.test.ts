@@ -12,6 +12,7 @@ import { currentObservationSource, readRecords } from "@molis-ai/molis-work-serv
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, mac } from "./fixtures/signed-package-host.js";
 
@@ -37,8 +38,11 @@ function modelDouble(answer: Model) {
 /** The replay's judge answers: each result whose text names `differs` is said to differ, the others match. */
 const judge = (prompt: string) => {
   const results = [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)];
-  return JSON.stringify({ results: results.map(([, index, output]) => output!.includes("differs")
-    ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] } : { index: Number(index), verdict: "match", differences: [] }) });
+  return JSON.stringify({ results: results.map(([, index, output]) => output!.includes("differs2")
+    ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组", "少了截止日期"] }
+    : output!.includes("differs")
+      ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] }
+      : { index: Number(index), verdict: "match", differences: [] }) });
 };
 const isJudge = (prompt: string) => prompt.includes("你在对照技能回放的结果");
 
@@ -76,18 +80,45 @@ test("QEA-103 a case changed while the model waits refuses its old replay, retai
 test("QEA-103 adoption uses each case's latest replay, preserving another case's current difference", mac, async () => {
   let answer = "differs";
   const model = modelDouble(prompt => isJudge(prompt) ? judge(prompt) : answer), h = await harness(model);
+  const differsWith = (count: number) => (error: unknown) => error instanceof ActionError && error.code === "skills.trial_differs"
+    && (error.details as { differences?: number } | undefined)?.differences === count;
   try {
     const opened = await h.draft({ scope: "project", target: { kind: "new" }, fields: fields("回放恢复"), case: KNOWN });
     const extra = await h.call<{ case_id: string }>(h.person, skillDraftActions.putCase, { draft_id: opened.draft_id, ...KNOWN, title: "另一条" });
     const replay = (caseId: string) => h.call(h.person, skillDraftActions.runTrial, { draft_id: opened.draft_id, expected_revision: 1, case_id: caseId });
-    await replay(opened.cases[0]!.case_id); await replay(extra.case_id);
+    await replay(opened.cases[0]!.case_id); answer = "differs2"; await replay(extra.case_id);
+    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), differsWith(3));
     answer = "match"; await replay(opened.cases[0]!.case_id);
-    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), refused("skills.trial_differs"));
+    await assert.rejects(h.adopt({ draft_id: opened.draft_id, expected_revision: 1 }), differsWith(2), "reports the remaining differing case's count even when the latest trial matched");
     await replay(extra.case_id);
     const adopted = await h.adopt({ draft_id: opened.draft_id, expected_revision: 1 });
     assert.equal(adopted.skill_version, 1);
     assert.equal((await h.mine()).length, 1);
   } finally { await h.close(); }
+});
+
+test("SKP-11 skill settings HTTP accepts CJK drafts and known answers near contract limits (> 32 KB UTF-8) and still rejects oversized bodies", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Large CJK skill");
+  const largeBody = "正".repeat(15_000);
+  const largeCase = { title: "大中文已知答案", task: "任".repeat(3_000), material: "材".repeat(4_500), expected: "果".repeat(4_500) };
+  const created = await f.request(`/projects/${project.project_id}/api/skills/drafts/create`, {
+    method: "POST",
+    body: { scope: "project", target: { kind: "new" }, fields: fields("长中文技能", { body: largeBody }), case: largeCase },
+  });
+  assert.equal(created.status, 200, "full CJK body + known answer (> 80 KB UTF-8) fits the settings HTTP route");
+  const draft = await created.json() as SkillDraft;
+  assert.equal(draft.fields.body.length, 15_000);
+  assert.equal(draft.cases[0]?.expected.length, 4_500);
+  const updated = await f.request(`/projects/${project.project_id}/api/skills/drafts/update`, {
+    method: "POST",
+    body: { draft_id: draft.draft_id, expected_revision: draft.revision, fields: fields("长中文技能", { body: `${largeBody}尾` }) },
+  });
+  assert.equal(updated.status, 200);
+  const oversized = await f.request(`/projects/${project.project_id}/api/skills/drafts/update`, {
+    method: "POST",
+    raw: JSON.stringify({ draft_id: draft.draft_id, expected_revision: 2, fields: fields("超限", { body: "a".repeat(270_000) }) }),
+  });
+  assert.equal(oversized.status, 413, "requests beyond the 256 KB HTTP ceiling are still refused");
 });
 
 test("QEA-103 repeating one case does not evict another unchanged case's accepted replay", mac, async () => {

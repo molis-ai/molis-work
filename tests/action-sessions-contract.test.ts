@@ -59,7 +59,7 @@ const scope: ExternalSessionScopeView = { project_ai_reads: [permit], scope_revi
 ] };
 
 test("SRB-11: Sessions declares these actions and no control action", () => {
-  assert.deepEqual(definitions.map(reference), ["sessions.list@1", "sessions.history.read@1", "sessions.scope.read@1", "sessions.scope.set@1", "sessions.project_ai_read.set@1", "sessions.discovery.run@1",
+  assert.deepEqual(definitions.map(reference), ["sessions.list@1", "sessions.history.read@1", "sessions.history.authorize@1", "sessions.scope.read@1", "sessions.scope.set@1", "sessions.project_ai_read.set@1", "sessions.discovery.run@1",
     "sessions.attribution.set@1", "sessions.attribution.suggest@1", "sessions.search.entries@1", "sessions.subject.read@1", "sessions.tool.search@1", "sessions.connector.usages@1"]);
   assert.equal(SESSIONS_PROVIDER_ID, "system.sessions");
   assert.deepEqual([...SESSIONS_PERMISSIONS], ["sessions:read", "sessions:history", "sessions:manage"]);

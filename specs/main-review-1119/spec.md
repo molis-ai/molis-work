@@ -34,3 +34,5 @@
 集成 Prologue SDK 0.1.0-rc.1 后，双页回答与子任务等 102 条定向回归通过。该提交的 [Full 第 20 分片](https://github.com/molis-ai/molis-work/actions/runs/44579095728/job/135757284327) 捕获了模型偏好与 Shelf 目录的旧版测试期望。改用登记版本逐项比较实际生成的文件后，黄金 Home 的 42 条生成、版本核对、篡改拒绝与回放用例全部通过。
 
 其余分片独立完成时，[第 18 分片](https://github.com/molis-ai/molis-work/actions/runs/44585787764/job/135781411346) 发现角色库删除测试还要求旧版本 2。测试改为用 Characters 的公开基线构造高一版的库，仍逐项校验错误码、版本和原文件字节。角色删除 4/4 通过。同步 main 的 [#2169](https://github.com/molis-ai/molis-work/pull/2169) 后，MR19-06 沿用其构建产物实现；CI 验证与视觉触发共 27 条通过。
+
+附件发布沿用 [#2157](https://github.com/molis-ai/molis-work/pull/2157) 的同一宿主提交段和逐次授权检查；重传损坏或丢失的内容时恢复原件并保留原登记名称，助手和 Coding 可以继续读取原件。

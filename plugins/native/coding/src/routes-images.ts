@@ -1,6 +1,7 @@
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentImageMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CONVERSATION_ATTACHMENT_IMAGE_TYPES } from "@molis-ai/molis-work-contracts/services/materials";
+import { CONVERSATION_ATTACHMENT_IMAGE_TYPES, CONVERSATION_ATTACHMENT_LIMITS } from "@molis-ai/molis-work-contracts/services/materials";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf } from "./route-selections.js";
 import { codingActions } from "./route-entry.js";
@@ -14,9 +15,9 @@ import { codingFailure } from "./words.js";
  */
 
 /** The largest picture a round takes; a larger one is shrunk on the page first, at the person's word. */
-export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const IMAGE_MAX_BYTES = CONVERSATION_ATTACHMENT_LIMITS.image_bytes;
 /** The most pictures one round carries (the Agent Host's own bound, `RUN_IMAGES_MAX`). */
-export const ROUND_IMAGES_MAX = 6;
+export const ROUND_IMAGES_MAX = CONVERSATION_ATTACHMENT_LIMITS.round_images;
 /** Base64 of the largest picture, with room for its padding. */
 const DATA_MAX = Math.ceil(IMAGE_MAX_BYTES / 3) * 4 + 4; // under the action schema's 7 000 000
 
@@ -45,23 +46,26 @@ export const imageRoutes = (a: CodingActivation): PluginRouteBinding[] => [
     const name = text(body.name, "coding.field.image", 300), data = text(body.data, "coding.field.image", DATA_MAX);
     if (Math.floor(data.length * 3 / 4) - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0) > IMAGE_MAX_BYTES) throw codingFailure("coding.server.image-too-large", { mb: 5 });
     const signal = request.execution?.signal;
-    const kept = await attach({ file_name: name, data_base64: data }, signal ? { signal } : {});
+    const kept = await attach({ file_name: name, data_base64: data }, { signal, expected_kind: "image" });
     if (kept.kind !== "image" || !(CONVERSATION_ATTACHMENT_IMAGE_TYPES as readonly string[]).includes(kept.media_type)) throw codingFailure("coding.server.image-only");
     return { image: { title: kept.title, media_type: kept.media_type, byte_length: kept.byte_length, attachment: kept.ref } };
   }),
-  // A picture a round of this session was sent with, read back from the platform for the conversation; never one the round did not carry.
-  a.route("coding.round-image", async (request, _api, execution, beforeWrite) => {
+  // One read of the round, then its attachments. Agent Host checks which session owns the round.
+  a.route("coding.round-images", async (request, _api, execution, beforeWrite) => {
     const record = selected(a, request, execution), read = a.context.services?.materials?.readAttachment;
     if (!read) throw codingFailure("coding.server.images-unavailable");
     if (!record.runtime_session_id) throw codingFailure("coding.server.session-no-run");
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-    const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
-    const ref = snapshot.runs.find(entry => entry.run_id === request.params.runId);
-    if (!ref) throw codingFailure("coding.server.run-elsewhere");
-    const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]);
-    const image = run.frozen.image_materials?.find(item => item.material_id === request.params.materialId);
-    if (!image) throw codingFailure("coding.server.image-not-in-round");
-    const content = await read(image.attachment, { as: "image" });
-    return { title: image.title, media_type: content.image!.media_type, data: Buffer.from(content.image!.bytes).toString("base64") };
+    const run = await codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, { session_id: session.session_id, run_id: request.params.runId! }]);
+    const images = [];
+    for (const image of run.frozen.image_materials ?? []) {
+      try {
+        const content = await read(image.attachment, { as: "image" });
+        images.push({ material_id: image.material_id, title: image.title, media_type: content.image!.media_type, data: Buffer.from(content.image!.bytes).toString("base64") });
+      } catch (error) {
+        if (!(error instanceof ActionError) || !["material.attachment.not_found", "material.attachment.unreadable", "material.attachment.not_image"].includes(error.code)) throw error;
+      }
+    }
+    return { images };
   }),
 ];

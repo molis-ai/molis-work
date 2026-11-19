@@ -18,6 +18,7 @@
 
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 
+- [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   ActionError,
   searchEntriesPage,
@@ -16,6 +17,8 @@ import {
   EXTERNAL_SESSION_SUBJECT_KIND,
   externalSessionSearchEntry,
   sessionsErrors,
+  type ExternalSessionHistoryAuthorization,
+  type ExternalSessionHistoryAuthorizeInput,
   type ExternalSessionHistoryInput,
   type ExternalSessionHistoryOutput,
   type ExternalSessionListInput,
@@ -49,6 +52,50 @@ import {
 } from "./runtime-view.js";
 import { decodeSessionCursor, encodeSessionCursor, type SessionsStore, type StoredExternalSessionRow } from "./store.js";
 
+function requireProjectAiRead(caller: SessionsCaller, store: SessionsStore) {
+  if (!caller.project_id) throw sessionsErrors.project_required("需要当前项目上下文才能读取会话原文");
+  const permit = store.decisions.getProjectAiRead(caller.project_id);
+  if (!permit?.allowed) {
+    throw sessionsErrors.project_ai_read_off("当前项目的外部会话 AI 读取许可处于关闭状态", { next_step: "open_project_ai_read" });
+  }
+  return permit;
+}
+
+export async function runHistoryAuthorize(
+  input: ExternalSessionHistoryAuthorizeInput,
+  caller: SessionsCaller,
+  store: SessionsStore,
+  ports: SessionsPorts,
+): Promise<ExternalSessionHistoryAuthorization> {
+  await caller.beforeEffect?.();
+  return ports.projects.read(snapshot => {
+    caller.signal?.throwIfAborted();
+    caller.assert_authority_current?.();
+    const permit = requireProjectAiRead(caller, store);
+    const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+    const scope_revision = digest([caller.project_id, permit.revision, store.scopeRevision()]);
+    if (!input.session_keys.length) return { scope_revision, revision: scope_revision };
+
+    const { dirDigest, dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports, { allowDiskIdentify: false });
+    const scopes = new Map(store.decisions.readScopes().map(scope => [`${scope.entry_id}\0${scope.location_key}`, scope]));
+    const decisions = store.decisions.allAttributionDecisions();
+    const suggestions = store.decisions.allSuggestions();
+    const duplicates = store.duplicateLocalNativeKeys();
+    const sessions = [...input.session_keys].sort().map(key => {
+      const session = store.getSession(key);
+      if (!session || !getSessionAdapter(session.entry_id)?.readHistory || !isSessionInScopeWithMaps(session, scopes, dirMap, workspaces, ports, false)) {
+        throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
+      }
+      const { resolved } = materializeFullRow(session, dirMap, decisions, suggestions, snapshot.bindings, projectMap, duplicates);
+      if (resolved.effective_project_id !== caller.project_id) {
+        throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
+      }
+      return [key, decisions.get(key)?.revision ?? 0, session.directory_key];
+    });
+    return { scope_revision, revision: digest([scope_revision, dirDigest, sessions]) };
+  });
+}
+
 export async function runSessionList(
   input: ExternalSessionListInput,
   caller: SessionsCaller,
@@ -70,12 +117,7 @@ export async function runSessionList(
   const entryFilter = input.entry_ids && input.entry_ids.length > 0 ? new Set(input.entry_ids) : null;
 
   return ports.projects.read(snapshot => {
-    if (!isPerson) {
-      const permit = store.decisions.getProjectAiRead(caller.project_id!);
-      if (!permit || !permit.allowed) {
-        throw sessionsErrors.project_ai_read_off("当前项目的外部会话 AI 读取许可处于关闭状态", { next_step: "open_project_ai_read" });
-      }
-    }
+    if (!isPerson) requireProjectAiRead(caller, store);
 
     const { dirMap, workspaces, projectMap } = resolveDerivedSnapshot(snapshot, store, ports);
     const scopes = store.decisions.readScopes();
@@ -169,14 +211,12 @@ function precheckHistoryRead(
   adapter: ExternalSessionSourceAdapter;
   root: string | null;
   connectionId: string | null;
+  scopeRevision: number;
+  permitRevision: number | undefined;
+  attributionRevision: number;
 }> {
   return ports.projects.read(snapshot => {
-    if (!isPerson) {
-      const permit = store.decisions.getProjectAiRead(caller.project_id!);
-      if (!permit || !permit.allowed) {
-        throw sessionsErrors.project_ai_read_off("当前项目的外部会话 AI 读取许可处于关闭状态", { next_step: "open_project_ai_read" });
-      }
-    }
+    const permit = isPerson ? undefined : requireProjectAiRead(caller, store);
 
     const session = store.getSession(input.session_key);
     if (!session) throw sessionsErrors.not_found("外部会话不存在或不在读取范围内");
@@ -215,7 +255,8 @@ function precheckHistoryRead(
     if (!adapter.readHistory) throw sessionsErrors.source_unsupported("该外部工具暂未开放对话原文读取");
 
     const root = tool.surface === "cloud" ? null : resolveLocalToolRoot(tool, ports).root;
-    return { session, tool, adapter, root, connectionId: scope.connection_id };
+    return { session, tool, adapter, root, connectionId: scope.connection_id, scopeRevision: scope.revision,
+      permitRevision: permit?.revision, attributionRevision: store.decisions.getAttributionDecision(session.session_key)?.revision ?? 0 };
   });
 }
 
@@ -258,6 +299,7 @@ export async function runHistoryRead(
     if (
       !currentScope
       || currentScope.connection_id !== precheck.connectionId
+      || currentScope.revision !== precheck.scopeRevision
       || !isSessionInScopeWithMaps(
         liveSession, new Map([[`${currentScope.entry_id}\0${currentScope.location_key}`, currentScope]]), dirMap, workspaces, ports, false,
       )
@@ -271,10 +313,10 @@ export async function runHistoryRead(
     );
     if (!isPerson) {
       const permit = store.decisions.getProjectAiRead(caller.project_id!);
-      if (!permit || !permit.allowed) {
-        throw sessionsErrors.scope_changed("当前项目的外部会话 AI 读取许可在读取期间已关闭");
+      if (!permit?.allowed || permit.revision !== precheck.permitRevision) {
+        throw sessionsErrors.scope_changed("当前项目的外部会话 AI 读取许可在读取期间已变化");
       }
-      if (resolved.effective_project_id !== caller.project_id) {
+      if (resolved.effective_project_id !== caller.project_id || row.attribution_revision !== precheck.attributionRevision) {
         throw sessionsErrors.scope_changed("会话的项目归属在读取期间已变化");
       }
     }

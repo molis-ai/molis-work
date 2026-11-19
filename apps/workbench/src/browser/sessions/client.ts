@@ -56,8 +56,7 @@ function paintSurfaceList(ctx: SurfaceCtx): void {
     ctx.bodyEl.innerHTML = `<div class="sessions-empty-card"><strong>${uiText("workbench.sessions.onboarding-title")}</strong><span>${uiText("workbench.sessions.onboarding-body")}</span><div><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-sessions-open-scope="tools">${uiText("workbench.sessions.choose-read-scope")}</button></div></div>`;
     return;
   }
-  const base = ctx.droidRows ?? ctx.rows;
-  const shown = base;
+  const shown = ctx.droidRows ?? ctx.rows;
   if (ctx.view === "unfiled") {
     ctx.bodyEl.innerHTML = renderUnfiledList({ rows: shown, projects: ctx.projects, dirtyChoices: ctx.dirtyChoices, liveSuggestions: ctx.liveSuggestions, selectedKey: ctx.selectedKey });
   } else ctx.bodyEl.innerHTML = shown.length === 0
@@ -92,8 +91,9 @@ async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true, page: "reset
   ctx.listRead = read;
   paintSurfaceList(ctx);
   try {
+    const query = ctx.searchQuery.trim();
     const out = await sessionsApi.list({ view: ctx.view, cursor: pageCursors.at(-1),
-      ...(ctx.searchQuery.trim() ? { query: ctx.searchQuery.trim() } : {}),
+      ...(query ? { query } : {}),
       ...(ctx.toolFilter ? { entry_ids: [ctx.toolFilter as never] } : {}) }, read.controller.signal);
     if (ctx.listRead !== read) return;
     ctx.pageCursors = pageCursors;
@@ -241,5 +241,6 @@ export function mountSessionsSurface(
       if (selected && seq === ctx.detailSeq) return openSurfaceSession(ctx, selected, query, true);
     });
   });
+  paintSurfaceList(ctx);
   void loadSurfaceScopeMeta(ctx).then(() => loadSurfaceList(ctx));
 }

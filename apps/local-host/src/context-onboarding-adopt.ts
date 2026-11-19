@@ -105,6 +105,12 @@ export async function importAdoptedMaterialsAndSummary(options: {
   const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
   const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
   const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;
+  // The accepted text and the fixed references identify an import across journeys. Todo selections are a separate write.
+  const sameSessionImport = refs.some(ref => ref.session_key) ? createHash("sha256").update(JSON.stringify([
+    journey.project_id, journey.adoption!.title, journey.adoption!.body,
+    refs.map(ref => [ref.label, ref.artifact, ref.documents]),
+  ])).digest("hex") : null;
+  const summaryRequest = (sameSessionImport ? "sessions:" + sameSessionImport : id) + ":summary";
   const summaryHash = createHash("sha256").update(JSON.stringify({
     title: journey.adoption!.title,
     body: journey.adoption!.body,
@@ -112,8 +118,8 @@ export async function importAdoptedMaterialsAndSummary(options: {
     todo_selected: journey.adoption!.todo_selected ?? [],
   })).digest("hex");
   const summary = (await actions.invoke(importDocuments, {
-    request_id: id + ":summary",
-    request_hash: summaryHash,
+    request_id: summaryRequest,
+    request_hash: sameSessionImport ?? summaryHash,
     documents: [{ title: partTitle(summaryTitle, 1, 1, 80), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }],
   })).documents[0]!;
   journey.document_id = summary.id;
@@ -122,7 +128,7 @@ export async function importAdoptedMaterialsAndSummary(options: {
       source: "file",
       filename: "summary.md",
       title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
-      source_id: "onboarding:" + id + ":summary",
+      source_id: "onboarding:" + summaryRequest,
       content: text,
     });
     journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });

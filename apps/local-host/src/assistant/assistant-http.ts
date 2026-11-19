@@ -376,7 +376,7 @@ export const assistantPanelActions = {
     async (entry, { body }, caller) => {
       // Read first, kept only if the page and the person's grant are still current (the platform's attachment write runs `beforeEffect` last).
       const control = assistantPermissionCaller(caller, entry.page);
-      return { material: await of(entry).service.materials.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") },
+      return { material: await of(entry).service.materialAccess.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") },
         { ...(caller.signal ? { signal: caller.signal } : {}), beforeEffect: control.beforeEffect }) };
     }),
   notices: panel("notices", /* @version action.assistant.panel.notices */ 1, "记下通知已看或略过", ofPanel, (entry, { body }) => ({ settled: of(entry).service.notices.settleNotices(
@@ -603,8 +603,14 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       }
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
       if (method === "GET" && parts.length === 3 && parts[2] === "surroundings") return { status: 200, body: await surroundings(workId) };
-      if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.materials.material(workId, parts[3]!) } };
-      if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materials.materialImage(workId, parts[3]!) } };
+      if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: await service.materialAccess.material(workId, parts[3]!) } };
+      if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialAccess.materialImage(workId, parts[3]!) } };
+      if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "original") {
+        requestControl.assertCurrent();
+        const file = await service.materialAccess.materialOriginal(workId, parts[3]!, responseAbortSignal(response));
+        requestControl.assertCurrent();
+        return { status: 200, ...file };
+      }
       // The connection card of a result that left a connection to finish (ASC-69): read, and cancelled, as whoever prepared it.
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "connection" && (method === "GET" || method === "POST" && body.step === "cancel")) {
         return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", readText) };
@@ -648,6 +654,15 @@ async function threadWorkRoute(workId: string, parts: string[], body: Record<str
 
 /** A reply with its questions, cards and next steps drawn (the page only binds them). */
 function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result: NativePluginJsonResult): void {
+  if (result.bytes) {
+    const filename = encodeURIComponent(Buffer.from(result.filename ?? "attachment", "utf8").toString("utf8"))
+      .replace(/['()*]/gu, character => "%" + character.charCodeAt(0).toString(16).toUpperCase());
+    response.writeHead(result.status, { "content-type": "application/octet-stream", "cache-control": "no-store",
+      "content-length": String(result.bytes.length), "x-content-type-options": "nosniff", "content-security-policy": "sandbox",
+      "content-disposition": `attachment; filename*=UTF-8''${filename}` });
+    response.end(result.bytes);
+    return;
+  }
   const { service, store } = assistantServiceFor(ports);
   drawAssistantReply(result.body, { say: readText, card: card => service.offers.html(card, readText),
     drafts: workId => { try { return questionDrafts(store).read(workId); } catch (error) {

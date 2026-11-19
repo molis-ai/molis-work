@@ -203,6 +203,15 @@ function readWorkCards(db: DatabaseSync, workId: string, latestPersonProvider: s
   return rows.map(row => JSON.parse(String(row.body)) as StoredCard);
 }
 
+function roundWithAttachmentRefs(round: StoredRound): StoredRound {
+  const materials = round.materials.map(item => {
+    if (!item.file_attachment) return item;
+    const { text: _text, ...reference } = item;
+    return reference;
+  });
+  return { ...round, materials };
+}
+
 export class AssistantStore {
   /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
   readonly relations: AssistantRelations;
@@ -290,7 +299,7 @@ export class AssistantStore {
 
   addRound(workId: string, round: StoredRound): void {
     const position = Number((this.db.prepare("SELECT COALESCE(MAX(position),0)+1 AS next FROM assistant_rounds WHERE work_id=?").get(workId) as { next: number }).next);
-    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(round));
+    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(roundWithAttachmentRefs(round)));
     this.#changed(workId);
   }
 

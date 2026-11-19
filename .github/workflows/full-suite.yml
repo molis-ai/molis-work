@@ -2,7 +2,7 @@ name: Full suite
 
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
 # 24 shards on ubuntu runners after a single shared build job, so all 24 shards run in one wave instead of two waves of 24
-# (each shard with 4 workers, at most 1 browser worker). Wall time and queue time are measured on the actual run.
+# (each shard with 2 workers, at most 1 browser worker — browser files set the critical path, so 2/1 matches 4/1 wall time without CPU starvation). Wall time and queue time are measured on the actual run.
 # Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
 # Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
@@ -100,13 +100,14 @@ jobs:
       # together.
       fail-fast: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
       # CIP-06: 24 runners run 24 shards in a single wave (eliminating second-wave queueing). Each 4-core runner keeps
-      # 1 browser worker plus up to 3 non-browser workers busy (`MOLIS_WORK_TEST_JOBS=4`, `MOLIS_WORK_TEST_BROWSER_JOBS=1`).
+      # 1 browser worker plus 1 non-browser worker busy (`MOLIS_WORK_TEST_JOBS=2`, `MOLIS_WORK_TEST_BROWSER_JOBS=1`), matching
+      # 4/1 browser-bound wall time while avoiding CPU starvation and timer races on 4-core runners.
       max-parallel: 24
       matrix:
         shard: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.only_files != '' && '[1]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]') }}
     env:
-      # Four cores per runner: up to four files at once, at most one browser file so CDP/DOM tests never contend with another Chrome.
-      MOLIS_WORK_TEST_JOBS: 4
+      # Four cores per runner: one browser worker plus one non-browser worker leaves headroom for Chrome/Host and avoids timer races.
+      MOLIS_WORK_TEST_JOBS: 2
       MOLIS_WORK_TEST_BROWSER_JOBS: 1
     steps:
       # The whole history, as on a development machine: some tests read git (the merge-base of a gate, the history of a file).

@@ -100,7 +100,7 @@ test("CIP-06 Full builds once and runs 24 shards in one wave while preserving wo
   const shardExpr = /shard: \$\{\{ (.*) \}\}/.exec(block)![1]!;
   assert.ok(shardExpr.includes("'[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]'"));
   assert.match(block, /max-parallel: 24/);
-  assert.match(block, /MOLIS_WORK_TEST_JOBS: 4/);
+  assert.match(block, /MOLIS_WORK_TEST_JOBS: 2/);
   assert.match(block, /MOLIS_WORK_TEST_BROWSER_JOBS: 1/);
   assert.match(block, /--shard \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
   assert.match(block, /--retries 1 \$BAIL/);

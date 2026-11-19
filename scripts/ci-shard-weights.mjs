@@ -39,7 +39,7 @@ function reportPlans(root, table) {
   const security = securityList(readFileSync(path.join(root, "package.json"), "utf8"), all).map(marked);
   const product = readPlan(root).entries;
   for (const [name, entries, count, jobs, browserJobs, separateBrowser] of [
-    ["Security", security, LEGS.security, 4, 1, false], ["Product", product, LEGS.product, 4, 1, true], ["Full", full, 24, 4, 1, false],
+    ["Security", security, LEGS.security, 4, 1, false], ["Product", product, LEGS.product, 4, 1, true], ["Full", full, 24, 2, 1, false],
   ]) {
     const plan = planShards(entries, { count, jobs, browserJobs, separateBrowser }, table, (entry) => entry.file, (entry) => entry.browser);
     console.log(`${name}: ${entries.length} files, ${entries.filter((entry) => table[entry.file]).length} timed; ${describeShards(plan.loads)}`);

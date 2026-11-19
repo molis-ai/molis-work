@@ -55,7 +55,7 @@ import { knowledgeCardSource, type KnowledgeSource, type KnowledgeSourceState } 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
 export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
-  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, contentRevision, knowledgeCardSource } from "./organize.js";
+  type KnowledgeCatalogSnapshot, type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, contentRevision, knowledgeCardSource } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";

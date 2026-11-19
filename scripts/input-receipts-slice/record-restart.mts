@@ -9,6 +9,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { accumulateText, onFirstLine } from "./child-output.mts";
 import type { Flavor } from "./record-content.mts";
 import { BASE_MS, rawRun, type Sdk } from "./record-lab.mts";
 import { compress } from "./record-scenes.mts";
@@ -32,15 +33,11 @@ function shift<T>(value: T, delta: number): T {
 async function killedChild(sdkDir: string, temp: string, flavor: Flavor): Promise<{ session: Ref; run: Ref }> {
   const child: ChildProcess = spawn(process.execPath, [join(here, "record-child.mjs"), sdkDir, temp, JSON.stringify(flavor.restart)], { stdio: ["ignore", "pipe", "pipe"] });
   const ready = await new Promise<{ session: Ref; run: Ref }>((resolve, reject) => {
-    let out = "";
     let err = "";
     const timer = setTimeout(() => reject(new Error(`recording child did not get ready: ${err.slice(-400)}`)), 20_000);
-    child.stderr?.on("data", chunk => { err += String(chunk); });
-    child.stdout?.on("data", chunk => {
-      out += String(chunk);
-      const end = out.indexOf("\n");
-      if (end >= 0) { clearTimeout(timer); resolve(JSON.parse(out.slice(0, end)) as { session: Ref; run: Ref }); }
-    });
+    // Decoded as UTF-8 across chunks: a character cut between two reads is not turned into replacement characters (BL-1000).
+    accumulateText(child.stderr, text => { err = text; });
+    onFirstLine(child.stdout, line => { clearTimeout(timer); resolve(JSON.parse(line) as { session: Ref; run: Ref }); });
     child.once("exit", code => { clearTimeout(timer); reject(new Error(`recording child exited early (${String(code)}): ${err.slice(-400)}`)); });
   });
   if (child.exitCode === null && child.signalCode === null) {

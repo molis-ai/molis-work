@@ -168,7 +168,7 @@ plugin_state="$(mktemp -d)"
 "$molis_cli" plugin dev "$plugin_project" "$plugin_state" ui:register --allow-unsigned-development --locale zh
 ```
 
-开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。中英文各跑一次可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。目前错误码为 `plugin.manifest_invalid`，以 `message` 定位目录问题。[源码树的错误码待办](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)
+开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。中英文各跑一次可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。错误码是 `host.plugin_development_directory_occupied`，目录里原有的东西不动；换一个新目录再跑。
 
 **先 `validate`，再 `dev`。** `dev` 只读这次用的语言和默认语言两个文件：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行，报 `plugin.package_invalid`，`message` 和 `validate` 的写法一样。别的语言（没用到的那几种）它不读，所以全部语言的检查仍要靠 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 

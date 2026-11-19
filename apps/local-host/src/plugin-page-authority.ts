@@ -238,8 +238,8 @@ export class PluginPageAuthority {
     const page = this.pages.get(id);
     if (!page || !action || page.closing) { this.close(id, () => page ? this.left(page) : refused()); return; }
     page.closing = true;
-    const reason = this.left(page);
-    for (const request of page.requests) request.abort(reason);
+    // Each in-flight request takes its own reason, as in `close`: never one error object shared between requests.
+    for (const request of page.requests) request.abort(this.left(page));
     const controller = new AbortController(); page.requests.add(controller);
     const check = () => {
       controller.signal.throwIfAborted();

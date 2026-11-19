@@ -177,8 +177,9 @@ export class AdoptionStore {
   }
 
   /** A second scene may have adopted the same explicit layer without writing a new owner revision. */
-  sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan, revision: string): boolean {
+  sharedSetting(actor: string, project: string | null, previewId: string, plan: SettingPlan, current: Extract<EffectiveSetting, { state: "ok" }>): boolean {
     const scoped = plan.layer === "project" || plan.binding.project_scoped;
+    const layerRevision = current.layer_revisions?.[plan.layer];
     return this.access(db => {
       const rows = db.prepare(`SELECT s.plan_json, a.project_id,
         COALESCE(json_extract(s.apply_json,'$.receipt.revision'),json_extract(s.plan_json,'$.expected_revision')) AS observed_revision FROM adoption_steps s JOIN adoptions a USING (preview_id)
@@ -189,9 +190,9 @@ export class AdoptionStore {
           OR json_extract(s.undo_json,'$.reason')='owner_unavailable')`).all(actor, previewId, Number(scoped), project, plan.key, plan.layer);
       return rows.some(row => {
         const other = JSON.parse(String(row.plan_json)) as SettingPlan;
-        if (plan.applied_layer_revision !== undefined && other.applied_layer_revision !== undefined) {
-          if (plan.applied_layer_revision !== other.applied_layer_revision) return false;
-        } else if (project === row.project_id && revision !== row.observed_revision) return false;
+        if (layerRevision !== undefined && other.applied_layer_revision !== undefined) {
+          if (layerRevision !== other.applied_layer_revision) return false;
+        } else if (project === row.project_id && current.revision !== row.observed_revision) return false;
         return canonicalJsonText(other.binding) === canonicalJsonText(plan.binding) && canonicalJsonText(other.change) === canonicalJsonText(plan.change);
       });
     });

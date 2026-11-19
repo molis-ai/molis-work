@@ -89,16 +89,37 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
   assert.ok(catalog.ok);
   for (const row of rows) {
     const directory = path.join(ROOT, directoryOf(row.package), row.path);
-    const packs = readdirSync(directory).sort().map((name) => {
-      const parsed = parseLocalePack(readFileSync(path.join(directory, name), "utf8"), { file: name });
-      assert.ok(parsed.ok, `${row.id} ${name}: ${JSON.stringify(parsed.ok ? null : parsed.problems)}`);
-      assert.equal(parsed.value.owner, row.owner, `${row.id} ${name}: the owner is the row's`);
-      assert.equal(`${parsed.value.locale}.json`, name, `${row.id} ${name}: the file is named for its language`);
-      return parsed.value;
-    });
-    if (row.owner === "workbench") assert.deepEqual(packs.map(pack => pack.locale), catalog.value.languages.map(language => language.tag).sort());
-    else assert.deepEqual(packs.map(pack => pack.locale), ["en", "zh"], "the shipped discussion packs include its default and its English words");
-    assert.deepEqual(inspectLocaleSet(packs, { default: catalog.value.default, directory: row.path }), [], row.id);
+    function readPacks(directory: string, files: readonly string[]) {
+      const packs = files.map(name => {
+        const file = path.join(directory, name);
+        const parsed = parseLocalePack(readFileSync(file, "utf8"), { file });
+        assert.ok(parsed.ok, `${file}: ${JSON.stringify(parsed.ok ? null : parsed.problems)}`);
+        assert.equal(parsed.value.owner, row.owner, `${file}: the owner is the row's`);
+        assert.equal(`${parsed.value.locale}.json`, name, `${file}: the file is named for its language`);
+        return parsed.value;
+      });
+      assert.deepEqual(inspectLocaleSet(packs, { default: catalog.value.default, directory }), [], directory);
+      return packs;
+    }
+    const files = readdirSync(directory).sort();
+    if (row.owner === "workbench") {
+      const locales = catalog.value.languages.map(language => language.tag).sort();
+      const packs = readPacks(directory, files.filter(name => name !== "scene"));
+      assert.deepEqual(packs.map(pack => pack.locale), locales);
+      const scene = path.join(directory, "scene");
+      const scenePacks = readPacks(scene, readdirSync(scene).sort());
+      assert.ok(scenePacks.some(pack => pack.locale === "en"), "scene results include English wording");
+      const startupKeys = new Set(packs.flatMap(pack => Object.keys(pack.messages)));
+      for (const pack of scenePacks) {
+        assert.ok(locales.includes(pack.locale), `${pack.locale}: a registered Workbench language`);
+        for (const key of Object.keys(pack.messages)) {
+          assert.ok(key.startsWith("workbench.scene.") && !startupKeys.has(key), `${key}: belongs only to scene results`);
+        }
+      }
+    } else {
+      const packs = readPacks(directory, files);
+      assert.deepEqual(packs.map(pack => pack.locale), ["en", "zh"], "the shipped discussion packs include its default and its English words");
+    }
   }
 });
 

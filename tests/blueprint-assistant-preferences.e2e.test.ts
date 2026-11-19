@@ -94,7 +94,7 @@ test("ONB-28/29: after a partial adoption the reopened page retries only the unc
     await click("[name=scene-target][value=personal]");
     await click(".arrival-bar .bar-end .mw-btn--primary");
     await waitFor("document.querySelector('[data-scene-main] dl')");
-    assert.match(await evaluate<string>("document.querySelector('[data-scene-main]').innerText"), /不能写入所选范围|cannot be written in the selected scope/i);
+    assert.match(await evaluate<string>("document.querySelector('[data-scene-main]').innerText"), /此设置不适用于所选范围|cannot be written in the selected scope/i);
     assert.equal(await evaluate("document.querySelector('[data-scene-main] input[type=checkbox]')"), null);
     await click("[data-scene-aside] button:nth-of-type(2)");
     await waitFor("document.querySelector('[data-scene-main] input[type=checkbox]')?.checked");

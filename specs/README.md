@@ -20,7 +20,7 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
-- [quality-experience-audit](quality-experience-audit/spec.md) 涵盖六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。第 122 批 `94d9c58ede` 的本轮实施与验收已完成，Verify 与 Full 48 片通过，草稿待评审。 [报告](quality-experience-audit/report.md) · [覆盖记录](quality-experience-audit/coverage.md) · [草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
+- [quality-experience-audit](quality-experience-audit/spec.md) 涵盖六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。实施与验收已完成，最新主干复验、最终检查及合入记录见报告及 PR。 [报告](quality-experience-audit/report.md) · [覆盖记录](quality-experience-audit/coverage.md) · [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
 - [batch-36-audit-fixes](batch-36-audit-fixes/spec.md)：第 36 批合后核查确认的角色、主线与记录修复；ROLE-14 仍待本人看实物。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。

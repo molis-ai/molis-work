@@ -1659,3 +1659,5 @@ Workbench 在每次同地址读取完成后的半秒归并被动提示。期间�
 主干 `e5e565411b` 合入设置页改版后，16 份 Goals 整页记录两边均改变。独立主干构建重现全部 52 份已存记录。按先前独立验收的导入帮助、英文导入按钮、Sessions 输入长度及退役 Inbox 引导数据推导 24 份新预期，其余 28 份保留主干记录，其中包括主干改版单独改变的 4 份设置记录。组合实际通过 56 项，两项原录制用例按默认跳过。 [QEA-204](../../tests/goals-page-golden.test.ts) · [主干 #2127](https://github.com/molis-ai/molis-work/pull/2127)
 
 对照 `e5e565411b` 的独立 Host 构建，67 条静态资源和十组首屏通过。静态最大增量为已验 Git 脚本的 8,403 B，最大冷加载增量为中文项目选择页的 2,202 B，最大热增 20 B。工作台中英文词包的组合内容地址为 `a1d9a7af2d1da66478dcb886` 与 `88a613c6a240ed771299bd80`。22 条需核准的加载条目均匹配现行许可，词包每页每种语言仍只下发一份。实测记录 `quality-audit-queue-resource-proof.json`。
+
+入队使用工作树复核、最终头的 Verify 和 Full，以及 GitHub 合并队列对主干的组合 Verify。对应运行与合入记录随 PR 说明更新。 [PR #2101](https://github.com/molis-ai/molis-work/pull/2101) · [GitHub 检查](https://github.com/molis-ai/molis-work/pull/2101/checks)

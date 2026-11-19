@@ -36,10 +36,10 @@ export function createRendererHelpers(ports: {
   }
 
   function prefixLocalLinks(html: string, routePrefix: string, desktopShell = false): string {
-    // Global assets, settings and capabilities keep their root URLs. Project settings use the __PROJECT_SETTINGS__ token.
+    // Global assets, settings, capabilities and onboarding keep their root URLs. Project settings use the __PROJECT_SETTINGS__ token.
     // Only href itself is rewritten. Data attributes retain their own values.
     const prefixed = routePrefix
-      ? html.replace(/(\s)href="\/(?!assets\/|locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `$1href="${routePrefix}/`)
+      ? html.replace(/(\s)href="\/(?!assets\/|locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"])|onboarding(?:[/?#"]))/g, `$1href="${routePrefix}/`)
       : html;
     const resolved = prefixed
       .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')

@@ -7,7 +7,7 @@ import type { SkillCatalogEntry, SkillPick } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
-export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
+export type { AssistantCard, AssistantCardChoice, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
 import type { AssistantPendingReview } from "./assistant-review.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";

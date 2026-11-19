@@ -29,6 +29,8 @@ import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
+import { assistantWords } from "./assistant/assistant-saved-text.js";
+import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { onAttentionChange } from "./attention-changes.js";
 import { homeBackgroundTasks } from "./home-background-tasks.js";
@@ -301,6 +303,17 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
   { id: "assistant", handle: async context => {
     const assistant = projectAssistant(context);
     return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!, context.serverOptions.assertAccountCurrent);
+  } },
+  // The Assistant's own look at the project's automation (specs/automation-recommender §7): its card goes in this project's work for it.
+  { id: "automation-offer", handle: async context => {
+    const assistant = projectAssistant(context);
+    if (!assistant || context.url.pathname !== "/api/automation/recommendations/offer") return false;
+    const ports = assistant;
+    return await handleAutomationRecommendationsHttp(context, {
+      place: input => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference }),
+      notify: (work, count, dedupe) => { assistantServiceFor(ports).store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "result", work_id: work.work_id, work_title: work.title,
+        text: assistantWords("workbench.assistant-notice.automation-found", { count }) }, dedupe); },
+    });
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);

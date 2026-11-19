@@ -1,6 +1,6 @@
 # 对话与执行流式体验（Coding 插件 + 个人助理）
 
-状态：需求已整理，待实施（2026-11-18；需求维护：Antigravity，实现：第 91 批主会话）。排期为路线书[第 91 批](../post-anticorruption-roadmap/reference/batches/91.md)。
+状态：需求已整理，待实施（2026-11-18；需求维护：Antigravity，实现：第 91 批主会话）。已与[全产品界面、空间布局与行为反馈深度打磨](../product-experience-polish/spec.md)合并统筹，排期为路线书[第 91 批（第一段 91A）](../post-anticorruption-roadmap/reference/batches/91.md)（紧邻续批为[第 91B 批](../post-anticorruption-roadmap/reference/batches/91b.md)，[决定 55](../post-anticorruption-roadmap/reference/decisions.md#decision-55)）。
 
 - **档位与分类**（[开发流程 §1.1、§1.2](../post-anticorruption-roadmap/reference/development-workflow.md#1-分档分类与决策)）：大需求；体验与效果（流式动画、滚动物理、运行时热路径）、横向能力（Design System 流式与滚动原语、平台插件运行流订阅、Agent Host 事件流）、产品线（个人助理、Coding）。
 - **决策标记**：要决策——① 上游 `molis-prologue` 改动是否授权随第 91 批窗口外换一次 `vendor/prologue-sdk`（若不跨窗口换包，上游改动先合入 `molis-prologue` 主线，包随[第 62 批](../post-anticorruption-roadmap/reference/batches/62.md)窗口二换入，`molis-work` 侧照常闭环）；② 若思考折行或紧凑命令尾窗超出组件板 `/__ui/catalog` 既有控件形态，按开发流程第 5 节先出样拍板；③ `CUI-09` 本人看实物走查。其余直接做。
@@ -179,4 +179,5 @@
 
 - **2026-11-18（立项与排期，用户定，[路线书决定 54](../post-anticorruption-roadmap/reference/decisions.md#decision-54)）**：单独建立路线书[第 91 批](../post-anticorruption-roadmap/reference/batches/91.md)（按当前最大批号 + 1 编为 `91`），与 `36A`（逐屏静态布局与底栏第十三版）正交分工；实际执行只等 `35-2`、`36A`（壳层、Coding 前后半、动效曲线）与 `37-2`，**不等 38～89**；[第 90 批](../post-anticorruption-roadmap/reference/batches/90.md)仍为包含 91 在内的整条路线最终对账。
 - **2026-11-18（平台能力与既有体验条款对齐，设计自查确认）**：① 插件实时运行流不写 Coding 私有通道，在 `91-2` 经 `packages/contracts`、`packages/plugin-sdk`、`packages/plugin-runtime`、`apps/local-host/src/plugin-route-stream.ts`、`packages/ui-host/src/request-client.ts` 与 `horizontal/agent-host` 做成统一平台能力；② `CUI-03` 显式更新 `VUX-14`「首块跳过 `.mw-fresh`」旧断言以消除首字生硬跳出；③ 严格保留 `VUX-13`（用户手动点开的折叠块完成时不自动合上）与 `VUX-26`／`#2124`（减少动态效果与自动化环境单帧贴底、用户滚轮首帧让权）。
+- **2026-11-18（合并全产品体验打磨与开发指引，用户定，[路线书决定 55](../post-anticorruption-roadmap/reference/decisions.md#decision-55)）**：本需求与[全产品界面、空间布局与行为反馈深度打磨](../product-experience-polish/spec.md)合并为统一体验专项，第 91 批扩为第一段 `91A`（在 `91-1` 并入微交互、布局与行为反馈底座，在 `91-4` 顺手清零 Coding 剩余微瑕，并新增 `91-5` 后续开发指引与插件创作台规范更新），全产品其余 23 插件、伴随表面与三层自动化防回归门禁排入紧邻的[第 91B 批](../post-anticorruption-roadmap/reference/batches/91b.md)；本需求既有范围与验收编号 `CUI-01～09` 保持不变。
 - **待用户拍板项**：① 第 91 批开工时确认是否授权跨窗口换一次 `vendor/prologue-sdk`（不换则随第 62 批窗口二换入）；② 若思考折行或紧凑命令尾窗超出组件板既有控件形态，按开发流程第 5 节先出样确认；③ `CUI-09` 本人实物验收。

@@ -12,7 +12,7 @@
 4. **归档**：已完成、已被取代或只等用户验收的历史 spec；按开头判定读，剩余事项看它指向的待办。
 5. **相关族**：同一产品方向下暂未合并的 spec，先看文末「相关 spec 族」，不要当重复需求。
 
-截至 2026-11-18：56 个在做的、11 个现行规范、386 个归档目录；待办条数以 `backlog-index` 现算为准。
+截至 2026-11-18：59 个在做的、11 个现行规范、386 个归档目录；待办条数以 `backlog-index` 现算为准。
 
 ## 在做的
 
@@ -59,7 +59,8 @@
 - [work-mainline](work-mainline/spec.md)：主线。事项是平台的轻量容器（可以只起名字，Goal、待办等可以变成事项），用户把手头的事项按自己的分组和顺序排好，从事项线线头的切换器一下切到某件事，工作台状态、相关对象、助理范围与等你随之切换；插件对象的内容仍归插件。
 - [work-line](work-line/spec.md)：事项线。工作台底部是当前事项的一条线（已办、现在的输入框、接下来），线上的每一项是事件，由插件和助理按同一份登记放上来（待办、日程、Coding 会话、结果、值得跟的交办、建议）；点事件移到中间展开成卡，点和说都能办；后台任务是事件背后的执行，全部任务在输入框上方的后台任务面板里；输入后助理或所选的 Character 先回应、再写明去处，任务的结果回到它；线头切换事项。线只读各插件的登记、任务板、工作记录与呈现声明，不另存。2026-11-12 需求已整理、用户定四项并入路线书 32-3／36-2／37-2／53／58／64；2026-11-14 用户改方向（线是事件登记能力、任务在背后、面板在输入框上方、结果回流，路线书决定 48）；第一片已随第 32 批 #2093 实现（2026-11-16，WLN-01～18、27～40），WLN-19～26 与事项容器仍随 36、37、53。
 - [screen-polish](screen-polish/spec.md)：逐屏打磨第一轮。顶部栏、事项线、首页、助理对话框、Coding 和设置页逐屏的流程、交互、动效与视觉方案，样稿在 [`docs/design/screen-polish/`](../docs/design/screen-polish/README.md)。方案评审中（2026-11-16）：顶部（纸上的页签）、底部（一张纸 · 景深）、首页（项目的第一页）的方向用户已定，其余待定；没有改产品代码，P0 缺陷另在 `fix/screen-polish-p0` 分支上修。
-- [conversation-execution-ui](conversation-execution-ui/spec.md)：Coding 插件与个人助理执行过程中的对话与流式体验端到端优化——单连接 SSE 增量流、自适应帧率平滑吐字与连续 `.mw-fresh` 波浪渐显、恒定 `20px` 状态环原位流转、200 轮长会话零跳变回滚、思考折行与工具过程实时信号，以及 Prologue／Agent Host 流式热路径减负（验收 CUI-01～09）；2026-11-18 立项，排期为路线书[第 91 批](post-anticorruption-roadmap/reference/batches/91.md)（前置为 35-2、36A、37-2，不等 38～89）。
+- [conversation-execution-ui](conversation-execution-ui/spec.md)：Coding 插件与个人助理执行过程中的对话与流式体验端到端优化——单连接 SSE 增量流、自适应帧率平滑吐字与连续 `.mw-fresh` 波浪渐显、恒定 `20px` 状态环原位流转、200 轮长会话零跳变回滚、思考折行与工具过程实时信号，以及 Prologue／Agent Host 流式热路径减负（验收 CUI-01～09）；2026-11-18 立项并与 `product-experience-polish` 合并排期为路线书[第 91 批（91A）](post-anticorruption-roadmap/reference/batches/91.md)（前置为 35-2、36A、37-2，不等 38～89；决定 54／55）。
+- [product-experience-polish](product-experience-polish/spec.md)：全产品界面、空间布局与行为反馈深度打磨及后续开发指引收口——覆盖 23 个内置插件、4 个官方集成、生成插件渲染器与入口／账号／市场／侧栏／IM／Artifacts／Sessions 的视觉文案与状态清理、窗格级 `@container` 三档分屏响应与四档居中版心、按钮微交互与 `molisBusy`／宿主 Toast／五态自动保存／轻动效闭环、全套开发指引与插件创作台 Skill 同步更新，以及三层防回归门禁焊死（显式剔除 44-7 待删桌面胶囊；验收 UXP-01～14）；2026-11-18 与 `conversation-execution-ui` 合并排期为路线书[第 91 批（91A）](post-anticorruption-roadmap/reference/batches/91.md)与[第 91B 批](post-anticorruption-roadmap/reference/batches/91b.md)（不等 38～89；决定 55）。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
 - [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；已实现：SQLD-a/c/d/e 随第 05 批 #1979 于 2026-11-08 合入 main，SQLD-b（锁 Node）随 #1917 合入；正式 24.15 包与打包冒烟（SQLD-11）见 [BL-sqlite-sqld11](backlog/BL-sqlite-sqld11.md)。
 - [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 处理器迁到从 schema 推导的类型（用户 2026-11-06 定）：N14 两段（#1913、#1961）与 N22-01/02/04/06（#1909、#1939、#1923、#1893）、防回潮计数（#1951）已在第 05 批合入，N22 余片按决定 29 移到第 56 批第 3 项（第 57 批开工前全部合入，范围不变）。
@@ -123,7 +124,7 @@
 | Prologue 策略 | [prologue-strategies](prologue-strategies/spec.md)（四份子文档） | 已合并为一份总纲 + 四份子文档，共同消费 SDK；不要按一份的完成度推断其他三份。 |
 | 情境与输入 | [context-program](context-program/spec.md)（含情境浮条、快速创建、Side Shelf 三份子文档）、[unified-input-voice](unified-input-voice/spec.md) | 情境三份已并入总纲；统一输入仍独立，状态分别判断。 |
 | 工作线 | [work-mainline](work-mainline/spec.md)、[work-line](work-line/spec.md)、[work-brief](work-brief/spec.md)、[intelligent-surfaces](intelligent-surfaces/spec.md) | 主线与事项线各自有 MLN/WLN 验收编号，暂不合并；综合首页与呈现按各自 spec 判断。 |
-| 界面与流式打磨 | [workbench-experience-upgrade](workbench-experience-upgrade/spec.md)、[visual-ui-experience](visual-ui-experience/spec.md)、[screen-polish](screen-polish/spec.md)、[conversation-execution-ui](conversation-execution-ui/spec.md) | 升级方案管全局色彩与动效语法（#2056），VUX 管基础体验与按需帮助，screen-polish（36A）管逐屏静态布局与底栏第十三版，conversation-execution-ui（91）管动态执行、流式动画与滚动物理；各自有独立验收编号，不混判完成度。 |
+| 界面与流式打磨 | [workbench-experience-upgrade](workbench-experience-upgrade/spec.md)、[visual-ui-experience](visual-ui-experience/spec.md)、[screen-polish](screen-polish/spec.md)、[conversation-execution-ui](conversation-execution-ui/spec.md)、[product-experience-polish](product-experience-polish/spec.md) | 升级方案管全局色彩与动效语法（#2056），VUX 管基础体验与按需帮助，screen-polish（36A）管逐屏静态布局与底栏第十三版，conversation-execution-ui 与 product-experience-polish 合并排入 91（91A）+ 91B（决定 55），分别管动态流式内核与全产品界面／空间布局／行为反馈／开发指引及门禁；各自有独立验收编号，不混判完成度。 |
 
 ## 规则
 

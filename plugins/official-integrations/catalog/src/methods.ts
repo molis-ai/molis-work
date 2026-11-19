@@ -219,6 +219,15 @@ export const OFFICIAL_CONNECTOR_METHODS: Readonly<Record<string, readonly Offici
     { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "linkedin.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow" }] },
     { kind: "token", support: "paste", note: { key: "linkedin.guide.token-note" }, links: [setupLinksFor("linkedin")[0]!] },
   ],
+  "brave-search": [
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("brave-search")[0]!] },
+  ],
+  "deepseek-search": [
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("deepseek-search")[0]!] },
+  ],
+  "tavily": [
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("tavily")[0]!] },
+  ],
 };
 
 export function officialMethodsFor(connectorId: string): readonly OfficialConnectorMethod[] {

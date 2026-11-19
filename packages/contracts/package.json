@@ -210,6 +210,10 @@
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"
     },
+    "./services/web-search": {
+      "types": "./dist/services/web-search.d.ts",
+      "import": "./dist/services/web-search.js"
+    },
     "./services/ui-surfaces": {
       "types": "./dist/services/ui-surfaces.d.ts",
       "import": "./dist/services/ui-surfaces.js"

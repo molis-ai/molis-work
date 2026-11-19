@@ -48,7 +48,7 @@ function stub(calls: Calls, extra: Partial<PluginConnectorPort> = {}): PluginCon
     async open() { calls.open += 1; return { plugin_id: "io.molis.work.integration.github", version: "1.3.0" }; },
     async pull() { calls.pull += 1; return RECEIPT; },
     async adapt() { calls.adapt += 1; return DRAFT; },
-    accounts(ids) { calls.accounts += 1; return Object.fromEntries(ids.map(id => [id, { bound: false }])); },
+    async accounts(ids) { calls.accounts += 1; return Object.fromEntries(ids.map(id => [id, { bound: false, pullable: true, title: id === "github" ? "GitHub" : id }])); },
     ...extra,
   };
 }
@@ -97,7 +97,7 @@ test("S-97 RAC-1020: connector pulls exist only inside the plugin's own concurre
   // Which accounts exist needs only the connector permission: it names no record, and nothing of the account.
   await assert.rejects(inAction(() => client.accounts(["github"]), { declared: [CONNECTIONS], held: [CONNECTIONS] }), code("plugin.source_pull_connector_permission_undeclared"));
   await assert.rejects(inAction(() => client.accounts(["github"]), { declared: [CONNECTOR], held: [] }), code("plugin.source_pull_connector_permission_undeclared"));
-  assert.deepEqual(await inAction(() => client.accounts(["github"]), { declared: [CONNECTOR], held: [CONNECTOR] }), { github: { bound: false } });
+  assert.deepEqual(await inAction(() => client.accounts(["github"]), { declared: [CONNECTOR], held: [CONNECTOR] }), { github: { bound: false, pullable: true, title: "GitHub" } });
   const reached = calls.accounts;
   // A pull is concurrent and may write: a serial action and a read-only call are refused; adapting and asking are pure, so a read-only call may.
   await assert.rejects(inAction(() => client.pull(pullRequest), { concurrent: false }), code("plugin.source_pull_connector_action_not_concurrent"));
@@ -154,11 +154,11 @@ test("S-97 RAC-1020: what the Host's side returns is rebuilt, so no connection, 
   // Variables, not literals: the extra fields are the point, and a literal would be refused for having them.
   const adapter = { plugin_id: "io.molis.work.integration.github", version: "1.3.0", connection_id: "c1", credential_ref: "ref" };
   const receipt = { ...RECEIPT, connection_id: "c1", credential_ref: "ref", token_refs: { access: "a" } };
-  const accounts = { github: { bound: true, connection_id: "c1", display_name: "Work", credential_ref: "ref" } };
-  const { client, inAction } = rig(stub(fresh(), { open: async () => adapter, pull: async () => receipt, accounts: () => accounts }), { project_id: "p-1" });
+  const accounts = { github: { bound: true, pullable: true, title: "GitHub", connection_id: "c1", display_name: "Work", credential_ref: "ref" } };
+  const { client, inAction } = rig(stub(fresh(), { open: async () => adapter, pull: async () => receipt, accounts: async () => accounts }), { project_id: "p-1" });
   assert.deepEqual(await inAction(() => client.open("github", "github")), { adapter: { plugin_id: "io.molis.work.integration.github", version: "1.3.0" } });
   assert.deepEqual(Object.keys(await inAction(() => client.pull(pullRequest))).sort(), ["completed_at", "driver_id", "receipt_id", "result", "started_at"]);
-  assert.deepEqual(await inAction(() => client.accounts(["github"]), { declared: [CONNECTOR] }), { github: { bound: true } });
+  assert.deepEqual(await inAction(() => client.accounts(["github"]), { declared: [CONNECTOR] }), { github: { bound: true, pullable: true, title: "GitHub" } });
   // What it gets is a copy: changing it changes nothing the Host's side holds.
   const answer = await inAction(() => client.pull(pullRequest));
   if (answer.result.ok) answer.result.events.length = 0;
@@ -268,7 +268,7 @@ test("S-97 RAC-1022: a record with no usable account is a needs_auth receipt and
 test("S-97 RAC-1022: a Home that never saved an account answers needs_auth without creating the connections registry", { timeout: 60_000 }, async t => {
   const f = await hostRig(t);
   assert.equal(needsAuth(await f.port.pull(f.target, f.request, f.run)), true);
-  assert.deepEqual(f.port.accounts(["github", "gmail"]), { github: { bound: false }, gmail: { bound: false } });
+  assert.deepEqual(await f.port.accounts(["github", "gmail"]), { github: { bound: false, pullable: true, title: "github" }, gmail: { bound: false, pullable: true, title: "gmail" } });
   assert.equal(existsSync(homeSqlitePath(f.home, "connectors")), false);
 });
 
@@ -362,14 +362,14 @@ test("S-97 RAC-1022: adapting uses the registry's adapter with no account, and a
   const draft = await f.port.adapt(f.target, "github", { ...EVENT, payload: { externalId: "n1", title: "Review requested", summary: "s" } });
   assert.equal(typeof draft.kind, "string");
   assert.equal(f.bindings.at(-1)!.connection_id, null, "adapting touched no account");
-  assert.deepEqual(f.port.accounts(["github", "gmail"]), { github: { bound: false }, gmail: { bound: false } });
+  assert.deepEqual(await f.port.accounts(["github", "gmail"]), { github: { bound: false, pullable: true, title: "github" }, gmail: { bound: false, pullable: true, title: "gmail" } });
   // The Home's own question (is there a GitHub or Gmail account at all), not the record's: the answer is a boolean and names nothing.
   const account = f.connect();
-  const answer = f.port.accounts(["github", "gmail"]);
-  assert.deepEqual(answer, { github: { bound: true }, gmail: { bound: false } });
+  const answer = await f.port.accounts(["github", "gmail"]);
+  assert.deepEqual(answer, { github: { bound: true, pullable: true, title: "github" }, gmail: { bound: false, pullable: true, title: "gmail" } });
   assert.equal(JSON.stringify(answer).includes(account.connection_id), false);
   withConnectorConnections(f.home, store => store.disconnect(account.connection_id));
-  assert.deepEqual(f.port.accounts(["github"]), { github: { bound: false } });
+  assert.deepEqual(await f.port.accounts(["github"]), { github: { bound: false, pullable: true, title: "github" } });
 });
 
 // ── Through a real platform ──────────────────────────────────────────────────────────────────────────────────────────
@@ -420,7 +420,7 @@ test("S-97 RAC-1023: through the platform, a plugin pulls with the person's bind
   const pull = (who: typeof both) => who.in(services => services.sourcePull!.connector!.pull(request)) as Promise<ConnectorPullReceipt>;
   // Nothing is bound: the source needs the person.
   assert.equal(needsAuth(await pull(both)), true);
-  assert.deepEqual(await both.in(services => services.sourcePull!.connector!.accounts(["github"])), { github: { bound: false } });
+  assert.deepEqual(await both.in(services => services.sourcePull!.connector!.accounts(["github"])), { github: { bound: false, pullable: true, title: "GitHub" } });
   // The person binds an account to the first installation's record; the second installation, with the same Manifest, does not get it.
   const account = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work", token: SECRET_VALUE }));
   withConnectorConnections(home, store => store.bind({ scopeId: pluginBindingScope({ install_id: both.install.install_id, project_id: reference.project_id, record_key: "src-1" }),
@@ -443,7 +443,7 @@ test("S-97 RAC-1023: through the platform, a plugin pulls with the person's bind
   // The person takes the account away: the next pull is needs_auth again, and the platform reports no account.
   withConnectorConnections(home, store => store.disconnect(account.connection_id));
   assert.equal(needsAuth(await pull(both)), true);
-  assert.deepEqual(await both.in(services => services.sourcePull!.connector!.accounts(["github"])), { github: { bound: false } });
+  assert.deepEqual(await both.in(services => services.sourcePull!.connector!.accounts(["github"])), { github: { bound: false, pullable: true, title: "GitHub" } });
 });
 
 

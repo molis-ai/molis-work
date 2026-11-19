@@ -1071,6 +1071,7 @@ export declare function renderSeparator(options?: {
 export declare function renderSettingRow(options: {
     name: string;
     hint?: string;
+    detail?: string;
     className?: string;
     attrs?: Record<string, AttrValue>;
     nameAttrs?: Record<string, AttrValue>;

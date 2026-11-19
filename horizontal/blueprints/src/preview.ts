@@ -56,8 +56,7 @@ async function readCandidates(access: SettingsAccess, wanted: ReadonlySet<string
 
 function currentValue(current: EffectiveSetting | undefined, unavailable?: string): BlueprintCurrentValue {
   if (!current || current.state === "unavailable") return { state: "unavailable", reason: current?.reason ?? unavailable ?? "暂时读不到此设置" };
-  if (current.value_unavailable) return { state: "unavailable", reason: current.value_unavailable };
-  return { state: "present", value: current.value, revision: current.revision, origin: null, setting_source: current.source };
+  return { state: "present", value: current.value, revision: current.revision, origin: null, setting_source: current.source, ...(current.value_unavailable && { value_unavailable: current.value_unavailable }) };
 }
 
 export async function previewSettings(store: AdoptionStore, access: SettingsAccess, caller: ActionExecutionContext,
@@ -90,17 +89,25 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     if (change?.selection || change?.action && (!owner || canonicalJsonText(change.action) !== canonicalJsonText(owner.binding.write))) {
       throw blueprintsErrors.part_unsupported("只能选择预览中列出的设置主人");
     }
-    if (!owner || proposal.kind !== "setting") return { ...result, decision: "skip", reason: "unsupported" };
+    if (!owner || proposal.kind !== "setting") return { ...result, decision: "skip", reason: proposal.kind === "setting" ? "undeclared" : "unsupported" };
     const { current, binding, entry } = owner;
     const title = "literal" in entry.title ? entry.title : { ...entry.title, owner: owner.text_owner };
     const summary = entry.summary && ("literal" in entry.summary ? entry.summary : { ...entry.summary, owner: owner.text_owner });
-    const details = { ...result, title, ...(owner.model_selection && { model_selection: owner.model_selection }), ...(entry.device_only && { device_only: entry.device_only }), ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable) }],
+    const details = { ...result, title, ...(owner.model_selection && { model_selection: owner.model_selection }), ...(entry.device_only && { device_only: entry.device_only }), ...(summary && { summary }), candidates: [{ kind: "owner" as const, action: binding.write, subject: { kind: "setting", id: entry.key }, current: currentValue(current, owner.unavailable_reason ? undefined : owner.unavailable) }],
       consequences: entry.consequence ?? [] };
     if (!entry.layers.includes(layer) || input.target.kind === "personal" && layer === "project") return { ...details, decision: "skip", reason: "scope_mismatch" };
-    if (!current || current.state === "unavailable") return { ...details, decision: "skip", reason: "owner_unavailable" };
+    if (!current || current.state === "unavailable") return { ...details, decision: "skip", reason: owner.unavailable_reason ?? "owner_unavailable" };
     const previous = previousValue(current, layer);
     if (!previous) return { ...details, decision: "skip", reason: "owner_unavailable" };
-    assertSandboxMatches(entry.schema, proposal.value, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); });
+    try {
+      assertSandboxMatches(entry.schema, proposal.value, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); });
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "blueprints.part_unsupported") {
+        const type = entry.schema.type;
+        return { ...details, decision: "skip", reason: "invalid_proposal", correction_type: type === "boolean" || type === "string" ? type : "json" };
+      }
+      throw error;
+    }
     const reuse = "set" in previous && canonicalJsonText(previous.set) === canonicalJsonText(proposal.value);
     if (reuse && current.value_unavailable) return { ...details, decision: "skip", reason: "value_unavailable" };
     plans.set(part_id, { binding, key: entry.key, layer, change: { set: proposal.value }, previous, expected_revision: current.revision,

@@ -10,7 +10,7 @@ import { installedPageSelection } from "./plugin-page-authority.js";
 import { captureRuntimeStageOwner } from "./project-plugin-stages.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { randomUUID } from "node:crypto";
+import { PluginViewRevisions } from "./plugin-view-revisions.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor, type SettingsVersionClaims } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
@@ -51,10 +51,11 @@ export interface HomePluginEntry {
   readonly package_name: string;
   readonly factory_export: string;
 }
-export type HomePluginPlatform = Pick<PluginPlatform, "runtime" | "supervisor" | "router" | "upgrade" | "viewRevision" | "invalidateView">;
+export type HomePluginPlatform = Pick<PluginPlatform, "runtime" | "supervisor" | "router" | "upgrade" | "viewRevision" | "waitForView" | "invalidateView">;
 
 /** Owned by the already unique local Host. Concurrent discovery and HTTP share this one startup promise. */
 export class HomePluginHost {
+  private readonly views = new PluginViewRevisions(id => !this.closed && this.platform?.supervisor.state(id)?.status === "running");
   private opening?: Promise<HomePluginPlatform>;
   private platform?: HomePluginPlatform;
   private executor?: HomePluginExecutor;
@@ -248,7 +249,7 @@ export class HomePluginHost {
     await this.executor?.stopProjectJobs(projectId);
   }
   close(): Promise<void> {
-    this.closed = true;
+    this.closed = true; this.views.close();
     this.releaseRegistration();
     return this.closing ??= (async () => {
       try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
@@ -296,7 +297,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = pluginInstallRecords(db);
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
-      invalidateView: pluginId => this.platform?.invalidateView(pluginId), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
+      invalidateView: pluginId => this.platform?.invalidateView(pluginId), wakeView: id => this.views.wake(id), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance, localePacks: identity.localePacks });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
@@ -314,13 +315,9 @@ export class HomePluginHost {
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     this.installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));
-    const epoch = randomUUID(), revisions = new Map<string, number>();
     this.unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, () => !this.closed));
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
-      invalidateView: pluginId => {
-        if (!this.closed && supervisor.state(pluginId)?.status === "running") revisions.set(pluginId, (revisions.get(pluginId) ?? 0) + 1);
-      },
-      viewRevision: pluginId => `${epoch}:${revisions.get(pluginId) ?? 0}`,
+      invalidateView: this.views.invalidateView, viewRevision: this.views.viewRevision, waitForView: this.views.waitForView,
       router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
         const manifest = supervisor.manifest(state.plugin_id);
         return manifest ? [manifest] : [];

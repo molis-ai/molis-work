@@ -62,9 +62,9 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
         throw blueprintsErrors.dependency_unmet("原设置主人已停用、更换或不支持采用");
     };
     const discovered: DiscoveredSetting[] = [];
-    const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string, unavailable?: string) => {
+    const add = (owner: SettingBinding, declaration: SettingsDeclaration, text_owner: string, unavailable?: string, unavailable_reason?: DiscoveredSetting["unavailable_reason"]) => {
       for (const entry of declaration.entries) discovered.push({ entry, binding: owner, text_owner,
-        ...(declaration.model_configuration?.key === entry.key && { model_selection: true }), ...(unavailable && { unavailable }) });
+        ...(declaration.model_configuration?.key === entry.key && { model_selection: true }), ...(unavailable && { unavailable, unavailable_reason }) });
     };
     const listed = new Set<string>();
     for (const view of directory) {
@@ -96,6 +96,25 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
       };
       add(owner, declaration, provider.plugin_id ?? "workbench", unavailable(owner.read) ?? unavailable(owner.write));
     }
+    // A stopped provider has no actions in the live directory. Its installed declaration still explains the preview.
+    if (preview) {
+      const inactive = (records: ReturnType<NonNullable<typeof state>["list"]>, projectScoped: boolean) => {
+        for (const install of records) {
+          if (install.state === "uninstalled" || install.state === "running" && install.execution === "host") continue;
+          const manifest = projectScoped ? state?.manifest(install.install_id) : host.homePlugins?.manifest(install.plugin_id);
+          const declaration = manifest?.settings_entries;
+          if (!declaration) continue;
+          const { capability_id, version } = declaration.read;
+          const read = manifest?.actions?.find(action => action.capability_id === capability_id && action.version === version);
+          if (read?.action.scope !== (projectScoped ? "project" : "home")) continue;
+          const provider = install.publisher_trust === "host" ? install.plugin_id : install.install_id;
+          const reason = install.execution !== "host" ? "sandbox_unsupported" : "owner_disabled";
+          add(binding(provider, projectScoped, declaration, install), declaration, install.plugin_id, reason, reason);
+        }
+      };
+      inactive(host.homePlugins?.installations() ?? [], false);
+      if (state) inactive(state.list(), true);
+    }
     const defaults = preview?.kind === "new_project" ? await runtimes() : null;
     if (defaults) add(binding(projectRuntimeSettingOwner.provider_id, true, projectRuntimeSettingOwner.settings_entries), projectRuntimeSettingOwner.settings_entries, "workbench");
     const invoke = async (candidate: SettingBinding, action: ExactActionReference, input: unknown): Promise<SettingsValues> => {
@@ -115,7 +134,10 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
     };
   }
   return blueprintProvider({ home, now: clock, locale: () => appearanceLocale().tag, access,
-    notify: (actor, progress) => { events.emit(JSON.stringify([actor, progress.preview_id]), progress); },
+    notify: (actor, progress) => {
+      events.emit(JSON.stringify([actor, progress.preview_id]), progress);
+      events.emit(JSON.stringify([actor, progress.adoption_id]), progress);
+    },
     projectExists: async id => {
       const run = catalog();
       if (!run) throw blueprintsErrors.dependency_unmet("项目目录暂不可用");

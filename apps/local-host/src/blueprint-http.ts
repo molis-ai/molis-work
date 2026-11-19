@@ -14,7 +14,7 @@ import { captureWebSessionAuthority, webManagementAuthenticated } from "./web-se
 
 /** Baseline and subsequent events share the same actor, preview and page session. Listener setup precedes the asynchronous read. */
 async function progress(host: MolisWorkLocalHost, client: BoundActionClient, response: ServerResponse, previewId: string, project: string | null,
-  assertCurrent: () => void) {
+  assertCurrent: () => void, opening: string | null) {
   let ready = false, changed = false;
   const send = (event: string, value: unknown) => {
     if (response.destroyed || response.writableEnded) return;
@@ -31,16 +31,18 @@ async function progress(host: MolisWorkLocalHost, client: BoundActionClient, res
   try {
     do {
       changed = false;
-      const library = await client.invoke(a.library, { preview_id: previewId });
+      const library = await client.invoke(a.library, opening === "adoption" ? { adoption_id: previewId } : { preview_id: previewId });
       const record = library.adoptions[0];
       const inTarget = record?.target.kind === "personal" || record?.target.kind === "project" && record.target.project_id === project;
       const status = record && inTarget ? await client.invoke(a.read, { adoption_id: record.adoption_id }) : null;
+      const source = library.preview?.source;
+      const draft = opening && !record && source?.kind === "draft" ? (await client.invoke(a.draftRead, { draft_id: source.draft_id })).draft : undefined;
       if (response.destroyed) { stop(); return; }
       if (changed) continue;
       assertCurrent();
       response.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" });
       response.flushHeaders();
-      send("snapshot", { record: record ?? null, target_created: library.target_created, status });
+      send("snapshot", { record: record ?? null, target_created: library.target_created, status, ...(opening && { preview: library.preview, draft }) });
       ready = true;
     } while (!ready);
   } catch (error) {
@@ -74,7 +76,7 @@ export async function handleBlueprintHttp(request: IncomingMessage, response: Se
       const previewId = url.searchParams.get("preview");
       if (path === "library") sendLocalWebJson(response, 200, await client.invoke(a.library, id ? { adoption_id: id } : previewId ? { preview_id: previewId } : {}));
       else if (path === "draft" && id) sendLocalWebJson(response, 200, await client.invoke(a.draftRead, { draft_id: id }));
-      else if (path === "events" && id) await progress(host, client, response, id, reference?.project_id ?? null, assertCurrent);
+      else if (path === "events" && id) await progress(host, client, response, id, reference?.project_id ?? null, assertCurrent, url.searchParams.get("open"));
       else sendLocalWebJson(response, 404, {});
     } else if (request.method === "POST") {
       const input = await readLocalWebBody(request);

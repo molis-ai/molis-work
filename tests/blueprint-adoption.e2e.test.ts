@@ -89,13 +89,23 @@ test("ONB-21/22/28/30: review actual setting values one by one, resume from the 
   // SPC-12: a second window reads its baseline once and receives the other window's undo from the progress stream.
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
   const observer = await b.openPage(targetId);
+  const calls: string[] = [], projectClient = localHost.actionClient.bind(localHost);
+  const observed = t.mock.method(localHost, "actionClient", (...args: Parameters<typeof projectClient>) => {
+    const client = projectClient(...args);
+    return { ...client, invoke(caller: Parameters<typeof client.invoke>[0], ref: Parameters<typeof client.invoke>[1], input: unknown) {
+      if (ref.capability_id.startsWith("blueprints.")) calls.push(ref.capability_id);
+      return client.invoke(caller, ref, input);
+    } };
+  });
   await observer.command("Page.navigate", { url: await evaluate<string>("location.href") });
   await observer.wait("document.querySelectorAll('[data-scene-main] details:not([open])').length === 2");
+  observed.mock.restore();
+  assert.deepEqual(calls, [blueprintActions.library.capability_id, blueprintActions.read.capability_id]);
   await click("[data-scene-aside] button");
   const restored = "document.querySelector('[data-scene-main]').textContent.match(/已恢复原设置|Previous setting restored/)";
   await waitFor(restored);
   await observer.wait(restored);
-  assert.equal(await observer.evaluate("performance.getEntriesByType('resource').filter(r => new URL(r.name).pathname.endsWith('/api/blueprints/library')).length"), 1);
+  assert.equal(await observer.evaluate("performance.getEntriesByType('resource').filter(r => new URL(r.name).pathname.endsWith('/api/blueprints/library')).length"), 0, "the stream supplies the reopened snapshot");
   assert.equal(await user.invoke(projectSettingsCapabilities.runtime, []), null);
 });
 
@@ -168,7 +178,9 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   const { localHost, homeDirectory, command, navigate, origin, sessionId, click, waitFor, evaluate, web } = b;
   assert.ok(localHost);
   const jelly = "/api/plugins/io.molis.work.jelly/model-settings";
-  await web.post(jelly, before);
+  const key = "jelly.model_selection", preference = "/api/plugins/io.molis.work.jelly/preferences/";
+  const { values } = await web.post<{values: {revision: string}[]}>(preference + "read", { keys: [key] });
+  await web.post(preference + "write", { key, layer: "personal", expected_revision: values[0]!.revision, change: { set: before }, request_id: "choose-before" });
   withConnectorConnections(homeDirectory, store => store.setEnabled(originalConnection, false));
   const caller = await localHost.localPersonContext();
   const user = bindActionClient(localHost.homeActionClient(), () => caller);
@@ -195,6 +207,8 @@ test("ONB-22/30: change an unavailable Jelly model in the review and read the re
   await click("[data-scene-main] details summary");
   assert.equal(await evaluate("document.querySelector('[name=scene-boolean]:checked').value"), "false");
   await click("[data-scene-aside] button");
+  const model = await evaluate<string>("document.querySelector('[data-scene-main] dl').innerText");
+  assert.ok(model.includes(before.model_id) && /个人|Personal/i.test(model) && /不可用|unavailable/i.test(model), model);
   const choicesRead = "performance.getEntriesByType('resource').filter(r => r.name.endsWith('/api/settings/models?choices=1')).length";
   assert.equal(await evaluate(choicesRead), 0);
   await click("[data-scene-main] details summary");

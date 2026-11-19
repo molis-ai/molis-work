@@ -72,8 +72,13 @@ function atomicWrite(path: string, body: string): void {
   try { writeFileSync(temporary, body, { mode: 0o600, flag: "wx" }); renameSync(temporary, path); }
   finally { if (existsSync(temporary)) unlinkSync(temporary); }
 }
-function readSettings(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationView {
-  const pref = readModelPreference(home, declaration).selection ?? undefined, opened = openProviders(home);
+export function modelPreferenceRevision(revision: number, fallback: PluginModelSelection | null, unavailable: boolean): string {
+  return JSON.stringify([revision, fallback, unavailable]);
+}
+
+function readSettings(home: string, declaration: ConsumerModelConfigurationDeclaration, withRevision = false): PluginModelConfigurationView {
+  const state = readModelPreference(home, declaration), pref = state.selection ?? undefined, opened = openProviders(home);
+  let inherited: PluginModelSelection | null = null;
   const connections = existsSync(join(home, "connectors", "connectors.db"))
     ? withConnectorConnections(home, store => store.list("model-api").map(connection => ({ connection_id: connection.connection_id,
       display_name: connection.display_name, state: !connection.enabled || connection.disconnected_at ? "disconnected" : connection.credential_ref
@@ -85,9 +90,14 @@ function readSettings(home: string, declaration: ConsumerModelConfigurationDecla
     const custom = opened.store.get(declaration.custom_provider.provider_id);
     if (custom) settings.custom_connection_id = connections.find((connection) => withConnectorConnections(home, (store) => store.require(connection.connection_id).credential_ref === custom.credential_ref, "required"))?.connection_id;
     const resolved = selectConfiguredTextModel(home, opened.store, pref);
+    if (withRevision) {
+      const fallback = pref ? selectConfiguredTextModel(home, opened.store) : resolved;
+      if (fallback) inherited = { provider_id: fallback.provider.provider_id, model_id: fallback.model.model_id };
+    }
     if (resolved) settings = { ...settings, configured: true, source: pref ? "selection" : "provider", effective_selection: { provider_id: resolved.provider.provider_id, model_id: resolved.model.model_id } };
   } finally { opened.storage.close(); }
   if (!settings.configured && !pref && !settings.providers.length && hostHasTextModel({ homeDirectory: home })) { settings.configured = true; settings.source = "environment"; }
+  if (withRevision) settings.preference_revision = modelPreferenceRevision(state.revision, inherited, Boolean(pref && !settings.configured));
   return settings;
 }
 function saveSettings(home: string, declaration: ConsumerModelConfigurationDeclaration, input: PluginModelConfigurationInput): PluginModelConfigurationView {
@@ -147,7 +157,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
 export function createConsumerModelConfiguration(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationPort {
   return {
     selection: () => readModelPreference(home, declaration).selection ?? undefined,
-    read: () => readSettings(home, declaration),
+    read: options => readSettings(home, declaration, options?.preference_revision),
     save: input => saveSettings(home, declaration, input),
   };
 }

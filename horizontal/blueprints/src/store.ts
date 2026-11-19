@@ -35,6 +35,7 @@ export interface DiscoveredSetting {
   entry: SettingEntryDeclaration;
   binding: SettingBinding;
   unavailable?: string;
+  unavailable_reason?: "owner_disabled" | "sandbox_unsupported";
 }
 export interface ObservedSetting extends DiscoveredSetting {
   current: EffectiveSetting | undefined;

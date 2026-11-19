@@ -10,7 +10,7 @@ const errors = defineErrorCodes("plugin", { model_configuration_action_required:
 /** Synchronous owner calls: after Runtime checks authority there is no wait before a persistent effect. */
 export interface PluginModelConfigurationPort {
   selection(): PluginModelSelection | undefined;
-  read(): PluginModelConfigurationView;
+  read(options?: { preference_revision: true }): PluginModelConfigurationView;
   save(input: PluginModelConfigurationInput): PluginModelConfigurationView;
 }
 
@@ -66,7 +66,7 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
       const selection = port.selection();
       return selection ? { provider_id: selection.provider_id, model_id: selection.model_id } : undefined;
     },
-    async read() { const scope = requireAction("read"); await authorize(scope); return port.read(); },
+    async read(options?: { preference_revision: true }) { const scope = requireAction("read"); await authorize(scope); return port.read(options); },
     async save(input: PluginModelConfigurationInput) {
       const scope = requireAction("save"), accepted = structuredClone(input);
       await authorize(scope);

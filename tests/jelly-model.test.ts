@@ -141,9 +141,15 @@ test("Jelly model actions reuse the original provider and preference owners and 
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: ["jelly:settings", "jelly:read", "model:invoke"] }));
   try {
     assert.equal((await actions.invoke(jellyServiceActions.modelSettings, {})).source, "provider");
-    const saved = await actions.invoke(jellyServiceActions.saveModelSettings, { provider_id: "shared", model_id: "model" });
+    const choice = { provider_id: "shared", model_id: "model" };
+    await assert.rejects(actions.invoke(jellyServiceActions.saveModelSettings, choice), /jelly.preferences.write/);
+    const { jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
+    const prefs = jellyManifest.settings_entries!, key = prefs.model_configuration!.key;
+    const { values } = await actions.invoke<{keys: string[]}, import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>(prefs.read, { keys: [key] });
+    await actions.invoke(prefs.write, { key, layer: "personal", expected_revision: values[0]!.revision, request_id: "choose-model", change: { set: choice } });
+    const saved = await actions.invoke(jellyServiceActions.modelSettings, {});
     assert.deepEqual(saved.selection, { provider_id: "shared", model_id: "model" });
-    assert.deepEqual(configuration(home).read(), saved);
+    assert.deepEqual(configuration(home).read({ preference_revision: true }), saved);
     providerStore(home, store => { assert.equal(JSON.stringify(store.get("shared")), sharedBefore); });
     assert.doesNotMatch(JSON.stringify(saved), /fixture-key/);
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, true);
@@ -183,7 +189,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   assert.deepEqual(saved.selection, { provider_id: "jelly-text", model_id: "private" });
   assert.equal(requests, 0);
   assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 2, selection: { provider_id: "jelly-text", model_id: "private" }, revision: 1, receipts: {} });
-  assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), saved);
+  assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), { ...saved, preference_revision: configuration(home).read({ preference_revision: true }).preference_revision });
   await assert.rejects(host.homeActionClient().invoke(person(["jelly:read", "model:invoke"]), jellyActions.modelPlan, { source_type: "text", text: "plan" }));
   t.mock.restoreAll();
   assert.equal((await request("/api/plugins/io.molis.work.jelly/model-settings")).status, 200);

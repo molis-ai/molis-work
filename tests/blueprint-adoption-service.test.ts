@@ -350,7 +350,9 @@ test("ONB-22/29/30: adopting a Shelf device preference from a project and contin
       const undo = await runner.invoke(a.revert,{adoption_id:first.adoption_id,request_id:"restore-wheel"});
       assert.equal(undo.undo.steps[0]?.state,"restored",JSON.stringify(undo));
     } else {
-      await local.invoke(shelfActions.saveSettings,{drop_wheel_enabled:true});
+      const prefs = shelfManifest.settings_entries!;
+      const current = await local.invoke<{ keys: string[] }, SettingsValues>(prefs.read, { keys: [key] });
+      await local.invoke(prefs.write, { key, layer: "personal", change: { set: true }, expected_revision: current.values[0]!.revision, request_id: "manual-wheel" });
       const undo = await runner.invoke(a.revert,{adoption_id:first.adoption_id,request_id:"keep-manual"});
       assert.deepEqual(undo.undo.steps[0],{part_id:"engine",state:"skipped",reason:"revision_changed"});
     }

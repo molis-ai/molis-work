@@ -35,7 +35,10 @@ test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer compl
   const bytes=Buffer.from('full content beyond preview\n'.repeat(10000)),binary=Buffer.from(Array.from({length:900001},(_,i)=>i%256));
   const item=(await actions[0].invoke(shelfActions.admit,{filename:'complete.md',bytes_base64:bytes.toString('base64')})).item;
   const folder=(await actions[0].invoke(shelfActions.admitFolder,{name:'portable',entries:[{relative:'nested/raw.bin',bytes_base64:binary.toString('base64')},{relative:'note.md',bytes_base64:Buffer.from('nested text').toString('base64')}]})).item;
-  await actions[0].invoke(shelfActions.clip,{text:'source clipboard only'});await actions[0].invoke(shelfActions.saveSettings,{drop_wheel_enabled:false});
+  await actions[0].invoke(shelfActions.clip,{text:'source clipboard only'});
+  const wheelKey='shelf.drop_wheel', prefs=shelfManifest.settings_entries;
+  const {values:[current]}=await actions[0].invoke(prefs.read,{keys:[wheelKey]});
+  await actions[0].invoke(prefs.write,{key:wheelKey,layer:'personal',change:{set:false},expected_revision:current.revision,request_id:'source-wheel'});
   await actions[1].invoke(shelfActions.clip,{text:'target clipboard only'});
   await clients[0].save({spaceId:space.spaceId,revision:0,selections:[selection]});await clients[0].run();await clients[1].run();
   const file=(index,id,child)=>actions[index].invoke(shelfActions.file,{item_id:id,...(child?{child}:{})});

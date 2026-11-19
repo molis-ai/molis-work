@@ -575,17 +575,27 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   const rejected = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ drop_wheel_enabled: "no" }),
+    body: JSON.stringify({ drop_wheel_enabled: false,
+      custom_runtimes: [{ id: "fixture", title: "Fixture CLI", executable: "/usr/bin/true", kind: "cli" }] }),
   });
   assert.equal(rejected.status, 400);
+  assert.match((await rejected.json() as {error: string}).error, /shelf.preferences.write/);
+  const afterward = openTestShelfStore(homeDirectory).settings();
+  assert.equal(afterward.drop_wheel_enabled, true);
+  assert.deepEqual(afterward.custom_runtimes, []);
 
-  const written = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ drop_wheel_enabled: false }),
+  const postPref = async (operation: "read" | "write", body: unknown) => fetch(`${origin}/api/plugins/io.molis.work.shelf/preferences/${operation}`, {
+    method: "POST", headers: headers(), body: JSON.stringify(body),
   });
+  const wheel = "shelf.drop_wheel";
+  const observed = await (await postPref("read", { keys: [wheel] })).json() as {values: {revision: string}[]};
+  const write = { key: wheel, layer: "personal", expected_revision: observed.values[0]!.revision, change: { set: false }, request_id: "wheel-off" };
+  const written = await postPref("write", write);
   assert.equal(written.status, 200);
-  assert.equal((await written.json() as { drop_wheel_enabled: boolean }).drop_wheel_enabled, false);
+  const saved = await written.json() as {values: {value: boolean}[]};
+  assert.equal(saved.values[0]!.value, false);
+  assert.deepEqual(await (await postPref("write", write)).json(), saved);
+  assert.equal((await postPref("write", { ...write, request_id: "stale", change: { set: true } })).status, 409);
   assert.equal(openTestShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
   const reread = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(reread.drop_wheel_enabled, false);
@@ -593,27 +603,19 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.doesNotMatch(after, /name="drop_wheel_enabled"[^>]*checked/);
 
   const remappedChord = { key_code: 14, carbon_modifiers: 6144 };
-  const bare = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ hotkeys: { toggle: { key_code: 2, carbon_modifiers: 0 } } }),
-  });
+  const key = "shelf.hotkeys";
+  const hotkeys = (await (await postPref("read", { keys: [key] })).json() as {values: {revision: string; value: ReturnType<typeof defaultShelfHotKeys>}[]}).values[0]!;
+  const remap = (toggle: typeof remappedChord) => postPref("write", { key, layer: "personal", expected_revision: hotkeys.revision, request_id: crypto.randomUUID(),
+    change: { set: { ...hotkeys.value, toggle } } });
+  const bare = await remap({ key_code: 2, carbon_modifiers: 0 });
   assert.equal(bare.status, 400);
-  assert.equal(((await bare.json()) as { error: string }).error, HOTKEY_MODIFIER_REQUIRED);
+  assert.equal(((await bare.json()) as { error: string }).error, "$.toggle.carbon_modifiers: below minimum");
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 2);
-
-  const remapped = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ hotkeys: { toggle: remappedChord } }),
-  });
+  const remapped = await remap(remappedChord);
   assert.equal(remapped.status, 200);
-  const remappedBody = await remapped.json() as {
-    drop_wheel_enabled: boolean;
-    hotkeys: { toggle: { key_code: number; carbon_modifiers: number } };
-  };
-  assert.equal(remappedBody.drop_wheel_enabled, false);
-  assert.equal(remappedBody.hotkeys.toggle.key_code, 14);
+  const remappedBody = await remapped.json() as {values: {value: ReturnType<typeof defaultShelfHotKeys>}[]};
+  assert.equal(openTestShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
+  assert.equal(remappedBody.values[0]!.value.toggle.key_code, 14);
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
   assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
   const remappedPage = await (await fetch(`${origin}/settings/shelf`)).text();

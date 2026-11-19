@@ -61,16 +61,21 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     if (preview && !adopted) history.replaceState({ cursor, part_ids: [...selection], request: original },
       "", pageUrl(project, { preview: preview.preview_id }));
   }
-  function watch(id: string) {
+  function watch(id: string, opening?: "adoption" | "preview") {
     stream?.abort();
     const connection = new AbortController(); stream = connection;
     void (async () => {
       try {
-        const response = await request<Response>(api + "events?id=" + encodeURIComponent(id), { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
+        const response = await request<Response>(api + "events?id=" + encodeURIComponent(id) + (opening ? "&open=" + opening : ""), { as: "response", signal: connection.signal, headers: { accept: "text/event-stream" } });
         if (!response.ok || !response.body) throw new Error(t("load-error"));
         await readStream(response.body, { message(raw, event) {
-          if (connection.signal.aborted || preview?.preview_id !== id) return;
+          if (connection.signal.aborted) return;
           const data = JSON.parse(raw);
+          if (event === "snapshot" && data.preview) {
+            preview = data.preview;
+            if (data.record) sceneContext(data.record.title);
+            else if (data.draft) { restoreReview(data.preview, data.draft); return; }
+          }
           if (event === "snapshot" && data.record) {
             if (data.target_created !== undefined) targetCreated = data.target_created;
             original = data.record.request; remember(data.record.adoption_id, data.record.target.project_id);
@@ -86,7 +91,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
         if (!connection.signal.aborted) throw new Error(t("stream-ended"));
       } catch (e) {
         if (connection.signal.aborted) return;
-        report(e); error.append(button(t("reconnect"), () => watch(id)));
+        report(e); error.append(button(t("reconnect"), () => watch(id, opening)));
       }
     })();
   }
@@ -115,6 +120,8 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     const result = await request<BlueprintAdoptionPreviewResult>(api + "preview", { body: {
       source: current.source, target: dest, part_ids: current.blueprint.parts.map(p => p.part_id), changes: edits,
     } });
+    const edited = !reset && result.parts.find(p => p.part_id === edits.at(-1)?.part_id);
+    if (edited && edited.decision === "skip" && edited.reason === "invalid_proposal") throw new Error(t(edited.reason));
     target = dest; preview = result; changes = edits; original = undefined;
     if (reset) { cursor = 0; selection = new Set(result.parts.filter(p => p.decision !== "skip").map(p => p.part_id)); }
     else selection = new Set(result.parts.filter(p => p.decision !== "skip" && selection.has(p.part_id)).map(p => p.part_id));
@@ -128,30 +135,21 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     if (draftId) {
       draft = (await request<BlueprintDraftResult>(api + "draft?id=" + encodeURIComponent(draftId))).draft; chooseTarget(draft); return;
     }
-    const query = adoptionId ? "?id=" + encodeURIComponent(adoptionId) : previewId ? "?preview=" + encodeURIComponent(previewId) : "";
-    const records = await request<BlueprintLibraryResult>(api + "library" + query);
-    if (records.preview && records.adoptions[0]) {
-      preview = records.preview; original = records.adoptions[0].request; const record = records.adoptions[0];
-      targetCreated = records.target_created ?? false;
-      sceneContext(record.title);
-      remember(record.adoption_id, record.target.kind === "project" ? record.target.project_id : undefined);
-      watch(preview.preview_id); draw(); return;
+    if (adoptionId || previewId) { watch((adoptionId ?? previewId)!, adoptionId ? "adoption" : "preview"); return; }
+    page.library(await request<BlueprintLibraryResult>(api + "library"));
+  }
+  function restoreReview(savedPreview: BlueprintAdoptionPreviewResult, current: BlueprintDraftResult["draft"]) {
+    preview = savedPreview; target = preview.target; draft = current;
+    sceneContext(draft.blueprint.title, draft.blueprint.purpose.work);
+    if (savedPreview.source.kind !== "draft" || draft.source.revision !== savedPreview.source.revision || Date.parse(preview.expires_at) <= Date.now()) {
+      stream?.abort(); preview = undefined; chooseTarget(draft); return;
     }
-    if (previewId && records.preview?.source.kind === "draft") {
-      preview = records.preview; target = preview.target;
-      draft = (await request<BlueprintDraftResult>(api + "draft?id=" + encodeURIComponent(records.preview.source.draft_id))).draft;
-      sceneContext(draft.blueprint.title, draft.blueprint.purpose.work);
-      if (draft.source.revision !== records.preview.source.revision || Date.parse(preview.expires_at) <= Date.now()) {
-        preview = undefined; chooseTarget(draft); return;
-      }
-      changes = preview.parts.map(p => ({ part_id: p.part_id, proposal: p.proposal }));
-      const saved = history.state;
-      selection = new Set(preview.parts.filter(p => p.decision !== "skip" && (!Array.isArray(saved?.part_ids) || saved.part_ids.includes(p.part_id))).map(p => p.part_id));
-      cursor = Number.isInteger(saved?.cursor) && preview.parts[saved.cursor] ? saved.cursor : 0;
-      original = saved?.request?.preview_id === previewId ? saved.request : undefined;
-      watch(previewId); draw(); return;
-    }
-    page.library(records);
+    changes = preview.parts.map(p => ({ part_id: p.part_id, proposal: p.proposal }));
+    const saved = history.state;
+    selection = new Set(preview.parts.filter(p => p.decision !== "skip" && (!Array.isArray(saved?.part_ids) || saved.part_ids.includes(p.part_id))).map(p => p.part_id));
+    cursor = Number.isInteger(saved?.cursor) && preview.parts[saved.cursor] ? saved.cursor : 0;
+    original = saved?.request?.preview_id === savedPreview.preview_id ? saved.request : undefined;
+    draw();
   }
   addEventListener("pagehide", () => stream?.abort(), { once: true });
   void start().catch(report);

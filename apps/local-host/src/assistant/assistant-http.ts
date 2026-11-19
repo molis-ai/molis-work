@@ -571,7 +571,7 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.reads.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       // What the Assistant's own rounds used today, and the person's daily cap.
       if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.budget.usage() };
-      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { policyControl.assertCurrent(); service.budget.saveBudget(body.daily_tokens); return { status: 200, body: await service.budget.usage() }; }
+      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { policyControl.assertCurrent(); throw assistantErrors.setting_invalid("请从 /api/assistant/preferences 读取每日用量上限，再带上所见版本和请求号保存"); }
       // What the person asked the Assistant to keep: personal, and this project's when on a project's page.
       if (method === "GET" && parts.length === 1 && parts[0] === "memories") {
         return { status: 200, body: { memories: await service.memory.memories(ports.projectRef?.project_id ?? null), prefs: service.memory.memoryPrefs() } };

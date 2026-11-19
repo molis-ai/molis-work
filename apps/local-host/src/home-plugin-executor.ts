@@ -75,6 +75,7 @@ export class HomePluginExecutor implements PluginExecutor {
     record(installId: string): PluginInstanceRecord | null;
     /** The Home platform's `invalidateView`: what a Home instance's `services.ui.invalidate` reaches (PG-061). */
     invalidateView(pluginId: string): void;
+    wakeView(pluginId: string): void;
     /** The Home's own installation records, read when an instance starts; none before the platform has them. */
     installations(): InstallationDirectoryClient | undefined;
     /** A definition's language files, registered while its instance runs (`pluginTextFor`); absent: none. */
@@ -188,7 +189,7 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

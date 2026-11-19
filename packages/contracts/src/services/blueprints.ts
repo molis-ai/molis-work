@@ -74,7 +74,7 @@ export interface BlueprintPackSaveInput { source: DraftSource | { kind: "adoptio
 export interface BlueprintPackSaveResult { preview_id: string }
 
 export type BlueprintCurrentValue =
-  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision; setting_source?: SettingSource }
+  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision; setting_source?: SettingSource; value_unavailable?: string }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
 
@@ -83,7 +83,7 @@ export type BlueprintPreviewCandidate =
   | { kind: "bundled"; plugin_id: string; version: string };
 
 const actionableDecisions = ["create", "reuse", "update", "needs_choice", "needs_install"] as const;
-const previewSkipReasons = ["unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"] as const;
+const previewSkipReasons = ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"] as const;
 type PreviewDecision =
   | { decision: (typeof actionableDecisions)[number] }
   | { decision: "skip"; reason: (typeof previewSkipReasons)[number] };
@@ -96,6 +96,7 @@ export type BlueprintPreviewPart = PreviewDecision & {
   candidates: BlueprintPreviewCandidate[];
   device_only?: true;
   model_selection?: true;
+  correction_type?: "boolean" | "string" | "json";
   consequences: SettingConsequence[];
   affected_step_ids: string[];
 };
@@ -128,7 +129,7 @@ export interface BlueprintOwnerReceipt {
   revision: AdoptionRevision;
 }
 
-const skipReasons = ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
+const skipReasons = ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
 const appliedCurrentStates = ["changed", "owner_unavailable"] as const;
 type BlueprintApprovalStep = { page_id: string; version: number; approval_request_id: string };
 type BlueprintStepError = { code: string; message: string };
@@ -235,7 +236,7 @@ const packResult = closedObjectSchema({ preview_id: token });
 const json = { type: ["null", "boolean", "number", "string", "array", "object"] } as const;
 const currentValue = { oneOf: [
   closedObjectSchema({
-    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA, setting_source: { enum: SETTINGS_SOURCES },
+    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA, setting_source: { enum: SETTINGS_SOURCES }, value_unavailable: token,
   }, ["state", "value", "origin"]),
   closedObjectSchema({ state: { const: "missing" } }),
   closedObjectSchema({ state: { const: "unavailable" }, reason: token }),
@@ -246,7 +247,7 @@ const previewCandidate = { oneOf: [
 ] };
 const previewFields = {
   part_id: token, title: OWNED_TEXT_REF_SCHEMA, summary: OWNED_TEXT_REF_SCHEMA, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
-  device_only: { const: true }, model_selection: { const: true }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
+  device_only: { const: true }, model_selection: { const: true }, correction_type: { enum: ["boolean", "string", "json"] }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
 } as const;
 const previewPart = { oneOf: [
   closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision"]),

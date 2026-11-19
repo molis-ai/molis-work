@@ -9,12 +9,11 @@ import type {
   ObservationSpaceView,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { assertPersonCaller, resolveLiveReadableProjects } from "./access.js";
-import { applyCleanup, previewCleanup, sweepExpiredRecords } from "./cleanup.js";
+import { applyCleanup, previewCleanup } from "./cleanup.js";
 import { observationErrors } from "./errors.js";
 import { computeEvaluationHoldsSummary } from "./holds.js";
 import {
   readStoredSettings,
-  retentionDaysOf,
   settingsViewOf,
   writeStoredSettings,
   type StoredObservationSettings,
@@ -49,6 +48,8 @@ export async function handleSettingsSet(
   input: ObservationSettingsUpdateInput,
 ): Promise<ObservationSettingsView> {
   assertPersonCaller(caller);
+  if (Object.hasOwn(input, "retention_mode") || Object.hasOwn(input, "space_reminder_bytes"))
+    throw observationErrors.setting_invalid("清理期限和提醒线请通过 observation.preferences.write 按所见版本保存");
   const readable = await resolveLiveReadableProjects(deps.env);
   await caller.beforeEffect();
   caller.assert_authority_current?.();
@@ -72,23 +73,19 @@ export async function handleSettingsSet(
       evaluation: input.uses?.evaluation !== undefined ? input.uses.evaluation : previous.uses.evaluation,
       export: input.uses?.export !== undefined ? input.uses.export : previous.uses.export,
     },
-    retention_mode: input.retention_mode !== undefined ? input.retention_mode : previous.retention_mode,
-    space_reminder_bytes: input.space_reminder_bytes !== undefined ? input.space_reminder_bytes : previous.space_reminder_bytes,
+    retention_mode: previous.retention_mode,
+    space_reminder_bytes: previous.space_reminder_bytes,
     ...(previous.last_cleanup ? { last_cleanup: previous.last_cleanup } : {}),
   };
 
   db.exec("BEGIN IMMEDIATE");
   try {
-    writeStoredSettings(db, next, {
-      ...(input.retention_mode !== undefined && { retention: true }),
-      ...(input.space_reminder_bytes !== undefined && { "space-reminder": true }),
-    });
+    writeStoredSettings(db, next);
     if (previous.paused && !nextPaused) {
       db.prepare(
         "INSERT INTO coverage_gaps (owner, fact, entry, project_id, state, started_at, ended_at, count, reason) VALUES ('observation', '*', 'workbench', '', 'by_rule', ?, ?, 0, 'recording_paused')",
       ).run(previous.paused_at ?? nowIso, nowIso);
     }
-    if (input.retention_mode !== undefined && retentionDaysOf(next.retention_mode) !== null) sweepExpiredRecords(db, now);
     db.exec("COMMIT");
   } catch (error) {
     try { db.exec("ROLLBACK"); } catch { /* already closed */ }

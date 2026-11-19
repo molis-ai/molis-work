@@ -28,9 +28,11 @@ const declaration: SettingsDeclaration = {
 };
 export const assistantSettingOwner = { provider_id: "system.assistant-settings", settings_entries: declaration };
 
-function assertPerson(caller: ActionCallContext) {
+const refusal = assistantErrors.scope("只有本人能管理助理偏好");
+function availability(caller: ActionCallContext) {
   if (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.audience !== "user" || caller.delegated_by || caller.host_plugin || caller.actor_kind === "runtime")
-    throw assistantErrors.scope("只有本人能管理助理偏好");
+    return { available: false, code: refusal.code, kind: refusal.kind, reason: refusal.message } as const;
+  return { available: true } as const;
 }
 
 export function assistantSettingsProvider(store: () => AssistantStore): ActionProviderRegistration {
@@ -40,7 +42,7 @@ export function assistantSettingsProvider(store: () => AssistantStore): ActionPr
     transaction: (scope, run) => store().preferences.transaction(scope, run),
   });
   const handlers: ActionHandlerBinding[] = Object.values(bound).map(binding => ({
-    ...binding, handle(caller, input) { assertPerson(caller); return binding.handle(caller, input); },
+    ...binding, availability, handle(caller, input) { if (!availability(caller).available) throw assistantErrors.scope(refusal.message); return binding.handle(caller, input); },
   }));
   return { provider: { provider_id: assistantSettingOwner.provider_id, kind: "system", title: "助理偏好" },
     definitions: Object.values(assistantSettingActions), handlers };

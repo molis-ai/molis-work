@@ -4612,7 +4612,9 @@ export interface PluginModelConfigurationClient {
         read(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsReadInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
         write(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsWriteInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
     };
-    read(): Promise<PluginModelConfigurationView>;
+    read(options?: {
+        preference_revision: true;
+    }): Promise<PluginModelConfigurationView>;
     save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }
 
@@ -4641,6 +4643,7 @@ export interface PluginModelConfigurationInput {
 
 export interface PluginModelConfigurationView {
     readonly configured: boolean;
+    readonly preference_revision?: string;
     readonly providers: readonly {
         readonly id: string;
         readonly provider_id: string;

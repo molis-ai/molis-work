@@ -14,7 +14,7 @@ interface ModelProvider { provider_id?: string; id?: string; name?: string; enab
 interface ModelConnection { connection_id: string; display_name: string; state: string }
 interface ModelSelection { provider_id?: string; model_id?: string }
 interface ModelSettings {
-  selection?: ModelSelection; effective_selection?: ModelSelection; providers?: ModelProvider[]; connections?: ModelConnection[];
+  preference_revision?: string; selection?: ModelSelection; effective_selection?: ModelSelection; providers?: ModelProvider[]; connections?: ModelConnection[];
   custom_connection_id?: string; configured?: boolean;
 }
 type ApiFormat = "openai-chat-completions" | "anthropic-messages";
@@ -88,21 +88,17 @@ async function save(page: JellyPage, pick: Pick, revision: string): Promise<void
 export async function openModelSettings(page: JellyPage): Promise<void> {
   page.leftForSettings = false;
   await flushEditor(page);
-  const [payload, preferences] = await Promise.all([
-    page.request<{ settings?: ModelSettings } & ModelSettings>("GET", `${API}/model-settings`),
-    page.request<{ values: { revision: string; value?: ModelSettings["selection"] }[] }>("POST", `${API}/preferences/read`, { keys: [JELLY_MODEL_SELECTION_KEY] }),
-  ]);
-  const choice = preferences.values[0];
-  if (!choice) throw new Error(uiText.text("jelly.model.unavailable"));
-  const settings = payload.settings || payload;
+  const payload = await page.request<{ settings?: ModelSettings } & ModelSettings>("GET", `${API}/model-settings`);
+  const settings = payload.settings || payload, revision = settings.preference_revision;
+  if (!revision) throw new Error(uiText.text("jelly.model.unavailable"));
   const providers = (settings.providers || []).filter((provider) => provider.enabled !== false);
   const pick: Pick = {
-    providerId: choice.value?.provider_id || settings.effective_selection?.provider_id || providers[0] && keyOf(providers[0]) || "",
-    modelId: choice.value?.model_id || settings.effective_selection?.model_id || "", custom: false, apiFormat: "openai-chat-completions",
+    providerId: settings.selection?.provider_id || settings.effective_selection?.provider_id || providers[0] && keyOf(providers[0]) || "",
+    modelId: settings.selection?.model_id || settings.effective_selection?.model_id || "", custom: false, apiFormat: "openai-chat-completions",
   };
   const firstModel = (): string => providers.find((entry) => keyOf(entry) === pick.providerId)?.models?.find((model) => model.enabled !== false)?.model_id || "";
   if (!pick.modelId) pick.modelId = firstModel();
-  openGeneric(page, "jelly.model.title", formHtml(page, settings), "jelly.model.save", () => save(page, pick, choice.revision));
+  openGeneric(page, "jelly.model.title", formHtml(page, settings), "jelly.model.save", () => save(page, pick, revision));
   const body = page.$("[data-jelly-dialog-body]");
   body.onclick = (event) => {
     const target = (event.target as Element).closest("button");

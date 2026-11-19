@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SettingSnapshot, SettingsOwner, SettingsRequestIdentity } from "@molis-ai/molis-work-plugin-sdk";
 import { openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
-import { commitModelPreference, readModelPreference, type ConsumerModelConfigurationDeclaration, type ModelPreferenceFile } from "./model-configuration.js";
+import { commitModelPreference, modelPreferenceRevision, readModelPreference, type ConsumerModelConfigurationDeclaration, type ModelPreferenceFile } from "./model-configuration.js";
 
 const errors = defineErrorCodes("host", { setting_conflict: "conflict", setting_invalid: "invalid" });
 
@@ -19,7 +19,7 @@ export function modelPreferenceOwner(home: string, declaration: ConsumerModelCon
   const snapshot = (state: ModelPreferenceFile): SettingSnapshot => {
     const fallback = configuredSelection(home);
     const unavailable = state.selection && !configuredSelection(home, state.selection);
-    return { key, state: "ok", ...(unavailable && { value_unavailable: "所选模型或连接当前不可用" }), revision: JSON.stringify([state.revision, fallback, Boolean(unavailable)]), layer_revisions: { personal: String(state.revision) },
+    return { key, state: "ok", ...(unavailable && { value_unavailable: "所选模型或连接当前不可用" }), revision: modelPreferenceRevision(state.revision, fallback, Boolean(unavailable)), layer_revisions: { personal: String(state.revision) },
       layers: { provider_default: fallback, ...(state.selection && { personal: { ...state.selection } }) } };
   };
   return {

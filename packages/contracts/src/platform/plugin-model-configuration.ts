@@ -13,6 +13,7 @@ export interface PluginModelConfigurationInput {
 
 export interface PluginModelConfigurationView {
   readonly configured: boolean;
+  readonly preference_revision?: string;
   readonly providers: readonly {
     readonly id: string;
     readonly provider_id: string;
@@ -39,7 +40,7 @@ export interface PluginModelConfigurationClient {
     read(input: import("./settings.js").SettingsReadInput): Promise<import("./settings.js").SettingsValues>;
     write(input: import("./settings.js").SettingsWriteInput): Promise<import("./settings.js").SettingsValues>;
   };
-  read(): Promise<PluginModelConfigurationView>;
+  read(options?: { preference_revision: true }): Promise<PluginModelConfigurationView>;
   save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }
 

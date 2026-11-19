@@ -2,6 +2,10 @@
 
 2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
 
+同批逐项预览区分建议格式错误、无声明、主人停用和沙箱暂不支持。已保存但离线的选择携带原值、来源和不可用原因。模型连接目录的读取可显式请求 `preference_revision`，用同一次读取的版本提交普通选择。
+
+按一骏 11 月 18 日的决定，旧格式写以下字段会在生效前被拒绝。助理预算改用 `/api/assistant/preferences`，Shelf 设备偏好、工作记录期限与提醒线、Jelly 普通模型选择分别使用 `shelf.preferences.write`、`observation.preferences.write`、`jelly.preferences.write`。先从配对读动作取得版本，再以该版本与请求号提交。工具登记、暂停记录与模型连接管理仍使用各自入口。
+
 2026-11-17 质量审查 QEA-124/125：公开动作的 `result_view.link` 增加可选 `home_href_template`，仅供无可信项目上下文的回执使用。动作提供方声明目的地，Contracts 统一校验模板、插值和同源地址，旧项目或共享模板按原合同处理。Skills 的起草动作补个人空间目的地，工作台按设置页实际消费的参数打开该草稿。旧助理卡的已存呈现快照保持原回执，SDK、Workflows 继续共用呈现。阶段一原位更新 API 和动作快照。业务输入输出、动作版本、授权和持久结构均无变化。
 
 2026-11-17 质量审查第50批：Goals自有 `goals.stage.read@1` 输入新增可选 `projection: "collection"`，其现行输出的 `selected` 为 null，集合与呈现状态保持；省略该字段的固定版本调用方继续读取原完整正文。原页面声明、Manifest stage输入、Host片段和工作台刷新同批接入。按当前阶段一原位扩充，动作快照同步；没有持久结构变更、历史值兜底或兼容reader。公开contracts/SDK API快照无变化。

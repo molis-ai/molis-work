@@ -121,19 +121,22 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
     const key = part.proposal.kind === "setting" ? part.proposal.key : "";
     field(details, t("current"), current?.state === "present" ? page.values.describe(key, current.value, part.model_selection) : current?.state === "unavailable" ? current.reason : t("unavailable"));
     if (current?.state === "present" && current.setting_source) field(details, t("source"), t(current.setting_source));
+    if (current?.state === "present" && current.value_unavailable) field(details, t("status"), current.value_unavailable);
+    if (part.decision === "reuse" || part.decision === "update") field(details, t("action"), t(part.decision));
     if (part.proposal.kind === "setting") field(details, t("proposed"), page.values.describe(part.proposal.key, part.proposal.value, part.model_selection));
     field(details, t("scope"), t(part.device_only ? "device-only" : part.layer));
     for (const consequence of part.consequences) field(details, t("impact"), t(consequence));
     main.append(details);
     if (part.decision === "skip") main.append(node("p", t(part.reason)));
     else main.append(check(part, t("include")));
-    if (state.editing && part.proposal.kind === "setting" && (part.decision !== "skip" || part.reason === "value_unavailable")) {
+    if (state.editing && part.proposal.kind === "setting" && (part.decision !== "skip" || part.reason === "value_unavailable" || part.reason === "invalid_proposal")) {
       const proposal = part.proposal, edit = node("details");
+      const type = part.correction_type ?? typeof proposal.value;
       edit.append(node("summary", t("edit")));
       if (part.model_selection) {
         const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: selected() } }));
         const selected = page.values.modelEditor(edit, proposal.value, save);
-      } else if (typeof proposal.value === "boolean") {
+      } else if (type === "boolean") {
         const choice = page.values.options(t("proposed"), "scene-boolean",
           [true, false].map(value => ({ value: String(value), label: printable(value) })), String(proposal.value));
         const save = button(t("refresh"), () => controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: choice.value() === "true" } }));
@@ -143,7 +146,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
         value.className = "mw-input"; value.setAttribute("aria-label", t("proposed"));
         value.value = printable(proposal.value);
         const save = button(t("refresh"), async () => {
-          const v = typeof proposal.value === "string" ? value.value : JSON.parse(value.value);
+          const v = type === "string" ? value.value : JSON.parse(value.value);
           await controls.edit({ part_id: part.part_id, proposal: { ...proposal, value: v } });
         });
         edit.append(value, save);

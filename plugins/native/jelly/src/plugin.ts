@@ -51,7 +51,7 @@ export function createJellyPlugin(): PluginDefinition {
         if (!configuration.preferences) throw new ActionError("actions.unredeemed", "宿主未提供模型偏好写入");
         return configuration.preferences.write(input);
       }),
-      ...createJellyServiceHandlers({ modelSettings: () => settings(() => configuration.read()), saveModelSettings: input => settings(() => configuration.save(input)) }),
+      ...createJellyServiceHandlers({ modelSettings: () => settings(() => configuration.read({ preference_revision: true })), saveModelSettings: input => settings(() => configuration.save(input)) }),
     ] };
   } };
 }

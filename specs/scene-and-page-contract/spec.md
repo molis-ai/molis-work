@@ -535,7 +535,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 后续处理器按同一可信范围和 owner 读动作合并查询。已知对象读当前值，写出结果未知则按 `<adoption_id>:<part_id>` 查主人回执。失败、超时、数量不符或返回不全仍待核对。确认未提交后按原键补写。主人只提供当前值读取时，只有已证明可返回原回执的动作才能在成功回读后按原键核对式重放。相同当前值不能证明这次新建或具备撤销权，P-3a 的当前成员读取也无法单独证明失联写的来源。Characters 沿 36 的批读及复用 CAS，同时核对成员 revision 和原件版本，复用与回执同事务更新成员 revision，使旧解除凭据失效。Blueprints 不另存一份角色共享计数。
 
-第一次 apply 绑定可信本人、已确认预览、目标与原请求，同键异内容拒绝。预览未使用且过期时用 `blueprints.preview_expired`。一旦接受并记下 `adoption_id`，同请求重进沿该记录续做，原预览过期不让它重开一份。派发主人命令前经 `beforeEffect()` 留待核对的检查点，成功回读后才能记已生效。取消或撤权后停止派发和记账。迟到或重启后的检查点由下一次获准调用核对。新项目复用现有 `ProjectCatalog.createProject` 的可信稳定 ID 创建路径。现行目录没有 `projects.create` 动作，给刚建项目绑定子调用的可信入口由第 45 批接，不能修改一份 caller 对象冒充该项目的权限。
+第一次 apply 绑定可信本人、已确认预览、目标与原请求，同键异内容拒绝。预览未使用且过期时用 `blueprints.preview_expired`。一旦接受并记下 `adoption_id`，同请求重进沿该记录续做，原预览过期不让它重开一份。派发主人命令前经 `beforeEffect()` 留待核对的检查点，成功回读后才能记已生效。取消或撤权后停止派发和记账。迟到或重启后的检查点由下一次获准调用核对。新项目复用现有 `ProjectCatalog.createProject` 的可信稳定 ID 创建路径。现行目录没有 `projects.create` 动作，38 的设置采用在打开新项目后使用目标项目的本人授权续做；45 的场景包沿同一入口接入，不能修改一份 caller 对象冒充该项目的权限。
 
 ## 8. 插件采用边界
 
@@ -592,7 +592,7 @@ type ContentAdoptionReadResult<Value> =
 | P-2b 角色采用接口 | §5.2 的 `characters.from_template@1`、`characters.roles.read@1` 与角色成员、来源／回执合同 | `modules/characters.ts` | api：`contracts/modules/characters`。`host-actions.tsv` 随真实 owner 绑定 | P-2a 与 36 提前公开合同。真实 owner 归 36，场景消费归 44 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行（第 3.5 节） | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin`、`plugin-sdk/index` | 形状和检查复用 P-2a，设置与主人声明接 P-1。来源转出复用 36 提前合同，公开接线与包读取复用已合入的 08 能力。不依赖 P-2b 或 36 的服务实现 |
-| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节内容包签名命令合同。08 导入先接真实签名。另存、完整采用与 S-blueprint-consent-context 的真实拒绝由第 45 批接入并实操验收 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（签名命令） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`。`host-actions.tsv` 随真实动作登记更新 | 合同复用 P-3b 与 36 的采用出处形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
+| P-3c 采用动作与签名入口 | 第 7.1 节八个动作的公开声明与类型，第 8 节固定内容采用输入，第 6.6 节内容包签名命令合同。08 导入先接真实签名。38 接入设置采用并验证其授权拒绝；45 接入另存及完整场景包采用并验证签名与升级 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（签名命令） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`。`host-actions.tsv` 随真实动作登记更新 | 合同复用 P-3b 与 36 的采用出处形状。导入接 08 C-2、内容包安装与导入确认。场景采用依赖 P-3a 和主人读写 |
 | P-4 首页与生成页面 | 第 6.5 节八个动作、选择／版本／批准和页面主体公开形状，SDK 静态校验及公共入口接线。已接入的真实边界当批验拒绝。运行、SPC-10／11 与 S-home-page-files／S-home-page-authority／S-home-page-approval 的页面实操归第 37 批 | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`、`plugin-sdk/index`。`host-actions.tsv` 只收真实登记 | 05② C-2／C-3 公共形状已在。实际卡片用第 15 批提供方。P-3b／P-3c 共用采用形状，页面主体类型基于现有公开动作合同独立实施 |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；08 C-3 的位置由用户 2026-11-07 改，见[技能包需求第 9 节](../skill-packs/spec.md#9-决策记录)；以下是依赖与接力顺序，不是拆 PR 的清单；第 20 批一个 PR，同一份快照一次一个写手，全部在 02 交接之后）：
@@ -619,7 +619,7 @@ type ContentAdoptionReadResult<Value> =
 
 **独立工作树执行（用户 2026-11-08 更正）。** 第 15、16 和第 20 批各在独立 worktree，修改不会互相覆盖。第 20 批不再等待跨批文件释放、不设跨批冻结窗口，也不为文件占用向其他批发协调消息。所需代码在本批工作树直接完成，整批写完后统一同步 main，解决实际合并冲突并验证。保留真实能力和合同依赖，但不能把文件重叠当成阻塞。08 的已合内容包能力 `416ee8cef0` 已按必要前置接入 `0e90dd8ec6`；其他在途批不提前合入。本批内仍只有一个产品写手。
 
-**P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。八个场景动作由第 45 批在 `system.blueprints` 下登记，`packs.save` 接平台签名、已有安装预览的只读回取及本人确认。
+**P-3c 文件与验收。** 实施用 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，按同批顺序接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。签名静态验收覆盖闭合输入输出。真实首接按第 6.6 节复用 08 的签名、安装预览和导入确认。动作快照只收实际登记。按[决定 52](../post-anticorruption-roadmap/reference/decisions.md#decision-52)，第 38 批在 `system.blueprints` 登记 `library.read`、`draft.save`、`draft.read` 和采用的 `preview/apply/read/revert/remove`。第 45 批接签名场景包采用、三方升级和 `packs.save` 的签名、安装预览回取及本人确认。
 
 SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承。第 37／45 批按原分工在真实调用链上验证直接批准拒绝与上一层审计，保留 SPC-14、S-blueprint-consent-context 和 S-home-page-approval 的运行验收。SPC-15 按第 6.6 节验证实际签名和安装预览。
 

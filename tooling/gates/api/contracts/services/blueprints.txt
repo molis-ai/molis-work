@@ -89,6 +89,7 @@ export type BlueprintCurrentValue = {
     origin: BlueprintPartOrigin | null;
     revision?: AdoptionRevision;
     setting_source?: SettingSource;
+    value_unavailable?: string;
 } | {
     state: "missing";
 } | {
@@ -183,6 +184,7 @@ export type BlueprintPreviewPart = PreviewDecision & {
     candidates: BlueprintPreviewCandidate[];
     device_only?: true;
     model_selection?: true;
+    correction_type?: "boolean" | "string" | "json";
     consequences: SettingConsequence[];
     affected_step_ids: string[];
 };
@@ -311,6 +313,6 @@ declare const appliedCurrentStates: readonly ["changed", "owner_unavailable"];
 
 declare const dependencyChanges: readonly ["added", "removed", "changed"];
 
-declare const previewSkipReasons: readonly ["unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"];
+declare const previewSkipReasons: readonly ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"];
 
-declare const skipReasons: readonly ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"];
+declare const skipReasons: readonly ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"];

@@ -174,7 +174,9 @@ export class AdoptionExecution {
     const record = this.store.load(caller, "adoption_id", input.adoption_id);
     const access = await accessFor(record.row.project_id), owners = await access.discover();
     await beforeWrite(caller);
-    if (record.steps.some(step => step.apply.state === "pending_verification"))
+    const available = (plan: SettingPlan) => owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding));
+    const pending = record.steps.filter(step => step.apply.state === "pending_verification");
+    if (!record.row.undo_request && pending.length && pending.every(step => step.plan && available(step.plan)))
       throw blueprintsErrors.step_conflict("有一步的结果还没确认，请先继续核对，再撤销");
     this.store.startUndo(caller, input.adoption_id, op, input.request_id);
     record.row.undo_operation = op; record.row.undo_request = input.request_id;
@@ -186,19 +188,19 @@ export class AdoptionExecution {
         results.push(step.undo); continue;
       }
       let result: UndoStep;
-      if (!plan || apply.state !== "applied" || !("receipt" in apply)) result = { part_id, state: "detached" };
-      else if (!owners.some(owner => !owner.unavailable && owner.entry.key === plan.key && sameBinding(owner.binding, plan.binding))) {
-        result = step.undo?.state === "pending_verification" ? step.undo : { part_id, state: "skipped", reason: "owner_unavailable" };
+      if (!plan || apply.state !== "pending_verification" && !(apply.state === "applied" && "receipt" in apply)) result = { part_id, state: "detached" };
+      else if (!available(plan)) {
+        result = step.undo?.state === "pending_verification" ? step.undo : apply.state === "pending_verification" ? apply : { part_id, state: "skipped", reason: "owner_unavailable" };
       }
       else {
         const requestId = input.adoption_id + ":undo:" + part_id;
         const pending = { part_id, state: "pending_verification" as const, request_id: requestId };
-        let writing = step.undo?.state === "pending_verification";
+        let writing = step.undo?.state === "pending_verification" && step.undo.request_id === requestId;
         try {
           const current = (await access.read(plan.binding, [plan.key]))[0];
           assertCurrent(caller);
           if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
-          if (!writing && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
+          if (!writing && apply.state === "applied" && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
           else if (!writing && current.state !== "ok") result = { part_id, state: "skipped", reason: "owner_unavailable" };
           else if ((!writing || current.state === "ok" && current.revision === plan.undo_expected_revision)
             && this.store.sharedSetting(caller.actor_id, record.row.project_id, record.row.preview_id, plan, current.revision))
@@ -210,14 +212,14 @@ export class AdoptionExecution {
             }
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
-              recovery: { undo_of: input.adoption_id + ":" + part_id }, expected_revision: plan.undo_expected_revision ?? String(apply.receipt.revision), request_id: requestId });
+              recovery: { undo_of: input.adoption_id + ":" + part_id }, expected_revision: plan.undo_expected_revision ?? current.revision, request_id: requestId });
             if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }
         } catch (error) {
           assertCurrent(caller);
           const failure = knownFailure(error);
-          result = error instanceof ActionError && error.kind === "conflict" ? { part_id, state: "skipped", reason: "revision_changed" }
+          result = error instanceof ActionError && error.kind === "conflict" ? (apply.state === "pending_verification" ? apply : { part_id, state: "skipped", reason: "revision_changed" })
             : failure ? { part_id, state: "failed", error: failure } : writing ? pending : { part_id, state: "skipped", reason: "owner_unavailable" };
         }
       }

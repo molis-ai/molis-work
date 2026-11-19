@@ -1,4 +1,4 @@
-import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { SettingsDeclaration, SettingEntryDeclaration } from "@molis-ai/molis-work-contracts/platform/settings";
@@ -46,9 +46,14 @@ export function bindShelfPreferences(context: PluginStartContext, store: () => S
       return result;
     },
   });
-  return Object.values(bound).map(binding => ({ ...binding, handle(caller, input) {
+  const reason = "只有本机用户能查看或更改置物架设备设置";
+  function availability(caller: ActionCallContext) {
     if (caller.audience !== "user" || caller.plugin_install_id || caller.host_plugin || caller.delegated_by || caller.delegated_action)
-      throw new ActionError("actions.forbidden", "只有本机用户能查看或更改置物架设备设置");
+      return { available: false, code: "actions.forbidden", kind: "forbidden", reason } as const;
+    return { available: true } as const;
+  }
+  return Object.values(bound).map(binding => ({ ...binding, availability, handle(caller, input) {
+    if (!availability(caller).available) throw new ActionError("actions.forbidden", reason);
     return binding.handle(caller, input);
   } }));
 }

@@ -167,7 +167,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
   { owner: "modules/shelf", block: { kind: "shelf" }, pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
   { owner: "packages/storage", block: HOME_BLOCK, pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
-  { owner: "apps/local-host", block: { kind: "setting", page: "plugins" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
+  { owner: "apps/local-host", block: { kind: "setting", page: "models" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
     file: MODEL_PREFERENCE_FILE, paths: installedModelPreferences },
   ...platformModelPreferences().map(({ owner, path }) => ({ owner, block: { kind: "plugin", plugin_id: owner } as const, pattern: path, file: MODEL_PREFERENCE_FILE })),
 ];

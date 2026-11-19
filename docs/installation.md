@@ -18,6 +18,8 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 自动化或验收时可设置 `MOLIS_WORK_SKIP_OPEN=1`，只安装、不立即打开窗口；也可以用 `MOLIS_WORK_APP_DIR` 指定其他用户级安装目录。
 
+打开 App 时，App 自带的程序比 Home 里装的新才装进 Home：版本更高，或版本相同但构建更晚（比两边 `dist/.molis-work-build.json` 的 `created_at`）。所以开发期重装同版本的新构建，打开后就换上新程序，只换一次；构建更早的 App 不会盖掉之后 `pnpm install:local` 装进来的新构建；回到上一版以后，同版本的 App 也不会把刚离开的程序装回去。
+
 构建脚本下载固定的 Node LTS，并使用 Node 官方 `SHASUMS256.txt` 校验后再生成 payload。Apple Silicon 与 Intel 分别构建，不能把两个架构的 native addon 混成一个伪 universal 包。未显式提供 `APPLE_SIGNING_IDENTITY` 时，脚本固定使用 `-`（内部 ad-hoc），避免 Tauri 自动选择本机其他开发证书；指定身份则原样保留。产物通过 codesign 完整性验证后，输出实际签名信息。签名完整不代表 Apple 公证或 Gatekeeper 放行；脚本不会替用户删除 quarantine 标记。
 
 当前 [发布 workflow](../.github/workflows/release-macos.yml) 仅手动触发，自动 tag 触发已暂停。恢复自动 `v*` 发布前需要另行修改触发器，并配置完整 Apple Secrets；既有公开发布条件要求 Developer ID 签名与 Apple 公证。此重组不修改触发器、不上传发行物，也不把内部验证产物视为公开可发布版本。

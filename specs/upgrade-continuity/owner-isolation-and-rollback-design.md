@@ -21,7 +21,7 @@
 | Home 插件库已经有专门的说明页（`plugin-store-unavailable.ts`、`web-home-plugin-recovery.ts`） | 同文件 | 换成通用的说明卡，原来的专页删掉，不留两套 |
 | 维护态监听只答 `/health` 和 503 | `upgrade-maintenance.ts` | 开场那一行由这个监听给一张页面（§4） |
 | 发布目录按版本命名 `releases/molis-work-<version>`；同一版本重装时原目录先改名备份、成功后删掉；不同版本的旧目录留着不清 | `installer/home-release.ts`、`home.ts` | 开发期版本号都是 0.1.0，「上一版程序」不能靠版本号找，要在换上新程序时明确留一份（§5.1） |
-| 桌面只在内置运行时的版本比 Home 里新时才装进 Home | `apps/desktop/adapters/tauri/src/web_service.rs` 的 `embedded_runtime_upgrade_available` | 回退之后新 `.app` 会马上把新版装回去、再升一次库。要一个「停在上一版」的标记（§5.3） |
+| 桌面只在内置运行时的版本比 Home 里新时才装进 Home（2026-11-18 起同版本也比构建时间，见 [BL-desktop-same-version-install](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-desktop-same-version-install.md)；回退保留照旧先判） | `apps/desktop/adapters/tauri/src/web_service.rs` 的 `embedded_runtime_upgrade_available` | 回退之后新 `.app` 会马上把新版装回去、再升一次库。要一个「停在上一版」的标记（§5.3） |
 | 升级快照保留到下一次成功升级，就是为 U6 留的 | `upgrade-chain-design.md` §5.4 | 回退放回的就是这份快照，不另拍 |
 
 ## 2. 主人暂不可用（UPG-04、UPG-05）

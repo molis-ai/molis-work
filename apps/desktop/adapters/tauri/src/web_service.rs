@@ -179,28 +179,104 @@ fn read_rollback_hold(home: &Path) -> Option<Version> {
     Version::parse(hold.rolled_back_from.version.trim()).ok()
 }
 
-fn embedded_version_is_upgrade(
-    embedded: &Version,
-    installed: Option<&Version>,
+/// A program the desktop compares: its version, and when it was built. Development builds all share a version, so
+/// between two of them only the build time tells which is newer (BL-desktop-same-version-install).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Program {
+    version: Version,
+    built: Option<String>,
+}
+
+/// `dist/.molis-work-build.json` (`format.build.manifest` 1): `pnpm build` writes it, the App's payload carries it and
+/// every release the installer makes from that payload keeps it byte for byte, so two programs compare without
+/// hashing either.
+#[derive(Deserialize)]
+struct BuildManifest {
+    schema_version: u32,
+    created_at: String,
+}
+
+/// `Date.prototype.toISOString()` in UTC, `YYYY-MM-DDTHH:MM:SS.sssZ`: of two such times the later one sorts later as text.
+fn is_utc_instant(text: &str) -> bool {
+    const SHAPE: &[u8; 24] = b"0000-00-00T00:00:00.000Z";
+    text.len() == SHAPE.len()
+        && text
+            .bytes()
+            .zip(SHAPE.iter())
+            .all(|(byte, shape)| match shape {
+                b'0' => byte.is_ascii_digit(),
+                other => byte == *other,
+            })
+}
+
+fn read_build_time(program: &Path) -> Option<String> {
+    let path = program.join("dist").join(".molis-work-build.json");
+    let manifest = serde_json::from_slice::<BuildManifest>(&fs::read(path).ok()?).ok()?;
+    (manifest.schema_version == 1 && is_utc_instant(&manifest.created_at))
+        .then_some(manifest.created_at)
+}
+
+#[derive(Deserialize)]
+struct Installation {
+    version: String,
+    release_path: String,
+}
+
+/// The program `config/installation.json` names. Its release path counts only as a plain path inside the Home, as
+/// the rollback record's does (owner-isolation-and-rollback-design §5.1).
+fn read_installed_program(home: &Path) -> Option<Program> {
+    let path = home.join("config").join("installation.json");
+    let installation = serde_json::from_slice::<Installation>(&fs::read(path).ok()?).ok()?;
+    let release = Path::new(&installation.release_path);
+    let inside = release.components().next().is_some()
+        && release
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)));
+    Some(Program {
+        version: Version::parse(installation.version.trim()).ok()?,
+        built: inside
+            .then(|| read_build_time(&home.join(release)))
+            .flatten(),
+    })
+}
+
+fn embedded_is_upgrade(
+    embedded: &Program,
+    installed: Option<&Program>,
     held: Option<&Version>,
 ) -> bool {
-    if held.is_some_and(|held| embedded <= held) {
+    if held.is_some_and(|held| embedded.version <= *held) {
         return false;
     }
-    installed.map(|version| embedded > version).unwrap_or(true)
+    let Some(installed) = installed else {
+        return true;
+    };
+    match embedded.version.cmp(&installed.version) {
+        std::cmp::Ordering::Greater => true,
+        std::cmp::Ordering::Less => false,
+        // Only a later build of the same version: an App built earlier never puts its program over a newer one,
+        // such as one `pnpm install:local` put there since. Without both times it is not an upgrade, as before.
+        std::cmp::Ordering::Equal => matches!(
+            (&embedded.built, &installed.built),
+            (Some(embedded), Some(installed)) if embedded > installed
+        ),
+    }
 }
 
 fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool {
     let Some((source, _)) = embedded_molis_work_source(resource_dir) else {
         return false;
     };
-    let Some(embedded_version) = read_runtime_version(&source.join("package.json")) else {
+    let Some(version) = read_runtime_version(&source.join("package.json")) else {
         return false;
     };
-    let installed_version = read_runtime_version(&home.join("config").join("installation.json"));
-    embedded_version_is_upgrade(
-        &embedded_version,
-        installed_version.as_ref(),
+    let embedded = Program {
+        version,
+        built: read_build_time(&source),
+    };
+    embedded_is_upgrade(
+        &embedded,
+        read_installed_program(home).as_ref(),
         read_rollback_hold(home).as_ref(),
     )
 }
@@ -426,8 +502,8 @@ pub(crate) fn start_molis_work_web(
     if !bin.is_file() {
         if let Some(resource_dir) = resource_dir {
             // A first-run App can seed its self-contained Runtime. Existing installs are
-            // only replaced above when the bundled version is newer, so an older App can
-            // never overwrite a same-version local build while the service restarts.
+            // only replaced above by a newer version or a later build of the same one, so an
+            // older App can never overwrite a newer local build while the service restarts.
             install_embedded_molis_work(resource_dir, &home)?;
             bin = web_launcher(&home);
         }
@@ -474,8 +550,9 @@ mod embedded_runtime_version_tests {
     }
 
     use super::{
-        embedded_version_is_upgrade, install_or_reuse_healthy, read_rollback_hold,
-        sync_managed_web_service_after_upgrade, Version,
+        embedded_is_upgrade, embedded_runtime_upgrade_available, install_or_reuse_healthy,
+        is_utc_instant, read_installed_program, read_rollback_hold,
+        sync_managed_web_service_after_upgrade, Program, Version,
     };
     use std::{
         fs,
@@ -499,27 +576,171 @@ mod embedded_runtime_version_tests {
         .unwrap());
     }
 
+    fn program(version: &str, built: Option<&str>) -> Program {
+        Program {
+            version: Version::parse(version).unwrap(),
+            built: built.map(str::to_string),
+        }
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("molis-{name}-{}-{nonce}", process::id()))
+    }
+
+    const A: &str = "2026-11-19T07:42:18.353Z";
+    const B: &str = "2026-11-19T07:49:40.943Z";
+
     #[test]
     fn only_missing_or_newer_embedded_runtimes_install() {
-        let old = Version::parse("0.1.4").unwrap();
-        let current = Version::parse("0.1.5").unwrap();
-        let newer = Version::parse("0.1.6").unwrap();
+        let old = program("0.1.4", None);
+        let current = program("0.1.5", None);
+        let newer = program("0.1.6", None);
 
-        assert!(embedded_version_is_upgrade(&current, None, None));
-        assert!(embedded_version_is_upgrade(&newer, Some(&current), None));
-        assert!(!embedded_version_is_upgrade(&current, Some(&current), None));
-        assert!(!embedded_version_is_upgrade(&old, Some(&current), None));
+        assert!(embedded_is_upgrade(&current, None, None));
+        assert!(embedded_is_upgrade(&newer, Some(&current), None));
+        assert!(!embedded_is_upgrade(&current, Some(&current), None));
+        assert!(!embedded_is_upgrade(&old, Some(&current), None));
+    }
+
+    /// BL-desktop-same-version-install DSV-01, DSV-02, DSV-04, DSV-05.
+    #[test]
+    fn dsv_a_later_build_of_the_same_version_installs_once_and_nothing_else_does() {
+        let a = program("0.1.0", Some(A));
+        let b = program("0.1.0", Some(B));
+        assert!(embedded_is_upgrade(&b, Some(&a), None), "DSV-01: B after A");
+        assert!(!embedded_is_upgrade(&b, Some(&b), None), "DSV-02: B again");
+        assert!(
+            !embedded_is_upgrade(&a, Some(&b), None),
+            "DSV-05: an App built earlier leaves a newer build alone"
+        );
+        assert!(
+            !embedded_is_upgrade(&b, Some(&program("0.1.1", Some(A))), None),
+            "DSV-04: a newer version stays, whenever it was built"
+        );
+        assert!(
+            embedded_is_upgrade(&program("0.1.1", Some(A)), Some(&b), None),
+            "a newer version installs, whenever it was built"
+        );
+        let unknown = program("0.1.0", None);
+        assert!(
+            !embedded_is_upgrade(&unknown, Some(&a), None),
+            "no build time, no upgrade"
+        );
+        assert!(
+            !embedded_is_upgrade(&b, Some(&unknown), None),
+            "no build time, no upgrade"
+        );
+    }
+
+    #[test]
+    fn dsv_only_a_utc_iso_instant_counts_as_a_build_time() {
+        assert!(is_utc_instant(A));
+        for text in [
+            "",
+            "2026-11-19T07:42:18Z",
+            "2026-11-19T07:42:18.353+00:00",
+            "2026-11-19 07:42:18.353Z",
+            "9999-99-99T99:99:99.999z",
+            "x026-11-19T07:42:18.353Z",
+        ] {
+            assert!(!is_utc_instant(text), "{text}");
+        }
+    }
+
+    fn write_build(program: &std::path::Path, created_at: &str) {
+        fs::create_dir_all(program.join("dist")).unwrap();
+        fs::write(
+            program.join("dist").join(".molis-work-build.json"),
+            format!(r#"{{"schema_version":1,"source_digest":"x","created_at":"{created_at}"}}"#),
+        )
+        .unwrap();
+    }
+
+    fn write_installation(home: &std::path::Path, release_path: &str) {
+        fs::write(
+            home.join("config").join("installation.json"),
+            format!(r#"{{"schema_version":1,"installer":"molis-work-home-install-v1","version":"0.1.0","release_path":"{release_path}","content_digest":"x","updated_at":"t"}}"#),
+        )
+        .unwrap();
+    }
+
+    /// The App's payload and the Home's program are read where the installer and the build put them.
+    #[test]
+    fn dsv_the_desktop_reads_both_build_times_from_the_files_themselves() {
+        let root = scratch("same-version");
+        let payload = root.join("resources").join("molis-work-runtime");
+        fs::create_dir_all(payload.join("runtime")).unwrap();
+        fs::create_dir_all(payload.join("dist").join("cli")).unwrap();
+        fs::write(payload.join("runtime").join("node"), "").unwrap();
+        fs::write(payload.join("dist").join("cli").join("main.js"), "").unwrap();
+        fs::write(payload.join("package.json"), r#"{"version":"0.1.0"}"#).unwrap();
+        write_build(&payload, B);
+        let home = root.join("home");
+        let release = home.join("releases").join("molis-work-0.1.0");
+        fs::create_dir_all(home.join("config")).unwrap();
+        write_build(&release, A);
+        write_installation(&home, "releases/molis-work-0.1.0");
+
+        assert_eq!(
+            read_installed_program(&home),
+            Some(program("0.1.0", Some(A)))
+        );
+        assert!(embedded_runtime_upgrade_available(&root, &home), "DSV-01");
+        write_build(&release, B);
+        assert!(!embedded_runtime_upgrade_available(&root, &home), "DSV-02");
+
+        // DSV-03: after going back, the build it left is not put back.
+        write_build(&release, A);
+        fs::write(
+            home.join("config").join("rollback-hold.json"),
+            r#"{"schema_version":1,"held_version":"0.1.0","rolled_back_from":{"version":"0.1.0","content_digest":"x"},"at":"t"}"#,
+        )
+        .unwrap();
+        assert!(!embedded_runtime_upgrade_available(&root, &home), "DSV-03");
+        fs::remove_file(home.join("config").join("rollback-hold.json")).unwrap();
+
+        // A release path that leaves the Home, or a manifest this build cannot read, gives no build time.
+        for outside in ["../outside", "/tmp/outside", ""] {
+            write_build(&root.join("outside"), A);
+            write_installation(&home, outside);
+            assert_eq!(
+                read_installed_program(&home),
+                Some(program("0.1.0", None)),
+                "{outside}"
+            );
+            assert!(
+                !embedded_runtime_upgrade_available(&root, &home),
+                "{outside}"
+            );
+        }
+        write_installation(&home, "releases/molis-work-0.1.0");
+        fs::write(
+            release.join("dist").join(".molis-work-build.json"),
+            format!(r#"{{"schema_version":2,"created_at":"{A}"}}"#),
+        )
+        .unwrap();
+        assert_eq!(read_installed_program(&home), Some(program("0.1.0", None)));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn upgr05_a_home_that_went_back_is_not_updated_again_to_the_version_it_left() {
-        let old = Version::parse("0.1.4").unwrap();
-        let left = Version::parse("0.1.5").unwrap();
-        let newer = Version::parse("0.1.6").unwrap();
+        let old = program("0.1.4", None);
+        let left = program("0.1.5", Some(B));
+        let newer = program("0.1.6", None);
+        let held = Version::parse("0.1.5").unwrap();
 
-        assert!(!embedded_version_is_upgrade(&left, Some(&old), Some(&left)));
+        assert!(!embedded_is_upgrade(&left, Some(&old), Some(&held)));
         assert!(
-            embedded_version_is_upgrade(&newer, Some(&old), Some(&left)),
+            !embedded_is_upgrade(&left, Some(&program("0.1.5", Some(A))), Some(&held)),
+            "DSV-03: nor to a later build of it"
+        );
+        assert!(
+            embedded_is_upgrade(&newer, Some(&old), Some(&held)),
             "a later version installs as usual"
         );
 
@@ -533,7 +754,7 @@ mod embedded_runtime_version_tests {
         assert_eq!(read_rollback_hold(&home), None);
         let hold = home.join("config").join("rollback-hold.json");
         fs::write(&hold, r#"{"schema_version":1,"held_version":"0.1.4","rolled_back_from":{"version":"0.1.5","content_digest":"x"},"at":"t"}"#).unwrap();
-        assert_eq!(read_rollback_hold(&home), Some(left));
+        assert_eq!(read_rollback_hold(&home), Some(held));
         fs::write(
             &hold,
             r#"{"schema_version":2,"rolled_back_from":{"version":"0.1.5"}}"#,

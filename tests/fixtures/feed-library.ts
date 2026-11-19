@@ -13,7 +13,7 @@ import {
   type FeedApplication, type FeedSourceRecord, type FeedSourceSchedulerDispatch, type FeedSourceService, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { listRegisterableFeeds, FEED_CATEGORY_LABEL } from "@molis-ai/molis-work-integration-rss";
-import { ListenerHost, SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { ListenerHost, SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 
 // A Feed library arranged without the Plugin Runtime: the tests that need rows in a project library before (or beside) the Host starts the
 // plugin build them with these, over the same tables the Runtime Feed reads. The application and the source service are the demo seed's
@@ -106,7 +106,7 @@ export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: stri
       const connectionId = `source:${source.source_id}`;
       connector.registerDriver(integration.connector_driver);
       connector.connect({ connection_id: connectionId, driver_id: integration.connector_driver.driver_id });
-      const sql = fromBetterSqlite(db);
+      const sql = fromProjectConnection(db);
       const signals = new SignalsModule(sql);
       const listener = new ListenerHost(sql, connector, signals.commands, {
         afterSignalAccepted(event, receipt) { return afterAccepted(providerItemOf(event.payload), receipt.signal, event.occurred_at); },

@@ -13,7 +13,7 @@ import {
   FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
   type FeedApplication, type FeedApplicationPorts, type FeedArtifactProducer, type FeedSourceRecord, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
-import { fromBetterSqlite, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromProjectConnection, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
 import { createTestSourcePull, type TestSourcePullClient } from "./source-pull.js";
 
 // Isolated Feed test assembly. Product demo initialization runs Feed’s declared Runtime action; product code never imports this fixture.
@@ -49,7 +49,7 @@ function feedLedger(ledger: ContextLedgerApi): FeedLedgerPort {
 
 /** Every Feed operation against one local connection. */
 export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedApplicationOptions = {}): FeedApplication {
-  const sql = fromBetterSqlite(db);
+  const sql = fromProjectConnection(db);
   const journal = new LocalSqliteJournal(db);
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {

@@ -1,4 +1,4 @@
-import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -756,7 +756,7 @@ test("D0117 source history removes signals, revisions and events atomically and 
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     const other = service.register({ kind: "custom_rss", feed_url: "https://example.com/retained-signals.xml" }).source;
-    const signals = new SignalsModule(fromBetterSqlite(store.db));
+    const signals = new SignalsModule(fromProjectConnection(store.db));
     const draft = { project_id: DEMO_PROJECT_ID, source_id: source.source_id, provider_dedupe_id: "history", kind: "update", occurred_at: "2026-11-08T00:00:00.000Z", observed_at: "2026-11-08T00:00:00.000Z", payload: { title: "first" }, raw_event_id: "raw-history", adapter: { plugin_id: "io.example.history", version: "1.0.0" }, provenance: {} };
     const first = signals.commands.submitDraft(draft).signal;
     signals.commands.submitDraft({ ...draft, payload: { title: "second" } });

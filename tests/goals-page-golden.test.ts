@@ -276,6 +276,15 @@ const pages: Record<string, Draw> = {
 // constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 // On the merge of main e5e565411b (P5's records above) the 16 again stood 9318 zh / 9797 en under main's records, every one by that
 // constant, and the other 36 matched main's; the 16 were then recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Unified screen-polish PR #2142 (P5 Part 2 + Coding P4a + P1 top-strip scheme C / v13 top corner / v13 bottom bar) audited against
+// an independently built clean main a462bf81f2 (all 56 reference assertions passed and all 52 draws were dumped and compared hunk by
+// hunk): 32 records (all document-*, momentum-*, refresh-*, settings-guidance*, settings-rules*) match a462bf81f2 byte for byte, and
+// all `application/json` data blocks (`molis-work-data` and `data-project-guidance-json`) are unchanged byte for byte in every page.
+// The 4 settings-general* records move by +382 in both zh and en (P5 Part 2 SDK setting rows/sections alone). The 16 page-* records
+// move by +3856 zh / +3548 en on the 7 web pages (+605 P5 Part 2 + 3251 zh / +2943 en P1 top corner, scheme C, no kept plugins, and
+// v13 bottom bar account bar / counts / lists / stack) and +3886 zh / +3578 en on page-current-desktop (+30 from four added `?desktop=1`
+// / `&desktop=1` links on top-corner and bar-account minus one removed `/settings/sync?desktop=1` link). The 20 changed records were
+// recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset; no Goals markup or JSON changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 // QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
 // `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.

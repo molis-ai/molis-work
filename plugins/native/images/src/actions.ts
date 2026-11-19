@@ -24,7 +24,7 @@ function define<I,O>(name:string, version: number,title:string,description:strin
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages", /* @version action.images.connection.usages */ 1,"生图配置使用的连接",["images:connections:read"],"home"),
   connections:define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list", /* @version action.images.connections.list */ 1,"生图服务列表","读取 Home 生图配置及当前服务连接状态，不返回凭据","query","home",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),
-  saveConnection:define<ImageConnectionInput,{connection:ImageConnection}>("connections.save", /* @version action.images.connections.save */ 1,"保存生图服务","保存协议、地址、模型及已有系统连接引用；API Key 在服务连接中管理","command","home",object({id,name:id,api_format:format,base_url:id,model:id,auth_connection_id:text},["name","api_format","base_url","model"]),object({connection}),["images:connections:write"]),
+  saveConnection:define<ImageConnectionInput,{connection:ImageConnection}>("connections.save", /* @version action.images.connections.save */ 1,"保存生图服务","保存协议、地址、模型及已有系统连接引用；API Key 在服务连接中管理","command","home",object({id,create_id:{type:"string",format:"uuid"},name:id,api_format:format,base_url:id,model:id,auth_connection_id:text},["name","api_format","base_url","model"]),object({connection}),["images:connections:write"]),
   deleteConnection:define<{id:string},{deleted:true}>("connections.delete", /* @version action.images.connections.delete */ 1,"删除生图服务","删除生图配置及其绑定，保留生成历史和图片","command","home",object({id}),object({deleted:{const:true}}),["images:connections:write"]),
   list:define<Record<string,never>,{jobs:ImageJob[]}>("jobs.list", /* @version action.images.jobs.list */ 1,"生成记录","读取当前项目的生成状态、提示和图片记录","query","project",object({}),object({jobs:array(job)}),["images:read"]),
   get:define<{id:string},{job:ImageJob}>("jobs.get", /* @version action.images.jobs.get */ 1,"读取生图任务","按任务 ID 读取当前状态，不重新调用厂商","query","project",object({id}),changed,["images:read"]),
@@ -56,7 +56,7 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.get,(input,caller)=>({job:ports.service().getJob(project(caller),input.id)})),
     {...bind(imagesActions.start,async (input,caller)=>({job:await ports.service().start(project(caller),input,caller)})), availability:(caller:ActionCallContext):ActionAvailability=> {
       if(caller.audience === "user")return {available:true};
-      return ports.service().listConnections().some(connection=>connection.available) ? {available:true} :
+      return ports.service().canStartOrReplay(caller.project_id) ? {available:true} :
         {available:false,code:"actions.connection_required",reason:"还没有可用的生图服务：请先在图片页添加。"};
     }},
     bind(imagesActions.cancel,async (input,caller)=>({job:await ports.service().cancel(project(caller),input.id,caller)})),

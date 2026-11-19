@@ -106,6 +106,7 @@ export function usePreset(page: ImagesPage, preset: string): void {
 export function editConnection(page: ImagesPage, id: string): void {
   const { s, el } = page;
   const connection = s.conns.find((item) => item.id === id);
+  s.creatingId = undefined;
   s.editingId = connection?.id || "";
   s.editingAuth = connection?.auth_connection_id || "";
   if (connection) {
@@ -157,7 +158,7 @@ async function saveConnection(page: ImagesPage): Promise<void> {
   if (!s.saving && !el.connectionForm.checkValidity()) page.field<HTMLDetailsElement>("advanced").open = true;
   if (s.saving || !el.connectionForm.reportValidity()) return;
   const input = {
-    ...(s.editingId ? { id: s.editingId } : {}), name: el.connectionName.value.trim(), api_format: s.editingFormat,
+    ...(s.editingId ? { id: s.editingId } : { create_id: s.creatingId ??= crypto.randomUUID() }), name: el.connectionName.value.trim(), api_format: s.editingFormat,
     base_url: el.connectionUrl.value.trim(), model: el.connectionModel.value.trim(), auth_connection_id: el.connectionAuth.value,
   };
   s.saving = true;
@@ -175,6 +176,8 @@ async function saveConnection(page: ImagesPage): Promise<void> {
     el.dialog.close();
     page.say(uiText.text(payload.connection.available === false ? "images.service.saved-connect" : "images.service.saved"));
   } catch (error) {
+    await loadConnections(page).catch(() => undefined);
+    if (s.creatingId && s.conns.some(connection => connection.id === s.creatingId)) s.editingId = s.creatingId;
     page.say(messageOf(error) || uiText.text("images.error.save"), true, "[data-images-connection-note]");
   } finally {
     s.saving = false;

@@ -1756,13 +1756,16 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await go(`/projects/${b.projectId}/?settings=assistant`);
-  await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .prompt-tag')].some(node => node.textContent === '修改')");
+  // specs/screen-polish/p5-settings.md: the capabilities are one row; their list opens in place under it.
+  await b.waitFor("!!document.querySelector('[data-assistant-capabilities-fold] > summary')");
+  await b.click("[data-assistant-capabilities-fold] > summary");
+  await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability-effect')].some(node => node.textContent === '修改')");
   await b.evaluate(`void (() => { const rows = [...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability')];
-    window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.prompt-tag')?.textContent === word);
-      return { row, toggle: row.querySelector('[role=switch]'), title: row.querySelector('.prompt-row-copy strong').textContent }; });
+    window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.assistant-capability-effect')?.textContent === word);
+      return { row, toggle: row.querySelector('[role=switch]'), title: row.querySelector('.mw-setting-row__copy strong').textContent }; });
     catalogSettings[0].toggle.focus(); })()`);
   const effects = `catalogSettings.map(({row,toggle,title}, index) => [row.isConnected && row.querySelector('[role=switch]') === toggle, toggle.checked, title,
-    row.querySelector('.prompt-row-copy strong').textContent, row.querySelector('.prompt-tag').textContent, toggle.getAttribute('aria-label'), index !== 0 || document.activeElement === toggle])`;
+    row.querySelector('.mw-setting-row__copy strong').textContent, row.querySelector('.assistant-capability-effect').textContent, toggle.getAttribute('aria-label'), index !== 0 || document.activeElement === toggle])`;
   const before = await b.evaluate<Array<[boolean, boolean, string, string, string, string, boolean]>>(effects);
   const select = await chooseEnglishInSettings(t, b);
   for (const locale of ["en", "zh"] as const) {

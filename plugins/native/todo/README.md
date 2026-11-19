@@ -13,6 +13,8 @@
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
+确认提醒时传待办 ID 与读到的 `remind_at`；改期后旧确认返回冲突。同一次批量操作返回 `changed_count`，零变更时 `batch_id` 为 null。
+
 ## 开发要求
 
 当前 Todo 库基线保留已删除待办的最后项目归属；不恢复正文、不上传该技术记录。项目未结算检查还通过 Storage 的受保护只读端口检查冻结上传和保留冲突，旧项目上传未确认而当前项已移动/删除时，两边均受保护；确认旧上传后不继续误阻塞旧项目。个人待办不归属某个项目。旧冻结结构只用于拒绝测试，不自动升级真实 Home。相关回归：`tests/personal-sync.test.ts`、`tests/home-store-baselines.test.ts`。

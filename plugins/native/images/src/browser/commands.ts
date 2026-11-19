@@ -20,7 +20,8 @@ async function deleteConnection(page: ImagesPage, target: HTMLButtonElement, id:
   const { s } = page;
   if (!await page.host.confirm(uiText.text("images.service.delete-confirm"))) return;
   await whileBusy(page, target, async () => {
-    await page.request("DELETE", `/connections/${encodeURIComponent(id)}`);
+    try { await page.request("DELETE", `/connections/${encodeURIComponent(id)}`); }
+    catch (error) { await loadConnections(page).catch(() => undefined); throw error; }
     s.conns = s.conns.filter((item) => item.id !== id);
     if (s.editingId === id) editConnection(page, "");
     paintConnections(page);

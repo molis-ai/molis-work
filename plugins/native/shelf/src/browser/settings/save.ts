@@ -112,7 +112,8 @@ export async function refreshSettings(page: SettingsPage, scope: ParentNode): Pr
 
 /** A failed save is reported in the control's own block; the caller puts the control back. */
 export async function save(page: SettingsPage, scope: ParentNode, patch: ShelfSettingsPatch, control: Element): Promise<Settings> {
-  const block = control.closest(".shelf-settings-block, .settings-section");
+  // A control that is not in a block of its own sits straight in its section's card.
+  const block = control.closest(".shelf-settings-block, .mw-settings-section__rows");
   let line = block?.querySelector<HTMLElement>(":scope > [data-shelf-save-error]") ?? null;
   try {
     const body = await savePatch(page, scope, patch);

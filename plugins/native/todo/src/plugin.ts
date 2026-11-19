@@ -65,6 +65,6 @@ function todoRoutes(context: PluginStartContext) {
     route(todoActions.archive, "todo.archive", identified),
     route(todoActions.remove, "todo.delete", identified),
     route(todoActions.link, "todo.link", identified),
-    route(todoActions.acknowledgeReminder, "todo.acknowledge", id),
+    route(todoActions.acknowledgeReminder, "todo.acknowledge", identified),
   ];
 }

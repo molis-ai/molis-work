@@ -105,7 +105,10 @@ test("automatic read preflight admits only classes allowed by the combined curre
 /** Preference persistence port only; any memory body operation is outside these unit checks. */
 function preferenceService() {
   const profiles = new Map<string, MemoryPrefs>();
+  const markers = new Map<string, { at: string; body: unknown }>();
   const ledger = { prefs: (actor: string, key: string) => structuredClone(profiles.get(`${actor}:${key}`) ?? null),
+    marker: (actor: string, key: string) => markers.get(`${actor}:${key}`) ?? null,
+    setMarker: (actor: string, key: string, body: unknown, at: string) => { markers.set(`${actor}:${key}`, { at, body }); },
     savePrefs: (actor: string, key: string, value: MemoryPrefs) => { profiles.set(`${actor}:${key}`, structuredClone(value)); },
     transaction: <T>(work: () => T): T => work() } as MemoryLedgerPort;
   const service = new MemoryService({ ledger, backend: {} as MemoryBackendPort });

@@ -4,7 +4,7 @@ import { acceptanceView } from "./state.js";
 import { AcceptanceStore } from "./store.js";
 
 /**
- * Goals' requirements and acceptance written into the platform's tables, inside the project library's 5→6 upgrade only (contract-design
+ * Goals' requirements and acceptance written into the platform's tables, inside the project library's 6→7 upgrade only (contract-design
  * §10.4; CONTRACT-CHANGES 「当前保留机制」, removed once the earliest supported golden already has these tables). The rows come worked out;
  * decisions keep Goals' applied decision as their standing (`goals_v5`). Afterwards every current requirement must read as Goals read it,
  * or the upgrade fails and the library stays as it was (§10.9 question 8).

@@ -44,8 +44,8 @@ const GOALS_PROJECT_DATABASE_V1 = {
  * which the platform's project service keeps now, without Goals' own requirements, judgments and conclusions, which the platform's
  * requirements and acceptance keep (`goal_requirement_links` records only where each requirement came from; requests for accepting
  * requirements that were still waiting are `moved`), and with another sync collection (`project_goals@3`: the relations touching a Goal
- * as the platform's generic `relation-edges`, no guidance). The project library's 5→6 step moves a v5 library here and hands the guidance
- * and the acceptance over (`apps/local-host/src/project-library-v6-upgrade.ts`, `./v5-acceptance-handover.ts`); Goals declares no step
+ * as the platform's generic `relation-edges`, no guidance). The project library's 6→7 step moves a v5 library here and hands the guidance
+ * and the acceptance over (`apps/local-host/src/project-library-v7-upgrade.ts`, `./v5-acceptance-handover.ts`); Goals declares no step
  * of its own.
  */
 export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
@@ -54,7 +54,7 @@ export const GOALS_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   read_permission: "storage:private", write_permission: "storage:private",
 };
 
-/** Batch 39's v5, as the project library's versions 4 and 5 hold it: the source of its 5→6 step and the target of its 3→4 step. */
+/** Batch 39's v5, as the project library's versions 4, 5 and 6 hold it: the source of its 6→7 step and the target of its 3→4 step. */
 export const GOALS_PROJECT_DATABASE_V5 = {
   store_name: "goals", version: /* @version database.goals_project_database_v5 */ 5 as const,
   schema: businessSchema(GOALS_EVENT_STATE_SQL) + GOALS_TREE_EFFECTS_SQL,

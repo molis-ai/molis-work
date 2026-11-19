@@ -24,7 +24,7 @@ function compare(left: unknown, right: unknown): number {
   return a < b ? -1 : Number(a > b);
 }
 
-/** A decision outcome's digest from its facts; the project library's 5→6 step also uses it for the digest a record froze before (v5). */
+/** A decision outcome's digest from its facts; the project library's 6→7 step also uses it for the digest a record froze before (v5). */
 export function goalDecisionOutcomeDigest(kind: Outcome["kind"], facts: unknown): string {
   return "sha256:" + createHash("sha256").update(canonicalJsonText(["goals-decision-outcome", 1, kind, facts], "null")).digest("hex");
 }

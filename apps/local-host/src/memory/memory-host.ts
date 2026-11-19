@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemorySourceRef, AgentMemoryUseReceipt, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { readMemoryInputSource } from "./memory-source-identity.js";
@@ -21,7 +22,8 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryErrors, MemoryService, type MemoryCaller, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
+import { decodePreferenceSetting, MEMORY_SETTING_KEYS, memorySettingActions, memorySettingHandlers, memoryErrors,
+  MemoryService, type MemoryCaller, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -260,6 +262,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const { upkeepNow, learnLater, pluginLearning } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
   const bindings: ActionHandlerBinding[] = [
+    ...memorySettingHandlers(ledger, assertBusiness),
     { ...memoryLearningActions.enqueue, handle: (context, value) => pluginLearning.enqueue(context, input(value)) },
     { ...memoryLearningActions.form, handle: (context, value) => pluginLearning.form(context, input(value)) },
     { ...memoryActions.recall, handle: (context, value) => forCall(context).recall(caller(context), input<MemoryRecallRequest>(value), { beforeEffect: () => context.beforeEffect(), readMode: context.memory_read_mode ?? "task" }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
@@ -296,7 +299,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       return forCall(context).importScope(caller(context), request.scope, request.package); } },
   ];
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
-    definitions: [...Object.values(memoryActions), memoryLearningActions.enqueue, memoryLearningActions.form], handlers: bindings });
+    definitions: [...Object.values(memoryActions), ...Object.values(memorySettingActions), memoryLearningActions.enqueue, memoryLearningActions.form], handlers: bindings });
   const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: businessAlive });
   const host: MemoryHost = {
     service,
@@ -384,7 +387,12 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       }
       const call = async (definition: { capability_id: string; version: number }, input: unknown) =>
         client.invoke(await context(), { capability_id: definition.capability_id, version: definition.version, provider_id: MEMORY_PROVIDER_ID }, input);
-      const scope = (value: unknown): MemoryScope | undefined => value === "project" || value === "personal" ? value : undefined;
+      const scope = (value: unknown) => value === "project" || value === "personal" ? value : undefined;
+      const preferenceView = (result: unknown) => {
+        const setting = (result as SettingsValues).values[0];
+        if (setting?.state !== "ok") throw memoryErrors.unavailable(setting?.reason ?? "记忆偏好暂不可用");
+        return { preference_setting: setting, prefs: decodePreferenceSetting(setting.value) };
+      };
       const pageLabels = async (page: MemoryPageResponse) => ({ objects: await objectTitles(ports.localHost, ports.projectRef,
         page.items.flatMap(item => item.applies.objects ?? []), await context()).catch(() => ({})) });
       if (method === "GET" && parts.length === 1 && parts[0] === "operations") {
@@ -406,14 +414,15 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
         const [page, prefs, candidates, changes] = await Promise.all([
-          call(memoryActions.page, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
+          call(memoryActions.page, { scope: wanted }), session ? call(memoryActions.prefs, { scope: wanted })
+            : call(memorySettingActions.read, { keys: [MEMORY_SETTING_KEYS[wanted]] }).then(preferenceView),
           call(memoryActions.candidates, { scope: wanted }).catch(error => {
             if (abort.signal.aborted) throw error;
             // The failed Action keeps its diagnostic; null means unread, never an empty candidate list.
             return { candidates: null };
           }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
         ]);
-        return { status: 200, body: { scope: wanted, ...(page as object), ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
+        return { status: 200, body: { scope: wanted, ...(page as object), project_id: wanted === "project" ? ports.projectRef?.project_id : null, ...(prefs as object), ...(candidates as object), ...(changes as object), pairs: null,
           labels: await pageLabels(page as MemoryPageResponse), last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
       if (method === "GET" && parts.length === 1 && parts[0] === "pairs") return { status: 200,
@@ -433,7 +442,11 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 2 && parts[0] === "batch" && parts[1] === "preview") return { status: 200, body: await call(memoryActions.batchPreview, body) };
       if (parts.length === 2 && parts[0] === "batch" && parts[1] === "apply") return { status: 200, body: await call(memoryActions.batchApply, body) };
       if (parts.length === 1 && parts[0] === "change") return { status: 200, body: await call(memoryActions.change, body) };
-      if (parts.length === 1 && parts[0] === "prefs") return { status: 200, body: await call(memoryActions.savePrefs, body) };
+      if (parts.length === 1 && parts[0] === "prefs") {
+        if (!("key" in body)) return { status: 200, body: await call(memoryActions.savePrefs, body) };
+        if (session) throw memoryErrors.forbidden("请从记忆设置页修改偏好");
+        return { status: 200, body: preferenceView(await call(memorySettingActions.write, body)) };
+      }
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "accept") return { status: 200, body: await call(memoryActions.accept, { candidate_id: parts[1], expected_version: body.expected_version, ...(typeof body.text === "string" && body.text.trim() ? { text: body.text } : {}) }) };
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1], expected_version: body.expected_version }) };
       if (parts.length === 3 && parts[0] === "changes" && parts[2] === "undo") return { status: 200, body: await call(memoryActions.undo, { change_id: parts[1] }) };

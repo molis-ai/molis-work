@@ -11,7 +11,7 @@ function value(object, key) {
   return properties.length === 1 && ts.isPropertyAssignment(property) ? unwrapExpression(property.initializer) : undefined;
 }
 
-/** The step spreads exactly this name (`{ from: 5, ...projectLibraryV6Upgrade }`). */
+/** The step spreads exactly this name (`{ from: 6, ...projectLibraryV7Upgrade }`). */
 const spreads = (object, name) => Boolean(object && ts.isObjectLiteralExpression(object)
   && object.properties.filter(property => ts.isSpreadAssignment(property)).length === 1
   && object.properties.some(property => ts.isSpreadAssignment(property) && reference(unwrapExpression(property.expression), name)));
@@ -19,9 +19,9 @@ const spreads = (object, name) => Boolean(object && ts.isObjectLiteralExpression
 /**
  * Project-library steps that move Goals' library in the same transaction; Goals declares no step of its own for them.
  * - APR-19 (batch 39): project 3→4 hands the approvals to the platform; Goals 4→5.
- * - Batch 44 D1 (`docs/system/CONTRACT-CHANGES.md`「第 44 批存量搬迁」, user 2026-11-17): project 5→6 rewrites the relations naming
- *   Goals and Feed and moves Goals' sync collection to `project_goals@3`; Goals 5→6. It is the project's 5→6 step: main's 4→5 (the built-in
- *   plugins' private values, #2118) touches no Goals table, so the project's versions 4 and 5 both hold Goals' v5.
+ * - Batch 44 D1 (`docs/system/CONTRACT-CHANGES.md`「第 44 批存量搬迁」, user 2026-11-17, renumbered 6→7 on 2026-11-19): project 6→7 rewrites the relations naming
+ *   Goals and Feed and moves Goals' sync collection to `project_goals@3`; Goals 5→6. It is the project's 6→7 step: main's 4→5 (the built-in
+ *   plugins' private values, #2118) and 5→6 (project runtime settings receipts, #2138) touch no Goals table, so the project's versions 4, 5 and 6 all hold Goals' v5.
  * `binding` is what the project library imports from `module` and the step uses; `hostStep` the step the Host exports, read by the
  * store snapshot to check the installed writer is the one in the chain. `sync` is the step Goals' sync collection takes with it, and
  * `sync.goals` the Goals tables a golden at the project's `from` must hold for the replay to start that collection there.
@@ -38,9 +38,9 @@ export const GOALS_APPROVAL_TRANSFER = Object.freeze({
     Object.freeze({ from: 3, to: 4, goalsFrom: 4, goalsTo: 5, module: "./project-approval-upgrade.js", binding: "transferProjectApprovals", hostStep: "projectApprovalUpgrade",
       sync: Object.freeze({ from: 1, to: 2, goals: 3 }),
       matches: step => reference(value(step, "sql"), "PROJECT_APPROVALS_SCHEMA_SQL") && reference(value(step, "run"), "transferProjectApprovals") }),
-    Object.freeze({ from: 5, to: 6, goalsFrom: 5, goalsTo: 6, module: "./project-library-v6-upgrade.js", binding: "projectLibraryV6Upgrade", hostStep: "projectLibraryV6Step",
+    Object.freeze({ from: 6, to: 7, goalsFrom: 5, goalsTo: 6, module: "./project-library-v7-upgrade.js", binding: "projectLibraryV7Upgrade", hostStep: "projectLibraryV7Step",
       sync: Object.freeze({ from: 2, to: 3, goals: 5 }),
-      matches: step => spreads(step, "projectLibraryV6Upgrade") }),
+      matches: step => spreads(step, "projectLibraryV7Upgrade") }),
   ]),
 });
 

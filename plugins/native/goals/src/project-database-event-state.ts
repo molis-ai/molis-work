@@ -1,7 +1,7 @@
 // Event work's derived state in a project's library, as GOALS_PROJECT_DATABASE (./project-database.ts) declares it. Moved here whole
 // from modules/goals (S8, PG-020); the text of each statement is as it was.
 
-/** Requests for the person's decision. v6 adds `moved`: a request for accepting requirements that the 5→6 step handed to the platform's per-item review (contract-design §10.3). */
+/** Requests for the person's decision. v6 adds `moved`: a request for accepting requirements that the 6→7 step handed to the platform's per-item review (contract-design §10.3). */
 const DECISION_REQUESTS = (statuses: string) => `  CREATE TABLE IF NOT EXISTS goal_event_decision_requests (
     request_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -160,7 +160,7 @@ export const GOALS_EVENT_STATE_SQL = EVENT_STATE_SCHEMA(",\n    cited_subjects_j
 export const GOALS_V2_EVENT_STATE_SQL = EVENT_STATE_SCHEMA("");
 /** v6: without the requirement conclusions, and with `moved` requests. */
 export const GOALS_V6_EVENT_STATE_SQL = EVENT_STATE_SCHEMA(",\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'", true);
-/** v6's decision requests alone: the 5→6 handover makes the table again from this very text. */
+/** v6's decision requests alone: the 6→7 handover makes the table again from this very text. */
 export const GOALS_V6_DECISION_REQUESTS_SQL = DECISION_REQUESTS("'pending', 'decided', 'moved'");
-/** v6's closures alone: the 5→6 handover makes the table again from this very text, each row with no acceptance round. */
+/** v6's closures alone: the 6→7 handover makes the table again from this very text, each row with no acceptance round. */
 export const GOALS_V6_CLOSURES_SQL = CLOSURES(true);

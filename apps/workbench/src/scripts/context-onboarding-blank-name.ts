@@ -1,5 +1,6 @@
 /** The blank project's name, its preview and validation, joined into the onboarding browser program. */
 export const CONTEXT_ONBOARDING_BLANK_NAME_PART = String.raw`
+  let blankName = '';
   function blankForm() {
     const title = blankName.trim();
     const preview = briefPreview(title || globalThis.t.text("workbench.context-onboarding.new-project"), '', {title:readText("workbench.project-brief.next"), body:'<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.when-plugin-has-something-move-confirm-will-show") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now") + ' · ' + globalThis.t.text(materialsOnly ? "workbench.context-onboarding.bring-materials-already-read" : "workbench.context-onboarding.blank-project"));

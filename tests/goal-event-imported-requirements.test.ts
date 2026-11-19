@@ -28,7 +28,7 @@ function acceptMixedCriterion(app: GoalProjectApplication) {
   app.decide(BOARD, "MIXED-OWNER", ["MIXED-C1"]);
 }
 
-/** A requirement as the platform has it after the 5→6 handover. */
+/** A requirement as the platform has it after the 6→7 handover. */
 const onPlatform = (app: GoalProjectApplication, goalId: string, requirementId: string) =>
   app.acceptanceView(BOARD, goalId).requirements.find((item) => item.id === requirementId);
 
@@ -100,7 +100,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     );
     assert.ok(original);
     assert.equal(policy?.origin?.kind, "imported_human_approval");
-    // The 5→6 step carried the policy's acceptance over to the platform as the person's (§10.9 question 11: v5 acceptances count).
+    // The 6→7 step carried the policy's acceptance over to the platform as the person's (§10.9 question 11: v5 acceptances count).
     assert.deepEqual([onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.person, onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.satisfied], ["accepted", true]);
     assert.equal(onPlatform(app, "MIXED-OWNER", "MIXED-C1")?.satisfied, true);
     assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id]);

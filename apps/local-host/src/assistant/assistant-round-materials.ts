@@ -47,6 +47,37 @@ function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: strin
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
+/**
+ * What the person chose with “/”: each body goes with this round, said as their choice. The Skills they chose are this round's named
+ * list, read together in one catalog read; role material is read from its signed installation.
+ */
+async function chooseAssistantMethods(reads: Pick<AssistantWorkReads, "readRole" | "readSkills">, work: StoredWork, materials: AssistantMaterial[]): Promise<{ chosen: AssistantMaterial[]; handoffs: MethodHandoff[]; categories: Set<string> }> {
+  const handoffs: MethodHandoff[] = [], categories = new Set<string>();
+  if (!materials.some(item => item.kind === "method")) return { chosen: [...materials], handoffs, categories };
+  // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
+  const handedOver = work.executor.kind === "plugin";
+  const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
+  const names = new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" && item.method.name ? [[skillRefKey(item.method.ref), item.method.name] as const] : []));
+  const read = refs.length ? await reads.readSkills(work, refs, names, categories) : undefined;
+  if (read) handoffs.push(read.handoff);
+  const out: AssistantMaterial[] = [];
+  for (const material of materials) {
+    const chosen = material.kind === "method" ? material.method : undefined;
+    if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
+    if (chosen.kind === "skill") {
+      const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
+      out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },
+        text: `用户为这一轮选定的方法「${skill.name}」（v${skill.ref.version}）。这一轮按它的步骤做：\n${skill.body}` });
+      continue;
+    }
+    const role = await reads.readRole(work, chosen);
+    handoffs.push(role.handoff);
+    out.push({ ...material, title: "角色资料", method: { kind: "role", method_id: role.method_id, version: role.version, name: role.name, plugin_title: role.plugin_title,
+      default_ref: role.default_ref, installation: role.installation, effective: role.effective, user_revision: role.user_revision }, text: signedRoleData(role) });
+  }
+  return { chosen: out, handoffs, categories };
+}
+
 type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readRole" | "readSkills"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
 
 /**
@@ -56,6 +87,10 @@ type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "re
  */
 export class AssistantRoundMaterials {
   constructor(private readonly store: Pick<AssistantStore, "cards" | "confirmAlways" | "delegatedBy" | "get" | "relations" | "rounds" | "undos" | "unsettled">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantRoundMaterialsLinks) {}
+
+  chosenMethods(work: StoredWork, materials: AssistantMaterial[]) {
+    return chooseAssistantMethods(this.link, work, materials);
+  }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean,
@@ -258,35 +293,6 @@ export class AssistantRoundMaterials {
         : context ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
         : `用户用“@”引用的对象。${where}没有提供正文读取，下面只是搜索结果里的摘要，不是全文：\n${material.text ?? "（没有摘要）"}`;
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
-    }
-    return out;
-  }
-
-  /**
-   * What the person chose with “/”: each body goes with this round, said as their choice. The Skills they chose are this round's named
-   * list, read together in one catalog read; role material is read from its signed installation.
-   */
-  async chosenMethods(work: StoredWork, materials: AssistantMaterial[], handoffs: MethodHandoff[] = []): Promise<AssistantMaterial[]> {
-    // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
-    const handedOver = work.executor.kind === "plugin";
-    const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
-    const names = new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" && item.method.name ? [[skillRefKey(item.method.ref), item.method.name] as const] : []));
-    const read = refs.length ? await this.link.readSkills(work, refs, names) : undefined;
-    if (read) handoffs.push(read.handoff);
-    const out: AssistantMaterial[] = [];
-    for (const material of materials) {
-      const chosen = material.kind === "method" ? material.method : undefined;
-      if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
-      if (chosen.kind === "skill") {
-        const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
-        out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },
-          text: `用户为这一轮选定的方法「${skill.name}」（v${skill.ref.version}）。这一轮按它的步骤做：\n${skill.body}` });
-        continue;
-      }
-      const role = await this.link.readRole(work, chosen);
-      handoffs.push(role.handoff);
-      out.push({ ...material, title: "角色资料", method: { kind: "role", method_id: role.method_id, version: role.version, name: role.name, plugin_title: role.plugin_title,
-        default_ref: role.default_ref, installation: role.installation, effective: role.effective, user_revision: role.user_revision }, text: signedRoleData(role) });
     }
     return out;
   }

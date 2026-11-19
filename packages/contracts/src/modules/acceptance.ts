@@ -85,7 +85,7 @@ export interface AcceptanceCheck {
   reported_at: string;
 }
 
-/** Where a decision's standing comes from: the platform's trusted-decision entry, or Goals' own applied decision moved over by the 5→6 upgrade. */
+/** Where a decision's standing comes from: the platform's trusted-decision entry, or Goals' own applied decision moved over by the 6→7 upgrade. */
 export type AcceptanceDecisionOrigin = "trusted_decision" | "goals_v5";
 
 export interface AcceptancePersonDecision {
@@ -247,7 +247,7 @@ export const acceptanceActions = {
 };
 
 /**
- * One subject's whole record as Goals hands it over in the project library's 5→6 upgrade (contract-design §10.4), and nowhere else:
+ * One subject's whole record as Goals hands it over in the project library's 6→7 upgrade (contract-design §10.4), and nowhere else:
  * the rows exactly as they are to be written, with ids, rounds and clocks already worked out from Goals' own data, and what Goals' own
  * rules said of each current requirement. The platform writes them and refuses the upgrade where its own reading differs.
  */

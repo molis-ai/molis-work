@@ -1,5 +1,4 @@
 use crate::web_identity::control_token;
-use crate::web_service::molis_work_home;
 use serde::Deserialize;
 use std::fs;
 use std::io::{Read, Write};
@@ -216,32 +215,14 @@ pub fn record_clip(text: &str, types: &[String]) -> Result<(), String> {
     post_json(&format!("{SHELF_API}/clipboard"), &body).map(|_| ())
 }
 
-/// Appearance can turn the wheel off. Read straight from the catalog so the
-/// answer is right even before the web service is up, and cache it briefly so a
-/// drag does not hit the disk on every mouse move.
+static DROP_WHEEL_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
 pub fn drop_wheel_enabled() -> bool {
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    static CACHED: AtomicBool = AtomicBool::new(true);
-    static READ_AT: AtomicU64 = AtomicU64::new(0);
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_millis() as u64)
-        .unwrap_or(0);
-    let last = READ_AT.load(Ordering::Relaxed);
-    if last != 0 && now.saturating_sub(last) < 1_500 {
-        return CACHED.load(Ordering::Relaxed);
-    }
-    let path = molis_work_home().join("shelf").join("catalog.json");
-    let enabled = match fs::read_to_string(path) {
-        Ok(text) => serde_json::from_str::<serde_json::Value>(&text)
-            .ok()
-            .and_then(|value| value.get("settings")?.get("drop_wheel_enabled")?.as_bool())
-            .unwrap_or(true),
-        Err(_) => true,
-    };
-    CACHED.store(enabled, Ordering::Relaxed);
-    READ_AT.store(now, Ordering::Relaxed);
-    enabled
+    DROP_WHEEL_ENABLED.load(std::sync::atomic::Ordering::Acquire)
+}
+
+pub fn set_drop_wheel_enabled(value: bool) {
+    DROP_WHEEL_ENABLED.store(value, std::sync::atomic::Ordering::Release);
 }
 
 /// Whether the Send petal and the four recipe petals should light up.

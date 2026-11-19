@@ -102,6 +102,13 @@ test("SPC-C07: preview separates verified bundled candidates from installed owne
   };
   const validate = validateResult(preview);
   assert.equal(validate(result), true, JSON.stringify(validate.errors));
+  const part = result.parts[0]!;
+  const withPart = (fields: object) => validate({ ...result, parts: [{ ...part, ...fields }] });
+  assert.equal(withPart({ candidates: [{ ...installed, current: { ...installed.current, setting_source: "personal" } }] }), true);
+  assert.equal(withPart({ candidates: [{ ...installed, current: { ...installed.current, setting_source: "unknown" } }] }), false);
+  assert.equal(withPart({ decision: "skip", reason: "owner_unavailable" }), true);
+  assert.equal(withPart({ decision: "skip" }), false);
+  assert.equal(withPart({ decision: "reuse", reason: "unsupported" }), false);
   assert.equal(validate({ ...result, parts: [{ ...result.parts[0], candidates: [{ ...bundled, install_id: "fake-install", action }] }] }), false);
   assert.equal(validate({ ...result, upgrade: { ...result.upgrade, parts: [{ ...result.upgrade!.parts[0], before: null, after: null }] } }), false);
 });

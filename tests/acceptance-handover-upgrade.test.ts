@@ -11,13 +11,13 @@ import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import { computeAcceptanceHandover, goalDecisionDigestBeforeHandover } from "@molis-ai/molis-work-plugin-goals/v5-acceptance-handover";
 import { readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
 
-// PEQ-02 (specs/plugin-equal-standing/contract-design.md §10.4, §10.7; CONTRACT-CHANGES 「第 44 批存量搬迁」 B1): the project library's 5→6
-// step hands Goals' requirements, judgments and conclusions to the platform's requirements and acceptance. The library is the 0.1.1-dev.7
-// golden's own, at 5; each mapping case is one more Goal written into Goals' v5 tables the way Goals wrote them, so the step meets every
+// PEQ-02 (specs/plugin-equal-standing/contract-design.md §10.4, §10.7; CONTRACT-CHANGES 「第 44 批存量搬迁」 B1): the project library's 6→7
+// step hands Goals' requirements, judgments and conclusions to the platform's requirements and acceptance. The library is the 0.1.1-dev.8
+// golden's own, at 6; each mapping case is one more Goal written into Goals' v5 tables the way Goals wrote them, so the step meets every
 // case in one library. What the platform reads afterwards is checked against what each case means, not against the step's own reading.
 
 const PROJECT = "molis-work-v1-demo";
-const GOLDEN = new URL(`./fixtures/golden-homes/0.1.1-dev.7/stores/projects/${PROJECT}/molis-work.db.sql`, import.meta.url);
+const GOLDEN = new URL(`./fixtures/golden-homes/0.1.1-dev.8/stores/projects/${PROJECT}/molis-work.db.sql`, import.meta.url);
 const GOALS = "io.molis.work.goals";
 const at = (seq: number) => new Date(Date.UTC(2026, 9, 1) + seq * 1000).toISOString();
 
@@ -28,12 +28,12 @@ interface Case { requirements: Requirement[]; reports?: Array<{ seq: number; jud
 
 type Raw = DatabaseSync;
 
-/** The golden's library at 5, in a directory of its own. */
-function goldenAt5(t: { after(fn: () => void): void }) {
-  const directory = mkdtempSync(join(tmpdir(), "acceptance-5-6-")), file = join(directory, "molis-work.db");
+/** The golden's library at 6, in a directory of its own. */
+function goldenAt6(t: { after(fn: () => void): void }) {
+  const directory = mkdtempSync(join(tmpdir(), "acceptance-6-7-")), file = join(directory, "molis-work.db");
   const raw = new DatabaseSync(file);
   raw.exec(readFileSync(GOLDEN, "utf8"));
-  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5, "the golden's library is at 5");
+  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 6, "the golden's library is at 6");
   t.after(() => { try { raw.close(); } catch { /* closed by the test */ } rmSync(directory, { recursive: true, force: true }); });
   return { raw, file };
 }
@@ -111,9 +111,9 @@ const CASES: Record<string, Case> = {
 };
 
 function upgraded(t: { after(fn: () => void): void }) {
-  const { raw, file } = goldenAt5(t);
+  const { raw, file } = goldenAt6(t);
   for (const [goalId, value] of Object.entries(CASES)) writeCase(raw, goalId, value);
-  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 5, to: 6 });
+  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 6, to: 7 });
   raw.close();
   const store = new LocalProjectDatabase(file);
   t.after(() => store.close());
@@ -125,7 +125,7 @@ function upgraded(t: { after(fn: () => void): void }) {
 
 const satisfied = (view: AcceptanceView) => Object.fromEntries(view.requirements.map(item => [item.id, item.satisfied]));
 
-test("PEQ-02 the 5→6 step maps each Goals reading to the platform: withdrawn, revised, unknown, contradicted, swapped and back, returned then verified, stale, unreported, waiting", t => {
+test("PEQ-02 the 6→7 step maps each Goals reading to the platform: withdrawn, revised, unknown, contradicted, swapped and back, returned then verified, stale, unreported, waiting", t => {
   const { store, view } = upgraded(t);
   const rows = (sql: string, ...params: string[]) => store.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
 
@@ -173,7 +173,7 @@ test("PEQ-02 the golden's own acceptances read on the platform as Goals read the
   }
 });
 
-test("PEQ-02 two independent upgrades of one v5 library write the same platform rows, byte for byte", t => {
+test("PEQ-02 two independent upgrades of one v6 library write the same platform rows, byte for byte", t => {
   const dumps = [0, 1].map(() => {
     const { store } = upgraded(t);
     return ["subjects", "requirements", "deliveries", "checks", "decisions"].map(table =>
@@ -183,46 +183,46 @@ test("PEQ-02 two independent upgrades of one v5 library write the same platform 
   assert.deepEqual(dumps[0], dumps[1]);
 });
 
-test("PEQ-02 a row of another project stops the step and leaves the library at 5 as it was; the handover refuses it on its own too", t => {
-  const { raw, file } = goldenAt5(t);
+test("PEQ-02 a row of another project stops the step and leaves the library at 6 as it was; the handover refuses it on its own too", t => {
+  const { raw, file } = goldenAt6(t);
   // A requirement of a project this library is not: the step stops before writing anything (here at the library's own foreign-key check).
   raw.exec("PRAGMA foreign_keys = OFF");
   raw.prepare(`INSERT INTO goal_event_requirements (requirement_id, project_id, goal_id, statement, created_at, created_in_config_version, actor_id)
     VALUES ('STRAY-R', 'another-project', 'CORE', '别的项目的要求', ?, 1, 'runtime-1')`).run(at(10_000));
   const before = (raw.prepare("SELECT count(*) AS n FROM goal_event_requirements").get() as { n: number }).n;
   assert.throws(() => runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), (error: Error) => /项目库已保留/.test(String((error as { cause?: unknown }).cause)));
-  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
+  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 6);
   assert.equal((raw.prepare("SELECT count(*) AS n FROM goal_event_requirements").get() as { n: number }).n, before, "Goals' rows are where they were");
   assert.deepEqual(raw.prepare("SELECT name FROM sqlite_schema WHERE name = 'acceptance_subjects'").all(), [], "no platform table was left behind");
   // Goals' own computation, which the step runs once the library's checks pass, refuses the row as well (§10.4 step 9).
   assert.throws(() => computeAcceptanceHandover(raw, PROJECT), /不属于这个项目/);
 });
 
-// The golden's two person decisions that concluded on requirements froze a digest over their conclusions (v5). From 6 the conclusions are
+// The golden's two person decisions that concluded on requirements froze a digest over their conclusions (Goals v5). From 7 the conclusions are
 // the platform's, so the step re-freezes each record that holds exactly that v5 digest (user 2026-11-19, CONTRACT-CHANGES 「当前保留机制」).
-const FROZEN = ["0637ee2c-d00b-4f05-a70e-f5232610306d", "c2165c24-d5ea-4287-a771-e24cec0bee63"];
+const FROZEN = ["ec798271-5a5a-44ee-a6ce-d83726329a38", "96ab972f-3279-4f49-8f58-4fee891374ab"];
 const frozen = (db: { prepare(sql: string): { get(...params: string[]): unknown } }, id: string) =>
   (JSON.parse((db.prepare("SELECT record_json FROM project_review_decisions WHERE project_id = ? AND decision_id = ?").get(PROJECT, id) as { record_json: string }).record_json) as
     { outcome_digest?: string }).outcome_digest;
 
 test("PEQ-02 a decision record that froze a Goal decision's v5 outcome holds its v6 outcome after the step", t => {
-  const { raw, file } = goldenAt5(t);
+  const { raw, file } = goldenAt6(t);
   for (const id of FROZEN) {
     const digests = goalDecisionDigestBeforeHandover(raw, PROJECT, id)!;
     assert.equal(frozen(raw, id), digests.previous, "the record froze the v5 outcome");
     assert.notEqual(digests.previous, digests.next, "the outcome changes with the move");
   }
-  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 5, to: 6 });
+  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 6, to: 7 });
   for (const id of FROZEN) assert.equal(frozen(raw, id), readGoalApprovalOutcome(raw, PROJECT, id, "goal")?.digest, id);
 });
 
-test("PEQ-02 a record whose frozen outcome is neither the v5 nor the v6 one stops the step and leaves the library at 5", t => {
-  const { raw, file } = goldenAt5(t);
+test("PEQ-02 a record whose frozen outcome is neither the v5 nor the v6 one stops the step and leaves the library at 6", t => {
+  const { raw, file } = goldenAt6(t);
   const row = raw.prepare("SELECT record_json FROM project_review_decisions WHERE project_id = ? AND decision_id = ?").get(PROJECT, FROZEN[0]!) as { record_json: string };
   const record = JSON.parse(row.record_json) as Record<string, unknown>;
   raw.prepare("UPDATE project_review_decisions SET record_json = ? WHERE project_id = ? AND decision_id = ?")
     .run(JSON.stringify({ ...record, outcome_digest: `sha256:${"0".repeat(64)}` }), PROJECT, FROZEN[0]!);
   assert.throws(() => runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), (error: Error) => /业务结果与升级前的不符/.test(String((error as { cause?: unknown }).cause ?? error)));
-  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5);
+  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 6);
   assert.equal(frozen(raw, FROZEN[0]!), `sha256:${"0".repeat(64)}`, "the record is as it was");
 });

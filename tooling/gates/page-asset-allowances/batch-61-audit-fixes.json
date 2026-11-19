@@ -1,0 +1,32 @@
+{
+  "reason": "第 61 批复核修复在原建议卡内显示确认明细和失败恢复说明，并在项目保持打开时继续检查新建议。工作台脚本实测净增 907 B，中英文确认与恢复文案更新了词包的内容寻址入口。",
+  "review": "需求见 specs/batch-61-audit-fixes/spec.md 的 SCAF-02 和 SCAF-04。PR #2153 的 CI 44483425528 和本机隔离 Host 均以 main 3a6f2289a0b526d0496481ee060807c23ed337f3 为基准实测，候选为 067fe796976202d863e6385d4e2f7a617b5cc080。",
+  "userApproval": "一骏于 2026-11-19 在第 61 批修复会话回复「批准本次实测增量和两条词包入口」，批准范围为本文件所列实测值与中英文入口。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 907
+  },
+  "entryApprovals": [
+    {
+      "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": { "cold": 345, "warm": 0 },
+    "arrival-empty/en": { "cold": 325, "warm": 0 },
+    "chooser/zh": { "cold": 1720, "warm": 1375 },
+    "chooser/en": { "cold": 1700, "warm": 1375 },
+    "workbench-default/zh": { "cold": 1252, "warm": 0 },
+    "workbench-default/en": { "cold": 1232, "warm": 0 },
+    "workbench-all-plugins/zh": { "cold": 1252, "warm": 0 },
+    "workbench-all-plugins/en": { "cold": 1232, "warm": 0 }
+  }
+}

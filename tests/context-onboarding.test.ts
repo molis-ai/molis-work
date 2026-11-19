@@ -465,7 +465,7 @@ test("QEA-130 a finished onboarding summary cannot become reviewable after its m
     await served.web.post(route, { id });
     await served.web.post(`${journey}/selection`, { sources: [{ kind: "browser", selected: true, text: materials }] });
     await served.web.post(`${journey}/start`, {});
-    const pending = await waitForContext(read, round => todoSent && round.synthesis?.completed === 1 && round.todo?.status === "pending");
+    const pending = await waitForContext(read, round => todoSent && round.synthesis?.completed === 1 && round.drafts?.status === "pending");
     assert.equal(pending.summary, null, "the completed model response is waiting for the side result before publishing");
     assert.equal(summaries, 1);
     await served.web.post("/api/settings/models/local-only", {

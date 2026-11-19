@@ -320,7 +320,7 @@ test("APR-19 Goals 4→5 must name the real project 3→4 transfer, including it
   assert.match(check(realSpec, missingWriter), /needs the project library's verified approval transfer from 4/u);
 });
 
-test("PEQ-03 Goals 5→6 must name the real project 5→6 step (batch 44 D1), spread as the Host's step", () => {
+test("PEQ-03 Goals 5→6 must name the real project 6→7 step (batch 44 D1), spread as the Host's step", () => {
   const projectSchema = "apps/local-host/src/project-database-schema.ts";
   const actual = real(projectSchema)!;
   const oldChecklist = realChecklist.replace(/(\| `projects\/<project_id>\/molis-work\.db#goals` \| )6 \|/, (_line, prefix: string) => prefix + "5 |");
@@ -330,12 +330,12 @@ test("PEQ-03 Goals 5→6 must name the real project 5→6 step (batch 44 D1), sp
     readBase: (file: string) => file === CHECKLIST ? oldChecklist : real(file),
   }).join("\n");
   assert.equal(check(), "");
-  const wrongStep = realSpec.replace(/^(\| `projects\/<project_id>\/molis-work\.db#goals` \| 5 → 6 \|.*#)5→6`/mu, (_line, prefix: string) => prefix + "4→5`");
+  const wrongStep = realSpec.replace(/^(\| `projects\/<project_id>\/molis-work\.db#goals` \| 5 → 6 \|.*#)6→7`/mu, (_line, prefix: string) => prefix + "5→6`");
   assert.notEqual(wrongStep, realSpec);
-  assert.match(check(wrongStep), /points at the step 4→5/u);
-  const notSpread = actual.replace("...projectLibraryV6Upgrade", "run: projectLibraryV6Upgrade.run");
+  assert.match(check(wrongStep), /points at the step 5→6/u);
+  const notSpread = actual.replace("...projectLibraryV7Upgrade", "run: projectLibraryV7Upgrade.run");
   assert.notEqual(notSpread, actual);
-  assert.match(check(realSpec, notSpread), /needs the project library's verified joint step from 5/u);
+  assert.match(check(realSpec, notSpread), /needs the project library's verified joint step from 6/u);
 });
 
 test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot without its step, its pointer or by going down", () => {

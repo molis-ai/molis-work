@@ -1,3 +1,4 @@
+import { LOOKBACK_DEFAULT, lookbackHours } from "./assistant-setting-values.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { isSubjectReader, WORK_EVENTS_INPUT_TYPE, WORK_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
@@ -5,7 +6,7 @@ import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { repeatingFailure } from "../host-log.js";
 
-/** Notices older than this are no longer news: resolved quietly rather than shown late. A look for new material goes no further back. */
+/** Notices older than this are no longer news: resolved quietly rather than shown late. */
 export const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
 
 /** A source of new items that fails every look, by project and capability: written when it starts failing, and again only once it has answered since. */
@@ -42,12 +43,15 @@ export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number>
   const { store, actorId, scopeActions, looks, identity } = env;
   const now = env.now;
   // Items are dated by their source, so one may turn up after its date: what matters is whether it was seen before.
-  // The first look only learns what is already there; nothing older than a notice's life is considered.
+  // The first look only learns what is already there. The source window is independent of notice expiry.
   const known = store.setting(actorId, "material_seen");
   const seen = new Set<string>(known ? JSON.parse(known) as string[] : []), firstLook = known === null;
-  const from = new Date(now.getTime() - NOTICE_TTL_MS);
-  const week = now.getTime() - 7 * 24 * 3600_000;
-  const works = store.list(actorId).filter(work => !work.archived && work.project_ref && !work.delegated_by && Date.parse(work.updated_at) >= week).slice(0, 12);
+  const savedRange = store.setting(actorId, "lookback");
+  const hours = lookbackHours(savedRange === null ? LOOKBACK_DEFAULT : JSON.parse(savedRange));
+  const from = new Date(now.getTime() - hours * 3_600_000);
+  // Keep the existing inventory of recently active works. A longer look can also reach works active further back.
+  const workSince = Math.min(now.getTime() - 7 * 24 * 3_600_000, from.getTime());
+  const works = store.list(actorId).filter(work => !work.archived && work.project_ref && !work.delegated_by && Date.parse(work.updated_at) >= workSince).slice(0, 12);
   const byProject = new Map<string, StoredWork[]>();
   for (const work of works) byProject.set(work.project_ref!.project_id, [...byProject.get(work.project_ref!.project_id) ?? [], work]);
   let raised = 0;

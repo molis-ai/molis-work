@@ -12,7 +12,7 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionC
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION, sessionsActions, sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
-  adoptContextJourney, bindLocalWebActions, bindLocalWebProjectAiActions, MolisWorkLocalHost, molisWorkHostProjectReference, readContextJourney, readOnboardingSessions,
+  adoptContextJourney, bindLocalWebActions, bindLocalWebProjectAiActions, MolisWorkLocalHost, molisWorkHostProjectReference, onboardingTakers, readContextJourney, readOnboardingSessions,
   selectContextSources, sessionKeyOf, startContextJourney, updateContextDraft, waitContextJourney, withContextJourneys,
 } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -139,6 +139,7 @@ function projectPorts(dir: string, hosts: MolisWorkLocalHost[]) {
   const withCatalog: typeof withMolisWorkProjectCatalog = (options, operation) => runCatalog(options, operation);
   return {
     withCatalog,
+    takers: onboardingTakers,
     actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
       const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
       if (!host) {
@@ -168,7 +169,7 @@ test("SRB-09 adopting adds to the existing project and makes none; importing the
   const projects = await ports.withCatalog({ homeDirectory: dir }, catalog => catalog.listProjects().map(one => one.project_id));
   assert.deepEqual(projects, [project.project_id], "the round made no project");
   assert.deepEqual(again.artifact, first.artifact, "the same session read again is the same material, not a new one");
-  assert.deepEqual(again.documents, first.documents, "and the same source page");
+  assert.deepEqual(again.parts, first.parts, "and the same source page");
   const grown = await round({ ...DB_SESSION, entries: [...DB_SESSION.entries, entry("5", "tool", "2026-09-03T08:00:00.000Z", "Login page done.")] });
   assert.equal(grown.artifact!.artifact_id, first.artifact!.artifact_id, "a session that went on is a newer version of its one material");
   assert.equal(grown.artifact!.version, first.artifact!.version + 1);

@@ -113,7 +113,7 @@ test("PEQ-16 two devices that each changed the requirements conflict and stop sy
 test("PEQ-16 a decision moved from Goals counts on the second device without a platform record (trusted as far as the sync itself)", async t => {
   const a = device(t), b = device(t), revision = { value: 0 };
   const goal: AcceptanceSubject = { provider_id: "io.molis.work.goals", subject: { kind: "goal", id: "G1" } };
-  // What the 5→6 step writes for a Goal whose requirement the person accepted in Goals (origin `goals_v5`).
+  // What the 6→7 step writes for a Goal whose requirement the person accepted in Goals (origin `goals_v5`).
   a.store.db.transaction(() => importAcceptanceHandover(a.store.db, "p1", [{
     subject: goal, created_at: at,
     requirements: [{ requirement_id: "g1", version: 1, statement: "从 Goals 搬来", expected: null, part: null, requires_person: true, withdrawn: false, position: 0, by_person: false, actor_id: "runtime-1", created_at: at }],

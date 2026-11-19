@@ -29,13 +29,14 @@ export { inspectBlueprint, inspectBlueprintLocales } from "./blueprints.js";
 export { validateAdoptsDeclaration } from "./adopts-declaration.js";
 export { inspectHomePageDraft } from "./home-page.js";
 export { defineSettingsActions, validateSettingsDeclaration, type SettingsActions, type SettingsActionsOptions } from "./settings-declaration.js";
-export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
+export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsFileOwner, type SettingsOwnerScope,
   type SettingsRequestIdentity, type SettingsTransaction, type SettingsWriteReceipt } from "./settings.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
 export { contentPackageDraft, contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
-export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
+export { parseSyncDocumentValue } from "./sync-document-state.js";
+export { SYNC_DOCUMENT_MAX_BYTES, createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";

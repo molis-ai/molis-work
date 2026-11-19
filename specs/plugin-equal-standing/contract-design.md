@@ -226,7 +226,7 @@ start?: {
 
 ## 6. 顺序
 
-1. 已实现（未提交）：C2、C4、C6/D1、C8/D3，项目库 4→5 与 Goals 库 v6，D2 放置库 1→2，C1 的放置部分（过渡写法 `placement_relation` + 类型）。本稿评审后一度改成 `attach.relation`、`task_serves` 改名；合并 main 后按用户 2026-11-18 的决定回到 `placement_relation`（main 第 36 批的 `definePlacementRelationAction` 形状，2.2 节），保留 `noun_text`。项目库升级因 main 先占 4→5 顺延为 5→6。
+1. 已实现（未提交）：C2、C4、C6/D1、C8/D3，项目库 4→5 与 Goals 库 v6，D2 放置库 1→2，C1 的放置部分（过渡写法 `placement_relation` + 类型）。本稿评审后一度改成 `attach.relation`、`task_serves` 改名；合并 main 后按用户 2026-11-18 的决定回到 `placement_relation`（main 第 36 批的 `definePlacementRelationAction` 形状，2.2 节），保留 `noun_text`。项目库升级因 main 先占 4→5 顺延为 5→6，后因 main 第 38 批（#2138）再占 5→6 与金样 `0.1.1-dev.7`，按用户 2026-11-19 的决定顺延为 **6→7**（`project-library-v7-upgrade.ts`），由新金样 **`0.1.1-dev.8`** 覆盖（下文第 9–10 节评审原稿中提到的 `5→6`、`0.1.1-dev.7` 均对应此顺延后的 `6→7` 与 `0.1.1-dev.8`）。
 2. 1 节内容站引用与 `feed_item_id`；2.1、2.3 的材料种类与收拢；2.4 起步与新建；2.5 上手承接（含引导页单选组与 30 份提示）。
 3. 3、4 节；5 节示例插件；批次文件按 3 节两处改写。
 4. 每一步：受影响的测试、`api:update`／`actions:update`／`schemas:update`／`versions:generate`、门禁；最后整批共享核心全量。

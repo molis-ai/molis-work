@@ -1,3 +1,4 @@
+import { modelPreferenceOwner } from "./model-preference-settings.js";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeInstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginModelConfigurationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -29,7 +30,9 @@ export function pluginModelFor(home: PluginPlatformHome | null | undefined, defi
   if (declaration && sandboxProviderName(declaration.custom_provider.provider_id)) throw modelConfigurationInvalid("这个供应商名保留给沙箱插件，不能声明");
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
-    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
+    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate,
+      definition.manifest.settings_entries?.model_configuration ? modelPreferenceOwner(home.directory, declaration, definition.manifest.settings_entries.model_configuration.key,
+        JSON.stringify([context.install_id, context.installation_generation])) : undefined) } : {}),
   });
 }
 

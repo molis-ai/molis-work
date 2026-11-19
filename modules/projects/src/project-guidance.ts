@@ -9,7 +9,7 @@ import { PROJECT_GUIDANCE_REPLICA_SQL, withinCharacters } from "./project-guidan
 
 /*
  * A project's confirmed guidance (specs/plugin-equal-standing/contract-design.md §9): its two tables in the project library, beside
- * `project_root`. Until batch 44 Goals kept the same rows, rules and receipts; the project library's 5→6 step hands them over.
+ * `project_root`. Until batch 44 Goals kept the same rows, rules and receipts; the project library's 6→7 step hands them over.
  */
 
 const GUIDANCE_TABLES_SQL = `
@@ -52,7 +52,7 @@ CREATE TABLE guidance_revisions (
 );
 CREATE INDEX guidance_revisions_project_idx ON guidance_revisions(project_id, guidance_id, revision DESC);
 `;
-/** The project library creates these with its version; the 5→6 step builds them from Goals' rows. With them, the guidance collection's transport. */
+/** The project library creates these with its version; the 6→7 step builds them from Goals' rows. With them, the guidance collection's transport. */
 export const PROJECT_GUIDANCE_SCHEMA_SQL = GUIDANCE_TABLES_SQL + PROJECT_GUIDANCE_REPLICA_SQL;
 
 export const PROJECT_GUIDANCE_TABLES = ["guidance_entries", "guidance_revisions"] as const;
@@ -266,7 +266,7 @@ const REVISION_COLUMNS = ["revision_id", "guidance_id", "project_id", "revision"
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 
 /**
- * The project library's 5→6 step for guidance, once the step's own SQL made the platform's tables (`PROJECT_GUIDANCE_SCHEMA_SQL`): when
+ * The project library's 6→7 step for guidance, once the step's own SQL made the platform's tables (`PROJECT_GUIDANCE_SCHEMA_SQL`): when
  * Goals kept the project's guidance, move its rows across unchanged and drop Goals' former tables (named by the caller as Goals'
  * version-5 declaration has them). False, with nothing changed, when a row belongs to another project than the library's one.
  */

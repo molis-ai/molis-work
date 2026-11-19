@@ -190,6 +190,9 @@ importers:
       '@molis-ai/molis-work-service-automation-recommender':
         specifier: workspace:*
         version: link:horizontal/automation-recommender
+      '@molis-ai/molis-work-service-blueprints':
+        specifier: workspace:*
+        version: link:horizontal/blueprints
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:horizontal/connector-host
@@ -491,6 +494,9 @@ importers:
       '@molis-ai/molis-work-service-automation-recommender':
         specifier: workspace:*
         version: link:../../horizontal/automation-recommender
+      '@molis-ai/molis-work-service-blueprints':
+        specifier: workspace:*
+        version: link:../../horizontal/blueprints
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
@@ -745,6 +751,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
 
+  horizontal/blueprints:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
   horizontal/connector-host:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -798,6 +816,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   horizontal/observation:
     dependencies:

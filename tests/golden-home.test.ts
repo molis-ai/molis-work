@@ -558,12 +558,16 @@ describe("a generated golden Home", { concurrency: false }, () => {
       "io.molis.work.schedule": 3 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
-    // A golden made now holds every format at this build's version: the catalog has had its first upgrade step (05②), the
-    // memory ledger its V0 step (1→2, BL-1071), the rest are at 1.
-    // The Runtime integration receipt is a sample written at this build's version (scripts/golden/populate.mjs); batch 44 took it to 2.
+    // A golden made now holds every format at this build's version: the catalog has had its upgrade steps, the
+    // memory ledger its V0/P1 steps, model preference & shelf catalog their batch 38 steps, and the Runtime integration receipt its batch 44 step.
     const receipt = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8")).versions["format.runtime.integration.receipt"] as number;
-    const upgraded: Record<string, number> = { "database.home.catalog": CATALOG_SCHEMA_VERSION, "database.memory_ledger_baseline": MEMORY_LEDGER_BASELINE.version,
-      "format.runtime.integration.receipt": receipt };
+    const upgraded: Record<string, number> = {
+      "database.home.catalog": CATALOG_SCHEMA_VERSION,
+      "database.memory_ledger_baseline": MEMORY_LEDGER_BASELINE.version,
+      "format.model.preference": 2,
+      "format.shelf.catalog": 2,
+      "format.runtime.integration.receipt": receipt,
+    };
     for (const item of formats) assert.equal(item.version, upgraded[item.entry] ?? 1, `${item.entry} at ${item.path}`);
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
     // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).
@@ -591,8 +595,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }],
     ["a format's version raised", recorded => {
       const item = recorded.formats.find(format => format.entry === "format.shelf.catalog" && format.path === "shelf/catalog.json");
-      assert.equal(item?.version, 1);
-      item!.version = 2;
+      assert.equal(item?.version, 2);
+      item!.version = 3;
       return "shelf/catalog.json#format.shelf.catalog";
     }],
     ["a format added that the Home does not have", recorded => {

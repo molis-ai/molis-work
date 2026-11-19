@@ -80,7 +80,12 @@ export class FeedSourceService {
    * `per_record` slot); until then a pull is refused for want of an account. The same service and name give back the source already there;
    * a deleted one is not brought back (its row, its history and whatever was bound to the record stay the deleted source's).
    */
-  addAccount(input: AddFeedAccountSourceInput): { source: FeedSourceRecord; registered: boolean } {
+  addAccount(input: AddFeedAccountSourceInput): Promise<{ source: FeedSourceRecord; registered: boolean }> {
+    const write = () => this.registerAccount(input);
+    return this.ports.commit ? this.ports.commit(write) : Promise.resolve(this.ports.transaction(write));
+  }
+
+  private registerAccount(input: AddFeedAccountSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const name = bounded(input.name.trim(), 80);
     if (!name) throw feedErrors.source_invalid_configuration("来源名称不能为空");
     const sourceId = stableId("feed-source", `${this.projectId}\u0000account\u0000${input.service}\u0000${name}`);

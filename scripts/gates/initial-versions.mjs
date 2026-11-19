@@ -166,7 +166,7 @@ export function registeredUpgradeChains({ files = [], read }) {
     chains.set(definition, { ...chain, replay_passed: chain.version > 1 && unheld.length === 0, unheld });
   }
   if (hasGoalsApprovalTransfer(read)) {
-    // project_goals@1 has its own namespace. The project upgrade verifies its objects and rebuilds @2 from the owner facts; project 4→5
+    // project_goals@1 has its own namespace. The project upgrade verifies its objects and rebuilds @2 from the owner facts; project 6→7
     // (batch 44 D1) rebuilds @3. Each step is the collection's chain only where the project library has it, and the replay starts
     // that step only from a golden holding the project at the step's `from` with its Goals tables, so listing either version is insufficient.
     const manifests = goldenManifests({ files, read });

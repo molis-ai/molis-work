@@ -1,4 +1,5 @@
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
+import { automationAdoptionActions } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { renderInteractionOperation, type InteractionField } from "@molis-ai/molis-work-design-system";
 import { actionCardView, wallClockIn } from "@molis-ai/molis-work-plugin-sdk";
 import { say as stored } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -67,6 +68,8 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   // A result that left a connection to finish gets the platform's connection card under it (ASC-69); the page fills it from the
   // request's real state, and until then, or when it cannot be drawn, the result's own 「继续接入」 link stays the way on.
   const pending = result?.pending_connection ? '<div class="mw-platform-area connection-need-area assistant-connection-need" data-assistant-connection hidden></div>' : "";
+  const adoption = card.capability_id === automationAdoptionActions.adopt.capability_id;
+  const confirmation = open && adoption ? adoptionConfirmation(card, say) : "";
   return renderInteractionOperation({
     id: card.card_id, kicker: open ? say("workbench.assistant-card-view.ready-run") : say("workbench.assistant-card-view.action"), state: CARD_RING[card.status], title: card.title,
     badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet", state: null },
@@ -78,9 +81,20 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     ...((state && !open) || outcome ? { status: { text: (state ? say(state) : "") + (outcome ? `${state ? say("common.punctuation.label-separator") : ""}${outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
     ...(result ? { result: { title: result.title ?? result.summary, body: result.text ?? "",
-      ...(result.link ? { actions: [{ id: "result", label: result.link.label, href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
+      ...(result.link ? { actions: [{ id: "result", label: adoption ? say("workbench.automation-adoption.open-kit") : result.link.label,
+        href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
         // 继续接入 names what the settings must make true, so the way back waits for it (specs/draft-and-return §4, R4): never read from the address.
-        ...(result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
+        ...(!adoption && result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("workbench.assistant-card-view.ask-assistant-prepare-again-latest-state") }] } : {}),
-  }) + pending;
+  }) + confirmation + pending;
+}
+
+function adoptionConfirmation(card: AssistantCard, say: (text: string, values?: Record<string, string | number>) => string): string {
+  const title = say("workbench.automation-adoption.review-title");
+  return `<div data-assistant-adoption-confirm hidden>${renderInteractionOperation({
+    id: `${card.card_id}-confirm`, kicker: "", title, target: { prefix: card.provider, label: card.capability_title },
+    preview: { title: say("workbench.automation-adoption.review-changes"), rows: card.fields.map(field => [field.label, ""]),
+      actions: [{ id: "edit-adoption", label: say("common.control.back") },
+        { id: "confirm-adoption", label: say("common.control.confirm"), variant: "primary" }] },
+  })}</div>`;
 }

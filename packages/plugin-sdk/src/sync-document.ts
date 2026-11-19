@@ -41,6 +41,8 @@ export interface DocumentAccess<T> {
 }
 
 /** Same atomic document primitive for author private-KV stores and owner JSON files. No private platform dependency. */
+export const SYNC_DOCUMENT_MAX_BYTES = 500_000_000;
+
 export function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument<T> {
   documentKey(owner.spaceId);
   if (typeof owner.storage.compareAndSet !== 'function') throw syncError('unsupported', '当前存储没有原子条件写入，未启用同步');
@@ -57,7 +59,7 @@ export function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument
       const { source, state } = load(), result = write(state);
       state.data = owner.validate(state.data); owner.authorize();
       const value = JSON.stringify(state);
-      if (Buffer.byteLength(value) > 500000000) throw syncError('limit', '本机同步目录超过容量保护上限，原内容已保留');
+      if (Buffer.byteLength(value) > SYNC_DOCUMENT_MAX_BYTES) throw syncError('limit', '本机同步目录超过容量保护上限，原内容已保留');
       parseDocumentState(value, owner.spaceId, owner.validate);
       if (!owner.storage.compareAndSet(source, value)) throw syncError('conflict', '本机内容已变化，未提交旧修改');
       return result;

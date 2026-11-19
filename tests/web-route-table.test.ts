@@ -219,7 +219,6 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   // Inbox is a plugin of the project's Runtime: the pages and routes under test are the project's only when it has it.
   catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
-  rmSync(catalog.getProject(missing.project_id).database_path, { force: true });
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   t.after(async () => {
     await new Promise<void>(resolve => web.close(() => resolve()));
@@ -243,6 +242,8 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   const seen: Array<readonly [string, Record<string, unknown>]> = [];
   for (const probe of HOME_PROBES) seen.push(await ask(probe, ""));
   for (const probe of PROJECT_PROBES) seen.push(await ask(probe, `/projects/${encodeURIComponent(created.project_id)}`));
+  // Exercise normal routes with readable setting owners before probing the missing database.
+  rmSync(catalog.getProject(missing.project_id).database_path, { force: true });
   for (const probe of [{ method: "GET", path: "/api/board" }, { method: "GET", path: "/", html: true }] satisfies Probe[]) {
     const [key, value] = await ask(probe, `/projects/${encodeURIComponent(missing.project_id)}`);
     seen.push([key.replace("<project>", "<missing>"), value]);

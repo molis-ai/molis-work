@@ -25,7 +25,7 @@
 | [src/state.ts](src/state.ts) | `acceptanceView`：从记录现算每项要求的状态、各轮记录和三个各自的进度（纯函数） |
 | [src/service.ts](src/service.ts) | 五个操作的规则与证据核对（`weigh`）；调用方身份由 Host 给（`AcceptanceCaller`）；`openAcceptance` 是包对外的入口 |
 | [src/replica.ts](src/replica.ts) | 同一个人各设备之间的同步：每个对象一把键；要求与交付只往前走，两边各自往前就是冲突，由本人选留本机或换成对方；核对与决定取并集 |
-| [src/handover.ts](src/handover.ts) | 项目库 5→6 升级时把 Goals 原有的要求与认可写进平台的表（只在这一步用，见 CONTRACT-CHANGES「当前保留机制」）；写完逐项核对读出来的和 Goals 原先一样，不一样就整步失败 |
+| [src/handover.ts](src/handover.ts) | 项目库 6→7 升级时把 Goals 原有的要求与认可写进平台的表（只在这一步用，见 CONTRACT-CHANGES「当前保留机制」）；写完逐项核对读出来的和 Goals 原先一样，不一样就整步失败 |
 
 合同在 `@molis-ai/molis-work-contracts/modules/acceptance`；Host 装配在 `apps/local-host/src/acceptance-actions.ts`。
 

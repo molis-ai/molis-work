@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ObservationCleanupPreview,
   ObservationCleanupResult,
@@ -9,12 +9,11 @@ import type {
   ObservationSpaceView,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { assertPersonCaller, resolveLiveReadableProjects } from "./access.js";
-import { applyCleanup, previewCleanup, sweepExpiredRecords } from "./cleanup.js";
+import { applyCleanup, previewCleanup } from "./cleanup.js";
 import { observationErrors } from "./errors.js";
 import { computeEvaluationHoldsSummary } from "./holds.js";
 import {
   readStoredSettings,
-  retentionDaysOf,
   settingsViewOf,
   writeStoredSettings,
   type StoredObservationSettings,
@@ -28,7 +27,7 @@ export interface ManagementActionDeps {
   readonly writer: ObservationWriter;
 }
 
-function openForManagement(writer: ObservationWriter): DatabaseSync {
+export function openForManagement(writer: ObservationWriter): DatabaseSync {
   writer.flush();
   const opened = writer.database();
   if (!opened) throw observationErrors.store_unavailable("工作记录库当前不可用");
@@ -45,11 +44,16 @@ export async function handleSettingsGet(deps: ManagementActionDeps, caller: Acti
 
 export async function handleSettingsSet(
   deps: ManagementActionDeps,
-  caller: ActionCallContext,
+  caller: ActionExecutionContext,
   input: ObservationSettingsUpdateInput,
 ): Promise<ObservationSettingsView> {
   assertPersonCaller(caller);
+  if (Object.hasOwn(input, "retention_mode") || Object.hasOwn(input, "space_reminder_bytes"))
+    throw observationErrors.setting_invalid("清理期限和提醒线请通过 observation.preferences.write 按所见版本保存");
   const readable = await resolveLiveReadableProjects(deps.env);
+  await caller.beforeEffect();
+  caller.assert_authority_current?.();
+  caller.signal?.throwIfAborted();
   // Flush queued records BEFORE applying a pause so everything that occurred prior to pausing is preserved.
   const db = openForManagement(deps.writer);
   const now = deps.env.now();
@@ -69,8 +73,8 @@ export async function handleSettingsSet(
       evaluation: input.uses?.evaluation !== undefined ? input.uses.evaluation : previous.uses.evaluation,
       export: input.uses?.export !== undefined ? input.uses.export : previous.uses.export,
     },
-    retention_mode: input.retention_mode !== undefined ? input.retention_mode : previous.retention_mode,
-    space_reminder_bytes: input.space_reminder_bytes !== undefined ? input.space_reminder_bytes : previous.space_reminder_bytes,
+    retention_mode: previous.retention_mode,
+    space_reminder_bytes: previous.space_reminder_bytes,
     ...(previous.last_cleanup ? { last_cleanup: previous.last_cleanup } : {}),
   };
 
@@ -89,11 +93,6 @@ export async function handleSettingsSet(
   }
 
   deps.writer.setPaused(nextPaused);
-
-  // When a bounded automatic retention period is saved, apply the cutoff immediately without silently extending it (OCL-12).
-  if (input.retention_mode !== undefined && retentionDaysOf(next.retention_mode) !== null) {
-    sweepExpiredRecords(db, now);
-  }
 
   return settingsViewOf(db, readStoredSettings(db), computeEvaluationHoldsSummary(db, nowIso, readable));
 }

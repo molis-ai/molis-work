@@ -89,7 +89,7 @@ async function reportProgress(
  * before completing the Goal: a Goal's requirements are the platform's (contract-design §10.3).
  */
 async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string, requirementIds: string[]) {
-  const subject = goalSubject(goalId), version = `${key}-v1`;
+  const subject = goalSubject(goalId), version = `${key}-delivery`;
   await act(acceptanceActions.deliver.capability_id, acceptanceActions.deliver.version, { subject, version, summary: result });
   await act(acceptanceActions.decide.capability_id, acceptanceActions.decide.version, {
     subject, version, accepts: requirementIds.map(id => ({ id, version: 1 })), returns: [],

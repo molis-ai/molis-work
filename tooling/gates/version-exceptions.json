@@ -128,8 +128,8 @@
   {
     "file": "apps/local-host/src/demo-seed.ts",
     "name": "version",
-    "values": { "1": 1, "2": 1 },
-    "reason": "演示项目的种子数据：记录修订号和事件类型的样例值，换值不改变任何合同。"
+    "values": { "1": 2, "2": 1 },
+    "reason": "演示项目的种子数据：记录修订号、要求版本与事件类型的样例值，换值不改变任何合同。"
   },
   {
     "file": "apps/local-host/src/demo-seed.ts",
@@ -560,34 +560,6 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.blueprints.adoption.apply",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.preview",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.read",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.remove",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.adoption.revert",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.drafts.read",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.blueprints.drafts.save",
-    "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
-  },
-  {
     "entry": "action.blueprints.packs.save",
     "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
   },
@@ -792,12 +764,6 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/goals/src/settings-ui.ts",
-    "name": "io.molis.work.goals.settings.v1",
-    "values": { "io.molis.work.goals.settings.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
     "file": "plugins/native/goals/src/status-ui.ts",
     "name": "io.molis.work.native.goals.status.v1",
     "values": { "io.molis.work.native.goals.status.v1": 1 },
@@ -982,6 +948,24 @@
     "name": "project-settings-v2.",
     "values": { "project-settings-v2.": 1 },
     "reason": "页面 HTML 注释里提到的设计稿名字，不进页面行为，不是版本。"
+  },
+  {
+    "file": "packages/contracts/src/modules/acceptance.ts",
+    "name": "goals_v5",
+    "values": { "goals_v5": 1 },
+    "reason": "从 Goals 第 5 版搬迁到平台认可表的固定来源枚举取值，只用于标识历史搬迁行，不是会升的版本号。"
+  },
+  {
+    "file": "modules/acceptance/src/handover.ts",
+    "name": "goals_v5",
+    "values": { "goals_v5": 1 },
+    "reason": "项目库 6→7 搬迁写入历史认可记录时使用的固定来源取值，只用于标识历史搬迁行，不是当前版本号。"
+  },
+  {
+    "file": "modules/acceptance/src/schema.ts",
+    "name": "goals_v5",
+    "values": { "goals_v5": 1 },
+    "reason": "平台认可决定表 origin 列允许的历史搬迁来源固定枚举取值，用于表约束，不是当前版本号。"
   },
   {
     "file": "packages/contracts/src/services/account-dto.ts",

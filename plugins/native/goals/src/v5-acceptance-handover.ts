@@ -7,7 +7,7 @@ import { GOALS_REQUIREMENT_LINKS_SQL } from "./project-database-event-facts.js";
 import { GOALS_V6_CLOSURES_SQL, GOALS_V6_DECISION_REQUESTS_SQL } from "./project-database-event-state.js";
 
 /*
- * Goals' requirements, judgments and conclusions handed to the platform's requirements and acceptance, in the project library's 5→6 step
+ * Goals' requirements, judgments and conclusions handed to the platform's requirements and acceptance, in the project library's 6→7 step
  * and nowhere else (contract-design §10.4; CONTRACT-CHANGES 「当前保留机制」, a migration exception beside PEQ-03's whitelist). Only Goals
  * reads and writes its own tables here. `compute` reads them and works out, with the rules Goals used up to v5 (frozen below, as
  * `readCurrentGoalEventRequirements` and `requirementSatisfaction` had them), the platform rows and what Goals read of each requirement;
@@ -204,11 +204,11 @@ export function finishAcceptanceHandover(db: Db, projectId: string): { moved_req
  * transaction, foreign keys off.
  */
 function remakeTable(db: Db, table: string, statement: string, added: string): void {
-  db.exec(`CREATE TABLE ${table}_v5 AS SELECT * FROM ${table}`);
+  db.exec(`CREATE TABLE ${table}_rebuild AS SELECT * FROM ${table}`);
   db.exec(`DROP TABLE ${table}`);
   db.exec(statement);
-  db.exec(`INSERT INTO ${table} SELECT *${added} FROM ${table}_v5`);
-  db.exec(`DROP TABLE ${table}_v5`);
+  db.exec(`INSERT INTO ${table} SELECT *${added} FROM ${table}_rebuild`);
+  db.exec(`DROP TABLE ${table}_rebuild`);
 }
 
 /** The tables the handover empties, for the step's `reduces_rows`. */

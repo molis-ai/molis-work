@@ -57,6 +57,7 @@ export interface Snapshot {
   runtime: ShelfRuntimeStatus | null;
   ai?: ShelfAiStatus;
   settings?: ShelfDeviceSettings;
+  action_bar_revision?: string;
   running_jobs?: readonly ShelfJobRecord[];
   root?: string;
 }
@@ -141,6 +142,7 @@ export interface ShelfPage {
   findTimer: number;
   dragSlot: string;
   dragOrder: string[] | null;
+  dragRevision?: string;
 }
 
 /** What Shelf's routes answer to a write that changes the shelf: the new snapshot, and the item or clip it made. */

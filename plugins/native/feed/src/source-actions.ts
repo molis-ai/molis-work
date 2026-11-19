@@ -62,6 +62,7 @@ export interface FeedSourceActionPorts {
   feed(): FeedApplication;
   sources(caller: ActionExecutionContext): FeedSourceService;
   connectorSync(caller: ActionExecutionContext): Pick<FeedConnectorSync, "sync">;
+  accountSources?: Pick<import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginConnectorSourceClient, "accounts">;
   /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
   retire?: Parameters<typeof removeFeedSource>[3];
   /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */
@@ -107,7 +108,11 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       if (!registration) throw new ActionError("actions.input_invalid", "来源参数无效");
       return ports.sources(caller).register(registration);
     }),
-    bind(a.add_account, (input, caller) => ports.sources(caller).addAccount(input)),
+    bindWaiting(a.add_account, async (input, caller) => {
+      const available = await ports.accountSources?.accounts([input.service]);
+      if (!available?.[input.service]?.pullable) throw feedErrors.source_invalid_configuration("该服务暂时没有可用的账号来源");
+      return ports.sources(caller).addAccount(input);
+    }),
     bind(a.update, (input, caller) => {
       const { source_id, ...patch } = input;
       return { source: ports.sources(caller).update(source_id, patch as UpdateFeedSourceInput) };

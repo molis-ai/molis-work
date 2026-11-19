@@ -677,6 +677,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const title = journey.adoption?.title ?? (typeof input.title === "string" ? input.title.trim() : "");
   const body = journey.adoption?.body ?? (input.blank === true ? "" : typeof input.body === "string" ? input.body.trim() : journey.summary?.body ?? "");
   if (!title || [...title].length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
+  // A round for an existing project only adds what it read: no blank start, and no folder handed on as a new project's.
+  if (journey.existing && !journey.adoption && (input.blank === true || typeof input.take === "string")) throw new Error("给已有项目补的材料只能采用整理结果");
   // The round ends by writing down that onboarding is done. A record this build may not replace refuses here, before the accepted text is
   // kept or anything is made: the person stays where they were, with no project left behind (upgrade-chain-design §2.6).
   assertOnboardingWritable(home);
@@ -699,8 +701,6 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const keep = [...new Set(kept.filter(value => !drafted || drafted.has(value)))];
   // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
   // round read it, never a path from the request (ONB-44, batch12-design §7.3).
-  // A round for an existing project only adds what it read: no blank start, and no folder handed on as a new project's.
-  if (journey.existing && !journey.adoption && (input.blank === true || typeof input.take === "string")) throw new Error("给已有项目补的材料只能采用整理结果");
   const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;
   const taker = wanted ? ports.takers?.("code_root").find(one => one.plugin_id === wanted) : undefined, root = wanted ? codeRoot(journey) : null;
   if (wanted && !journey.adoption && !(taker && root)) throw new Error("这个文件夹不能这样交出去：只有你自己选的、顶层有项目文件的文件夹，交给声明了能接手的插件");

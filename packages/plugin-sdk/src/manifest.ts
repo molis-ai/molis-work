@@ -105,7 +105,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions, manifest.owner_files);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
-  const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
+  if (manifest.model_configuration !== undefined) invalid("模型设置须由 settings_entries.model_configuration 绑定");
+  const modelConfiguration = isRecord(manifest.settings_entries) ? manifest.settings_entries.model_configuration : undefined;
+  const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(modelConfiguration, permissions),
     ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),
     ...runtimeDeclarationProblems(manifest.runtime)];
   if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));

@@ -9,6 +9,7 @@ import { createLocalHostWorkbenchRenderer, createLocalWebAssets, installHostUiTe
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { defaultPrefs, MEMORY_SETTING_KEYS } from "@molis-ai/molis-work-service-memory";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 
 installHostUiText();
@@ -27,8 +28,11 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const calls: Request[] = [];
   const requests: Array<{method:string;url:string}> = [];
   const visits: string[] = [];
+  const prefs = defaultPrefs("project", "reviewed"), defaultSetting = { ...prefs, plugins: [] };
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
-    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 }, exhausted: true, stopped: "end", total: { kind: "exact", value: 3 },
+    candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [],
+    prefs, preference_setting: { key: MEMORY_SETTING_KEYS.project, state: "ok", source: "provider_default", revision: "prefs-1",
+      value: defaultSetting, layers: { provider_default: defaultSetting } }, counts: { project: 3 }, exhausted: true, stopped: "end", total: { kind: "exact", value: 3 },
     scanned: "unknown", cost: { directory_entries: "unknown", directory_enumerations: "unknown", directory_traversal: "unknown", metadata_reads: "unknown", body_reads: "unknown" } };
   const project = { project_id: "project", display_name: "测试项目" };
   const view: MolisWorkWebView & { feed: FeedSnapshot } = {
@@ -200,6 +204,8 @@ test("Explicit retry survives filtering and list reload with the original comple
   overview.items[0]!.version = 99; overview.items[0]!.text = "当前已更新的记忆";
   await page.click("[data-memory-pref=form]");
   await page.wait("document.querySelector('[data-memory-id=active] .memory-text').textContent==='当前已更新的记忆'");
+  const preferenceChange = calls.find(call => call.path.endsWith("/prefs"));
+  assert.equal(preferenceChange?.body.expected_revision, "prefs-1", "the unrelated preference write used the owner's revision");
   assert.equal(edits, 1, "filtering and a successful unrelated operation never replay the failure");
   assert.equal(await page.evaluate("document.querySelectorAll('[data-memory-retry]').length"), 1);
   assert.equal(await page.evaluate("document.querySelector('[data-memory-retry-list] system')"), null, "saved content remains text");

@@ -1,5 +1,11 @@
 # 合同变更流程
 
+2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。原回执匹配但目标层已经变化时，冲突详情返回原请求的 `undo_of` 及 `reason: "revision_changed"`，供撤销记录结束该项并保留手工修改。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
+
+同批逐项预览区分建议格式错误、无声明、主人停用和沙箱暂不支持。已保存但离线的选择携带原值、来源和不可用原因。模型连接目录的读取可显式请求 `preference_revision`，用同一次读取的版本提交普通选择。
+
+按一骏 11 月 18 日的决定，旧格式写以下字段会在生效前被拒绝。助理预算改用 `/api/assistant/preferences`，Shelf 设备偏好、工作记录期限与提醒线、Jelly 普通模型选择分别使用 `shelf.preferences.write`、`observation.preferences.write`、`jelly.preferences.write`。先从配对读动作取得版本，再以该版本与请求号提交。工具登记、暂停记录与模型连接管理仍使用各自入口。
+
 2026-11-17 质量审查 QEA-124/125：公开动作的 `result_view.link` 增加可选 `home_href_template`，仅供无可信项目上下文的回执使用。动作提供方声明目的地，Contracts 统一校验模板、插值和同源地址，旧项目或共享模板按原合同处理。Skills 的起草动作补个人空间目的地，工作台按设置页实际消费的参数打开该草稿。旧助理卡的已存呈现快照保持原回执，SDK、Workflows 继续共用呈现。阶段一原位更新 API 和动作快照。业务输入输出、动作版本、授权和持久结构均无变化。
 
 2026-11-17 质量审查第50批：Goals自有 `goals.stage.read@1` 输入新增可选 `projection: "collection"`，其现行输出的 `selected` 为 null，集合与呈现状态保持；省略该字段的固定版本调用方继续读取原完整正文。原页面声明、Manifest stage输入、Host片段和工作台刷新同批接入。按当前阶段一原位扩充，动作快照同步；没有持久结构变更、历史值兜底或兼容reader。公开contracts/SDK API快照无变化。
@@ -54,6 +60,8 @@
 
 2026-11-05 用户明确决定：旧版跨范围移动在源已不可用、又完全缺少目标回执时停止自动续办，保留现存内容并提示待核对；撤回该旧态的自动恢复成功承诺，不新增SDK查找口或从隐藏历史重建请求。当前移动仍须在接受源遗忘前原子保存目标回执及历史；真实事务失败、已保存回执后的清理失败均保留原请求恢复要求。已接受的自动新增撤销只凭原change/undo/purge/独立决定的精确身份继续清理，不重新开放正文。输入输出schema不变，原错误码与权限不放宽；旧红日志、明确范围与验证保留在Memory spec。
 
+第 61 批复核修复保留既有动作身份。阶段一动作快照记录 `connectors.setup.prepare@1` 新增 `created`，`connectors.authorization.cancel@1` 新增可选的 `expected_status`，供采用者仅补偿自己的准备请求。`connectors.records.read@1` 的可选 `connector_category` 用于助理当前工作的账号约束，输出加 `account_label`。`automation.adoption.adopt@1` 增加可选的能力包去处。`feed.sources.add_account@1` 声明 `sources:pull_connector` 和并行调度，公开调用方须持有该权限，来源与事件仍同事务写入。各原调用方沿现行合同，持久化 schema 和 vendored SDK 沿当前版本。
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
@@ -107,6 +115,9 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 第 38 批模型偏好 v1→v2 | Jelly 与已安装插件已有的模型选择原位保留。持 Home 升级锁，按已登记的内置文件与安装专属偏好路径枚举，补充个人层修订和回执。2026-11-18 一骏确认。 | local-host 模型设置；受支持的旧 Home 均退出后移除升级段。 |
+| 第 38 批 Shelf 目录 v1→v2 | Shelf 保留设备设置、材料、任务、剪贴板及同步元数据，在本机设置旁记录修改版本和回执。2026-11-18 一骏确认设备偏好可采用。 | modules/shelf；受支持的旧目录均退出后移除升级段。 |
+| 第 38 批项目设置回执 | 项目库 5→6 只在升级事务中补齐原按需创建的运行时表，保留旧运行时，纳入修改版本与同事务回执。运行期读写只认当前结构。场景采用记录另建 Home 库 v1。2026-11-18 用户确认两项变更。 | 项目库归 local-host；场景记录归 horizontal/blueprints。连续升级段随受支持的项目版本保留。 |
 | 记忆新一代起点（Memory V0，用户 2026-11-07 定不迁移） | `memory` 1 → 2 只删账本里关于旧记忆的行（历史、候选、变更、信号、使用、配对、标记），保留归属标题和每个开关；偏好里唯一新增的 `class_restrictions` 在缺少时补成空列表（不限制任何类别，用户 2026-11-11 定），不改其他字段；并留一个标记；持主人锁的下一次启动只凭这个标记，先永久删除 `agent-runtime/records/` 下旧布局的 `io.molis.work~memories` 与 `io.molis.work~memory-candidates` 两个目录（SDK 索引库在它们存在时拒绝挂载；不是普通目录的拒绝、不删；用户 2026-11-11 定），再写空的 `memory-forgetting-v2.json`，最后删标记；中途停下的下一次启动重做。其他 SDK 记录不动，旧记忆不读、不搬；别的缺遗忘文件的 Home 照旧拒绝。真实 Home 升级前按发布检查单先做完整备份 | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 1 版时删除此升级段与标记处理 |
 | 记忆账本无正文归因收口（第 31 批合后复查 #2087，2026-11-15；PR 正文称用户当次明确指令，独立决定记录待补） | `memory` 2 → 3 将既有 `memory_revisions.body` 原位清洗为只含 `{version, change, by, at}`（去除第 2 版曾写入的重复 `text`/`kind`/`applies`/`snapshot`），并移除非 `pending` 的 `memory_markers.body` 中的 `$.merge` 暂态字段；现行第 3 版读取路径严格校验四键归因形状，残留正文或未知键直接报 `storage.memory.invalid`，不做读时过滤兜底；遗忘与完成提交同时从 `memory_changes` 与 `memory_markers` 擦除自动改动的 `trigger_evidence` | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 2 版时删除此升级段 |
 | Files 退役与过程项同步切换（第 06 批，用户 2026-11-09 批准隔离实现） | 用户随后明确取消新增升版：06 批当时项目库保持 2（第 15 批 #2017 已升到第 3 版；11-13 用户决定同版本例外改指第 3 版）、过程项同步保持 1、D1 保持 6。精确旧 Files 身份、三类过程项及相关端口／绑定的功能转换仍做，同版本按账号 cutoverId 派生私有同步分区，公开集合不变；原不同版本 namespace 方案不再执行。显式隔离 owner 采用不伪装 U1 同版本升级，普通打开只检当前结构、不补 DDL；[同版本采用设计](../../specs/batch-06-shared-tools/current-version-adoption.md)已独立复核。2026-11-12 起：项目库采用程序在 `apps/local-host/src/process-items-adoption.ts`（只在隔离 Home 测过）；现有 1→2 步骤直接升到新布局，只动结构（用户 11-12 定）；旧布局第 2 版只走显式采用，采用中换日志后在同一事务走完 2→3，落到第 3 版现行（用户 11-13 定）。项目库结构快照的同版本变化只按 `tooling/gates/schemas/same-version-exceptions.json` 的唯一一条放行（用户 11-11 定，11-13 改指第 3 版）。同一采用事务里，项目库按 spec「本库安装清理」把 Files 的官方安装记成已卸载（私有值保留）、删去它作为订阅方的事件游标（Runtime 的 `retired-install.ts`）；全部项目采用后，Home 步骤除撤同意外，由 Projects 的 `plugin-retirement.ts` 把 `files` 移出各项目成员（本地与可同步两份），每个项目记一条普通的移除事件（11-12 起，只在隔离 Home 测过）。限定旧源预检、封前容量预留、冻结值播种、精确旧回执与保留期内受权历史读取。脏旧设备在改属前保全原值、操作与同步恢复数据，恢复件登记首版格式，走本人显式接管；普通读写不兜底旧业务结构。真实部署、真实 Home 与云端迁移另授权；[完整合同及验收](../../specs/batch-06-shared-tools/sync-cutover.md) | 成果／过程项 owner 管业务图，Runtime 管端口与同意，sync-replication 管恢复件和客户端，Rust 同步 owner 管 D1／R2，Host 的实际 Home owner 控制本地采用窗口。消费者为资料、Coding、Diff、Text Stats 与同步设置。支持的旧源全部迁完且无待接管恢复件后移除专用转换和旧源捕获入口；已有恢复件在用户处置前保留。永久封印、原回执及仍有效的历史权利按其合同继续履行，不随转换代码删除。 |
@@ -126,14 +137,14 @@
 | 第 15 批 IM 消息 `subjects_json` 同版本例外（用户 2026-11-09 批准） | `server/server.sqlite` 保持 v1，仅在 `im_messages` 加 `subjects_json TEXT NOT NULL DEFAULT '[]'`；只允许旧结构 `626a2905680637a9` → 新结构 `2c4efaa24415de5e` 这一对准确差异，owner server、版本 1、无升级段。旧结构在可写连接前拒绝且保持原字节，不自动转换或修改真实 Home；`scripts/gates/store-schemas.mjs` 的 `DISCUSSION_V1_SUBJECTS_CHANGE` 只认这一对，其他库、反向变化和以后新增变化继续拒绝 | server/IM owner；删除条件：旧结构不再需要被拒绝，或该列随下一次正式版本升级进入升级链时移除此一次性例外。后续结构变化重新按第 3 节第 4 条处理；批准原文见[智能呈现 §17.2](../../specs/intelligent-surfaces/spec.md#172-保持版本-1-的-im-实施边界2026-11-09-用户批准) |
 | 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
 | 存下的句子改成文字引用（用户 2026-11-17 定：升版本、升级段把旧句子转成 `{ literal }`、读取不兜底） | 助理库 1 → 2（`assistant_cards.body` 的 `outcome`）、项目库 4 → 5（只改 Coding 确切官方安装的 `cards:<会话>` 私有值里卡片的 `outcome`，由 Coding 在登记的 `private_value_upgrades` 里声明、Plugin Runtime 执行）、Work Brief 1 → 2（`brief_versions`／`brief_proposals`／`brief_requests` 里来源行与变化行的 `name`、`brief_next_marks` 卡片的 `outcome`）只把存着的字符串原样包成 `{ literal }`（超过文字引用上限的截断加省略号，空的删掉或用插件编号代替名字），不翻译、不改别的字段；读取只认 `OwnedTextRef`。成果库里已固定的简报版本不改 | 各库 owner（助理库与项目库归 `apps/local-host`，Work Brief 库归 Work Brief）；最早支持的金样不再需要助理库第 1 版、项目库第 4 版、Work Brief 库第 1 版时删除对应升级段 |
-| Goals v5 要求与认可交给平台（第 44 批第 3 项 B1，用户 2026-11-18 定 10.9 第 9 问 A） | 项目库 5→6 里，宿主 import Goals 包的升级专用入口 `@molis-ai/molis-work-plugin-goals/v5-acceptance-handover`：`compute` 只读 Goals 自己的三张表，用冻结的 v5 满足规则算出平台认可的行与每项原值；`finish` 只改 Goals 自己的表到 v6 声明。只在这一步调用，PEQ-03 白名单外单开「迁移例外」一栏登记；平台写自己的表并逐项核对，不一致拒绝升级（第 8 问 A）。不得用于普通读取 | owner：`plugins/native/goals`（入口）、`apps/local-host`（调用）；删除条件：最早支持的金样已含平台认可表时，删入口、冻结规则与这条例外。设计见 `specs/plugin-equal-standing/contract-design.md` §10.4 |
-| 项目库 5→6 换算原决定记下的业务结果（第 44 批第 3 项，用户 2026-11-19 定「Re-freeze in 5→6」） | Goal 决定的业务结果在 v5 含此人对要求的结论，结论交给平台后 v6 的结果不再含它。同一升级事务里，`horizontal/project-approvals` 的 `refreezeMovedOutcomeDigests` 只读写自己的 `project_review_decisions`：一条记录冻结的值恰是 Goals 的 `goalDecisionDigestBeforeHandover` 按冻结的 v5 规则算出的旧值，才换成 v6 值，已是新值的不动，其他值拒绝并保留整库；记录别的字段不改，不新增读取兜底。由 `tests/acceptance-handover-upgrade.test.ts` 用 dev.7 金样的两条记录验证 | project-approvals 与 Goals；随项目库 v5 金样支持一起删除 |
+| Goals v5 要求与认可交给平台（第 44 批第 3 项 B1，用户 2026-11-18 定 10.9 第 9 问 A，2026-11-19 随主线顺延至项目库 6→7） | 项目库 6→7 里，宿主 import Goals 包的升级专用入口 `@molis-ai/molis-work-plugin-goals/v5-acceptance-handover`：`compute` 只读 Goals 自己的三张表，用冻结的 v5 满足规则算出平台认可的行与每项原值；`finish` 只改 Goals 自己的表到 v6 声明。只在这一步调用，PEQ-03 白名单外单开「迁移例外」一栏登记；平台写自己的表并逐项核对，不一致拒绝升级（第 8 问 A）。不得用于普通读取 | owner：`plugins/native/goals`（入口）、`apps/local-host`（调用）；删除条件：最早支持的金样已含平台认可表时，删入口、冻结规则与这条例外。设计见 `specs/plugin-equal-standing/contract-design.md` §10.4 |
+| 项目库 6→7 换算原决定记下的业务结果（第 44 批第 3 项，用户 2026-11-19 定在搬迁步换算并随主线顺延至 6→7） | Goal 决定的业务结果在 v5 含此人对要求的结论，结论交给平台后 v6 的结果不再含它。同一升级事务里，`horizontal/project-approvals` 的 `refreezeMovedOutcomeDigests` 只读写自己的 `project_review_decisions`：一条记录冻结的值恰是 Goals 的 `goalDecisionDigestBeforeHandover` 按冻结的 v5 规则算出的旧值，才换成 v6 值，已是新值的不动，其他值拒绝并保留整库；记录别的字段不改，不新增读取兜底。由 `tests/acceptance-handover-upgrade.test.ts` 用 dev.8 金样的两条记录验证 | project-approvals 与 Goals；随项目库 v6 金样支持一起删除 |
 
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
-第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；A、B1、C、D1～D3、D5 已实现）。B1 的前提「平台认可补同步集合」用户 2026-11-18 定为本批补（「Add sync now」）：第 3 项先给平台认可加同步集合，再写 B1 的升级段。做法定在 `specs/plugin-equal-standing/contract-design.md` §10（第 5 版，评审通过），用户 2026-11-18 对 §10.9 十一问全按推荐定：认可记录搬进项目库，B1 不再跨两个库文件，改为项目库 5→6 同库一步（「跨两个库文件」一句作废）；存量经 Goals 的升级专用入口算出（见「当前保留机制」）。
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；A、B1、C、D1～D3、D5 已实现）。B1 的前提「平台认可补同步集合」用户 2026-11-18 定为本批补（「Add sync now」）：第 3 项先给平台认可加同步集合，再写 B1 的升级段。做法定在 `specs/plugin-equal-standing/contract-design.md` §10（第 5 版，评审通过），用户 2026-11-18 对 §10.9 十一问全按推荐定：认可记录搬进项目库，B1 不再跨两个库文件，改为项目库 6→7 同库一步（2026-11-19 因 main 第 38 批 #2138 先占 5→6 顺延，「跨两个库文件」一句作废）；存量经 Goals 的升级专用入口算出（见「当前保留机制」）。
 
 三项的共同规则：
 - 只在持存储主人锁的升级轮里执行；
@@ -152,11 +163,11 @@
 - 没装 Goals 的项目，升级后得到空表。
 
 已实现（第 44 批第 2 项）。合同与细节见 `specs/plugin-equal-standing/contract-design.md` §9；与上面确认的方案有四处出入，都在 PR 里写明：
-- 并进项目库 5→6，不另起一步：5→6 还没发出去，分两步要给一个从没在 main 上出现过的中间状态再生成一份金样；并成一步，金样 0.1.1-dev.7（项目库 5、Goals 5，带一条改过一次的指导）就覆盖它。Goals 库 v6 本来就在这一步建，这一版同时去掉两张指导表。
+- 并进项目库 6→7，不另起一步：6→7 还没发出去，分两步要给一个从没在 main 上出现过的中间状态再生成一份金样；并成一步，金样 0.1.1-dev.8（项目库 6、Goals 5，带一条改过一次的指导）就覆盖它。Goals 库 v6 本来就在这一步建，这一版同时去掉两张指导表。
 - 平台的表名是 `guidance_entries`、`guidance_revisions`（索引同改），不沿用 Goals 的 `project_guidance_*`：Goals 冻结的 v5 声明里仍有原表名的 `CREATE TABLE`，平台再建同名表就是两个包建同一张表，表主人门禁要加一条允许才过（那条允许原是给不同库里的同名表的）。换名后升级段在 `modules/projects` 里按调用方给的 v5 表名拷行、核对行数、删旧表；行里任一条不属于库里唯一的项目就拒绝，项目库保留。
 - 日志与收据随表移交时去掉 Goals 的前缀：事件类型 `io.molis.work.goals:project.guidance_*` → `project.guidance_*`，对象类型 `io.molis.work.goals:project_guidance` → `project_guidance`，收据操作 `io.molis.work.goals:add_project_guidance`／`update_project_guidance` → 平台名（存储包的 `renameJournalRecords`，同一事务）。请求哈希算法不变（规范 JSON 的 sha256），升级前发出的请求带同一幂等键重放仍得原结果。
 - 平台的「项目长期说明」集合（`io.molis.work.project-guidance`／`guidance`，第 1 版）照项目审批集合做：一个项目一个键，带两张表，不带日志与收据；修订只增不改，条目只往更高的修订走，同一修订内容不同算冲突、保留本地。要本人另行勾选；`project_goals@3` 不再带指导。
-- 删除条件：同 D1、D3（最早支持的金样不再含项目库 v5 时删）。
+- 删除条件：同 D1、D3（最早支持的金样不再含项目库 v6 时删）。
 - 金样：带指导与修订的 v4 项目库，验 4→5，并验失败时原数据保留。
 - 删除条件：最早支持的金样已含平台表时，删这一段。
 
@@ -191,7 +202,7 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
   - 要求要在平台上重新挂。
   - 这样 PEQ-02「要求认可都在」只对新数据成立。
 
-已实现（第 44 批第 3 项，B1）。做法见 `specs/plugin-equal-standing/contract-design.md` §10（认可记在项目库，5→6 同库一步，Goals 经升级专用入口算出存量，见「当前保留机制」）；与上面 B1 的写法有这些出入，都在 PR 里写明：
+已实现（第 44 批第 3 项，B1）。做法见 `specs/plugin-equal-standing/contract-design.md` §10（认可记在项目库，6→7 同库一步，Goals 经升级专用入口算出存量，见「当前保留机制」）；与上面 B1 的写法有这些出入，都在 PR 里写明：
 - 不跨两个库文件：认可记在项目库，搬迁与 Goals 自己的表在同一个升级事务里（§10.9 第 1 问）。
 - 「事件类型→要求」的绑定转成 Goals 的 `goal_event_requirement_bindings` 行（原来是要求行上的 `bound_type_id`）；Goals 另留 `goal_requirement_links`，只记每项要求的来处与登记时的配置版本。
 - 还在等本人认可的 `requirement_acceptance` 请求改为 `moved`，由平台的逐项审阅接手；Goal 的收尾记录加上所依据的认可轮次（升级前的为空）。
@@ -215,7 +226,7 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 第 1 项删掉合同里的 Goal、Feed、Coding 取值。下面这些取值已经写进用户的库里，要么改写存量，要么换一种合同写法让旧值不再是合同取值。共同规则同上。
 
 - **D1 关联边的对象引用**（C6）。项目库 `context_edges` 的 `source_json`／`target_json` 里有 `module: "goals"`、`"feed"`；同步集合 `goal_context` 按 `module='goals'` 选边。
-  - 推荐：随项目库升级（实现时为 5→6）同一事务改写成通用形状 `{ module: "plugins", object_type: "goal" | "feed_item", project_id }`，`id`、版本不动；`goal_context` 换成通用的「关联边」集合，凡一端是声明了同步集合的插件对象的边都同步（今天只有 Goals，选中的边与现在相同）；旧游标、待发、冲突只留在升级备份里。
+  - 推荐：随项目库升级（实现时为 6→7）同一事务改写成通用形状 `{ module: "plugins", object_type: "goal" | "feed_item", project_id }`，`id`、版本不动；`goal_context` 换成通用的「关联边」集合，凡一端是声明了同步集合的插件对象的边都同步（今天只有 Goals，选中的边与现在相同）；旧游标、待发、冲突只留在升级备份里。
   - 另一个做法：不改存量，`module` 改成插件在 Manifest 申报的来源名（Goals 申报 `goals`）。没有搬迁，但插件对象从此有两种写法。
 - **D2 放置关联**（C1）。Home 的放置库 `placement/…` 里有关系类型 `placement.goal_in` 的边；线上的 `placement.goals`、`placement.goal.bind`、关联类型 `goal`、转交目标 `{ goal: true }` 换成通用的「挂到…」，候选取声明了「挂到…」关系的插件对象（实现时落为各部分动作上的 `placement_relation`，即 main 第 36 批已有的关联声明与 `definePlacementRelationAction` 的形状，见合同设计稿 2.2 节）。
   - 推荐：放置库 1→2 改写关系类型为 `placement.attached_in`，边上记目标插件与对象类型；金样补带挂接边的放置库。
@@ -233,12 +244,12 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
   - 删除条件：最早支持的金样不再含上手旅程库第 1 版时删这一步。
 
 已实现（第 44 批第 1 项，D1、D2、D3；D4 没有搬迁）。合同的形状见 `specs/plugin-equal-standing/contract-design.md`；实现与上面确认的方案有这些出入，都在 PR 里写明：
-- D1、D3 同在项目库 5→6 一步（`apps/local-host/src/project-library-v6-upgrade.ts`，一个事务；main 的 #2118 先占了 4→5，本批顺延一号，内容不变）：先重建 `inbox_entries` 去掉两个 CHECK（表上原有的触发器原样重建），再拆 Goals 的 `project_goals@2` 集合，再改写关联边，最后建 Goals 库 v6 与 `project_goals@3`。Goals 库内容不变、只升版本号（v6），因为同步集合换了声明；v5 库与 `project_goals@2` 的声明冻结在 Goals 包里（`GOALS_PROJECT_DATABASE_V5`、`goalsV5Sync()`），旧 `module='goals'` 触发器的原文冻结在 `apps/local-host/src/goal-context-history.ts`，只供升级前核对。
+- D1、D3 同在项目库 6→7 一步（`apps/local-host/src/project-library-v7-upgrade.ts`，一个事务；main 的 #2118 先占了 4→5、#2138 先占了 5→6，本批顺延至 6→7，内容不变）：先重建 `inbox_entries` 去掉两个 CHECK（表上原有的触发器原样重建），再拆 Goals 的 `project_goals@2` 集合，再改写关联边，最后建 Goals 库 v6 与 `project_goals@3`。Goals 库内容不变、只升版本号（v6），因为同步集合换了声明；v5 库与 `project_goals@2` 的声明冻结在 Goals 包里（`GOALS_PROJECT_DATABASE_V5`、`goalsV5Sync()`），旧 `module='goals'` 触发器的原文冻结在 `apps/local-host/src/goal-context-history.ts`，只供升级前核对。
 - D1 账本的对象引用加了 `plugin_id`（原方案只写了 `object_type`）：同一种 `object_type` 可能有两个插件，主人要能认出自己的边。账本列表按 `plugin_id`、`object_type` 也做精确匹配。关联边里遇到第 4 版没有的 `module`、或已经带 `plugin_id` 的引用，拒绝升级、项目库保留。
 - D2 放置库 1→2（`apps/local-host/src/placement-library-v2-upgrade.ts`）：`placement.goal_in` 的每个版本改成 `placement.attached_in`，键从 `["goal_in", 种类, id, 项目]` 改成 `["attached_in", 目标插件, 目标种类, 种类, id, 项目]`，目标插件与种类记在键里（边的 target 是项目，不是目标对象）；第 1 版的挂接全是 Goals 的 `goal`。金样 `0.1.1-dev.6` 在分叉点上重新生成，放置写入多做一次「挂到 Goal」，回放走这一步。
 - D2 的线上合同（用户 2026-11-18 定：只留一套关联机制）：本批先写的 `attach.relation`／`defineAttachRelationAction` 与后台任务的 `task_serves` 在合并 main 后撤掉，「挂到…」改用 main 第 36 批的 `placement_relation` 与 `definePlacementRelationAction`（两端都是 `ActionSubject`，每一步回调用后的目标）。放置库的边与键不受影响（`attached_in` 的键本来就记目标插件与种类）。平台形状加了两样可选输入：`bind`／`create` 的 `read: { title, revision?, excerpt? }`（放置服务以本人身份读到的，Goals 用来给输入命名、记摘要、写目标的结果描述）、`create` 的 `request_id`；`create` 的结果把新建的目标放在第一个（主线的 `mainline.holds.create` 随之调整）；各部分带类型名 `molis.placement.relation.v1.<角色>`，放置服务只认这个形状，所以后台任务的 `serves`（任务与事件的形状）不会被当成「挂到…」。
 - D3 的「排序只按呈现声明的状态映射」落成 Manifest `attention.subjects[].reasons[].attention`（`needs_decision`／`needs_acceptance`／`failed`），工作台按它排；条目的 `subject_type` 与 `reason` 只核对是否为主人申报过的词。
-- 删除条件：最早支持的金样不再含项目库 v5、放置库 v1 时，删这两段升级与冻结的 v5 声明。
+- 删除条件：最早支持的金样不再含项目库 v6、放置库 v1 时，删这两段升级与冻结的 v5 声明。
 
 **Images 私库 1 → 2（ARF-4，用户 2026-11-18 确认）。** 配置和连接器绑定分属两个库。在 Images 私库增加待完成的凭据绑定／解绑操作，和配置在同一事务写入；待办操作完成以前不派发生成。升级只新建空表，不读写凭据，不修改旧配置、任务或同步载荷。按现有连续升级机制在隔离库验证；最早支持基线不再需要 v1 时移除该段。详见 [修复需求](../../specs/architecture-review-fixes/spec.md)。
 
@@ -256,6 +267,8 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION#1→2` |
+| `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION#1→2` |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | `plugins/native/images/src/database.ts#IMAGES_DATABASE#1→2` |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
@@ -350,9 +363,10 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 | `agent-definitions/agent-definitions.db` | 2 → 3 | 第 42 批 #2107（用户 2026-11-16 批准：新增技能草稿 `skill_drafts`、已知答案 `skill_cases`、回放 `skill_trials`、来源 `skill_lineage` 四张空表，已有的技能设置与用量不动） | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
 | `assistant/assistant.db` | 1 → 2 | 存键和参数、不存译文（BL-action-card-outcome-text，用户 2026-11-17 定升版本、旧句子转 `{ literal }`）：卡片的 `outcome` 从句子改成 `OwnedTextRef`。2026-11-08／11-09「助理库保持第 1 版」的决定到此为止 | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上：Coding 存在 `plugin_private_values` `cards:<会话>` 的卡片 `outcome` 转 `{ literal }`；v4 金样 `0.1.1-dev.6` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
+| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 38 批，保留有选择的项目和继承默认值的项目，采用回执与原设置同事务。 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text，用户 2026-11-17 定）：来源名改存插件 Manifest 的 `name_text` 引用，旧名字与旧卡片结果转 `{ literal }`（纯 SQL 插件升级段） | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
-| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 44 批第 1、2 项（用户 2026-11-17 批准「第 44 批存量搬迁」A、D1、D3）：项目指导从 Goals 库移到平台的 `guidance_entries`、`guidance_revisions`（行原样，日志与收据去掉 Goals 前缀），平台登记「项目长期说明」同步集合；Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`；第 3 项 B1：Goal 的要求、判断与结论交给平台的 `acceptance_*` 表（认可来源记 `goals_v5`），平台逐项核对读出的满足与否与 Goals 原来一致，不一致拒绝升级，平台登记「要求与认可」同步集合。项目库备份后同一事务完成，见不认识的取值、不属于本项目的行拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
-| `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：同步集合随项目库 5→6 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）。第 3 项 B1：要求、判断、结论三张表交给平台后删掉；新表 `goal_requirement_links` 记每项要求的来处，`bound_type_id` 转成 `goal_event_requirement_bindings` 行；`goal_event_decision_requests` 的状态加 `moved`、`goal_event_closures` 加所依据的认可轮次（两表照 v6 声明重建，行原样）。由项目库 5→6 经 Goals 的升级专用入口一并完成，Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
+| `projects/<project_id>/molis-work.db` | 6 → 7 | 第 44 批第 1、2 项（用户 2026-11-17 批准「第 44 批存量搬迁」A、D1、D3；2026-11-19 因第 38 批占 5→6 顺延）：项目指导从 Goals 库移到平台的 `guidance_entries`、`guidance_revisions`（行原样，日志与收据去掉 Goals 前缀），平台登记「项目长期说明」同步集合；Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`；第 3 项 B1：Goal 的要求、判断与结论交给平台的 `acceptance_*` 表（认可来源记 `goals_v5`），平台逐项核对读出的满足与否与 Goals 原来一致，不一致拒绝升级，平台登记「要求与认可」同步集合。项目库备份后同一事务完成，见不认识的取值、不属于本项目的行拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#6→7` |
+| `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：同步集合随项目库 6→7 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）。第 3 项 B1：要求、判断、结论三张表交给平台后删掉；新表 `goal_requirement_links` 记每项要求的来处，`bound_type_id` 转成 `goal_event_requirement_bindings` 行；`goal_event_decision_requests` 的状态加 `moved`、`goal_event_closures` 加所依据的认可轮次（两表照 v6 声明重建，行原样）。由项目库 6→7 经 Goals 的升级专用入口一并完成，Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#6→7` |
 | `context-onboarding/context-onboarding.db` | 1 → 2 | 第 44 批第 1 项 D5（用户 2026-11-17「Yes, upgrade 1→2」）：旅程里 Todo 的批次换成平台形状的草稿批次（快照置空、留批次 id），`todo_selected` 改名 `keep` 原样保留，Pages 的文档 id 补成对象地址；见第 1 版没有的形状拒绝，库留在第 1 版 | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE#1→2` |
 | `placement/placement.db` | 1 → 2 | 第 44 批第 1 项 D2（用户 2026-11-17 批准「第 44 批存量搬迁」）：关系类型 `placement.goal_in` 的每个版本改成 `placement.attached_in`，键补上目标插件与种类（Goals 的 `goal`）；其他不动，见第 1 版没有的键拒绝并保留原库 | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE#1→2` |
 

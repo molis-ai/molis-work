@@ -23,16 +23,16 @@ test("UPG-01 the committed snapshot is what the built product creates; `pnpm sch
 
 test("UPG-01 the snapshot holds the catalog, the project database, every Home library, each built-in plugin's project tables and the old Alchemist's stores", () => {
   const stores = rows.map(row => row.store);
-  for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
+  for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
     "alchemist/projects/*/studio.sqlite", "alchemist/projects/*/search.sqlite", "projects/*/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 PEQ-03 the built snapshot records Goals 4→5 and 5→6 with the project's actual 3→4 and 5→6 transactions, after its 4→5 card outcomes", () => {
+test("APR-19 PEQ-03 ONB-28 the built snapshot records Goals 4→5 and 5→6 with the project's actual 3→4 and 6→7 transactions, after its 4→5 card outcomes and 5→6 runtime settings receipts", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [6, [1, 2, 3, 4, 5]]);
-  // Goals declares no step of its own: each from is the project step that moves it (3→4 the approvals, batch 44 D1 5→6 the relations).
+  assert.deepEqual([project?.version, project?.froms], [7, [1, 2, 3, 4, 5, 6]]);
+  // Goals declares no step of its own: each from is the project step that moves it (3→4 the approvals, batch 44 D1 6→7 the relations).
   assert.deepEqual([goals?.version, goals?.froms], [6, [4, 5]]);
 });
 

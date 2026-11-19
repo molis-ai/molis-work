@@ -3,17 +3,32 @@ import { closest } from "./dom.js";
 import { flushEdit } from "./edit.js";
 import { shortcutActions } from "./model.js";
 import { expandShelfStage, paintPreview, syncShelfStage } from "./preview.js";
-import { post } from "./request.js";
+import { deviceChange, applyDeviceValues } from "./device-change.js";
+import type { SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
+import { failureCode, post } from "./request.js";
 import type { SettingsPatch, ShelfPage } from "./types.js";
 import type { ShelfDeviceSettings, ShelfItemKind } from "@molis-ai/molis-work-module-shelf/contract";
 
 const uiText = globalThis.t;
 
-/** Saves a patch of this device's settings and keeps the answer as the snapshot's. */
-export async function saveSettings(page: ShelfPage, patch: SettingsPatch): Promise<ShelfDeviceSettings> {
-  const body = await post<ShelfDeviceSettings>(page, "/settings", patch as Record<string, unknown>);
-  page.snapshot = { ...page.snapshot, settings: body };
-  return body;
+/** Submit against the bar shown to the person. A conflict refreshes just that group, keeping their draft open. */
+export async function saveSettings(page: ShelfPage, patch: SettingsPatch, expected = page.snapshot.action_bar_revision): Promise<ShelfDeviceSettings> {
+  const key = "shelf.action_bar", settings = page.snapshot.settings;
+  if (!settings || !expected) throw new Error(uiText.text("shelf.settings.save-failed"));
+  const remember = (response: SettingsValues) => {
+    const item = response.values[0];
+    if (item?.state !== "ok" || item.key !== key) throw new Error(uiText.text("shelf.settings.save-failed"));
+    const current = applyDeviceValues(page.snapshot.settings ?? settings, response);
+    page.snapshot = { ...page.snapshot, settings: current, action_bar_revision: item.revision };
+    return current;
+  };
+  try {
+    return remember(await post<SettingsValues>(page, "/preferences/write", { key, layer: "personal", expected_revision: expected,
+      request_id: crypto.randomUUID(), change: deviceChange(settings, key, patch) }));
+  } catch (error) {
+    if (failureCode(error) === "shelf.conflict") remember(await post<SettingsValues>(page, "/preferences/read", { keys: [key] }));
+    throw error;
+  }
 }
 
 const COMPOSER_KINDS = ["pdf", "image", "markdown", "text", "website", "url", "file", "folder"] as const;
@@ -39,6 +54,9 @@ export async function showActionComposer(page: ShelfPage): Promise<void> {
   page.stage.classList.remove("is-confirm", "is-run", "is-fail", "is-compare");
   expandShelfStage(page, true);
   page.preview.innerHTML = composerHtml(page);
+  const form = page.preview.querySelector<HTMLFormElement>("[data-shelf-create-action]")!;
+  form.dataset.revision = page.snapshot.action_bar_revision ?? "";
+  form.dataset.shortcut = crypto.randomUUID();
   page.bar.innerHTML = "";
   page.preview.querySelector<HTMLInputElement>("input[name=name]")?.focus();
 }
@@ -54,13 +72,16 @@ export async function submitComposer(page: ShelfPage, event: Event): Promise<voi
   const buttons = [...form.querySelectorAll<HTMLButtonElement>("button")];
   buttons.forEach((button) => { button.disabled = true; });
   try {
-    await saveSettings(page, { shortcuts: [...shortcutActions(page), { id: "", name: String(data.get("name")).trim(), prompt: String(data.get("prompt")).trim(), kinds: kinds as ShelfItemKind[] }] });
+    await saveSettings(page, { shortcuts: [...shortcutActions(page).filter(action => action.id !== form.dataset.shortcut), { id: form.dataset.shortcut!, name: String(data.get("name")).trim(), prompt: String(data.get("prompt")).trim(), kinds: kinds as ShelfItemKind[] }] }, form.dataset.revision);
     page.composingAction = false;
     page.stickyHint = uiText.text("shelf.composer.action-added-to-the-bar");
     paintPreview(page);
     syncShelfStage(page);
   } catch (error) {
-    if (page.lifetime.alive && status) status.textContent = messageOf(error);
+    if (page.lifetime.alive && status) {
+      if (failureCode(error) === "shelf.conflict") form.dataset.revision = page.snapshot.action_bar_revision ?? "";
+      status.textContent = messageOf(error);
+    }
   } finally {
     buttons.forEach((button) => { button.disabled = false; });
   }

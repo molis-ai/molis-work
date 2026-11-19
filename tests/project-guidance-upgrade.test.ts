@@ -10,23 +10,23 @@ import { createProjectGuidance } from "@molis-ai/molis-work-module-projects";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { LocalSqliteJournal, runSqliteUpgrade, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
-// PEQ-10 (specs/plugin-equal-standing/contract-design.md §9, CONTRACT-CHANGES 「第 44 批存量搬迁」 A): the project library's 5→6 step hands
-// Goals' guidance to the platform. The library is the 0.1.1-dev.7 golden's own, at 5, whose Goals added an entry and edited it once through
+// PEQ-10 (specs/plugin-equal-standing/contract-design.md §9, CONTRACT-CHANGES 「第 44 批存量搬迁」 A): the project library's 6→7 step hands
+// Goals' guidance to the platform. The library is the 0.1.1-dev.8 golden's own, at 6, whose Goals added an entry and edited it once through
 // `goals.guidance.add` / `.update`: after the step the platform reads both revisions, the journal's events and the receipts carry the
 // platform's names, and a retry of either original request with its key replays the receipt Goals wrote rather than writing again.
 
-const PROJECT = "project-42ffae10-577d-44d7-9f41-0f14cccd67b2";
-const GOLDEN = new URL(`./fixtures/golden-homes/0.1.1-dev.7/stores/projects/${PROJECT}/molis-work.db.sql`, import.meta.url);
-const GUIDANCE = "a57228be-c38a-4f4a-a505-13a68201c95e";
+const PROJECT = "project-332cb2e6-77a9-4dda-b5d6-d367eb3ccfda";
+const GOLDEN = new URL(`./fixtures/golden-homes/0.1.1-dev.8/stores/projects/${PROJECT}/molis-work.db.sql`, import.meta.url);
+const GUIDANCE = "cf567414-adde-4015-94b7-8c2b3f6f804e";
 const GOALS = "io.molis.work.goals:";
 
 /** The golden's library upgraded by the step itself, then opened as the Host opens a project library. */
 function upgradedGolden(t: { after(fn: () => void): void }): SqliteDatabase {
-  const directory = mkdtempSync(join(tmpdir(), "guidance-5-6-")), file = join(directory, "molis-work.db");
+  const directory = mkdtempSync(join(tmpdir(), "guidance-6-7-")), file = join(directory, "molis-work.db");
   const raw = new DatabaseSync(file);
   raw.exec(readFileSync(GOLDEN, "utf8"));
-  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 5, "the golden's library is at 5");
-  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 5, to: 6 });
+  assert.equal((raw.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 6, "the golden's library is at 6");
+  assert.deepEqual(runSqliteUpgrade(raw, file, PROJECT_DATABASE_BASELINE), { from: 6, to: 7 });
   raw.close();
   const store = new LocalProjectDatabase(file);
   t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
@@ -37,7 +37,7 @@ const storeOf = (db: SqliteDatabase) => createProjectGuidance({ db, journal: new
   now: () => new Date("2026-11-18T00:00:00.000Z"), requestHash: value => createHash("sha256").update(canonicalJsonText(value)!).digest("hex") });
 const count = (db: SqliteDatabase, sql: string, ...params: string[]) => (db.prepare(sql).get(...params) as { n: number }).n;
 
-test("PEQ-10 the 5→6 step moves the golden's guidance, its two revisions, its events and its receipts to the platform", t => {
+test("PEQ-10 the 6→7 step moves the golden's guidance, its two revisions, its events and its receipts to the platform", t => {
   const db = upgradedGolden(t);
   const tables = (db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE '%guidance%' ORDER BY name").all() as Array<{ name: string }>).map(row => row.name);
   assert.ok(tables.includes("guidance_entries") && tables.includes("guidance_revisions"), "the platform's tables are there");

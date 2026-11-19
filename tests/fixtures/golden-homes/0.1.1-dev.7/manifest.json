@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.1-dev.7",
-  "commit": "72ee7666e454e5140fdb11df6719e51c95c19049",
+  "commit": "b0a88ed9f59808d7bc4e574f82b5b2c400be433d",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -83,10 +83,6 @@
     {
       "path": "alchemist/projects/<project>/search.sqlite",
       "reason": "行来自联网搜索，金样不联网；由主人的搜索入口建空库"
-    },
-    {
-      "path": "runtime-integrations/codex.json",
-      "reason": "接入收据只有装过的 Home 才有（接入要用安装的启动器），收据记本机的用户目录和对含 Home 路径的配置条目的指纹，两次生成不会一样；按这份代码的版本写一份固定值的样本，不含真实路径"
     },
     {
       "path": "observation/observation.db",
@@ -337,10 +333,6 @@
     {
       "path": "projects/project-42ffae10-577d-44d7-9f41-0f14cccd67b2",
       "mode": 493
-    },
-    {
-      "path": "runtime-integrations",
-      "mode": 448
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae",
@@ -865,7 +857,7 @@
         "context_edges": 0,
         "molis_storage_space": 1
       },
-      "sha256": "aef420bab11b3cc6d8213258420f786126b80594a6fbd502404c05f2c13a5bce"
+      "sha256": "79e5b0cbaf461add729c2b75826046b73f0143b71dcb4426e6314499d86f08c3"
     },
     {
       "path": "characters/characters.sqlite",
@@ -948,7 +940,7 @@
         "journeys": 1,
         "molis_storage_space": 1
       },
-      "sha256": "e99ae9a8de4c53f4c88c9bd41d9c699a4e30691bfea9966972c96402239f3497"
+      "sha256": "cf19062d0213295c1cac92a5ee2c2ed03dc8e71b7dcfff07674ea3877a4d2646"
     },
     {
       "path": "dataset/dataset.db",
@@ -1170,7 +1162,7 @@
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
-        "memory_markers": 8,
+        "memory_markers": 7,
         "memory_owners": 0,
         "memory_pairs": 0,
         "memory_prefs": 2,
@@ -1179,7 +1171,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "03c8beb4c215721fbf1207c8ee79814ba566bd80f61d8f00759c5756b9fde3de"
+      "sha256": "1b308fec8b701048363e412162859c0b3ea463c2c8513043ce8733212b6cb654"
     },
     {
       "path": "observation/observation.db",
@@ -1549,8 +1541,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "8d123cfff32728414f53c5b7d0ca6c76bd1233ea796239f62a82a8090159834f",
-      "expanded_sha256": "4c05ecbc0014b79ad73c5c67d723995af81393f1ae96db7f80356d1596f0f5b4"
+      "sha256": "7e36187c85b8dffe0b3d8cec86584b3f7ab1b2470b7bce23ff474aa4a58c9242",
+      "expanded_sha256": "5d53f13b8e904d47df7b50f95f44c3952da492389401a763770227ac5b998518"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1743,8 +1735,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "51dad6e114b6d8bbe3fa58315be63b82c4111b8802ee913619a26b6db532d0c4",
-      "expanded_sha256": "a8460c2d70cfaf9ab25f3f3037cdb9cdf92ca3cc3bad8b358177aab47c439fae"
+      "sha256": "d64be3b72ad1928fb844b1dce7a44facd2207cfa052d4fe42534a126902884c1",
+      "expanded_sha256": "53f202ac0c24118ade41be3c4651ebed96d48d85b1360ce8d9438803fd0f5f44"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -1977,7 +1969,7 @@
         "coding_saved_history": 0,
         "coding_sessions": 1,
         "context_edges": 0,
-        "events": 9,
+        "events": 7,
         "feed_item_events": 0,
         "feed_items": 0,
         "feed_materials": 0,
@@ -2009,7 +2001,7 @@
         "goal_work_event_judgments": 0,
         "goal_work_events": 2,
         "goals": 2,
-        "idempotency_records": 8,
+        "idempotency_records": 6,
         "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
@@ -2052,8 +2044,8 @@
         "project_approvals_replica_outbox": 0,
         "project_approvals_replica_resolutions": 0,
         "project_approvals_replica_state": 1,
-        "project_guidance_entries": 1,
-        "project_guidance_revisions": 2,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
         "project_review_decisions": 0,
         "project_root": 1,
         "risk_events": 0,
@@ -2100,7 +2092,7 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
         "sync_c372a7c2b42f79f648e4251e57c8_aggregate_editor_versions": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_context": 1,
-        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 22,
+        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 14,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_conflicts": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_heads": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_outbox": 0,
@@ -2131,8 +2123,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "54430aec183af70e3a54106e99ecaa97ae196286003eb261ea0abb8847be16ad",
-      "expanded_sha256": "d5e6df526baa0cdc4ec9d9a2618988478bd92353e0c2c0b007799b7a5b7b37fe"
+      "sha256": "15016a24f948eb7bfdea3ac4f3a482b2f110832e310700bc95718c42111c83a9",
+      "expanded_sha256": "2cb3d2e26e63510f978f9410d14c2f6164fcca0f7d8226d0dd0a5ef2de81fcfd"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -2170,7 +2162,7 @@
         "mw_sessions": 1,
         "sqlite_sequence": 2
       },
-      "sha256": "8f50b3da5ad656d278aca8382888419d1baa1d87ef2ccbf5c7953ba1c70e9b2d"
+      "sha256": "54b5d7d36161cee63833357b57c80f3a135eaf0b2d9d7f42800909d1bc25b72a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
@@ -3047,7 +3039,7 @@
         "coding_saved_history": 0,
         "coding_sessions": 1,
         "context_edges": 0,
-        "events": 7,
+        "events": 5,
         "feed_item_events": 0,
         "feed_items": 0,
         "feed_materials": 0,
@@ -3079,7 +3071,7 @@
         "goal_work_event_judgments": 0,
         "goal_work_events": 1,
         "goals": 1,
-        "idempotency_records": 6,
+        "idempotency_records": 4,
         "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
@@ -3122,8 +3114,8 @@
         "project_approvals_replica_outbox": 0,
         "project_approvals_replica_resolutions": 0,
         "project_approvals_replica_state": 1,
-        "project_guidance_entries": 1,
-        "project_guidance_revisions": 2,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
         "project_review_decisions": 0,
         "project_root": 1,
         "risk_events": 0,
@@ -3170,7 +3162,7 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
         "sync_c372a7c2b42f79f648e4251e57c8_aggregate_editor_versions": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_context": 1,
-        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 16,
+        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 8,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_conflicts": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_heads": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_outbox": 0,
@@ -3201,8 +3193,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "2d2eadb6589aa5b6bca9549a996c311a67e619bde73f3167cbf38cdc2a4b063c",
-      "expanded_sha256": "d4f0a1ba30e9a22cfb1ef360408a5d78e962b90c7659cb63f401e6acb71f7b6a"
+      "sha256": "3fd558aad3322a5a7b07672a8210da3de8b455c4e0a825306f6da38cca50fdc0",
+      "expanded_sha256": "c2229b9ff9ca0257421861a980dc109ab4d9220cc6f0b0c2f5b128f607bf891e"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3472,7 +3464,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-6oc5k.v1.json",
       "size": 485,
-      "sha256": "c19937ec35b1378da0df0a81fe4982408c1ab7151aec6f567b94144792dc4d1b"
+      "sha256": "0e0830e1b348463dd7856deae426d9988e65d40235abd72a08d758d99f079e19"
     },
     {
       "path": "agent-runtime/records/io.molis.work~runs/3-4vyh1.c-6tfd4.json",
@@ -3520,7 +3512,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-4vyh1.json",
       "size": 21630,
-      "sha256": "dc54746e77b41a81a575a4353b3220d9bfd8e06a484390fc04d7e03c7a18019f"
+      "sha256": "6893e15beb0f7715619e3cc600573306ceb7954c896f61eab55f9e121699e6c4"
     },
     {
       "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/5ba1b049a4ac7c5f398b40f9713c48464f1b9c867158add95776d174dde30712.json",
@@ -3650,14 +3642,6 @@
       "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs.data",
       "size": 658,
       "sha256": "704edde5820a1eb52d8e600940b816019048d483182d1419884ae981c5ab1c98"
-    },
-    {
-      "path": "runtime-integrations/codex.json",
-      "owner": "apps/local-host/src/installer",
-      "mode": 384,
-      "payload": "files/runtime-integrations/codex.json",
-      "size": 436,
-      "sha256": "2ba30af03fc41bd251a1d5cd53025b035bccb0e1babddf45edd339f4387b3336"
     },
     {
       "path": "shelf/catalog.json",
@@ -3867,6 +3851,11 @@
       "bytes": 166962
     },
     {
+      "digest": "3ed26e8a58fbd60a07a03e476facdfa3ad0083820ddc519d6a266cef33b738c5",
+      "payload": "files/module-sources/3ed26e8a58fbd60a07a03e476facdfa3ad0083820ddc519d6a266cef33b738c5.br",
+      "bytes": 2167322
+    },
+    {
       "digest": "56dcd509292ceda09d20a9480795f00a4407b74c21b0ca44bb57c79a270a8c63",
       "payload": "files/module-sources/56dcd509292ceda09d20a9480795f00a4407b74c21b0ca44bb57c79a270a8c63.br",
       "bytes": 230967
@@ -3950,11 +3939,6 @@
       "digest": "e194dac7b8bc6bfda7dc2f3704a8f7f83e9d2ff2e1225cd567bf5d69e87bc45e",
       "payload": "files/module-sources/e194dac7b8bc6bfda7dc2f3704a8f7f83e9d2ff2e1225cd567bf5d69e87bc45e.br",
       "bytes": 223384
-    },
-    {
-      "digest": "e6f0c8da56daf479e32c31cae70bf5959a6544595ac7c1ab74d208480b57566d",
-      "payload": "files/module-sources/e6f0c8da56daf479e32c31cae70bf5959a6544595ac7c1ab74d208480b57566d.br",
-      "bytes": 2166901
     },
     {
       "digest": "ee286355737c4119e3cceac1db3d3059be9f89e461ee3f7477eefe28994195c4",
@@ -4143,11 +4127,6 @@
     {
       "entry": "format.project.arrival",
       "path": "config/project-arrival.json",
-      "version": 1
-    },
-    {
-      "entry": "format.runtime.integration.receipt",
-      "path": "runtime-integrations/codex.json",
       "version": 1
     },
     {

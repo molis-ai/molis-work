@@ -161,7 +161,7 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
 }
 
 /**
- * The project library's 5→6 step only (batch 44 item 3, CONTRACT-CHANGES 「当前保留机制」, user 2026-11-19): a Goal decision's outcome
+ * The project library's 6→7 step only (batch 44 item 3, CONTRACT-CHANGES 「当前保留机制」, user 2026-11-19): a Goal decision's outcome
  * no longer holds the person's requirement conclusions, which moved to the platform's acceptance, so a record that froze the old digest
  * gets the new one. `moved` names, for a record's decision, the digest it froze before and the one it has now (null: unchanged). Only a
  * record whose frozen digest is exactly the old one changes; one that already holds the new one is left as it is; any other digest

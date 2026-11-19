@@ -859,14 +859,18 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "first round");
     const usage = await f.service.budget.usage();
     assert.deepEqual([usage.today.rounds, usage.today.input > 0, usage.today.output > 0, usage.daily_tokens], [1, true, true, null]);
-    assert.throws(() => f.service.budget.saveBudget(10), /至少 1000/);
-    assert.equal(f.service.budget.saveBudget(5000), 5000);
+    const setCap = (value: number) => f.store.preferences.transaction({ actor_id: "web-user", project_id: null, owner_id: "system.assistant-settings" },
+      tx => tx.writeChange({ key: "assistant.daily_tokens", layer: "personal", change: { set: value } }));
+    assert.throws(() => setCap(10), /至少 1000/);
+    setCap(5000);
+    assert.equal((await f.service.budget.usage()).daily_tokens, 5000);
     // A cap below what was already used today (set directly, as if the rounds had been long ones).
     f.store.setSetting("web-user", "daily_tokens", String(usage.today.input + usage.today.output));
     await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000032" }, {}),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.budget" && error.kind === "invalid" && /达到你设的每日上限/.test(error.message));
     assert.equal((await f.service.read(sent.work.work_id)).rounds.length, 1, "nothing started; what ran stays");
-    assert.equal(f.service.budget.saveBudget(null), null);
+    setCap(0);
+    assert.equal((await f.service.budget.usage()).daily_tokens, null);
     const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
     assert.equal(again.outcome, "started", "no cap, no stop");
   } finally { await f.close(); }

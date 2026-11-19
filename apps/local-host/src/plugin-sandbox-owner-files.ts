@@ -19,8 +19,9 @@ export interface SandboxOwnerFilesScope {
 }
 
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+export const isSandboxOwnerSegment = (value: string) => SEGMENT.test(value) && !value.includes("..");
 const plain = (value: string, what: string) => {
-  if (!SEGMENT.test(value) || value.includes("..")) throw pluginErrors.declaration_invalid(`沙箱插件的主人文件根需要${what}是一个普通目录名`);
+  if (!isSandboxOwnerSegment(value)) throw pluginErrors.declaration_invalid(`沙箱插件的主人文件根需要${what}是一个普通目录名`);
   return value;
 };
 

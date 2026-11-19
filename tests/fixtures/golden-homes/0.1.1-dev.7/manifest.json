@@ -1170,7 +1170,7 @@
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
-        "memory_markers": 7,
+        "memory_markers": 8,
         "memory_owners": 0,
         "memory_pairs": 0,
         "memory_prefs": 2,
@@ -1179,7 +1179,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "1b308fec8b701048363e412162859c0b3ea463c2c8513043ce8733212b6cb654"
+      "sha256": "03c8beb4c215721fbf1207c8ee79814ba566bd80f61d8f00759c5756b9fde3de"
     },
     {
       "path": "observation/observation.db",
@@ -1977,7 +1977,7 @@
         "coding_saved_history": 0,
         "coding_sessions": 1,
         "context_edges": 0,
-        "events": 7,
+        "events": 9,
         "feed_item_events": 0,
         "feed_items": 0,
         "feed_materials": 0,
@@ -2009,7 +2009,7 @@
         "goal_work_event_judgments": 0,
         "goal_work_events": 2,
         "goals": 2,
-        "idempotency_records": 6,
+        "idempotency_records": 8,
         "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
@@ -2052,8 +2052,8 @@
         "project_approvals_replica_outbox": 0,
         "project_approvals_replica_resolutions": 0,
         "project_approvals_replica_state": 1,
-        "project_guidance_entries": 0,
-        "project_guidance_revisions": 0,
+        "project_guidance_entries": 1,
+        "project_guidance_revisions": 2,
         "project_review_decisions": 0,
         "project_root": 1,
         "risk_events": 0,
@@ -2100,7 +2100,7 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
         "sync_c372a7c2b42f79f648e4251e57c8_aggregate_editor_versions": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_context": 1,
-        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 14,
+        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 22,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_conflicts": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_heads": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_outbox": 0,
@@ -2131,8 +2131,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "9600f42e0f0e56f3084d8b517be98865aed92455f33fd58ec11a4a0dd59d7080",
-      "expanded_sha256": "ee073d70f549d34e277f189ab59cccc61faf752ab56aa78d93036da46b892337"
+      "sha256": "54430aec183af70e3a54106e99ecaa97ae196286003eb261ea0abb8847be16ad",
+      "expanded_sha256": "d5e6df526baa0cdc4ec9d9a2618988478bd92353e0c2c0b007799b7a5b7b37fe"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -3047,7 +3047,7 @@
         "coding_saved_history": 0,
         "coding_sessions": 1,
         "context_edges": 0,
-        "events": 5,
+        "events": 7,
         "feed_item_events": 0,
         "feed_items": 0,
         "feed_materials": 0,
@@ -3079,7 +3079,7 @@
         "goal_work_event_judgments": 0,
         "goal_work_events": 1,
         "goals": 1,
-        "idempotency_records": 4,
+        "idempotency_records": 6,
         "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
@@ -3122,8 +3122,8 @@
         "project_approvals_replica_outbox": 0,
         "project_approvals_replica_resolutions": 0,
         "project_approvals_replica_state": 1,
-        "project_guidance_entries": 0,
-        "project_guidance_revisions": 0,
+        "project_guidance_entries": 1,
+        "project_guidance_revisions": 2,
         "project_review_decisions": 0,
         "project_root": 1,
         "risk_events": 0,
@@ -3170,7 +3170,7 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
         "sync_c372a7c2b42f79f648e4251e57c8_aggregate_editor_versions": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_context": 1,
-        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 8,
+        "sync_c372a7c2b42f79f648e4251e57c8_replica_changes": 16,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_conflicts": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_heads": 0,
         "sync_c372a7c2b42f79f648e4251e57c8_replica_outbox": 0,
@@ -3201,8 +3201,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "e11f9bf9669d8bafcaf49a8e8463c390caee705056fbf7f3c534f8f2faf31420",
-      "expanded_sha256": "7a50cc6338f9e784bb1ad825d6358b35f6460f330635688e4e4e2a817f7a8b04"
+      "sha256": "2d2eadb6589aa5b6bca9549a996c311a67e619bde73f3167cbf38cdc2a4b063c",
+      "expanded_sha256": "d4f0a1ba30e9a22cfb1ef360408a5d78e962b90c7659cb63f401e6acb71f7b6a"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3472,7 +3472,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-6oc5k.v1.json",
       "size": 485,
-      "sha256": "0e0830e1b348463dd7856deae426d9988e65d40235abd72a08d758d99f079e19"
+      "sha256": "c19937ec35b1378da0df0a81fe4982408c1ab7151aec6f567b94144792dc4d1b"
     },
     {
       "path": "agent-runtime/records/io.molis.work~runs/3-4vyh1.c-6tfd4.json",

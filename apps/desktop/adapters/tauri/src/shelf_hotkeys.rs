@@ -1,7 +1,6 @@
 //! DropAgent global hotkey chords, toggle, front-file routing, capture recovery,
 //! and HTML→Markdown. Carbon registration lives in `shelf_hotkeys_macos`.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -146,45 +145,28 @@ pub fn default_chords() -> (HotKeyChord, HotKeyChord, HotKeyChord) {
     )
 }
 
-pub fn chords_from_catalog_file(path: &Path) -> (HotKeyChord, HotKeyChord, HotKeyChord) {
-    let Ok(raw) = fs::read_to_string(path) else {
-        return default_chords();
-    };
-    chords_from_catalog_json(&raw)
+#[derive(serde::Deserialize)]
+pub struct DevicePreferences {
+    pub hotkeys: DeviceHotkeys,
+    pub drop_wheel_enabled: bool,
 }
 
-pub fn chords_from_catalog_json(raw: &str) -> (HotKeyChord, HotKeyChord, HotKeyChord) {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
-        return default_chords();
-    };
-    let hotkeys = value
-        .get("settings")
-        .and_then(|settings| settings.get("hotkeys"))
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
-    (
-        chord_from_json(hotkeys.get("toggle"), HotKeyChord::toggle_default()),
-        chord_from_json(hotkeys.get("capture"), HotKeyChord::capture_default()),
-        chord_from_json(hotkeys.get("files"), HotKeyChord::files_default()),
-    )
+#[derive(serde::Deserialize)]
+pub struct DeviceHotkeys {
+    toggle: HotKeyChordDto,
+    capture: HotKeyChordDto,
+    files: HotKeyChordDto,
 }
 
-fn chord_from_json(value: Option<&serde_json::Value>, fallback: HotKeyChord) -> HotKeyChord {
-    let Some(object) = value.and_then(|item| item.as_object()) else {
-        return fallback;
-    };
-    let key_code = object.get("key_code").and_then(|item| item.as_u64());
-    let carbon_modifiers = object
-        .get("carbon_modifiers")
-        .and_then(|item| item.as_u64());
-    match (key_code, carbon_modifiers) {
-        (Some(key_code), Some(carbon_modifiers)) if carbon_modifiers != 0 && key_code <= 255 => {
-            HotKeyChord {
-                key_code: key_code as u32,
-                carbon_modifiers: carbon_modifiers as u32,
-            }
+impl DeviceHotkeys {
+    pub fn chords(&self) -> Result<(HotKeyChord, HotKeyChord, HotKeyChord), String> {
+        let chords = [self.toggle, self.capture, self.files];
+        if chords.iter().any(|chord| {
+            chord.key_code > 255 || chord.carbon_modifiers == 0 || chord.carbon_modifiers > 65535
+        }) {
+            return Err("全局快捷键无效".into());
         }
-        _ => fallback,
+        Ok((self.toggle.into(), self.capture.into(), self.files.into()))
     }
 }
 
@@ -1037,24 +1019,23 @@ mod tests {
     }
 
     #[test]
-    fn catalog_json_remaps_chords_and_rejects_bare_keys() {
-        let json = r#"{
-            "settings": {
-                "drop_wheel_enabled": true,
-                "hotkeys": {
-                    "toggle": { "key_code": 14, "carbon_modifiers": 6144 },
-                    "capture": { "key_code": 13, "carbon_modifiers": 0 },
-                    "files": { "key_code": 0, "carbon_modifiers": 6144 }
-                }
-            }
-        }"#;
-        let (toggle, capture, files) = chords_from_catalog_json(json);
-        assert_eq!(toggle.key_code, KVK_ANSI_E);
+    fn owner_readback_remaps_chords_and_rejects_bare_keys() {
+        let mut settings: DevicePreferences = serde_json::from_str(
+            r#"{
+            "drop_wheel_enabled":false, "hotkeys":{
+                "toggle":{"key_code":14,"carbon_modifiers":6144},
+                "capture":{"key_code":13,"carbon_modifiers":6144},
+                "files":{"key_code":0,"carbon_modifiers":6144}
+            }}"#,
+        )
+        .unwrap();
+        assert!(!settings.drop_wheel_enabled);
+        let (toggle, capture, files) = settings.hotkeys.chords().unwrap();
         assert_eq!(toggle.label(), "⌃⌥E");
         assert_eq!(capture, HotKeyChord::capture_default());
         assert_eq!(files, HotKeyChord::files_default());
-        let missing = chords_from_catalog_json("{}");
-        assert_eq!(missing.0, HotKeyChord::toggle_default());
+        settings.hotkeys.capture.carbon_modifiers = 0;
+        assert!(settings.hotkeys.chords().is_err());
         assert_eq!(
             HotKeyChord {
                 key_code: KVK_ANSI_D,

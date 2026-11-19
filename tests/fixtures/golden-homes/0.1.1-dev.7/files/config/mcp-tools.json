@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "action_grants": [
+    {
+      "client_id": "agent:prologue",
+      "project_id": "project-42ffae10-577d-44d7-9f41-0f14cccd67b2",
+      "capability_id": "goals.create",
+      "version": 1,
+      "provider_id": "io.molis.work.goals",
+      "permissions": [
+        "goals:write"
+      ],
+      "enabled": false,
+      "generation": "a580a878-29db-4b28-81ae-c8395e988a11"
+    }
+  ]
+}

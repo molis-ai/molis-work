@@ -13,6 +13,7 @@ import { readResource, type NodeHost, type PrologueNodeAdapterOptions, type Roun
 import type { SessionIndexStore } from "./prologue-session-index.js";
 import { prologueReviewReference } from "./prologue-review-decisions.js";
 import { inspectReviewEffect } from "./prologue-review-effects.js";
+import { writeCheckKey } from "./prologue-write-checks.js";
 import type { ReviewDecisionStore } from "../review-decisions.js";
 import { matchExactPermission, reusableInput, type ExactPermission } from "./prologue-exact-permission.js";
 
@@ -174,8 +175,10 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, ref: ExactRef<"
       });
     } catch { /* the card still shows the change itself */ }
   }
+  // The check before review of exactly this text, when the round's hook made one (prologue-write-checks.ts).
+  const checks = pending.origin?.session ? deps.state.writeChecks.get(writeCheckKey(pending.origin.session, review.path, review.nextText)) : undefined;
   return presentReview({ kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
-    before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}) },
+    before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}), ...(checks ? { checks: structuredClone(checks) } : {}) },
   { concurrent: concurrencyWords });
 }
 

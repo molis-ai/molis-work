@@ -13,4 +13,6 @@ export type ComposerMount = (root: HTMLElement, options: ComposerOptions) => Com
 declare global {
   /** The composer's program, once `/assets/molis-work-composer.js` has run in this document. */
   var molisComposerProgram: ComposerMount | undefined;
+  /** The program's picture dialog (`picture.ts`), which `window.molisPicture` opens once the program is in. */
+  var molisPictureProgram: ((opener: HTMLElement, picture: { src: string; title: string; close?: string }) => void) | undefined;
 }

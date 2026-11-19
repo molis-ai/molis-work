@@ -11,7 +11,7 @@ import { observationActions } from "@molis-ai/molis-work-contracts/services/obse
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { applySqliteBaseline, homeSqlitePath, runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 import {
-  OBSERVATION_HOME_STORE,
+  OBSERVATION_HOME_STORE, RETENTION_KEY, retentionActions,
   ObservationLayer,
   observationKeys,
   readCoverageGaps,
@@ -235,7 +235,10 @@ test("OCL-12 EC-16: evaluation holds exempt records and encrypted snapshots from
   assert.equal(cleaned.gap_recorded, true);
 
   // Automatic retention sweep at 30d also leaves both held records and their snapshots untouched
-  await fx.service.invoke(person(), observationActions.settingsSet, { retention_mode: "30" });
+  const { values: [retention] } = await fx.service.invoke(person(), retentionActions.read, { keys: [RETENTION_KEY] });
+  assert.ok(retention);
+  await fx.service.invoke(person(), retentionActions.write, { key: RETENTION_KEY, layer: "personal", expected_revision: retention.revision,
+    request_id: "set-retention-30", change: { set: "30" } });
   assert.equal(fx.layer.sweepRetention(), null);
 
   const afterClean = await fx.service.invoke(person(), observationActions.recordsQuery, { use: "evaluation" });

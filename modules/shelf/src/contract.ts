@@ -22,7 +22,8 @@ export interface ShelfModelSelection { readonly provider_id: string; readonly mo
 export interface ShelfAiStatus {
   readonly available: boolean; readonly reason: string | null;
   readonly selected: ShelfModelSelection | null;
-  readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision: boolean })[];
+  /** `vision` is the person's mark in model settings: true it reads pictures, false it does not, absent when not marked (decision 51 ③). */
+  readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision?: boolean })[];
 }
 /**
  * Sources are the job's frozen copies, built by the store and never accepted from an Action input: `root` is their folder in
@@ -256,6 +257,8 @@ export interface ShelfSnapshot {
   readonly running_jobs: readonly ShelfJobRecord[];
   /** Device settings the workbench needs to paint: actions, order, runtimes. */
   readonly settings: ShelfDeviceSettings;
+  /** The revision of the action bar shown in this snapshot, for compare-and-set edits. */
+  readonly action_bar_revision: string;
   /** Where the copies live, so a drag-out can hand the real file to macOS. */
   readonly root: string;
 }
@@ -362,3 +365,5 @@ export interface ShelfJobOutcome {
   readonly result: ShelfItemRecord | null;
   readonly origin_hash: string;
 }
+
+export { SHELF_PREFERENCE_FIELDS, shelfPreferenceKey, type ShelfPreferenceKey } from "./preference-keys.js";

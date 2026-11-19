@@ -159,7 +159,7 @@ test("SKC-07 reading 20 offered roles and Skills reads the install records once 
   assert.equal(offered.length, 40);
   assert.deepEqual([counts.bind, counts.bound, counts.skills], [1, 20, 1], "one binding read for all 20 roles, one catalog read");
   const work = store.create({ actor_id: "web-user", title: "计数", scope: { kind: "personal" }, origin: null });
-  const chosen = await service.materials.chosenMethods(work, skills.map((skill, index) => ({ material_id: `m${index}`, kind: "method" as const, title: "方法", explicit: true, method: { kind: "skill" as const, ref: skill.ref } })));
+  const { chosen } = await service.materials.chosenMethods(work, skills.map((skill, index) => ({ material_id: `m${index}`, kind: "method" as const, title: "方法", explicit: true, method: { kind: "skill" as const, ref: skill.ref } })));
   assert.equal(chosen.length, 20);
   assert.deepEqual([counts.readSkills, counts.refs], [1, 20], "20 chosen Skills are one body read");
 });

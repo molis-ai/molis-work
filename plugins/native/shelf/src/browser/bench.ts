@@ -1,3 +1,4 @@
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { renderBar } from "./bar.js";
 import { fillConfirm } from "./confirm.js";
 import { closest } from "./dom.js";
@@ -97,7 +98,8 @@ const hiddenActionClick: Handler = async (page, event) => {
   const next = new Set(hiddenActions(page));
   if (hide) next.add(slot);
   else next.delete(slot);
-  await saveSettings(page, { hidden_actions: [...next] }).catch(() => undefined);
+  try { await saveSettings(page, { hidden_actions: [...next] }); }
+  catch (error) { if (page.lifetime.alive) page.stickyHint = messageOf(error); }
   renderBar(page, page.lastBarKind);
   return true;
 };

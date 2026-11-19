@@ -99,6 +99,9 @@ test("RAC-216 the action snapshot has no sessions.* and no home.talk rows", () =
 });
 
 const EXTERNAL_SESSIONS_WORKBENCH_FILES = new Set([
+  // Onboarding's source of the person's AI tool sessions reads them through the BL-177 surface (batch 35, SRB-09).
+  "apps/workbench/src/scripts/context-onboarding.ts",
+  "apps/workbench/src/scripts/context-onboarding-sessions.ts",
   "apps/workbench/src/browser/sessions/api.ts",
   "apps/workbench/src/browser/sessions/detail-view.ts",
   "apps/workbench/src/plugin-workbench.ts",

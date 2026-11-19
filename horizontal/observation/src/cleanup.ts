@@ -239,7 +239,8 @@ function executeCleanupCandidates(
   const recordBytes = matching.reduce((sum, row) => sum + row.row_bytes, 0);
   const beforeBlobs = db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(${BLOB_STORED_BYTES_SQL}), 0) AS bytes FROM evidence_blobs`).get() as { count: number; bytes: number };
 
-  db.exec("BEGIN IMMEDIATE");
+  const outerTransaction = db.isTransaction;
+  if (!outerTransaction) db.exec("BEGIN IMMEDIATE");
   try {
     const unlinkStmt = db.prepare("DELETE FROM record_evidence WHERE seq = ?");
     const deleteStmt = db.prepare("DELETE FROM records WHERE seq = ?");
@@ -265,7 +266,7 @@ function executeCleanupCandidates(
         freed_bytes,
       },
     });
-    db.exec("COMMIT");
+    if (!outerTransaction) db.exec("COMMIT");
     return {
       deleted_records: matching.length,
       deleted_snapshots,
@@ -274,7 +275,7 @@ function executeCleanupCandidates(
       cleaned_at: options.cleaned_at,
     };
   } catch (error) {
-    try { db.exec("ROLLBACK"); } catch { /* already rolled back */ }
+    if (!outerTransaction && db.isTransaction) db.exec("ROLLBACK");
     throw error;
   }
 }

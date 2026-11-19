@@ -35,16 +35,17 @@ export function issueNaming(value: unknown): IssueNaming {
 
 /**
  * One bounded call to the Host's text model for a title and a type (ISSUE-50, ISSUE-51). The words and screenshots go as
- * data after Issue's own instruction; screenshots only when the model this call uses declares that it reads images, and
- * with screenshots but no words that the model cannot read, the one question comes back without asking it.
+ * data after Issue's own instruction; screenshots unless the model this call uses is marked as not reading images (an unmarked
+ * one gets them, decision 51 ③), and with screenshots but no words for a model that cannot read them, the one question comes back
+ * without asking it.
  * Nothing here writes: a caller that saves runs `validate()` (the model service's own recheck) inside its write.
  */
 export async function nameIssue(model: PluginModelClient | undefined, input: IssueNamingInput, signal: AbortSignal | undefined): Promise<{ naming: IssueNaming; validate: () => void }> {
   const state = model?.availability();
   if (!model || !state?.available) throw new ActionError("actions.connection_required", state && !state.available ? state.reason : uiText.text("issues.naming.connect-text-model"));
   // Screenshots that cannot be handed over and no words to go by: the model is not asked, and the person is told why and what to do.
-  if (state.vision !== true && input.images?.length && !input.description.trim()) return { naming: { status: "needs_input", question: uiText.text("issues.naming.screenshots-unread") }, validate: () => {} };
-  const images = state.vision === true ? (input.images ?? []).map(bytes) : [];
+  if (state.vision === false && input.images?.length && !input.description.trim()) return { naming: { status: "needs_input", question: uiText.text("issues.naming.screenshots-unread") }, validate: () => {} };
+  const images = state.vision !== false ? (input.images ?? []).map(bytes) : [];
   const data = { description: input.description, page: input.page?.title ?? null, title_language: titleLanguage(input.description), screenshots: { count: input.images?.length ?? 0, attached: images.length > 0 } };
   const result = await model.complete(instructed(ISSUES_NAME, fencedMaterials(data, "ISSUE_" + crypto.randomUUID().replaceAll("-", ""))),
     { output: "json", ...(images.length ? { images } : {}), ...(signal ? { signal } : {}), timeout_ms: TIMEOUT_MS, max_output_tokens: OUTPUT_TOKENS });

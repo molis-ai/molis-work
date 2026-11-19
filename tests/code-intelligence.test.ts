@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { AgentHost, AgentReviewQueue, createCodeIntelligence, createPrologueNodeAdapter, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, BUILTIN_LANGUAGE_SERVERS, createCodeIntelligence, createPrologueNodeAdapter, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -96,8 +96,11 @@ test("A4-1 可选的 language-servers.json 写坏了：只关代码智能并说�
   const { codeIntelligenceConfig } = await import("@molis-ai/molis-work-app-local-host");
   const dir = mkdtempSync(join(tmpdir(), "molis-language-servers-broken-"));
   try {
-    // No file: the feature is simply absent.
-    assert.equal(codeIntelligenceConfig(dir), undefined);
+    // No file: the built-in servers found on this machine still answer (A4-2, batch 35); nothing is downloaded.
+    const none = codeIntelligenceConfig(dir);
+    assert.deepEqual(none?.servers, BUILTIN_LANGUAGE_SERVERS);
+    assert.equal(none?.downloadsAllowed, false);
+    assert.equal(none?.problem, undefined);
     // Broken JSON: a problem, not a throw — the composition keeps starting the Agent.
     writeFileSync(join(dir, "language-servers.json"), "{ this is not json");
     const broken = codeIntelligenceConfig(dir);
@@ -109,7 +112,8 @@ test("A4-1 可选的 language-servers.json 写坏了：只关代码智能并说�
     // A usable file carries the servers and no problem.
     writeFileSync(join(dir, "language-servers.json"), JSON.stringify({ servers: [{ extensions: [".ts"], command: "fake-lsp" }] }));
     const usable = codeIntelligenceConfig(dir);
-    assert.equal(usable?.servers.length, 1);
+    // The person's entry first, so it wins for the extension it names; the built-ins after it.
+    assert.deepEqual(usable?.servers.map((server) => server.command), ["fake-lsp", ...BUILTIN_LANGUAGE_SERVERS.map((server) => server.command)]);
     assert.equal(usable?.problem, undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -319,6 +323,9 @@ test("A4-1 Coding 全部 7 个主角色开放 find-symbol，目录模式子角�
       if (Date.now() > deadline) assert.fail(`coordinator run timed out in phase ${view.phase}`);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
+    // CLS-01 A4: the round records which languages it could understand when it started; Python has a file but no server configured here.
+    assert.deepEqual((await adapter.read(handle.ref)).frozen.code_intelligence,
+      { languages: [{ language: "typescript", command: process.execPath, state: "ready", source: "this_machine" }] });
     assert.match(parentSymbolResult, /src\/a\.ts:3:10/);
     assert.equal(childVisited, true, "coordinator dispatched coding-reader cleanly alongside session pack symbol tool");
   } finally {

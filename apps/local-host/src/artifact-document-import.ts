@@ -34,7 +34,7 @@ const artifactImportErrors = defineErrorCodes("artifacts.document", {
  * and a package installed in the Home alike (the Host build's snapshot would see only the former). It is read on each call, so a package
  * attached or detached is seen at once, and a registry that cannot be built fails the call rather than reading as no sources.
  */
-async function documentImports(home: string): Promise<Record<string, { service: string; methods: readonly string[] }>> {
+export async function documentImports(home: string): Promise<Record<string, { service: string; methods: readonly string[] }>> {
   const registry = await homeIntegrationRegistry(home);
   return Object.fromEntries(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source!,
     { service: entry.declaration.service_id, methods: entry.declaration.connection_methods ?? [] }]));
@@ -49,7 +49,7 @@ export async function documentImportConnections(home = resolveMolisWorkHome()) {
   return listConnectorConnectionViews(home).filter(row => imports.some(entry => readsWith(row, entry)));
 }
 export async function documentImportConnectionStatus(home = resolveMolisWorkHome()): Promise<Record<string, boolean>> {
-  const [imports, connections] = await Promise.all([documentImports(home), documentImportConnections(home)]);
+  const imports = await documentImports(home), connections = listConnectorConnectionViews(home);
   return Object.fromEntries(Object.entries(imports).map(([source, entry]) => [source, connections.some(row => readsWith(row, entry) && row.state === "connected")]));
 }
 
@@ -89,7 +89,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
       ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
     async readExternal(document) {
       const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
-      const candidates = entry ? (await documentImportConnections(home)).filter(row => readsWith(row, entry) && row.state === "connected") : [];
+      const candidates = entry ? listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected") : [];
       const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
       if (!id) throw artifactImportErrors.connection_required(candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {

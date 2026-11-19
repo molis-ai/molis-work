@@ -66,7 +66,7 @@ test("Notion unsupported blocks remain visible with an explicit warning", async 
     token: "notion-secret", fetch: async (input) => json(String(input).endsWith("/markdown")
       ? markdown({ markdown: "正文\n<unknown url=\"https://notion.so/block\"/>" }) : page()),
   });
-  assert.equal(result.warnings.length, 2);
+  assert.deepEqual(result.warnings, [{ key: "workbench.import.warning-notion-snapshot" }, { key: "workbench.import.warning-notion-unknown-blocks" }]);
   assert.match(result.content, /<unknown/u);
 });
 
@@ -115,7 +115,7 @@ test("Feishu and Lark wiki imports resolve to the underlying document using isol
     assert.equal(result.source_url, `https://team.${base}/wiki/WikiToken1234567890`);
     assert.equal(result.content, "真实文档的正文\n第二段。");
     assert.equal(result.format, "text");
-    assert.ok(result.warnings.some((warning) => warning.includes("图片")));
+    assert.deepEqual(result.warnings, [{ key: "workbench.import.warning-lark-snapshot" }]);
   }
 });
 

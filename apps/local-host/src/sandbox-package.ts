@@ -225,7 +225,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.
   if (integrations.length > 1 || services.length > 1) refuse('集成包现在只声明一个来源和它的一个连接服务');
   const document = integrations.find(item => item.kind !== 'source');
-  if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694）');
+  if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694），网页搜索等第 62 批');
   for (const service of services) {
     const platform = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, service.service_id);
     if (platform && service.origins) refuse('服务 ' + service.service_id + ' 在平台的请求表里，它的来源只由平台定，包里不能写 origins');

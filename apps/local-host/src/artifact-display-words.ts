@@ -1,4 +1,5 @@
-import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_WARNING_SCHEMAS, isImportedDocumentVersion, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { CHARACTER_ARTIFACT_PRODUCER } from "@molis-ai/molis-work-contracts/modules/characters";
 import { ARTIFACT_PRODUCER, ARTIFACTS_HOST_PRODUCER } from "@molis-ai/molis-work-module-artifacts";
 import { t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -17,7 +18,24 @@ export type ReadArtifactDisplay = (versions: readonly Identity[]) => Promise<(ve
 const producerKey = (version: Identity) => JSON.stringify([version.producer_plugin_id, version.producer_binding_signature]);
 const typeKey = (version: Identity) => JSON.stringify([producerKey(version), version.artifact_type_id, version.schema_version]);
 
+function hostImportedVersion(version: Identity): boolean {
+  return version.producer_plugin_id === ARTIFACT_PRODUCER.plugin_id
+    && version.producer_binding_signature === ARTIFACT_PRODUCER.binding_signature && isImportedDocumentVersion(version);
+}
+
+/** Imports bind their own text keys. An old fixed version carries its original wording as content. */
+export function importedDocumentWarnings(version: ArtifactVersionRecord): OwnedTextRef[] {
+  const payload = version.payload;
+  if (!hostImportedVersion(version) || !payload || typeof payload !== "object" || Array.isArray(payload) || !Array.isArray(payload.warnings)) return [];
+  if (version.schema_version === IMPORTED_DOCUMENT_WARNING_SCHEMAS.literal) return payload.warnings.flatMap(warning => typeof warning === "string" ? [{ literal: warning }] : []);
+  return payload.warnings.flatMap(warning => {
+    const ref = tryOwnedTextRef(warning, "workbench");
+    return ref && "key" in ref ? [ref] : [];
+  });
+}
+
 function hostWords(version: Identity): Words | undefined {
+  if (hostImportedVersion(version)) return { title: t.text("workbench.browser-ui.imported-file-type"), pluginTitle: ARTIFACTS_HOST_PRODUCER.name };
   const host = [ARTIFACTS_HOST_PRODUCER, CHARACTER_ARTIFACT_PRODUCER].find(entry => entry.plugin_id === version.producer_plugin_id);
   const binding = host?.plugin_id === ARTIFACT_PRODUCER.plugin_id ? ARTIFACT_PRODUCER.binding_signature : CHARACTER_ARTIFACT_PRODUCER.binding_signature;
   if (!host || version.producer_binding_signature !== binding || !host.produces.some(type =>

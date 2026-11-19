@@ -245,14 +245,14 @@ export const TAB_WORKSPACE_PLACES_PART = `  const coverLabel = (kind) => kind ==
     announcePlace();
   };
   /** A cover says where inside it the person went; the first place replaces the bare entry the cover opened with. */
-  const noteCover = (kind, place) => {
+  const noteCover = (kind, place, replace = false) => {
     if (embedded || state.exclusive !== kind || coverPlace === (place || "")) return;
     coverPlace = place || "";
     if (historyLock) return;
     const pane = ops.focused(state);
     if (!pane) return;
     const entry = paneHistory(pane.id);
-    if (entry.stack[entry.index] === "cover:" + kind) entry.stack[entry.index] = historyId(pane);
+    if (entry.stack[entry.index] === "cover:" + kind || replace && coverOf(entry.stack[entry.index]) === kind) entry.stack[entry.index] = historyId(pane);
     else rememberTab(pane);
     persistHistory();
     syncHistoryButtons();

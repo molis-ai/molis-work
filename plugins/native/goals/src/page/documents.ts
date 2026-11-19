@@ -37,7 +37,6 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
       goals: summarize(view.goals),
       archived_goals: summarize(view.archived_goals),
       trashed_goals: summarize(view.trashed_goals),
-      inbox_judgment: view.inbox_judgment ?? null,
     };
   }
   const dataJson = (view: TView): string => JSON.stringify(clientData(view)).replaceAll("<", "\\u003c");

@@ -13,6 +13,7 @@ import { buildSourcePullIntent, sourcePullFingerprint } from "./source-pull-inte
 import { createSourceVocabulary } from "./source-vocabulary.js";
 import { createConnectorSourcePort } from "./connector-source-pull.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
+import { homeConnectorDirectory } from "./connector-directory.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -46,7 +47,8 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
   const content = options.content ?? runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore }));
   return {
     vocabulary: createSourceVocabulary(options.integrations ?? (() => homeIntegrationRegistry(home))),
-    connector: createConnectorSourcePort({ home, registry: options.integrations ?? (() => homeIntegrationRegistry(home)) }),
+    connector: createConnectorSourcePort({ home, registry: options.integrations ?? (() => homeIntegrationRegistry(home)),
+      titles: async () => new Map((await homeConnectorDirectory(home)).map(entry => [entry.connector_id, entry.title])) }),
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {
       const intent = buildSourcePullIntent(request);

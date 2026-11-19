@@ -1,5 +1,7 @@
 # 本地 Plugin 开发
 
+统一输入`ComposerOutcome.failed`可声明`feedback: "page"`，表示调用页面已经完整显示该失败和恢复操作；平台保留未受理草稿及材料，继续标记unreadable，不重复错误/通用重试。没有恢复区域时保留普通failed；未知结果仍用unknown，不能返回sent或空错误冒充处理。工作台框桥与直接composer相同，Coding长期材料恢复卡为实际采用方。
+
 同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@1` 和 `images.jobs.start@1` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v1；按主线统一起点，调用方须核对现行形状。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
 
 个人内容的来源设备不是撤销权限边界。Todo 接收时将历史修订与当前项一起映射到目标高水位，保留版本间隙，按修订而非设备时钟排列历史；用户可经正常动作撤销其他设备的最新修改，但后续编辑、重复撤销、旧页面版本及作用域越界仍拒绝。规则不改变库和传输格式，回归见 `tests/todo-replication.test.ts`。
@@ -327,6 +329,8 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 当前全局设置的贡献发现与这两项声明只对内置目录兑现；已安装 Runtime 插件仍会经过 SDK 声明校验，但尚未接上动态设置贡献与数据准备。细则见 [插件界面 Skill](../../skills/molis-plugin-dev/ui.md)。
 
 ### 舞台的数据
+
+舞台业务事实只由声明的动作结果 `StagePageModel.data` 提供；`context` 只含平台位置与展示上下文，不再提供 `client_data` 转发其他插件事实。需要其他 owner 的内容时，由实际消费者通过公开读取合同取得，不能要求整页壳先读一遍再代传。
 
 打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
 

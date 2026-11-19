@@ -43,6 +43,12 @@ export function renderAssistantSettings({ projectId }: { readText(text: string):
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>`,
     })}
+    ${projectId ? renderSettingsSection({
+      title: text("workbench.settings-assistant.project-suggestions"), id: "assistant-suggestions-title", attrs: { "data-assistant-suggestions": true },
+      body: `${renderSettingRow({ name: text("workbench.settings-assistant.offer-project-suggestions"), hint: text("workbench.settings-assistant.project-suggestions-note"), label: true,
+        control: renderSwitch({ disabled: true, attrs: { "data-assistant-offers": true } }) })}
+      <p class="settings-form-error" data-assistant-offers-error role="alert" hidden></p>`,
+    }) : ""}
     ${renderSettingsSection({
       title: text("workbench.settings-assistant.usage-cap"), id: "assistant-usage-title", attrs: { "data-assistant-usage": true },
       body: `${renderSettingRow({ name: text("workbench.settings-assistant.used-today"), hint: text("workbench.settings-assistant.loading"), hintAttrs: { "data-assistant-usage-today": true } })}
@@ -115,6 +121,20 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     if (label) toggle.setAttribute("aria-label", label);
     return { control, toggle };
   };
+  // Whether the Assistant brings up a project's new suggestions by itself (specs/automation-recommender §7): the person's, in every project.
+  const offers = root.querySelector("[data-assistant-offers]"), offersError = root.querySelector("[data-assistant-offers-error]");
+  if (offers && project) {
+    const offersPath = "/projects/" + encodeURIComponent(project) + "/api/automation/recommendations/offers";
+    molisWorkRequest(offersPath, { method: "GET" }).then((setting) => { offers.checked = setting.enabled === true; offers.disabled = false; },
+      (failure) => { offersError.hidden = false; molisWorkRequest.show(offersError, failure); });
+    offers.addEventListener("change", async () => {
+      const wanted = offers.checked;
+      offers.disabled = true; offersError.hidden = true;
+      try { offers.checked = (await molisWorkRequest(offersPath, { method: "POST", body: { enabled: wanted } })).enabled === true; }
+      catch (failure) { offers.checked = !wanted; offersError.hidden = false; molisWorkRequest.show(offersError, failure); }
+      finally { offers.disabled = false; }
+    });
+  }
   const EFFECT = { read: "workbench.settings-assistant.read", write: "workbench.settings-assistant.change", irreversible: "workbench.settings-assistant.irreversible" };
   function paint() {
     const query = String(search.value || "").trim().toLowerCase();

@@ -1,4 +1,5 @@
 import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { EXTERNAL_SESSION_QUERY_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/sessions";
 
 /**
  * Work-area surface for external AI tool sessions (`data-work-surface="sessions"`).
@@ -20,7 +21,7 @@ export function renderSessionsStage(): string {
     `</div>`,
     `<div class="sessions-filter-bar"><div class="sessions-filter-row">`,
     `<select class="mw-input" data-sessions-tool-filter aria-label="${uiText("workbench.sessions.filter-tool")}"><option value="">${uiText("workbench.sessions.all-tools")}</option></select>`,
-    `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-sessions-search placeholder="${uiText("workbench.sessions.search-list-placeholder")}" aria-label="${uiText("workbench.sessions.search-list-placeholder")}" autocomplete="off"></label>`,
+    `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-sessions-search maxlength="${EXTERNAL_SESSION_QUERY_MAX_CHARS}" placeholder="${uiText("workbench.sessions.search-list-placeholder")}" aria-label="${uiText("workbench.sessions.search-list-placeholder")}" autocomplete="off"></label>`,
     `</div><div class="sessions-droid-bar" data-sessions-droid-bar hidden>`,
     `<span data-sessions-droid-hint>${uiText("workbench.sessions.droid-search-hint")}</span>`,
     `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-sessions-droid-run>${icon("search")}<span>${uiText("workbench.sessions.droid-search-run")}</span></button>`,

@@ -1,7 +1,7 @@
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
+import { hostTextForCommit, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork, type InformationPlanEntry, type InformationPlanSnapshot } from "./information-planner.js";
 
 export const INFORMATION_PROVIDER_ID = "system.information";
@@ -26,7 +26,7 @@ export const informationActions = {
 };
 
 export function informationActionProvider(home: string, projectId: string, client: ActionClient, completion?: HostCompleteText | null): ActionProviderRegistration {
-  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const model = () => hostTextForCommit(home, completion);
   return { provider: { provider_id: INFORMATION_PROVIDER_ID, kind: "system", title: "信息助手", project_id: projectId },
     definitions: [informationActions.plan], handlers: [{ ...informationActions.plan,
       availability: () => textModelAvailability(model),

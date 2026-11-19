@@ -7,6 +7,8 @@ export interface AutomationCandidate {
   readonly key: string;
   readonly title: string;
   readonly match: readonly AutomationSignal[];
+  /** A connection's service: matched by the files that hit its declared `project_hints`, not by signals. */
+  readonly service?: string;
   readonly existing?: boolean;
   readonly names?: readonly string[];
   readonly reason: string;
@@ -21,13 +23,21 @@ export function matchProjectAutomation(evidence: readonly AutomationEvidence[], 
   for (const candidate of candidates) {
     if (candidate.existing || (candidate.names ?? [candidate.key]).some(name => existing.has(name.toLowerCase()))
       || gaps.some(gap => gap.category === candidate.category && gap.code === "directory-unavailable")) continue;
-    const matches = evidence.filter(entry => entry.signals.some(signal => candidate.match.includes(signal)));
+    const matches = evidence.filter(entry => entry.signals.some(signal => candidate.match.includes(signal))
+      || candidate.service !== undefined && entry.hints?.some(hint => hint.service_id === candidate.service));
     if (!matches.length) continue;
-    const id = createHash("sha256").update(JSON.stringify([candidate.category, candidate.key, candidate.match])).digest("hex");
+    const id = createHash("sha256").update(JSON.stringify([candidate.category, candidate.key, candidate.service ? ["service", candidate.service] : candidate.match])).digest("hex");
     const group = byCategory.get(candidate.category) ?? [];
     if (group.some(item => item.id === id)) continue;
     const { category, title, reason, effect, requirements, risk, next } = candidate;
-    group.push({ id, category, title, reason, effect, requirements, risk, next, evidence: matches.slice(0, 4),
+    // A connection's evidence names only its own service's hints, not the other services the same file matched.
+    const shown = matches.slice(0, 4).map(entry => {
+      if (!entry.hints) return entry;
+      const own = candidate.service === undefined ? [] : entry.hints.filter(hint => hint.service_id === candidate.service);
+      const { hints: _all, ...rest } = entry;
+      return own.length ? { ...rest, hints: own } : rest;
+    });
+    group.push({ id, category, title, reason, effect, requirements, risk, next, evidence: shown,
       confidence: matches.length >= 2 ? "high" : "medium" });
     byCategory.set(category, group);
   }

@@ -92,7 +92,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     browser: () => body("browser", uiText.text("workbench.side-panel.browser"), renderSideBrowser(primitives), " data-side-browser"),
     computer: () => body("computer", uiText.text("workbench.side-panel.computer"), renderSideComputer(primitives), " data-side-computer"),
     files: () => body("files", uiText.text("workbench.side-panel.project-knowledge"), renderSideFiles(primitives), " data-side-files"),
-    tasks: () => body("tasks", uiText.text("workbench.side-panel.background-job"), `<div class="side-tasks"><strong class="side-tasks-title">${uiText("workbench.side-panel.background-job")}</strong><div class="side-tasks-list" data-background-tasks-list><p class="side-tasks-empty">${uiText("workbench.side-panel.no-background-tasks-right-now")}</p></div></div>`),
+    tasks: () => body("tasks", uiText.text("workbench.side-panel.background-job"), `<div class="side-tasks"><strong class="side-tasks-title">${uiText("workbench.side-panel.background-job")}</strong><div class="side-tasks-list" data-background-tasks-list><p class="side-tasks-empty">${uiText("workbench.attention.loading-background-tasks")}</p></div></div>`),
   };
   return `<section class="side-panel" id="side-panel" role="region" aria-label="${uiText("workbench.side-panel.right")}" data-side-panel hidden>
         ${sideEntries(primitives, pluginTabs, views).map(entry => entry.plugin

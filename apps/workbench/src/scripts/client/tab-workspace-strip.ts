@@ -265,9 +265,10 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       appendTab(scrollArea, pane, tab);
       index += 1;
     }
-    if (state.exclusive && !embedded && (strip.hasAttribute("data-titlebar-tabs") || pane.id === state.focusedPaneId)) {
+    if (state.exclusive && strip === titlebarStrip) {
       // Market and settings cover the panes: a tab like the others, after them, with its glyph, its whole name and its close
-      // (specs/screen-polish §3 方案 C, POLISH-06). It is the current one while it shows; the tabs beneath wait, one click away.
+      // (specs/screen-polish §3 方案 C, POLISH-06), in the titlebar's strip so the way out stays in sight over split panes too.
+      // It is the current one while it shows; the tabs beneath wait, one click away.
       const cover = document.createElement("span");
       cover.className = "tab-view-chip is-exclusive"; cover.setAttribute("aria-current", "page");
       cover.dataset.coverChip = state.exclusive;

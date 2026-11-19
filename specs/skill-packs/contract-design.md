@@ -144,7 +144,7 @@ my-skill-plugin/
 | `resources` | `SkillResourceDeclaration[]`，见下 | 可选 | 可选 |
 | `connector_categories` | 正文里用到的连接器类别占位符，如 `project-tracker`，取值见[助理统一接入服务](../assistant-service-connections/spec.md) | 可选 | 可选 |
 
-<a id="connector-categories-mapping"></a>**`connector_categories` 与正文占位符的对应**：现在代码和文档里只有格式规则——取值是不重复的小写类别词（`validToken`，如 `project-tracker`），见 `packages/plugin-sdk/src/skill-declarations.ts` 的 `connectorCategoryProblems`。正文里的 `~~project tracker` 怎样对应到这个取值（比如小写、空格换连字符）、类别表有哪些，都还没定，由助理统一接入服务的主人给出；给出之前，作者按取值的写法在 `connector_categories` 里列类别，不要自己推演映射。
+<a id="connector-categories-mapping"></a>**`connector_categories` 与正文占位符的对应**：现在代码和文档里只有格式规则——取值是不重复的小写类别词（`validToken`，如 `project-tracker`），见 `packages/plugin-sdk/src/skill-declarations.ts` 的 `connectorCategoryProblems`。正文里的占位符与取值的对应由助理统一接入服务给出（第 61 批，[服务接入 §13.7](../assistant-service-connections/spec.md)）：`~~` 后面的词不分大小写、空格或 `_` 当连字符，等于技能声明的某个类别时才算这个类别的占位符（`~~project tracker` 对 `project-tracker`）；没声明的类别照原样留着。类别表不另设：服务在自己的连接声明里写 `categories`，用同一种写法。宿主在正文送给模型前替换：类别只有一个已连上的账号就换成「服务 · 账号」，有几个就换成候选清单并请模型先问一次、这次工作只用一个；末尾附一段「连接（Molis Work 给出）」，要结果写明实际用的服务和账号。实现在 `apps/local-host/src/agent-definitions/skill-connector-categories.ts`，测试 `tests/skill-connector-categories.test.ts`（ASC-38～40）。
 
 `applies_to` 和 `description` 在 `methods` 里最终必填，分两步改，中间不让任何现有插件装不上（合同台评审 2026-11-04 查出）：
 

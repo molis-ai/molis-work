@@ -5,7 +5,6 @@
  * the task panel floats. Call it after each draw of a line or a dialog under `root`; it keeps itself right when sizes change.
  * It reads no data and changes no state but scroll positions, a count, and the attributes and properties the sheet reads.
  */
-
 const FADE = 24;
 /**
  * Run on the next frame, once however many sizes changed: what rises over the input changes the box its observer measures (a

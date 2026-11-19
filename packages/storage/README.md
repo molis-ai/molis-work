@@ -10,6 +10,8 @@ A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必
 
 为各 owner 提供 SQLite 连接、共享日志、幂等记录、原子文件写入和本地安全存储适配，避免每个模块各建一套底层机制。
 
+`withSqliteLibraryTransaction` 把现有 Home 库附加到项目 owner 的连接，一次 SQLite 提交覆盖两份文件；调用方核对登记、版本、空间与业务归属，Storage 核对原文件身份、同卷、DELETE/EXTRA 模式并管理 ATTACH/事务/DETACH。提交回调先于清理运行，供可信决定记录“已经提交”。成果固定和 Acceptance 共用此入口；两者的业务 SQL 仍归各自 owner。`assertSqliteLibraryReady` 是打开前的文件及日志预检，不解释或自动恢复日志；恢复仍由持有 Home authority 的现有回滚恢复入口负责。
+
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 
@@ -25,7 +27,7 @@ A4-M 本地初始合同：同一 format_version:1 的每项独立遗忘决定必
 
 LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 用 `openBaselineHomeSqlite` 打开一个 Home 库：**这个 wrapper** 先只读核对版本与结构（同版本也必须有基线的每张表；热日志库的只读预检报 SQLITE_READONLY_ROLLBACK 时交给可写打开的 SQLite 崩溃恢复，恢复后再完整核对），再开可写连接并调用 `applySqliteBaseline`。公开的 `applySqliteBaseline` 处理的是**已有连接**：只在该连接上核对版本与基线表结构、给空库建基线，本身不做只读预检，也不负责其他 owner 的路径、密钥或 JSON 检查；直接 `openHomeSqliteDatabase` 后再 apply 的调用点保留各自顺序。低版本（`storage.upgrade_pending`）、高版本（`storage.store_too_new`）、有表无版本（`storage.schema_version_mismatch`）或同版本基线表缺失/形状不同（`storage.schema_structure_mismatch`）都拒绝，打开路径不升级；runWithMolisWorkHome 将文件适配限定到当前 Home。
 
-`describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
+`describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。`assertSqliteBaselineShape` 复用现行文件身份和 `schema_version` 的成功比较：默认 baseline 模式核必需表和声明触发器，允许插件额外表；exact 模式核全部表、列、索引和外键相等，用于 Home 插件运行库原有严格检查。`includeSpace` 在原基线上增加 Storage 自己的空间表结构，不另声明一个库；两种模式和空间形式分别核对，失败不缓存。每次仍由调用者检查版本、Home 归属及当前业务行，不能把结构比较当作授权或把只读事务连接长期缓存；SQLite 连接技术留在 storage。原 Inspector、Home 插件库和升级末尾比较共用期望结构的组合，暖读、绑定行消失和损坏/恢复反例见 `sqlite-shape-memo`、`home-plugin-read-cost` 测试。
 
 `inspectCatalogFile` 只返回目录库已有 owner/version，不建库、改日志模式、修复或 checkpoint。没有 WAL/SHM 的已关闭文件用 Node SQLite 单连接只读 immutable 观察，前后核对文件与日志状态；已有完整活动 WAL 则用与目录 owner 相同的项目连接（`openSqliteConnection`）按普通只读事务读取，不能忽略尚未 checkpoint 的已提交版本。同进程不能用另一套 SQLite 实例探测活动库，否则关闭探测连接会干扰常驻连接的 POSIX 锁，让其他进程误清理 WAL/SHM 或取得仍被占用的写锁。部分日志、回滚日志或观察期间文件变化直接拒绝重试。它只用于前置拒绝，正常写连接仍须复查自身 owner/version；不把 mutable 文件的 immutable 观察当最终写入授权。旧 WAL 主文件的拒绝不留下新侧文件，相关验证在 `tests/security-invariants-project-metadata-sync.test.ts`（含 PCSYNC-MCP-RECONNECT-01/02 跨进程锁回归）；标准 MCP 异常退出重连见 `tests/images-concurrency.test.ts`。
 
@@ -184,3 +186,5 @@ Memory recordUses 的批量 SQL 仍属于原同步 BEGIN IMMEDIATE 事务：有�
 `createAggregateCopy` 为原 owner 声明的保存图提供独立复制入口；源接口可在本地空间只读导出，不取得个人同步准入，目标仅向当前个人空间创建。owner 明确声明 copy kind、依赖及 JSON 引用重映射；普通正文不搜索 ID。根记录和全局子记录建立新标识，完整答卷、保存版本及终态对话保留。目标相同结果重试不重复导入，已编辑目标拒绝覆盖，最终撤权回滚业务与日志。此接口不是整项目复制用户入口，项目编排及其他 owner 尚在实现。
 
 `hasReplicaHistory` 只检查技术日志；副本当前不存在但已有删除/替换历史时，复制重试必须拒绝重新创建。
+
+自动记录等被动服务可给 `createLazyFileSecretStore(home, { keychain: "cached" })`（或原立即工厂同一选项）：复用该Home已有的解锁缓存，env/file后端仍按原规则读写；未解锁的Keychain在系统访问前明确拒绝，新Home也不因此改选file。该拒绝不是一次Keychain故障，不污染失败缓存；后续真正需要凭据的操作仍可按原模式访问，成功后被动服务复用同一缓存。Observation的digest/seal使用此模式，明确证据解封仍使用原模式。

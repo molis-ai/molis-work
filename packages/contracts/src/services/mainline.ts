@@ -35,6 +35,15 @@ export interface MainlineIssue { source: Required<ActionReference>; title: strin
 
 export interface BackgroundTasksReadResult { tasks: BackgroundTaskRow[]; issues: MainlineIssue[] }
 
+/** An unfinished task on Home, with the project whose provider owns it. */
+export interface HomeBackgroundTaskRow extends BackgroundTaskRow { project_id: string; project_name: string }
+
+/** The open projects' tasks and the sources that could not be read; empty tasks alone does not mean no work. */
+export interface HomeBackgroundTasksReadResult {
+  tasks: HomeBackgroundTaskRow[];
+  issues: Array<{ project_id: string; source: Required<ActionReference> | null; code: string }>;
+}
+
 /**
  * An event on the line: the registrant's own event, with who registered it, where it sits and what is being done behind it. The
  * name and the state word are the registrant's, given in this read; nothing here is kept between reads (WLN-21).

@@ -5,7 +5,8 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { connectorLoginReady } from "./connector-directory.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { codeRoot } from "./context-onboarding-sources.js";
-import { contextReferenceText, contextModel, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { contextReferenceText, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { onboardingTextModel } from "./configured-text-port.js";
 import { contextOnboardingActions as actions, contextOnboardingDoor as door, type ContextOnboardingEntry } from "./context-onboarding-actions.js";
 import { responseAbortSignal } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -20,7 +21,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
     if (url.pathname !== prefix && !url.pathname.startsWith(prefix + "/")) return false;
     try {
       if (req.method === "GET" && url.pathname === prefix) {
-        const model = await contextModel(home, ports);
+        const model = await onboardingTextModel(home, ports.model);
         json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()) }); return true;
       }
       if (req.method === "POST" && url.pathname === prefix) {

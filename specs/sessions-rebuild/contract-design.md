@@ -363,6 +363,7 @@ export interface ExternalSessionListInput {
   /** project＝调用者当前项目；unfiled＝待归类；all＝全部。后两种只有 user。 */
   view: "project" | "unfiled" | "all";
   entry_ids?: ExternalToolId[];
+  query?: string;              // 1～200字符，标题、目录和工具名的字面检索，先过滤后分页
   cursor?: string | null;
   limit?: number;              // 1～100，默认 50
 }
@@ -472,6 +473,7 @@ export interface ExternalSessionHistoryInput {
 
 export interface ExternalSessionHistoryOutput {
   session_key: string;
+  session: ExternalSessionRow | ExternalSessionRowSummary; // 同次末尾授权下的元数据，本人完整行、其他受众摘要
   entries: ExternalSessionEntry[];
   older_cursor: string | null;
   newer_cursor: string | null;
@@ -938,6 +940,7 @@ interface SuggestDraft {
 - 回来的编号必须在给出的范围内，否则丢弃这一项。项目名由服务查回，不用模型写的。
 - `reason`、`evidence` 按文本转义显示。
 - 建议不写归属。晚到的建议只更新建议表，事务里不碰决定表。
+- 模型实际派发前复核本批会话的当前读取范围；等待中撤回材料拒绝整次旧请求，不写失败建议。命中缓存也走返回前范围复核，不外发模型。
 - 按 `input_digest` 缓存：材料没变不重算，重试才强制。
 
 ### 8.5 项目删除与权限变化

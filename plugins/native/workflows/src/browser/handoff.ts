@@ -1,7 +1,7 @@
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { WorkflowVerdict } from "../model.js";
-import { MOD, ico, kindName, statusOf, when } from "./dom.js";
+import { MOD, ico, kindName, when } from "./dom.js";
 import { drawList } from "./list.js";
 import { openRun, remember } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
@@ -68,30 +68,32 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
   const link = chain.links[index]!, ready = readyState(page, link), next = label(page, chain.stations[index + 1]!);
   const busy = ui.busy && ui.busy.index === index ? ui.busy : null;
   const target = chain.stations[index + 1]!;
+  const submitted = step.pending ? `<div class="wf-record__body">${dataHtml(step.pending.output)}</div>` : "";
   if (target.action && step.pending?.attempted_at && !busy) {
     // The action was called and never confirmed: nothing repeats it until the person has checked.
-    return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status"><span data-mw-state="verify" aria-hidden="true"></span><span>'
+    return submitted + '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status"><span data-mw-state="verify" aria-hidden="true"></span><span>'
       + esc(step.pending.attempt_error ? uiText.text("workflows.action.last-failed", { action: target.action.title, error: step.pending.attempt_error }) : uiText.text("workflows.action.last-unconfirmed", { action: target.action.title }))
       + " · " + esc(uiText.text("workflows.action.check-first", { place: target.action.group || uiText.text("workflows.run.the-plugin") })) + "</span>"
       + `<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="stop">${esc(uiText.text("workflows.run.end"))}</button>`
       + `<button class="mw-btn mw-btn--primary" type="button" data-wf-action="retry-action" data-index="${index}">${ico("refresh")}<span>${esc(uiText.text("workflows.action.run-again"))}</span></button></div>`;
   }
-  if (ui.handoff?.index === index && ui.handoff.mode === "manual") {
+  if (!step.pending && ui.handoff?.index === index && ui.handoff.mode === "manual") {
     const draft = ui.handoff.draft;
     return `<form class="wf-manual" data-wf-manual><header><strong>${esc(uiText.text("workflows.manual.hand-to", { next }))}</strong><span class="wf-muted">${esc(uiText.text("workflows.manual.hint"))}</span></header>`
-      + `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.field.title"))}</span><input class="mw-input" name="title" maxlength="200" value="${esc(draft.title)}"></label>`
-      + `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.field.body"))}</span><textarea class="mw-textarea" name="body" data-fit rows="5">${esc(draft.body)}</textarea></label>`
+      + `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.field.title"))}</span><input class="mw-input" name="title" maxlength="200" value="${esc(draft.title)}"${busy ? " disabled" : ""}></label>`
+      + `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.field.body"))}</span><textarea class="mw-textarea" name="body" data-fit rows="5"${busy ? " disabled" : ""}>${esc(draft.body)}</textarea></label>`
       + `<footer><span class="wf-kbd-hint"><kbd class="mw-kbd">${esc(MOD)} ↵</kbd>${esc(uiText.text("workflows.manual.hand-over"))}<kbd class="mw-kbd">Esc</kbd>${esc(uiText.text("workflows.manual.not-now"))}</span>`
-      + `<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel">${esc(uiText.text("workflows.manual.not-now"))}</button>`
+      + `<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel"${busy ? " disabled" : ""}>${esc(uiText.text("workflows.manual.not-now"))}</button>`
       + `<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"${busy ? ' data-loading aria-disabled="true"' : ""}>${busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}<span>${esc(uiText.text("workflows.manual.submit-to", { next }))}</span></button></footer></form>`;
   }
   if (!ready.ready) {
-    return `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(link.kind), next }))} <span${ready.raw ? ' translate="no"' : ''}>${esc(ready.reason)}</span></span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
+    return submitted + `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(link.kind), next }))} <span${ready.raw ? ' translate="no"' : ''}>${esc(ready.reason)}</span></span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
   }
-  const act = link.kind === "manual" ? uiText.text("workflows.handoff.review-and-hand", { next }) : link.kind === "ai" ? uiText.text("workflows.handoff.ai-and-hand", { next })
+  const act = step.pending ? uiText.text("workflows.manual.submit-to", { next }) : link.kind === "manual" ? uiText.text("workflows.handoff.review-and-hand", { next }) : link.kind === "ai" ? uiText.text("workflows.handoff.ai-and-hand", { next })
     : link.kind === "judgment" ? uiText.text("workflows.handoff.judge-and-hand", { next }) : uiText.text("workflows.handoff.rule-and-hand", { next });
-  const working = busy ? (busy.kind === "preview" ? uiText.text("workflows.handoff.loading") : target.action && link.kind !== "ai" && link.kind !== "judgment" ? uiText.text("workflows.handoff.running") : link.kind === "ai" ? uiText.text("workflows.run.ai-working") : link.kind === "judgment" ? uiText.text("workflows.handoff.judging") : uiText.text("workflows.run.handing")) : act;
-  return `<p class="wf-handoff__bar${busy ? " is-working" : ""}"><span class="wf-handoff__kind" data-kind="${link.kind}">${esc(kindName(link.kind))}</span><span>${esc(uiText.text("workflows.handoff.next", { kind: link.kind === "manual" ? uiText.text("workflows.handoff.after-person") : link.kind === "ai" ? uiText.text("workflows.handoff.after-ai") : link.kind === "judgment" ? uiText.text("workflows.handoff.after-judgment") : uiText.text("workflows.handoff.by-rule"), next }))}</span>`
+  const working = busy ? (busy.kind === "preview" ? uiText.text("workflows.handoff.loading") : target.action && (step.pending || link.kind !== "ai" && link.kind !== "judgment") ? uiText.text("workflows.handoff.running") : step.pending ? uiText.text("workflows.run.handing") : link.kind === "ai" ? uiText.text("workflows.run.ai-working") : link.kind === "judgment" ? uiText.text("workflows.handoff.judging") : uiText.text("workflows.run.handing")) : act;
+  return submitted + `<p class="wf-handoff__bar${busy ? " is-working" : ""}"><span class="wf-handoff__kind" data-kind="${link.kind}">${esc(kindName(link.kind))}</span>`
+    + (step.pending ? "" : `<span>${esc(uiText.text("workflows.handoff.next", { kind: link.kind === "manual" ? uiText.text("workflows.handoff.after-person") : link.kind === "ai" ? uiText.text("workflows.handoff.after-ai") : link.kind === "judgment" ? uiText.text("workflows.handoff.after-judgment") : uiText.text("workflows.handoff.by-rule"), next }))}</span>`)
     + `<button class="mw-btn mw-btn--primary" type="button" data-wf-action="continue" data-index="${index}"${busy ? ' aria-disabled="true" aria-busy="true"' : ""}>${busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ico("arrow")}<span>${esc(working)}</span></button></p>`;
 }
 
@@ -99,47 +101,63 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
 export async function resumeRun(page: WorkflowsPage, index: number, manual?: { title: string; body: string }, options: { retry?: boolean } = {}) {
   const { ui, view } = page;
   if (ui.busy) return;
-  const run = ui.instance!, link = run.chain.links[index]!;
-  if (link.kind === "manual" && !manual) {
-    ui.busy = { index, kind: "preview" }; drawRun(page);
-    try {
-      const preview = await page.api<PreviewAnswer>("/instances/" + run.instance_id + "/preview", { from: index });
-      ui.handoff = { index, mode: "manual", input: preview.input, draft: { title: preview.input.title, body: preview.input.body } };
-    } catch (error) { toast(page, messageOf(error), "error"); }
-    ui.busy = null; drawRun(page);
-    view.querySelector<HTMLElement>("[data-wf-manual] input[name=title]")?.focus();
-    return;
-  }
-  ui.busy = { index, kind: "handoff" }; drawRun(page);
+  const run = ui.instance!, link = run.chain.links[index]!, revision = page.navId;
+  const current = () => page.navId === revision && ui.instance?.instance_id === run.instance_id;
+  const pending = run.steps[index]!.pending;
+  const previewing = !pending && link.kind === "manual" && !manual;
+  const busy = ui.busy = { index, kind: previewing ? "preview" as const : "handoff" as const }; drawRun(page);
   try {
-    const answer = await page.api<InstanceAnswer>("/instances/" + run.instance_id + "/continue", { from: index, updated_at: run.updated_at, ...(manual || {}), ...(options.retry ? { retry_action: true } : {}) });
-    ui.instance = answer.instance; ui.handoff = null; ui.step = index + 1;
-    const target = run.chain.stations[index + 1]!;
-    toast(page, target.action ? uiText.text("workflows.toast.action-ran", { action: target.action.title }) : uiText.text("workflows.toast.handed-to", { next: label(page, target) }));
-    refreshFlow(page);
+    if (previewing) {
+      const preview = await page.api<PreviewAnswer>("/instances/" + run.instance_id + "/preview", { from: index });
+      if (!current()) return;
+      ui.handoff = { index, mode: "manual", input: preview.input, draft: { title: preview.input.title, body: preview.input.body } };
+    } else {
+      const answer = await page.api<InstanceAnswer>("/instances/" + run.instance_id + "/continue", { from: index, updated_at: run.updated_at,
+        ...(!pending ? manual : {}), ...(options.retry ? { retry_action: true } : {}) });
+      if (!current()) return;
+      ui.instance = answer.instance; ui.handoff = null; ui.step = answer.instance.current;
+      if (answer.instance.steps[index]?.handoff) {
+        const target = run.chain.stations[index + 1]!;
+        toast(page, target.action ? uiText.text("workflows.toast.action-ran", { action: target.action.title }) : uiText.text("workflows.toast.handed-to", { next: label(page, target) }));
+      }
+      refreshFlow(page);
+    }
   } catch (error) {
+    if (!current()) return;
     toast(page, messageOf(error), "error");
-    if (statusOf(error) === 409 || run.chain.stations[index + 1]?.action) { ui.busy = null; await openRun(page, run.instance_id).catch(() => undefined); }
+    if (!previewing) {
+      const draft = ui.handoff;
+      await openRun(page, run.instance_id, undefined, revision).catch(() => undefined);
+      if (current() && ui.instance?.status === "active" && ui.instance.current === index && !ui.instance.steps[index]?.pending) ui.handoff = draft;
+    }
+  } finally {
+    const ownedBusy = ui.busy === busy;
+    if (ownedBusy) ui.busy = null;
+    if (current()) {
+      remember(page); drawRun(page);
+      if (previewing) view.querySelector<HTMLElement>("[data-wf-manual] input[name=title]")?.focus();
+    } else if (ownedBusy && page.root.dataset.wfMode === "instance") drawRun(page);
   }
-  ui.busy = null; remember(page); drawRun(page);
 }
 
 /** The workflow's runs and the list's counts, read again after a run moved. */
 export function refreshFlow(page: WorkflowsPage) {
   const { ui } = page;
   if (!ui.workflow) return;
-  page.api<FlowAnswer>("/" + ui.workflow.workflow_id).then((answer) => { ui.instances = answer.instances; }).catch(() => undefined);
-  page.api<ListAnswer>("").then((answer) => { ui.workflows = answer.workflows; drawList(page); }).catch(() => undefined);
+  const id = ui.workflow.workflow_id, revision = page.navId;
+  page.api<FlowAnswer>("/" + id).then((answer) => { if (page.navId === revision && ui.workflow?.workflow_id === id) ui.instances = answer.instances; }).catch(() => undefined);
+  page.api<ListAnswer>("").then((answer) => { if (page.navId === revision) { ui.workflows = answer.workflows; drawList(page); } }).catch(() => undefined);
 }
 
 export function selectStep(page: WorkflowsPage, index: number) {
   const { ui } = page;
   if (!ui.instance || index === ui.step) return;
-  ui.step = index; if (ui.handoff && ui.handoff.index !== index) ui.handoff = null;
+  page.navId++; ui.busy = null; ui.step = index; ui.handoff = null;
   remember(page); drawRun(page);
 }
 
 export function cancelHand(page: WorkflowsPage) {
+  if (page.ui.busy) return;
   page.ui.handoff = null; drawRun(page);
   page.view.querySelector<HTMLElement>("[data-wf-action=continue]")?.focus({ preventScroll: true });
 }

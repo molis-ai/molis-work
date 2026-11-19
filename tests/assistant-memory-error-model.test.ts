@@ -28,7 +28,7 @@ test("Memory's scope and stale preview keep their owner codes; Assistant managem
   const scope = await answer(home, "/api/memory/items", { scope: "project", text: "周报先写风险" });
   assert.deepEqual([scope.status, scope.body.code], [403, "memory.scope"]);
   assert.match(String(scope.body.error), /没有项目/);
-  const missing = await answer(home, "/api/assistant/memories", { action: "disable", memory_id: "not-kept" });
+  const missing = await answer(home, "/api/assistant/memories", { action: "disable", memory_id: "not-kept", expected_version: 1 });
   assert.deepEqual([missing.status, missing.body.code], [404, "memory.not_found"]);
   // The panel names the version it saw (B9: Memory's own `memory.candidates.accept`); without one the request itself is wrong.
   const unversioned = await answer(home, "/api/assistant/memory-candidates/not-proposed/accept", {});

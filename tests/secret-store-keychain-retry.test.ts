@@ -1,6 +1,7 @@
 import {trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -156,7 +157,7 @@ test("lazy credentials preserve their Home and only unlock an existing credentia
     assert.deepEqual(calls(), ["find-generic-password"]);
   }, "exit 36"));
 
-test("Functions local reads work with locked Keychain across Host, HTTP and fresh MCP processes; invocation still requires credentials",
+test("QEA-88 Functions local reads work with locked Keychain across Host, HTTP and fresh MCP processes; invocation still requires credentials",
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
     const file = join(home, "feed", "secrets.json");
     const sealed = JSON.parse(readFileSync(file, "utf8"));
@@ -198,7 +199,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
       const host = new MolisWorkLocalHost({homeDirectory:${JSON.stringify(home)},functions:{env:{}}});
       const actions = bindActionClient(host.homeActionClient(),
-        () => ({actor_id:'test',project_id:null,audience:'mcp',permissions:['functions:invoke']}));
+        () => ({actor_id:'keychain-child-test',project_id:null,audience:'mcp',permissions:['functions:invoke']}));
       const listed = await actions.invoke(functionsActions.list, {});
       const described = await actions.invoke(functionsActions.describe, {function_key:'lazy_keychain'});
       console.log(JSON.stringify({listed:listed.functions.some(row=>row.function_key==='lazy_keychain'),name:described.function.name}));
@@ -230,7 +231,16 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
         () => ({ actor_id: "test", project_id: null, audience: "mcp", permissions: ["functions:invoke"] }));
       // BL-081 ②: the by-key HTTP describe was deleted; the same read goes through the Functions action.
       assert.match(JSON.stringify(await actions.invoke(functionsActions.describe, { function_key: live.function_key })), /lazy_keychain/u);
-      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
+      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads, including child Host close, must leave Keychain untouched");
+      const observation = bindActionClient(actionHost.homeActionClient(),
+        () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: null, audience: "user", permissions: [] }));
+      const recorded = await observation.invoke(observationActions.recordsQuery, { project_id: null, entry: "mcp", actor_id: "keychain-child-test" });
+      const childReads = recorded.records.filter(row => [functionsActions.list.capability_id + "@1", functionsActions.describe.capability_id + "@1"].includes(String(row.detail.action)));
+      assert.equal(childReads.length, 6, "all six calls from the closed children retain their own metadata");
+      assert.ok(childReads.every(row => row.evidence.length === 2 && row.evidence.every(item => item.ref.kind === "missing" && item.ref.reason === "not_obtained")));
+      const coverage = await observation.invoke(observationActions.coverageGet, { project_id: null });
+      assert.ok(coverage.gaps.some(gap => gap.state === "unavailable" && gap.reason === "evidence_key"));
+      assert.deepEqual(calls(), [], "reading metadata and gaps does not ask to unlock evidence");
       for (let i = 0; i < 3; i++) await assert.rejects(() => actions.invoke(functionsActions.invoke, { function_key: live.function_key, input: "needs actual credential" }), /Keychain/u);
       assert.equal(providerCalls, 0);
       assert.deepEqual(calls(), ["find-generic-password"]);
@@ -241,6 +251,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     } finally {
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
       await actionHost.close();
+      assert.deepEqual(calls(), ["find-generic-password"], "automatic flush does not add an unlock attempt after the real invocation refused");
     }
   }, "exit 36", true));
 
@@ -310,3 +321,92 @@ test("a fresh Home creates the missing Keychain item add-only and trusted for th
       assert.equal(calls().some(line => line.startsWith("delete-generic-password")), false);
       assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
     }));
+
+test("QEA-89 passive Keychain access uses the original cache and does not poison a later explicit unlock", { skip: process.platform !== "darwin" }, () => withKeychainFixture(({ home, root, calls, allow }) => {
+  const file = join(home, "feed", "secrets.json"), before = readFileSync(file);
+  const passive = createLazyFileSecretStore(home, { keychain: "cached" }), explicit = createLazyFileSecretStore(home);
+  assert.throws(() => passive.get("fixture"), /explicit credential operation/u);
+  assert.throws(() => passive.createIfAbsent("observation-test", "automatic record"), /explicit credential operation/u);
+  assert.deepEqual(calls(), []); assert.deepEqual(readFileSync(file), before);
+  assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+  const fresh = join(root, "fresh-passive-home"), freshStore = createLazyFileSecretStore(fresh, { keychain: "cached" });
+  assert.throws(() => freshStore.createIfAbsent("automatic", "body"), /explicit credential operation/u);
+  assert.equal(existsSync(join(fresh, "feed", "secrets.json")), false);
+  assert.equal(existsSync(join(fresh, "feed", "secrets.key")), false, "passive access never changes a new Home's backend selection");
+  assert.deepEqual(calls(), []);
+  allow();
+  assert.equal(explicit.get("fixture"), "original credential", "the passive refusal did not populate keychainFailures");
+  assert.deepEqual(calls(), ["find-generic-password"]);
+  assert.equal(passive.get("fixture"), "original credential");
+  assert.equal(passive.createIfAbsent("observation-test", "automatic record"), true);
+  assert.equal(passive.get("observation-test"), "automatic record");
+  assert.deepEqual(calls(), ["find-generic-password"], "the automatic service uses that same unlocked Home cache");
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).backend, "keychain+aes-gcm");
+}, "exit 36"));
+
+test("QEA-89 Host evidence.get unlocks the original key and subsequent automatic capture resumes", { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls, allow }) => {
+  allow();
+  runWithMolisWorkHome(home, () => assert.equal(createFileSecretStore().get("fixture"), "original credential"));
+  const openHost = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, functions: { env: {} } });
+  const bind = (host: MolisWorkLocalHost) => bindActionClient(host.homeActionClient(),
+    () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: null, audience: "user", permissions: [] }));
+  // A person's own page result is intentionally digest-only (OCL-11); use the real MCP read path for sealed result evidence.
+  const read = (host: MolisWorkLocalHost) => bindActionClient(host.homeActionClient(),
+    () => ({ actor_id: "evidence-mcp", project_id: null, audience: "mcp", permissions: ["functions:invoke"] })).invoke(functionsActions.list, {});
+  const first = openHost(), initial = bind(first);
+  let sealedId: string;
+  let initialResult: unknown;
+  try {
+    initialResult = await read(first);
+    const rows = await initial.invoke(observationActions.recordsQuery, { project_id: null });
+    const record = rows.records.find(row => row.detail.action === "functions.list@1");
+    assert.ok(record && record.evidence.every(item => item.ref.kind === "snapshot"));
+    sealedId = record.record_id;
+  } finally { await first.close(); }
+  assert.deepEqual(calls(), ["find-generic-password"]);
+  resetSecretStoreCache();
+  const second = openHost(), actions = bind(second);
+  try {
+    await read(second);
+    const before = await actions.invoke(observationActions.recordsQuery, { project_id: null });
+    const missing = before.records.find(row => row.detail.action === "functions.list@1" && row.record_id !== sealedId);
+    assert.ok(missing && missing.evidence.every(item => item.ref.kind === "missing" && item.ref.reason === "not_obtained"));
+    assert.deepEqual(calls(), ["find-generic-password"], "a reopened Host's metadata query never initiates unlocking");
+    const evidence = await actions.invoke(observationActions.evidenceGet, { record_id: sealedId, role: "result", use: "lookback" });
+    assert.equal(evidence.items.length, 1);
+    const item = evidence.items[0]!;
+    assert.ok(item.status === "available");
+    assert.deepEqual(JSON.parse(item.text), initialResult, "the public action actually decrypts the original evidence");
+    assert.deepEqual(calls(), ["find-generic-password", "find-generic-password"]);
+    await read(second);
+    const after = await actions.invoke(observationActions.recordsQuery, { project_id: null });
+    const resumed = after.records.find(row => row.detail.action === "functions.list@1" && ![sealedId, missing.record_id].includes(row.record_id));
+    assert.ok(resumed && resumed.evidence.every(item => item.ref.kind === "snapshot"));
+    const restored = await actions.invoke(observationActions.evidenceGet, { record_id: resumed.record_id, role: "result", use: "lookback" });
+    assert.ok(restored.items[0]?.status === "available");
+    assert.deepEqual(JSON.parse(restored.items[0].text), initialResult);
+    assert.deepEqual(after.records.find(row => row.record_id === missing.record_id), missing, "unlocking does not rewrite old missing evidence");
+  } finally { await second.close(); }
+  assert.deepEqual(calls(), ["find-generic-password", "find-generic-password"], "subsequent capture and shutdown use the existing unlocked cache");
+}, "exit 36", true));
+
+for (const backend of ["env", "file"] as const) test(`QEA-89 passive credential access retains the original ${backend} backend across cache reset`, async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-passive-"));
+  const previous = { MOLIS_WORK_SECRET_BACKEND: process.env.MOLIS_WORK_SECRET_BACKEND, MOLIS_WORK_ENCRYPTION_KEY: process.env.MOLIS_WORK_ENCRYPTION_KEY };
+  try {
+    process.env.MOLIS_WORK_SECRET_BACKEND = backend;
+    process.env.MOLIS_WORK_ENCRYPTION_KEY = backend === "env" ? Buffer.alloc(32, 41).toString("base64") : "";
+    resetSecretStoreCache();
+    const store = createLazyFileSecretStore(home, { keychain: "cached" });
+    assert.equal(store.createIfAbsent("sample", "original value"), true);
+    const bytes = readFileSync(join(home, "feed", "secrets.json"));
+    resetSecretStoreCache();
+    assert.equal(store.get("sample"), "original value");
+    assert.equal(store.backend().kind, backend === "env" ? "env-key+aes-gcm" : "aes-gcm-file");
+    assert.deepEqual(readFileSync(join(home, "feed", "secrets.json")), bytes);
+  } finally {
+    resetSecretStoreCache();
+    for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    rmSync(home, { recursive: true, force: true });
+  }
+});

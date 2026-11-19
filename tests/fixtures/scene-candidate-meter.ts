@@ -17,9 +17,9 @@ export type SceneCandidateCounts = ReturnType<typeof countsOf>;
 export function sceneCandidateMeter(t: TestContext) {
   let active: { plugin: string; counts: SceneCandidateCounts } | undefined;
   const discover = ActionService.prototype.discover, usages = ActionService.prototype.usages;
-  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, caller: ActionCallContext) {
-    if (active) bump(active.counts.discover, caller);
-    return discover.call(this, caller);
+  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, ...args: Parameters<typeof discover>) {
+    if (active) bump(active.counts.discover, args[0]);
+    return discover.apply(this, args);
   });
   t.mock.method(ActionService.prototype, "usages", function (this: ActionService, ...args: Parameters<typeof usages>) {
     if (active) bump(active.counts.kernelUsages, args[0]);

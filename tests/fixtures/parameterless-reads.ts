@@ -53,6 +53,7 @@ const accountReadsRequiringConfiguration = new Set([
 const protectedReads: Readonly<Record<string, (projectId: string) => { path: string; method: "GET" }>> = {
   "agent.authorizations.list@1": projectId => ({ path: `/api/settings/authorizations?project=${encodeURIComponent(projectId)}`, method: "GET" }),
   "automation.recommendations.scan@1": projectId => ({ path: `/projects/${encodeURIComponent(projectId)}/api/automation/recommendations`, method: "GET" }),
+  "automation.recommendations.offers.get@1": projectId => ({ path: `/projects/${encodeURIComponent(projectId)}/api/automation/recommendations/offers`, method: "GET" }),
 };
 
 type CatalogRunner = <T>(options: { homeDirectory: string }, body: (catalog: { databasePath: string; projectsDirectory: string; getProject(id: string): { database_path: string } }) => T | Promise<T>) => Promise<T>;

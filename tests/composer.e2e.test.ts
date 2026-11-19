@@ -715,7 +715,7 @@ for (const locale of ["zh", "en"] as const) {
 }
 
 
-test("B10-R6: unknown and failed sends keep recovery actions reachable on a phone", { timeout: 120_000 }, async t => {
+test("B10-R6 QEA-66: unknown and failed sends keep recovery actions reachable on a phone", { timeout: 120_000 }, async t => {
   const c = await open(t); if (!c) return; await c.mountPlain(); await c.page.viewport(390, 844, true);
   for (const state of ["unknown", "failed"]) {
     await c.page.evaluate(`globalThis.composerHandle = window.molisComposer(document.getElementById('composer-probe'), {

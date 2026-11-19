@@ -3,18 +3,19 @@ import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
+import { responseAbortSignal } from "./web-entry-actions.js";
 
 /**
  * Workbench transport for the system search; the bound client carries the local person's own authority and project. A
  * question card's reference field searches through `references` (T2): the action takes only the kinds and words asked.
  */
-export async function handleSearchHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: () => BoundActionClient): Promise<boolean> {
+export async function handleSearchHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient): Promise<boolean> {
   const routes: Record<string, "query" | "open" | "status" | "references"> = { "/api/search/query": "query", "/api/search/open": "open", "/api/search/status": "status", "/api/search/references": "references" };
   const route = routes[url.pathname];
   if (!route) return false;
   if (request.method !== (route === "status" ? "GET" : "POST")) { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   try {
-    const client = actions();
+    const client = actions(responseAbortSignal(response));
     if (route === "status") {
       const scope = url.searchParams.get("scope");
       sendJson(response, 200, await client.invoke(searchActions.status, scope ? { scope: scope as SearchScope } : {}));
@@ -28,7 +29,7 @@ export async function handleSearchHttp(request: IncomingMessage, response: Serve
     }
   } catch (error) {
     const failure = actionErrorResponse(error);
-    sendJson(response, failure.status, failure.body);
+    if (!response.destroyed) sendJson(response, failure.status, failure.body);
   }
   return true;
 }

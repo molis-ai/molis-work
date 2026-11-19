@@ -49,7 +49,7 @@ const row = (attribution: unknown): ExternalSessionRow => ({
 });
 const list = (sessions: readonly object[], sources: readonly object[] = [source]) =>
   ({ sessions, sources, unfiled_count: 0, next_cursor: null, scope_revision: 1, trust: "untrusted" }) as ExternalSessionListOutput;
-const history: ExternalSessionHistoryOutput = { session_key: KEY, entries: [{ position: "p:1", role: "you", at: null, text: "你好", truncated: false }], older_cursor: null, newer_cursor: null,
+const history: ExternalSessionHistoryOutput = { session_key: KEY, session: row({ state: "unfiled", reason: "no_relation", candidates: [], suggestion: null }), entries: [{ position: "p:1", role: "you", at: null, text: "你好", truncated: false }], older_cursor: null, newer_cursor: null,
   matches: [], search: null, read_state: "complete", stopped: null, activity: "idle", trust: "untrusted" };
 const permit: ExternalSessionProjectAiRead = { project: PROJECT, directories: ["/work/app"], current: true, allowed: false, revision: 0, decided_at: null, counts: null };
 const scope: ExternalSessionScopeView = { project_ai_reads: [permit], scope_revision: 0, sources: [

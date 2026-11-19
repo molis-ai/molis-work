@@ -12,6 +12,7 @@ import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { runningHomePluginText } from "./running-plugin-text.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
+import { handleWebSearchSettingsHttp } from "./web-search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { handleObservationHttp } from "./observation-http.js";
@@ -98,7 +99,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     return arrivalHttp(request, response, url, serverOptions.homeDirectory);
   } },
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
-  { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
+  { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url,
+    signal => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
   { id: "sessions", handle: ({ request, response, url, localHost }) => handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), false) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
   { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
@@ -133,6 +135,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "connector-connections", handle: async ({ request, response, url, serverOptions, localHost, composition }) =>
     await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, homeActions(localHost))
       || await handlePluginSlotsHttp(request, response, url, localHost, settingsProjectReference(composition.projectSettings, serverOptions.homeDirectory)) },
+  { id: "web-search-settings", handle: ({ request, response, url, localHost }) => handleWebSearchSettingsHttp(request, response, url, localHost) },
   { id: "connector-methods", handle: ({ request, response, url, serverOptions, localHost }) => handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost) },
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog, serverOptions.assertAccountCurrent) },

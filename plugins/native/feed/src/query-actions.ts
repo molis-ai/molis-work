@@ -1,6 +1,6 @@
 import { feedPageSchema, feedPageInput, feedPageOffset } from "./page-input.js";
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -41,7 +41,9 @@ const snapshotSchema = { type: "object", properties: { sources: rows(["source_id
   facets: rows(["source_id", "label", "count"]), offset: { type: "integer", minimum: 0 }, next_offset: { type: ["integer", "null"], minimum: 0 }, runs: rows(["run_id"]), out_rules: rows(["rule_id"]) }, required: ["sources", "feed_items", "runs", "out_rules", "offset", "next_offset", "facets"], additionalProperties: false };
 const connectionsSchema = { type: "object", properties: {
   github: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] },
-  gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] } }, required: ["github", "gmail"] };
+  gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] },
+  others: { type: "array", maxItems: 64, items: { type: "object", properties: { service_id: { type: "string" }, title: { type: "string" }, bound: { type: "boolean" } }, required: ["service_id", "title", "bound"] } } },
+  required: ["github", "gmail"] };
 
 const linkedContext = define<{ goal_id: string; item_id?: string }, { source_context: string } | null>("feed.goals.context", /* @version action.feed.goals.context */ 1, "读取 Goal 关联材料",
   "只读取 Context Ledger 中仍与指定 Goal 关联的 Feed 原文；不能通过材料 ID 注入未关联内容",
@@ -85,10 +87,6 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
   authStatus(): ConnectorAuthStatus | Promise<ConnectorAuthStatus>;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
 }): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => run(input as I, caller),
-  });
   const snapshot = (input: Readonly<Record<string, string>>): FeedDirectorySnapshot => {
     const page = feedPageInput(input);
     const current = feed.directory(projectId, page);

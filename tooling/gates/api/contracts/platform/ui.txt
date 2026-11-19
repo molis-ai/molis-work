@@ -354,7 +354,6 @@ export interface StagePageContext {
     } | null;
     readonly demo: boolean;
     readonly cli_availability: Record<string, boolean>;
-    readonly client_data?: Readonly<Record<string, unknown>>;
 }
 
 export interface StagePageDrawing {

@@ -7,7 +7,7 @@ import type { SkillCatalogEntry, SkillPick } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
-export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
+export type { AssistantCard, AssistantCardChoice, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
 import type { AssistantPendingReview } from "./assistant-review.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
@@ -461,8 +461,8 @@ export interface AssistantWorkView {
   unsettled?: AssistantUnsettledChange[];
   /** Changes of this work that say how they are undone: each can be taken back once, by the person. */
   undoable?: AssistantUndoable[];
-  /** What this work suggests keeping, waiting for the person. */
-  memory_candidates?: AssistantMemoryCandidate[];
+  /** What this work suggests keeping, waiting for the person. Null means this section could not be read; absent means none. */
+  memory_candidates?: AssistantMemoryCandidate[] | null;
   /** What this work kept, replaced or forgot in the platform memory; an automatic one can be undone (`POST /api/memory/changes/<id>/undo`). */
   memory_changes?: MemoryChange[];
   /** Background work this work started in plugins, and how each stands. */

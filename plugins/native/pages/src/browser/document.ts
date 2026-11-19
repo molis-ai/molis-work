@@ -75,16 +75,20 @@ function revealEditor(page: PagesPage) {
   syncEditorChrome(page);
 }
 
-export async function openDocument(page: PagesPage, record: PagesRecord | null | undefined) {
-  if (!record) return;
+export async function openDocument(page: PagesPage, record: PagesRecord | null | undefined, current = () => true): Promise<boolean> {
+  if (!record || !current()) return false;
+  const seq = ++page.selectionSeq;
+  page.openingId = null;
   if (page.sel && page.sel.id === record.id) {
     revealEditor(page);
-    return;
+    return true;
   }
   if (page.sel && (page.saveTimer || page.dirty)) await persist(page);
+  if (seq !== page.selectionSeq || !current()) return false;
   fillEditor(page, record);
   page.dirty = false;
   page.editRev += 1;
+  return true;
 }
 
 /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
@@ -125,17 +129,23 @@ export function printDocument(page: PagesPage) {
 }
 
 /** Makes a document (blank, from a template, in a folder, from a text) and opens it with its title selected. */
-export async function createPage(page: PagesPage, body?: Record<string, unknown>) {
+export async function createPage(page: PagesPage, body?: Record<string, unknown>, current = () => true) {
   const epoch = page.editorEpoch;
   if (page.sel && (page.saveTimer || page.dirty)) await persist(page);
-  if (page.editorEpoch !== epoch) return;
+  if (page.editorEpoch !== epoch || !current()) return;
   const left = blankLeaving(page);
   const payload = await page.api<DocumentAnswer>("POST", "", body || {});
   if (!body || !(body.template_id || body.body || body.title)) page.fresh.set(payload.document.id, { title: payload.document.title, version: payload.document.version });
   storeDocument(page, payload.document); placed({ verb: "created", title: payload.document.title || uiText.text("pages.doc.untitled"), object: { kind: "pages_document", id: payload.document.id } });
-  await loadList(page);
-  void dropBlank(page, left);
-  if (page.editorEpoch === epoch) { await openDocument(page, payload.document); page.titleInput.focus(); page.titleInput.select(); }
+  // The create is accepted. A later list/read/save failure must not turn its receipt into a new create attempt.
+  try {
+    await loadList(page);
+    void dropBlank(page, left);
+    if (page.editorEpoch === epoch && current()) {
+      const opening = openDocument(page, payload.document, current), selection = page.selectionSeq;
+      if (await opening && page.selectionSeq === selection) { page.titleInput.focus(); page.titleInput.select(); }
+    }
+  } catch (error) { noteFailure(page, error, uiText.text("pages.error.save")); }
 }
 
 export async function toggleStar(page: PagesPage, id: string) {
@@ -159,6 +169,7 @@ export async function publishPage(page: PagesPage, id: string) {
   if (page.publishing.has(id)) return;
   page.publishing.add(id);
   let draft = null;
+  const epoch = page.editorEpoch;
   try {
     if (page.sel?.id === id) await persist(page);
     const current = page.sel?.id === id ? page.sel : page.records.find((record) => record.id === id);
@@ -173,10 +184,14 @@ export async function publishPage(page: PagesPage, id: string) {
     placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id }, artifact: payload.artifact,
       note: uiText.text("pages.version.saved-note", { version: payload.document.artifact_version }) });
   } catch (error) {
-    // A failed response may follow a committed version: refresh recovery state, keep local edits.
+    // This read may contain somebody else's edits. It is not an acknowledgement of our draft.
     try {
       const payload = await page.api<DocumentAnswer>("GET", pageTail(id));
-      if (draft) adoptSaved(page, draft, payload.document); else storeDocument(page, payload.document);
+      storeDocument(page, payload.document);
+      if (draft && page.sel?.id === id && page.editorEpoch === epoch && page.editRev === draft.version && !page.dirty && !page.saveTimer) {
+        remember(page, payload.document, true);
+        page.editRev += 1;
+      }
       if (page.sel?.id === id) syncEditorChrome(page);
     } catch { /* Keep the original error and the user's draft. */ }
     throw error;
@@ -192,8 +207,10 @@ export function bindDocument(page: PagesPage) {
     const detail = (event as CustomEvent<{ itemId?: string | null; quiet?: boolean; invalidate?: boolean } | undefined>).detail;
     const id = detail?.itemId;
     if (detail?.invalidate && id === undefined) return;
+    event.preventDefault(); // This owner reads, saves and opens the item; the frame must not also click its row.
     if (!id) { page.selectionSeq++; page.openingId = null; leaveOnFold(page); return; }
     if (page.sel?.id === id) {
+      page.selectionSeq++; page.openingId = null;
       revealEditor(page);
       return;
     }
@@ -202,7 +219,11 @@ export function bindDocument(page: PagesPage) {
     const seq = ++page.selectionSeq;
     void (async () => {
       if (page.sel && (page.saveTimer || page.dirty)) await persist(page);
+      if (seq !== page.selectionSeq) return;
       const payload = await page.api<DocumentAnswer>("GET", pageTail(id));
+      if (seq !== page.selectionSeq) return;
+      // Reading the destination can take time. The still-visible draft may have changed meanwhile.
+      if (page.sel && (page.saveTimer || page.dirty)) await persist(page);
       if (seq !== page.selectionSeq) return;
       fillEditor(page, payload.document);
       page.dirty = false;

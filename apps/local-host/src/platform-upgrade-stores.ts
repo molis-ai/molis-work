@@ -1,4 +1,4 @@
-import { AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
+import { AUTOMATION_OFFERS_FILE, AUTOMATION_OFFERS_PATH, AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
@@ -18,8 +18,7 @@ import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
-import { artifactRowLibraryDeclarations } from "./artifact-row-library-declarations.js";
-import { assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
+import { assertSqliteDatabaseFiles } from "@molis-ai/molis-work-storage";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -37,8 +36,7 @@ const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects
 export function projectDatabases(home: string, space?: StorageSpace): readonly string[] {
   const file = join(home, CATALOG);
   if (!entryAt(file)) return [];
-  const guarded = artifactRowLibraryDeclarations().length > 0;
-  if (guarded) assertArtifactDatabaseFiles(file);
+  assertSqliteDatabaseFiles(file);
   const paths = readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);
@@ -47,7 +45,7 @@ export function projectDatabases(home: string, space?: StorageSpace): readonly s
     }
     return listProjectDatabasePaths(db, join(home, "projects"));
   });
-  if (guarded) for (const path of paths) assertArtifactDatabaseFiles(path);
+  for (const path of paths) assertSqliteDatabaseFiles(path);
   return paths.map(path => relative(home, path));
 }
 
@@ -146,6 +144,7 @@ function computerRecords(home: string): readonly string[] {
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_PREFERENCES_PATH, file: AUTOMATION_PREFERENCES_FILE },
+  { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_OFFERS_PATH, file: AUTOMATION_OFFERS_FILE },
   { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },

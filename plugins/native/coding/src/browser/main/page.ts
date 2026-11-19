@@ -111,7 +111,7 @@ export interface State {
   progressTicket: number;
   progressView: ProgressView | null;
   questionDrafts: Map<string, Record<string, unknown>>;
-  queuedInputs: readonly unknown[] | undefined;
+  queuedInputs: readonly import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined;
   queuedKey: string;
   recovery: boolean;
   recoveryBusy: boolean;

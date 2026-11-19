@@ -200,7 +200,7 @@ export class PrologueRunStore {
     const ledgerEnded = isEnded(record.state.phase);
     if (isEnded(controlPhase) || ledgerEnded) record.memory_binding?.close();
     const awaitingCommit = isEnded(controlPhase) && !ledgerEnded;
-    let phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
+    const phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
     const stoppedReason = (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason;
     let stopReason = awaitingCommit
       ? controlPhase === "stopped" || controlPhase === "cancelled"
@@ -224,13 +224,10 @@ export class PrologueRunStore {
           .catch(() => { record.timingError = "显示时间未能保存；执行结果已保存在运行时，重启后部分时间可能未知。"; })
           .then(() => { record.timingReady = true; this.publish(runId); });
       }
-      if (phase !== "reconcile-required") {
-        phase = "running";
-        stopReason = "执行已结束，正在保存显示时间";
-      }
     }
     if (record.timingError) stopReason = [stopReason, record.timingError].filter(Boolean).join("；");
-    const executionEnded = ledgerEnded && (!stampTerminal || !this.#runtime.saveRunTiming || record.timingReady);
+    // Display timing can finish later; execution facts and work authority follow the SDK ledger.
+    const executionEnded = ledgerEnded;
     record.view = withRunFacts(record.state, Boolean(executionEnded), {
       ...record.view,
       phase: phase === "starting" ? "running" : phase,

@@ -14,7 +14,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "authorizations" | "characters" | "prompts" | "kit" | "memory" | "work-records" | "mcp" | "connectors" | "projects" | "diagnostics" | "update" | "running" | "directories" | "sync";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "authorizations" | "characters" | "prompts" | "kit" | "memory" | "work-records" | "mcp" | "connectors" | "web-search" | "projects" | "diagnostics" | "update" | "running" | "directories" | "sync";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "characters" | "grants" | "rules";
 

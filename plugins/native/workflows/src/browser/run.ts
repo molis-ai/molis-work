@@ -60,7 +60,7 @@ function vchainHtml(page: WorkflowsPage, run: Run, selected: number) {
     if (index < chain.links.length) {
       const link = chain.links[index]!, ls = linkState(page, run, index), kind = kindName(link.kind);
       const text = ls === "done" ? uiText.text("workflows.run.kind-handed", { kind, time: when(step.handoff?.at) })
-        : ls === "working" ? (link.kind === "ai" ? uiText.text("workflows.run.ai-working") : uiText.text("workflows.run.handing"))
+        : ls === "working" ? (link.kind === "ai" && !step.pending ? uiText.text("workflows.run.ai-working") : uiText.text("workflows.run.handing"))
         : ls === "waiting" ? (link.kind === "manual" ? uiText.text("workflows.run.manual-waiting") : uiText.text("workflows.run.waiting-continue", { kind }))
         : ls === "blocked" ? uiText.text("workflows.run.kind-not-connected", { kind }) : kind;
       linkRow = `<div class="wf-vlink" data-wf-vlink="${index}" data-kind="${link.kind}" data-state="${ls}"><span class="wf-vlink__line" aria-hidden="true"></span><span class="wf-vlink__label" data-mw-state="${LINK_MARK[ls]}">${esc(text)}</span></div>`;

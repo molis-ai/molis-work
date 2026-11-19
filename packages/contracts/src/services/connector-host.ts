@@ -107,7 +107,9 @@ export type ConnectorDirectoryGroupId =
   | "work"
   | "design"
   | "crm"
-  | "social";
+  | "social"
+  /** Web search services (§13.7): an account a person can make the default web search source. */
+  | "search";
 
 export type ConnectorCapabilityFulfillment = "live" | "unfulfilled";
 
@@ -138,6 +140,14 @@ export interface ConnectorMethodOption {
   readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly setup_available?: boolean; readonly environment_fields?: readonly { readonly name: string; readonly label: string; readonly secret: boolean }[]; readonly note?: string };
 }
 
+/**
+ * What a service's account can be used for, each read from what is declared (§13.7): an integration of kind `source` (Feed),
+ * `document_import` (the 成果库) or `web_search` (the default web search), a fixed record reader (`connectors.records.read@1`, the
+ * assistant), or `categories` a skill can name.
+ */
+export const CONNECTOR_USES = ["feed_source", "document_import", "assistant_read", "web_search", "category"] as const;
+export type ConnectorUse = (typeof CONNECTOR_USES)[number];
+
 export interface ConnectorDirectoryEntry {
   readonly connector_id: string;
   readonly title: string;
@@ -154,6 +164,10 @@ export interface ConnectorDirectoryEntry {
   readonly auth_help?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
   readonly method_options?: readonly ConnectorMethodOption[];
+  /** What it can be used for, in `CONNECTOR_USES` order; absent on a service the platform declares for its own use. */
+  readonly uses?: readonly ConnectorUse[];
+  /** The categories the service declares (`category` is in `uses` exactly when there are some). */
+  readonly categories?: readonly string[];
 }
 
 /**

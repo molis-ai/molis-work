@@ -138,13 +138,12 @@ export class HomePluginHost {
    * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
    */
-  async installPackage(release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
+  async installPackage(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
     await this.installationScope.run(async assertOpen => {
       const check = () => { assertOpen(); assertCurrent?.(); };
       const installed = this.installed!;
       check();
-      await installed.installPackage(release, { consent: true, assertCurrent: check });
-      await installed.refreshPublicActions();
+      await installed.installPackage(release, { consent: true, assertCurrent: check, complete });
     });
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */

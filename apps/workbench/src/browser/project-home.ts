@@ -26,7 +26,7 @@ interface HomeHost {
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
   | { kind: "invoked"; stage?: unknown; retry_open?: HomeControl["target"] } | { kind: "enabled" };
 
-export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, string>) {
+export function reconcileSurfaceRows(root: HTMLElement, html: string, retainedMarkup: WeakMap<Element, string>) {
   const doc = root.ownerDocument, focus = doc.activeElement;
   const focused = focus && root.contains(focus) ? focus.closest("[data-home-row]") : null;
   const rowKey = focused?.getAttribute("data-home-row");
@@ -39,7 +39,9 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup:
     node.setAttribute("aria-haspopup", "dialog");
     node.setAttribute("role", "button");
   });
-  template.content.querySelectorAll("[data-home-row]").forEach(node => rowMarkup.set(node, node.outerHTML));
+  // Keep open menus while the same controls are repainted with the current data.
+  const retained = "[data-home-row], [data-surface-correction-reason], .surface-correction-default";
+  template.content.querySelectorAll(retained).forEach(node => retainedMarkup.set(node, node.outerHTML));
   const branch = "[data-home-group], .home-plugin-cards, .home-plugin-card__body, .home-rows";
   const key = (node: Element) => node.getAttribute("data-home-row") ?? node.getAttribute("data-home-group") ?? (node.matches(branch) ? node.className : null);
   function patch(parent: Element, incoming: HTMLCollection) {
@@ -48,10 +50,9 @@ export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup:
     for (const candidate of [...incoming]) {
       const id = key(candidate);
       const old = id === null ? next : current.get(id);
-      const row = candidate.hasAttribute("data-home-row");
       let node = candidate;
-      if (row) {
-        if (old && rowMarkup.get(old) === rowMarkup.get(candidate)) node = old;
+      if (candidate.matches(retained)) {
+        if (old && retainedMarkup.get(old) === retainedMarkup.get(candidate)) node = old;
       } else if (old?.isEqualNode(candidate)) node = old;
       else if (old && id !== null && candidate.matches(branch)) {
         for (const attr of [...old.attributes]) if (!candidate.hasAttribute(attr.name)) old.removeAttribute(attr.name);
@@ -219,7 +220,7 @@ export function mountHome(host: HomeHost) {
     if (invalidate) cancel(true);
     reading?.abort(); placement.close(false);
     const request = reading = new AbortController();
-    caption(display ? "refreshing" : "loading");
+    if (!display) caption("loading");
     try {
       const result = await host.read<SurfaceHomeDisplay>("", {}, request.signal);
       if (request.signal.aborted || reading !== request || !visible()) { releaseText(result); return; }
@@ -252,7 +253,11 @@ export function mountHome(host: HomeHost) {
 
   async function act(key: string, focus: HTMLElement) {
     if (!visible() || clicking) return;
-    if (key === "refresh") { await sync(); return; }
+    if (key === "refresh") {
+      if (display) caption("refreshing");
+      await sync();
+      return;
+    }
     if (key === "market") { host.market(); return; }
     if (key === "lead-toggle") { lead.toggle(display); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);

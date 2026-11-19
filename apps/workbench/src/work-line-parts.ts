@@ -180,6 +180,8 @@ export interface TaskRowView {
   readonly done?: boolean;
   /** The one control the row offers in place: stop while it runs, retry once it failed, "decide" where it waits on the person. */
   readonly control?: "stop" | "retry" | "decide";
+  /** This page is waiting for the offered control's response or its subsequent owner read. */
+  readonly busy?: boolean;
 }
 
 /** One task: its ring, its name, the step it is on, which event it is done for (each on its own line, so none squeezes another), and the control it offers in place. */
@@ -187,7 +189,7 @@ export function renderTaskRow(row: TaskRowView): string {
   const none = row.serves === null ? uiText.text("workbench.work-line.no-event") : "";
   const serves = row.serves === undefined ? ""
     : `<span class="work-task-serves"${row.serves === null ? ' data-serves="none"' : ""} title="${escapeHtml(row.serves ?? none)}">${row.serves === null ? "" : icon("link")}${text("work-task-serves-name", row.serves ?? none)}</span>`;
-  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id } }) : "";
+  const control = row.control ? renderButton({ variant: row.control === "decide" ? "primary" : "secondary", size: "sm", label: uiText.text(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`), attrs: { "data-task-control": row.control, "data-task": row.id, ...(row.busy ? { disabled: "" } : {}) } }) : "";
   return `<div class="work-task-row" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" data-task-open="${escapeHtml(row.id)}">${ring(row.ring)}`
     + `<span class="work-task-row-text"><span class="work-task-row-title" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</span><span class="work-task-row-step" title="${escapeHtml(row.step)}">${escapeHtml(row.step)}</span>${serves}</span></button>${control}</div>`;
 }

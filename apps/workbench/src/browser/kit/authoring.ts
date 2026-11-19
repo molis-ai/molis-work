@@ -1,6 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SkillAuthoredFields, SkillAuthoredSource, SkillCatalogEntry, SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
 import { renderTextCount } from "@molis-ai/molis-work-design-system/capability-pack";
+import { renderToggleGroup } from "@molis-ai/molis-work-design-system/navigation";
 import { renderAlert, renderSpinner } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { act, button, esc, readText } from "./common.js";
 import type { Fields } from "./drafts.js";
@@ -76,8 +77,9 @@ const control = (fields: Fields, errors: Partial<Record<Field, string>>, name: E
     : `<input class="mw-input" data-slot="input" type="text" autocomplete="off" value="${esc(fields[name])}" ${common}>`;
 };
 const toggles = (label: string, name: "applies" | "scope", current: string, items: ReadonlyArray<readonly [string, string]>, disabled: boolean) =>
-  `<div class="au-field"><span class="mw-field__label" id="au-${name}-label">${esc(label)}</span><div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-labelledby="au-${name}-label">${
-    items.map(([value, word]) => `<button type="button" class="mw-toggle${value === current ? " is-current" : ""}" aria-pressed="${value === current}" data-kit-act="au-${name}" data-kit-v="${value}"${disabled ? " disabled" : ""}>${esc(word)}</button>`).join("")}</div></div>`;
+  `<div class="au-field"><span class="mw-field__label">${esc(label)}</span>${renderToggleGroup({
+    label, items: items.map(([value, word]) => ({ value, label: word, current: value === current, attrs: { ...act(`au-${name}`, value), disabled } })),
+  })}</div>`;
 
 /** A draft's form: the same fields a Skill has, with the body's count. */
 export function fieldsMarkup(fields: Fields, errors: Partial<Record<Field, string>>, limits: SkillWritingLimits, disabled: boolean): string {

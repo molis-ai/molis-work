@@ -197,7 +197,8 @@ export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
-export { connectorDirectory, connectorLoginReady } from "./connector-directory.js";
+export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
+export { runWebSearch, setWebSearchDefault, webSearchSettings } from "./connector-web-search.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
@@ -455,4 +456,5 @@ export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
+export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

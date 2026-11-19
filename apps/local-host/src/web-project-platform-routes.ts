@@ -29,8 +29,13 @@ import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, assistantServiceFor, handleAssistantHttp } from "./assistant/assistant-http.js";
+import { assistantWords } from "./assistant/assistant-saved-text.js";
+import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { onAttentionChange } from "./attention-changes.js";
+import { homeBackgroundTasks } from "./home-background-tasks.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
@@ -251,7 +256,7 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 /** Search, placement and the context row reach every plugin through the same directory and the person's own authority in this project. */
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
-    handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
+    handleSearchHttp(request, response, url, signal => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal })) },
   { id: "sessions", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }), true) },
   // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
@@ -299,12 +304,26 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     const assistant = projectAssistant(context);
     return Boolean(assistant) && context.url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(context.request, context.response, context.url, assistant!, context.serverOptions.assertAccountCurrent);
   } },
+  // The Assistant's own look at the project's automation (specs/automation-recommender §7): its card goes in this project's work for it.
+  { id: "automation-offer", handle: async context => {
+    const assistant = projectAssistant(context);
+    if (!assistant || context.url.pathname !== "/api/automation/recommendations/offer") return false;
+    const ports = assistant;
+    return await handleAutomationRecommendationsHttp(context, {
+      place: input => assistantServiceFor(ports).service.offers.placeForPerson(input, { project_ref: context.hostReference }),
+      notify: (work, count, dedupe) => { assistantServiceFor(ports).store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "result", work_id: work.work_id, work_title: work.title,
+        text: assistantWords("workbench.assistant-notice.automation-found", { count }) }, dedupe); },
+    });
+  } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);
     const { request, response, url, store, options, pluginPorts, localHost, hostReference } = context;
+    const home = url.searchParams.get("view") === "home" && !pluginPageRequest(request);
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
-      notices: surface => assistantNotices(assistant!, surface), boardCursor: () => store.eventCursor(options.projectId),
-      mainline: mainlineAttention(request, localHost, hostReference), changes: listener => onAttentionChange(options.projectId, listener),
+      notices: surface => assistantNotices(assistant!, surface),
+      ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
+        : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference) }),
+      changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },
 ];

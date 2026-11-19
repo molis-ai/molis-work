@@ -51,7 +51,7 @@ const text = (value: string) => ({ type: "doc", content: [{ type: "paragraph", c
 
 interface Doc { id: string; title: string; body: unknown; version: number; goal_id: string; artifact_version: number }
 
-type EditorConfig = { doc: unknown; onChange: () => void; onCreateFromAi: (input: { title: string; text: string }) => Promise<void> };
+type EditorConfig = { doc: unknown; onChange: () => void; onCreateFromAi: (input: { title: string; text: string; request_id: string }, current: () => boolean) => Promise<void> };
 async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc: Doc, expected: number) => Response | null; template?: Partial<Doc>; update?: () => Response | null;
   /** The real Host fills an empty title back in as 未命名文档; the default here keeps what was sent. */ normalizeTitle?: boolean } = {}) {
   const store = new Map<string, Doc>(initial.map(doc => [doc.id, doc]));
@@ -152,7 +152,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   return {
     store, calls, titleInput, note, fire, parts, lifetime,
     editor: () => editorBody,
-    aiResult: async (input: { title: string; text: string }) => { await config!.onCreateFromAi(input); await flush(); },
+    aiResult: async (input: { title: string; text: string }) => { await config!.onCreateFromAi({ ...input, request_id: crypto.randomUUID() }, () => true); await flush(); },
     /** The person types: the editor and title change, and the 400 ms autosave runs unless `wait` is false (it is still pending). */
     async write(next: { title?: string; body?: unknown }, wait = true) {
       if (next.title !== undefined) { titleInput.value = next.title; await titleInput.listeners.input?.({}); }
@@ -163,7 +163,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     elapse: async (ms: number) => { t.mock.timers.tick(ms); await flush(); },
     /** The workbench shows the page without an item (its Back button, the plugin's name on the tab strip, a tab that is not an item); `fold` is whether it then folds the page to its list, as applyPluginDefault does. */
     async workbenchSelectsNothing(fold: boolean) {
-      workbench.listeners["molis-work:select-item"]!({ detail: { itemId: null } });
+      workbench.listeners["molis-work:select-item"]!(new CustomEvent("molis-work:select-item", { detail: { itemId: null }, cancelable: true }));
       if (fold) workbench.setAttribute("data-expanded", "false");
       await flush();
     },

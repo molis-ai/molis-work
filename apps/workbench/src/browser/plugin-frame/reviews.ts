@@ -22,7 +22,7 @@ function validBox(box: FrameBox | null | undefined): box is FrameBox {
 export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement,
   pageId: string, route: (path: string) => string, host: FrameHost, visible: () => boolean) {
   type Slot = { holder: HTMLDivElement; content: HTMLDivElement; lifetime: FrameScope; signal: AbortSignal;
-    show: ReturnType<typeof molisFrameReviews> };
+    show: ReturnType<typeof molisFrameReviews>; reportSize(): void };
   const slots = new Map<number, Slot>();
   const boxes = new Map<number, FrameBox | null>();
   const queries = new Map<number, UiPageReviewQuery>();
@@ -43,9 +43,12 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
     overFrame(root, frame.getBoundingClientRect(), entry.holder, entry.content, box, false);
   };
   const showEntry = async (id: number, entry: Slot, query: UiPageReviewQuery) => {
+    const { lifetime, signal } = entry;
     await entry.show(entry.content, query.runIds.map(run_id => ({ run_id })), query.sessionId ?? null, query.workspaceId ?? null,
-      { runSession: query.runSession, limit: query.limit }, { lifetime: entry.lifetime, signal: entry.signal });
-    if (queries.has(id)) layout(id);
+      { runSession: query.runSession, limit: query.limit }, { lifetime, signal });
+    if (signal.aborted || slots.get(id) !== entry) return;
+    layout(id);
+    entry.reportSize();
   };
   const close = (id: number) => {
     waiting.get(id)?.(false);
@@ -101,14 +104,20 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
               : receipt?.reconciliation ? "reconciled" : receipt?.effect_error ? "failed" : receipt?.effect_settled ? "settled" : "pending";
             if (scope.alive) port.postMessage({ type: "review-decided", id, outcome } satisfies FrameDown);
           } });
-        entry = { holder, content, lifetime, show, signal: lifetime.signal }; slots.set(id, entry);
-        const active = entry; lifetime.whenVisible(signal => { active.signal = signal; });
-        const observer = new ResizeObserver(() => {
-          if (scope.alive && (visible() || content.hidden)) {
-            port.postMessage({ type: "review-size", id, height: content.hidden ? 0 : Math.ceil(content.getBoundingClientRect().height) } satisfies FrameDown);
-          }
-        });
+        let reportedHeight: number | undefined;
+        const reportSize = () => {
+          // A visible empty holder is still waiting for content. A confirmed empty list hides its content.
+          if (!scope.alive || (!content.hidden && (!visible() || !content.hasChildNodes()))) return;
+          const height = content.hidden ? 0 : Math.ceil(content.getBoundingClientRect().height);
+          if (height === reportedHeight) return;
+          reportedHeight = height;
+          port.postMessage({ type: "review-size", id, height } satisfies FrameDown);
+        };
+        const observer = new ResizeObserver(reportSize);
         observer.observe(content); lifetime.own(() => observer.disconnect());
+        entry = { holder, content, lifetime, show, signal: lifetime.signal, reportSize };
+        slots.set(id, entry);
+        const active = entry; lifetime.whenVisible(signal => { active.signal = signal; });
       }
       const latest = queries.get(id);
       if (!latest) return;

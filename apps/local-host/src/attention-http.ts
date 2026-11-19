@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { sendLocalWebJson } from "./web-http.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 
@@ -8,7 +9,7 @@ export interface AttentionSources {
    * Background tasks running or waiting on the person, in every open project, as the plugins that own them say (`home-background-tasks.ts`).
    * Only on the Home page, whose title bar lists them; a project page reads its own tasks with its line (specs/work-line §4.5).
    */
-  backgroundTasks?(): unknown[] | Promise<unknown[]>;
+  backgroundTasks?(): HomeBackgroundTasksReadResult | Promise<HomeBackgroundTasksReadResult>;
   /** The Assistant's notices for the surface the person is on. */
   notices(surface: string | null): Promise<unknown[]>;
   /** Plugin deliveries waiting in the market; only where a project's plugins run. */
@@ -33,7 +34,7 @@ export interface AttentionSources {
  * read while the page is visible and again when the person comes back, moves to another surface or acts; the Home page's
  * title bar, the Assistant's bell and its plugin notification count, and on a project page the work line and the task panel,
  * paint from the one answer. A part whose reader fails is null and
- * the page keeps what it last showed for that part, as each separate read did before; the others still answer.
+ * the page keeps what it last showed for that part; Home also marks its background list incomplete. The others still answer.
  */
 export async function handleAttentionHttp(request: IncomingMessage, response: ServerResponse, url: URL, sources: AttentionSources): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/attention/events" && sources.changes) { attentionEvents(request, response, sources.changes); return true; }

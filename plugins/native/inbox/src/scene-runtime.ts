@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { setImmediate } from "node:timers/promises";
 import { ActionError, type ActionReference, type ActionSceneBinding, type ActionSceneConfigureOptions, type ActionSceneExecutionContext, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, publishedFunctionKey, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { PluginJudgmentsClient, PluginSceneClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -91,9 +92,8 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
     if (!item) throw new ActionError("actions.subject_unavailable", "请通过 Inbox 的“判断下一步”运行这个场景");
     return subjectOf(entry, item);
   };
-  /** In an action: the entry and a fresh read of the item's text. */
-  const fetched = async (entryId: string): Promise<{ subject: InboxJudgmentSubject; item: InboxFeedContent | null }> => {
-    const entry = options.entry(entryId);
+  /** In an action: the resolved entry and a fresh read of the item's text. */
+  const fetched = async (entry: InboxSceneEntry): Promise<{ subject: InboxJudgmentSubject; item: InboxFeedContent | null }> => {
     const item = entry.subject_type === "feed_item" ? await options.content(entry.subject_id) : null;
     return { subject: subjectOf(entry, item), item };
   };
@@ -149,9 +149,15 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
         if (record.subject.kind !== "inbox_entry" || !provenance || provenance.binding_id !== usage.binding_id || provenance.binding_revision !== usage.revision
           || provenance.function.capability_id !== usage.function.capability_id || provenance.function.version !== usage.function.version || provenance.function.provider_id !== usage.function.provider_id) continue;
         let subject: InboxJudgmentSubject;
-        try { subject = (await fetched(record.subject.id)).subject; }
-        catch (error) { if (error instanceof Error && "code" in error && (error.code === "inbox.entry_not_found" || error.code === "feed.item_not_found")) continue; throw error; }
-        if (OPEN(subject.status) && subjectRevision(subject) === provenance.subject_revision) held.push(record);
+        try {
+          const entry = options.entry(record.subject.id);
+          if (!OPEN(entry.status)) continue;
+          subject = (await fetched(entry)).subject;
+        } catch (error) {
+          if (error instanceof Error && "code" in error && (error.code === "inbox.entry_not_found" || error.code === "feed.item_not_found")) continue;
+          throw error;
+        }
+        if (subjectRevision(subject) === provenance.subject_revision) held.push(record);
       }
       return { judgments: held };
     },
@@ -169,16 +175,23 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
     evaluateJudgment: async (ids, caller) => {
       // The running action as the dispatcher resolved it, provider included: a client's grant names the provider, so a bare reference would read as revoked.
       const effect = async () => { await caller.validate_authority?.(caller.current_action ?? inboxActions.evaluateJudgment); };
-      const reads = await Promise.all([...new Set(ids)].map(fetched));
+      const reads: Awaited<ReturnType<typeof fetched>>[] = [];
+      // Local queries and fixed rules can finish entirely in microtasks. Give requests and cancellation a turn between entries;
+      // all inputs are still read and checked before the first judgment, and every scene retains its own live effect checks.
+      for (const id of new Set(ids)) {
+        await setImmediate();
+        reads.push(await fetched(options.entry(id)));
+      }
       if (reads.some(({ subject }) => !OPEN(subject.status))) throw new ActionError("actions.subject_unavailable", "已完成或已忽略的事项请先重新打开");
       const content = new Map<string, InboxFeedContent>();
       for (const { item } of reads) if (item) content.set(item.item_id, item);
       const results: JudgmentRecord[] = [];
       for (const { subject } of reads) {
+        await setImmediate();
         results.push(await withStagedFeedContent(content, () => scenes.runScene(inboxNextScene, inboxSceneBindingId(projectId), { entry_id: subject.entry_id }), effect) as JudgmentRecord);
         // The model took time: the item's text is read again, and a judgment on text that has since changed is reported as one. It stays in
         // the ledger but no longer matches the entry (`recommendations` compares its text), so it is never adopted.
-        const after = await fetched(subject.entry_id);
+        const after = await fetched(options.entry(subject.entry_id));
         if (after.subject.revision !== subject.revision || after.subject.status !== subject.status || after.subject.content !== subject.content) {
           throw new ActionError("actions.subject_changed", "判断期间事项或原始内容已变化，请重新判断");
         }

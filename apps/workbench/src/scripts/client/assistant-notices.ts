@@ -162,6 +162,13 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
     loadNotices();
   };
+  // The Assistant's own look at the project's automation (specs/automation-recommender §7): asked once as a project opens. The Host decides
+  // whether there is anything not said before; if so its card is in the project's conversation, and the Dock lights from the next read.
+  if (project) setTimeout(() => {
+    if (document.hidden) return;
+    molisWorkRequest(host.route("/api/automation/recommendations/offer"), { method: "POST", body: {} })
+      .then((result) => { if (result && result.offered) loadNotices(); }, () => { /* nothing to say is said by saying nothing */ });
+  }, 1500);
   noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden));
   document.addEventListener("molis-work:attention-refresh", () => readBadge());
   document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });

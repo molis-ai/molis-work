@@ -19,6 +19,8 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 const mac = { skip: process.platform !== "darwin", timeout: 180_000 };
 const panel = `[data-project-reach="${REACH_PLUGIN_ID}"]`, ownerFrame = `iframe[src*="/plugins/${REACH_PLUGIN_ID}?"]`;
+const projectStage = `[data-work-surface="${REACH_PLUGIN_ID}"][data-plugin-page-source]`;
+const projectFrame = `${projectStage} > iframe[data-plugin-frame="${REACH_PLUGIN_ID}"]`;
 const homeDetails = `[data-plugin-trust-home] details:has(${panel})`;
 
 async function fixture(t: TestContext) {
@@ -30,6 +32,14 @@ async function fixture(t: TestContext) {
   }
   const client = f.host.actionClient(a.reference), preview = await client.invoke(person(a.project_id), ref(pluginInstallActions.preview), { bundle: projectReachPackage(publisher) }) as { preview_id: string };
   await client.invoke(person(a.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Reach publisher" });
+  // QEA-140: give the Home package its own call permission. Project reach is still a separate agreement.
+  const installId = f.host.homePlugins!.installation(REACH_PLUGIN_ID)?.install_id;
+  assert.ok(installId);
+  const granted = await f.request("/api/settings/plugin-permissions/set", {
+    method: "POST", body: { install_id: installId, permission: "capabilities:call", granted: true },
+  });
+  assert.equal(granted.status, 200, await granted.clone().text());
+  assert.equal((await granted.json()).changed, true);
   const ledger = new HomeConsentLedger(f.home);
   const state = (project: typeof a) => f.host.actionClient(project.reference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["goals:read"] },
     ref(goalPluginActions.state), { goal_id: REACH_GOAL_ID }) as Promise<GoalEventWorkStateView>;
@@ -105,14 +115,22 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
     await page.click("[data-directory-panel=project-settings] [data-settings-section=plugins]");
     await openReach();
   };
+  const projectFrameReady = async (project = f.a) => {
+    await page.wait(`document.querySelector('${projectFrame}')?.getClientRects().length > 0`, {
+      describe: `document.querySelector('${projectStage}')?.dataset.uiClientState`,
+    });
+    const source = await page.evaluate<string>(`document.querySelector('${projectStage}').dataset.pluginPageSource`);
+    const url = new URL(source, f.origin);
+    assert.equal(url.pathname, `/projects/${project.project_id}/plugins/${REACH_PLUGIN_ID}`);
+    assert.equal(url.searchParams.get("frame"), "workbench");
+    // The installed component reports when its update and the frame's action bindings are ready.
+    await child.waitFor("globalThis.__molisPluginReady === true && !!document.querySelector('[data-field=text]')");
+  };
   const openPackage = async (project = f.a) => {
     await navigate(`/projects/${project.project_id}/`);
     await page.wait("!!document.querySelector('[data-plugin-picker-toggle]')"); await page.click("[data-plugin-picker-toggle]");
-    const surface = f.host.homePlugins!.packageStage(REACH_PLUGIN_ID)!.pluginId;
-    await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${surface}"]`);
-    await page.wait(`document.querySelector('${ownerFrame}')?.getClientRects().length > 0`);
-    assert.ok((await page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${project.project_id}/plugins/`));
-    await child.waitFor("!!document.querySelector('[data-field=text]')");
+    await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${REACH_PLUGIN_ID}"]`);
+    await projectFrameReady(project);
   };
   const submit = async (text: string) => {
     await child.click("[data-field=text]");
@@ -149,17 +167,24 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
     await page.wait(`document.querySelector('${homeDetails} > summary')?.innerText.includes(' · ${version}')`);
     await openReach();
   };
-  return { page, child, openSettings, openPackage, submit, decide, upgrade, resize, navigate, reload, close };
+  return { page, child, openSettings, openPackage, projectFrameReady, submit, decide, upgrade, resize, navigate, reload, close };
 }
 
-test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
+test("QEA-145 QEA-204 RAC-2644–2649 S-107 actual project settings show each action once and retain A through signed File upgrade and withdrawal", mac, async t => {
   const f = await fixture(t), ui = await browserFixture(t, f);
   try {
+  const declarations = () => ui.page.evaluate<{ heading: string; actions: string[] }[]>(`[...document.querySelectorAll('${panel} .plugin-trust-rows')].map(list => ({
+    heading: list.previousElementSibling.textContent,
+    actions: [...list.children].map(row => row.firstElementChild.textContent).sort(),
+  }))`);
+  const existingActions = [goalPluginActions.state.action.title, goalPluginActions.progress.action.title].sort();
+  const existingGroups = [{ heading: "包含的功能操作", actions: existingActions }];
   const b0 = await f.state(f.b), a0 = await f.state(f.a);
   await ui.openPackage(); await ui.submit("unapproved page must not write");
   await ui.child.waitFor("document.body.innerText.includes('同意')"); assert.deepEqual(await f.state(f.a), a0);
   await ui.openSettings();
   assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /未同意/u);
+  assert.deepEqual(await declarations(), existingGroups);
   const initial = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false);
   assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), initial, "cancel sends no agreement mutation");
   await ui.decide("grant", true);
@@ -168,8 +193,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
   await ui.openPackage(); await ui.submit("A from the actual workbench");
   await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A from the actual workbench"); assert.deepEqual(await f.state(f.b), b0);
-  await ui.reload(); await ui.child.waitFor("!!document.querySelector('[data-field=text]')");
-  assert.ok((await ui.page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${f.a.project_id}/plugins/`));
+  await ui.reload(); await ui.projectFrameReady();
   await ui.submit("A after refresh"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A after refresh");
   const caller: ActionCallContext = { actor_id: "reach-agent", audience: "agent", project_id: f.a.project_id, permissions: [] }, client = f.host.actionClient(f.a.reference);
@@ -177,15 +201,18 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A agent using the same agreement");
   await ui.openSettings(); await ui.upgrade("1.1.0");
   assert.deepEqual(f.ledger.consent(original.consent_id), original); assert.notEqual(f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest, original.manifest_digest);
+  assert.deepEqual(await declarations(), existingGroups);
   await ui.openPackage(); await ui.submit("A after the same-declaration File upgrade"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
   assert.equal((await f.state(f.a)).progress_summary!.summary, "A after the same-declaration File upgrade");
   await ui.openSettings();
   await ui.upgrade("1.2.0", "model.generate");
   assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /新版本增加了可执行的动作/u);
   const blocked = await f.state(f.a); await ui.openPackage(); await ui.submit("A before renewed agreement");
-  await ui.child.waitFor("document.body.innerText.includes('新版本增加了可执行的动作')"); assert.deepEqual(await f.state(f.a), blocked);
+  await ui.child.waitFor("document.body.innerText.includes('声明的动作增加，请在这个项目的设置里重新确认')");
+  assert.deepEqual(await f.state(f.a), blocked);
   await ui.openSettings();
   const expanded = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false); assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), expanded);
+  assert.deepEqual(await declarations(), [{ heading: "本次新增的动作", actions: ["调用模型"] }, ...existingGroups]);
   const agreement = await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`);
   for (const title of ["写作项目 A", goalPluginActions.state.action.title, goalPluginActions.progress.action.title, "费用计入你的模型服务"]) assert.ok(agreement.includes(title), title);
   for (const internal of [f.a.project_id, original.subject, "goals.progress.record", "model.generate"]) assert.ok(!agreement.includes(internal), "the approval explains actions without internal identity: " + internal);
@@ -198,6 +225,7 @@ test("RAC-2644–2649 S-107 actual project settings, signed File upgrade and wor
     await ui.page.screenshot(join(screenshots, `approval-expanded-${width}.png`));
   }
   await ui.resize(); await ui.decide("grant", true);
+  assert.deepEqual(await declarations(), [{ heading: "包含的功能操作", actions: [...existingActions, "调用模型"].sort() }]);
   const current = f.ledger.consents(REACH_PLUGIN_ID).find(row => row.kind === "project_reach" && !row.revoked_at)!;
   assert.notEqual(current.consent_id, original.consent_id); assert.ok(current.approved_capability_ids!.includes("model.generate"));
   assert.equal(current.manifest_digest, f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest);

@@ -60,12 +60,17 @@ async function openTab(t: TestContext, b: IssueBrowser, path: string, plugin?: s
 
 function observeAppearance(b: IssueBrowser) {
   const streams = new Map<ServerResponse, URL>();
+  const attention = new Map<ServerResponse, string>();
   const opened: URL[] = [], reads: Array<{ source: URL; status: number }> = [];
   let onStream: ((response: ServerResponse, source: URL) => void) | undefined;
   b.server.prependListener("request", (request, response) => {
     if (request.method !== "GET") return;
-    const pathname = new URL(request.url ?? "/", b.origin).pathname;
+    const { pathname, search } = new URL(request.url ?? "/", b.origin);
     const source = new URL(request.headers.referer ?? "/", b.origin);
+    if (pathname.endsWith("/api/attention/events")) {
+      attention.set(response, pathname + search);
+      response.once("close", () => attention.delete(response));
+    }
     if (pathname === appearance + "/events") {
       opened.push(source);
       streams.set(response, source);
@@ -73,7 +78,7 @@ function observeAppearance(b: IssueBrowser) {
       onStream?.(response, source);
     } else if (pathname === appearance) response.once("finish", () => reads.push({ source, status: response.statusCode }));
   });
-  return { streams, opened, reads, onStream(callback: typeof onStream) { onStream = callback; } };
+  return { streams, attention, opened, reads, onStream(callback: typeof onStream) { onStream = callback; } };
 }
 
 async function seedOutputFile(b: IssueBrowser, projectId: string) {
@@ -140,7 +145,7 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still read a p
   t.diagnostic(JSON.stringify({ third, fourth: traffic.streams.size, embeddedStreams: traffic.opened.filter(source => source.pathname !== workbench).length }));
 });
 
-test("FSS-06 FSS-07 three chooser windows keep their selected project and leave a connection for a project file", { timeout: 100_000 }, async t => {
+test("FSS-06 FSS-07 QEA-169 three chooser windows keep their selected project and leave a connection for a project file", { timeout: 100_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
     ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
   if (!b) return;
@@ -174,6 +179,7 @@ test("FSS-06 FSS-07 three chooser windows keep their selected project and leave 
   const fourth = await openOutputFile(t, b, project + "/", file);
   assert.deepEqual(chooserStreams, ["/", "/", "/"]);
   assert.equal(traffic.streams.size, 4);
+  assert.deepEqual([...traffic.attention.values()], ["/api/attention/events"], "these four windows share a single attention stream");
   assert.ok(traffic.opened.every(source => source.pathname === "/" || source.pathname === project + "/"));
 
   const readsBeforeChange = traffic.reads.length;

@@ -19,7 +19,7 @@ import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherK
 import { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
 import { SkillAuthoringService, draftSkill } from "./skill-authoring.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { hostTextForCommit, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
 import type { SkillAuthoring } from "./plugin-install-actions.js";
 import { bundledPackagesDirectory } from "./bundled-packages.js";
 
@@ -109,7 +109,7 @@ function skillPackagePorts(home: string, source: ProjectPluginHost, install: Plu
  */
 export function skillAuthoringFor(home: string, source: ProjectPluginHost, install: PluginInstallService,
   resolveProject?: (projectId: string) => Promise<LocalHostProjectReference | null>, completion?: HostCompleteText | null): SkillAuthoring {
-  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const model = () => hostTextForCommit(home, completion);
   return {
     service: new SkillAuthoringService({ ...skillPackagePorts(home, source, install, resolveProject),
       uninstall: async (scope, who, caller) => {
@@ -138,7 +138,8 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
   return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
-    installInProject: (projectId, release, check) => installPackageInProject(source, projectId, release, check), installInHome: (release, check) => installPackageInHome(source, release, check),
+    installInProject: (projectId, release, check, complete) => installPackageInProject(source, projectId, release, check, complete),
+    installInHome: (release, check, complete) => installPackageInHome(source, release, check, complete),
     presentationCatalog: projectId => installationPresentationCatalog(source, projectId),
     runHomeInstallation: operation => {
       const host = source.homePlugins();

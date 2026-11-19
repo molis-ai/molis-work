@@ -19,7 +19,8 @@ if (mode === "replay") {
     ], [file + "-journal", peer + "-journal", join(dirname(file), marker)]);
   } finally { lease.release(); }
   process.exitCode = 1; // Reaching here would miss the requested kill window.
-} else if (mode === "host-pair") await runHostPair(root);
+} else if (mode === "acceptance-pair") await runAcceptancePair(JSON.parse(root));
+else if (mode === "host-pair") await runHostPair(root);
 else runWrite();
 
 function runWrite() {
@@ -90,4 +91,25 @@ async function runHostPair(subject) {
       db.prepare("UPDATE peer.datasets SET artifact_id=?, artifact_version=1, version=2 WHERE id=?").run(artifact, subject);
     });
   } finally { writer.close(); }
+}
+
+// QEA-86: use the real HTTP approval entry; test-only triggers lengthen its native COMMIT window.
+async function runAcceptancePair({ home, projectId, lookup }) {
+  const { MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken } = await import("@molis-ai/molis-work-app-local-host");
+  const { createDesktopWebCore } = await import("@molis-ai/molis-work-app-desktop");
+  const { LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "unused" })({ homeDirectory: home, localHost: host });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const web = new LocalHostHttpClient({ origin: `http://127.0.0.1:${server.address().port}`, controlToken: resolveWebControlToken({ homeDirectory: home }) });
+  try {
+    await host.withProject(molisWorkHostProjectReference({ databasePath: file, projectId }), ({ store }) => store.db.exec("PRAGMA cache_spill=OFF"));
+    const path = `/projects/${projectId}/api/project-approvals`;
+    const review = await web.post(path + "/request", lookup);
+    await web.post(path + "/decide", { reference: review.reference, choice_id: "accept_all", request_key: "qea-interrupted-acceptance" });
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+  }
 }

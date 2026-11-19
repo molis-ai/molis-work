@@ -395,6 +395,10 @@
     "feed.sources.pull-failed-reason": "拉取失败。{reason}",
     "feed.sources.source-added": "来源已添加。",
     "feed.sources.source-added-pull-schedule-wasn-t-saved": "来源已添加，拉取计划未保存。",
-    "feed.runs.source-title": "Feed 来源"
+    "feed.runs.source-title": "Feed 来源",
+    "feed.add-source.other-account": "其他服务的账号",
+    "feed.add-source.other-account-hint": "服务连接里的其他账号",
+    "feed.ui.other-account-explain": "账号在「设置 › 服务连接」中管理。先建来源，再在来源设置里选用哪个账号；只列出 Feed 能按账号拉取的服务。",
+    "feed.ui.account-service": "服务"
   }
 }

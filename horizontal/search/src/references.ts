@@ -27,6 +27,7 @@ async function ownerRead(access: ReferenceAccess, subject: ActionSubject): Promi
     const { context } = await resolveActionSubject(access.client, nested, subject);
     return { label: context.title || subject.id, revision: context.revision };
   } catch {
+    access.caller.signal?.throwIfAborted();
     return null;
   }
 }

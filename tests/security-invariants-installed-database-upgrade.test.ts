@@ -253,43 +253,61 @@ test("UPG-04 UPG-09 switching the Home plugin off before publish keeps the origi
   assert.deepEqual(table.map(row => row.name), ["id", "text"]);
 });
 
+// QEA-137: both scopes refuse cancelled or unauthorized replies after a real SQL commit.
 test("UPG-06 UPG-09 cancellation after the SQL commit preserves the new installation and its action directory", mac, async t => {
-  for (const mode of ["cancel", "authority"] as const) await t.test(mode, t => assertPostCommitAuthority(t, mode));
+  for (const scope of ["project", "home"] as const) {
+    for (const mode of ["cancel", "authority"] as const) await t.test(`${scope}: ${mode}`, t => assertPostCommitAuthority(t, scope, mode));
+  }
 });
 
-async function assertPostCommitAuthority(t: TestContext, mode: "cancel" | "authority") {
+async function assertPostCommitAuthority(t: TestContext, scope: Scope, mode: "cancel" | "authority") {
   const home = await openTestHome(t), project = await home.createProject("Cancel after commit");
-  const publisher = newPublisher(), initial = packageAt(publisher, "project", "1.0.0");
+  const publisher = newPublisher(), initial = packageAt(publisher, scope, "1.0.0");
+  const next = packageAt(publisher, scope, "1.1.0");
   await install(home, project, initial);
+  if (scope === "home") {
+    const runtime = (await home.host.homePlugins!.ready()).runtime;
+    await runtime.regrant(home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, "home-database:read", true);
+  }
   const controller = new AbortController(), prototype = ChildProcess.prototype as ChildProcess & { spawn(options: { args: readonly string[] }): void };
   const spawnChild = prototype.spawn;
-  let upgrade = false, committed = false;
+  let upgrade = false, commits = 0;
   t.mock.method(prototype, "spawn", function(this: ChildProcess, options: { args: readonly string[] }) {
     const started = Reflect.apply(spawnChild, this, [options]);
     if (options.args.some(arg => arg.endsWith("/project-statement-worker.js"))) {
       const send = this.send;
       t.mock.method(this, "send", function(this: ChildProcess, ...args: Parameters<ChildProcess["send"]>) {
-        if ((args[0] as { op?: string })?.op === "upgrade-project-database") upgrade = true;
+        if ((args[0] as { op?: string })?.op === `upgrade-${scope}-database`) upgrade = true;
         return Reflect.apply(send, this, args);
       });
       this.prependListener("message", message => {
         if (!upgrade || !(message as { ok?: boolean }).ok) return;
         upgrade = false;
-        committed = true;
+        commits++;
         if (mode === "cancel") controller.abort();
       });
     }
     return started;
   });
-  await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0"), {
+  await assert.rejects(install(home, project, next, {
     signal: controller.signal,
-    assert_authority_current: () => { if (mode === "authority" && committed) throw new ActionError("actions.forbidden", "This test caller lost authority"); },
+    assert_authority_current: () => { if (mode === "authority" && commits) throw new ActionError("actions.forbidden", "This test caller lost authority"); },
   }), { code: mode === "cancel" ? "actions.cancelled" : "actions.forbidden" });
-  const caller = { ...person(project), permissions: ["storage:private"] }, client = home.host.actionClient(project.reference);
+  assert.equal(commits, 1, "the real SQL worker sent its success reply");
+  const caller = { ...person(project), project_id: scope === "home" ? null : project.project_id, permissions: ["storage:private", "home-database:read"] };
+  const client = scope === "home" ? home.host.homeActionClient() : home.host.actionClient(project.reference);
   const ready = (await client.discover(caller)).find(view => view.provider.plugin_id === PACKAGE_PLUGIN_ID && view.capability_id.endsWith(".notes.list"));
   assert.ok(ready?.availability.available);
   assert.deepEqual(await client.invoke(caller, { capability_id: ready.capability_id, version: ready.version, provider_id: ready.provider.provider_id }, {}), []);
-  assert.deepEqual(readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)").map(row => row.name), ["id", "text", "format"]);
+  assert.deepEqual(readDatabase(home, project, scope, initial, "PRAGMA table_info(upgrade_notes)").map(row => row.name), ["id", "text", "format"]);
+  const runtimePath = scope === "home" ? join(home.home, "plugin-runtime", "plugin-runtime.db") : project.database_path;
+  const db = new DatabaseSync(runtimePath, { readOnly: true });
+  try {
+    const row = db.prepare("SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = ?").get(PACKAGE_PLUGIN_ID);
+    assert.deepEqual({ ...row }, { version: "1.1.0", state: "running" });
+  } finally { db.close(); }
+  await assert.rejects(install(home, project, next), { code: "plugin.upgrade_required" });
+  assert.equal(commits, 1, "confirming the same committed edition does not repeat the migration");
 }
 
 test("UPG-03 UPG-06 a killed Host recovers the library, approval and enabled installation before normal startup", mac, async t => {

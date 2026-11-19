@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { assertNoPendingArtifactRows, recoverHomeArtifactRows } from "./home-artifact-recovery.js";
+import { assertNoPendingArtifactRows, recoverHomeLibraryTransactions } from "./home-library-recovery.js";
 import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
 import { lstatSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
@@ -389,7 +389,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
     if (installed.unavailable === 0) writeUpgradeNotice(root, installed);
     options.onUnitDone?.();
   }
-  recoverHomeArtifactRows(root, owner, options.expectedSpace);
+  recoverHomeLibraryTransactions(root, owner, options.expectedSpace);
   assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
   if (stamp === fingerprint) return NOTHING;

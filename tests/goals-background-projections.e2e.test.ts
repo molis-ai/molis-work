@@ -29,7 +29,7 @@ test("QEA-114 returning to a Goal reads artifact and input owners even after its
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await openDocument();
   await b.waitFor("document.querySelector('[data-goal-input-fixed]')?.textContent.includes('Projection brief')");
-  await b.click('[data-dock-pin="home"]');
+  await b.click('[data-corner-home]');
   await b.waitFor("document.body.dataset.desktopSurface === 'home'");
   await b.evaluate("globalThis.__retainedGoalDocument = document.querySelector('[data-goal-event-document]')");
   const goalCursor = boardSnapshot(b.store, DEMO_PROJECT_ID).cursor;

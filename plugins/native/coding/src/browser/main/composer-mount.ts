@@ -8,7 +8,7 @@ import { chooseIntent, configurationChanged, drawIntents, refreshState, remember
 import { codingImages } from "./images.js";
 import { terminal, unread } from "./composer-state.js";
 import { controls, counts } from "./controls.js";
-import { currentSelection } from "./composer.js";
+import { currentSelection, failedMaterialsOf, selectionMaterialKey } from "./composer.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { retitleMethodControls } from "./methods.js";
@@ -127,29 +127,46 @@ function missing(page: Page): string | null {
  * person said who goes first when other work names the same files. Only a send that went clears the box (the composer's rule);
  * one whose answer was lost fails, and its retry goes under the same key (input-receipts.ts).
  */
-async function submit(page: Page, id: string, input: ComposerSubmission): Promise<ComposerOutcome> {
+async function submit(page: Page, id: string, input: ComposerSubmission, acknowledge: () => void): Promise<ComposerOutcome> {
   const { readText, refs, s } = page;
   if (s.current !== id || s.sending) return { state: "failed", message: readText("coding.composer.busy") };
   // A chosen prompt command (A2) makes the task: its text with what was typed as the argument.
-  const run = s.lastRun, task = refs.prompts?.task(input.text) ?? input.text;
+  const run = s.lastRun, task = refs.prompts?.task(input.text) ?? input.text, intent = s.intent, model = refs.composerModels.value();
   // Pictures go with the task of a new round; words sent into a round under way carry none (the round's own were fixed when it began).
   const images = refs.images?.take(input.materials) ?? [];
   if (run && !terminal(run.phase) && images.length) return { state: "failed", message: readText("coding.images.next-round") };
-  const selection: RoundSelection = { ...currentSelection(page, id), action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []), ...(images.length ? { images } : {}) };
+  const picks = input.materials.flatMap(item => item.kind === "material" ? [{ ref: item.ref, title: item.title }] : []);
+  const saved = currentSelection(page, id), materials = [...saved.materials];
+  const selected = new Set(materials.map(selectionMaterialKey));
+  for (const pick of picks) if (!selected.has(selectionMaterialKey(pick))) { selected.add(selectionMaterialKey(pick)); materials.push(pick); }
+  const selection: RoundSelection = { ...saved, materials, action_tools: structuredClone(s.actionSelections.get(id) || []), writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []), ...(images.length ? { images } : {}) };
   s.sending = true;
   s.composerSending = true;
   controls(page);
   try {
     rememberConfiguration(page);
     await refs.draft.flush();
-    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary"));
-    else if (!await startFromComposer(page, id, task, selection, s.intent, refs.composerModels.value())) return { state: "failed", message: readText("coding.composer.cancelled") };
+    if (run && !terminal(run.phase)) status(page, await refs.inputReceipts.steer(id, run.ref.run_id, task, input.delivery ?? "next-boundary", picks, acknowledge));
+    else if (!await startFromComposer(page, id, task, selection, intent, model)) return { state: "failed", message: readText("coding.composer.cancelled") };
     refs.prompts?.sent();
     surfaceChanged(page, id);
     void refreshState(page).then(() => readCurrent(page)).catch(error => status(page, errorMessage(error), true));
     return { state: "sent" };
   } catch (error) {
-    return { state: "failed", message: errorMessage(error) };
+    const sentMaterials = run && !terminal(run.phase) ? picks : materials;
+    const failures = failedMaterialsOf(error);
+    const unreadable = input.materials.flatMap((item, index) => {
+      if (item.kind !== "material") return [];
+      const key = selectionMaterialKey(item), failed = failures?.find(one => (one.key ?? selectionMaterialKey(sentMaterials[one.index ?? -1])) === key);
+      return failed ? [{ index, reason: failed.reason }] : [];
+    });
+    const savedKeys = new Set((s.materialSelections.get(id) || []).map(selectionMaterialKey));
+    const stripKeys = new Set(unreadable.map(item => selectionMaterialKey(input.materials[item.index])));
+    const failedKeys = failures?.map(item => item.key ?? selectionMaterialKey(sentMaterials[item.index ?? -1]));
+    // startRound has drawn the saved selections' recovery. Each remaining failed choice is marked in the input's own strip.
+    const pageFeedback = s.current === id && !(run && !terminal(run.phase)) && failedKeys?.some(key => savedKeys.has(key))
+      && failedKeys.every(key => savedKeys.has(key) || stripKeys.has(key));
+    return { state: "failed", message: errorMessage(error), ...(pageFeedback ? { feedback: "page" } : {}), ...(unreadable.length ? { unreadable } : {}) };
   } finally {
     s.sending = false;
     s.composerSending = false;
@@ -174,7 +191,7 @@ export function mountCodingComposer(page: Page, id: string) {
   }) : null;
   const images = refs.images;
   refs.composer = window.molisComposer(q("[data-coding-input]"), {
-    kind: "ai", entry: "session", labels: refs.composerLabels, sources: false,
+    kind: "ai", entry: "session", labels: refs.composerLabels, sources: true,
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),
     receiver: () => {
       const session = s.current ? s.state.sessions.find(item => item.session_id === s.current) : undefined;
@@ -200,7 +217,7 @@ export function mountCodingComposer(page: Page, id: string) {
       pictures: { label: readText("coding.images.strip"), open: readText("coding.images.open"), close: readText("coding.images.close") } } } : {}),
     required: () => missing(page),
     notice: () => (images && refs.composer ? images.notice(refs.composer) : null) ?? readOnlyNotice(page),
-    submit: input => submit(page, id, input),
+    submit: (input, _signal, acknowledge) => submit(page, id, input, acknowledge),
   });
 }
 

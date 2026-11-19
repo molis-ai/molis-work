@@ -24,6 +24,19 @@ test('S-126 PCSYNC-11/13 owner projects raw file bytes and large bodies without 
   await assert.rejects(()=>codec.decode(key,encoded.value,async()=>Buffer.from('corrupt')),/校验失败/);
 });
 
+test("QEA-80: sync carries exact historical and current import warnings with their fixed versions", async () => {
+  const codec = createArtifactSyncContent("space-alice");
+  const original = value({ content: "Earlier import", warnings: ["旧版本保存的原话。"] });
+  const prior = { ...original.artifact.versions[0]!, schema_version: 1 };
+  const current = { ...prior, version: 2, schema_version: 2, payload: {
+    content: "Later import", warnings: [{ key: "workbench.import.warning-transcription-model-size", args: [{ name: "megabytes", kind: "number", number: 626 }] }],
+  } };
+  const snapshot = { ...original, artifact: { ...original.artifact, versions: [prior, current] } };
+  const encoded = codec.encode(key, snapshot);
+  const restored = await codec.decode(key, encoded.value, async ref => encoded.blobs.find(blob => blob.digest === ref.digest)!.bytes);
+  assert.deepEqual(restored, snapshot);
+});
+
 for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refuses and preserves an existing v${version} file`,t=>{
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));

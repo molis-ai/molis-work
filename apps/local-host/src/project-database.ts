@@ -9,8 +9,8 @@ import fs from 'node:fs';
 import { existsSync } from "node:fs";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { openProjectPluginDatabases, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
-import { artifactRowLibraryDeclarations } from "./artifact-row-library-declarations.js";
-import { assertArtifactLibraryReady, assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
+import { assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
+import { assertSqliteLibraryReady } from "@molis-ai/molis-work-storage";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
@@ -29,13 +29,13 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
 
   constructor(path: string, options: { existingOnly?: boolean; homeStorage?: { home: string; owner: StorageOwner } } = {}) {
     const home = managedProjectHome(path);
-    const candidateHome = home && pathUtil.basename(path) === "molis-work.db" && artifactRowLibraryDeclarations().length > 0 ? fs.realpathSync(home) : undefined;
+    const candidateHome = home && pathUtil.basename(path) === "molis-work.db" ? fs.realpathSync(home) : undefined;
     if (candidateHome) {
       path = pathUtil.join(candidateHome, "projects", pathUtil.basename(pathUtil.dirname(path)), "molis-work.db");
-      assertArtifactLibraryReady(path);
+      assertSqliteLibraryReady(path);
     }
     const existing = existsSync(path), held = options.homeStorage;
-    const project = candidateHome && existing && held?.home === candidateHome ? catalogArtifactProject(path, held) : undefined;
+    const project = candidateHome && existing && held?.home === candidateHome ? catalogOwnedProject(path, held) : undefined;
     // Existing candidate files retain their current mode even when opened by an independent Goals or catalog entry.
     super(inspectDatabase(path, options.existingOnly ?? false, home, project),
       { fileMustExist: options.existingOnly, journalMode: candidateHome && existing ? "preserve" : undefined });
@@ -49,7 +49,7 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
       if (project) {
         this.db.pragma("synchronous=EXTRA");
         // Leaving WAL needs the file to itself. While another connection still holds it (an independent Goals or catalog entry opened
-        // first) the project opens as it is: only pinning needs the rollback journal, and it checks the mode before every transaction.
+        // first) the project opens as it is: joint Home writes need the rollback journal, and it checks the mode before every transaction.
         let mode: unknown;
         try { mode = this.db.pragma("journal_mode=DELETE", { simple: true }); }
         catch (error) { if (sqliteErrorName(error) !== "SQLITE_BUSY") throw error; mode = "wal"; }
@@ -67,7 +67,7 @@ function managedProjectHome(path: string): string | undefined {
 }
 
 /** Only a project this Home actually owns can change its journal mode. */
-function catalogArtifactProject(path: string, held: { home: string; owner: StorageOwner }): { space: StorageSpace; id: string } | undefined {
+function catalogOwnedProject(path: string, held: { home: string; owner: StorageOwner }): { space: StorageSpace; id: string } | undefined {
   assertStorageOwner(agentRuntimeDirectory(held.home), held.owner);
   const space = readStorageSpace(held.home);
   if (space && projectDatabases(held.home, space).includes(pathUtil.relative(held.home, path))) return { space, id: pathUtil.basename(pathUtil.dirname(path)) };

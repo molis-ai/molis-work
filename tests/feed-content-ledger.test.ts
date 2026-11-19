@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +15,25 @@ import type { PluginBackgroundClient, PluginJobControl, PluginManifest, PluginSq
 // RAC-494 and RAC-2718 (the ledger half; the project half comes with Feed's move into the Runtime).
 
 const noEffect = async () => {};
+test("QEA-08 connection waits release abort listeners after changes and cancellation without losing a pending change", async () => {
+  const watch = createConnectionWatch(), stop = new AbortController();
+  for (let index = 0; index < 12; index += 1) {
+    const next = watch.next(stop.signal);
+    assert.equal(getEventListeners(stop.signal, "abort").length, 1);
+    watch.changed();
+    await next;
+    assert.equal(getEventListeners(stop.signal, "abort").length, 0);
+  }
+  watch.changed(); watch.changed();
+  await watch.next(stop.signal);
+  assert.equal(getEventListeners(stop.signal, "abort").length, 0, "changes while busy coalesce into an immediate next pass");
+  const cancelled = watch.next(stop.signal);
+  assert.equal(getEventListeners(stop.signal, "abort").length, 1, "the pending change was consumed");
+  stop.abort();
+  await cancelled;
+  await watch.next(stop.signal);
+  assert.equal(getEventListeners(stop.signal, "abort").length, 0);
+});
 function libraryAt(file: string, timeout = 5_000) {
   const db = openTestSqlite(file, { timeout });
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];

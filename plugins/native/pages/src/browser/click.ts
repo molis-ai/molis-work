@@ -135,7 +135,10 @@ async function documentClick(page: PagesPage, event: MouseEvent, hit: Hit): Prom
     return;
   }
   if (hit("[data-pages-back]")) {
+    const seq = ++page.selectionSeq;
+    page.openingId = null;
     await persist(page);
+    if (seq !== page.selectionSeq) return;
     page.dirty = false;
     const left = blankLeaving(page);
     closeEditor(page);

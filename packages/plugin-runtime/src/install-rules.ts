@@ -111,7 +111,7 @@ export function defaultGrants(manifest: PluginManifest, installs: readonly Plugi
  * Why an install that did not finish cannot be taken back (`abandonInstall`), or undefined when it can. `installed` is
  * the record that install returned, `earlier` the uninstalled record it replaced (none for a first-ever install, which
  * has nothing to go back to and is marked uninstalled with nothing kept). Only the installation `installed` names, while
- * the row still holds it, is undone. A row another install has replaced is not touched, and neither is one that is
+ * the row still holds that edition, is undone. A row someone upgraded or replaced is not touched, and neither is one that is
  * uninstalled at the attempt's own installation generation: the install did not do that, so someone else did, and
  * their choice about the kept data stands. Both refuse with `plugin.install_replaced`, so the caller leaves everything
  * that belongs to the newer install or to that choice alone. A row back at `earlier` already is what this asks for.
@@ -121,8 +121,8 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
     return pluginErrors.state_invalid("只能退回到同一安装、已卸载的记录");
   }
   if (earlier && current.installation_generation === earlier.installation_generation) return undefined;
-  if (current.installation_generation !== installed.installation_generation || current.state === "uninstalled") {
-    return pluginErrors.install_replaced("这次安装已经被另一次安装替换，或已被卸载，不能退回");
+  if (!holdsInstalledEdition(current, installed)) {
+    return pluginErrors.install_replaced("这次安装已经换版、被另一次安装替换或卸载，不能退回");
   }
   return undefined;
 }

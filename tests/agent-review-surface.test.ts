@@ -335,7 +335,7 @@ test("RING-07 review rings distinguish approval, pending effect, success, failur
   }
 });
 
-test("BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
+test("QEA-21 BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
   const denied = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
   const onlyReject = row({ decisions: { approve: denied, reject: { available: true } } });
   const html = renderAgentReviewSurface({ rows: [onlyReject], primitives: p });

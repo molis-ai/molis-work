@@ -3,11 +3,13 @@
 // turns them on and off in Settings, and an operation that needs one that is off is refused before any of its code runs, whichever door
 // it came through. The installation, its data and its signed package stay as they were.
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, actionReachesAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { platformPermissionMeaning, type PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { pluginComponentChoices, type PluginComponentNode, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import { sandboxOperationSwitches, sandboxProjectedPermissions, sandboxRequestedPermissions } from "@molis-ai/molis-work-plugin-sdk";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -27,6 +29,12 @@ const switchesPackage = (capability: string) => signedPackage(newPublisher(), (f
     { id: "runs", kind: "query", input: none, output: { type: "number" }, errors: [], effects: { storage: ["read"] }, examples: [{ input: {}, output: 0 }] });
   contract.pages[0]!.regions[0]!.operationIds.push("probe", "runs");
   files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+  const presentation = JSON.parse(files[SANDBOX_PACKAGE_FILES.interface]!) as { parts: PluginComponentPlan[]; nodes: PluginComponentNode[] };
+  const probe: PluginComponentPlan = { id: "probe", pageId: "home", regionId: "main", intent: "action", purpose: "Run the permission probe",
+    props: { submitLabel: "Run probe" }, submit: { operationId: "probe", input: {} } };
+  presentation.parts.push(probe);
+  presentation.nodes.push({ ...probe, kind: pluginComponentChoices(probe, contract)[0]!.kind });
+  files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify(presentation);
   files[SANDBOX_PACKAGE_FILES.entrypoint] += `operations.runs = async (_input, sdk) => Number((await sdk.storage.get('runs')) ?? '0');
 operations.probe = async (_input, sdk) => { await sdk.storage.set('runs', String(Number((await sdk.storage.get('runs')) ?? '0') + 1)); try { await sdk.capability.call(${JSON.stringify(capability)}, {}); return 'allowed'; } catch (error) { return error.code ?? String(error); } };\n`;
 }, { pluginId: ID });
@@ -46,7 +54,7 @@ async function rig(t: TestContext) {
   const set = (permission: string, granted: boolean) => served.web.post<{ changed: boolean }>("/api/settings/plugin-permissions/set", { install_id: record().install_id, permission, granted });
   const run = async (operation: string, input: unknown = {}) => operate(h.homeClient(), caller, await operationsOf(h.homeClient(), caller, ID), operation, input);
   await h.install(switchesPackage(read.capability_id));
-  return { h, list, set, run, record, runs: () => run("runs") as Promise<number>,
+  return { list, set, run, record, runs: () => run("runs") as Promise<number>, get served() { return served; },
     async reopen() { await served.close(); await h.reopen(); served = await serveTestHost(null, { home: h.home, host: h.host }); } };
 }
 
@@ -86,18 +94,35 @@ test("B27-PERM-01 BL-701 a projected switch is listed off, refuses the operation
   assert.equal(await r.run("probe"), "allowed"); assert.equal(await r.runs(), 2);
 });
 
-test("B27-PERM-02 BL-701 the plugin's own call route refuses the same operation before its code runs, with the action error body", mac, async t => {
+// QEA-138: the original page uses the protected component action gateway.
+test("B27-PERM-02 BL-701 the plugin's own call route refuses the same operation before its code runs", mac, async t => {
   const r = await rig(t);
-  const platform = await r.h.host.homePlugins!.ready();
-  const call = () => platform.router().dispatch({ method: "POST", pathname: "/api/plugins/" + ID + "/call", actor_id: LOCAL_PERSON_ACTOR_ID,
-    execution: { beforeEffect: async () => {} }, body: { operation: "probe", input: {} } });
-  const refused = await call();
-  assert.equal(refused?.status, 403);
-  assert.equal((refused?.body as { code?: string }).code, "actions.forbidden");
-  assert.match(String((refused?.body as { error?: string }).error), /capabilities:call/);
+  const { origin, controlToken } = r.served;
+  const postFromPage = async (path: string, body: unknown) => {
+    const page = await fetch(origin + `/plugins/${ID}?frame=workbench`);
+    assert.equal(page.status, 200);
+    const pageId = /"page_id":"([^"]+)"/u.exec(await page.text())?.[1];
+    assert.ok(pageId);
+    return fetch(origin + path, { method: "POST", headers: {
+      origin, "content-type": "application/json", "x-molis-work-control-token": controlToken,
+      "x-molis-work-idempotency-key": randomUUID(), "x-molis-plugin-page": pageId,
+    }, body: JSON.stringify(body) });
+  };
+  const call = () => postFromPage("/api/host/plugin-page-actions", { mode: "component_submit", component_id: "probe", payload: {} });
+  const refused = await call(), denial = await refused.json() as { code?: string; error?: string };
+  assert.equal(refused.status, 403);
+  assert.equal(denial.code, "actions.plugin_permission");
+  assert.match(denial.error ?? "", /capabilities:call/);
   assert.equal(await r.runs(), 0);
   await r.set("capabilities:call", true);
-  assert.deepEqual((await call())?.body, { value: "allowed" });
+  const retired = await postFromPage(`/api/plugins/${ID}/call`, { operation: "probe", input: {} });
+  assert.equal(retired.status, 403);
+  assert.equal((await retired.json()).code, "actions.forbidden");
+  assert.equal(await r.runs(), 0);
+  const accepted = await call();
+  assert.equal(accepted.status, 200, await accepted.clone().text());
+  assert.equal(await accepted.json(), "allowed");
+  assert.equal(await r.runs(), 1);
 });
 
 /** A Home package with `fetch` (one site) and `signed` (the same site with a saved secret); each counts its runs before doing anything else. */

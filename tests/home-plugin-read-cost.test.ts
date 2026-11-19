@@ -8,7 +8,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
 
-test("ASR-11 expected Home plugin shapes are constructed once per form while each real store is checked again", async t => {
+test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while each read checks current identity and facts", async t => {
   const fixtures = [];
   for (const withSpace of [false, false, true, true]) {
     const home = await mkdtemp(join(tmpdir(), "home-plugin-read-cost-"));
@@ -34,14 +34,18 @@ test("ASR-11 expected Home plugin shapes are constructed once per form while eac
     }
     return exec.call(this, sql);
   });
-  let validations = 0;
+  let validations = 0, structureReads = 0;
   const checks = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
     if (sql === "PRAGMA user_version" && fixtures.some(f => f.location === this.location())) { validations++; connections.add(this); }
+    if (/pragma_table_|table_info|table_xinfo|index_list|foreign_key_list/iu.test(sql) && fixtures.some(f => f.location === this.location())) structureReads++;
     return prepare.call(this, sql);
   });
   try {
-    for (let attempt = 0; attempt < 2; attempt++) for (const f of fixtures) {
-      assert.ok(f.catalog.projectPluginMembership(f.project.project_id).plugins.includes("goals"));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = structureReads;
+      for (const f of fixtures) assert.ok(f.catalog.projectPluginMembership(f.project.project_id).plugins.includes("goals"));
+      if (attempt === 0) assert.ok(structureReads > 0, "every new file is actually inspected");
+      else assert.equal(structureReads, before, "QEA-96 unchanged files do not repeat a complete schema scan");
     }
     assert.deepEqual(scratch, { plain: 1, scoped: 1 }, "only immutable expected structures are shared across Homes");
     assert.equal(validations, 8, "each real read checks its version independently");
@@ -67,6 +71,25 @@ test("ASR-11 expected Home plugin shapes are constructed once per form while eac
     }
     const remaining = fixtures[3]!;
     assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"));
+    const writer = new DatabaseSync(remaining.file);
+    try {
+      // The main file can remain unchanged while the WAL's schema cookie changes. Home requires exact shape, including no extra tables.
+      writer.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0");
+      assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"));
+      const beforeWalChange = readFileSync(remaining.file);
+      writer.exec("CREATE TABLE unexpected_home_rows(id TEXT)");
+      assert.deepEqual(readFileSync(remaining.file), beforeWalChange, "only the WAL schema changes after the successful warm read");
+      assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" });
+      assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" }, "a failed comparison is not remembered as success");
+      writer.exec("DROP TABLE unexpected_home_rows");
+      assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"), "a repaired structure is rechecked and becomes readable");
+    } finally { writer.close(); }
+    const unbound = new DatabaseSync(remaining.file);
+    try { unbound.exec("DELETE FROM molis_storage_space"); } finally { unbound.close(); }
+    const beforeMissingBinding = readFileSync(remaining.file);
+    assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" },
+      "QEA-108 a missing binding row cannot reuse the warm bound success, even though the schema is unchanged");
+    assert.deepEqual(readFileSync(remaining.file), beforeMissingBinding, "the missing binding is not repaired or relabelled");
     assert.deepEqual(scratch, { plain: 1, scoped: 1 });
   } finally { ddl.mock.restore(); checks.mock.restore(); }
 });

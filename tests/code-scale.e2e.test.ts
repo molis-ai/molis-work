@@ -228,7 +228,7 @@ test("VUX-33: the Assistant sends a large block as its text and a map of its pie
   assert.match(small, /<span class="tok-keyword">/); assert.equal(small.includes("data-paint"), false);
 });
 
-test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
+test("VUX-33 QEA-176: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
   // A CRLF ends the body and another separates the closing fence. Not a lone CR: a block with one is sent with its colours and
   // no paint map, as it needs a <br> for that line (assistantCodeHtml; tests/assistant-text-html.e2e.test.ts), so it has no slices.
   const code = textOf(90_000).replace(/\n$/, "\r\n");
@@ -255,30 +255,45 @@ test("VUX-33: the Assistant's large block streams in place, reopens as text at o
   assert.deepEqual([written.same, written.piece], [true, true], "past a slice the block is still the same figure, with the same first piece, from its first lines to its last");
   assert.equal(written.code, code, "copy gives the code as written");
   await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
+  const expected = await evaluate<{ html: string; spans: number }>(`({ html: want, spans: ${figure}.querySelectorAll('code [class^="tok-"]').length })`);
+  if (!await evaluate("document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
+  await waitFor("document.querySelector('[data-reply-peek] .work-reply-peek-body')?.firstChild");
 
-  const expected = await evaluate<string>("window.want");
-  const tokenCount = await evaluate<number>(`${figure}.querySelectorAll('code [class^="tok-"]').length`);
-
-  // Reopened: each frame, before the page's own work, notes how much of the block reads and how much is coloured.
+  // QEA-200 and QEA-203 observe the visible receipt through the final colouring frame.
   const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
     const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
-    if (code) samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
-    if (samples.at(-1)?.[2] !== ${tokenCount}) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
+    if (code) {
+      const preview = document.querySelector('[data-reply-peek] .work-reply-peek-body')?.firstChild;
+      if (preview) {
+        window.originalPreview ??= preview;
+        window.previewRebuilt ||= preview !== window.originalPreview;
+      }
+      samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
+    }
+    if (samples.at(-1)?.[2] !== ${expected.spans}) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`window.samples?.at(-1)?.[2] === ${tokenCount}`, 30_000);
+  await waitFor(`samples.at(-1)?.[2] === ${expected.spans}`, 30_000);
   const painting = await evaluate<Array<[number, number, number]>>("samples.slice()");
   await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
+  assert.equal(await evaluate("Boolean(window.originalPreview) && !window.previewRebuilt"), true, "QEA-200 code colouring does not rebuild the visible peek");
   assert.ok(painting.length >= 4, `coloured over ${painting.length - 1} intervals`);
   assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
-  assert.ok(painting.every(([, , spans], index) => !index || spans > painting[index - 1]![2]), "each frame colours more of it");
+  const firstColour = painting.findIndex(([, , spans]) => spans > 0);
+  assert.ok(firstColour >= 1 && firstColour <= 2, `plain text appears first, then colouring starts within two frames (first coloured sample: ${firstColour})`);
+  assert.ok(painting.every(([, , spans], index) => index <= firstColour || spans > painting[index - 1]![2]), "after colouring starts each frame colours more of it");
   const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
+  t.diagnostic(`QEA-176 reopened ${code.length} characters, ${firstColour} plain frames, longest frame ${longest.toFixed(1)} ms (intervals: ${gaps.map(gap => gap.toFixed(1)).join(", ")} ms)`);
   assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
-  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected);
-  const preview = await evaluate<string>("document.querySelector('[data-reply-peek] pre code').textContent");
-  assert.equal(preview, code.split("\n").slice(0, 3).join("\n"), "the three-line preview has the original opening lines");
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "reopened colouring matches the whole colouring");
+  const preview = await evaluate<{ text: string; hasSource: boolean; hasPaint: boolean }>(`(() => {
+    const block = document.querySelector('[data-reply-peek] .assistant-code');
+    return { text: block.querySelector('pre code').textContent, hasSource: block.hasAttribute('data-code'), hasPaint: block.hasAttribute('data-paint') };
+  })()`);
+  assert.deepEqual(preview, { text: code.split("\n").slice(0, 3).join("\n"), hasSource: false, hasPaint: false },
+    "QEA-203 the receipt renders the three original lines with only the visible content");
   await click("[data-reply-peek] [data-dialog-open]");
   await waitFor(`${figure}.getBoundingClientRect().height > 0`);
-  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected);
+  assert.equal(await evaluate<string>(`${figure}.querySelector('code').innerHTML`), expected.html, "the reopened dialog shows the complete colouring");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));
 });

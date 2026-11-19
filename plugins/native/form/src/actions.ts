@@ -1,7 +1,7 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "./contract.js";
 import type { promoteForm } from "./promote.js";
 import { formErrors } from "./error.js";
@@ -81,7 +81,6 @@ function submissionSource(caller: ActionCallContext, claimed: "preview" | "fill"
 }
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const { read, write } = ports;
   const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
     project(caller);
@@ -112,7 +111,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       const form = await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller)));
       drafting.forget(input.interaction?.interaction_id);
       return { status: "done" as const, form };
-    }, () => ports.modelAvailability()),
+    }, { availability: () => ports.modelAvailability() }),
     bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
     bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
     bind(formActions.importAnswers, (input, caller) => write(caller, store => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) }))),
@@ -138,8 +137,8 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       const submissions = store.listSubmissions(input.id, project(caller));
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
-    bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
-    bind(formActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), { availability: publishable }),
+    bind(formActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, { availability: publishable }),
     bindArtifactContinue(formActions.artifactContinue, [FORM_ARTIFACT_TYPE_ID], (artifact, caller) => write(caller, store => {
       const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
       const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });

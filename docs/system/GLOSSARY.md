@@ -25,7 +25,7 @@
 | 可信决定 | 本人经受保护入口提交、由平台记录到项目库 `project_review_decisions` 的不可变决定；记录决定、对象版本、选项、原入口与本人出处 | 审批来源里的本人决定 | 审批记录（指一般审查时）、平台批准（不准确） |
 | 受保护入口 | Host 为可信决定签发的唯一入口：Web `/api/project-approvals/*`、CLI `review-request`／`review-decide`、管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide`、验收卡 `/api/acceptance/decide`；身份与 `ActionUserAction` 只从入口上下文取，代码统一到 `decideProjectReview` | 无（内部） | 审批页（页面不是入口本身）、管理入口（只说传输时） |
 | 批准来源 | 一条决定或授权是谁给的：本人决定、沿用授权、自动策略、AI 代批；界面按这个区分，不把 AI 代批算真人票 | 审批来源 | 审批方式、来源（裸写） |
-| 提交意向（commit intent） | `<Home>/acceptance/commit-intents/<decision_id>.json` 的原子文件：验收结果已提交、平台决定尚未落到项目库时保留完整决定记录，Host 下次启动/读取按同一 `decision_id` 幂等恢复 | 无（内部） | 待提交记录、outbox（代码口语） |
+| 提交意向（commit intent） | `<Home>/acceptance/commit-intents/<decision_id>.json` 的既存原子文件（新认可已改为两库单次提交）：验收结果已提交、平台决定尚未落到项目库时保留完整决定记录，Host 下次启动/读取按同一 `decision_id` 幂等恢复 | 无（内部） | 待提交记录、outbox（代码口语） |
 | 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」、「能力 › 调用记录」和经共用请求助手显示的错误详情里已出现：装了助手的内联页面，和工作台主程序里已迁到助手的部分（设置一组、项目设置）；工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的错误详情还没有，随 W3-10-2～4、W5-04） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 运行状态（界面） | 菜单栏「运行」面板说的在运行／等着／没在运行：宿主与后台任务此刻的状态 | 在运行、等着、没在运行（菜单栏「运行」、设置 › 运行） | 包运行状态（`docs/SSOT-MATRIX.md` 里指包的运行方式时，必须写全「包运行状态」） |

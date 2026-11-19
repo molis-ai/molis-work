@@ -387,7 +387,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if (!journey && !loadError) return {kind:'onboard', view:'loading', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="loading"><div class="ob-error-page"><h1 id="ob-title" tabindex="-1">' + globalThis.t.text("workbench.context-onboarding.start-what-re-working") + '</h1><p role="status">' + globalThis.t.text("workbench.context-onboarding.checking-available-sources") + '</p></div></div></div>', bar:{start:exitButton(), center:'', end:''}};
     if (!journey) return {kind:'onboard', view:'error', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="error"><div class="ob-error-page">' + empty({icon:'circle-alert', title:globalThis.t.text("workbench.context-onboarding.onboarding-can-t-open-right-now"), body:failureText(loadError), action:btn({variant:'secondary', size:'md', label:globalThis.t.text("workbench.context-onboarding.reload"), attrs:{'data-action':'reload'}})}) + '</div></div></div>', bar:{start:exitButton(), center:'', end:''}};
     if (journey.take_result?.not_taken) return takeNotTaken();
-    if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'sources', left:question(globalThis.t.text("workbench.context-onboarding.continue-work"), journey.error), right:'<div class="ob-preview">' + empty({icon:'folder', title:globalThis.t.text("workbench.context-onboarding.materials-need-be-chosen-again"), body:globalThis.t.text("workbench.context-onboarding.last-time-s-materials-can-t-be-reused")}) + '</div>', bar:{start:exitButton() + stepsBar('sources'), center:'', end:primary("workbench.context-onboarding.choose-materials-again",'new-journey')}};
+    if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'sources', left:question(globalThis.t.text("workbench.context-onboarding.continue-work"), journey.error) + (error ? errorLine(error) : ''), right:'<div class="ob-preview">' + empty({icon:'folder', title:globalThis.t.text("workbench.context-onboarding.materials-need-be-chosen-again"), body:globalThis.t.text("workbench.context-onboarding.last-time-s-materials-can-t-be-reused")}) + '</div>', bar:{start:exitButton() + stepsBar('sources'), center:'', end:primary("workbench.context-onboarding.choose-materials-again",'new-journey')}};
     if (journey.adoption) return savingProject();
     if (blank) return blankForm();
     const modelApi = globalThis.molisWorkOnboardingModel;
@@ -612,7 +612,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const forProject=new URL(location.href).searchParams.get('project');journey=await api('/api/onboarding/context',{id:crypto.randomUUID(),...(forProject?{project_id:forProject}:{})});
     if(journey.existing)journey=await api(endpoint());
     journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
-    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();render();
+    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();
   }
   async function reopen() {
     await saveQueue;journey=await api(endpoint('reopen'),{});journey.previewed=false;blank=false;error='';editing=false;todoPicked=null;render();
@@ -755,7 +755,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(action==='take-continue'){location.assign(projectLocation());return;}
     busy=true;error='';b.disabled=true;
     try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
-    catch(err){error=keepFailure(err);}finally{busy=false;render();}
+    catch(err){error=keepFailure(err);}finally{busy=false;b.disabled=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
   document.addEventListener('keydown', e => {

@@ -55,13 +55,13 @@ function ensureEditor(page: PagesPage, body: unknown) {
       if (!page.sel || page.sel.id !== id || page.editRev !== revision) throw new Error(uiText.text("pages.ai.doc-changed"));
       return result;
     },
-    onCreateFromAi: async (input) => {
+    onCreateFromAi: async (input, current) => {
       const content = String(input.text || "").split(/\n{2,}/).map((part) => (
         part.trim()
           ? { type: "paragraph", content: [{ type: "text", text: part.trim() }] }
           : { type: "paragraph" }
       ));
-      await createPage(page, { title: input.title, body: { type: "doc", content } });
+      await createPage(page, { title: input.title, body: { type: "doc", content }, request_id: input.request_id }, current);
     },
   });
 }
@@ -127,13 +127,11 @@ export function enqueueSave(page: PagesPage, draft: Draft, patch?: Record<string
   return run;
 }
 
-/** Shows a record in the editor. The previous document's unsaved edits go out first, and a blank one it was is taken back. */
+/** Shows a record after its caller has saved the leaving draft; a blank one it was is taken back. */
 export function fillEditor(page: PagesPage, record: PagesRecord) {
   const { Editor, bench, workspace } = page;
   page.editorEpoch += 1; const switching = Boolean(page.sel && record && page.sel.id !== record.id);
-  const leaving = switching ? draftOf(page) : null;
   const left = switching ? blankLeaving(page) : null;
-  const pending = Boolean(switching && (page.saveTimer || page.dirty));
   clearTimeout(page.saveTimer);
   page.saveTimer = 0;
   page.filling = true;
@@ -156,14 +154,12 @@ export function fillEditor(page: PagesPage, record: PagesRecord) {
   markSelected(page, record.id);
   syncEditorChrome(page);
   showNote(page, "", false);
-  if (pending && leaving) {
-    void enqueueSave(page, leaving).catch((error) => noteFailure(page, error, uiText.text("pages.error.save")));
-  }
   void dropBlank(page, left);
 }
 
 export function closeEditor(page: PagesPage) {
   const { bench, workspace } = page;
+  page.selectionSeq++; page.openingId = null;
   clearTimeout(page.saveTimer);
   page.sel = null; page.editorEpoch += 1;
   syncEditorChrome(page);

@@ -37,12 +37,11 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
       ...(states.has(item.goal.goal_id) ? { presentation_status: states.get(item.goal.goal_id) } : {}),
     });
     const view: GoalsPageView = { ...data.collection, project: context.project, demo: context.demo, route_prefix: model.route_prefix,
-      goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate),
-      inbox_judgment: context.client_data?.inbox_judgment };
+      goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate) };
     if (surface === "create-dialog") return page.documents.renderCreateDialog(view);
     if (surface === "trash-dialog") return page.documents.renderGoalTrashDialog();
     const archive = data.selection === "archive", trash = data.selection === "trash";
-    if (surface === "board-refresh") return createGoalsWorkbenchStage(page, ports).renderMolisWorkRefreshFragment(view, model.request?.goal_id, archive, trash);
+    if (surface === "board-refresh") return createGoalsWorkbenchStage(page, ports).renderMolisWorkRefreshFragment(view, model.request?.goal_id, archive, trash, model.request?.projection === "collection");
     if (surface === "board-momentum") return page.documents.renderMolisWorkMomentumFragment(view, model.request?.goal_id ?? "", archive ? "archive" : "current") ?? "";
     if (surface === "goal-document") return page.documents.renderGoalDocumentFragment(view, model.request?.goal_id ?? "", data.selection) ?? "";
     const result = createGoalsWorkbenchStage(page, ports).render(view, model.request?.goal_id, archive, trash, context.cli_availability);
@@ -69,17 +68,18 @@ function renderMolisWorkRefreshFragment(
   requestedGoalId?: string,
   archiveView = false,
   trashView = false,
+  collectionOnly = false,
 ): string {
   const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, goalsL);
   const { selected } = collection;
-  const document = selected
+  const document = collectionOnly ? "" : selected
     ? trashView
       ? renderTrashGoalDocument(selected, true)
       : renderGoalDocument(selected, view, true)
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, false);
   const html = `
     ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection, renderGoalProposals(view))}
-    <section data-document-pane><section data-work-surface="goals">${document}</section></section>
+    ${collectionOnly ? "" : `<section data-document-pane><section data-work-surface="goals">${document}</section></section>`}
     ${renderCreateDialog(view)}
     <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   `;

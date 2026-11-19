@@ -66,7 +66,8 @@ test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the p
   const ask = () => capturedAsync(() => runWithLocale("zh", () => homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)));
   plugin.state.answer = project => { if (project === broken) throw new Error("读不了"); return empty; };
   const first = await ask();
-  assert.deepEqual(first.value, []);
+  assert.deepEqual(first.value.tasks, []);
+  assert.equal(first.value.issues.length, 1);
   assert.deepEqual(first.entries.map(entry => [entry.area, entry.event, entry.fields]), [["home", "background_tasks_unreadable", { project_id: broken }]]);
   // Read on every attention poll: the same failure is not written again ...
   assert.deepEqual((await ask()).entries, []);

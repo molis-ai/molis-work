@@ -37,11 +37,17 @@ test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested 
     sessionId: page.sessionId, command: browser.command.bind(browser), on: browser.on.bind(browser), evaluate: page.evaluate.bind(page),
   }, "plugin-builder");
   await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false });
-  const go = async (path: string) => {
-    await page.evaluate("globalThis.previousAutomationPage = true");
-    await page.command("Page.navigate", { url: fixture.origin + path });
-    await page.wait("!globalThis.previousAutomationPage && document.readyState === 'complete'");
+  await page.command("Page.enable");
+  const { frameTree: { frame: { id: mainFrame } } } = await page.command<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree");
+  // QEA-202: an in-document wait belongs to one execution context. Start it only after the new top-level document commits.
+  const navigate = async (start: () => Promise<unknown>) => {
+    await Promise.all([
+      browser.event("Page.frameNavigated", params => (params.frame as { id: string }).id === mainFrame, 14_000),
+      start(),
+    ]);
+    await page.wait("document.readyState === 'complete'");
   };
+  const go = (path: string) => navigate(() => page.command("Page.navigate", { url: fixture.origin + path }));
   const dialog = "[data-automation-dialog]";
   const suggestion = "[data-automation-suggestion]";
   const loaded = async () => {
@@ -63,7 +69,7 @@ test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested 
     const url = new URL(document.querySelector(${JSON.stringify(suggestion + " a")}).href);
     return url.pathname + url.search;
   })()`);
-  await page.click(suggestion + " a");
+  await navigate(() => page.click(suggestion + " a"));
   await page.wait("!!document.querySelector('[data-kit-skill] fieldset')",
     { describe: "JSON.stringify({href:location.href,body:document.querySelector('[data-kit-body]')?.textContent?.slice(0,500)})" });
   assert.equal(await page.evaluate("document.querySelector('[data-kit-skill] input[value=off]').checked"), true);
@@ -153,6 +159,6 @@ test("AUT-01/06/07/08: suggestions open on all three surfaces and the suggested 
   assert.equal(await page.evaluate("document.querySelector('[data-automation-error]').hidden"), true);
   const saved = await fixture.web.get<{ documents: Array<{ id: string }> }>(base + "/api/plugins/io.molis.work.pages/pages");
   assert.equal(saved.documents.length, 1);
-  await page.click("[data-automation-save]");
+  await navigate(() => page.click("[data-automation-save]"));
   await page.wait("document.querySelector('iframe[data-plugin-frame=pages]')?.checkVisibility() || new URL(location.href).searchParams.get('openItem') === " + JSON.stringify(saved.documents[0]!.id));
 });

@@ -41,7 +41,7 @@ function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_so
     return { entry_id: entry.entry_id, title: record ? "title" in record ? record.title : record.name : null,
       source_label: record && "source_label" in record ? record.source_label || record.source_kind : record && "name" in record ? record.name : null };
   });
-  return { ...view, stage_data: { feed, inbox: { entries: inbox_entries, subjects, judgments: inbox_entries.flatMap(entry => entry.next_judgment ? [entry.next_judgment] : []), judgment: view.inbox_judgment }, ...view.stage_data } };
+  return { ...view, stage_data: { feed, inbox: { entries: inbox_entries, subjects, judgments: inbox_entries.flatMap(entry => entry.next_judgment ? [entry.next_judgment] : []) }, ...view.stage_data } };
 }
 
 export function renderPersistedFeedItemDetail(item: FeedItemRecord, routePrefix = "") {

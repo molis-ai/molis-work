@@ -82,15 +82,14 @@ const projectScopeOpen = (source: ProjectPluginHost, projectId: string) => !sour
   && source.host.projects().some(row => row.project_id === projectId && row.state !== "closing");
 
 /** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
-export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
+export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "安装需要一个打开的项目");
   await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
     assertCurrent?.();
     const scopeOpen = () => projectScopeOpen(source, projectId);
-    await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen });
-    await installed.refreshPublicActions();
+    await installed.installPackage(release, { consent: true, assertCurrent, scopeOpen, complete });
   });
 }
 
@@ -141,10 +140,10 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
 }
 
 /** Installs a release read from a signed package in the Home: the Home's plugin host runs it, in the sandbox, for every project. */
-export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
+export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
   const home = source.homePlugins();
   if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
-  await home.installPackage(release, assertCurrent);
+  await home.installPackage(release, assertCurrent, complete);
 }
 
 /** A catalog only sees an open scope; this never starts its Runtime or asks what a caller may invoke. */

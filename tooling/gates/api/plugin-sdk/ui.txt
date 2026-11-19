@@ -233,6 +233,7 @@ export type MwComposerOptions = {
     delivery?: AgentSteerMode;
     receiver?: MwComposerReceiver;
     state?: "sending" | "running" | "failed" | "unknown";
+    running?: boolean;
     idleDelivery?: boolean;
     pause?: {
         label: string;

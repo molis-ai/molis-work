@@ -15,7 +15,6 @@ export interface MolisWorkWebView {
   page_owner?: string;
   page_stage?: import("./declared-stages.js").RenderedStagePage;
   cli_availability?: Record<string, boolean>;
-  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxStageData["judgment"];
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
   /** Presentation-only main plugin requested by this page's URL; resolved against current offered surfaces by the shell. */
@@ -62,5 +61,4 @@ export interface MolisWorkWebView {
   stage_request?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
-  /** Live authorized status from the Inbox scene owner. */
 }

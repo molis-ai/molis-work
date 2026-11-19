@@ -28,6 +28,7 @@ type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 interface Surface { id: string; open(browser: Browser): Promise<void>; ready: string }
 
 const visible = (selector: string) => `Boolean([...document.querySelectorAll(${JSON.stringify(selector)})].some(node => node.getClientRects().length && !node.closest('[hidden]')))`;
+const coreWorkVisible = `document.body.dataset.desktopSurface === 'goals' && ${visible('[data-goal-node-workspace][data-expanded-goal="CORE"]')}`;
 const plugin = (id: string): Surface => ({
   id,
   open: async ({ click, surfaceReady }) => { await click(`[data-plugin-strip] [data-plugin-id=${id}]`); await surfaceReady(id, 15_000); },
@@ -80,13 +81,15 @@ const SURFACES: Surface[] = [
   },
   {
     id: "goal-work",
-    open: async ({ click, waitFor, openGoalFrame, openGoalWork }) => {
-      await click('[data-plugin-strip] [data-plugin-id="goals"]');
-      await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'", 15_000);
+    open: async ({ click, evaluate, openGoalFrame, openGoalWork }) => {
+      if (await evaluate(coreWorkVisible)) return;
+      if (await evaluate("document.body.dataset.desktopSurface !== 'goals'")) {
+        await click('[data-plugin-strip] [data-plugin-id="goals"]');
+      }
       await openGoalFrame('.tree-node[data-select-goal="CORE"]');
       await openGoalWork();
     },
-    ready: visible("[data-goal-node-workspace]"),
+    ready: coreWorkVisible,
   },
 ];
 
@@ -214,7 +217,7 @@ test("VUX-TOAST-01: side-files readiness rejects loading and missing seeded mate
   }
 });
 
-test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 1_200_000 }, async t => {
+test("QEA-144 key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 1_200_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { origin, projectId, command, sessionId, navigate, waitFor, evaluate } = browser;
   const out = process.env.MOLIS_WORK_VISUAL_OUT || join(REVIEW_EVIDENCE, "visual", "latest");

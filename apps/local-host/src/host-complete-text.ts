@@ -26,6 +26,8 @@ export type HostCompleteText = (prompt: string, options?: HostTextRequestOptions
 export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void; prompt_includes_cache?: boolean };
 export type HostTextGenerationFailure = Error & { execution?: PrologueInferenceError["execution"]; validateResult?: () => void };
 export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextGenerationResult>;
+export type HostTextCommitResult = Pick<HostTextGenerationResult, "value" | "validateResult">;
+export type HostTextForCommit = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextCommitResult>;
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
@@ -59,6 +61,12 @@ export function textModelAvailability(model: () => unknown, purpose?: string): A
 export function hostCompleteText(options: HostTextOptions = {}): HostCompleteText | undefined {
   const generate = hostTextGeneration(options);
   return generate && (async (prompt, request) => (await generate(prompt, request)).value);
+}
+
+/** The actual model's guard travels with its text through the owner's final authorization wait. Injected text has no model binding. */
+export function hostTextForCommit(homeDirectory: string, injected?: HostCompleteText | null): HostTextForCommit | undefined {
+  if (injected === undefined) return hostTextGeneration({ homeDirectory });
+  if (injected) return async (prompt, request) => ({ value: await injected(prompt, request), validateResult() {} });
 }
 
 /** Whether this Home has a usable text model set up: asks nothing of a model (the runtime overview's `waiting.model`). */

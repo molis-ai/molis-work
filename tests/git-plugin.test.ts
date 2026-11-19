@@ -6,18 +6,13 @@ import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EV
 import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
-  EMPTY_DRAFT,
-  conflictKey,
   createGitPlugin,
-  draftIsEmpty,
   gitManifest,
   headLabel,
   mayHaveChangedFiles,
   parseGitFileChanged,
   parseGitResult,
-  parseStoredDrafts,
   projectGit,
-  serializeStoredDrafts,
 } from "@molis-ai/molis-work-plugin-git";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { withPageText } from "./fixtures/page-text.js";
@@ -66,18 +61,6 @@ test("刷新后选中的行没了就不再报告它被选中", () => {
   assert.equal(projectGit({ phase: "ready", status, selected: ["gone.ts"] }).selected, undefined);
 });
 
-test("草稿坏了就当没有，不会把 Git 挡在外面", () => {
-  assert.deepEqual(parseStoredDrafts("not json").drafts.size, 0);
-  assert.deepEqual(parseStoredDrafts(null).conflicts.size, 0);
-  const stored = {
-    drafts: new Map([["ws-1", { ...EMPTY_DRAFT, commit_message: "还没提交的话" }]]),
-    conflicts: new Map([[conflictKey("ws-1", ["a.ts"]), "手改的结果"]]),
-  };
-  const round = parseStoredDrafts(serializeStoredDrafts(stored));
-  assert.equal(round.drafts.get("ws-1")?.commit_message, "还没提交的话");
-  assert.equal(round.conflicts.get(conflictKey("ws-1", ["a.ts"])), "手改的结果");
-  assert.equal(draftIsEmpty(EMPTY_DRAFT), true);
-});
 
 test("回执里只有 reconcile / conflict / succeeded 说明文件可能动了", () => {
   assert.equal(mayHaveChangedFiles("succeeded"), true);

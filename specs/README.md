@@ -20,6 +20,7 @@
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
+- [quality-experience-audit](quality-experience-audit/spec.md) 涵盖六方向代码质量与体验审查、逻辑缺陷、需求实现度和 BL 清理。负责人 Codex。实施与验收已完成，最新主干复验、最终检查及合入记录见报告及 PR。 [报告](quality-experience-audit/report.md) · [覆盖记录](quality-experience-audit/coverage.md) · [PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
 - [batch-36-audit-fixes](batch-36-audit-fixes/spec.md)：第 36 批合后核查确认的角色、主线与记录修复；ROLE-14 仍待本人看实物。
 
 - [batch-06-shared-tools](batch-06-shared-tools/spec.md)：第 06 批成果固定、平台资料产生者与 SDK 公用工具；已随 #2009 合入 `a720834a09`（2026-11-13），剩余真实 Home 采用与本人验收。
@@ -29,7 +30,7 @@
 - [workbench-experience-upgrade](workbench-experience-upgrade/spec.md) 工作台体验走查与升级方案。含现状截图、界面样稿、交互动效和六项待评审决定。2026-11-13 方案整理，需求维护 Codex；第一轮全局设计语言（色彩搭配、动效语法、组件板分章）已随 #2056 合入（2026-11-13），五项设计决定用户已采纳，其余实施待分配。
 - [documentation-consolidation](documentation-consolidation/spec.md)：文档状态、索引与事实来源收口；2026-11-13 审计后立项，P0 状态修正、五份已完成 spec 归档与批次回填已完成；P1 主体完成、P2 主体完成（工作线保留两份），见正文。
 
-- [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 需求已整理、用户就十二项方向拍板，并确认按 §13 并入路线书 26-7／27-6／47-2／48-5、迁移进统一待办；尚未实现。
+- [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 用户已确认十二项方向；第26批已交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告门禁及作者文档。Runtime 兑现、创作台合同和只读动作由第47批接续，安装预演展示由第48批接续，存量迁移仍在统一待办。
 
 - [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；片 4 已随第 41 批 #2078 完成，其余尚未实现。
 
@@ -41,7 +42,7 @@
 
 - [team-collaboration](team-collaboration/spec.md)：团队协作按项目明确共享，首版需要多人实时共同编辑，整体参考 Codex Projects；2026-10-28 已定成员只访问获准项目内容，个人空间、其他项目与个人外部 AI 会话不自动公开；工作记录、简报与 AI 输出遵守相同边界。首版查看／编辑／管理三档、后续插件／资产粒度，以及成员发布／管理员管理团队记忆已定；团队记忆已另立需求，本需求保留身份与访问衔接；实时编辑、人与 AI 共同工作及恢复已纳入目标，协作协议、覆盖清单与细粒度规则待细化，尚未实现或验收。需求维护 Codex，实现待分配；阶段 1 与个人同步共同设计，阶段 2 验关键并发与恢复，阶段 3 收拢方案、阶段 4 完整实施。
 
-- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 按平台能力重做，覆盖国内外主流 AI 开发工具的冷启动导入、持续了解进展，以及恢复／消息／交接；2026-10-28 三类场景、厂商范围、获准后自动发现及明确关联自动归入项目已定；不明确时 AI 建议、用户确认，不自动建项目；运行中交接由用户选择停止原任务或保留并行，其他交互与技术方案待细化，尚未实现或验收。需求维护 Codex，实现待分配。
+- [sessions-rebuild](sessions-rebuild/spec.md)：Sessions 按平台能力重做，覆盖国内外主流 AI 开发工具的冷启动导入、持续跟进与直接控制。第 34 批已随 #2097 合入 `4a08c41ca7`，交付服务、来源适配、发现、历史、归属建议、搜索和工作台。持续跟进、恢复、发送和交接仍在原路线，[本人验收](backlog/BL-b34-sessions-acceptance.md)待做。需求维护 Codex，第 34 批实现 Antigravity。
 
 - [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 与服务连接为已暴露案例，全平台覆盖与优化验证后才算专项完成。2026-10-27 首轮静态盘点已完成，具体发现与五批优化顺序见[核查记录](product-flow-governance/audit-2026-10-27.md)；真实路径实操与整改未完成。需求维护/本轮核查 Codex，后续整改统筹待分配。
 

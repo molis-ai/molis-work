@@ -1,6 +1,5 @@
-import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { buildCodeIntelligenceHtml } from "../../code-intelligence-parts.js";
-import { buildEnvironmentChecklistHtml, buildRoundMaterialsHtml } from "../../recovery-parts.js";
+import { buildRoundMaterialsHtml } from "../../recovery-parts.js";
 import { el } from "../dom.js";
 import { changesBlock, changesRow } from "./boundary.js";
 import { terminal } from "./composer-state.js";
@@ -67,13 +66,6 @@ function entryNodes(page: Page, block: HTMLElement, run: RunView, all: readonly 
   return ordered;
 }
 
-function readinessMatchesRun(run: RunView, readiness: Page["s"]["state"]["environment_readiness"]): boolean {
-  if (!readiness) return false;
-  if (run.frozen?.directories?.execution.kind === "worktree") return false;
-  const runDir = run.frozen?.directory?.canonical_path;
-  return !runDir || !readiness.canonical_path || runDir === readiness.canonical_path;
-}
-
 /**
  * A box drawn from HTML under the person's request, after the last of `after` already placed; kept across redraws, so a fold the
  * person opened or closed stays as they left it. No HTML removes it.
@@ -88,25 +80,23 @@ function placeBox(block: HTMLElement, ordered: HTMLElement[], attr: string, clas
   }
   if (box.dataset.html !== html) {
     box.dataset.html = html;
-    setContentHtml(box, html);
+    box.innerHTML = html;
   }
   ordered.splice(Math.max(ordered.findIndex(node => node.dataset.kind === "user"), ...after.map(name => ordered.findIndex(node => node.hasAttribute(name)))) + 1, 0, box);
 }
 
-const ENV = "data-coding-env-checklist", MATERIALS = "data-coding-round-materials", CODE = "data-coding-code-intel-box";
+const MATERIALS = "data-coding-round-materials", CODE = "data-coding-code-intel-box";
 
 /** The plan sits right under the task it came from, and the subtasks right after the step that sent them. */
 function placeCards(page: Page, block: HTMLElement, run: RunView, all: readonly RunView[], ordered: HTMLElement[], stand: GraphStand) {
   const { s } = page, { planProgress, subagentCards } = page.refs, last = run === all.at(-1);
-  const readiness = page.s.state.environment_readiness;
-  placeBox(block, ordered, ENV, "coding-env-checklist", last && readinessMatchesRun(run, readiness) ? buildEnvironmentChecklistHtml(readiness) : "", []);
-  placeBox(block, ordered, MATERIALS, "coding-round-materials", buildRoundMaterialsHtml(run), [ENV]);
+  placeBox(block, ordered, MATERIALS, "coding-round-materials", buildRoundMaterialsHtml(run), []);
   // Which languages the round could understand sits under its materials: one fold, open only when something is not ready (A4).
-  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [ENV, MATERIALS]);
+  placeBox(block, ordered, CODE, "", buildCodeIntelligenceHtml(run.frozen?.code_intelligence), [MATERIALS]);
   if (stand.laterOnSameGraph) block.querySelector(":scope > .coding-plan-progress")?.remove();
   const planCard = stand.laterOnSameGraph ? null : planProgress.render(run, stand.entry, last && !terminal(run.phase), last || stand.latest);
   if (planCard) {
-    ordered.splice(Math.max(...["user", ENV, MATERIALS, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
+    ordered.splice(Math.max(...["user", MATERIALS, CODE].map(name => ordered.findIndex(node => name === "user" ? node.dataset.kind === name : node.hasAttribute(name)))) + 1, 0, planCard);
   }
   const children = subagentCards.render(run, s.subagentGroups.find(group => group.run_id === run.ref.run_id));
   if (children) {
@@ -128,6 +118,8 @@ function placeTray(page: Page, block: HTMLElement, run: RunView, all: readonly R
 function settle(block: HTMLElement, ordered: readonly HTMLElement[]) {
   let cursor = block.firstElementChild;
   for (const node of ordered) {
+    // Configuration anchors the readiness panel independently. Keep the entries after it in place.
+    if (cursor?.hasAttribute("data-coding-env-checklist")) cursor = cursor.nextElementSibling;
     if (node !== cursor) block.insertBefore(node, cursor);
     cursor = node.nextElementSibling;
   }

@@ -69,6 +69,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 `settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
 
+舞台业务事实只由声明的动作结果 `StagePageModel.data` 提供；`context` 只含平台位置与展示上下文，不再提供 `client_data` 转发其他插件事实。需要其他 owner 的内容时，由实际消费者通过公开读取合同取得，不能要求整页壳先读一遍再代传。
+
 舞台要自己的数据时，在打开舞台的那个 view（有 `stage` view 就是它，否则是第一个 `navigator` view）上写 `stage_data: { action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }`，规则与 `settings_data` 相同，写在别的 view 上或指向别人的动作，Manifest 当场被拒。宿主按页面上的这个人、只带这个动作自己声明的权限调用它（不带输入），结果放在 `StagePageModel.data` 里，连同 `route_prefix`、`shown_plugins` 和 `primitives`（`escape`、`text`、`icon`、`formatDate`）交给舞台的 `workbench` surface；插件不在、未启用或被拒时没有 `data`，按空的舞台画。页面整页画一次，`GET /api/stage/<project_plugin_id>` 原地重画一次，都走同一条路，宿主里没有按插件名的分支（T-133，Schedule 是第一个这样画的）。**目前这条路只对内置目录兑现**，已安装插件的舞台仍由运行中的实例按原来的通用模型画。
 
 插件替别人的对象留着原文、要让本人的页面用上时（Feed 从消息转成的 Goal 留着那条消息），在 `ui` 上写 `subject_context: [{ subject_kind: "goal", action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }]`，规则与 `stage_data` 相同，每种对象一条。宿主在本人页面上按当前对象读它：以这个人、只带这个动作自己的权限调用，输入恰好是 `{ goal_id }`，回 `{ source_context }` 或 `null`；每个插件的原文最多 12,000 个 UTF-16 单元，多的截断并标出。Goal 页面的「推进这个 Goal」把读到的原文交给 Goals，当不可信数据附在提示里。Agent、工作流、MCP 和插件页面都拿不到这条路（GAS-01～03）。今天只有 `goal` 一种对象，读取也只经有舞台的运行中实例。
@@ -111,6 +113,8 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
+统一输入的`submit`返回`ComposerOutcome`。失败由页面自己的可操作恢复区域完整解释时，可返回`{ state: "failed", message, feedback: "page" }`，输入框保留未受理草稿和材料，不再重复错误/通用重试；`unreadable`仍按提交索引标记原材料。没有完整恢复区域时用普通failed；未知结果用unknown，不以sent或空错误掩盖失败。Coding长期材料恢复卡是实际采用例。
+
 打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版。
 
 构建与检查（样板 `plugins/native/form`）：浏览器代码在 `src/browser/*.ts`，入口 `factory.ts`；页面状态放在一个页面对象里，各部件是拿它当第一个参数的函数。包里的 `tsconfig.browser.json` 只含 `src/browser/**/*.ts`、`noEmit`、带 DOM 库；`package.json` 的 `build` 先 `tsc -p tsconfig.browser.json`，再用包内直接声明的 `esbuild`（命令直接写 `esbuild`，不写根目录二进制的相对路径）打成 `dist/<插件>-client.js`（`--bundle --format=iife --minify`，banner 与 footer 把它包成 `(host) => {…}`），`typecheck` 同样含这一步；`src/client.ts` 只读这份包。升级 esbuild 会改变压缩后的字节，页面资源预算照 `AGENTS.md` 的规则办，不能借工具升级绕过。页面每句话用自己的稳定键和 `ui.locales` 声明的语言文件，详见 [文字与外观](text-and-appearance.md)
@@ -121,7 +125,7 @@ Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源�
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。隔离页面若完整负责本次选择的读取、保存与打开，在处理器首次等待前同步 `event.preventDefault()` 接管；框架的可取消派发因此不再找行代点。只观察事件、仅处理其他分支时不接管；接管不是成功回执，也不表示撤销业务写入。没有完整处理器的行驱动页面继续按 `searchRow` 打开。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 

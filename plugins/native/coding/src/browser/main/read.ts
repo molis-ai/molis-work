@@ -132,6 +132,7 @@ function drawSession(page: Page, id: string, data: SessionData, fresh: boolean) 
   const { q, root, s } = page, { cooperationUi, plans, stepReports, subagents, usageMeter } = page.refs;
   s.runtimeSessionId = data.session.runtime_session_id;
   s.queuedInputs = data.session.queued_inputs;
+  page.refs.inputReceipts.observe(id, (s.queuedInputs ?? []).map(input => input.key));
   s.planEntries = [...s.olderPlanEntries, ...(data.taskboard_plans || [])];
   s.subagentGroups = [...s.olderSubagents, ...(data.subagents || [])];
   const loadHistory = async (before: number) => {

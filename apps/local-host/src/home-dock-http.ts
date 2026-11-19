@@ -5,25 +5,12 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./we
 import { parseSceneFunctionKey } from "./judgment-rules-host.js";
 import { homeActions } from "./home-actions.js";
 import type { HomeOfferExecutionInput } from "./home-offer-actions.js";
-import type { HomeEventOpenInput } from "./home-event-actions.js";
-import type { WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface HomeDockHttpOptions { actions: BoundActionClient; invalidateWebView(): void }
 
 /** Retains the public URL; configuration and discovery use the same system actions as other callers. */
 export async function handleHomeDockJudgmentHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   options: HomeDockHttpOptions): Promise<boolean> {
-  if (["/api/home/events", "/api/home/events/open"].includes(url.pathname) && request.method === "POST") {
-    try {
-      const body: unknown = await readBody(request);
-      sendJson(response, 200, url.pathname.endsWith("/open") ? await options.actions.invoke(homeActions.openEvent, body as HomeEventOpenInput)
-        : await options.actions.invoke(homeActions.events, body as WorkEventWindow));
-    } catch (error) {
-      const failure = actionErrorResponse(error);
-      sendJson(response, failure.status, failure.body);
-    }
-    return true;
-  }
   if (["/api/home/actions/choices", "/api/home/actions/prepare", "/api/home/actions/execute"].includes(url.pathname) && request.method === "POST") {
     try {
       const body: unknown = await readBody(request);

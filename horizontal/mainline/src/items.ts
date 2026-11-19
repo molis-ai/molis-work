@@ -167,11 +167,9 @@ export async function createItem(caller: ActionExecutionContext, client: ActionC
 
 /** `mainline.items.convert@1`: the source makes an object under the light item's name; the item keeps what it holds. */
 export async function convertItem(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: MainlineItemConvertRequest): Promise<MainlineItemResult> {
-  const item = await withStore(caller, ports, store => store.item(request.item_id));
-  if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
-  if (!item.name) throw new ActionError("actions.input_invalid", "这件事项已经由对象变成，不能再变");
-  const subject = await makeSource(caller, client, sourceOf(await itemSources(caller, client, ports), request.kind, "create"), item.name,
-    sourceRequestId(caller, request.request_id, request.kind, ["item", item.item_id]));
+  const name = await withStore(caller, ports, store => store.readConversionName(request.expected_revision, request.item_id));
+  const subject = await makeSource(caller, client, sourceOf(await itemSources(caller, client, ports), request.kind, "create"), name,
+    sourceRequestId(caller, request.request_id, request.kind, ["item", request.item_id]));
   await caller.beforeEffect();
   return withStore(caller, ports, store => { const converted = store.convert(request.expected_revision, request.item_id, subject); return { mainline: store.read(), item: converted }; });
 }

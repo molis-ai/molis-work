@@ -1,0 +1,15 @@
+{
+  "reason": "项目选择与项目工作台复用现有 Home 变更通知。每页一项首帧请求，冷、热各 259 B，与原响应相同。",
+  "review": "specs/quality-experience-audit/report.md#第-100-批共享通知与首屏实测，QEA-169。",
+  "userApproval": "2026-11-18，本会话选择「批准替换这条首屏地址」。覆盖项目选择、默认和全插件工作台的中英文 /api/attention/events，同口径组合冷增最多 72 B，热增 0 B。示例工作台另报。",
+  "entryApprovals": [
+    {
+      "pages": ["chooser", "workbench-default", "workbench-all-plugins"],
+      "locale": "both",
+      "entry": "/api/attention/events",
+      "response": "sse-first-event",
+      "document": "<page>",
+      "change": "new"
+    }
+  ]
+}

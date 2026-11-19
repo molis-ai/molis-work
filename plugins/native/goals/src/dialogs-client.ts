@@ -270,7 +270,7 @@ ${GOALS_CREATE_COMPOSE_SCRIPT}
       return {
         values,
         focus: active && form.contains(active) && active.name
-          ? { name: active.name, value: active.value, start: active.selectionStart, end: active.selectionEnd }
+          ? { name: active.name, value: active.value, start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection }
           : null,
       };
     };
@@ -283,7 +283,7 @@ ${GOALS_CREATE_COMPOSE_SCRIPT}
           control.checked = draft.values[control.name].includes(control.value);
           return;
         }
-        control.value = draft.values[control.name];
+        if (control.value !== draft.values[control.name]) control.value = draft.values[control.name];
       });
       updateRelationPreviews();
       if (!draft.focus) return;
@@ -294,7 +294,7 @@ ${GOALS_CREATE_COMPOSE_SCRIPT}
       if (!focused) return;
       focused.focus({ preventScroll: true });
       if (typeof focused.setSelectionRange === "function" && draft.focus.start != null) {
-        focused.setSelectionRange(draft.focus.start, draft.focus.end);
+        focused.setSelectionRange(draft.focus.start, draft.focus.end, draft.focus.direction);
       }
     };
 

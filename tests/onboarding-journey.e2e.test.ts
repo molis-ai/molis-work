@@ -1,5 +1,6 @@
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -94,6 +95,7 @@ async function reviewShot(journey: NonNullable<Awaited<ReturnType<typeof openJou
   await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
 }
 
+// QEA-75: late startup work must not replace the welcome node after the user starts choosing a language.
 test("FSS-37 a new person's first run: the opening, two questions, materials, a name, and the project they made", { timeout: 180_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
@@ -737,4 +739,36 @@ test("RAC-2251 the onboarding's two project-name fields take 120 two-unit charac
   await command("Input.insertText", { text: "🟢" }, sessionId);
   assert.equal(await evaluate("[...document.getElementById('cx-blank-name').value].length"), 120, "the 121st character is capped");
   assert.equal(await evaluate("document.getElementById('cx-blank-name').value.length"), 240);
+});
+
+for (const refuse of [false, true]) test(`QEA-76 reselecting expired materials creates a new saved journey${refuse ? " after a visible SQLite refusal and explicit retry" : ""}`, {timeout:90_000}, async t=>{
+  const journey=await openJourneyBrowser(t,true);if(!journey)return;
+  const {seed,view,go,click,evaluate,waitFor,homeDirectory}=journey;
+  const old=seed(item=>{item.phase="review";item.staging_removed=true;item.sources=[{kind:"browser",selected:true,text:"Previously chosen material"}];});
+  await view(1440);await go(`/onboarding?mode=new-project&journey=${old}`);await waitFor(obView("reselect"));
+  const db=openHomeSqliteDatabase(homeDirectory,"context-onboarding");
+  try {
+    if(refuse){
+      db.exec("CREATE TRIGGER qea76_refuse_create BEFORE INSERT ON journeys BEGIN SELECT RAISE(ABORT, 'qea76_create_refused'); END");
+      await evaluate(`window.__newJourneyReplies=[];const original=window.fetch;window.fetch=async(input,init)=>{const result=await original(input,init);if(String(input?.url||input).endsWith('/api/onboarding/context')&&init?.method==='POST')window.__newJourneyReplies.push(result.status);return result;};`);
+      await click('[data-action=new-journey]');
+      await waitFor("window.__newJourneyReplies.length===1 && document.getElementById('cx-app').getAttribute('aria-busy')==='false'");
+      assert.ok(await evaluate("window.__newJourneyReplies[0]>=400"), "the real creation request was refused");
+      assert.equal(await evaluate("document.querySelector('[data-action=new-journey]').disabled"),false,"the retry button is usable after the actual failure");
+      assert.equal((db.prepare("SELECT count(*) AS n FROM journeys").get() as {n:number}).n,1,"no new journey was written");
+      assert.ok(await evaluate("Boolean(document.querySelector('.cx-error[role=alert]')?.textContent.trim())"),"the actual creation failure is shown with a way to retry");
+      for (const scheme of ["light", "dark"] as const) for (const width of [1440, 1024, 390]) {
+        await view(width,900,scheme);
+        await assertLayoutClean(evaluate,`QEA-76 retry after refusal · ${width} · ${scheme}`);
+        await reviewShot(journey,`qea76-reselect-refusal-${scheme}-${width}`);
+      }
+      db.exec("DROP TRIGGER qea76_refuse_create");
+    }
+    await click('[data-action=new-journey]');await waitFor(obView("sources"));
+    const next=await evaluate<string>("new URL(location.href).searchParams.get('journey')");assert.notEqual(next,old);
+    const saved=withContextJourneys(homeDirectory,store=>store.get(next));
+    assert.equal(saved.phase,"selecting");assert.ok(saved.sources.length>0);assert.ok(saved.sources.every(item=>!item.selected));
+    assert.equal(withContextJourneys(homeDirectory,store=>store.get(old)).staging_removed,true,"the original historical journey is kept");
+    assert.equal(await evaluate("document.getElementById('cx-app').getAttribute('aria-busy')"),"false");
+  } finally {db.close();}
 });

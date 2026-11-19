@@ -294,3 +294,32 @@ test("OCL-01: an exit record names the runtime client that acted, from the Host'
   assert.equal(mcp!.detail.client, "client-7:session-2");
   assert.equal(page!.detail.client, undefined);
 });
+
+test("QEA-89 unavailable digests never fold different reads; newly available keys resume sealed evidence and known-equal folding", t => {
+  const home = mkdtempSync(join(tmpdir(), "observation-unknown-digest-")), secrets = memorySecrets();
+  let available = false;
+  const layer = new ObservationLayer({ home, env: { platformVersion: "0.test", now: () => new Date(), projectClass: () => "user" }, keys: hasEvidence => {
+    const original = observationKeys(secrets, hasEvidence);
+    return { ...original, digest(text: string) { if (!available) throw new Error("automatic key unavailable"); return original.digest(text); } };
+  } });
+  t.after(() => { layer.close(); rmSync(home, { recursive: true, force: true }); });
+  layer.observed(agent(), read, done({ q: "first" }, { items: ["a"] }));
+  layer.observed(agent(), read, done({ q: "second" }, { items: ["b"] }));
+  layer.flush();
+  const { db, keys } = layer.writer.database()!;
+  const unknown = readRecords(db);
+  assert.equal(unknown.length, 2, "missing digests do not prove these two reads were identical");
+  assert.ok(unknown.every(row => row.coalesced === undefined && row.evidence.every(item => item.ref.kind === "missing" && item.ref.reason === "not_obtained")));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM evidence_blobs").get()!.n, 0);
+  assert.ok(readCoverageGaps(db).some(gap => gap.state === "unavailable" && gap.reason === "evidence_key"));
+  available = true;
+  for (let i = 0; i < 2; i++) layer.observed(agent(), read, done({ q: "now available" }, { items: ["new"] }));
+  layer.flush();
+  const records = readRecords(db), known = records.find(row => row.coalesced?.count === 2);
+  assert.equal(records.length, 3); assert.ok(known);
+  const result = known.evidence.find(item => item.role === "result")!.ref;
+  assert.ok(result.kind === "snapshot");
+  assert.equal(snapshotText(db, keys, result.digest), JSON.stringify({ items: ["new"] }));
+  assert.notEqual(result.digest, createHash("sha256").update(JSON.stringify({ items: ["new"] })).digest("hex"));
+  assert.deepEqual(records.filter(row => unknown.some(old => old.record_id === row.record_id)), unknown, "old missing evidence is not rewritten when keys become available");
+});

@@ -1,5 +1,5 @@
 import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { retainActionAuthority, ActionError, type ActionAudience, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, retainActionAuthority, ActionError, type ActionAudience, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { admitToInbox, isIgnored } from "./inbox-admission.js";
 import type { FeedSourceRecord } from "./projection.js";
@@ -80,9 +80,6 @@ const found = <T>(read: () => T): T[] => {
 const sourceState = (source: FeedSourceRecord): string => JSON.stringify([source.config, source.status, source.enabled, source.credential_ref]);
 
 export function createFeedInboxHandlers(feed: FeedApplication, board: string, ports: FeedInboxActionPorts): ActionHandlerBinding[] {
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as Input, caller),
-  });
   return [
     bind(feedInboxActions.admission, ({ item_id }) => {
       const item = feed.getFeedItem(board, item_id);

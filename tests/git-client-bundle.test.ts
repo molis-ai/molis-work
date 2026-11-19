@@ -49,9 +49,10 @@ test("RAC-168 the Git page's client is typed browser code bundled by esbuild, as
   assert.equal(pkg.devDependencies?.esbuild, root.devDependencies.esbuild, "esbuild is the package's own dev dependency, at the root's version");
   assert.doesNotThrow(() => new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`), "the bundle is a function expression");
   assert.match(GIT_CLIENT_FACTORY_SCRIPT, /^\(host, git\) => \{/u, "it takes the host and its embed port");
-  for (const mark of ["/view-revision", "/prepare-index", "/pr-support", "molis-commit-draft:", "data-git-conflict-resolve", "git.decision.settled", "<<<<<<<"]) {
+  for (const mark of ["/view-revision", "/prepare-index", "/pr-support", "offerCommitDraft", "data-git-conflict-resolve", "git.outcome.succeeded", "<<<<<<<"]) {
     assert.ok(GIT_CLIENT_FACTORY_SCRIPT.includes(mark), `the bundle carries ${mark}`);
   }
+  assert.doesNotMatch(GIT_CLIENT_FACTORY_SCRIPT, /molis-commit-draft:/u, "handoff uses the public client, not a shared raw storage key");
   assert.doesNotMatch(GIT_CLIENT_FACTORY_SCRIPT, /git\.outcome\.succeeded.*"zh"|"en":/u, "the bundle carries no dictionary");
   // Hand it a root without Git's elements: it mounts nothing and hands back nothing.
   const factory = new Function(`return ${GIT_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown, git?: unknown) => unknown;

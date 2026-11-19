@@ -8,11 +8,12 @@ export function childReviews(port: MessagePort, scope: FrameScope): UiPageReview
   let sequence = 0;
   const slots = new Map<number, { element: HTMLElement; query: string; onDecision?: (outcome: UiPageReviewOutcome) => void;
     stop?: () => void; signal?: AbortSignal; pending: { resolve(): void; reject(error: Error): void }[] }>();
-  const close = (id: number) => {
+  const close = (id: number, keepHeight = false) => {
     const entry = slots.get(id); if (!entry) return;
     for (const pending of entry.pending) pending.resolve();
     entry.stop?.();
-    slots.delete(id); places.untrack(id); entry.element.style.removeProperty("height");
+    slots.delete(id); places.untrack(id);
+    if (!keepHeight) entry.element.style.removeProperty("height");
     port.postMessage({ type: "review-close", id } satisfies FrameUp);
   };
   const places = childPlaces(scope, (id, box) => port.postMessage({ type: "review-layout", id, box } satisfies FrameUp), id => close(id));
@@ -41,7 +42,9 @@ export function childReviews(port: MessagePort, scope: FrameScope): UiPageReview
     const waiting = new Promise<void>((resolve, reject) => entry.pending.push({ resolve, reject }));
     if (entry.signal !== options.signal) {
       entry.stop?.(); entry.signal = options.signal;
-      const abort = () => close(id); options.signal?.addEventListener("abort", abort, { once: true });
+      // A temporary cover ends the trusted slot but leaves room at the reader's scroll position.
+      const abort = () => close(id, scope.alive && document.body.hidden);
+      options.signal?.addEventListener("abort", abort, { once: true });
       entry.stop = () => options.signal?.removeEventListener("abort", abort);
     }
     port.postMessage({ type: "review-show", id, query } satisfies FrameUp);

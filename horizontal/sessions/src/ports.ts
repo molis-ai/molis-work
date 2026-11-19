@@ -219,13 +219,16 @@ export interface AdapterReadOutput {
   activity: ExternalSessionActivity;
 }
 
+/** Attribution's opening sample is independent of the UI's newest history page. Never accepted by the public history action. */
+export type AdapterHistoryInput = Omit<ExternalSessionHistoryInput, "session_key"> & { readonly opening?: true };
+
 export interface ExternalSessionSourceAdapter {
   readonly entry_id: ExternalToolId;
   discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch>;
   readHistory?(
     context: AdapterSourceContext,
     nativeId: string,
-    input: Omit<ExternalSessionHistoryInput, "session_key">,
+    input: AdapterHistoryInput,
     signal: AbortSignal,
   ): Promise<AdapterReadOutput>;
   searchTool?(

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -438,4 +438,68 @@ test("the public CLI rebuilds the demo in a Home that has an Agent runtime, and 
     assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), true, "the demo is there");
     assert.deepEqual(catalog.listProjectDeletions(), [], "a rebuild is not a deletion: no receipt");
   } finally { catalog.close(); }
+});
+
+for (const boundary of ["before", "after"]) test(`ARF-1 crash ${boundary} staging the project resumes from the same durable receipt`, async t => {
+  const home = await mkdtemp(join(tmpdir(), "project-stage-crash-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const create = (display_name: string) => catalog.createProject({ display_name, actor_id: "test" });
+  const project = await create("To delete"), kept = await create("To keep");
+  catalog.close();
+  const input = { project_id: project.project_id, actor_id: "test", delete_confirmed: true, idempotency_key: "same-delete" };
+  const script = `
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    const [home, boundary, input] = process.argv.slice(1);
+    const rename = fs.renameSync;
+    fs.renameSync = (from, to) => {
+      if (!String(to).includes("/.deleting-")) return rename(from, to);
+      if (boundary === "after") rename(from, to);
+      process.exit(73);
+    };
+    syncBuiltinESMExports();
+    const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+    const catalog = await openMolisWorkProjectCatalog({homeDirectory:home});
+    await catalog.deleteProject(JSON.parse(input));
+  `;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", script, home, boundary, JSON.stringify(input)], { encoding: "utf8", timeout: 30_000 });
+  assert.equal(child.status, 73, child.stderr);
+  assert.equal(existsSync(project.database_path), boundary === "before");
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, async reopened => {
+    const receipts = reopened.listProjectDeletions();
+    assert.equal(receipts.length, 1);
+    assert.ok(!reopened.listProjects().some(item => item.project_id === project.project_id));
+    const retry = await reopened.deleteProject(input);
+    assert.equal(retry.replayed, true);
+    assert.equal(retry.deletion.deletion_id, receipts[0]!.deletion_id);
+    assert.equal(retry.deletion.owner_steps.find(step => step.owner_id === "project-directory")?.state, "complete");
+    assert.equal(existsSync(project.database_path), false);
+    assert.equal(readdirSync(dirname(dirname(project.database_path))).some(name => name.startsWith(".deleting-")), false);
+    assert.equal(existsSync(kept.database_path), true);
+  });
+});
+
+test("ARF-1 a confirmed retry recovers a unique old stage only after checking the project's library", async t => {
+  const home = await mkdtemp(join(tmpdir(), "stranded-project-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+    const project = await catalog.createProject({ display_name: "Stranded", actor_id: "test" });
+    const kept = await catalog.createProject({ display_name: "Kept", actor_id: "test" });
+    const root = dirname(dirname(project.database_path)), id = project.project_id;
+    const stage = join(root, `.deleting-${id}-${crypto.randomUUID()}`);
+    const parked = join(root, "parked-for-test");
+    const input = { project_id: id, actor_id: "test", delete_confirmed: true, idempotency_key: "recover" };
+    renameSync(dirname(project.database_path), parked);
+    renameSync(dirname(kept.database_path), stage);
+    await assert.rejects(catalog.deleteProject(input), { code: "catalog.project_storage_invalid" });
+    assert.equal(catalog.listProjects().length, 2);
+    assert.deepEqual(catalog.listProjectDeletions(), []);
+    renameSync(stage, dirname(kept.database_path));
+    renameSync(parked, stage);
+    const result = await catalog.deleteProject(input);
+    assert.ok(result.deletion.owner_steps.some(step => step.owner_id === "project-directory" && step.state === "complete"));
+    assert.equal(existsSync(stage), false);
+    assert.equal(existsSync(kept.database_path), true);
+  });
 });

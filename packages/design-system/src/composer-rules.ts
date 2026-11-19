@@ -34,6 +34,7 @@ export function wantsEnterHint(event: { key: string; metaKey?: boolean; ctrlKey?
 }
 
 /** The platform draft's key prefix (§3.4); the key has no version: a changed shape goes through CONTRACT-CHANGES, never an old key read. */
+export const COMPOSER_SWEEP_LIMIT = 500;
 export const COMPOSER_DRAFT_PREFIX = "mw.composer.draft:";
 
 export interface ComposerDraftPlace {

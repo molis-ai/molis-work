@@ -11,6 +11,8 @@ import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { sandboxImageNamespaceName } from "./sandbox-home-names.js";
 import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews, imagePortErrors } from "./plugin-image-connections.js";
 
+const IMAGE_TIMEOUT_MS = 180_000;
+
 export function pluginImageGenerationFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   declaration: PluginImageGenerationDeclaration | undefined, assertActive: () => void): PluginImageGenerationClient | undefined {
   if (!home || !declaration || definition.execution === "sandbox") return undefined;
@@ -51,7 +53,7 @@ async function generate(home: string, namespace: string, request: PluginImageGen
   const pinned = imageConnectionSnapshot(home, namespace, target);
   const current = () => checkRevision(pinned.revision);
   const run = async (signal: AbortSignal) => {
-    const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 180_000, reason: imagePortErrors.image_timeout("等待厂商已超过 180 秒，请检查用量后再手动重试") },
+    const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: IMAGE_TIMEOUT_MS, reason: imagePortErrors.image_timeout(`等待厂商响应已超过 ${IMAGE_TIMEOUT_MS / 1000} 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。`) },
       monitor: { intervalMs: 200, check: current } });
     const beforeDispatch = async () => { lifetime.assertActive(); await dispatch.beforeEffect(); lifetime.assertActive(); current(); };
     try {
@@ -63,7 +65,7 @@ async function generate(home: string, namespace: string, request: PluginImageGen
           : `${target.base_url}/models/${encodeURIComponent(request.model)}:generateContent`;
         return inference.generateImages({ protocol: request.protocol, endpoint, model: request.model, prompt: request.prompt,
           ...(request.size ? { size: request.size } : {}), ...(request.aspect_ratio ? { aspect_ratio: request.aspect_ratio } : {}),
-          signal: lifetime.signal, beforeDispatch, timeout_ms: 180_000, credential_ref: `image-generation:${target.slot_id}`, ...(output ? { output } : {}),
+          signal: lifetime.signal, beforeDispatch, timeout_ms: IMAGE_TIMEOUT_MS, credential_ref: `image-generation:${target.slot_id}`, ...(output ? { output } : {}),
           resolveCredential: () => { lifetime.assertActive(); current(); return pinned.connection_id
             ? withConnectorConnections(home, store => store.resolveToken(pinned.connection_id!, "image-api")) : ""; } });
       })();

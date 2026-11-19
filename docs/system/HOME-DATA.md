@@ -94,7 +94,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
 | `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 1 · WAL | `issues` |
-| `images/images.db` | `plugins/native/images/src/store.ts:50`、`:57`，基线 `:17` | 1 · 回滚 | `connections`、`jobs` |
+| `images/images.db` | `plugins/native/images/src/database.ts`（`IMAGES_DATABASE`） | 2 · 回滚 | `connections`、`connection_changes`、`jobs` |
 | `pages/pages.db` | `plugins/native/pages/src/database.ts`（`PAGES_DATABASE`） | 1 · DELETE／EXTRA | `pages`、`folders`、`page_generations`、`page_changes`、`page_imports`、`page_comments` |
 | `form/form.db` | `plugins/native/form/src/database.ts`（`FORM_DATABASE`） | 1 · DELETE／EXTRA | `forms`、`submissions`、`form_copies` |
 | `dataset/dataset.db` | `plugins/native/dataset/src/database.ts`（`DATASET_DATABASE`） | 1 · DELETE／EXTRA | `datasets`、`dataset_versions`、`dataset_receipts` |

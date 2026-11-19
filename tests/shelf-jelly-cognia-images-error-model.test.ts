@@ -61,7 +61,7 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     cancelled: 499, conflict: 409, directory_unavailable: 503, invalid: 400, model_invalid: 502, model_unavailable: 503, not_found: 404, too_large: 413,
   } },
   images: { holder: imagesPlugin, status: {
-    already_open: 409, busy: 429, cancelled: 409, closed: 503, connection_changed: 409, connection_invalid: 409, copy_conflict: 409, internal: 500, invalid: 400, invalid_image: 502,
+    already_open: 409, busy: 429, cancelled: 409, closed: 503, connection_changed: 409, connection_invalid: 409, connection_pending: 409, copy_conflict: 409, internal: 500, invalid: 400, invalid_image: 502,
     invalid_url: 400, key_required: 409, no_image: 502, not_found: 404, not_sent: 409, provider_http: 502, request_conflict: 409, response_too_large: 502,
     running: 409, runtime_unavailable: 503, save_failed: 500, sync_busy: 503, sync_limit: 413, timeout: 504,
   } },

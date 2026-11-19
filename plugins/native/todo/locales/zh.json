@@ -108,6 +108,7 @@
     "todo.note.archived": "已归档",
     "todo.note.assistant-changed": "助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。",
     "todo.note.batch-archive": "已归档 {count} 件",
+    "todo.note.batch-unchanged": "选中的待办均没有变化。",
     "todo.note.batch-done": "已完成 {count} 件",
     "todo.note.batch-moved-to": "已把 {count} 件移到",
     "todo.note.batch-shift": "已把 {count} 件推后一天",

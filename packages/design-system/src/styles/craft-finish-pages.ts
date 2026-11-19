@@ -74,8 +74,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--nav-hover); font-size: 13px; }
   .prompt-role-focus p { margin: 4px 0 0; color: var(--muted); }
-  .prompt-diagnostics { margin-top: 24px; }
-  .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
   .prompt-diagnostics-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
   .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
   .prompt-diagnostics-issues { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }

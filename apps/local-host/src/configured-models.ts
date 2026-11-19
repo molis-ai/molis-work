@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { inspectPromptCacheChoice, type ModelProviderRecord, type ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ModelProviderStore, type ModelSecretPort } from "./model-provider-store.js";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface TextModelSelection { provider_id: string; model_id: string }
@@ -30,11 +31,23 @@ export function configuredModelChoices(home: string): { provider_id: string; mod
   const opened = openConfiguredModels(home);
   if (!opened) return [];
   try {
-    return opened.store.list().flatMap(provider => provider.models.flatMap(model => {
-      const selection = { provider_id: provider.provider_id, model_id: model.model_id };
-      return selectConfiguredTextModel(home, opened.store, selection)
-        ? [{ ...selection, vision: model.vision === true, reasoning_effort: model.reasoning_effort === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` }] : [];
-    }));
+    const providers = opened.store.list().filter(provider => supportsTextModels(provider)
+      && provider.models.some(model => model.enabled) && hasSealedCredential(home, provider));
+    if (!providers.length) return [];
+    return withConnectorConnections(home, store => {
+      const byCredential = new Map<string, ConnectorConnectionRecord>();
+      for (const connection of store.list("model-api")) {
+        const ref = connection.credential_ref;
+        if (ref && !byCredential.has(ref)) byCredential.set(ref, connection);
+      }
+      return providers.flatMap(provider => {
+        if (!currentModelConnection(store, byCredential.get(provider.credential_ref), provider)) return [];
+        return provider.models.filter(model => model.enabled).map(model => ({
+          provider_id: provider.provider_id, model_id: model.model_id, vision: model.vision === true,
+          reasoning_effort: model.reasoning_effort === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}`,
+        }));
+      });
+    }, true) ?? [];
   } finally { opened.storage.close(); }
 }
 
@@ -46,28 +59,39 @@ export function validateTextModelUrl(address: string): string {
   return url.toString().replace(/\/+$/u, "");
 }
 
+type CredentialProvider = Pick<ModelProviderRecord, "credential_ref" | "base_url">;
+
+function supportsTextModels(provider: ModelProviderRecord): boolean {
+  if (!provider.enabled || !["anthropic-messages", "openai-chat-completions"].includes(provider.api_format) || inspectPromptCacheChoice(provider)) return false;
+  try { validateTextModelUrl(provider.base_url); return true; } catch { return false; }
+}
+
+function hasSealedCredential(home: string, provider: CredentialProvider): boolean {
+  return Boolean(runWithMolisWorkHome(home, () => peekSealedEntry(provider.credential_ref)));
+}
+
+function currentModelConnection(store: ConnectorConnectionStore, connection: ConnectorConnectionRecord | undefined, provider: CredentialProvider) {
+  if (!connection?.enabled || connection.disconnected_at) return false;
+  // A credential is usable only at the origin selected for this connection.
+  return store.targetOrigin(connection.connection_id) === new URL(provider.base_url).origin;
+}
+
 /** Metadata inspection never decrypts a credential or probes a provider. */
-export function modelCredentialMetadata(home: string, provider: Pick<ModelProviderRecord, "credential_ref" | "base_url">): { available: boolean; revision: string | null } {
+export function modelCredentialMetadata(home: string, provider: CredentialProvider): { available: boolean; revision: string | null } {
   const absent = { available: false, revision: null };
-  if (!runWithMolisWorkHome(home, () => peekSealedEntry(provider.credential_ref))) return absent;
-  if (!existsSync(join(home, "connectors", "connectors.db"))) return absent;
+  if (!hasSealedCredential(home, provider)) return absent;
   return withConnectorConnections(home, store => {
     const connection = store.list("model-api").find(row => row.credential_ref === provider.credential_ref);
-    if (!connection || !connection.enabled || connection.disconnected_at) return absent;
-    // The key goes only to the address its connection was pinned to when it was chosen.
-    if (store.targetOrigin(connection.connection_id) !== new URL(provider.base_url).origin) return absent;
-    return { available: true, revision: connection.updated_at };
+    return connection && currentModelConnection(store, connection, provider) ? { available: true, revision: connection.updated_at } : absent;
   }, true) ?? absent;
 }
 
 export function selectConfiguredTextModel(home: string, store: ModelProviderStore, selection?: TextModelSelection): ConfiguredTextModel | undefined {
   // Same default order as ModelProviderStore.resolveConfiguration; explicit selections never fall back.
   for (const provider of store.list()) {
-    if (!["anthropic-messages", "openai-chat-completions"].includes(provider.api_format) || inspectPromptCacheChoice(provider)) continue;
-    if (!provider.enabled || (selection && provider.provider_id !== selection.provider_id)) continue;
+    if ((selection && provider.provider_id !== selection.provider_id) || !supportsTextModels(provider)) continue;
     const model = provider.models.find(row => row.enabled && (!selection || row.model_id === selection.model_id));
     if (!model) continue;
-    try { validateTextModelUrl(provider.base_url); } catch { continue; }
     const credential = modelCredentialMetadata(home, provider);
     if (credential.available) return { provider, model, connection_revision: credential.revision };
   }

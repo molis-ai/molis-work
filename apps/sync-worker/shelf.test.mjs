@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
@@ -13,16 +13,16 @@ import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { cloudFixture } from './testing.mjs';
 
 test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer complete files through Rust/D1/R2, with conflict and trash recovery',async t=>{
-  const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'shelf-cloud-')),space=personalStorageSpace('https://auth.example.test','work','alice');
+  const cloud=await cloudFixture(t),root=realpathSync(mkdtempSync(join(tmpdir(),'shelf-cloud-'))),space=personalStorageSpace('https://auth.example.test','work','alice');
   const homes=['a','b'].map(name=>join(root,name));homes.forEach(home=>ensureStorageSpace(home,space));
   const releases=homes.map(home=>bindPersonalSpaceAuthority(home,space.spaceId,()=>{}));
   const hosts=homes.map(home=>new MolisWorkLocalHost({homeDirectory:home,completeText:null}));
-  await Promise.all(hosts.map(host=>host.homePlugins.ready()));
-  const actions=hosts.map(host=>bindActionClient(host.homeActionClient(),()=>({actor_id:'alice',project_id:null,audience:'user',permissions:SHELF_ACTION_PERMISSIONS})));
-  const initialIds=(await Promise.all(actions.map(action=>action.invoke(shelfActions.snapshot,{})))).flatMap(snapshot=>snapshot.materials.map(item=>item.item_id));
   const previous={origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL};process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';delete process.env.MOLIS_WORK_SYNC_LOCAL;
   const clients=[];t.after(async()=>{for(const client of clients)client.close();for(const host of hosts)await host.close();for(const release of releases)release();rmSync(root,{recursive:true,force:true});
     for(const [key,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[key];else process.env[key]=value;});
+  await Promise.all(hosts.map(host=>host.homePlugins.ready()));
+  const actions=hosts.map(host=>bindActionClient(host.homeActionClient(),()=>({actor_id:'alice',project_id:null,audience:'user',permissions:SHELF_ACTION_PERMISSIONS})));
+  const initialIds=(await Promise.all(actions.map(action=>action.invoke(shelfActions.snapshot,{})))).flatMap(snapshot=>snapshot.materials.map(item=>item.item_id));
   t.mock.method(globalThis,'fetch',cloud.transport);
   const lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}};
   for(const [index,home] of homes.entries()){

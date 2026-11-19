@@ -184,7 +184,7 @@ export class AdoptionExecution {
     for (const step of record.steps) {
       assertCurrent(caller);
       const { plan, apply, part_id } = step;
-      if (step.undo?.state === "restored" || step.undo?.state === "detached" || step.undo?.state === "skipped" && step.undo.reason === "shared") {
+      if (step.undo?.state === "restored" || step.undo?.state === "detached" || step.undo?.state === "skipped" && (step.undo.reason === "shared" || step.undo.reason === "revision_changed")) {
         results.push(step.undo); continue;
       }
       let result: UndoStep;
@@ -219,8 +219,10 @@ export class AdoptionExecution {
         } catch (error) {
           assertCurrent(caller);
           const failure = knownFailure(error);
-          result = error instanceof ActionError && error.kind === "conflict" ? (apply.state === "pending_verification" ? apply : { part_id, state: "skipped", reason: "revision_changed" })
-            : failure ? { part_id, state: "failed", error: failure } : writing ? pending : { part_id, state: "skipped", reason: "owner_unavailable" };
+          if (error instanceof ActionError && error.kind === "conflict") {
+            const originalChanged = error.details?.reason === "revision_changed" && error.details.undo_of === input.adoption_id + ":" + part_id;
+            result = apply.state === "pending_verification" && !originalChanged ? apply : { part_id, state: "skipped", reason: "revision_changed" };
+          } else result = failure ? { part_id, state: "failed", error: failure } : writing ? pending : { part_id, state: "skipped", reason: "owner_unavailable" };
         }
       }
       await this.change(caller, record, step, result, "undo");

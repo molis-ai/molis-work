@@ -69,7 +69,8 @@ test("ONB-21/SPC-02: review, repair, or skip one malformed suggestion while adop
   assert.ok(corrected.state === "ok" && corrected.value === false && corrected.revision !== original.revision);
 });
 
-test("ONB-28/SPC-07/16: undo restores confirmed siblings while an unavailable installation retains its unknown request", { timeout: 90_000 }, async t => {
+for (const outcome of ["replacement", "resumed", "manually changed"] as const)
+test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain write, plugin " + outcome, { timeout: 90_000 }, async t => {
   const env = await openTestHome(t);
   const one = await env.createProject("A"), two = await env.createProject("B");
   const base = "http://127.0.0.1:9/review";
@@ -136,6 +137,27 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings while an unavailable in
   assert.deepEqual(undone.undo.steps[1], initial.steps[1], "the unknown apply retains its original owner request");
   assert.equal(await a.invoke(projectSettingsCapabilities.runtime, []), null);
   assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved);
+  if (outcome !== "replacement") {
+    const enabled = await platform.supervisor.enable(jellyManifest.plugin_id);
+    assert.equal(enabled.status, "running");
+    assert.equal(env.host.homePlugins!.installation(jellyManifest.plugin_id)?.installation_generation, old.installation_generation);
+    const prefs = "/api/plugins/io.molis.work.jelly/preferences/";
+    if (outcome === "manually changed") {
+      const value = (await env.web.post<SettingsValues>(prefs + "read", { keys: [key] })).values[0]!;
+      await env.web.post(prefs + "write", { key, layer: "personal", expected_revision: value.revision,
+        request_id: "choose-another-model", change: { set: stale } });
+    }
+    const continued = await a.invoke(actions.revert, undoRequest);
+    if (outcome === "manually changed") assert.deepEqual(continued.undo.steps[1], { part_id: "model", state: "skipped", reason: "revision_changed" });
+    else assert.equal(continued.undo.steps[1]?.state, "restored");
+    const after = JSON.parse(await readFile(preference, "utf8"));
+    assert.deepEqual(after.selection, outcome === "manually changed" ? stale : null);
+    assert.equal(Object.keys(after.receipts).length, 2);
+    const repeated = await a.invoke(actions.remove, { ...undoRequest, request_id: "remove-finished" });
+    assert.deepEqual(repeated.undo.steps, continued.undo.steps);
+    assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), after);
+    return;
+  }
   await platform.runtime.uninstall(old.install_id, { retain_private_data: true });
   await env.close();
   await env.host.close();

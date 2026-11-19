@@ -245,7 +245,7 @@ interface SettingsWriteInput {
 
 采用预览按实际设置主人的 `settings_entries.model_configuration.key` 标出 `model_selection?: true`。逐项页面据此打开已有模型选择器，只读当前可用目录，保存与撤销仍走原设置动作。
 
-设置写入可带 `recovery`。场景采用时将已看到的原层作为 `previous`，SDK 在同一写事务核对它与当时的原层一致。撤销时将原写请求的编号作为 `undo_of`，SDK 找回同一主人、本人、设置和层的回执，核对要恢复的值、原写后的层修订与撤销请求的完整修订。主人可据此保存一个曾经选过、现在已离线的标识；实际运行仍须满足运行时、连接及本机工具原有的可用条件。回执仍只含原请求和原结果。普通设置页可以沿用原输入。
+设置写入可带 `recovery`。场景采用时将已看到的原层作为 `previous`，SDK 在同一写事务核对它与当时的原层一致。撤销时将原写请求的编号作为 `undo_of`，SDK 找回同一主人、本人、设置和层的回执，核对要恢复的值、原写后的层修订与撤销请求的完整修订。主人可据此保存一个曾经选过、现在已离线的标识；实际运行仍须满足运行时、连接及本机工具原有的可用条件。若原回执已匹配，且原写入层随后被修改，主人的冲突详情返回该次 `undo_of` 和 `reason: "revision_changed"`。采用记录据此结束该项撤销，保留新的手工选择。缺少原回执或安装换代则仍保留待核对状态。回执仍只含原请求和原结果。普通设置页可以沿用原输入。
 
 **P-1 的原子写接口（合同建议，不新增存储）。** SDK 不依赖 storage，也不持有 Map 幂等缓存；主人给 `transaction(run)`，在同一个持久化写事务里向同步回调提供 `readReceipt`、`readCurrent`、`writeChange`、`saveReceipt` 四项存取。receipt 保存原请求与原返回值；作用域由已绑定的 owner／actor／项目加 key、layer、request_id 组成，可信身份不进动作输入。SDK 的顺序固定：找到相同请求的 receipt 就返回原结果；同键不同内容拒绝；否则读当前 revision，核对 expected_revision 与主人硬限制，写值并回读，最后同事务写 receipt，任一失败全部回滚。有效 revision 必须覆盖会影响当前有效值的各层变化，不能只核被写层。成功重放不被原请求的旧 revision 拦住；取消或撤权先经 `beforeEffect()` 拒绝，不能补 receipt。
 

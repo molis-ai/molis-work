@@ -1,6 +1,6 @@
 # 合同变更流程
 
-2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
+2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。原回执匹配但目标层已经变化时，冲突详情返回原请求的 `undo_of` 及 `reason: "revision_changed"`，供撤销记录结束该项并保留手工修改。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
 
 同批逐项预览区分建议格式错误、无声明、主人停用和沙箱暂不支持。已保存但离线的选择携带原值、来源和不可用原因。模型连接目录的读取可显式请求 `preference_revision`，用同一次读取的版本提交普通选择。
 

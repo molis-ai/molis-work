@@ -150,7 +150,7 @@ function verifyRecovery(owner: SettingsOwner | SettingsFileOwner, tx: SettingsTr
     || !written || written.key !== key || written.state !== "ok") throw owner.errors.setting_conflict("原设置写入回执与撤销不符");
   const applied = written.layer_revisions?.[layer], now = current.layer_revisions?.[layer];
   if (applied !== undefined && now !== undefined ? applied !== now : written.revision !== current.revision)
-    throw owner.errors.setting_conflict("采用后这项设置已改变");
+    throw owner.errors.setting_conflict("采用后这项设置已改变", { undo_of: recovery.undo_of, reason: "revision_changed" });
   return true;
 }
 

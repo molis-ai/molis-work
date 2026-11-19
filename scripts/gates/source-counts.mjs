@@ -118,8 +118,9 @@ export const countFile = (file, text, { inSource = false } = {}) => {
   return counts;
 };
 
-// One pass over a snapshot serves the counters above.
+// One pass over a snapshot serves the counters above; identical file text across head and merge-base parses once.
 const passes = new WeakMap();
+const fileCountCache = new Map();
 const measureSnapshot = (snapshot, { isSource }) => {
   let result = passes.get(snapshot);
   if (result) return result;
@@ -128,7 +129,10 @@ const measureSnapshot = (snapshot, { isSource }) => {
     if (!isSource(file)) continue;
     const text = snapshot.read(file);
     if (text === null) continue;
-    for (const [rule, count] of Object.entries(countFile(file, text, { inSource: true }))) if (count) result[rule][file] = count;
+    const cached = fileCountCache.get(file);
+    const counts = cached && cached.text === text ? cached.counts : countFile(file, text, { inSource: true });
+    if (!cached || cached.text !== text) fileCountCache.set(file, { text, counts });
+    for (const [rule, count] of Object.entries(counts)) if (count) result[rule][file] = count;
   }
   passes.set(snapshot, result);
   return result;

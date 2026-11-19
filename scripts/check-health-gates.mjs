@@ -63,7 +63,7 @@ import { storeSchemaProblems } from "./gates/store-schemas.mjs";
 import { registeredUpgradeChains, versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
-import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
+import { createLintMetrics, isLintFile, isOwnRepository, lintWantsText, scopedLintFiles } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { CALL_BUDGET_ALLOWANCES, CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
@@ -166,15 +166,14 @@ const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BU
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
 const workingTree = () => {
-  // Share Host source reads between the gate measurements and the line report.
-  const hostTexts = new Map();
+  // Share working-tree reads across metrics, absolute checks and reports.
+  const texts = new Map();
   const readText = (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } };
   return {
     files: git(["-c", "core.quotepath=off", "ls-files", "-z"]).split("\0").filter(Boolean),
     read(file) {
-      if (!hostLinesWantText(file)) return readText(file);
-      if (!hostTexts.has(file)) hostTexts.set(file, readText(file));
-      return hostTexts.get(file);
+      if (!texts.has(file)) texts.set(file, readText(file));
+      return texts.get(file);
     },
   };
 };
@@ -306,8 +305,11 @@ const perFile = {
 // by parsing it: every import, export … from, import() and require() whose literal specifier resolves to a package's
 // src/ or dist/ (server/src included). A test file may only lose them and a new test file starts with none.
 const INTERNAL_TARGET = /^(?:apps|horizontal|modules|packages|plugins|server)\/(?:.+\/)?(?:src|dist)(?:\/|$)/;
+const internalImportCache = new Map();
 const internalImportCount = (file, text) => {
-  if (!/(?:src|dist)\b/.test(text)) return 0;
+  const cached = internalImportCache.get(file);
+  if (cached && cached.text === text) return cached.count;
+  if (!/(?:src|dist)\b/.test(text)) { internalImportCache.set(file, { text, count: 0 }); return 0; }
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false);
   let count = 0;
   const specifier = (node) => {
@@ -321,6 +323,7 @@ const internalImportCount = (file, text) => {
     ts.forEachChild(node, visit);
   };
   visit(source);
+  internalImportCache.set(file, { text, count });
   return count;
 };
 const testImports = {
@@ -426,7 +429,8 @@ METRICS.push(createTranslationMetric({ isSource, requireShape, isRecord }));
 METRICS.push(createImpeccableMetric({ perFile }));
 // 8. Static checks (W1-09): Biome with a minimal rule set, counted per file; the rules live in scripts/gates/lint.mjs.
 // The repository this script belongs to must have the configuration; another --root (the scratch repositories of the gate tests) may lack one.
-METRICS.push(...createLintMetrics({ root, required: isOwnRepository(root, import.meta.url), fail, perFile, rekey, rekeyFile, sumOf, requireShape }));
+let activeLintScope = null;
+METRICS.push(...createLintMetrics({ root, required: isOwnRepository(root, import.meta.url), fail, perFile, rekey, rekeyFile, sumOf, requireShape, lintScope: () => activeLintScope }));
 // 9. Test processes that load a package both from source and from the build (W2-10, interim form): per test file, only falls. The graph is shared with scripts/test-imports.mjs (header of scripts/gates/test-import-splits.mjs).
 METRICS.push(testImportSplits({ perFile }));
 // 9. The error model (W3-02-B): Error subclasses, code shape, statuses chosen by a test of an error, the owner of a code; the rules live in
@@ -435,7 +439,42 @@ METRICS.push(...createErrorMetrics({ root, required: isOwnRepository(root, impor
 // 10. `as` on an action handler's input and input types written by hand at a definition, interim until N22-G turns them into absolute rules (scripts/gates/action-input-counts.mjs).
 METRICS.push(...actionInputMetrics({ perFile }));
 METRICS.push(contextCallMetric({ perFile, isSource }));
-const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
+const isActionInputFile = (file) => isLintFile(file) && !(/(^|\/)tests?\//.test(file) || /\.test\.(?:ts|mts|mjs)$/.test(file));
+// Exact input predicates for reusing head measurements on baseSnapshot when zero inputs of a metric changed.
+const METRIC_BASE_INPUTS = {
+  giant: isSource,
+  testImports: isTestFile,
+  vendored: isVendoredSdk,
+  schemaPatches: schemaPatchesWantText,
+  schemaExecs: schemaExecsWantText,
+  compatMarkers: isSource,
+  emptyCatchesInScripts: isSource,
+  oldNames: isSource,
+  scriptConstants: isSource,
+  directEllipsisCuts: isSource,
+  rawFetchInScripts: (file) => isSource(file) || browserWantsText(file),
+  contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),
+  hostEntryExports: (file) => isStructureSource(file) || structureWantsText(file),
+  layerExceptions: (file) => isStructureSource(file) || structureWantsText(file),
+  moduleRepositoryExports: (file) => isStructureSource(file) || structureWantsText(file),
+  typedCapabilities: (file) => isStructureSource(file) || structureWantsText(file),
+  translations: (file) => isSource(file) || file.endsWith(".json"),
+  testImportSplits: (file) => isSource(file) || isTestFile(file) || splitsWantText(file),
+  errorSubclasses: (file) => isStructureSource(file) || errorOwnersWantsText(file),
+  errorCodeShape: (file) => isStructureSource(file) || errorOwnersWantsText(file),
+  errorStatusDecisions: (file) => isStructureSource(file) || errorOwnersWantsText(file),
+  errorCodeOwner: (file) => isStructureSource(file) || errorOwnersWantsText(file),
+  errorOwnerTable: (file) => isStructureSource(file) || errorOwnersWantsText(file),
+  handlerInputCasts: isActionInputFile,
+  handwrittenActionInputs: isActionInputFile,
+  localWebContextCalls: (file) => isSource(file) || file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES),
+};
+const measureAll = (snapshot, unchanged = null) => Object.fromEntries(METRICS.map((metric) => {
+  if (unchanged && Object.hasOwn(METRIC_BASE_INPUTS, metric.id) && !unchanged.changed.some(METRIC_BASE_INPUTS[metric.id])) {
+    return [metric.id, unchanged.head[metric.id]];
+  }
+  return [metric.id, metric.measure(snapshot)];
+}));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
 // 6. specs/ root: only work in progress and current norms, each with a status line. Reads the working tree.
@@ -485,11 +524,17 @@ if (mergeBase && !(report && flags.has("--json"))) {
   }
 }
 const headSnapshot = workingTree();
+if (mergeBase && !report && !update) activeLintScope = scopedLintFiles(headSnapshot, baseSnapshot);
 const head = measureAll(headSnapshot);
 const renames = new Map();
 let reference;
 if (mergeBase) {
-  reference = measureAll(baseSnapshot);
+  const changedSet = new Set(git(["diff", "--no-renames", "--name-only", "-z", mergeBase]).split("\0").filter(Boolean));
+  const headFileSet = new Set(headSnapshot.files);
+  const baseFileSet = new Set(baseSnapshot.files);
+  for (const file of headFileSet) if (!baseFileSet.has(file)) changedSet.add(file);
+  for (const file of baseFileSet) if (!headFileSet.has(file)) changedSet.add(file);
+  reference = measureAll(baseSnapshot, { head, changed: [...changedSet] });
   // Renames between the merge-base and the working tree, so moving a file does not make its records look new.
   const fields = git(["diff", "-M", "-l", "5000", "--name-status", "--diff-filter=R", "-z", mergeBase]).split("\0");
   fields.forEach((field, index) => { if (/^R\d*$/.test(field)) renames.set(fields[index + 1], fields[index + 2]); });
@@ -528,9 +573,9 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions/, or key it by the new name after a rename`]
   : problemsOfException(entry, head.giant[unit]).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const callBudgetErrors = () => callBudgetProblems(workingTree(), baseSnapshot, isOwnRepository(root, import.meta.url));
-const retiredRecordErrors = () => workingTree().files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`);
-const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...goldenHomeProblems({ ...workingTree(), size: file => statSync(path.join(root, file)).size }), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
+const callBudgetErrors = () => callBudgetProblems(headSnapshot, baseSnapshot, isOwnRepository(root, import.meta.url));
+const retiredRecordErrors = () => headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`);
+const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...goldenHomeProblems({ ...headSnapshot, size: file => statSync(path.join(root, file)).size }), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
@@ -539,7 +584,7 @@ const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
 const storeVersions = () => {
   const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;
   try {
-    return storeVersionProblems({ read: workingTree().read, readBase: mergeBase ? show : undefined });
+    return storeVersionProblems({ read: headSnapshot.read, readBase: mergeBase ? show : undefined });
   } catch (error) {
     if (error?.storeVersionsUnreadable) fail(`Health gates could not read the library versions: ${error.message}`);
     throw error;
@@ -547,9 +592,9 @@ const storeVersions = () => {
 };
 // A library whose creation statements changed under the same version, against the merge-base's tooling/gates/schemas/stores.tsv (UPG-01,
 // scripts/gates/store-schemas.mjs); that the file is what the product creates is checked in `pnpm test:contracts`, which builds.
-const storeSchemas = () => storeSchemaProblems(workingTree(), mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null : undefined);
+const storeSchemas = () => storeSchemaProblems(headSnapshot, mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null : undefined);
 // The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
-const versionOrigin = () => versionOriginProblems(workingTree(), { chains: registeredUpgradeChains(workingTree()), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
+const versionOrigin = () => versionOriginProblems(headSnapshot, { chains: registeredUpgradeChains(headSnapshot), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -566,9 +611,9 @@ if (report) {
     console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
     const api = apiSnapshots();
     console.log(`Public API snapshots: ${api.errors.length ? "out of date (see the gate's output)" : api.summary || api.notes.join("; ")}`);
-    const docProblems = docGateProblems(workingTree());
+    const docProblems = docGateProblems(headSnapshot);
     console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
-    console.log(`\n${specCoverageLine(workingTree())}`); // report only, never a gate here (scripts/check-spec-coverage.mjs)
+    console.log(`\n${specCoverageLine(headSnapshot)}`); // report only, never a gate here (scripts/check-spec-coverage.mjs)
   }
   // When stdout is a pipe, queued report data can outlive a synchronous exit.
   await new Promise((resolve, reject) => {

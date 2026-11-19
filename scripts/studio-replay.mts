@@ -28,6 +28,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMainScript } from './script-paths.mjs';
 import { harvest, loadCorpus } from './studio-replay/corpus.mjs';
 import { baselineFrom, builtinEntries, compare, failures, parseBaseline, replayEntry, summarise, type Baseline } from './studio-replay/replay.mjs';
 import { renderReport } from './studio-replay/report.mjs';
@@ -83,7 +84,16 @@ function baselineAt(ref: string, file: string): { baseline: Baseline | undefined
   return { baseline: parseBaseline(shown.stdout, `${file} at ${commit.slice(0, 8)}`), commit };
 }
 
-function replayCommand(argv: string[]): number {
+interface CliIo {
+  stdout(text: string): void;
+  stderr(text: string): void;
+}
+const DEFAULT_IO: CliIo = {
+  stdout: text => { process.stdout.write(text); },
+  stderr: text => { process.stderr.write(text); },
+};
+
+function replayCommand(argv: string[], io: CliIo = DEFAULT_IO): number {
   const { values, set } = parse(argv, ['corpus', 'baseline', 'base', 'min-pass', 'json', 'skill-dir'], ['write-baseline', 'verbose']);
   const custom = values.corpus !== undefined, paths = (values.corpus ?? DEFAULT_CORPUS).map(path => resolve(root, path));
   const baselineFile = values.baseline?.[0] ? resolve(root, values.baseline[0]) : custom ? undefined : resolve(root, DEFAULT_BASELINE);
@@ -99,16 +109,16 @@ function replayCommand(argv: string[]): number {
     const before = existsSync(baselineFile!) ? parseBaseline(readFileSync(baselineFile!, 'utf8'), baselineFile!) : undefined;
     // Writing the baseline never forgives a loss by itself: an entry that passed must still pass, or be retired with a reason.
     const lost = before ? compare(results, before) : undefined;
-    if (lost && (lost.regressions.length || lost.removed.length || lost.changed.length)) { process.stderr.write(['Refusing to write the baseline over a loss:', ...lost.regressions, ...lost.removed, ...lost.changed].join('\n  ') + '\n'); return 1; }
+    if (lost && (lost.regressions.length || lost.removed.length || lost.changed.length)) { io.stderr(['Refusing to write the baseline over a loss:', ...lost.regressions, ...lost.removed, ...lost.changed].join('\n  ') + '\n'); return 1; }
     mkdirSync(dirname(baselineFile!), { recursive: true });
     writeFileSync(baselineFile!, JSON.stringify(baselineFrom(results, skill, before?.retired), null, 2) + '\n');
-    process.stdout.write(`wrote ${relative(process.cwd(), baselineFile!)}: ${results.filter(result => result.pass).length}/${results.length} accepted\n`);
+    io.stdout(`wrote ${relative(process.cwd(), baselineFile!)}: ${results.filter(result => result.pass).length}/${results.length} accepted\n`);
     return 0;
   }
   const previous = values.base?.[0] && baselineFile ? baselineAt(values.base[0], baselineFile) : undefined;
   const comparison = recorded ? compare(results, recorded, previous?.baseline) : undefined;
   const unchecked = previous && !previous.baseline ? `the merge-base with ${values.base![0]} (${previous.commit.slice(0, 8)}) has no baseline at ${relative(root, baselineFile!)}, so only the baseline in this tree was compared. That is expected only for the commit that adds the baseline; if the file was moved or renamed, the record at the merge-base is NOT being checked.` : undefined;
-  process.stdout.write(renderReport({ results, summary, skipped: loaded.skipped, merged: loaded.merged, sources: ['built-in prompt example', ...paths.map(path => relative(root, path))], ...(comparison ? { comparison } : {}),
+  io.stdout(renderReport({ results, summary, skipped: loaded.skipped, merged: loaded.merged, sources: ['built-in prompt example', ...paths.map(path => relative(root, path))], ...(comparison ? { comparison } : {}),
     baselineLabel: baselineFile ? relative(root, baselineFile) + (previous ? previous.baseline ? ` (also against the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)})` : ` (the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)}, has no baseline yet)` : '') : '',
     ...(unchecked ? { baselineWarning: unchecked } : {}), seed: paths.some(path => path === resolve(root, DEFAULT_CORPUS[0]!)), skill, skillProblems: notes.problems, skillChanged: notes.changed, verbose: set.has('verbose') }));
   if (values.json?.[0]) writeFileSync(resolve(values.json[0]), JSON.stringify({ summary, results, merged: loaded.merged, comparison: comparison ?? null, skill }, null, 2) + '\n');
@@ -122,12 +132,12 @@ function replayCommand(argv: string[]): number {
     const rate = first.length ? first.filter(result => result.pass).length / first.length : 0;
     // The floor counts a refusal for an action the run record does not show as a refusal: the safe side for a gate.
     const gap = first.filter(result => result.catalogGap).length;
-    if (rate < need) { process.stderr.write(`first-answer pass rate of recorded answers ${(100 * rate).toFixed(0)}% is below --min-pass ${floor}${gap ? ` (${gap} of the refusals name an action the run record does not show and count as refused here)` : ''}\n`); code = 1; }
+    if (rate < need) { io.stderr(`first-answer pass rate of recorded answers ${(100 * rate).toFixed(0)}% is below --min-pass ${floor}${gap ? ` (${gap} of the refusals name an action the run record does not show and count as refused here)` : ''}\n`); code = 1; }
   }
   return code;
 }
 
-function harvestCommand(argv: string[]): number {
+function harvestCommand(argv: string[], io: CliIo = DEFAULT_IO): number {
   const { values } = parse(argv, ['runs', 'out'], []);
   if (!values.runs?.[0] || !values.out?.[0]) throw new Usage('harvest needs --runs <builder-runs dir> and --out <file>');
   const loaded = harvest(resolve(values.runs[0]));
@@ -135,7 +145,7 @@ function harvestCommand(argv: string[]): number {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify({ format: 'studio-replay-corpus/1', entries: loaded.entries }, null, 2) + '\n');
   const first = loaded.entries.filter(entry => entry.attempt === 0).length;
-  process.stdout.write(`wrote ${loaded.entries.length} entries (${first} first answers) to ${out}; merged ${loaded.merged.length} identical run records; skipped ${loaded.skipped.length}\n`
+  io.stdout(`wrote ${loaded.entries.length} entries (${first} first answers) to ${out}; merged ${loaded.merged.length} identical run records; skipped ${loaded.skipped.length}\n`
     + 'They carry the proposals and designs a person asked for: read them before committing or sharing the file. Briefs and prompts are not copied.\n');
   return 0;
 }
@@ -147,13 +157,31 @@ async function smokeCommand(argv: string[]): Promise<number> {
     minutes: values.minutes?.[0] ? Number(values.minutes[0]) : 12, standIn: set.has('stand-in') });
 }
 
-const [first, ...rest] = process.argv.slice(2);
-try {
-  if (first === '--help' || first === '-h') { process.stdout.write(USAGE + '\n'); process.exitCode = 0; }
-  else if (first === 'harvest') process.exitCode = harvestCommand(rest);
-  else if (first === 'smoke') process.exitCode = await smokeCommand(rest);
-  else process.exitCode = replayCommand(first === 'replay' ? rest : process.argv.slice(2));
-} catch (error) {
-  if (error instanceof Usage) { process.stderr.write(`${error.message}\n${USAGE}\n`); process.exitCode = 2; }
-  else { process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`); process.exitCode = 2; }
+export function runStudioReplaySync(argv: string[]): { code: number; out: string } {
+  let out = '';
+  const io: CliIo = { stdout: text => { out += text; }, stderr: text => { out += text; } };
+  const [first, ...rest] = argv;
+  try {
+    if (first === '--help' || first === '-h') { io.stdout(USAGE + '\n'); return { code: 0, out }; }
+    if (first === 'harvest') return { code: harvestCommand(rest, io), out };
+    if (first === 'smoke') throw new Usage('smoke is async; invoke the CLI entry');
+    return { code: replayCommand(first === 'replay' ? rest : argv, io), out };
+  } catch (error) {
+    if (error instanceof Usage) { io.stderr(`${error.message}\n${USAGE}\n`); return { code: 2, out }; }
+    io.stderr(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    return { code: 2, out };
+  }
+}
+
+if (isMainScript(import.meta.url)) {
+  const [first, ...rest] = process.argv.slice(2);
+  try {
+    if (first === '--help' || first === '-h') { process.stdout.write(USAGE + '\n'); process.exitCode = 0; }
+    else if (first === 'harvest') process.exitCode = harvestCommand(rest);
+    else if (first === 'smoke') process.exitCode = await smokeCommand(rest);
+    else process.exitCode = replayCommand(first === 'replay' ? rest : process.argv.slice(2));
+  } catch (error) {
+    if (error instanceof Usage) { process.stderr.write(`${error.message}\n${USAGE}\n`); process.exitCode = 2; }
+    else { process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`); process.exitCode = 2; }
+  }
 }

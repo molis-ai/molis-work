@@ -198,9 +198,10 @@ test("W5-01-D1-03: catalogue lists every consumable fixed version in owner order
     assert.equal(result.find(value => value.artifact_id === "unbound-step" && value.version === 2)?.title, null);
     assert.equal(result.find(value => value.artifact_id === "without-title")?.title, null);
     for (const summary of result) {
-      assert.deepEqual(Object.keys(summary).sort(), ["artifact_id", "artifact_type_id", "kind", "schema_version", "title", "version"]);
+      assert.deepEqual(Object.keys(summary).sort(), ["artifact_id", "artifact_type_id", "kind", "producer_plugin_id", "schema_version", "title", "version"]);
       const read = ops.client.read(summary);
       assert.ok(read);
+      assert.equal(summary.producer_plugin_id, read.producer_plugin_id, "BL375-02 the summary names the producer the platform recorded");
       assert.equal("origin" in read ? "artifact" : "process_item", summary.kind);
       assert.equal(read.artifact_type_id, summary.artifact_type_id);
       assert.equal(read.schema_version, summary.schema_version);
@@ -222,7 +223,7 @@ test("W5-01-D1-03: all artifact references shadow process collisions, including 
     for (const report of [active, archived]) rig.process.commands.registerVersion({ ...item(report.artifact_id), project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
       producer: { plugin_id: PLUGIN, plugin_version: "1.0.0", binding_signature: "test-binding" } });
     assert.deepEqual(ops.client.listConsumable(), [{ artifact_id: active.artifact_id, version: 1, artifact_type_id: TYPE, schema_version: 1,
-      title: active.title, kind: "artifact" }]);
+      title: active.title, kind: "artifact", producer_plugin_id: PLUGIN }]);
     assert.deepEqual(ops.client.read(active), active);
     assert.throws(() => ops.client.read(archived), incompatible);
     assert.ok(ops.process.readOwn(archived), "the hidden process is still recoverable through its own explicit store");

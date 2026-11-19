@@ -101,7 +101,7 @@ Coding 通过原项目内容目录声明“编码会话与草稿”集合，元�
     - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goals-actions.ts` 的 `GOALS_ACTIONS.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题。查询只刷新内存；独立后台观察每 5 秒读取并保存标题及会话状态到本插件存储，选择 Goal 的命令也会记下标题。查询不写持久记录、不启动唤醒；后台观察在停止或撤权后结束。还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
     - Character：一次读 `characters.roles.list@1` 拿到本项目的角色（个人工作里是本人的原件）、各自能不能选与原因、两层默认；会话没有自己的选择时，开第一轮前读 `characters.roles.resolve@1`。Coding 只存稳定引用（`{kind:"project",member_id}` 或 `{kind:"personal",character_id}`）和标题，版本由 Agent 宿主起跑时钉住；本机程序与工作目录的 `characters.execution@1` 只给本人。两个读取都写在 Manifest `capabilities.consumes`，声明 `permissions: []`，不需要授权（role-service-design §5）。
   - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在 Coding 自己的公开入口 `@molis-ai/molis-work-plugin-coding/contract`（`src/contract.ts`，PG-111），Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
-  - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable()` 按类型取，再留下生产者是自己的版本（`outputs.ts` 的 `codingOutputReferences`）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
+  - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable({ producer_plugin_id })` 只列平台记在 Coding 名下的版本，再按类型分（`outputs.ts` 的 `codingOutputReferences`；别家同类型的版本不列也不读，BL-375）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。
   - 提示词与方法正文随目录条目声明，Manifest 只写声明。

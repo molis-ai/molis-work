@@ -2,7 +2,7 @@ import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding } f
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference, ArtifactVersionRecord, FixedVersionRecord, ProcessItemRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import type { PluginActionClient, PluginArtifactClient, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient, PluginArtifactClient, PluginConsumableFilter, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingResultDocumentHandler } from "@molis-ai/molis-work-plugin-coding";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 
@@ -95,16 +95,20 @@ export function fakePlatform(held: { artifacts?: readonly ArtifactVersionRecord[
     return record;
   };
   const listed = (record: FixedVersionRecord, kind: "artifact" | "process_item") => ({ artifact_id: record.artifact_id, version: record.version, kind,
-    artifact_type_id: record.artifact_type_id, schema_version: record.schema_version, title: typeof record.metadata.title === "string" ? record.metadata.title : null });
-  const usableRows = (records: Iterable<FixedVersionRecord>) => [...records].filter(record => consumes.has(record.artifact_type_id)
-    && record.lifecycle_state === "active" && record.availability === "available");
+    artifact_type_id: record.artifact_type_id, schema_version: record.schema_version, title: typeof record.metadata.title === "string" ? record.metadata.title : null,
+    producer_plugin_id: record.producer_plugin_id });
+  // The platform narrows by the caller's filter after the declarations, as `listConsumable` does (BL-375).
+  const usableRows = (records: Iterable<FixedVersionRecord>, filter: PluginConsumableFilter = {}) => [...records].filter(record => consumes.has(record.artifact_type_id)
+    && record.lifecycle_state === "active" && record.availability === "available"
+    && (filter.artifact_type_id === undefined || record.artifact_type_id === filter.artifact_type_id)
+    && (filter.producer_plugin_id === undefined || record.producer_plugin_id === filter.producer_plugin_id));
   return {
     artifacts: pluginId => ({
       read: ref => usable(artifacts.get(key(ref)) ?? processItems.get(key(ref))),
       readOwn: ref => own(pluginId, artifacts.get(key(ref))),
       head: () => null,
       publish: () => { throw new Error("publishing is not under test"); },
-      listConsumable: () => [...usableRows(artifacts.values()).map(record => listed(record, "artifact")), ...usableRows(processItems.values()).map(record => listed(record, "process_item"))],
+      listConsumable: filter => [...usableRows(artifacts.values(), filter).map(record => listed(record, "artifact")), ...usableRows(processItems.values(), filter).map(record => listed(record, "process_item"))],
     }),
     processItems: pluginId => ({
       readOwn: ref => own(pluginId, processItems.get(key(ref))),

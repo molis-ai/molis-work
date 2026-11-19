@@ -101,7 +101,7 @@ test("RAC-2360 RAC-2362 RAC-496 Feed's first declaration owns the complete curre
       "and the declaration holds the out rules, the missed pulls and nothing else");
     const shapeBefore = describeSqliteSchema(before as never), shapeDeclared = describeSqliteSchema(declared as never);
     assert.deepEqual(shapeDeclared, { tables: Object.fromEntries([...MOVED_TABLES, "feed_out_rules", "feed_missed_pulls"].map(table => [table, shapeBefore.tables[table]])) }, "complete independent Feed schema: columns, checks, keys and indexes");
-    assert.equal(FEED_PROJECT_DATABASE.version, 2);
+    assert.equal(FEED_PROJECT_DATABASE.version, 1);
     assert.equal(FEED_PROJECT_DATABASE.store_name, "feed");
   } finally { before.close(); declared.close(); baseline.close(); }
 });

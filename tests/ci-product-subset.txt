@@ -32,7 +32,6 @@ tests/call-budget.test.ts
 tests/coding-actions.test.ts
 tests/coding-product-http.test.ts
 tests/feed-item-actions.test.ts
-tests/files-era-adoption.test.ts
 tests/git-product-http.test.ts
 tests/goals-actions.test.ts
 tests/goals-library-actions.test.ts

@@ -3,17 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
-import { PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
-import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
 
 export const goalEventHistoryKinds = ["imported", "mixed", "approved", "approved-completed"] as const;
 export type GoalEventHistoryKind = (typeof goalEventHistoryKinds)[number];
 
 /**
  * A project whose Goals carry history from before the event workflow — criteria and policies it imported as event
- * requirements, approvals and completions — as a project database at the current baseline. The dumps were made once
- * from the 0.2 (v35) project dumps the way a real Home was carried over (repository-anti-corruption §4.1); see
- * `fixtures/goal-event-history/README.md`. Callers open the file with LocalProjectDatabase.
+ * requirements, approvals and completions — as a project database at the current baseline. Callers open the file with
+ * LocalProjectDatabase.
  *
  * Every journal row in the dumps is Goals' (events, receipts), written before Goals was a plugin, so it carries the names the modules use
  * and not the plugin's namespace that the platform gives a plugin's journal rows. Loading puts the namespace on, the way the maintenance
@@ -27,7 +24,6 @@ export function materializeGoalEventHistory(kind: GoalEventHistoryKind, director
     raw.exec(readFileSync(new URL(`./fixtures/goal-event-history/${kind}.sql`, import.meta.url), "utf8"));
     raw.prepare("UPDATE events SET type = ? || type, object_type = ? || object_type").run(namespace, namespace);
     raw.prepare("UPDATE idempotency_records SET operation = ? || operation").run(namespace);
-    runSqliteUpgrade(raw, path, PROJECT_DATABASE_BASELINE);
   } finally { raw.close(); }
   return { directory, path };
 }

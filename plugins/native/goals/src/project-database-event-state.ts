@@ -148,4 +148,3 @@ const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
 `;
 
 export const GOALS_EVENT_STATE_SQL = EVENT_STATE_SCHEMA(",\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'");
-export const GOALS_V2_EVENT_STATE_SQL = EVENT_STATE_SCHEMA("");

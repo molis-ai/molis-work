@@ -428,7 +428,6 @@ export interface GoalTreeProposalCheckResult {
 
 export interface GovernanceEventDecisionApi {
   record(input: RecordGoalUserDecisionInput & { authority: GoalEventTrustedAuthority }): GoalEventTrustedDecisionRecord;
-  read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null;
 }
 
 export interface GovernanceApplicationApi {

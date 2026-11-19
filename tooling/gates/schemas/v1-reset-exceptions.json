@@ -1,0 +1,142 @@
+[
+  {
+    "store": "agent-definitions/agent-definitions.db",
+    "place": "agent-definitions/agent-definitions.db",
+    "from_version": 3,
+    "to_version": 1,
+    "from_structure": "abe1e1d1ffb9dfb9",
+    "to_structure": "abe1e1d1ffb9dfb9",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "assistant/assistant.db",
+    "place": "assistant/assistant.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "5fe9a8806f24bf58",
+    "to_structure": "81eb1ed879d29fa5",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user: flatten v2 to v1 and remove dead unwritten table assistant_jobs."
+  },
+  {
+    "store": "characters/characters.sqlite",
+    "place": "characters/characters.sqlite",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "c93cce5f71eea87a",
+    "to_structure": "c93cce5f71eea87a",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "images/images.db",
+    "place": "images/images.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "0eb943ac8d0c510e",
+    "to_structure": "0eb943ac8d0c510e",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "memory/memory.db",
+    "place": "memory/memory.db",
+    "from_version": 3,
+    "to_version": 1,
+    "from_structure": "17c9d78d1f64f5b8",
+    "to_structure": "17c9d78d1f64f5b8",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "observation/observation.db",
+    "place": "observation/observation.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "482e790be1bc46e2",
+    "to_structure": "482e790be1bc46e2",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "projects/*/molis-work.db",
+    "place": "projects/<project_id>/molis-work.db",
+    "from_version": 6,
+    "to_version": 1,
+    "from_structure": "78910a29f93ed508",
+    "to_structure": "82350291393c9ed7",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user: flatten v6 to v1 (including project_runtime_settings), remove Files-retirement adopted replica tables and pre-release steps."
+  },
+  {
+    "store": "projects/*/molis-work.db#io.molis.work.feed",
+    "place": "projects/<project_id>/molis-work.db#feed",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "a2446b1f1b0d700d",
+    "to_structure": "a2446b1f1b0d700d",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "projects/*/molis-work.db#io.molis.work.goals",
+    "place": "projects/<project_id>/molis-work.db#goals",
+    "from_version": 5,
+    "to_version": 1,
+    "from_structure": "56d3b509c0d75dc4",
+    "to_structure": "56d3b509c0d75dc4",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten Goals v5 and project_goals sync back to clean v1 baseline."
+  },
+  {
+    "store": "projects/*/molis-work.db#io.molis.work.schedule",
+    "place": "projects/<project_id>/molis-work.db#schedule",
+    "from_version": 3,
+    "to_version": 1,
+    "from_structure": "60eee1da661a2c2a",
+    "to_structure": "60eee1da661a2c2a",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "projects/catalog.db",
+    "place": "projects/catalog.db",
+    "from_version": 4,
+    "to_version": 1,
+    "from_structure": "f704641f25a9cbb2",
+    "to_structure": "f704641f25a9cbb2",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": "work-brief/work-brief.db",
+    "place": "work-brief/work-brief.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "57259b770650ee22",
+    "to_structure": "57259b770650ee22",
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten dev upgrade steps back to clean v1 baseline."
+  },
+  {
+    "store": null,
+    "place": "shelf/catalog.json",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": null,
+    "to_structure": null,
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten Shelf catalog v2 back to clean v1 baseline."
+  },
+  {
+    "store": null,
+    "place": "jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": null,
+    "to_structure": null,
+    "approved": "用户 2026-11-19 明确批准发布前清理拍平回 v1",
+    "reason": "Pre-release cleanup approved by user (no external users yet): flatten model preference v2 back to clean v1 baseline."
+  }
+]

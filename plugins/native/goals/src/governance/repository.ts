@@ -73,7 +73,6 @@ export class GovernanceRepository {
   listGoalTreeProposals(projectId: string): GoalTreeProposalRecord[] {
     const decisionsByProposal = new Map<string, GoalTreeProposalDecisionRecord[]>();
     const latestDecisionByItem = new Map<string, GoalTreeProposalDecisionRecord>();
-    const history = (this.approvals?.transferred(projectId) ?? []).map(record => mapGoalTreeProposalDecision(record.original));
     const effects = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_tree_item_effects WHERE project_id = ?").all(projectId) as GovernanceRow[];
     const records = effects.map(row => {
       const approval = this.approvals?.read(projectId, text(row.approval_id));
@@ -82,7 +81,7 @@ export class GovernanceRepository {
       }
       return mapGoalTreeProposalDecision(row, approval);
     });
-    for (const decision of [...history, ...records].sort((left, right) => left.created_at.localeCompare(right.created_at)
+    for (const decision of records.sort((left, right) => left.created_at.localeCompare(right.created_at)
       || left.decision_id.localeCompare(right.decision_id))) {
       decisionsByProposal.set(decision.proposal_id, [
         ...(decisionsByProposal.get(decision.proposal_id) ?? []), decision,

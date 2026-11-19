@@ -32,12 +32,12 @@ CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_heads (key TEXT PRIMARY K
 CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_aa98c46361f294dbb01ea79b1b42_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "datasets"("id","title","description","status","columns_json","rows_json","created_at","updated_at","version","project_id","artifact_id","artifact_version","publication_pending_json") VALUES('2e07a81f-8a9b-40a5-8f72-ba3cd9f157fa','金样数据集 seed 已改','','draft','[]','[]','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',2,'project-5b6982a0-f9e7-4775-b86d-8fffb6f4859d','',0,NULL);
+INSERT INTO "datasets"("id","title","description","status","columns_json","rows_json","created_at","updated_at","version","project_id","artifact_id","artifact_version","publication_pending_json") VALUES('59935de0-7522-4f5d-9724-075d680f9538','金样数据集 seed 已改','','draft','[]','[]','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',2,'project-adcfbd21-e22e-44f4-af64-38851fbc840c','',0,NULL);
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
-INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions"("key","version") VALUES('["project-5b6982a0-f9e7-4775-b86d-8fffb6f4859d","dataset","2e07a81f-8a9b-40a5-8f72-ba3cd9f157fa"]',2);
+INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions"("key","version") VALUES('["project-adcfbd21-e22e-44f4-af64-38851fbc840c","dataset","59935de0-7522-4f5d-9724-075d680f9538"]',2);
 INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_context"("id","project_id") VALUES(1,NULL);
-INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_changes"("seq","key") VALUES(1,'["project-5b6982a0-f9e7-4775-b86d-8fffb6f4859d","dataset","2e07a81f-8a9b-40a5-8f72-ba3cd9f157fa"]');
-INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_changes"("seq","key") VALUES(2,'["project-5b6982a0-f9e7-4775-b86d-8fffb6f4859d","dataset","2e07a81f-8a9b-40a5-8f72-ba3cd9f157fa"]');
+INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_changes"("seq","key") VALUES(1,'["project-adcfbd21-e22e-44f4-af64-38851fbc840c","dataset","59935de0-7522-4f5d-9724-075d680f9538"]');
+INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_changes"("seq","key") VALUES(2,'["project-adcfbd21-e22e-44f4-af64-38851fbc840c","dataset","59935de0-7522-4f5d-9724-075d680f9538"]');
 INSERT INTO "sync_aa98c46361f294dbb01ea79b1b42_replica_state"("id","device","cursor","applying") VALUES(1,'5f894dfea6d23301c7ff432e043a7e1f',0,0);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence(name,seq) VALUES('sync_aa98c46361f294dbb01ea79b1b42_replica_changes',2);

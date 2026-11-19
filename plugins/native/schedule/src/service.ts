@@ -67,6 +67,10 @@ export function createScheduleActionPorts(options: {
       return options.operations.recover(input);
     },
     listTasks: subject => listScheduleConversationTasks(options.db, subject).map(viewOf),
+    getTask: taskId => {
+      const task = getScheduleConversationTask(options.db, taskId);
+      return task && !task.archived ? viewOf(task) : null;
+    },
     ...(options.taskReads ? { taskReads: options.taskReads } : {}),
     ...(options.readiness ? { readiness: options.readiness } : {}),
     ...(options.archived ? { archived: options.archived } : {}),

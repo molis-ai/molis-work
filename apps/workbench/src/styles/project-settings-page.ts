@@ -200,6 +200,12 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
     :is(.project-preferences-page, .settings-stage) .guidance-editor-actions { padding: 12px 0; }
   }
 
-  @media (max-height: 600px) {
+  @media (max-height: 480px) {
+    :is(body.project-preferences-page, .settings-stage) {
+      & .settings-content:has(.guidance-editor:not([hidden])) { padding-top: 12px; }
+      & .guidance-editor > header { padding-bottom: 8px; }
+      & .guidance-editor header p { display: none; }
+      & .guidance-editor-actions { padding: 8px 0; }
+    }
   }
 `;

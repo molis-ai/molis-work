@@ -398,8 +398,6 @@
     "coding.composer.draft-unsaved": "草稿暂未写入服务，当前窗口仍保留：{error}",
     "coding.composer.draft-unsaved-short": "草稿暂未写入服务，当前窗口仍保留；字还在，照常能发",
     "coding.composer.drop-refused": "这里只收文字",
-    "coding.composer.enter-hint": "回车是换行。要发送请按 {keys}",
-    "coding.composer.enter-hint-dismiss": "知道了",
     "coding.composer.failed": "没发出",
     "coding.composer.files": "添加文件",
     "coding.composer.files-hint": "这里不收文件；资料从「项目资料」选",

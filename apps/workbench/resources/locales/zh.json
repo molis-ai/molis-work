@@ -2417,7 +2417,6 @@
     "workbench.catalog-composer.restored-your-unsent-draft-11-02-am": "已恢复上次没发出的草稿 · 上午 11:02",
     "workbench.catalog-composer.restored-your-unsent-draft-time": "已恢复上次没发出的草稿 · {time}",
     "workbench.catalog-composer.retry-name": "重试 {name}",
-    "workbench.catalog-composer.return-now-starts-a-new-line-to-send": "回车已改为换行。要发送请按 {keys}",
     "workbench.catalog-composer.searching": "正在找…",
     "workbench.catalog-composer.send": "发送（⌘↵）",
     "workbench.catalog-composer.send-to": "发给：",

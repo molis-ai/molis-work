@@ -2557,7 +2557,6 @@
     "workbench.catalog-composer.restored-your-unsent-draft-11-02-am": "Restored your unsent draft · 11:02 AM",
     "workbench.catalog-composer.restored-your-unsent-draft-time": "Restored your unsent draft · {time}",
     "workbench.catalog-composer.retry-name": "Retry {name}",
-    "workbench.catalog-composer.return-now-starts-a-new-line-to-send": "Return now starts a new line. To send, press {keys}",
     "workbench.catalog-composer.searching": "Searching…",
     "workbench.catalog-composer.send": "Send (⌘↵)",
     "workbench.catalog-composer.send-to": "Send to:",

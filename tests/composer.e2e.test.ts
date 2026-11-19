@@ -287,8 +287,10 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   // UIC-05 UIV-02: a composition open (Chinese input) takes ⌘/Ctrl+Enter for itself, by isComposing or keyCode 229.
   await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = ""; f.dispatchEvent(new InputEvent("input", { bubbles: true })); f.focus(); })()`);
   await page.command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 });
-  await key();
-  await key(0, 229);
+  // A plain Enter the input method takes (isComposing, or WebKit's keyCode 229): sent as the page sees it, since a synthetic
+  // CDP key either types a line break the IME would have swallowed or loses the composing flag.
+  await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input");
+    for (const init of [{ isComposing: true, keyCode: 13 }, { isComposing: false, keyCode: 229 }]) f.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...init })); })()`);
   await key(META);
   await key(META, 229);
   assert.deepEqual(mount.sent, [], "nothing goes while composing, by Enter or ⌘/Ctrl+Enter");
@@ -586,7 +588,7 @@ const AI_EN: MwComposerAiLabels = {
   searching: "Looking…", nothing: "Nothing found", unavailable: "{name} is unavailable now", reading: "Reading {name}", remove: "Remove {name}", retryFile: "Retry {name}",
   blocked: "Remove the item that cannot attach, then send", restored: "Restored your unsent draft · {time}", clear: "Clear draft",
   unsaved: "The draft could not be saved on this computer; your text is still here and can be sent",
-  enterHint: "Enter now starts a new line. To send, press {keys}", enterHintDismiss: "Got it", notice: "Note", sending: "Sending", sendingText: "Sending…",
+  notice: "Note", sending: "Sending", sendingText: "Sending…",
   failed: "Not sent", retry: "Retry", unknown: "Unconfirmed", unknownText: "Could not confirm it arrived; do not send it again yet", check: "Check",
   notSent: "Checked: it did not arrive. Your text is still here",
   to: "Send to:", stop: "Stop", stopTitle: "Stop this turn", delivery: "Choose how it is delivered", deliveryGroup: "Delivery",

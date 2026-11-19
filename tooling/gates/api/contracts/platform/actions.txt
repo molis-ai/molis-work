@@ -5376,6 +5376,27 @@ export declare const WORK_ITEM_RELATED_OUTPUT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
+export declare const WORK_TERMINAL_ACTIONS: readonly ActionDefinition[];
+
+export declare const WORK_TERMINAL_PATH = "/api/work-terminals";
+
+export declare const WORK_TERMINAL_PERMISSIONS: readonly string[];
+
+export declare const WORK_TERMINAL_PROMPT_INPUT_TYPE = "molis.work-terminal.prompt.query.v1";
+
+export declare const WORK_TERMINAL_PROMPT_OUTPUT_TYPE = "molis.work-terminal.prompt.view.v1";
+
+export declare const WORK_TERMINAL_PROMPT_SCHEMAS: {
+    readonly input: Readonly<Record<string, unknown>>;
+    readonly output: ActionSchema;
+};
+
+export declare const WORK_TERMINAL_PROVIDER_ID = "system.work-terminal";
+
+export declare const WORK_TERMINAL_READ_PERMISSION = "work_terminals:read";
+
+export declare const WORK_TERMINAL_WRITE_PERMISSION = "work_terminals:write";
+
 export interface WorkEvent {
     event_id: string;
     subject: ActionSubject;
@@ -5581,6 +5602,84 @@ export interface WorkItemRelatedInput {
 
 export interface WorkItemRelatedResult {
     subjects: ActionSubject[];
+}
+
+export interface WorkTerminalCloseInput {
+    readonly plugin_id: string;
+    readonly subject: ActionSubject;
+    readonly key: string;
+}
+
+export interface WorkTerminalListInput {
+    readonly plugin_id: string;
+    readonly subject: ActionSubject;
+}
+
+export interface WorkTerminalListResult {
+    readonly panels: WorkTerminalPanelRow[];
+    readonly read_only: boolean;
+    readonly read_only_reason?: string;
+}
+
+export interface WorkTerminalObjectDeclaration {
+    readonly subject_kind: string;
+    readonly prompt_action: string;
+}
+
+export interface WorkTerminalOpenInput {
+    readonly plugin_id: string;
+    readonly subject: ActionSubject;
+    readonly key?: string;
+    readonly runtime?: string;
+    readonly resume_session_id?: string;
+    readonly command?: string;
+    readonly args?: string[];
+    readonly workspace_id?: string;
+}
+
+export interface WorkTerminalOpenResult {
+    readonly panel_id: string;
+    readonly key: string;
+    readonly started: boolean;
+}
+
+export interface WorkTerminalPanelRow {
+    readonly key: string;
+    readonly panel_id: string;
+    readonly title: string;
+    readonly runtime: string;
+    readonly program: PluginTerminalProgram;
+    readonly running: boolean;
+    readonly created_at: string;
+}
+
+export interface WorkTerminalPromptActionInput {
+    readonly plugin_id: string;
+    readonly subject: ActionSubject;
+    readonly onboarding?: boolean;
+    readonly source_contexts?: SubjectContextAnswer["contexts"];
+}
+
+export interface WorkTerminalPromptActionResult {
+    readonly plugin_id: string;
+    readonly subject: ActionSubject;
+    readonly title: string;
+    readonly prompt: string;
+}
+
+export interface WorkTerminalPromptInput {
+    readonly subject_id: string;
+    readonly onboarding?: boolean;
+}
+
+export interface WorkTerminalPromptView {
+    readonly subject: ActionSubject;
+    readonly title: string;
+    readonly read_only: boolean;
+    readonly read_only_reason?: string;
+    readonly instruction?: string;
+    readonly instruction_with_untrusted_source?: string;
+    readonly current_facts?: string;
 }
 
 export interface WorkflowContentActions {
@@ -5799,6 +5898,8 @@ export declare function defineWorkExecutorActions(options: Readonly<Record<WorkE
     readonly [R in WorkExecutorRole]: ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
 };
 
+export declare function defineWorkTerminalPromptAction(capability_id: string, version: number, kind: string, title: string, permissions: string[]): ActionDefinition<WorkTerminalPromptInput, WorkTerminalPromptView>;
+
 export declare function defineWorkflowContentActions(station: WorkflowStationSpec & {
     receive: false;
 }): WorkflowSourceContentActions;
@@ -5912,6 +6013,11 @@ export declare function isSearchEntriesSource(action: {
 
 export declare function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean;
 
+export declare const isWorkTerminalPromptAction: (action: {
+    input_type?: string;
+    output_type?: string;
+}) => boolean;
+
 export declare function linkedArtifactVersion(href: string): ArtifactReference | null;
 
 export declare function linksToArtifactVersion(value: unknown, reference: ArtifactReference): boolean;
@@ -6010,6 +6116,15 @@ export declare function workExecutorRoleOf(action: {
     input_type?: string;
     output_type?: string;
 }): WorkExecutorRole | null;
+
+export declare const workTerminalActions: {
+    readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;
+    readonly open: ActionDefinition<WorkTerminalOpenInput, WorkTerminalOpenResult>;
+    readonly close: ActionDefinition<WorkTerminalCloseInput, {
+        closed: true;
+    }>;
+    readonly prompt: ActionDefinition<WorkTerminalPromptActionInput, WorkTerminalPromptActionResult>;
+};
 
 // Declarations the exports above refer to, which no entry exports itself:
 

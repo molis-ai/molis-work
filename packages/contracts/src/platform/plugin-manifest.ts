@@ -113,9 +113,11 @@ export interface PluginRuntimeDeclaration {
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
-/** The kinds of object a plugin may give context text for in the person's page (GAS-01). */
-export const UI_SUBJECT_CONTEXT_KINDS = ["goal"] as const;
-export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
+/** The pattern of an object kind a plugin may give context text for in the person's page (GAS-01, PEQ-17). */
+export const UI_SUBJECT_CONTEXT_KIND_PATTERN = "^[a-z][a-z0-9_-]{0,63}$";
+export const isUiSubjectContextKind = (value: unknown): value is UiSubjectContextKind =>
+  typeof value === "string" && new RegExp(UI_SUBJECT_CONTEXT_KIND_PATTERN, "u").test(value);
+export type UiSubjectContextKind = string;
 /** The longest text one plugin gives for one object, in UTF-16 code units; the Host cuts a longer answer without splitting a character and marks the cut. */
 export const UI_SUBJECT_CONTEXT_LIMIT = 12_000;
 /** The most plugins whose text the person's page receives for one object, in the order the Host lists the project's plugins. */
@@ -279,4 +281,6 @@ export interface PluginManifest {
    * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
    */
   presentation?: import("./presentation.js").PresentationDeclaration;
+  /** Which of this plugin's object kinds support the platform's object work terminal (`platform/work-terminal`, PEQ-17). */
+  work_terminals?: readonly import("./work-terminal.js").WorkTerminalObjectDeclaration[];
 }

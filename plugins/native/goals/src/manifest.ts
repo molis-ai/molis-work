@@ -2,14 +2,13 @@ import { goalSectionsDeclaration, goalSectionsTracking } from "./sync-sections.j
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
-import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
+import { goalsWorkPromptAction } from "./work-prompt.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
-import { PROJECT_GUIDANCE_READ_PERMISSION } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
@@ -44,10 +43,6 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.artifact-inputs-read", method: "GET", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.artifact-inputs-write", method: "POST", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.inputs", method: "POST", path: "/goals/:goalId/inputs" },
-  { route_id: "goals.terminal-list", method: "GET", path: "/goals/:goalId/terminals" },
-  { route_id: "goals.terminal-open", method: "POST", path: "/goals/:goalId/terminals" },
-  { route_id: "goals.terminal-close", method: "DELETE", path: "/goals/:goalId/terminals/:key" },
-  { route_id: "goals.advance-prompt", method: "POST", path: "/goals/:goalId/advance-prompt" },
 ];
 
 /**
@@ -86,17 +81,15 @@ export const goalsManifest: PluginManifest = {
     { permission: PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, required: true, reason: "读取目标的交付物和输入引用" },
     { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
     { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
-    { permission: "actions:invoke", required: true, reason: "读取项目说明" },
-    { permission: PROJECT_GUIDANCE_READ_PERMISSION, required: true, reason: "目标的工作终端先读项目说明" },
-    { permission: "terminal:run", required: true, reason: "在项目的工作目录里为目标打开工作终端" },
-    { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
+    { permission: "actions:invoke", required: true, reason: "读写平台上的目标要求与认可" },
     { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
     { permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
   ],
   // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
   capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
-  actions: [...GOALS_ACTIONS, ...GOALS_TERMINAL_ACTIONS, ...goalsPresentationActions],
+  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, ...goalsPresentationActions],
   presentation: goalsPresentation,
+  work_terminals: [{ subject_kind: "goal", prompt_action: goalsWorkPromptAction.capability_id }],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
     actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",

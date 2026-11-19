@@ -433,26 +433,35 @@ export interface StagePagePublisher {
     publish(parts: StagePagePresentation): void;
 }
 
+export interface StageTerminalChoice {
+    readonly href: string;
+    readonly title: string;
+    readonly subtitle: string;
+    readonly action_label: string;
+}
+
 export interface StageTerminalPaneModel {
-    selected?: {
-        goal_id: string;
-        title: string;
-        decomposition_state: string;
-        fulfillment_state: string;
-        statusHtml: string;
-        event_work?: boolean;
+    readonly plugin_id: string;
+    readonly subject_kind: string;
+    readonly selected?: {
+        readonly id: string;
+        readonly title: string;
+        readonly status_html?: string;
     };
-    children: readonly {
-        goal_id: string;
-        title: string;
-        statusLabel: string;
-        nextAction: string;
-    }[];
-    cliAvailability: Record<string, boolean>;
-    promptRoute: string;
-    terminalsRoute: string;
-    text: (value: string, vars?: Record<string, string | number>) => string;
-    icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+    readonly read_only?: StageTerminalReadOnlyGuard;
+    readonly cliAvailability: Record<string, boolean>;
+    readonly text: (value: string, vars?: Record<string, string | number>) => string;
+    readonly icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+}
+
+export interface StageTerminalReadOnlyGuard {
+    readonly reason: string;
+    readonly heading: string;
+    readonly summary: string;
+    readonly empty_summary: string;
+    readonly add_disabled_title: string;
+    readonly empty_choices_text: string;
+    readonly choices: readonly StageTerminalChoice[];
 }
 
 export type StateRingFamily = typeof STATE_RING_FAMILIES[number]["key"];

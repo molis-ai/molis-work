@@ -136,7 +136,7 @@ test("OPTAREA-06 advancing a Goal in a project without Feed leaves no row about 
     assert.equal((await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/directory`)).status, 200);
     const before = rowsOf(host, projectId);
     assert.ok(before.some(row => row[0] === goalsActions.create.capability_id));
-    const advanced = await post(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`, {});
+    const advanced = await post(`${base}/projects/${projectId}/api/work-terminals/io.molis.work.goals/goal/G1/prompt`, {});
     assert.equal(advanced.status, 200, advanced.text);
     assert.deepEqual(rowsOf(host, projectId), before);
   });

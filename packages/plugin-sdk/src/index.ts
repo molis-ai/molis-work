@@ -68,6 +68,9 @@ export { bindActionHandler, inputSchemaFor, type FlatUnion, type InferActionInpu
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction, projectRouteFields } from "./routes.js";
 export { subjectContextAction, subjectContextInput, subjectContextProblems, subjectContextText } from "./subject-context.js";
+export { assembleWorkTerminalPrompt, workTerminalDeclarationFor, workTerminalDeclarationProblems } from "./work-terminal.js";
+export { defineWorkTerminalPromptAction, isWorkTerminalPromptAction, workTerminalActions, WORK_TERMINAL_PATH, WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalObjectDeclaration, WorkTerminalPromptInput, WorkTerminalPromptView, WorkTerminalPanelRow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";

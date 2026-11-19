@@ -41,6 +41,7 @@ export * from "./local-person.js";
 export * from "./placement.js";
 export * from "./work-items.js";
 export * from "./work-executors.js";
+export * from "./work-terminal.js";
 
 export type { ActionSchema } from "./action-schema.js";
 export type ActionAudience = "user" | "agent" | "workflow" | "mcp" | "plugin";

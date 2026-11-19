@@ -42,6 +42,7 @@ import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { ownerFilesGiven, type PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
+import { disposeWorkTerminalsForOwner } from "./work-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -120,7 +121,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const dispose = () => {
       active = false; stopped = true;
       const failures: unknown[] = [];
-      try { terminal?.dispose(); } catch (error) { failures.push(error); }
+      try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } catch (error) { failures.push(error); }
       withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
       for (const release of [() => database?.close(), () => { if (sandboxLibrary) { sandboxLibrary.close(); this.libraryExits.set(context.install_id, sandboxLibrary.exited()); } }, () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose(), () => withdrawText?.()]) {
         try { release(); } catch (error) { failures.push(error); }

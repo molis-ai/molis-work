@@ -1,4 +1,4 @@
-import { definePlugin, defineAction, definePollingIntegrationPlugin, bindActionHandler, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, definePlugin, defineAction, definePollingIntegrationPlugin, bindActionHandler, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { defineStateMachine } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import manifest from "./manifest.json" with { type: "json" };
@@ -149,6 +149,18 @@ function sampleNotes(storage, pluginId) {
     "resume.summary": (_context, input) => {
       const all = read().notes, focused = input.focus?.kind === NOTE ? all.find(note => note.id === input.focus.id) : undefined, first = focused ?? all[0];
       return { title: "Sample notes", focus: first ? item(first) : null, next: all.filter(note => note !== first).slice(0, 5).map(item) };
+    },
+    "work_prompt": (_context, input) => {
+      const note = read().notes.find(item => item.id === input.subject_id);
+      if (!note) throw new ActionError("actions.missing", "No such sample note");
+      return {
+        subject: { kind: NOTE, id: note.id },
+        title: note.title,
+        read_only: false,
+        instruction: "Work on sample note \"" + note.title + "\" (id: " + note.id + ").",
+        instruction_with_untrusted_source: "Work on sample note (id: " + note.id + ").",
+        ...(note.bindings.length ? { current_facts: "Attached items: " + note.bindings.length } : {}),
+      };
     },
     // What the person confirms before a clear: every note it removes, at the revision they saw. The platform holds the decision.
     "notes.clear.review": () => {

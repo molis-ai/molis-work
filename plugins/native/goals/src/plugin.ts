@@ -1,6 +1,5 @@
 import { syncBindings } from "./sync-binding.js";
 import { materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { projectGuidanceActions, type ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -9,7 +8,7 @@ import { createGoalItemHandlers, createGoalsPresentationHandlers } from "./prese
 import { createGoalsActionHandlers } from "./actions.js";
 import { createGoalsAttachActionHandlers } from "./attach-actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
-import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./terminal-actions.js";
+import { createGoalsWorkPromptHandler } from "./work-prompt.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
 import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
@@ -29,12 +28,9 @@ const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version ac
 /** The platform's materials service: a reference read back (head), and what fixed versions stand for. */
 const READ_MATERIAL = { capability_id: materialsActions.read.capability_id, version: materialsActions.read.version } as const;
 const READ_PINNED = { capability_id: materialsActions.pinned.capability_id, version: materialsActions.pinned.version } as const;
-/** The project's guidance, the platform's own (contract-design §9): a terminal Run starts with its prefix. */
-const READ_GUIDANCE = { capability_id: projectGuidanceActions.read.capability_id, version: projectGuidanceActions.read.version } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
-  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list",
-  ...Object.values(goalsTerminalActions).map(definition => definition.capability_id)]);
+  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list"]);
 
 /** What of the call's authority another plugin's action is run under (the directory runs it as this caller, never as Goals). */
 function controlOf(caller: ActionExecutionContext): PluginExecutionControl {
@@ -167,17 +163,15 @@ export function createGoalsPlugin(): PluginDefinition {
       id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, projectId, id),
       { kind: "plugin", scope: "project", project_id: projectId, plugin_id: context.plugin_id,
         install_id: context.install_id, installation_generation: context.installation_generation, provider_id: context.provider_id ?? context.plugin_id }));
-    handlers.push(...createGoalsTerminalActionHandlers({ terminal: services.terminal,
-      goal: goalId => window.read(() => {
-        try {
-          const record = application.goalQueries.getGoal(projectId, goalId), state = application.goalEvents.readState(projectId, goalId);
-          return { record, state: state.owner ? state : null };
-        } catch (error) {
-          if (error instanceof ActionError && error.code === "goals.not_found") return null;
-          throw error;
-        }
-      }),
-      guidancePrefix: async caller => (await directory.invoke<ProjectGuidanceView>(READ_GUIDANCE, {}, controlOf(caller))).runtime_prompt_prefix }));
+    handlers.push(createGoalsWorkPromptHandler(goalId => {
+      try {
+        const record = application.goalQueries.getGoal(projectId, goalId), state = application.goalEvents.readState(projectId, goalId);
+        return { record, state: state.owner ? state : null };
+      } catch (error) {
+        if (error instanceof ActionError && error.code === "goals.not_found") return null;
+        throw error;
+      }
+    }));
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,
     // and the decision reminders. It runs as the installation's own job, the one place a write outside an action may reach Attention.

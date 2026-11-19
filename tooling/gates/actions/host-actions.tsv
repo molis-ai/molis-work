@@ -650,3 +650,7 @@ skills.trials.run	1	system.skills	command	operation	home	write	concurrent	agent,
 skills.versions.list	1	system.skills	query	query	home	read	-	user	skills:manage	-	-	-	f91d3c58c12c	a6f13732eec8	-
 surfaces.compose	1	system.surfaces	query	query	project	read	concurrent	plugin,user	-	-	-	surfaces.description	ccf3f4c7b906	77428bdfe59e	-
 surfaces.correct	1	system.surfaces	command	operation	project	write	-	user	-	-	-	-	bc75f60bd856	e2b416124e26	-
+work_terminals.close	1	system.work-terminal	command	operation	project	write	-	user	work_terminals:write	-	-	-	4d066d6f0755	d4ffecc7fc02	9a20bdba744a
+work_terminals.list	1	system.work-terminal	query	query	project	read	-	user	work_terminals:read	-	-	-	8143968439c6	5875bf21af81	-
+work_terminals.open	1	system.work-terminal	command	operation	project	write	-	user	work_terminals:write	-	-	-	7e06765ba362	2d9cf46a0245	9a20bdba744a
+work_terminals.prompt	1	system.work-terminal	query	query	project	read	-	user	work_terminals:read	-	-	-	2230ea9e2139	5d44eba463d8	-

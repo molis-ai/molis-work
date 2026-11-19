@@ -12,7 +12,7 @@ export { hostEventDecisionAuthority } from "./goal-event-application.js";
 export { createGoalsPlugin } from "./plugin.js";
 export { createGoalsAttachActionHandlers, GOALS_ATTACH_RELATION } from "./attach-actions.js";
 export { goalsResumeSummary } from "./resume-summary.js";
-export { goalAdvancePrompt, goalsTerminalActions } from "./terminal-actions.js";
+export { goalsWorkPromptAction, goalWorkPromptView } from "./work-prompt.js";
 export { createGoalsApplication, type GoalsApplication, type GoalsApplicationPorts } from "./goals-application.js";
 export * from "./goal-entry-contract.js";
 export * from "./proposal-normalizer.js";

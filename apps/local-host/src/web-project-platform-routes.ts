@@ -5,6 +5,7 @@ import { handleKitSettingsHttp } from "./kit-settings-http.js";
 import { handleProjectGuidanceHttp } from "./project-guidance-http.js";
 import { handleMainlineHttp, mainlineAttention } from "./mainline-http.js";
 import { handleAcceptanceHttp } from "./acceptance-http.js";
+import { handleWorkTerminalHttp } from "./work-terminal-http.js";
 import { handleMainlineEventSurfacesHttp } from "./mainline-event-surfaces-http.js";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -297,6 +298,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
   // The requirement column (specs/proactive-assistant §7.3.1): what was asked of a piece of work, how each item was checked, and the person's accept or return.
   { id: "acceptance", handle: ({ request, response, url, localHost, hostReference }) => handleAcceptanceHttp(request, response, url, localHost, hostReference) },
+  // Object work terminals (batch 44 item 4, PEQ-17): platform-managed terminals for any plugin declaring `work_terminals`.
+  { id: "work-terminals", handle: ({ request, response, url, localHost, hostReference }) => handleWorkTerminalHttp(request, response, url, localHost, hostReference) },
   // The shell's UI stages in this project, through the same door as the Home's (observation-collection §4).
   { id: "observation-ui", handle: ({ request, response, url, localHost, hostReference }) => handleObservationShellHttp(request, response, url, localHost, hostReference) },
   { id: "observation-api", handle: ({ request, response, url, localHost, hostReference }) => handleObservationHttp(request, response, url, localHost, hostReference) },

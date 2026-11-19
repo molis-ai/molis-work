@@ -32,6 +32,7 @@ import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/a
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
+import { WORK_TERMINAL_PERMISSIONS, WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 /**
@@ -97,6 +98,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
     // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).
     [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
+    // Platform object work terminals: user-only actions, working for any plugin that declares `work_terminals` (PEQ-17).
+    [WORK_TERMINAL_PROVIDER_ID, WORK_TERMINAL_PERMISSIONS],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

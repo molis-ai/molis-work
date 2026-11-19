@@ -611,13 +611,10 @@
     "action.goals.state.read": 1,
     "action.goals.states.read": 1,
     "action.goals.subject.read": 1,
-    "action.goals.terminal.close": 1,
-    "action.goals.terminal.list": 1,
-    "action.goals.terminal.open": 1,
-    "action.goals.terminal.prompt": 1,
     "action.goals.timeline.list": 1,
     "action.goals.trash.list": 1,
     "action.goals.trash.set": 1,
+    "action.goals.work_prompt": 1,
     "action.goals.tree.check": 1,
     "action.goals.tree.decide": 1,
     "action.goals.tree.read": 1,
@@ -1737,7 +1734,13 @@
     "action.assistant.panel.works.resume_answer": 1,
     "type.molis.placement.relation": 1,
     "type.molis.resume-summary.query": 1,
-    "type.molis.resume-summary.view": 1
+    "type.molis.resume-summary.view": 1,
+    "type.molis.work-terminal.prompt.query": 1,
+    "type.molis.work-terminal.prompt.view": 1,
+    "action.work_terminals.close": 1,
+    "action.work_terminals.list": 1,
+    "action.work_terminals.open": 1,
+    "action.work_terminals.prompt": 1
   },
   "carriers": [
     {

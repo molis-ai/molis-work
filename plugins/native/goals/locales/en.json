@@ -957,6 +957,14 @@
     "goals.event-document-ui.requirement-returned": "Returned",
     "goals.event-document-ui.review-requirements": "Review item by item",
     "goals.event-forms-agreement.requirements-changed-in-requirement-column": "Only the expected result changes here; requirements are added, changed and accepted in the requirement column.",
-    "goals.event-forms-record.report-checks-on-platform": "This record does not judge any requirement; checks are reported item by item in the requirement column."
+    "goals.event-forms-record.report-checks-on-platform": "This record does not judge any requirement; checks are reported item by item in the requirement column.",
+    "goals.terminal.child-goals-completed": "Child Goals have completed this work, so the parent Goal needs no terminal. Open a child Goal to review or continue.",
+    "goals.terminal.no-child-goal-ready": "There is no child Goal ready to work on. Check how this Goal is broken down.",
+    "goals.terminal.open-child-goal": "Open this child Goal",
+    "goals.terminal.open-specific-child-goal": "Open a specific child Goal",
+    "goals.terminal.open-specific-child-goal-above": "Open a specific child Goal above.",
+    "goals.terminal.parent-does-not-complete-own": "Once all child Goals finish, confirm closing the parent Goal; open a specific child Goal to use a terminal.",
+    "goals.terminal.parent-does-not-use-terminal": "This parent Goal does not use a terminal directly",
+    "goals.terminal.parent-read-only-message": "This parent Goal is completed through its child Goals, so its terminal is read-only. Open a specific child Goal to continue."
   }
 }

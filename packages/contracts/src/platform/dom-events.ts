@@ -155,6 +155,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/characters/terminal.ts"],
     state: "The terminal that shows a Character run: which process it is attached to.",
   },
+  "work-terminal": {
+    files: ["apps/workbench/src/terminal/client-subject-events.ts"],
+    state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.",
+  },
   "goals-event-document": {
     files: ["plugins/native/goals/src/event-document-client.ts"],
     state: "The Goal event panel inside an open Goal document.",
@@ -415,6 +419,16 @@ export const DOM_EVENTS = [
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
     detail: "{ goalId, mode }",
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
+  },
+  {
+    name: "molis-work:work-terminal-subject-changed", kind: "request", owner: "work-terminal", on: "document",
+    detail: "{ pluginId, subjectKind, subjectId, title?, status?, statusLabel?, statusMeaning?, statusIconMarkup?, readOnly? }",
+    summary: "A plugin surface switched the object shown beside the platform work terminal pane: reset its panels and paint the new owner title, status and read-only guard.",
+  },
+  {
+    name: "molis-work:work-terminal-subject-ready", kind: "request", owner: "work-terminal", on: "document",
+    detail: "{ pluginId, subjectKind, subjectId }",
+    summary: "The object shown beside the platform work terminal pane finished loading: load its work terminals if it is still the pane's current object.",
   },
   {
     name: "molis:acceptance-review-requested", kind: "request", owner: "acceptance-column", on: "document",

@@ -6,7 +6,6 @@ import { goalLifecycleRoutes } from "./lifecycle.js";
 import { goalEventRoutes } from "./events.js";
 import { goalDeliverableRoutes } from "./deliverables.js";
 import { goalInputRoutes } from "./inputs.js";
-import { goalTerminalRoutes } from "./terminals.js";
 
 /** Every route `goalsManifest.routes` declares, one handler each (PG094-09); whoever mounts them supplies the ports. */
 export function goalsRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
@@ -17,6 +16,5 @@ export function goalsRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     ...goalEventRoutes(ports),
     ...goalDeliverableRoutes(ports),
     ...goalInputRoutes(ports),
-    ...goalTerminalRoutes(ports),
   ];
 }

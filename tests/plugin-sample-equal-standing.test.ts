@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction, LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -26,6 +26,11 @@ test("PEQ-05: the sample imports only contracts and the plugin SDK, and its Mani
     "「挂到…」 not only for Goals");
   const blank = action("notes.create").intake;
   assert.ok(blank && "start" in blank && blank.start && blank.accepts?.length === 0, "a blank starting point");
+  // PEQ-17: any plugin can declare an object work terminal with only a read-only user prompt query and zero terminal/workspace permissions.
+  assert.deepEqual(manifest.work_terminals, [{ subject_kind: "sample_note", prompt_action: id("work_prompt") }], "an object work terminal declaration");
+  assert.ok(isWorkTerminalPromptAction(action("work_prompt")), "the prompt action matches the work-terminal contract");
+  assert.deepEqual(manifest.permissions.filter(item => ["terminal:run", "workspace:read", "projects:guidance-read"].includes(item.permission)), [],
+    "object work terminals require no terminal, workspace or guidance permissions on the plugin");
 });
 
 test("PEQ-05: in a project the sample's declarations are the person's to use, and MCP reads its resume summary like any plugin's", { timeout: 60_000 }, async t => {

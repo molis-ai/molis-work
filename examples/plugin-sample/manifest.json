@@ -1470,6 +1470,10 @@
                       "state": {
                         "const": "ok"
                       },
+                      "value_unavailable": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
                       "value": {
                         "type": [
                           "null",
@@ -1520,6 +1524,21 @@
                               "array",
                               "object"
                             ]
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      },
+                      "layer_revisions": {
+                        "type": "object",
+                        "properties": {
+                          "project": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          },
+                          "personal": {
+                            "type": "string",
+                            "pattern": "\\S"
                           }
                         },
                         "required": [],
@@ -1633,6 +1652,67 @@
                 }
               ]
             },
+            "recovery": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "previous": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "set": {
+                              "type": [
+                                "null",
+                                "boolean",
+                                "number",
+                                "string",
+                                "array",
+                                "object"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "set"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "inherit": {
+                              "const": true
+                            }
+                          },
+                          "required": [
+                            "inherit"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "previous"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "undo_of": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  },
+                  "required": [
+                    "undo_of"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
             "expected_revision": {
               "type": "string",
               "pattern": "\\S"
@@ -1679,6 +1759,10 @@
                       },
                       "state": {
                         "const": "ok"
+                      },
+                      "value_unavailable": {
+                        "type": "string",
+                        "pattern": "\\S"
                       },
                       "value": {
                         "type": [
@@ -1734,6 +1818,21 @@
                         },
                         "required": [],
                         "additionalProperties": false
+                      },
+                      "layer_revisions": {
+                        "type": "object",
+                        "properties": {
+                          "project": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          },
+                          "personal": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -1782,6 +1881,103 @@
           "additionalProperties": false
         }
       }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.work_prompt",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Read sample note work-terminal prompt",
+        "description": "Read a sample note's read-only state and instruction for a platform work terminal.",
+        "kind": "query",
+        "scope": "project",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private"
+        ],
+        "subject_kinds": [
+          "sample_note"
+        ],
+        "input_type": "molis.work-terminal.prompt.query.v1",
+        "output_type": "molis.work-terminal.prompt.view.v1",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subject_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "onboarding": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "subject_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "read_only": {
+              "type": "boolean"
+            },
+            "read_only_reason": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "instruction": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "instruction_with_untrusted_source": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "current_facts": {
+              "type": "string",
+              "maxLength": 8000
+            }
+          },
+          "required": [
+            "subject",
+            "title",
+            "read_only"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "work_terminals": [
+    {
+      "subject_kind": "sample_note",
+      "prompt_action": "io.molis.work.example.notes.work_prompt"
     }
   ],
   "settings_entries": {

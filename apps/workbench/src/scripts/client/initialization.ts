@@ -355,8 +355,21 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     if (selected && tuiPane) {
       try {
-        tuiPane.setAttribute("data-goal-id", selected);
+        tuiPane.setAttribute("data-tui-plugin-id", "io.molis.work.goals");
+        tuiPane.setAttribute("data-tui-subject-kind", "goal");
+        tuiPane.setAttribute("data-tui-subject-id", selected);
         const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
+        document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
+          pluginId: "io.molis.work.goals",
+          subjectKind: "goal",
+          subjectId: selected,
+          title: selectedItem?.goal.title || selected,
+          status: selectedItem?.status || "",
+          statusLabel: selectedItem?.status_label || "",
+          statusMeaning: selectedItem?.status_meaning || "",
+          statusIconMarkup: selectedItem?.status_icon || "",
+          readOnly: selectedItem?.terminal_read_only || null,
+        } }));
         document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
           goalId: selected,
           goalTitle: selectedItem?.goal.title || selected,

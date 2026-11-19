@@ -921,6 +921,14 @@
     "goals.event-document-ui.requirement-returned": "已退回",
     "goals.event-document-ui.review-requirements": "逐项审阅",
     "goals.event-forms-agreement.requirements-changed-in-requirement-column": "这里只改结果说明；要求在要求栏里加、改、认可。",
-    "goals.event-forms-record.report-checks-on-platform": "这条记录不判断要求是否满足；核对结果在要求栏逐项报告。"
+    "goals.event-forms-record.report-checks-on-platform": "这条记录不判断要求是否满足；核对结果在要求栏逐项报告。",
+    "goals.terminal.child-goals-completed": "下属子目标已完成执行，无需为上层目标打开终端；如需继续，请进入对应子目标。",
+    "goals.terminal.no-child-goal-ready": "还没有可直接推进的子目标，请先检查目标拆分。",
+    "goals.terminal.open-child-goal": "打开这个子目标",
+    "goals.terminal.open-specific-child-goal": "请进入一个具体的子目标",
+    "goals.terminal.open-specific-child-goal-above": "请从上方进入一个具体的子目标。",
+    "goals.terminal.parent-does-not-complete-own": "子目标全部完成后，仍需确认收尾上层目标；如需使用终端请进入具体子目标。",
+    "goals.terminal.parent-does-not-use-terminal": "上层目标不直接使用终端",
+    "goals.terminal.parent-read-only-message": "这条上层目标由子目标共同完成，终端为只读。请进入一个具体的子目标继续。"
   }
 }

@@ -20,6 +20,7 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
         return;
       }
       document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId } }));
+      document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-ready", { detail: { pluginId: "io.molis.work.goals", subjectKind: "goal", subjectId: goalId } }));
       if (updateHistory) {
         history.pushState({ goalId }, "", goalPageUrl(goalId));
       }

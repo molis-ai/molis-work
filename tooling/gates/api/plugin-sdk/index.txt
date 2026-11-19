@@ -658,6 +658,8 @@ export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 export { WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
+export { WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -674,6 +676,10 @@ export type { WorkItemNextResult } from "@molis-ai/molis-work-contracts/platform
 export type { WorkItemNextStep } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkItemRelatedInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkItemRelatedResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalObjectDeclaration } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPanelRow } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPromptInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPromptView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function actionCardView(card: ActionCard & {
     readonly run_id?: string | null;
@@ -700,6 +706,17 @@ export declare function arraySchema<const I>(items: I): {
     type: "array";
     items: I;
 };
+
+export declare function assembleWorkTerminalPrompt(input: {
+    readonly subject: ActionSubject;
+    readonly title: string;
+    readonly instruction?: string;
+    readonly instruction_with_untrusted_source?: string;
+    readonly current_facts?: string;
+    readonly project_guidance_prefix?: string;
+    readonly source_contexts?: SubjectContextAnswer["contexts"];
+    readonly source_context?: string;
+}): string;
 
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -844,6 +861,7 @@ export { defineTaskServesAction } from "@molis-ai/molis-work-contracts/platform/
 export { defineWorkEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkTerminalPromptAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
@@ -913,6 +931,8 @@ export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platf
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
 export declare function isTimeZone(value: string): boolean;
+
+export { isWorkTerminalPromptAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
@@ -1169,6 +1189,14 @@ export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/action
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinRunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export { workTerminalActions } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function workTerminalDeclarationFor(manifest: PluginManifest, kind: string): {
+    readonly declaration: WorkTerminalObjectDeclaration;
+    readonly action: ActionDefinition;
+} | undefined;
+
+export declare function workTerminalDeclarationProblems(parsed: PluginManifest): string[];
 
 export declare function zonedParts(timeZone: string | undefined, { seconds, shortOffset }?: {
     seconds?: boolean;

@@ -491,7 +491,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const open = async (width: number, height: number, path: string, ready: string) => {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${path}` }, sessionId));
-    await waitFor(`${ready} && !!document.querySelector('[data-dock-pins] [data-dock-pin]')`, 20_000);
+    await waitFor(`${ready} && !!document.querySelector('[data-dock-pins] [data-top-corner-toggle]')`, 20_000);
     // Text widths feed the Dock's fold; wait for the fonts, but a slow machine's font load is not what is under test.
     await waitFor("document.fonts.status === 'loaded'", 10_000).catch(() => undefined);
     assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), scheme, "the page follows the emulated scheme");

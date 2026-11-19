@@ -81,7 +81,7 @@ function renderBarSpecimen(): string {
     rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
-  const bar = renderWorkbenchBar(primitives, { head: project.display_name });
+  const bar = renderWorkbenchBar(primitives);
   return `<div class="mw-catalog-bar-stage" data-catalog-bar>${strip}${bar}</div>`;
 }
 

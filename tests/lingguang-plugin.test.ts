@@ -143,7 +143,9 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.doesNotMatch(stack, /class="bar-side bar-own"/);
   assert.doesNotMatch(stack, /data-bar-resident/);
   // The side's tabs sit at the right end of the title bar since 07-S1, not in the bar.
-  const strip = html.slice(html.indexOf("data-side-tabs"), html.indexOf("</div></div>", html.indexOf("data-side-tabs")));
+  // From the element itself, not a script that queries `[data-side-tabs]` (the page's scripts carry markup of their own).
+  const tabsAt = html.search(/data-side-tabs[ >]/);
+  const strip = html.slice(tabsAt, html.indexOf("</div></div>", tabsAt));
   const tabs = [...strip.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（常开插件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
   assert.match(stack.slice(stripAt, sideAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");

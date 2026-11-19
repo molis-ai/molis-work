@@ -98,8 +98,9 @@ async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixtu
   };
   const openSettings = async (project = f.a) => {
     await navigate(`/projects/${project.project_id}/`);
-    await page.wait("!!document.querySelector('[data-project-menu] > summary')");
-    await page.click("[data-project-menu] > summary"); await page.click("[data-directory-open=project-settings]");
+    // 项目设置 is a row of the first place's list (POLISH-05 as rewritten: from 960px the right end has no project).
+    await page.wait("!!document.querySelector('[data-top-corner-toggle]')");
+    await page.click("[data-top-corner-toggle]"); await page.click("[data-top-corner-list] [data-directory-open=project-settings]");
     await page.wait("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=plugins]')");
     await page.click("[data-directory-panel=project-settings] [data-settings-section=plugins]");
     await openReach();

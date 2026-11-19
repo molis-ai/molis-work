@@ -232,7 +232,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         corner: renderProjectCorner(view.project ?? null, projectOptions, desktopShell, "__PROJECT_INDEX__"),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
       })}
-      ${renderWorkbenchBar(primitives, { head: view.project?.display_name, sideTabs })}
+      ${renderWorkbenchBar(primitives, { sideTabs })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}

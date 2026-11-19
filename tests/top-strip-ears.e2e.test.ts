@@ -152,10 +152,11 @@ test("at 390px the top strip is one row (POLISH-07)", { timeout: 180_000 }, asyn
     return { height: box(header).height, rows: new Set(parts.map((part) => box(part).top + box(part).height / 2)).size, overflow: document.documentElement.scrollWidth > innerWidth || parts.some((part) => box(part).right > innerWidth),
       has, stageTop: box(document.querySelector('[data-plugin-stage]')).top, place: { width: box(place).width, text: [...place.children].filter(shown).map((node) => node.textContent.trim()).join('') } };
   })()`);
-  const whole = ["[data-workspace-history=back]", "[data-top-corner-toggle]", "[data-plugin-picker-toggle]", "[data-side-toggle]", ".titlebar-end"];
+  // POLISH-07, §4 第 6 条: at 540px and under the row has no way back (the first place takes its 44px; the mock has none).
+  const whole = ["[data-top-corner-toggle]", "[data-plugin-picker-toggle]", "[data-side-toggle]", ".titlebar-end"];
   const home = await read();
   assert.deepEqual({ height: home.height, rows: home.rows, overflow: home.overflow, stageTop: home.stageTop }, { height: 44, rows: 1, overflow: false, stageTop: 44 }, "POLISH-07: one 44px row and the work area starts right under it");
-  assert.deepEqual(home.has, whole, "the way back, the first place, ＋, the side's switch and the project");
+  assert.deepEqual(home.has, whole, "the first place, ＋, the side's switch and the project");
   assert.equal(home.place.text, "项目主页", "§4 第 6 条: at 540px and under the first place names the page alone");
 
   // With a tab open the row holds the current tab and 全部标签 as well, and is still one row.

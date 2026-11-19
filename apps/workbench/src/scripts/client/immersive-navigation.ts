@@ -151,8 +151,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    // The bar's menus hold entries too (settings under the project, the market in the Dock menu); they show where you are.
-    document.querySelectorAll("[data-assistant-island] [data-plugin-id], [data-dock] :is([data-personal-menu], [data-global-menu]) [data-plugin-id]").forEach(button => {
+    // The bar's menus hold entries too (settings under the project, the market in the Dock menu), as does the foot's account bar
+    // (设置); they show where you are.
+    document.querySelectorAll("[data-assistant-island] [data-plugin-id], [data-dock] :is([data-personal-menu], [data-global-menu]) [data-plugin-id], [data-bar-account] [data-plugin-id]").forEach(button => {
       const active = button.dataset.pluginId === plugin;
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
@@ -167,6 +168,10 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
         projectGear.setAttribute("aria-label", globalThis.t.text("workbench.immersive-navigation.open-current-project-settings"));
       }
     }
+    // The first place's 项目设置 is the same entry where the right end has no project (POLISH-05 as rewritten): current while it shows.
+    document.querySelectorAll("[data-top-corner-list] [data-directory-open=project-settings]").forEach(row => {
+      if (plugin === "project-settings") row.setAttribute("aria-current", "page"); else row.removeAttribute("aria-current");
+    });
     retitle();
     const goalTools = document.querySelector("[data-immersive-goal-tools]");
     if (goalTools) goalTools.hidden = true;

@@ -86,14 +86,13 @@ test("PFG-22 PFG-23 PFG-24 ＋ opens from the directory, recalls what is open, a
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   assert.equal(await evaluate(`document.querySelectorAll('${GOALS_TAB}').length`), 1, "recall does not open a second Goals tab");
 
-  // 口径 6: one layout button, no split button on the strip. Since the work line took the foot (specs/work-line §6.5) the
-  // project stands at the strip's very end, so the layout button is the last control before it.
+  // 口径 6: one layout button, no split button on the strip. From 960px the right end is the side's switch and the layout button
+  // and nothing else (POLISH-05 as rewritten, POLISH-71): the layout button ends the strip, and no project button is shown.
   assert.equal(await evaluate(`document.querySelector('${TABS} [data-tab-split], .tab-split-button')`), null);
   const ends = await evaluate<boolean>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
-    const end = document.querySelector('.immersive-titlebar > .titlebar-end').getBoundingClientRect();
-    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]') && !button.closest('.titlebar-end')).every(button => button.getBoundingClientRect().right <= layout.left + 1)
-      && layout.right <= end.left + 1 && end.left - layout.right < 24 && innerWidth - end.right < 24; })()`);
-  assert.equal(ends, true, "the layout button is the strip's last control before the project, which ends the strip");
+    return [...document.querySelector('.immersive-titlebar').querySelectorAll('button')].filter(button => button.checkVisibility() && !button.matches('[data-layout-open]')).every(button => button.getBoundingClientRect().right <= layout.left + 1)
+      && innerWidth - layout.right < 24 && !document.querySelector('.immersive-titlebar > .titlebar-end').checkVisibility(); })()`);
+  assert.equal(ends, true, "the layout button is the strip's last control and ends the strip; no project button from 960px");
   await click("[data-layout-open]");
   await waitFor(`document.querySelector('${LAYOUT_MENU}')?.matches(':popover-open') && document.activeElement?.closest('${LAYOUT_MENU}')`);
   const items = await evaluate<{ title: string | null; actions: string[]; splits: string[]; panes: string[] }>(`(() => {

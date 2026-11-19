@@ -24,7 +24,7 @@ function createAccountToast() {
 }
 function createAccountMenu() {
   const style = document.createElement('style');
-  style.textContent = '.mw-account-popover{position:fixed;z-index:10000;width:264px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:8px;border:1px solid var(--line,#dedee3);border-radius:12px;background:var(--panel,#fff);color:var(--ink,#202023);box-shadow:0 8px 28px #0002;font:14px/1.5 system-ui}.mw-account-popover[hidden]{display:none}.mw-account-popover button{display:flex;align-items:center;width:100%;box-sizing:border-box;min-height:40px;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font:inherit;cursor:pointer;text-align:left}.mw-account-popover button:hover{background:var(--nav-hover,#f1f1f3)}.mw-account-popover button:focus-visible{outline:2px solid var(--accent,#5068b7);outline-offset:-2px}.mw-account-popover button:disabled{opacity:.5;cursor:wait}.mw-account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--line,#dedee3)}.mw-account-summary strong,.mw-account-summary small{display:block;overflow-wrap:anywhere}.mw-account-summary small{color:var(--muted,#62626b);font-size:12px}.mw-account-feedback{margin:8px 10px;font-size:12px;overflow-wrap:anywhere}.mw-account-feedback:empty{display:none}.mw-account-feedback[role=alert]{color:#b42318}.project-directory-topbar [data-account-link]{max-width:240px;gap:8px}.project-directory-topbar [data-personal-name]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-directory-topbar [data-personal-status]{color:var(--muted);font-size:12px;white-space:nowrap}';
+  style.textContent = '.mw-account-popover{position:fixed;z-index:10000;width:264px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:8px;border:1px solid var(--line,#dedee3);border-radius:12px;background:var(--panel,#fff);color:var(--ink,#202023);box-shadow:0 8px 28px #0002;font:14px/1.5 system-ui}.mw-account-popover[hidden]{display:none}.mw-account-popover :is(button,.mw-account-sync){display:flex;align-items:center;width:100%;box-sizing:border-box;min-height:40px;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font:inherit;cursor:pointer;text-align:left}.mw-account-popover .mw-account-sync[hidden]{display:none}.mw-account-popover .mw-account-sync{gap:6px;font-size:12px;color:var(--muted,#6b6b76)}.mw-account-popover .mw-account-sync:is([data-sync-phase=conflict],[data-sync-phase=failed]){color:var(--red,#c33)}.mw-account-popover :is(button,.mw-account-sync):hover{background:var(--nav-hover,#f1f1f3)}.mw-account-popover :is(button,.mw-account-sync):focus-visible{outline:2px solid var(--accent,#5068b7);outline-offset:-2px}.mw-account-popover button:disabled{opacity:.5;cursor:wait}.mw-account-summary{padding:8px 10px 12px;margin-bottom:4px;border-bottom:1px solid var(--line,#dedee3)}.mw-account-summary strong,.mw-account-summary small{display:block;overflow-wrap:anywhere}.mw-account-summary small{color:var(--muted,#62626b);font-size:12px}.mw-account-feedback{margin:8px 10px;font-size:12px;overflow-wrap:anywhere}.mw-account-feedback:empty{display:none}.mw-account-feedback[role=alert]{color:#b42318}.project-directory-topbar [data-account-link]{max-width:240px;gap:8px}.project-directory-topbar [data-personal-name]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-directory-topbar [data-personal-status]{color:var(--muted);font-size:12px;white-space:nowrap}';
   document.head.append(style);
   style.textContent += '.mw-account-toast{position:fixed;z-index:10001;inset-inline:0;bottom:28px;margin-inline:auto;pointer-events:none}';
   createAccountToast();
@@ -32,10 +32,15 @@ function createAccountMenu() {
   const menu = document.createElement('div');
   menu.className = 'mw-account-popover'; menu.hidden = true; menu.id = 'mw-account-menu';
   menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
-  menu.innerHTML = '<div class="mw-account-summary"><strong data-menu-name></strong><small data-menu-email></small></div><button type="button" data-personal-action="login"></button><button type="button" data-personal-action="switch"></button><button type="button" data-personal-action="logout"></button><p class="mw-account-feedback" role="status"></p><p class="mw-account-feedback" role="alert"></p>';
+  menu.innerHTML = '<div class="mw-account-summary"><strong data-menu-name></strong><small data-menu-email></small></div><a class="mw-account-sync" data-sync-indicator hidden><span data-sync-indicator-label></span></a><button type="button" data-personal-action="login"></button><button type="button" data-personal-action="switch"></button><button type="button" data-personal-action="logout"></button><button type="button" data-unified-account-link><span data-unified-account-name></span></button><p class="mw-account-feedback" role="status"></p><p class="mw-account-feedback" role="alert"></p>';
   for (const [action, label] of [['login', 'workbench.account.sign-in-register'], ['switch', 'workbench.account.switch-account'], ['logout', 'workbench.account.sign-out']]) {
     requiredElement(menu, '[data-personal-action=' + action + ']').textContent = uiText.text(label);
   }
+  // The menu's sync row says what the dot on the avatar says, in words, and goes to the details (sync-indicator.ts paints it).
+  // Its address is set here, not in the markup: the settings page lists its own /settings links, and this is not one of them.
+  requiredElement(menu, '.mw-account-sync').setAttribute('href', '/settings/sync');
+  // The Molis account (its own dialog, account.ts) was in the project's menu; the foot's account bar is where it is reached now.
+  requiredElement(menu, '[data-unified-account-name]').textContent = uiText.text("workbench.account-menu.molis-account");
   document.body.append(menu);
   const notice = document.createElement('div');
   notice.className = 'mw-account-popover'; notice.dataset.accountTransitionNotice = ''; notice.hidden = true;
@@ -94,6 +99,8 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
       [...menu.querySelectorAll<HTMLButtonElement>('button:not([hidden])')].find(button => button.getClientRects().length)?.focus(); refresh();
     });
   });
+  // The Molis account opens its own dialog (account.ts): the menu steps aside for it.
+  requiredElement(menu, '[data-unified-account-link]').addEventListener('click', () => close());
   document.addEventListener('pointerdown', e => { const target = e.target; if (target instanceof Node && !menu.contains(target) && !links.some(a => a.contains(target))) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); close(true); } });
   addEventListener('resize', () => close());

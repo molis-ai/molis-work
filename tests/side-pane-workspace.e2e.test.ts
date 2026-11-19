@@ -40,12 +40,13 @@ test("PFG-22 PFG-24 the side's tabs live in the title bar, collapse with ⌘\\, 
   assert.equal(await evaluate("document.querySelector('[data-background-tasks]')"), null);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-tab-add], ${strip} [aria-label*="新"]')`), null);
   // specs/screen-polish §3 方案 C (POLISH-05): the side's switch stands right before the one layout button (07-S2, 口径 6);
-  // WLN-16: only the project follows it, ending the title bar.
-  const [edge, layoutEdge, projectEdge] = await evaluate<[number, number, number]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect(), project = document.querySelector('.titlebar-end').getBoundingClientRect();
-    return [layout.left - document.querySelector('[data-side-toggle]').getBoundingClientRect().right, project.left - layout.right, innerWidth - project.right]; })()`);
+  // POLISH-05 as rewritten, POLISH-71: from 960px the layout button ends the title bar; the project is in the first place's list
+  // and the person in the account bar, so the project's button is not shown.
+  const [edge, layoutEnd, projectShown] = await evaluate<[number, number, boolean]>(`(() => { const layout = document.querySelector('[data-layout-open]').getBoundingClientRect();
+    return [layout.left - document.querySelector('[data-side-toggle]').getBoundingClientRect().right, innerWidth - layout.right, document.querySelector('.titlebar-end').checkVisibility()]; })()`);
   assert.ok(edge >= 0 && edge < 24, `the side's switch stands right before the layout button (${edge}px between)`);
-  assert.ok(layoutEdge >= 0 && layoutEdge < 24, `the project follows the layout button (${layoutEdge}px between)`);
-  assert.ok(projectEdge >= 0 && projectEdge < 24, `the project ends the title bar (${projectEdge}px left)`);
+  assert.ok(layoutEnd >= 0 && layoutEnd < 24, `the layout button ends the title bar (${layoutEnd}px left)`);
+  assert.equal(projectShown, false, "no project button at the right end from 960px");
 
   // A context tab (Pages' comments) leaves and comes back with its plugin, as the page the server renders after a picker
   // change says: the whole glyph tab goes and comes, never an empty item or a bare trigger.

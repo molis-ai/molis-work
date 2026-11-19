@@ -1,11 +1,11 @@
-import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
-import { renderLineHead, renderWorkLine } from "./work-line-parts.js";
+import { renderWorkLine } from "./work-line-parts.js";
+import { renderAccountBar } from "./account-bar.js";
 import { renderSidePanel, renderSideStrip, type SidePanelPluginTab } from "./side-panel.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
@@ -214,14 +214,14 @@ export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enable
 }
 
 /**
- * The bottom of the workbench is the work line (specs/work-line §4, WLN-16): what happened on the left, the one input in the
- * middle (the resident Assistant, whose dialog opens above it) and what comes next on the right. It has no Dock: the plugins
- * chosen to stay, the way to every plugin, the person's own plugins and the project are in the top strip
- * (`renderImmersiveHeader`). `head` names whose line it is; the line's events are drawn by the page (browser/work-bar.ts) from
- * the line read, so the page is served with an empty line. The right side panel is in this element because it stands on the bar.
+ * The foot of the workbench (specs/screen-polish §4「底栏第十三版」; specs/work-line §16, WLN-16): the account bar on the left,
+ * the one input in the middle (the resident Assistant, whose dialog opens above it) with 办完, 在办 and 接下来 inside it, and the
+ * card stack of what waits for the person on the right. It has no Dock: the way to every plugin and the projects are in the
+ * top strip (`renderImmersiveHeader`). The counts, the lists and the cards are drawn by the page (browser/work-bar.ts) from the
+ * line read, so the page is served with empty ones. The right side panel is in this element because it stands on the bar.
  */
-export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: { head?: string; sideTabs?: readonly SidePanelPluginTab[] } = {}): string {
-  const line = renderWorkLine({ head: renderLineHead({ name: parts.head || uiText.text("workbench.immersive-shell.project-home"), waiting: 0 }), past: [], active: [], next: [], slot: renderAssistantDock(primitives) });
+export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: { sideTabs?: readonly SidePanelPluginTab[] } = {}): string {
+  const line = renderWorkLine({ account: renderAccountBar(primitives), slot: renderAssistantDock(primitives) });
   return `<div class="workbench-bar" data-work-bar aria-label="${uiText("workbench.immersive-shell.bottom-bar")}">${line}${renderSidePanel(primitives, parts.sideTabs ?? [])}</div>`;
 }
 
@@ -295,7 +295,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     ${sideEar}
     ${renderSideStrip(primitives, sideTabs, {}, { menu: true })}
     <span class="titlebar-layout">${sideToggle}${renderButton({ label: uiText.text("workbench.immersive-shell.layout"), icon: "columns", variant: "ghost", size: "sm", iconOnly: true, attrs: { "data-layout-open": true, "aria-haspopup": "menu", "aria-expanded": "false", title: uiText.text("workbench.immersive-shell.layout") } })}</span>
-    ${nav ? `<div class="titlebar-end">${renderSyncIndicator(primitives)}${nav.projectChrome}</div>` : ""}
+    ${nav ? `<div class="titlebar-end">${nav.projectChrome}</div>` : ""}
   </header>`;
 }
 

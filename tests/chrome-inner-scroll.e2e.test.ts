@@ -127,20 +127,18 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width>0");
-  await click('[data-project-menu] > summary');
-  const projectMenuHit = await evaluate<{ onTop: boolean; islandZ: string; inViewport: boolean }>(`(() => {
-    const menu = document.querySelector("[data-project-menu]");
-    const island = document.querySelector("[data-project-island]");
-    if (!menu || !island) return { onTop: false, islandZ: "", inViewport: false };
-    const box = menu.querySelector('.navigator-project-menu-popover').getBoundingClientRect();
+  // The projects' list opens from the first place (from 960px the right end has no project, POLISH-05 as rewritten).
+  await click('[data-top-corner-toggle]');
+  const projectMenuHit = await evaluate<{ onTop: boolean; inViewport: boolean }>(`(() => {
+    const list = document.querySelector("[data-top-corner-list]");
+    if (!list || list.hidden) return { onTop: false, inViewport: false };
+    const box = list.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    const onTop = Boolean(hit?.closest(".navigator-project-menu-popover"));
-    const islandZ = getComputedStyle(island).zIndex;
-    return { onTop, islandZ, inViewport: box.top >= 0 && box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight };
+    return { onTop: Boolean(hit?.closest("[data-top-corner-list]")), inViewport: box.top >= 0 && box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight };
   })()`);
-  // The project menu opens from the bar, which sits above the work; only reachability matters, not a z-index number.
-  assert.ok(projectMenuHit.onTop && projectMenuHit.inViewport, 'Open project menu is reachable above the work surface: ' + JSON.stringify(projectMenuHit));
-  await click('[data-project-menu] > summary');
+  // The list opens from the strip, which sits above the work; only reachability matters, not a z-index number.
+  assert.ok(projectMenuHit.onTop && projectMenuHit.inViewport, 'Open projects list is reachable above the work surface: ' + JSON.stringify(projectMenuHit));
+  await click('[data-top-corner-toggle]');
   // The guarded point checks the actual Feed control and its Host frame after the menu closes.
   await feed.point('[data-feed-source-header] [data-feed-add-toggle]');
   await expectContained(".immersive-titlebar", ".feed-stage-tree", feed);

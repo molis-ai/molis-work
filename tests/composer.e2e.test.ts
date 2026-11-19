@@ -248,7 +248,7 @@ async function open(t: TestContext, locale: "zh" | "en" = "zh") {
   await load();
   const key = async (modifiers = 0, code = 13) => {
     const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
-    await page.command("Input.dispatchKeyEvent", { type: "keyDown", ...enter, ...(modifiers ? {} : { text: "\r" }) });
+    await page.command("Input.dispatchKeyEvent", { type: "keyDown", ...enter, ...(modifiers & 7 ? {} : { text: "\r" }) });
     await page.command("Input.dispatchKeyEvent", { type: "keyUp", ...enter });
   };
   const type = (text: string) => page.command("Input.insertText", { text });
@@ -274,16 +274,12 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   assert.equal(empty.min, 40, "the composer's own min-height: two 20px lines (13px body on the type scale), no padding");
   assert.equal(Math.round(empty.h), empty.min);
   await type("把第 3 步的测试补上");
-  // UIC-06: a plain Enter after one written line breaks it and says once how to send now.
-  await key();
-  assert.equal((await state()).text, "把第 3 步的测试补上\n", "Enter breaks the line");
-  assert.match((await state()).status, /回车已改为换行。要发送请按 (⌘↵|Ctrl\+↵)/);
+  // POLISH-52 (UIV §10.5, user 2026-11-16): Shift+Enter breaks the line and sends nothing; Enter sends, so the one-time hint that
+  // Enter had become a new line no longer comes.
+  await key(SHIFT);
+  assert.equal((await state()).text, "把第 3 步的测试补上\n", "Shift+Enter breaks the line");
+  assert.doesNotMatch((await state()).status, /回车已改为换行/);
   assert.deepEqual(mount.sent, []);
-  await page.click("[data-composer-status-action=hint]");
-  assert.equal((await state()).status, "", "知道了 puts the hint away");
-  await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = "第二行"; f.setSelectionRange(3, 3); f.dispatchEvent(new InputEvent("input", { bubbles: true })); })()`);
-  await key();
-  assert.doesNotMatch((await state()).status, /回车已改为换行/, "the hint is shown once, never again");
   await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = Array.from({ length: 40 }, (_, i) => "第 " + i + " 行").join("\\n"); f.dispatchEvent(new InputEvent("input", { bubbles: true })); })()`);
   const tall = await measure();
   assert.equal(Math.round(tall.h), Math.round(fieldHeight(tall.scroll, tall.min, Math.min(FIELD_FIT_MAX, tall.window * FIELD_FIT_ROOM))), "fieldHeight(content, min, max)");
@@ -291,9 +287,11 @@ test("UIC-05 UIC-06 UIV-01 UIV-02 UIV-03 VUX-16: keys, the input method, one sen
   // UIC-05 UIV-02: a composition open (Chinese input) takes ⌘/Ctrl+Enter for itself, by isComposing or keyCode 229.
   await page.evaluate(`(() => { const f = document.querySelector(".mw-composer__input"); f.value = ""; f.dispatchEvent(new InputEvent("input", { bubbles: true })); f.focus(); })()`);
   await page.command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 });
+  await key();
+  await key(0, 229);
   await key(META);
   await key(META, 229);
-  assert.deepEqual(mount.sent, [], "nothing goes while composing");
+  assert.deepEqual(mount.sent, [], "nothing goes while composing, by Enter or ⌘/Ctrl+Enter");
   await page.command("Input.insertText", { text: "测试" });
   assert.equal((await state()).text, "测试");
   // UIV-03: one send per request: the button locks while it is under way; ⌘↵ three times sends once.

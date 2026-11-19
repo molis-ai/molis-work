@@ -57,6 +57,9 @@ ${TOP} .top-corner-cell>svg{flex:none;width:12px;height:12px;color:var(--faint)}
 ${TOP} .top-corner-cell>svg:first-child{width:16px;height:16px;color:currentColor}
 ${TOP} .top-corner-project-name{min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 ${TOP} .top-corner-page-name{color:var(--ink);font-weight:500}
+/* How many wait for the person (POLISH-15): amber, only while something waits; the Assistant's bell reads the same number. */
+${TOP} .top-corner-count{flex:none;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+${TOP} .top-corner-count[hidden]{display:none}
 ${TOP} .top-corner-list{position:absolute;top:calc(100% - 2px);left:8px;z-index:60;display:grid;grid-template-columns:200px 280px;max-width:calc(100vw - 16px);max-height:min(520px,calc(100dvh - 80px));border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--lift-2);overflow:hidden;animation:craft-fade-in var(--dur-hover) var(--ease-quint) both}
 ${TOP} .top-corner-list[hidden]{display:none}
 ${TOP} .top-corner-projects{display:flex;flex-direction:column;min-height:0;padding:8px;border-right:1px solid var(--line);background:var(--desk)}
@@ -70,7 +73,9 @@ ${TOP} :is(.top-corner-project[aria-pressed="true"],.top-corner-page[aria-curren
 ${TOP} :is(.top-corner-project,.top-corner-page)>svg{flex:none;width:14px;height:14px;color:var(--ink-soft)}
 ${TOP} :is(.top-corner-project,.top-corner-page)>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ${TOP} .top-corner-project>small{color:var(--muted);font-size:11px}
-${TOP} .top-corner-manage{margin-top:8px;padding:6px 8px;border-radius:8px;color:var(--muted);font-size:12px;text-decoration:none}
+${TOP} .top-corner-foot{display:flex;flex-direction:column;margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}
+${TOP} .top-corner-manage{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;color:var(--muted);font-size:12px;text-decoration:none}
+${TOP} .top-corner-manage>svg{flex:none;width:14px;height:14px}
 ${TOP} .top-corner-manage:hover{background:var(--nav-hover);color:var(--ink)}
 
 /* The tabs take what they need and ＋ follows them. What they need is written by the script that shares their widths
@@ -163,6 +168,10 @@ ${TOP}>.titlebar-layout{order:6;flex:none;display:flex;align-items:center;gap:2p
 ${TOP}>.titlebar-layout::before{content:none}
 ${TOP} [data-side-toggle][aria-pressed="true"]{background:var(--nav-active);color:var(--ink)}
 ${TOP}>.titlebar-end{order:8;flex:none;display:flex;align-items:center;gap:8px;margin-left:6px}
+/* The right end is the side's switch and the split, nothing else (POLISH-05, POLISH-71): from 960px the account bar holds who
+   you are, sync, 插件 and 设置, and the first place's list holds the projects and 项目设置. Narrower, where the foot is the input
+   alone, the project's button stays as the one round button at the end, its menu holding the same. */
+@media (min-width:960px){${TOP}>.titlebar-end{display:none}}
 
 /* Split, each sheet carries its own tabs (POLISH-38): the pane's strip stands on the desk and its body is the sheet. The tabs
    start 18px in from the sheet's left edge; the focused sheet's current tab has the accent line, the other's has none. */
@@ -242,19 +251,20 @@ ${PANE_EAR}{border-radius:9px 9px 0 0}
 }
 /* At 540px and under the first place names the page alone, and its list is two parts, the projects above (§4 第 6 条). */
 @media (max-width:540px){
+  /* The first place is always in the row now, so the way back gives it its 44px: the phone's row in §4 第 6 条 and the mock
+     has no back, and the row then still holds the undo chip beside the current tab and 全部标签. */
+  ${TOP}>.workspace-history{display:none}
   ${TOP} .top-corner-project-name,${TOP} .top-corner-cell>svg:nth-of-type(2){display:none}
   ${TOP} .top-corner-list{grid-template-columns:minmax(0,1fr)}
   ${TOP} .top-corner-projects{border-right:0;border-bottom:1px solid var(--line)}
   /* While another page shows, the current tab names it: the place is its ⌂ alone, a 44px target that still opens the list. */
   ${TOP} .top-corner-cell:not([aria-current]){justify-content:center;width:44px;padding:0}
-  ${TOP} .top-corner-cell:not([aria-current])>:not(svg:first-child){display:none}
+  ${TOP} .top-corner-cell:not([aria-current])>:not(svg:first-child,.top-corner-count){display:none}
 }
 /* Under 340px the row gives up its side margins and its hairline and the current tab is its 98px, no wider: the 44px targets,
    the tab and 全部标签 are the whole 320 (07-1 S3). */
 @media (max-width:340px){
   ${TOP}{padding:0}
-  /* The first place is always in the row now, so the way back gives it its 44px (the mock's phone row has no back). */
-  ${TOP}>.workspace-history{display:none}
   ${TOP}>.dock-pins::after{content:none}
   ${TABS} .tab-item[data-ear]:not([data-pinned]){flex:none;width:98px}
   ${TABS}>.tab-view-chip.is-exclusive>svg{display:none}

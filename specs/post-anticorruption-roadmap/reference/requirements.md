@@ -41,7 +41,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留 |
+| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md)、[91（91A）](batches/91.md)、[91B](batches/91b.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留；VUX-13／14／26 流式衔接与全产品视觉反馈收口见 [91](batches/91.md)／[91B](batches/91b.md)（[决定 55](decisions.md#decision-55)） |
 | [ai-input-receipts](../../ai-input-receipts/spec.md)；BL-314、BL-315、BL-316、BL-317、BL-319、BL-148、BL-162、BL-318 | 产品线（助理）、横向能力（回执） | [32](batches/32.md)、[53](batches/53.md)、[64](batches/64.md)、[89](batches/89.md) | 直接做；阶段 6 各场景写小 spec 时再定 |
 | [prologue-adoption](../../prologue-adoption/spec.md)；BL-302、BL-307、BL-308、BL-306 | 横向能力（AI 运行时）、底层与架构 | [09](batches/09.md)、[24](batches/24.md)、[31](batches/31.md)、[62](batches/62.md)、[82](batches/82.md) | 直接做：按换包窗口 |
 | [ai-interaction-experience](../../ai-interaction-experience/spec.md)；BL-341、BL-343、BL-344、BL-345、BL-340、BL-342 | 产品线（助理、各插件）、横向能力（卡片撤销合同） | [11](batches/11.md)、[53](batches/53.md)、[66](batches/66.md) | 要决策：同排推荐看实物（BL-344）；其余按已定合同直接做 |

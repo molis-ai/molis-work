@@ -101,13 +101,13 @@
 
 ## 5. 分片实施方案与子分支序列
 
-按[开发流程第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)在 `batch/91` 上拆四个子分支先后叠（全批一个 PR，合同与组件板标本先行）：
+按[开发流程第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)在 `batch/91`（91A）上按子分支先后叠（全批一个 PR，合同与组件板标本先行；按[决定 55](../post-anticorruption-roadmap/reference/decisions.md#decision-55)，`91-1` 与 `91-4` 并入[全产品界面、空间布局与行为反馈深度打磨](../product-experience-polish/spec.md)的底座与 Coding 剩余微瑕，并追加第 5 个子分支 `91-5` 同步更新后续开发指引与创作台规范）：
 1. **`91-2`（C1 + C2 轨，合同先行）**：先落插件流式路由与 `agent-host` 运行流订阅公开合同并更新 API／动作快照，再实现 `agent-host`／宿主流桥接与（获批时的）上游 `molis-prologue` 热路径优化。
-2. **`91-1`（D 轨，可与 `91-2` 的 C2 实现并行）**：实现 `packages/design-system` 流式平滑、恒定状态环过渡、`molisFollow` 微阻尼追底并补齐 `/__ui/catalog` 标本（经 D 轨合审）。
+2. **`91-1`（D 轨，可与 `91-2` 的 C2 实现并行）**：实现 `packages/design-system` 流式平滑、恒定状态环过渡、`molisFollow` 微阻尼追底，并与 `product-experience-polish` 的微交互脚本、布局与行为反馈底座一并补齐 `/__ui/catalog` 标本（经 D 轨合审）。
 3. **`91-3`（A 轨）**：叠在 `91-1 + 91-2` 及 `36A` 壳层、`37-2` 之上，落地个人助理 SSE 增量流、段落级 Markdown 缓存、乐观上屏与滚动记忆。
-4. **`91-4`（B 轨）**：叠在 `91-1 + 91-2` 及 `35-2`、`36A-4` 之上，落地 Coding SSE 增量流、200 轮零跳变回滚、独立思考折行与过程信号精修。
+4. **`91-4`（B 轨）**：叠在 `91-1 + 91-2` 及 `35-2`、`36A-4` 之上，落地 Coding SSE 增量流、200 轮零跳变回滚、独立思考折行、过程信号精修及 Coding 剩余微瑕清零。
 
-### 91-1 · Design System 流式呈现、状态环连续过渡与滚动原语（D 轨）
+### 91-1 · Design System 流式、布局与行为反馈统一底座（CUI 流式部分，D 轨）
 
 1. **`molisStreamText` v2（`packages/design-system/src/browser/stream-text.ts`）**：
    - **保持同步返回签名兼容**：保留 `molisStreamText(container, html, options): StreamTextResult` 同步契约不变，在此基础上提供基于 `requestAnimationFrame` 的自适应释放缓冲（`molisStreamPacer` 或可选 `pace` 模式含同步 `flush()`）：吸收网络突发大包，短队列逐词细腻释放，长队列自动加速追赶（最大视觉延迟 `≤ 120ms`，流结束当帧 `flush()` 收尾）。

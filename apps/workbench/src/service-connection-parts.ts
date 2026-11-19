@@ -235,14 +235,14 @@ export const SERVICE_CONNECTION_USES_STYLES = ""
   + `.connection-uses__table:focus-visible{outline:var(--focus-stroke);outline-offset:1px}`
   + `.connection-uses .mw-table{min-width:100%}.connection-uses .mw-table :is(th,td){white-space:nowrap}`
   + `.connection-uses .mw-table tbody th{font-weight:500;color:var(--ink)}`
-  + `.connection-uses__service{display:inline-flex;align-items:center;gap:10px}.connection-uses__service>.settings-connector-mark,.connection-uses__item>.settings-connector-mark{flex:none;width:28px;height:28px;padding:5px;border-radius:7px}`
+  + `.connection-uses__service{display:inline-flex;align-items:center;gap:10px}.connection-uses__service>.settings-connector-mark,.connection-uses__item>.settings-connector-mark{flex:none;width:28px;height:28px;padding:5px;border-radius:6px}`
   + `.connection-uses__none{color:var(--faint)}`
   + `.connection-uses__go{color:inherit;text-decoration:none;border-radius:var(--r-row)}.connection-uses__go:hover .mw-status{color:var(--ink)}.connection-uses__go:focus-visible{outline:var(--focus-stroke);outline-offset:1px}`
   + `.connection-uses__lists{display:none}`
   + `.connection-uses__group+.connection-uses__group{margin-top:24px}.connection-uses__group h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--ink)}`
   + `.connection-uses__group ul{margin:0;padding:0;list-style:none;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper)}`
   + `.connection-uses__item{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;min-height:44px;padding:8px 12px}`
-  + `.connection-uses__item+.connection-uses__item{border-top:1px solid var(--line)}.connection-uses__item strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}`
+  + `.connection-uses__item+.connection-uses__item{border-top:1px solid var(--line)}.connection-uses__item strong{min-width:0;overflow-wrap:anywhere;font-weight:500}`
   + `.connection-uses__empty{padding:12px;color:var(--muted)}`
   + `@media (max-width:720px){.connection-uses__table{display:none}.connection-uses__lists{display:block}}`;
 

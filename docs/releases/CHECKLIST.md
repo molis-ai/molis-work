@@ -71,7 +71,7 @@
 | 插件的 Agent 声明 | `agent-declarations/agent-declarations.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-declarations.ts#AGENT_DECLARATIONS_BASELINE` | 低版本升级，高版本拒绝 |
 | 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 低版本升级，高版本拒绝 |
 | 网页搜索设置 | `web-search/web-search.db` | 1 | `user_version` | `apps/local-host/src/web-search-store.ts#WEB_SEARCH_BASELINE` | 低版本升级，高版本拒绝 |
-| 网页搜索单次运行的证据表 | 内存（`:memory:`，不落盘） | 1 | `user_version` | `apps/local-host/src/connector-web-search.ts#SEARCH_RUN_BASELINE` | 不落盘：每次搜索新建、结束即丢，没有可不符的旧库 |
+| 网页搜索单次运行的证据表 | `:memory:` | 1 | `user_version` | `apps/local-host/src/connector-web-search.ts#SEARCH_RUN_BASELINE` | 不落盘：每次搜索新建、结束即丢，没有可不符的旧库 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 低版本升级，高版本拒绝 |
 | Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/database.ts#COGNIA_DATABASE` | 低版本升级，高版本拒绝 |
 | Dataset | `dataset/dataset.db` | 1 | `user_version` | `plugins/native/dataset/src/database.ts#DATASET_DATABASE` | 低版本升级，高版本拒绝 |

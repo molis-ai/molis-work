@@ -77,6 +77,8 @@
     "workbench.scene.failed": "Failed",
     "workbench.scene.not_started": "Not started",
     "workbench.scene.pending_verification": "Awaiting verification",
+    "workbench.scene.pending-owner-unavailable": "The original settings provider is unavailable. You can continue verification when it is available again.",
+    "workbench.scene.pending-owner-replaced": "The settings provider’s installation has changed. Only the original installation can verify this request.",
     "workbench.scene.needs_install": "Install first",
     "workbench.scene.needs_approval": "Needs your approval",
     "workbench.scene.skipped": "Skipped",

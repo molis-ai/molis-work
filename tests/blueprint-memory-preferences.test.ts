@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BlueprintPart } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
 import type { SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { memorySettingActions, MEMORY_SETTING_KEYS } from "@molis-ai/molis-work-service-memory";
+import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { openTestHome } from "./fixtures/test-home.js";
 
 test("SPC-04/ONB-22/23: memory adoption preserves per-plugin inheritance and undo returns the project to its live default", async t => {
@@ -182,4 +184,82 @@ test("SPC-04/ONB-28/30: one adoption writes both memory layers and another proje
   assert.equal(after.undo.steps.find(step => step.part_id === "local")?.state, "restored");
   assert.deepEqual((await read(writing)).value, personal);
   assert.deepEqual((await read(research)).value, personal);
+});
+
+for (const operation of ["revert", "remove"] as const)
+test("SPC-07/ONB-28/30: " + operation + " keeps a shared personal Memory layer after an interrupted adoption and project edit", async t => {
+  const env = await openTestHome(t);
+  const project = await env.createProject("Writing"), other = await env.createProject("Research");
+  const caller = await env.host.localPersonContext(project.reference), otherCaller = await env.host.localPersonContext(other.reference);
+  const person = bindActionClient(env.host.actionClient(project.reference), () => caller);
+  const elsewhere = bindActionClient(env.host.actionClient(other.reference), () => otherCaller);
+  const key = MEMORY_SETTING_KEYS.project;
+  const read = async (client = person) => {
+    const [setting] = (await client.invoke(memorySettingActions.read, { keys: [key] })).values;
+    assert.ok(setting?.state === "ok" && setting.value && typeof setting.value === "object" && !Array.isArray(setting.value));
+    return { setting, value: setting.value };
+  };
+  const baseline = (await read()).value;
+  const personal = { ...baseline, auto: true, plugins: [{ plugin_id: "notes", allowed: false, kinds: ["fact"] }] };
+  const projectOverride = { ...baseline, auto: false, plugins: [{ plugin_id: "writing", allowed: true, kinds: ["convention"] }] };
+  const memory: BlueprintPart = { part_id: "memory", layer: "personal", required: true, proposal: { kind: "setting", key, value: personal } };
+  const wheel: BlueprintPart = { part_id: "wheel", layer: "personal", required: false, proposal: { kind: "setting", key: "shelf.drop_wheel", value: false } };
+  async function prepare(name: string, settings: BlueprintPart[]) {
+    const title = { literal: name }, part_ids = settings.map(part => part.part_id);
+    const { draft } = await person.invoke(blueprintActions.draftSave, { expected_revision: null, blueprint: {
+      title, purpose: { audience: title, work: title, inputs: title, outputs: title, first_result: title },
+      parts: [...settings, { part_id: "note", layer: "project", required: false, proposal: { kind: "content", type: "notes.outline.v1", body: {} } }],
+      steps: [{ step_id: "prepare", title, part_ids: [...part_ids, "note"] }],
+      example_task: { title, input: title, step_ids: ["prepare"], result: { part_id: "note", location: title } },
+    } });
+    const preview = await person.invoke(blueprintActions.preview, { source: draft.source, target: { kind: "current_project" }, part_ids });
+    return { preview_id: preview.preview_id, part_ids, request_id: name };
+  }
+  const first = await prepare("First scene", [memory, wheel]);
+  const controller = new AbortController();
+  const originalClient = env.host.actionClient.bind(env.host);
+  const interrupted = t.mock.method(env.host, "actionClient", (...args: Parameters<typeof env.host.actionClient>) => {
+    const client = originalClient(...args);
+    return { ...client, async invoke(ctx: ActionCallContext, ref: ActionReference, input: unknown) {
+      const result = await client.invoke(ctx, ref, input);
+      if (ref.capability_id === shelfManifest.settings_entries!.write.capability_id)
+        controller.abort(new Error("interrupted after both owners committed"));
+      return result;
+    } };
+  });
+  try {
+    const cancelled = bindActionClient(originalClient(project.reference), () => ({ ...caller, signal: controller.signal }));
+    await assert.rejects(cancelled.invoke(blueprintActions.apply, first));
+  } finally {
+    interrupted.mock.restore();
+  }
+  assert.equal(controller.signal.aborted, true);
+  const [record] = (await person.invoke(blueprintActions.library, { preview_id: first.preview_id })).adoptions;
+  assert.ok(record);
+  const target = { adoption_id: record.adoption_id };
+  const { apply_steps } = await person.invoke(blueprintActions.read, target);
+  assert.deepEqual(apply_steps.map(step => step.state), ["pending_verification", "pending_verification"]);
+  const reused = await person.invoke(blueprintActions.apply, await prepare("Second scene", [memory]));
+  assert.deepEqual(reused.steps, [{ part_id: "memory", state: "applied", outcome: "reused" }]);
+  const { setting: before } = await read();
+  assert.deepEqual(before.layers?.personal, personal);
+  await person.invoke(memorySettingActions.write, { key, layer: "project", expected_revision: before.revision,
+    request_id: "manual-project-override", change: { set: projectOverride } });
+  const { setting: edited } = await read();
+  assert.notEqual(edited.revision, before.revision);
+  assert.ok(before.layer_revisions?.personal);
+  assert.equal(edited.layer_revisions?.personal, before.layer_revisions.personal);
+  assert.deepEqual((await read(elsewhere)).value, personal);
+  const platform = await env.host.homePlugins!.ready();
+  const shelf = env.host.homePlugins!.installation(shelfManifest.plugin_id);
+  assert.ok(shelf);
+  platform.supervisor.revoke(shelfManifest.plugin_id);
+  await platform.runtime.stop(shelf.install_id);
+  const result = await person.invoke(blueprintActions[operation], { ...target, request_id: "undo-first" });
+  assert.deepEqual(result.undo.steps, [
+    { part_id: "memory", state: "skipped", reason: "shared" },
+    { ...apply_steps[1], current: "owner_unavailable" },
+  ]);
+  assert.deepEqual((await read()).setting, edited, "undo keeps both layer values and their versions");
+  assert.deepEqual((await read(elsewhere)).value, personal);
 });

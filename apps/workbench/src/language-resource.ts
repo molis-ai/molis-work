@@ -8,8 +8,6 @@ interface LanguageAsset { readonly href: string; readonly body: string; readonly
 const built = new Map<UiLanguageTag, LanguageAsset>();
 let client: string | undefined;
 
-const sceneOwnerStatusKeys = ["workbench.scene.pending-owner-unavailable", "workbench.scene.pending-owner-replaced"] as const;
-
 const languageScriptJson = (value: unknown): string => JSON.stringify(value).replaceAll("<", "\\u003c");
 const KEY_FRAGMENT = /[a-z0-9]{3,}/gu;
 // These are outside stable keys, exclude the separator, and need no JSON escaping.
@@ -86,9 +84,7 @@ function languageAsset(tag: UiLanguageTag): LanguageAsset | null {
   const pack = workbenchPlatformText.pack(tag);
   if (!pack) return null;
   client ??= readFileSync(new URL("./language-client.js", import.meta.url), "utf8");
-  const messages = { ...pack.messages };
-  for (const key of sceneOwnerStatusKeys) delete messages[key];
-  const body = client + languagePackScript({ ...pack, messages });
+  const body = client + languagePackScript(pack);
   const digest = createHash("sha256").update(body).digest("hex").slice(0, 24);
   const asset = { href: `/assets/locale/workbench.${tag}.${digest}.js`, body, etag: '"' + digest + '"' };
   built.set(tag, asset);
@@ -102,15 +98,6 @@ export function renderLanguageHead(htmlLang: string): string {
 }
 
 export interface InlinePageText { readonly slot: string; readonly producer: string; readonly packs: readonly UiLocalePack[] }
-
-/** These messages load with scene review, where the original setting owner can change. */
-export const sceneOwnerStatusText: InlinePageText = {
-  slot: "scene:workbench", producer: workbenchPlatformText.owner,
-  packs: WORKBENCH_LANGUAGES.languages.flatMap(({ tag }) => {
-    const pack = workbenchPlatformText.pack(tag);
-    return pack ? [{ ...pack, messages: Object.fromEntries(sceneOwnerStatusKeys.map(key => [key, pack.messages[key]!])) }] : [];
-  }),
-};
 
 export function renderInlinePageText(pages: readonly InlinePageText[]): string {
   return pages.length ? '<script type="application/json" data-ui-page-text>' + JSON.stringify(pages).replaceAll("<", "\\u003c") + '</script>' : "";

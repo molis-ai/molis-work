@@ -77,8 +77,6 @@
     "workbench.scene.failed": "未成功",
     "workbench.scene.not_started": "尚未执行",
     "workbench.scene.pending_verification": "待核对",
-    "workbench.scene.pending-owner-unavailable": "原设置提供方当前不可用。恢复后可继续核对。",
-    "workbench.scene.pending-owner-replaced": "原设置提供方的安装已更换。只有原安装可以核对这次请求。",
     "workbench.scene.needs_install": "需要先安装",
     "workbench.scene.needs_approval": "需要本人批准",
     "workbench.scene.skipped": "已跳过",

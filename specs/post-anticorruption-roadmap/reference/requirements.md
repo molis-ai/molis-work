@@ -41,7 +41,7 @@
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留 |
+| [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[56](batches/56.md)、[57](batches/57.md)、[76](batches/76.md)、[83](batches/83.md)、[91（91A）](batches/91.md)、[91B](batches/91b.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留；VUX-13／14／26 流式衔接与全产品视觉反馈收口见 [91](batches/91.md)／[91B](batches/91b.md)（[决定 55](decisions.md#decision-55)） |
 | [ai-input-receipts](../../ai-input-receipts/spec.md)；BL-314、BL-315、BL-316、BL-317、BL-319、BL-148、BL-162、BL-318 | 产品线（助理）、横向能力（回执） | [32](batches/32.md)、[53](batches/53.md)、[64](batches/64.md)、[89](batches/89.md) | 直接做；阶段 6 各场景写小 spec 时再定 |
 | [prologue-adoption](../../prologue-adoption/spec.md)；BL-302、BL-307、BL-308、BL-306 | 横向能力（AI 运行时）、底层与架构 | [09](batches/09.md)、[24](batches/24.md)、[31](batches/31.md)、[62](batches/62.md)、[82](batches/82.md) | 直接做：按换包窗口 |
 | [ai-interaction-experience](../../ai-interaction-experience/spec.md)；BL-341、BL-343、BL-344、BL-345、BL-340、BL-342 | 产品线（助理、各插件）、横向能力（卡片撤销合同） | [11](batches/11.md)、[53](batches/53.md)、[66](batches/66.md) | 要决策：同排推荐看实物（BL-344）；其余按已定合同直接做 |
@@ -227,7 +227,7 @@
 | [BL-knowledge-restore-partial-catalog](../../backlog/BL-knowledge-restore-partial-catalog.md)、[BL-tests-umask](../../backlog/BL-tests-umask.md) | 离线恢复两项回归 | [73-3](batches/73.md#batch-73-item-3) | 先做离线恢复切片，U7 单独验收 |
 | [BL-plugin-cli-dev-uncoded-errors](../../backlog/BL-plugin-cli-dev-uncoded-errors.md) | 插件隔离试用报错 | [48-1](batches/48.md#batch-48-item-1) | 已定，前置见交付行 |
 | [BL-586](../../backlog/BL-586.md) | 安装身份与视图 | [47-1](batches/47.md#batch-47-item-1) | 已定，前置见交付行 |
-| [BL-973](../../backlog/BL-973.md)、[BL-980](../../backlog/BL-980.md)、[BL-1017](../../backlog/BL-1017.md) | 文档与测试小修 | [92-1](batches/92.md#batch-92-item-1)、[92-2](batches/92.md#batch-92-item-2)、[92-3](batches/92.md#batch-92-item-3) | 接续在途图片手册，其他两项独立 |
+| [BL-973](../../backlog/BL-973.md)、[BL-980](https://github.com/molis-ai/molis-work/blob/27b46f17ab93dabdb75a4a80e665aa5d1b2ca05d/specs/backlog/BL-980.md)、[BL-1017](../../backlog/BL-1017.md) | 文档与测试小修 | [92-1](batches/92.md#batch-92-item-1)、[92-2](batches/92.md#batch-92-item-2)、[92-3](batches/92.md#batch-92-item-3) | 三项分别由 #2144、#2145、#2146 合入 |
 | [BL-1006](../../backlog/BL-1006.md)、[BL-browser-socket-close-pending-bind](../../backlog/BL-browser-socket-close-pending-bind.md) | 关闭页面与连接 | [93-1](batches/93.md#batch-93-item-1)、[93-2](batches/93.md#batch-93-item-2) | 已定，前置见交付行 |
 | [BL-desktop-same-version-install](../../backlog/BL-desktop-same-version-install.md) | 桌面开发安装 | [94-1](batches/94.md#batch-94-item-1) | 已定，前置见交付行 |
 | [BL-feed-sql-driver-name](../../backlog/BL-feed-sql-driver-name.md)、[BL-feed-run-now-missed-again](../../backlog/BL-feed-run-now-missed-again.md)、[BL-missed-runs-never-expire](../../backlog/BL-missed-runs-never-expire.md) | Feed 与错过任务 | [95-1](batches/95.md#batch-95-item-1)、[95-2](batches/95.md#batch-95-item-2)、[95-3](batches/95.md#batch-95-item-3) | 已定，前置见交付行 |

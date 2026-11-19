@@ -90,4 +90,4 @@
 - 逐屏统一 PR #2142 接续原 #2139，正在改第 22 项的界面消费者 `plugins/native/coding/src/browser/changeset.ts`。[PR #2142](https://github.com/molis-ai/molis-work/pull/2142)
 - 桌面签名另有在途工作，第 9 项的首个检查点是 Home 实际启动的运行程序。[PR #1818](https://github.com/molis-ai/molis-work/pull/1818)
 
-- 92-1 图片手册、92-2 数据库注释、92-3 Goals 夹具已各有 PR。按合入结果核回，认领板保留原写手。[PR #2144](https://github.com/molis-ai/molis-work/pull/2144) · [PR #2145](https://github.com/molis-ai/molis-work/pull/2145) · [PR #2146](https://github.com/molis-ai/molis-work/pull/2146)
+- 92-1 图片手册、92-2 数据库注释、92-3 Goals 夹具均已合入，92-2 已在删除记录中销号。认领板保留原写手。[PR #2144](https://github.com/molis-ai/molis-work/pull/2144) · [PR #2145](https://github.com/molis-ai/molis-work/pull/2145) · [PR #2146](https://github.com/molis-ai/molis-work/pull/2146)

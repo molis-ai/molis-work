@@ -35,6 +35,8 @@
 ```text
 在 Molis Work 推进第 93 批「关闭页面与连接」。先读 specs/post-anticorruption-roadmap/reference/batches/93.md 和其中两个 BL。在独立工作树从最新主线接手，核对 #1743 和在途 PR。
 
+先读 93-1 的 #2148 和 93-2 的 #2149。两项已有实施 PR，沿现有写手核对下面的验收与合入状态，缺口由原写手接续。
+
 93-1　沿 tests/security-invariants-plugin-pages.test.ts 的 RAC-2442，在同一插件页同时挂起两个请求。分别测试正常离开和权限被收回。离开时两个请求都得到 actions.cancelled，撤权时都得到 actions.forbidden。还要断言每个请求持有独立的错误对象。若当前实现不满足，修 apps/local-host/src/plugin-page-authority.ts 的对应关闭路径。
 
 93-2　从 apps/local-host/src/browser/browser-socket.ts 的 watch／attach 入手，用可控的异步检查稳定制造「先断开、后完成项目检查」。验证已经关闭的连接不会挂上页面监听，活连接仍正常收消息，项目校验和消息顺序保持原约定。

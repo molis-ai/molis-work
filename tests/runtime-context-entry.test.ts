@@ -1,4 +1,5 @@
 import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -81,7 +82,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
     const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,
-      project_id: project.project_id, permissions: ["goals:read"] }));
+      project_id: project.project_id, permissions: ["goals:read", "projects:guidance-read"] }));
     let failGuidance = true;
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
@@ -89,7 +90,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       createError: (code, message, details) => new ActionError(code, message, { details }),
       readGuidance: async () => {
         calls.push("guidance");
-        const guidance = await actions.invoke(goalsActions.guidanceRead, {});
+        const guidance = await actions.invoke(projectGuidanceActions.read, {});
         if (failGuidance) throw new Error("guidance unavailable");
         return guidance;
       },

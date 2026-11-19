@@ -67,18 +67,19 @@ const ledgerOf = (path: string) => { const db = new DatabaseSync(path, { readOnl
 const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime?.scope !== "home" || entry.runtime?.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
 /** What a library is once the Host has opened it: the baseline, then each declaring plugin's own statements. */
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => pluginSyncDatabaseDeclaration(manifest, manifest.databases!.project!).schema)].join("\n"));
-/** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09). */
-const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources",
+/** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09); since batch 44 the project's guidance too. */
+const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "guidance_entries", "guidance_revisions",
   "idempotency_records", "inbox_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
 // Version 3 adds the surface composition service's corrections (surface-composition §3, §14.1). Version 5 changes no table: it keeps
 // Coding's stored card outcomes as references (BL-action-card-outcome-text). Version 6 (batch 44 D1, D3) rewrites the ledger's references
-// to Goals and Feed as plugin objects and takes the Inbox's two CHECKs off; Goals' library goes to v6.
+// to Goals and Feed as plugin objects and takes the Inbox's two CHECKs off; Goals' library goes to v6. It also (A) creates the platform's
+// project guidance tables with their sync transport (fixtures/project-guidance-schema.sql), into which it moves Goals' guidance rows.
 test("RAC-2360 APR-19 the project database baseline is version 6 and includes the platform's approvals", () => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 6);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")));
+  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql") + fixture("project-guidance-schema.sql")));
 });
 
 test("RAC-2360 an existing empty file initializes the complete current library at 6", () => {

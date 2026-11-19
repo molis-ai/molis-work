@@ -2,14 +2,13 @@ import type { ActionDefinition, ActionIntake, ActionResultView, InferActionInput
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
-  ProjectGuidanceView, RecordGoalUserDecisionInput } from "./goals.js";
+  RecordGoalUserDecisionInput } from "./goals.js";
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,
   GoalTreeProposalListQuery, GoalTreeProposalListResult, GoalTreeProposalRecord, GoalTreeProposalSubmitInput } from "./governance-collaboration.js";
 import { goalIntentSourceKinds } from "./goal-events.js";
 import { goalAction } from "./goal-action-definition.js";
 import { text, identifier, count, boolean, object, array, nullable, enumeration, scope, change, effect, decision, goalDirectoryItemSchema } from "./goal-event-action-schemas.js";
 import { boardSnapshotSchema } from "./goal-snapshot-action-schemas.js";
-import { projectGuidanceEntrySchema, projectGuidanceRevisionSchema } from "./goal-guidance-action-schemas.js";
 import * as tree from "./goal-tree-action-schemas.js";
 
 export type InitializeBoardOutput = { project_id: string; replayed: boolean; observed_event_cursor: number };
@@ -122,12 +121,9 @@ export const goalEntryActions = {
     object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
   /** The board in the snapshot no longer carries a name. */
   snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", /* @version action.goals.snapshot.read */ 1, "读取项目目标完整快照",
-    "读取当前项目的目标资料：全部目标、关系、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
+    "读取当前项目的目标资料：全部目标、关系和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
   decide: protectedDecision(decide, eventReview),
   eventReview,
-  guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", /* @version action.goals.guidance.read */ 1, "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
-    object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),
-      virtual_document: text, runtime_prompt_prefix: text })),
   create: goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
     object({ title: identifier, outcome: text, why: text, business_logic: text, priority: { type: "number", minimum: 0, maximum: 100 },
       goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },

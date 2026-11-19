@@ -1,6 +1,6 @@
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { ActionError, isResumeSummaryAction, type ActionDefinition, type ActionSubject, type BoundActionClient, type ResumeSummary, type ResumeSummaryInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsHostActions } from "./goal-callers.js";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import type { McpResumeSection, McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
 import { homeHostUrl } from "./host-endpoint.js";
 import { createPresentationError } from "./mcp-v1-tool.js";
@@ -12,7 +12,7 @@ export function localMcpContextTools(ports: Omit<McpRuntimeContextPorts, "create
 }) {
   const present = createMcpContextPresenter({ connection: ports.connection, createError: createPresentationError,
     contextSignal: ports.contextSignal,
-    readGuidance: async () => (await ports.contextActions()).invoke(goalsHostActions.guidanceRead, {}),
+    readGuidance: async () => (await ports.contextActions()).invoke(projectGuidanceActions.read, {}),
     readResumeSections: async (_connection, focus) => readResumeSections(await ports.contextActions(), focus),
   });
   return createMcpRuntimeContextHandlers({ ...ports, createError: createPresentationError,

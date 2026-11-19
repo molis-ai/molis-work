@@ -34,7 +34,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   return { home, project, controlToken, origin: `http://127.0.0.1:${address.port}`, prefix: `http://127.0.0.1:${address.port}/projects/${project.project_id}` };
 }
 
-test("RAC-400 a project without Goals draws its page, its settings and its board, and does not offer Goals", { timeout: 240_000 }, async t => {
+test("RAC-400 PEQ-01 a project without Goals draws its page, its settings (the guidance among them) and its board, and does not offer Goals", { timeout: 240_000 }, async t => {
   const env = await withoutGoals(t);
   for (const path of ["", "/settings", "/settings/plugins", "/settings/guidance", "/api/board"]) {
     const response = await fetch(env.prefix + path);
@@ -48,8 +48,10 @@ test("RAC-400 a project without Goals draws its page, its settings and its board
   // project has, and there is no link into it.
   assert.match(page, /class="plugin-rail-tile is-available" data-plugin-tile="goals"/, "Goals is one to add, not one the project has");
   assert.doesNotMatch(page, /class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="goals"|data-plugin-id="goals"/, "the project's plugin list does not hold Goals");
+  // PEQ-01: the project's guidance is the platform's (contract-design §9), so a project without Goals still lists and draws it.
   const settings = await fetch(`${env.prefix}/settings/guidance`).then(response => response.text());
-  assert.equal(/class="guidance-document"|<a href="[^"]*\/settings\/guidance"/.test(settings), false, "the project description page is Goals', so a project without Goals neither lists nor draws it");
+  assert.match(settings, /class="guidance-document"/, "PEQ-01: the guidance page is drawn without Goals");
+  assert.match(settings, /<a href="[^"]*\/settings\/guidance"/, "PEQ-01: the settings list names the guidance without Goals");
   // A link to a Goal that is not there is answered as not found, never as a failure.
   const linked = await fetch(`${env.prefix}/goals/goal-x`);
   assert.ok(linked.status < 500, `a Goal link in a project without Goals: ${linked.status}`);

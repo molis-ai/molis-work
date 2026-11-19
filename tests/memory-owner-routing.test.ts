@@ -8,7 +8,7 @@ import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-wor
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { PLUGIN_DEFAULT_KINDS, pluginDefaultKinds } from "@molis-ai/molis-work-service-memory";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { grantMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { codingProductHost, type CodingProviderRequest } from "./fixtures/coding-product-host.js";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
@@ -26,14 +26,15 @@ const BACKGROUND = "OWNER_REF_STUDIO：项目主要服务小型设计工作室�
 const OLD_BACKGROUND = "OWNER_REF_STUDIO：项目主要服务独立设计师。";
 const METHOD = "OWNER_METHOD_RESEARCH：竞品研究依次收集来源、核对、比较。";
 const ONCE = "OWNER_ONCE_NPM：今天只试一次 npm。";
-const goalsProvider = "io.molis.work.goals";
+/** The project's guidance is the platform's since batch 44 (contract-design §9). */
+const guidanceProvider = "system.project-guidance";
 const coding = "/api/plugins/io.molis.work.coding";
 type ModelRequest = CodingProviderRequest & { system?: unknown; tools?: Array<{ name: string; description?: string }> };
 type ModelStep = (request: ModelRequest) => { name: string; input: unknown } | string | Promise<{ name: string; input: unknown } | string>;
 const instructionText = (request: ModelRequest) => JSON.stringify(request.system ?? []);
 const materialText = (request: ModelRequest) => JSON.stringify(request.messages);
 const guidanceCall = (capability_id: string, input: unknown, write = false) => ({ name: write ? "change-capability" : "read-capability",
-  input: { capability_id, version: 1, provider_id: goalsProvider, input } });
+  input: { capability_id, version: 1, provider_id: guidanceProvider, input } });
 const addInput = (key: string) => ({ kind: "constraint" as const, content: RULE, reason: "项目持续协作约定", confirmation_summary: RULE,
   user_confirmed: true, idempotency_key: key });
 
@@ -64,7 +65,7 @@ async function ownerFixture(t: TestContext) {
   let host = f.host, web = f.web, closeReopened: (() => Promise<void>) | undefined;
   const reference = (project = f.project) => molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const person = (project = f.project) => bindActionClient(host.actionClient(reference(project)), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID,
-    actor_kind: "user" as const, audience: "user" as const, project_id: project.project_id, permissions: [...MEMORY_PERMISSIONS, "goals:read", "goals:write"],
+    actor_kind: "user" as const, audience: "user" as const, project_id: project.project_id, permissions: [...MEMORY_PERMISSIONS, "goals:read", "goals:write", "projects:guidance-read", "projects:guidance"],
     user_action: { source: "management" as const, conversation_ref: "test://owner-routing", message_ref: randomUUID() } }));
   const assistant = async (text: string, steps: ModelStep[], options: { work_id?: string; project?: typeof f.project | null; decisions?: Array<"approve" | "reject">; expected_failure?: "MEMORY_SCOPE_DENIED" } = {}) => {
     assert.equal(script.length, 0); const before = seen.length; script.push(...steps);
@@ -204,9 +205,9 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
     const declinedNote = "遵守拒绝：这条项目长期说明未保存，不改用其它存储绕过；继续查询方法能力。";
     const mixed = await f.assistant(original, [
       () => ({ name: "find-capabilities", input: { query: "Goals 长期说明" } }),
-      () => guidanceCall("goals.guidance.read", {}),
+      () => guidanceCall("projects.guidance.read", {}),
       () => ({ name: "remember", input: { scope: "personal", text: PREF, said: original, kind: "preference" } }),
-      request => { assert.equal(toolField(request.messages, "memory_id"), ""); assert.equal(typeof toolField(request.messages, "candidate_id"), "string"); return guidanceCall("goals.guidance.add", input, true); },
+      request => { assert.equal(toolField(request.messages, "memory_id"), ""); assert.equal(typeof toolField(request.messages, "candidate_id"), "string"); return guidanceCall("projects.guidance.add", input, true); },
       request => {
         assert.equal(toolField(request.messages, "created"), undefined, "rejected confirmation has no save receipt");
         assert.ok(request.tools?.some(tool => tool.name === "acknowledge-inputs"), "the current request offers the public input receipt tool");
@@ -214,7 +215,7 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
           if (!("role" in message) || message.role !== "user" || typeof message.content !== "string") return [];
           const above = request.messages[index - 1];
           if (!above || !("role" in above) || above.role !== "user" || typeof above.content !== "string"
-            || !above.content.includes("用户拒绝了这次修改") || !above.content.includes(goalsActions.guidanceAdd.action.title)) return [];
+            || !above.content.includes("用户拒绝了这次修改") || !above.content.includes(projectGuidanceActions.add.action.title)) return [];
           const id = message.content.match(/^\[input id\] The input just above has the id (steer-[0-9a-z]+-[0-9a-z]+)\. Use it to refer to that input in acknowledge-inputs\.$/)?.[1];
           return id ? [id] : [];
         });
@@ -237,30 +238,30 @@ test("existing owners: mixed Assistant save keeps candidate/confirmation/unavail
     assert.deepEqual([refusal.model_claim?.treatment, refusal.model_claim?.kind, refusal.model_claim?.impacts, refusal.model_claim?.note],
       ["apply-now", "constraint", ["constraint"], declinedNote], "the public acknowledgement is bound to the same refusal identity");
     assert.match(JSON.stringify(mixed.view.rounds), /偏好待你认可/);
-    assert.deepEqual((await manager.invoke(goalsActions.guidanceRead, {})).entries, []);
+    assert.deepEqual((await manager.invoke(projectGuidanceActions.read, {})).entries, []);
     assert.deepEqual((await manager.invoke(memoryActions.list, {})).items, []);
     const pending = (await manager.invoke(memoryActions.candidates, {})).candidates;
     assert.equal(pending.length, 1); assert.equal(pending[0]!.text, PREF); assert.equal(pending[0]!.state, "pending");
     const accepted = await manager.invoke(memoryActions.accept, { candidate_id: pending[0]!.candidate_id, expected_version: pending[0]!.version });
     assert.equal(accepted.memory?.text, PREF);
-    await f.assistant("确认将这条保存为本项目长期说明：" + RULE, [() => guidanceCall("goals.guidance.read", {}),
-      () => guidanceCall("goals.guidance.add", input, true), request => {
+    await f.assistant("确认将这条保存为本项目长期说明：" + RULE, [() => guidanceCall("projects.guidance.read", {}),
+      () => guidanceCall("projects.guidance.add", input, true), request => {
         assert.equal(toolField(request.messages, "created"), true); return "已保存到 Goals 的本项目长期说明，可在项目设置查看和纠正。";
       }], { decisions: ["approve"] });
-    const saved = await manager.invoke(goalsActions.guidanceRead, {}); assert.equal(saved.entries.length, 1);
-    const write = { capability_id: goalsActions.guidanceAdd.capability_id, version: goalsActions.guidanceAdd.version, provider_id: goalsProvider };
-    await f.codingRound([request => actionTool(request, goalsActions.guidanceAdd.action.title, input), request => {
+    const saved = await manager.invoke(projectGuidanceActions.read, {}); assert.equal(saved.entries.length, 1);
+    const write = { capability_id: projectGuidanceActions.add.capability_id, version: projectGuidanceActions.add.version, provider_id: guidanceProvider };
+    await f.codingRound([request => actionTool(request, projectGuidanceActions.add.action.title, input), request => {
       // Assistant acts for the person; Coding has its own actor. The same text deduplicates across actors, not their idempotency receipts.
       assert.equal(toolField(request.messages, "created"), false); assert.equal(toolField(request.messages, "replayed"), false);
       assert.deepEqual(toolField(request.messages, "entry"), saved.entries[0]);
       return "相同说明已在 Goals，没有重复新增。";
     }], [write], ["approve"]);
-    assert.deepEqual(await manager.invoke(goalsActions.guidanceRead, {}), saved, "cross-actor text deduplication retains the original Goals entries, revisions and cursor");
+    assert.deepEqual(await manager.invoke(projectGuidanceActions.read, {}), saved, "cross-actor text deduplication retains the original Goals entries, revisions and cursor");
     await manager.invoke(memoryActions.write, { scope: "project", kind: "fact", text: BACKGROUND, classification: { scenes: ["common"], lifecycle: "long-term" } });
     const all = (await manager.invoke(memoryActions.list, {})).items;
     assert.ok(all.every(item => ![RULE, ONCE, METHOD].includes(item.text)), "no fallback storage for rejected rules, methods or one-off choices");
     await f.reopen();
-    assert.deepEqual(await f.person().invoke(goalsActions.guidanceRead, {}), saved);
+    assert.deepEqual(await f.person().invoke(projectGuidanceActions.read, {}), saved);
     await assertConsumption(f, BACKGROUND);
     await f.assistant("显式查看我的偏好。", [() => ({ name: "list-memories", input: {} }), request => {
       assert.ok(materialText(request).includes(PREF)); assert.ok(!instructionText(request).includes(PREF)); return "个人偏好仍是参考资料。";
@@ -302,8 +303,8 @@ test("existing owners: correction reports partial success, refuses revoked memor
         assert.ok(materialText(request).includes(oldId) && materialText(request).includes(OLD_BACKGROUND));
         return { name: "remember", input: { scope: "project", text: BACKGROUND, said: "纠正背景为：" + BACKGROUND + "\n将旧规矩移到项目长期说明，并停用记忆副本。", kind: "fact", replaces: oldId } };
       },
-      request => { assert.equal(typeof toolField(request.messages, "candidate_id"), "string"); return guidanceCall("goals.guidance.read", {}); },
-      () => guidanceCall("goals.guidance.add", input, true),
+      request => { assert.equal(typeof toolField(request.messages, "candidate_id"), "string"); return guidanceCall("projects.guidance.read", {}); },
+      () => guidanceCall("projects.guidance.add", input, true),
       async request => {
         assert.equal(toolField(request.messages, "created"), true);
         // The person withdraws actual Assistant access after list/write but before the next tool is dispatched.
@@ -324,7 +325,7 @@ test("existing owners: correction reports partial success, refuses revoked memor
     assert.ok(shown.some(item => item.verb === "memory-suggest" && item.state === "completed" && item.target === ""));
     assert.ok(shown.some(item => item.verb === "memory-forget" && item.state === "failed" && item.detail?.includes("没有停用")));
     assert.ok(!shown.some(item => item.verb === "memory-keep" && item.state === "completed"));
-    const beforeRetry = await manager.invoke(goalsActions.guidanceRead, {}); assert.equal(beforeRetry.entries.length, 1);
+    const beforeRetry = await manager.invoke(projectGuidanceActions.read, {}); assert.equal(beforeRetry.entries.length, 1);
     assert.equal(beforeRetry.entries[0]!.content, RULE);
     const originals = (await manager.invoke(memoryActions.list, {})).items;
     const unchangedRule = originals.find(item => item.memory_id === wrongId), unchangedBackground = originals.find(item => item.memory_id === oldId);
@@ -341,26 +342,26 @@ test("existing owners: correction reports partial success, refuses revoked memor
     assertRevokedWindow();
     const retried = await f.assistant("保留已保存的项目说明，继续原请求，停用那份旧记忆。", [
       () => ({ name: "list-memories", input: {} }), request => {
-        assert.ok(materialText(request).includes(wrongId) && materialText(request).includes(RULE)); return guidanceCall("goals.guidance.add", input, true);
+        assert.ok(materialText(request).includes(wrongId) && materialText(request).includes(RULE)); return guidanceCall("projects.guidance.add", input, true);
       },
       request => { assert.equal(toolField(request.messages, "replayed"), true); return { name: "forget-memory", input: { memory_id: wrongId } }; },
-      request => { assert.equal(toolField(request.messages, "forgotten"), true); return "规矩保留在 Goals，旧记忆已停用；背景更正已由你认可。可分别在项目长期说明和记忆设置纠正。"; },
+      request => { assert.equal(toolField(request.messages, "forgotten"), true); return "规矩保留在项目长期说明，旧记忆已停用；背景更正已由你认可。可分别在项目长期说明和记忆设置纠正。"; },
     ], { decisions: ["approve"], work_id: partial.view.work.work_id });
     assert.equal(retried.view.work.work_id, partial.view.work.work_id);
     assert.equal(retried.view.work.session_id, partial.view.work.session_id);
     assert.equal(retried.view.rounds.length, partial.view.rounds.length + 1);
     assert.ok(!partial.view.rounds.some(round => round.run_id === retried.view.rounds.at(-1)!.run_id), "continuing the original Work starts a new Run in its original Session");
-    assert.deepEqual(await manager.invoke(goalsActions.guidanceRead, {}), beforeRetry, "same idempotency key retains the original event and receipt");
+    assert.deepEqual(await manager.invoke(projectGuidanceActions.read, {}), beforeRetry, "same idempotency key retains the original event and receipt");
     const entry = beforeRetry.entries[0]!;
-    await assert.rejects(manager.invoke(goalsActions.guidanceUpdate, { guidance_id: entry.guidance_id, action: "edit", kind: "constraint", content: "不应保存的未确认修改",
-      reason: "确认拒绝", confirmation_summary: "尚未确认", user_confirmed: false, idempotency_key: "owner-refused-edit" }), { code: "goals.project_guidance.user_confirmation_required" });
-    assert.deepEqual(await manager.invoke(goalsActions.guidanceRead, {}), beforeRetry);
+    await assert.rejects(manager.invoke(projectGuidanceActions.update, { guidance_id: entry.guidance_id, action: "edit", kind: "constraint", content: "不应保存的未确认修改",
+      reason: "确认拒绝", confirmation_summary: "尚未确认", user_confirmed: false, idempotency_key: "owner-refused-edit" }), { code: "projects.guidance.user_confirmation_required" });
+    assert.deepEqual(await manager.invoke(projectGuidanceActions.read, {}), beforeRetry);
     const items = (await manager.invoke(memoryActions.list, {})).items;
     assert.equal(items.find(item => item.memory_id === wrongId)?.state, "disabled");
     assert.equal(items.filter(item => item.state === "active" && item.text === BACKGROUND).length, 1);
     assert.equal(items.filter(item => item.state === "active" && item.text === RULE).length, 0);
     await f.reopen();
-    assert.deepEqual(await f.person().invoke(goalsActions.guidanceRead, {}), beforeRetry);
+    assert.deepEqual(await f.person().invoke(projectGuidanceActions.read, {}), beforeRetry);
     assert.equal((await f.person().invoke(memoryActions.list, {})).items.find(item => item.memory_id === wrongId)?.state, "disabled");
     // Compare the actual repeated body, not RULE itself: RULE belongs exactly once in the project layer now.
     await assertConsumption(f, BACKGROUND, OLD_BACKGROUND);

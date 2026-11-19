@@ -10,6 +10,7 @@ import { renderGoalsReadRequest, renderGoalsPageRequest, type GoalsStageData } f
 import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -99,7 +100,7 @@ export function createLocalGoalsReadHttp(ports: {
   const { renderMolisWorkProjectSettingsHub, declaredPageSurface, renderMolisWorkWeb, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, actions: BoundActionClient,
-    goalsHere: () => Promise<boolean>, store: LocalProjectDatabase, homeDirectory?: string,
+    store: LocalProjectDatabase, homeDirectory?: string,
   ): Promise<boolean> {
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
@@ -111,15 +112,13 @@ export function createLocalGoalsReadHttp(ports: {
       const embed = url.searchParams.get("embed") === "1";
       if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
       let guidance;
-      try {
-        // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
-        // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
-        if (await goalsHere()) guidance = await actions.invoke(goalsActions.guidanceRead, {});
-      }
+      // The project's guidance is the platform's (contract-design §9), there whichever plugins the project enables; a refused read is
+      // that refusal, shown with its code and operation number.
+      try { guidance = await actions.invoke(projectGuidanceActions.read, {}); }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } },
-        guidance ?? null,
+        guidance,
         controlToken,
         isDesktopShellRequest(request, url),
         open,

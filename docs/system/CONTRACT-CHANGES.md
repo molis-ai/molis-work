@@ -96,7 +96,7 @@
 
 第 39-2 批移交（2026-11-14 用户批准在隔离库实现并验证，2026-11-15 批准增加第 41 批的 v4 来源）。平台项目库 3→4 的显式升级事务同时更新 Goals 私有库到 v5，并将 `goal_event_trusted_decisions`、`goal_tree_proposal_decisions` 和 `policy_bindings` 交给平台。分别校验 Goals v1～v4 的旧库，沿原升级保留事件证据和第 17 批的风险引用，完成第 41 批的旧方法表与采用列清理。未知组合、错误发布者、未记账旧表均拒。保留原主键、关系、历史来源和规则语义，旧资料按原证据展示。消费者为 Goals、统一管理、保护决定的 Web／MCP 入口及同步恢复。Goals 同步集合升为 `project_goals@2`，旧游标、待发和冲突只保存在升级备份。同步写方和恢复边界见[移交设计](../../specs/agent-approval/trusted-decisions-design.md#3-存量交接方案)。最早支持的金样已包含平台事实时移除此转换段。
 
-第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；C、D1～D3 已实现，A、B1、D5 未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
+第 44 批存量搬迁（2026-11-17 用户确认 A、B1、C、D，D5 同日确认（保留做法同日再确认）；A、C、D1～D3 已实现，B1、D5 未实现）。B1 的前提「平台认可补同步集合」在第 3 项开工时定：本批补，或明确接受补上之前第二台设备看不到要求认可；定之前不写 B1 的升级段。
 
 三项的共同规则：
 - 只在持存储主人锁的升级轮里执行；
@@ -113,6 +113,13 @@
 - 同步：Goals 集合升 `project_goals@3`，去掉这两张表和这两类日志；平台另登记一个项目指导集合；旧游标、待发和冲突只留在升级备份里。
 - 消费者：Agent Run 与助理回合的项目层提示词、MCP 上下文工具、Coding、设置页「项目指导」、同步恢复。
 - 没装 Goals 的项目，升级后得到空表。
+
+已实现（第 44 批第 2 项）。合同与细节见 `specs/plugin-equal-standing/contract-design.md` §9；与上面确认的方案有四处出入，都在 PR 里写明：
+- 并进项目库 5→6，不另起一步：5→6 还没发出去，分两步要给一个从没在 main 上出现过的中间状态再生成一份金样；并成一步，金样 0.1.1-dev.7（项目库 5、Goals 5，带一条改过一次的指导）就覆盖它。Goals 库 v6 本来就在这一步建，这一版同时去掉两张指导表。
+- 平台的表名是 `guidance_entries`、`guidance_revisions`（索引同改），不沿用 Goals 的 `project_guidance_*`：Goals 冻结的 v5 声明里仍有原表名的 `CREATE TABLE`，平台再建同名表就是两个包建同一张表，表主人门禁要加一条允许才过（那条允许原是给不同库里的同名表的）。换名后升级段在 `modules/projects` 里按调用方给的 v5 表名拷行、核对行数、删旧表；行里任一条不属于库里唯一的项目就拒绝，项目库保留。
+- 日志与收据随表移交时去掉 Goals 的前缀：事件类型 `io.molis.work.goals:project.guidance_*` → `project.guidance_*`，对象类型 `io.molis.work.goals:project_guidance` → `project_guidance`，收据操作 `io.molis.work.goals:add_project_guidance`／`update_project_guidance` → 平台名（存储包的 `renameJournalRecords`，同一事务）。请求哈希算法不变（规范 JSON 的 sha256），升级前发出的请求带同一幂等键重放仍得原结果。
+- 平台的「项目长期说明」集合（`io.molis.work.project-guidance`／`guidance`，第 1 版）照项目审批集合做：一个项目一个键，带两张表，不带日志与收据；修订只增不改，条目只往更高的修订走，同一修订内容不同算冲突、保留本地。要本人另行勾选；`project_goals@3` 不再带指导。
+- 删除条件：同 D1、D3（最早支持的金样不再含项目库 v5 时删）。
 - 金样：带指导与修订的 v4 项目库，验 4→5，并验失败时原数据保留。
 - 删除条件：最早支持的金样已含平台表时，删这一段。
 
@@ -297,7 +304,7 @@ PEQ-10 要求旧指导能读，所以不提供「从空开始」的选项。
 | `assistant/assistant.db` | 1 → 2 | 存键和参数、不存译文（BL-action-card-outcome-text，用户 2026-11-17 定升版本、旧句子转 `{ literal }`）：卡片的 `outcome` 从句子改成 `OwnedTextRef`。2026-11-08／11-09「助理库保持第 1 版」的决定到此为止 | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 4 → 5 | 同上：Coding 存在 `plugin_private_values` `cards:<会话>` 的卡片 `outcome` 转 `{ literal }`；v4 金样 `0.1.1-dev.6` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#4→5` |
 | `work-brief/work-brief.db` | 1 → 2 | 存键和参数、不存译文（BL-work-brief-source-name-text，用户 2026-11-17 定）：来源名改存插件 Manifest 的 `name_text` 引用，旧名字与旧卡片结果转 `{ literal }`（纯 SQL 插件升级段） | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
-| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 44 批第 1 项（用户 2026-11-17 批准「第 44 批存量搬迁」D1、D3）：Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`。项目库备份后同一事务完成，见不认识的取值拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
+| `projects/<project_id>/molis-work.db` | 5 → 6 | 第 44 批第 1、2 项（用户 2026-11-17 批准「第 44 批存量搬迁」A、D1、D3）：项目指导从 Goals 库移到平台的 `guidance_entries`、`guidance_revisions`（行原样，日志与收据去掉 Goals 前缀），平台登记「项目长期说明」同步集合；Inbox 的 `inbox_entries` 去掉列举主题类型与原因的两条 CHECK，行、索引与触发器原样；关系一端写 `module: "goals"`／`"feed"` 的改写成它们是的插件对象，Goals 的同步集合换成 `project_goals@3`。项目库备份后同一事务完成，见不认识的取值拒绝并保留原库 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
 | `projects/<project_id>/molis-work.db#goals` | 5 → 6 | 第 44 批第 1 项 D1：表不变，同步集合随项目库 5→6 换成 `project_goals@3`（触及目标的关系走平台通用 `relation-edges`）；Goals 自己不写升级段 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#5→6` |
 | `context-onboarding/context-onboarding.db` | 1 → 2 | 第 44 批第 1 项 D5（用户 2026-11-17「Yes, upgrade 1→2」）：旅程里 Todo 的批次换成平台形状的草稿批次（快照置空、留批次 id），`todo_selected` 改名 `keep` 原样保留，Pages 的文档 id 补成对象地址；见第 1 版没有的形状拒绝，库留在第 1 版 | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE#1→2` |
 | `placement/placement.db` | 1 → 2 | 第 44 批第 1 项 D2（用户 2026-11-17 批准「第 44 批存量搬迁」）：关系类型 `placement.goal_in` 的每个版本改成 `placement.attached_in`，键补上目标插件与种类（Goals 的 `goal`）；其他不动，见第 1 版没有的键拒绝并保留原库 | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE#1→2` |

@@ -4,7 +4,8 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { requireSynchronous, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { readProjectGuidance } from "../project-guidance-actions.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -232,7 +233,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
 export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "actionClient">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
-  let view: ProjectGuidanceFacts;
+  let view: ProjectGuidanceView;
   try { view = await readProjectGuidance(localHost.actionClient(reference), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];

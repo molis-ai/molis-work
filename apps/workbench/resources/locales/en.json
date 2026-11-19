@@ -10068,6 +10068,63 @@
     "workbench.subtask-conversation.approvals": "Approval",
     "workbench.subtask-conversation.notice.peer-update": "Conversation update received",
     "workbench.subtask-conversation.notice.task-unavailable": "Original task description unavailable",
-    "workbench.subtask-conversation.notice.subagent-input": "A person added input to this sub-task"
+    "workbench.subtask-conversation.notice.subagent-input": "A person added input to this sub-task",
+    "workbench.project-guidance.active-revision": "Active revision",
+    "workbench.project-guidance.add": "Add",
+    "workbench.project-guidance.add-2": "Add",
+    "workbench.project-guidance.add-guidance": "Add guidance",
+    "workbench.project-guidance.boundaries-that-no-work-may-cross": "Boundaries that no work may cross",
+    "workbench.project-guidance.cancel": "Cancel",
+    "workbench.project-guidance.category": "Category",
+    "workbench.project-guidance.change": "change",
+    "workbench.project-guidance.change-reason": "Change reason",
+    "workbench.project-guidance.changed": "Changed by",
+    "workbench.project-guidance.confirmation-record": "Confirmation record",
+    "workbench.project-guidance.constraint": "Constraint",
+    "workbench.project-guidance.convention": "Convention",
+    "workbench.project-guidance.count-count": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} change",
+        "other": "{count} changes"
+      }
+    },
+    "workbench.project-guidance.count-count-2": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} item",
+        "other": "{count} items"
+      }
+    },
+    "workbench.project-guidance.deactivated-guidance": "Deactivated guidance",
+    "workbench.project-guidance.deactivated-revision": "Deactivated revision",
+    "workbench.project-guidance.disable": "Disable",
+    "workbench.project-guidance.full-text": "Full text",
+    "workbench.project-guidance.guidance-text": "Guidance text",
+    "workbench.project-guidance.how-runtime-uses": "How AI uses this guidance",
+    "workbench.project-guidance.long-term-guidance-shared-all-work-project-assistant": "Long-term instructions shared across all work in this project — used by the assistant, plugin AI features and connected external AI tools. Edit anytime and view full revision history.",
+    "workbench.project-guidance.naming-communication-collaboration-conventions": "Naming, communication, and collaboration conventions",
+    "workbench.project-guidance.only-active-revisions-sent-placed-before-round-s": "Only active entries are sent to AI ahead of each turn’s task; edits or pauses take effect on the next turn.",
+    "workbench.project-guidance.product-business-requirements-all-work-project-must-meet": "Product or business requirements all work in this project must meet",
+    "workbench.project-guidance.project-context": "Project context",
+    "workbench.project-guidance.project-guidance": "Project guidance",
+    "workbench.project-guidance.project-s-stable-way-working": "The project’s stable way of working",
+    "workbench.project-guidance.quality-bar": "Quality bar",
+    "workbench.project-guidance.reason-kept-revision-history-so-decision-remains-understandable": "This reason is kept in revision history so the decision remains understandable later",
+    "workbench.project-guidance.restore": "Restore",
+    "workbench.project-guidance.restore-entry": "Restore this entry",
+    "workbench.project-guidance.revision-history": "Revision history",
+    "workbench.project-guidance.revision-revision": "Revision {revision}",
+    "workbench.project-guidance.revision-revision-updated-time": "Revision {revision} · Updated {time}",
+    "workbench.project-guidance.save-guidance": "Save guidance",
+    "workbench.project-guidance.shared-requirement": "Shared requirement",
+    "workbench.project-guidance.shared-standard-completed-work": "The shared standard for completed work",
+    "workbench.project-guidance.there-no-deactivated-entries": "There are no deactivated entries.",
+    "workbench.project-guidance.there-no-revision-history-yet": "There is no revision history yet.",
+    "workbench.project-guidance.view-full-revision-change-reason": "View full revision and change reason",
+    "workbench.project-guidance.what-project-facts-that-remain-true": "What this project is and facts that remain true",
+    "workbench.project-guidance.why-make-change": "Why make this change",
+    "workbench.project-guidance.workflow": "Workflow",
+    "workbench.project-guidance.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing"
   }
 }

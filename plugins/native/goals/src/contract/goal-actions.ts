@@ -10,7 +10,6 @@ export * from "./goal-planning-action-schemas.js";
 export * from "./goal-tree-action-schemas.js";
 export * from "./goal-snapshot-action-schemas.js";
 export * from "./goal-policy-action-schemas.js";
-export * from "./goal-guidance-action-schemas.js";
 export * from "./goal-progress-action-schema.js";
 export * from "./goal-entry-actions.js";
 export { goalAction } from "./goal-action-definition.js";

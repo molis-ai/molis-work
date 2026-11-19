@@ -91,6 +91,10 @@ export const GOALS_TABLES_SQL = `
   CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 
+`;
+
+/** The project guidance Goals kept until its library v6 (batch 44 moved it to the platform's `modules/projects`): versions 1–5 hold it. */
+export const GOALS_GUIDANCE_SQL = `
   CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,

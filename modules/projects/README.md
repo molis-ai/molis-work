@@ -24,6 +24,8 @@ ProjectsModule 用注入数据库在包内建立 repository 与 service，公开
 | [src/project-paths.ts](src/project-paths.ts) | 项目库/暂存目录的路径推导 |
 | [src/installation-inspection.ts](src/installation-inspection.ts) | 卸载只读检查 |
 | [src/project-root.ts](src/project-root.ts) | 项目库里的项目根行 `project_root` |
+| [src/project-guidance.ts](src/project-guidance.ts) | 项目长期说明：表、读写（`createProjectGuidance`）与 5→6 从 Goals 接过行（`adoptProjectGuidance`） |
+| [src/project-guidance-replica.ts](src/project-guidance-replica.ts) | 「项目长期说明」同步集合的副本与传输表 |
 
 可对照现有调用方 [apps/local-host/src/project-catalog.ts](../../apps/local-host/src/project-catalog.ts) 阅读装配方式。
 
@@ -36,6 +38,8 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 **最近用过。** 项目库的 `material_recent_uses`（`src/material-recent.ts` 的 `MaterialRecentUses`）按调用方（本人或插件 id）记引用的 `MaterialRef`，不记正文；项目随库删除时一起清。`materials.recent`、`materials.recent.record`、`materials.origins` 三个动作由宿主装配，出处每次现读，不在本模块。
 
 **升级。** 目录库与项目库都升到第 2 版：目录库 1→2 的段在本包 `catalog-upgrade.ts`（去掉方案 A 之前留下的写手工作树行、`is_default` 换成两个角色列、给每个没有输出的项目补默认输出目录；随 `CATALOG_UPGRADES` 登记在 `apps/local-host/src/project-catalog-contract.ts`）；项目库 1→2 的段在 `apps/local-host/src/project-database-schema.ts`（删 `project_browsing_settings`、加 `material_recent_uses`），其中的建表语句由本包 `material-recent.ts` 导出。低版本由启动升级过程升，较新的库拒绝。
+
+**项目长期说明。** 本人确认过、项目里每次 Agent Run、助理回合和连接的客户端都先读到的说明（第 44 批从 Goals 移来，`specs/plugin-equal-standing/contract-design.md` §9）。表 `guidance_entries`、`guidance_revisions` 在项目库基线里；动作 `projects.guidance.{read,add,update}@1` 由宿主以提供方 `system.project-guidance` 登记（`apps/local-host/src/project-guidance-actions.ts`），读不要权限，写要 `projects:guidance`、本人看过原文的 `user_confirmed` 与幂等键。日志与收据写在平台的 `events`、`idempotency_records`（宿主给的 `ProjectGuidanceJournal`）。Agent 用修订条数标识说明版本，编辑同一条也产生新的冻结版本。设置页的写入已成功而随后的重读被拒时，HTTP 返回保存回执和单独的重读错误，不把已保存报成失败。同步是平台的「项目长期说明」集合，本人另行勾选。
 
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 
@@ -86,6 +90,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
   - 目录库与项目库的结构改动都走升级段（`catalog-upgrade.ts`、`apps/local-host/src/project-database-schema.ts`）；低版本由启动升级过程升，较新的库拒绝，不在打开路径补表。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/project-directories.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts tests/security-invariants-project-storage.test.ts`；目录与默认输出目录另跑 `node scripts/run-tests.mjs tests/default-output-first-use.test.ts tests/material-recent-uses.test.ts`。
 - 个人资料同步另跑：`node scripts/run-tests.mjs tests/security-invariants-project-metadata-sync.test.ts tests/project-catalog.test.ts tests/personal-sync.test.ts`。
+- 项目长期说明另跑：`node scripts/run-tests.mjs tests/project-guidance-store.test.ts tests/project-guidance-characters.test.ts tests/project-guidance-actions.test.ts tests/project-guidance-sync.test.ts tests/project-guidance-upgrade.test.ts`。
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)、[共同设计](../../specs/shared-sources-and-surfaces/spec.md) §3；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

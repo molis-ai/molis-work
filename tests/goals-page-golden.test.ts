@@ -362,10 +362,15 @@ const reviewedEnglish: Readonly<Record<string, string>> = {
   "goals.inputs.follow-original-goal-sees-now-fix-version-goal": "“Follow the original”: the goal sees it as it is now. “Fix this version”: the goal uses the version saved when it was added; later edits don’t change it.",
 };
 
+// Batch 44 (contract-design §9) gave the project guidance to the platform: its words keep their text under the workbench's own keys,
+// `workbench.project-guidance.*` with the same endings, and are read here from that owner.
+const GUIDANCE_WORDS = "goals.guidance-document.";
+const ownedKey = (key: string) => key.startsWith(GUIDANCE_WORDS) ? "workbench.project-guidance." + key.slice(GUIDANCE_WORDS.length) : key;
+
 function examples(locale: "zh" | "en") {
   const text = (key: string, zh: string, en: string) => {
     const expected = locale === "zh" ? (reviewedChinese[key] ?? zh) : (reviewedEnglish[key] ?? en);
-    return { key, expected, args: undefined };
+    return { key: ownedKey(key), expected, args: undefined };
   };
   const result = (["words"] as const).flatMap(section => {
     assert.equal(keys[section].length, Object.keys(moved[section]).length);
@@ -373,9 +378,9 @@ function examples(locale: "zh" | "en") {
       zh.includes("{") ? [] : [text(keys[section][index]!, zh, en)]);
   });
   assert.equal(keys.interpolation.length, moved.interpolation.length);
-  return [...result, ...moved.interpolation.map((sample, index) => ({ key: keys.interpolation[index]!, expected: sample[locale], args: sample.vars })),
-    { key: "goals.guidance-document.count-count", expected: locale === "en" ? "1 change" : "共 1 次变更", args: { count: 1 } },
-    { key: "goals.guidance-document.count-count-2", expected: locale === "en" ? "1 item" : "共 1 条", args: { count: 1 } },
+  return [...result, ...moved.interpolation.map((sample, index) => ({ key: ownedKey(keys.interpolation[index]!), expected: sample[locale], args: sample.vars })),
+    { key: "workbench.project-guidance.count-count", expected: locale === "en" ? "1 change" : "共 1 次变更", args: { count: 1 } },
+    { key: "workbench.project-guidance.count-count-2", expected: locale === "en" ? "1 item" : "共 1 条", args: { count: 1 } },
     { key: "goals.inputs.fixed-version-version", expected: locale === "en" ? "Fixed version North's 原文" : "固定的第 North's 原文 版", args: { version: "North's 原文" } }];
 }
 
@@ -390,7 +395,8 @@ test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and
   assert.ok(owner);
   for (const locale of ["zh", "en"] as const) {
     const cases = examples(locale), expected = cases.map(sample => sample.expected);
-    const server = runWithLocale(locale, () => runWithRegisteredText(owner, () => cases.map(({ key, args }) => uiText.text(key, args))));
+    const server = runWithLocale(locale, () => cases.map(({ key, args }) => key.startsWith("workbench.") ? uiText.text(key, args)
+      : runWithRegisteredText(owner, () => uiText.text(key, args))));
     assert.deepEqual(server, expected, locale + " exact Host owners");
     const script = pageTextScript(locale, "goals");
     const actual = await page.evaluate<{ words: string[]; wrong: string }>(`(() => {

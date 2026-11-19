@@ -3,7 +3,7 @@ import { createGoalsPlugin } from "./plugin.js";
 import { GOALS_PAGE_CLIENTS } from "./workbench-clients.js";
 import { GOALS_WORKBENCH_STYLESHEET } from "./workbench-styles.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
-import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
+import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -28,7 +28,6 @@ export const registration: PluginRegistration = {
     goalsStatusUiContribution,
     goalsFactorsUiContribution,
     goalsDialogsUiContribution,
-    goalsSettingsUiContribution,
   ],
     stylesheet: GOALS_WORKBENCH_STYLESHEET,
     stylesheetLayer: "beneath-shell",

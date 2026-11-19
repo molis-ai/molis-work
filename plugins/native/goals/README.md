@@ -40,10 +40,10 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 - 结构提案使用 `goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.review` 和 `goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更。平台先读取提案当前是否可审批，再将本人确认的选择交给 Goals 执行。已决定的提案保持可读。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
 - MCP 可按授权调用 `goals.relations.list` 和 `goals.policy.resolve` 查询关系列表和生效规则。本人可用 `goals.relations.add` 和 `goals.relations.deactivate` 建立或解除关系，模型走结构提案。
-- 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
+- 项目长期说明不归 Goals：第 44 批移到平台（`projects.guidance.*`，`modules/projects`），没装 Goals 的项目照常有。Goals 的终端动作以调用者身份读 `projects.guidance.read` 拿提示词前缀。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.impact`、`goals.planning.graph.check`。只剩关系图检查与影响分析；规划方法是技能目录里的技能，不归 Goals（第 41 批）。
-- 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 的看板不带 `title`，S8）：`goals.snapshot.read` 返回项目快照（目标、关系、项目指导与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则、项目指导与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
+- 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 的看板不带 `title`，S8）：`goals.snapshot.read` 返回项目快照（目标、关系与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
 - 完整集合：`goals.collection.read` 返回当前/归档/回收站集合、历史、覆盖和输入/规则绑定；整页、Board JSON、fragment 和复用页面资料的消费者等待同一动作，缓存命中仍重新校验权限。
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、关注项与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
 - 当前状态与目录项：`goals.state.read`、`goals.directory.read`。
@@ -73,10 +73,6 @@ Goals 消费统一授权管理页的项目审批规则。「完成前必须你�
 请求或引用决定不等于作出用户决定。普通动作不接受 actor/authority 等身份授权字段；项目规划保存/采用的 user_confirmed 只保留原业务确认前提，不产生用户决定权；用户验收、放宽约定和接受风险仍执行原领域校验。标准公共动作拒绝未授权调用，管理模式也不能自填用户作者。
 
 项目规划的方法详情/编辑、规划页与设置规划页已随第 41 批删除；项目库升级段与 Home 库删除见下文。
-
-长期说明的 Web API、项目设置、动作、MCP、Work 提示词和 Agent 项目层共用动作。Agent 使用原修订数标识说明版本，编辑同一条也产生新的冻结版本。说明写入已成功而后续列表读取被拒绝时，HTTP 返回保存回执及独立刷新错误；不把已保存操作报成失败。长期说明变更的 user_confirmed 保留原业务确认前提，不产生用户决定权。
-
-`guidance.add/update` 的成功回执沿 `result_view` 提供原说明正文和本项目“项目说明”管理入口，由平台原结果卡保存并展示；后续步骤失败仍可查看、编辑或停用，不依赖模型再补回答。同文去重只说内容已保存，编辑/停用/恢复只说变更已保存，不声称新增或删除。输入输出、授权、动作版本及原幂等合同不变；直接回归为 `tests/goals-guidance-actions.test.ts` 和 `tests/assistant-process-info.e2e.test.ts`。
 
 生命周期的 Web API、CLI 当前目标与回收站组合动作已转入动作。删除/恢复固定操作方向，拒绝输入 trashed 覆盖；work_state 从本次原回执生成，后续排队写入不会改写它。`goals.active.set` 只收 goal_id、reason、idempotency_key，身份和项目由已授权连接绑定；删除与恢复共享同一授权；原领域数据和回执保留。
 
@@ -128,7 +124,7 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
     - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
     - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
     - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-workbench-registration.test.ts tests/goals-command-actions.test.ts tests/goals-library-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-guidance-actions.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-storage-boundaries.test.mjs tests/goals-stored-json.test.ts tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/goals-terminal.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-workbench-registration.test.ts tests/goals-command-actions.test.ts tests/goals-library-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-storage-boundaries.test.mjs tests/goals-stored-json.test.ts tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/goals-terminal.test.ts`
 
 - 改页面绘制（`src/page/`，T-116）必跑：`node scripts/run-tests.mjs tests/goals-page-golden.test.ts tests/goals-document-routes.test.ts tests/goals-context-ui.test.ts tests/goals-dialogs-ui.test.ts tests/goals-document-ui.test.ts tests/goals-kanban-ui.test.ts tests/goals-momentum-ui.test.ts tests/goals-policy-ui.test.ts tests/goals-relation-ui.test.ts tests/goals-status-ui.test.ts tests/goals-tree-ui.test.ts tests/status-ring.test.ts tests/workbench-ui-platform.test.ts tests/package-boundary-must-contain.test.mjs tests/workbench-registration-boundaries.test.mjs`。`goals-page-golden` 先全量 `pnpm build`（旧的 dist 画出来的页面没人用）；整页是否一个字节没变，用 `MOLIS_WORK_GOLDEN_DUMP=1` 写出整页，与改动之前干净检出上录的目录 `diff -rq`。
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[docs/modules/governance-collaboration.md](../../../docs/modules/governance-collaboration.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

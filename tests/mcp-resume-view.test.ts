@@ -12,6 +12,7 @@ import {
 import { objectLink } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { goalsActions, goalsResumeSummary } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -111,7 +112,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     served = await serveTestHost(null, { home: directory, host });
     const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));
     const viewOf = (definition: { capability_id: string }) => views.find(view => view.capability_id === definition.capability_id)!;
-    await served.grant("runtime:codex", project.project_id, [goalsActions.guidanceRead, goalsActions.list].map(viewOf));
+    await served.grant("runtime:codex", project.project_id, [projectGuidanceActions.read, goalsActions.list].map(viewOf));
     const resolve = async () => JSON.parse(await runtime!.callTool("molis_work_v1_context_resolve", {}));
     const goals = (value: { resume: { sections: Array<{ plugin_id: string; focus: { subject: { id: string }; source: string; url: string } }> } }) =>
       value.resume.sections.find(section => section.plugin_id === "io.molis.work.goals")!;

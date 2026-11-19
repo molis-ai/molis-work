@@ -6,7 +6,6 @@ import type { GoalsPageView } from "./view.js";
 
 export { renderGoalsPageRequest, renderGoalsReadRequest, renderGoalsReadRoute, type GoalsPageSelection, type GoalsReadRenderers } from "./routes.js";
 export { createGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./fragments.js";
-export { createProjectGuidanceDocumentRenderer } from "./guidance-document.js";
 export { renderGoalDetailsAside, renderImmersiveGoalHeader, renderImmersiveWorkTabs, type GoalChromePrimitives } from "./chrome.js";
 export { renderGoalFrameStage } from "./frame-stage.js";
 export { createGoalsRendererFactories, type GoalsRendererFactories } from "./factories.js";

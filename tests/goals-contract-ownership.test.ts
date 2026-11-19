@@ -61,6 +61,7 @@ const tracked = (...directories: string[]) => execFileSync("git", ["ls-files", "
   .split("\0").filter(file => /\.(?:ts|tsx|mts|mjs|js|json)$/u.test(file));
 
 // RAC-1770: the contract lives in the Goals plugin, with the runtime values it had; the platform contracts' three subpaths are gone.
+// Batch 44 (contract-design §9) took the project guidance's schemas out with the guidance, which the platform keeps.
 // Batch 06 (materials-ui-contract §1) added the receipt kind of a version the platform's materials service fixed and its locator.
 const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT", "GOAL_CONCERN_CITED_SUBJECT_LIMIT", "GOAL_EVENT_EVIDENCE_MAX",
   "GOAL_MATERIAL_SNAPSHOT_SOURCE", "GOAL_PLUGIN_OBJECT_SOURCE", "agreement", "array", "artifactSource", "binding", "boardSnapshotSchema", "boolean", "change",
@@ -72,9 +73,9 @@ const CONTRACT_RUNTIME_EXPORTS = ["GOALS_TREE_INTAKE", "GOALS_TREE_SUBMIT_RESULT
   "goalEventSemanticFamilies", "goalEventSystemOperations", "goalEventTrustedAuthoritySources", "goalEventTypeSourceKinds", "goalEventUserConclusionVerdicts",
   "goalEventWorkStatuses", "goalHistoryItemSchema", "goalHistoryPageSchema", "goalIntentSourceKinds", "goalMaterialSnapshotRef", "goalPluginActions", "goalPluginObjectRef", "goalPolicyBindingSchema",
   "goalPolicySchema", "goalProgressResultSchema", "goalRecordSchema", "goalRelationEndpoints", "goalRelationSchema", "goalRelationTypes", "goalReportEventSchema",
-  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "guidanceCommonSchema", "guidanceKindSchema", "identifier", "judgment", "judgmentInput",
+  "goalStateSchema", "goalTimelineSchema", "goalTrashResultSchema", "identifier", "judgment", "judgmentInput",
   "nullable", "object", "option", "parseGoalMaterialSnapshotRef", "parseGoalPluginObjectRef", "planningGraphIssueSchema", "planningImpactSchema",
-  "progress", "projectGuidanceEntrySchema", "projectGuidanceRevisionSchema",
+  "progress",
   "reason", "recordedDecisionMethod", "recordedReviewStatus", "scope", "text", "treeCheckInputSchema", "treeCheckResultSchema",
   "treeDecideInputSchema", "treeDecisionResultSchema", "treeItemDecisionSchema", "treeItemInputSchema", "treeNarrativeSchema", "treeProposalSchema",
   "treeReadInputSchema", "treeReadResultSchema", "treeSubmitInputSchema", "treeSubmitResultSchema"];
@@ -83,7 +84,7 @@ const PLUGIN_ACTIONS = { list: ["goals.list", 1, "query"], contract: ["goals.con
 const ENTRY_ACTIONS = { initialize: ["goals.board.initialize", 1, "command"], treeSubmit: ["goals.tree.submit", 1, "command"], treeRead: ["goals.tree.read", 1, "query"],
   treeCheck: ["goals.tree.check", 1, "command"], treeDecide: ["goals.tree.decide", 1, "command"], treeReview: ["goals.tree.review", 1, "query"],
   active: ["goals.active.set", 1, "command"], snapshot: ["goals.snapshot.read", 1, "query"], decide: ["goals.decisions.record", 1, "command"],
-  eventReview: ["goals.decisions.review", 1, "query"], guidanceRead: ["goals.guidance.read", 1, "query"],
+  eventReview: ["goals.decisions.review", 1, "query"],
   create: ["goals.create", 1, "command"], directoryItem: ["goals.directory.read", 1, "query"], inputsConfirm: ["goals.inputs.confirm", 1, "command"] };
 
 test("RAC-1770: the Goals plugin's ./contract exports the contract with its old values, and the platform contracts' three Goals subpaths are gone", async () => {

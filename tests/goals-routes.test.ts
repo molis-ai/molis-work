@@ -51,9 +51,6 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
   const cases: Array<[string, string, string, Record<string, string>]> = [
     ["POST", "/goals", "goals.create", {}],
     ["GET", "/goals/directory", "goals.directory", {}],
-    ["GET", "/project-guidance", "goals.guidance-read", {}],
-    ["POST", "/project-guidance", "goals.guidance-add", {}],
-    ["PATCH", "/project-guidance/g-1", "goals.guidance-update", { guidanceId: "g-1" }],
     ["POST", "/goals/goal%201/relations", "goals.relation-add", goal],
     ["POST", "/relations/r-1/deactivate", "goals.relation-deactivate", { relationId: "r-1" }],
     ["POST", "/goals/goal%201/active", "goals.active", goal],

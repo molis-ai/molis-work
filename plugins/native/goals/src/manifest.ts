@@ -9,6 +9,7 @@ import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
+import { PROJECT_GUIDANCE_READ_PERMISSION } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
@@ -27,9 +28,6 @@ const GOALS_EVENT_WRITES = ["event-configure", "event-report", "event-progress",
 const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.create", method: "POST", path: "/goals" },
   { route_id: "goals.directory", method: "GET", path: "/goals/directory" },
-  { route_id: "goals.guidance-read", method: "GET", path: "/project-guidance" },
-  { route_id: "goals.guidance-add", method: "POST", path: "/project-guidance" },
-  { route_id: "goals.guidance-update", method: "PATCH", path: "/project-guidance/:guidanceId" },
   { route_id: "goals.relation-add", method: "POST", path: "/goals/:goalId/relations" },
   { route_id: "goals.relation-deactivate", method: "POST", path: "/relations/:relationId/deactivate" },
   { route_id: "goals.active", method: "POST", path: "/goals/:goalId/active" },
@@ -88,6 +86,7 @@ export const goalsManifest: PluginManifest = {
     { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
     { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
     { permission: "actions:invoke", required: true, reason: "读取项目说明" },
+    { permission: PROJECT_GUIDANCE_READ_PERMISSION, required: true, reason: "目标的工作终端先读项目说明" },
     { permission: "terminal:run", required: true, reason: "在项目的工作目录里为目标打开工作终端" },
     { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
   ],

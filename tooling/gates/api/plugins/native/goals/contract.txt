@@ -23,25 +23,6 @@ export interface AddGoalRelationInput {
     reason: string;
 }
 
-export interface AddProjectGuidanceInput {
-    project_id: string;
-    actor_id: string;
-    kind: ProjectGuidanceKind;
-    content: string;
-    source_refs?: string[];
-    reason: string;
-    confirmation_summary: string;
-    user_confirmed: boolean;
-    idempotency_key: string;
-}
-
-export interface AddProjectGuidanceResult {
-    entry: ProjectGuidanceEntryRecord;
-    created: boolean;
-    observed_event_cursor: number;
-    replayed: boolean;
-}
-
 export interface ApplyGoalConcernInput {
     project_id: string;
     goal_id: string;
@@ -65,7 +46,6 @@ export interface BoardSnapshot {
     board: GoalsBoardRecord;
     goals: GoalRecord[];
     relations: GoalRelationRecord[];
-    project_guidance: ProjectGuidanceEntryRecord[];
     goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
@@ -1103,7 +1083,6 @@ export interface GoalFactsView {
     }>;
     relations: GoalRelationRecord[];
     resolved_policy: GoalPolicy;
-    project_guidance: ProjectGuidanceEntryRecord[];
 }
 
 export type GoalFulfillmentState = "unmet" | "satisfied";
@@ -1589,8 +1568,6 @@ export interface GoalsCommandApi {
         observed_event_cursor: number;
         replayed: boolean;
     };
-    addProjectGuidance(input: AddProjectGuidanceInput): AddProjectGuidanceResult;
-    updateProjectGuidance(input: UpdateProjectGuidanceInput): UpdateProjectGuidanceResult;
 }
 
 export interface GoalsLifecycleApi {
@@ -1642,7 +1619,6 @@ export interface GoalsQueryApi {
     snapshot(projectId: string): GoalsQuerySnapshot;
     resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy;
     readGoal(projectId: string, goalId: string): GoalFactsView;
-    readProjectGuidance(projectId: string): ProjectGuidanceView;
 }
 
 export interface GoalsQuerySnapshot {
@@ -1651,7 +1627,6 @@ export interface GoalsQuerySnapshot {
     goals: GoalRecord[];
     relations: GoalRelationRecord[];
     policy_bindings: GoalPolicyBindingRecord[];
-    project_guidance: ProjectGuidanceEntryRecord[];
 }
 
 export interface GovernanceApplicationApi {
@@ -1842,51 +1817,6 @@ export interface PlanningRelationChange {
     reason?: string;
 }
 
-export interface ProjectGuidanceEntryRecord {
-    guidance_id: string;
-    project_id: string;
-    position: number;
-    revision: number;
-    active: boolean;
-    kind: ProjectGuidanceKind;
-    content: string;
-    content_hash: string;
-    source_refs: string[];
-    created_by: string;
-    confirmation_summary: string;
-    reason: string;
-    created_at: string;
-    updated_by: string;
-    updated_at: string;
-}
-
-export type ProjectGuidanceKind = "context" | "requirement" | "constraint" | "convention" | "workflow" | "quality_bar";
-
-export interface ProjectGuidanceRevisionRecord {
-    revision_id: string;
-    guidance_id: string;
-    project_id: string;
-    revision: number;
-    kind: ProjectGuidanceKind;
-    content: string;
-    content_hash: string;
-    source_refs: string[];
-    active: boolean;
-    changed_by: string;
-    change_kind: "created" | "edited" | "deactivated" | "restored";
-    confirmation_summary: string;
-    reason: string;
-    created_at: string;
-}
-
-export interface ProjectGuidanceView {
-    entries: ProjectGuidanceEntryRecord[];
-    inactive_entries: ProjectGuidanceEntryRecord[];
-    revisions: ProjectGuidanceRevisionRecord[];
-    virtual_document: string;
-    runtime_prompt_prefix: string;
-}
-
 export interface ProposalAffectedObject {
     object_type: ProposalAffectedObjectType;
     object_id: string;
@@ -2021,27 +1951,6 @@ export interface SubmitGoalEventClosureInput {
     reason: string;
     expected_config_version: number;
     expected_agreement_version: number;
-}
-
-export interface UpdateProjectGuidanceInput {
-    project_id: string;
-    guidance_id: string;
-    actor_id: string;
-    action: "edit" | "deactivate" | "restore";
-    kind?: ProjectGuidanceKind;
-    content?: string;
-    source_refs?: string[];
-    reason: string;
-    confirmation_summary: string;
-    user_confirmed: boolean;
-    idempotency_key: string;
-}
-
-export interface UpdateProjectGuidanceResult {
-    entry: ProjectGuidanceEntryRecord;
-    revision: ProjectGuidanceRevisionRecord;
-    observed_event_cursor: number;
-    replayed: boolean;
 }
 
 export declare const agreement: Readonly<Record<string, unknown>>;
@@ -2450,7 +2359,6 @@ export declare const goalEntryActions: {
         version: number;
         action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
     };
-    readonly guidanceRead: ActionDefinition<Record<string, never>, ProjectGuidanceView>;
     readonly create: ActionDefinition<GoalCreateActionInput, CreateGoalIntentResult>;
     readonly directoryItem: ActionDefinition<{
         goal_id: string;
@@ -2576,46 +2484,6 @@ export declare const goalTimelineSchema: Readonly<Record<string, unknown>>;
 
 export declare const goalTrashResultSchema: Readonly<Record<string, unknown>>;
 
-export declare const guidanceCommonSchema: {
-    guidance_id: {
-        type: string;
-    };
-    project_id: {
-        type: string;
-    };
-    revision: {
-        type: string;
-        minimum: number;
-    };
-    active: {
-        type: string;
-    };
-    kind: Readonly<Record<string, unknown>>;
-    content: {
-        type: string;
-    };
-    content_hash: {
-        type: string;
-    };
-    source_refs: {
-        type: "array";
-        items: {
-            type: string;
-        };
-    };
-    confirmation_summary: {
-        type: string;
-    };
-    reason: {
-        type: string;
-    };
-    created_at: {
-        type: string;
-    };
-};
-
-export declare const guidanceKindSchema: Readonly<Record<string, unknown>>;
-
 export declare const identifier: {
     type: string;
     minLength: number;
@@ -2646,10 +2514,6 @@ export declare const planningGraphIssueSchema: Readonly<Record<string, unknown>>
 export declare const planningImpactSchema: Readonly<Record<string, unknown>>;
 
 export declare const progress: Readonly<Record<string, unknown>>;
-
-export declare const projectGuidanceEntrySchema: Readonly<Record<string, unknown>>;
-
-export declare const projectGuidanceRevisionSchema: Readonly<Record<string, unknown>>;
 
 export declare const reason: Readonly<Record<string, unknown>>;
 

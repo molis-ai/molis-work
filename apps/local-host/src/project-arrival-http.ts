@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { goalsHostActions } from "./goal-callers.js";
 import { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
 import type { WorkEventView, WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { homeActions } from "./home-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -120,7 +121,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
       settle(actions.invoke(goalsHostActions.list, { limit: 100 })),
       settle(actions.invoke(homeActions.events, eventWindow(now))),
       // The introduction the person accepted at creation is kept here; a project made another way may carry long-term notes instead.
-      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(goalsHostActions.guidanceRead, {})),
+      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(projectGuidanceActions.read, {})),
     ]);
     const goalList: BriefGoal[] | null = goals.ok ? goals.value.goals.map(goal => ({ goal_id: goal.goal_id, title: goal.title, work_status: goal.work_status, next_hint: goal.next_hint,
       pending_decision_count: goal.pending_decision_count, updated_at: goal.updated_at })) : null;

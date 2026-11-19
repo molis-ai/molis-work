@@ -89,6 +89,7 @@
     "projects/<project_id>/molis-work.db": {
       "cases": [
         "goals.ts",
+        "project-guidance.ts",
         "artifacts.ts",
         "coding.ts",
         "feed.ts",

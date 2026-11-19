@@ -22,6 +22,7 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, actionFieldLabelSource, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { installHostUiText, createMolisWorkLocalHost, drawAssistantReply, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
@@ -1708,7 +1709,7 @@ test("a review names common fields in words even when the plugin gave them no ti
   assert.deepEqual(actionFieldLabelSource("__proto__"), { label: "__proto__" });
 });
 
-test("the project layer of a project work is the project's guidance, read through the Goals action", async () => {
+test("PEQ-01: the project layer of a project work is the project's guidance, read through the platform's action, with or without Goals", async () => {
   const home = await mkdtemp(join(tmpdir(), "assistant-guidance-"));
   let removed = false;
   const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
@@ -1720,16 +1721,17 @@ test("the project layer of a project work is the project's guidance, read throug
     await startProjectPlugins(host, project_ref);
     const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
-    await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
+    await management.invoke(projectGuidanceActions.add, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const settled = watchSettlements(host);
 
     const [layer] = await assistantProjectPrompts(host, work);
     assert.equal(layer?.prompt_id, "project-guidance"); assert.match(layer!.body, /保留源文件/);
-    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["goals.guidance.read", undefined, "web-user", true]], "one Goals action, no typed capability");
+    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["projects.guidance.read", undefined, "web-user", true]], "one platform action, no typed capability");
 
     settled.length = 0; removed = true;
-    assert.deepEqual(await assistantProjectPrompts(host, work), [], "without Goals the work has no project layer");
-    assert.deepEqual(settled.map(row => [row.capability_id, row.ok, row.code]), [["goals.guidance.read", false, "actions.plugin_disabled"]]);
+    const [kept] = await assistantProjectPrompts(host, work);
+    assert.match(kept!.body, /保留源文件/, "without Goals the work keeps its project layer: the guidance is the platform's");
+    assert.deepEqual(settled.map(row => [row.capability_id, row.ok]), [["projects.guidance.read", true]]);
     assert.deepEqual(await assistantProjectPrompts(host, { work_id: "personal" } as StoredWork), [], "personal work has no project");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

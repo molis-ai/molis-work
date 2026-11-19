@@ -10,6 +10,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference, RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -21,14 +22,14 @@ test("official MCP connection summaries obey live action grants, preserve bindin
   const seen = new Set<string>();
   let disabled = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (caller, action) => {
-    if (caller.audience === "mcp" && [goalsActions.resumeSummary.capability_id, goalsActions.guidanceRead.capability_id].includes(action.capability_id)) {
+    if (caller.audience === "mcp" && [goalsActions.resumeSummary.capability_id, projectGuidanceActions.read.capability_id].includes(action.capability_id)) {
       seen.add(caller.actor_id + ":" + action.capability_id);
       if (disabled) return { available: false, code: "actions.plugin_disabled", reason: "Goals temporarily unavailable" };
     }
     return { available: true };
   } });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "user", actor_kind: "user", project_id: project.project_id,
-    audience: "user", permissions: ["goals:read", "goals:write"] }));
+    audience: "user", permissions: ["goals:read", "goals:write", "projects:guidance-read", "projects:guidance"] }));
   // The Host's own web server: the access settings the grants go through, and the action service the MCP launcher reaches.
   const served = await serveTestHost(t, { home, host });
   const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
@@ -37,7 +38,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
   const runtimeContext = { runtime_id: "context-actions", stable_work_context_id: "context-actions-session", host_declares_stable: true };
   try {
     await actions.invoke(goalsActions.create, { goal_id: "CONTEXT-SECRET", title: "Authorized goal content", idempotency_key: "create-context" });
-    await actions.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "Authorized project instruction", reason: "Fixture",
+    await actions.invoke(projectGuidanceActions.add, { kind: "constraint", content: "Authorized project instruction", reason: "Fixture",
       confirmation_summary: "Exact instruction confirmed", user_confirmed: true, idempotency_key: "guidance-context" });
     await withHostCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
     const bindingsBefore = await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
@@ -71,7 +72,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
       // Saving a grant asks the policy about the client too; what the later assertions read is what the connection summary asked.
       seen.clear();
     };
-    await grant(goalsActions.guidanceRead.capability_id, true);
+    await grant(projectGuidanceActions.read.capability_id, true);
     result = await resolve();
     assert.match(result.runtime_prompt_prefix, /Authorized project instruction/); assert.equal(result.project_guidance_error, undefined);
     assert.deepEqual(result.resume, none, "Goals' directory alone does not answer for its resume summary");
@@ -79,7 +80,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     result = await resolve();
     assert.equal(goalsFocus(result), "CONTEXT-SECRET"); assert.equal(result.resume_error, undefined);
     assert.ok(seen.has(caller.actor_id + ":" + goalsActions.resumeSummary.capability_id));
-    await grant(goalsActions.guidanceRead.capability_id, false);
+    await grant(projectGuidanceActions.read.capability_id, false);
     result = await resolve();
     assert.equal(result.project_guidance, null); assert.equal(result.runtime_prompt_prefix, null); assert.ok(result.project_guidance_error);
     assert.equal(goalsFocus(result), "CONTEXT-SECRET");
@@ -100,7 +101,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     assert.equal(result.project_guidance, null); assert.deepEqual(result.resume, none);
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
-    await grant(goalsActions.guidanceRead.capability_id, true);
+    await grant(projectGuidanceActions.read.capability_id, true);
     const offlineBindings = await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     await served.close();
     const offline = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });

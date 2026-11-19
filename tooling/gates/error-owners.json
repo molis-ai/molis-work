@@ -127,9 +127,10 @@
     },
     "projects": {
       "paths": [
-        "packages/contracts/src/modules/projects-errors.ts"
+        "packages/contracts/src/modules/projects-errors.ts",
+        "packages/contracts/src/modules/project-guidance.ts"
       ],
-      "reason": "The refusals of a project's input and output directories (specs/shared-sources-and-surfaces §3, §4), whose codes are projects.directory_*. Kept apart from the Catalog's error declaration in modules/projects.ts, which stays catalog's."
+      "reason": "The refusals of a project's input and output directories (specs/shared-sources-and-surfaces §3, §4), whose codes are projects.directory_*, and of a project's guidance (specs/plugin-equal-standing/contract-design.md §9, batch 44), whose codes are projects.guidance.*. Kept apart from the Catalog's error declaration in modules/projects.ts, which stays catalog's."
     },
     "catalog_integration": {
       "paths": [

@@ -58,8 +58,9 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 约定、决定与收尾 | `goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume` |
 | 结构提案 | `goals.tree.submit`、`goals.tree.read`、`goals.tree.check` |
 | 图检查与影响 | `goals.planning.impact`、`goals.planning.graph.check`（规划方法是技能目录里的技能，由 Molis Work 里的助理和 Coding 按任务选用；技能目录的动作不是 MCP 工具，外部 Runtime 读不到） |
-| 项目指导 | `goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update` |
 | 回收站 | `goals.trash.set`（`trashed` 为真移入、为假恢复）、`goals.trash.list` |
+
+项目指导是平台的，不随 Goals：`projects.guidance.read`、`projects.guidance.add`、`projects.guidance.update`（写入要本人看过原文并同意）。
 
 已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
 

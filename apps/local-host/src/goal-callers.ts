@@ -18,27 +18,9 @@ export function bindGoalsWebActions(host: MolisWorkLocalHost, reference: LocalHo
   return bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS, { user_action: () => entryUserAction("web", reference.project_id, message) });
 }
 
-/** What the Host reads of a project's guidance: whether there is any, which revision it is at, and the text a Run starts with. */
-export interface ProjectGuidanceFacts {
-  readonly entries: readonly unknown[];
-  readonly revisions: readonly unknown[];
-  readonly runtime_prompt_prefix: string;
-}
-
-/**
- * The project's confirmed guidance, read by the Host for the project layer of a Run or an Assistant turn. It is a read of one Goals
- * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
- * read refuses it, and the caller starts without the layer.
- */
-export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceFacts> {
-  const read = goalsActions.guidanceRead;
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
-  return await invokeGoals<ProjectGuidanceFacts>(client, caller, read, {});
-}
-
 /**
  * Calls `definition` as `caller` on the Goals that ships with the Host, pinned exactly (BL-501). These calls carry the person's decision
- * (management) or put what they read into prompts (guidance), and a capability id belongs to no publisher (R-45): a third-party
+ * (management), and a capability id belongs to no publisher (R-45): a third-party
  * installation that registered `goals.*` while Goals is away must not receive them. The provider id `GOALS_PLUGIN_ID` is one only the Host
  * assigns (`plugin-entry-identity.ts`), so the dispatcher refuses any other provider before a handler runs, and records the call like any
  * other (a cancellation while it waits is settled there). Accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards).
@@ -57,7 +39,7 @@ export type GoalsActionReference = Pick<ActionDefinition, "capability_id" | "ver
  * (PG-031); what a transport entry (the command line, the MCP) calls it names by id and version through `GoalsManagementActions`.
  */
 export const goalsHostActions = {
-  initialize: goalsActions.initialize, create: goalsActions.create, guidanceRead: goalsActions.guidanceRead,
+  initialize: goalsActions.initialize, create: goalsActions.create,
   directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
 } as const;
 export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_V5_LIBRARY, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "@molis-ai/molis-work-plugin-goals";

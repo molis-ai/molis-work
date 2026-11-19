@@ -7,6 +7,7 @@ import test from "node:test";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { hostEventDecisionAuthority, GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindGoalsManagementActions, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication, boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
@@ -3196,8 +3197,9 @@ test("RAC-341: a third-party installation that registers Goals' capabilities whi
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
   const reference = { project_id: "a", storage_key: "a" };
   const reached: string[] = [];
-  const offered = [goalsActions.guidanceRead, goalsActions.snapshot];
-  // The only provider of these `goals.*@v` is someone else's installation, under the installation id the Host gives it.
+  // Batch 44: the guidance read is the platform's `projects.guidance.read`, pinned to the platform's provider the same way.
+  const offered = [projectGuidanceActions.read, goalsActions.snapshot];
+  // The only provider of these actions is someone else's installation, under the installation id the Host gives it.
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
     definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
   try {
@@ -3213,7 +3215,7 @@ test("RAC-342: in the real assembly a second goals.*@v cannot stand beside Goals
   // Every provider, the Host's own, a project's Plugin Runtime and the Home's, registers into the one CapabilityRegistry of LocalHost,
   // which refuses the same capability_id@version in an overlapping scope (a project's and the Home's overlap; two projects do not).
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
-  const project = { project_id: "a", storage_key: "a" }, other = { project_id: "b", storage_key: "b" }, read = goalsActions.guidanceRead;
+  const project = { project_id: "a", storage_key: "a" }, other = { project_id: "b", storage_key: "b" }, read = goalsActions.snapshot;
   const offer = (provider_id: string) => ({ provider: { provider_id, plugin_id: provider_id, title: provider_id, kind: "plugin" as const },
     definitions: [read], handlers: [{ ...read, handle: () => ({}) as never }] });
   try {

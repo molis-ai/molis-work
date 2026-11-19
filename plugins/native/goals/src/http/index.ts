@@ -2,7 +2,6 @@ import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform
 import { goalRelationRoutes } from "./relations.js";
 import type { GoalsRoutePorts } from "./types.js";
 import { goalCreateRoutes } from "./create.js";
-import { goalPolicyGuidanceRoutes } from "./policy-guidance.js";
 import { goalLifecycleRoutes } from "./lifecycle.js";
 import { goalEventRoutes } from "./events.js";
 import { goalDeliverableRoutes } from "./deliverables.js";
@@ -13,7 +12,6 @@ import { goalTerminalRoutes } from "./terminals.js";
 export function goalsRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
   return [
     ...goalCreateRoutes(ports),
-    ...goalPolicyGuidanceRoutes(ports),
     ...goalRelationRoutes(ports),
     ...goalLifecycleRoutes(ports),
     ...goalEventRoutes(ports),

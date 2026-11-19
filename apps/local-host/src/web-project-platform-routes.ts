@@ -1,6 +1,7 @@
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
+import { handleProjectGuidanceHttp } from "./project-guidance-http.js";
 import { handleMainlineHttp, mainlineAttention } from "./mainline-http.js";
 import { handleAcceptanceHttp } from "./acceptance-http.js";
 import { handleMainlineEventSurfacesHttp } from "./mainline-event-surfaces-http.js";
@@ -269,6 +270,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
   // The 「能力包」 page (specs/capability-pack §4.7, §4.9): the kit, its exports and prompt edits brought back, as the person in this project.
   { id: "kit", handle: ({ request, response, url, localHost, hostReference }) => handleKitSettingsHttp(request, response, url, localHost, hostReference) },
+  // The project's guidance in its settings (specs/plugin-equal-standing/contract-design.md §9), as the person.
+  { id: "project-guidance", handle: ({ request, response, url, localHost, hostReference }) => handleProjectGuidanceHttp(request, response, url, localHost, hostReference) },
   // The task panel (specs/work-line §6): the project's background tasks and the commands their rows offer, as the person.
   { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },

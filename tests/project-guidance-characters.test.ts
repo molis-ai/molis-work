@@ -5,30 +5,33 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { createHash } from "node:crypto";
+import type { AddProjectGuidanceInput, ProjectGuidanceKind } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { createProjectGuidance, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
+import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 
-// A project's guidance is the long-lived rules the user confirmed for it. Goals limits one entry to 4000 characters and the active
-// entries of a project to 32000 in all, and its error messages say 「个字符」: a character is a code point, and one may take two UTF-16
-// units (an emoji does). This file drives `addProjectGuidance` and `updateProjectGuidance` through the Goals commands over a project
-// library, the way tests/goals-command-module.test.ts does, so it adds no import of the Goals package.
+// A project's guidance is the long-lived rules the user confirmed for it. The platform (batch 44; Goals until then) limits one entry to
+// 4000 characters and the active entries of a project to 32000 in all, and its error messages say 「个字符」: a character is a code point,
+// and one may take two UTF-16 units (an emoji does). This file drives the platform's guidance store over a project library.
 
 const PROJECT = "board-guidance-characters";
 const PAIR = "\u{1F600}"; // one character, two UTF-16 units (U+D83D U+DE00)
-const ENTRY_TOO_LARGE = "goals.project_guidance.entry_too_large";
-const TOTAL_TOO_LARGE = "goals.project_guidance.total_too_large";
+const ENTRY_TOO_LARGE = "projects.guidance.entry_too_large";
+const TOTAL_TOO_LARGE = "projects.guidance.total_too_large";
 const ENTRY_MESSAGE = "单条项目说明不能超过 4000 个字符";
 const TOTAL_MESSAGE = "项目说明总长度不能超过 32000 个字符";
 
-type Commands = GoalProjectApplication["goals"]["commands"];
-type Kind = Parameters<Commands["addProjectGuidance"]>[0]["kind"];
+type Kind = ProjectGuidanceKind;
 type Data = ReturnType<typeof fixture>;
 
 function fixture() {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-guidance-characters-"));
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-project-guidance-characters-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
-  const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: PROJECT, actor_id: "user-1", idempotency_key: "init" });
-  return { directory, store, app };
+  writeProjectRoot(store.db, PROJECT, "2026-11-18T00:00:00.000Z");
+  const guidance = createProjectGuidance({ db: store.db, journal: new LocalSqliteJournal(store.db),
+    requestHash: value => createHash("sha256").update(canonicalJsonText(value)!).digest("hex") });
+  return { directory, store, guidance };
 }
 
 function close(data: Data) {
@@ -36,7 +39,7 @@ function close(data: Data) {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
-/** Runs `body` on a fresh project library with its board made, and closes the library after. */
+/** Runs `body` on a fresh project library with its project root, and closes the library after. */
 function withProject(body: (data: Data) => void) {
   const data = fixture();
   try {
@@ -49,8 +52,6 @@ function withProject(body: (data: Data) => void) {
 let writes = 0;
 /** What every guidance write carries besides its own fields; each call gets a key of its own. */
 const confirmed = () => ({
-  project_id: PROJECT,
-  actor_id: "user-1",
   reason: "项目长期规则",
   confirmation_summary: "用户确认了这条原文",
   user_confirmed: true,
@@ -58,18 +59,18 @@ const confirmed = () => ({
 });
 
 function add(data: Data, content: string, kind: Kind = "context") {
-  return data.app.goals.commands.addProjectGuidance({ ...confirmed(), kind, content });
+  return data.guidance.add(PROJECT, "user-1", { ...confirmed(), kind, content });
 }
 
 function edit(data: Data, guidanceId: string, content: string, kind: Kind = "context") {
-  return data.app.goals.commands.updateProjectGuidance({ ...confirmed(), guidance_id: guidanceId, action: "edit", kind, content });
+  return data.guidance.update(PROJECT, "user-1", { ...confirmed(), guidance_id: guidanceId, action: "edit", kind, content });
 }
 
 function change(data: Data, guidanceId: string, action: "deactivate" | "restore") {
-  return data.app.goals.commands.updateProjectGuidance({ ...confirmed(), guidance_id: guidanceId, action });
+  return data.guidance.update(PROJECT, "user-1", { ...confirmed(), guidance_id: guidanceId, action });
 }
 
-const view = (data: Data) => data.app.readProjectGuidance(PROJECT);
+const view = (data: Data) => data.guidance.read(PROJECT);
 const contents = (data: Data) => view(data).entries.map((entry) => entry.content);
 
 /** The check `assert.throws` takes: an `ActionError` with this code, and this message when one is given. */
@@ -245,19 +246,19 @@ test("RAC-2114 the text is trimmed and its line breaks are made \\n before it is
 
 test("RAC-2114 a blank text is refused when added and when edited", () => {
   withProject((data) => {
-    assert.throws(() => add(data, "  \n  "), refusedWith("goals.project_guidance.invalid"));
+    assert.throws(() => add(data, "  \n  "), refusedWith("projects.guidance.invalid"));
     const first = add(data, "有内容");
-    assert.throws(() => edit(data, first.entry.guidance_id, "  \n  "), refusedWith("goals.project_guidance.invalid"));
+    assert.throws(() => edit(data, first.entry.guidance_id, "  \n  "), refusedWith("projects.guidance.invalid"));
   });
 });
 
 test("RAC-2114 an entry that is not confirmed, or has an unknown kind, is refused", () => {
   withProject((data) => {
     assert.throws(
-      () => data.app.goals.commands.addProjectGuidance({ ...confirmed(), kind: "context", content: "没有确认", user_confirmed: false }),
-      refusedWith("goals.project_guidance.user_confirmation_required"),
+      () => data.guidance.add(PROJECT, "user-1", { ...confirmed(), kind: "context", content: "没有确认", user_confirmed: false } satisfies AddProjectGuidanceInput),
+      refusedWith("projects.guidance.user_confirmation_required"),
     );
-    assert.throws(() => add(data, "不支持的分类", "temporary" as never), refusedWith("goals.project_guidance.kind_invalid"));
+    assert.throws(() => add(data, "不支持的分类", "temporary" as never), refusedWith("projects.guidance.kind_invalid"));
   });
 });
 
@@ -268,7 +269,7 @@ test("RAC-2114 the same kind and text added twice is one entry, and an edit to t
     assert.equal(again.created, false);
     assert.equal(again.entry.guidance_id, first.entry.guidance_id);
     assert.deepEqual(contents(data), ["只记一次"]);
-    assert.throws(() => edit(data, first.entry.guidance_id, "只记一次"), refusedWith("goals.project_guidance.no_changes"));
+    assert.throws(() => edit(data, first.entry.guidance_id, "只记一次"), refusedWith("projects.guidance.no_changes"));
   });
 });
 
@@ -279,5 +280,20 @@ test("RAC-2114 an entry of 4000 characters can be deactivated and restored", () 
     assert.deepEqual(contents(data), []);
     change(data, first.entry.guidance_id, "restore");
     assert.deepEqual(contents(data), ["a".repeat(4000)]);
+  });
+});
+
+test("RAC-1265: unreadable guidance source refs stop the guidance read, pointing at the row (Goals' rule, kept by the platform since batch 44)", () => {
+  withProject((data) => {
+    add(data, "用户数据只保存在本机。", "constraint");
+    data.store.db.prepare("UPDATE guidance_entries SET source_refs_json = ? WHERE project_id = ?").run('{"unreadable":', PROJECT);
+    const row = data.store.db.prepare("SELECT rowid AS r FROM guidance_entries WHERE project_id = ?").get(PROJECT) as { r: number };
+    let thrown: unknown = null;
+    try { view(data); } catch (error) { thrown = error; }
+    assert.ok(thrown instanceof ActionError, "an unreadable value is an error, not read as no source");
+    assert.equal(thrown.code, "projects.guidance.record_unreadable");
+    assert.equal(thrown.kind, "internal");
+    assert.deepEqual(thrown.details, { storage: { table: "guidance_entries", column: "source_refs_json", row_ref: String(row.r) } });
+    assert.doesNotMatch(thrown.message, /unreadable/, "the stored text is not quoted");
   });
 });

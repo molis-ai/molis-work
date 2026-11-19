@@ -58,7 +58,7 @@ export interface GoalsTerminalPorts {
   terminal: PluginTerminalClient | undefined;
   /** The Goal of this project, or null; with its event state when it has event work. */
   goal(goalId: string): { record: GoalRecord; state: GoalEventStateView | null } | null;
-  /** The project guidance for runtimes, read through `goals.guidance.read` as the caller, so its live policy holds for the prompt too. */
+  /** The project guidance for runtimes, read through the platform's `projects.guidance.read` as the caller, so its live policy holds for the prompt too. */
   guidancePrefix(caller: ActionExecutionContext): Promise<string>;
 }
 

@@ -2,9 +2,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { rebuildInboxEntries } from "@molis-ai/molis-work-module-attention-resumption";
 import { rewriteStoredContextEdges } from "@molis-ai/molis-work-module-context-ledger";
-import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { adoptProjectGuidance, listProjectRoots, PROJECT_GUIDANCE_EVENT_PREFIX, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_GUIDANCE_OBJECT_TYPE, PROJECT_GUIDANCE_RECEIPTS } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabase, listPluginProjectDatabases, transferPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
+import { renameJournalRecords, sqliteBaselineTriggers, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
 import { GOALS_V5_LIBRARY, goalsApprovalTransferManifest } from "./goal-callers.js";
 import { goalsHistoryPlatformExtension } from "./goal-context-history.js";
 import { pluginSyncNamespace } from "./plugin-sync-database.js";
@@ -20,6 +20,9 @@ import { projectPluginPlatformExtension, projectPluginSchemaInspector } from "./
  *   Goals' sync collection carries those relations as the generic `relation-edges` (`project_goals@3`, Goals' library v6). The old
  *   collection's transport (cursor, outbox, conflicts) stays only in the pre-upgrade snapshot; the business rows are the first snapshot
  *   of the new stream, as in batch 39's step.
+ * - A: a project's guidance is the platform's (`modules/projects`, contract-design §9): Goals' two guidance tables move into the
+ *   platform's `guidance_entries` and `guidance_revisions` unchanged, and their journal events and receipts lose Goals' prefix, so the
+ *   history stays and a retry with the same key still replays. A project without Goals gets the empty tables.
  * Delete with the project library's version-5 golden support.
  */
 
@@ -29,6 +32,15 @@ const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
 const COLLECTION = "project_goals";
 const TRANSPORT_TABLES = ["replica_state", "replica_changes", "replica_heads", "replica_outbox", "replica_conflicts", "replica_resolutions",
   "aggregate_editor_versions", "context"];
+/** Goals' guidance tables and journal names in its version-5 library; a plugin's journal names carry its id and a colon. */
+const GOALS_V5_GUIDANCE = { entries: "project_guidance_entries", revisions: "project_guidance_revisions" } as const;
+function guidanceJournalRenames(pluginId: string): Parameters<typeof renameJournalRecords>[1] {
+  const prefixed = (name: string) => pluginId + ":" + name;
+  const events = ["added", "edited", "deactivated", "restored"].map(change => PROJECT_GUIDANCE_EVENT_PREFIX + change);
+  return { event_types: Object.fromEntries(events.map(type => [prefixed(type), type])),
+    object_types: { [prefixed(PROJECT_GUIDANCE_OBJECT_TYPE)]: PROJECT_GUIDANCE_OBJECT_TYPE },
+    operations: Object.fromEntries(Object.values(PROJECT_GUIDANCE_RECEIPTS).map(operation => [prefixed(operation), operation])) };
+}
 /** Every module a version-5 relation could name. */
 const VERSION_4_MODULES = new Set(["goals", "artifacts", "feed", "private-work-context", "projects", "assistant", "plugins", "agent-host"]);
 
@@ -65,13 +77,13 @@ function rewriteRelations(db: SqliteBaselineDatabase): void {
 }
 
 /** Goals' v5 library and its `project_goals@2` collection, verified and taken apart; what to build of v6 once the relations are rewritten. */
-function takeGoalsApart(db: SqliteBaselineDatabase): (() => void) | undefined {
+function takeGoalsApart(db: SqliteBaselineDatabase): { readonly projectId: string; readonly rebuild: () => void } | undefined {
   const source = goalsV5(), oldNamespace = pluginSyncNamespace(source, COLLECTION);
   const ledger = listPluginProjectDatabases(db), original = ledger.find(record => record.plugin_id === source.plugin_id);
   const contextTriggers = (db.prepare("SELECT name FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = 'context_edges'").all() as Array<{ name: string }>).map(row => row.name.toLowerCase());
   if (!original) {
     const present = projectPluginSchemaInspector.objects(db).map(object => object.name.toLowerCase());
-    if (present.some(name => name.startsWith(oldNamespace + "_")) || contextTriggers.length) throw refusal();
+    if (present.some(name => name.startsWith(oldNamespace + "_") || (Object.values(GOALS_V5_GUIDANCE) as string[]).includes(name)) || contextTriggers.length) throw refusal();
     return undefined;
   }
   if (original.version !== GOALS_V5_LIBRARY) throw refusal();
@@ -90,7 +102,7 @@ function takeGoalsApart(db: SqliteBaselineDatabase): (() => void) | undefined {
   if (!context || (context.project_id != null && context.project_id !== projectId)) throw refusal();
   for (const name of triggers.keys()) db.exec(`DROP TRIGGER ${quote(name)}`);
   for (const table of oldTransportTables()) db.exec(`DROP TABLE ${quote(table)}`);
-  return () => {
+  return { projectId, rebuild: () => {
     const target = goalsTemplate(), updated = { path, ...projectPluginPlatformExtension(target) };
     if (!updated.platformSchema) throw refusal();
     db.exec(updated.platformSchema);
@@ -99,20 +111,24 @@ function takeGoalsApart(db: SqliteBaselineDatabase): (() => void) | undefined {
     // Existing business rows are the first snapshot on the new stream, with no receipts copied from the old one.
     db.prepare(`INSERT INTO ${quote(nextNamespace + "_replica_changes")}(key) VALUES (?)`).run(JSON.stringify([projectId, COLLECTION, projectId]));
     transferPluginProjectDatabase(db, previous, target.databases!.project!, projectPluginSchemaInspector, updated);
-  };
+  } };
 }
 
 function upgrade(db: SqliteBaselineDatabase): void {
   if (db.prepare("PRAGMA foreign_key_check").get()) throw refusal();
   rebuildInboxEntries(db);
-  const rebuildGoals = takeGoalsApart(db);
+  const goals = takeGoalsApart(db);
+  if (!adoptProjectGuidance(db, goals?.projectId ?? "", goals ? GOALS_V5_GUIDANCE : null)) throw refusal();
+  if (goals) renameJournalRecords(db, guidanceJournalRenames(goalsTemplate().plugin_id));
   rewriteRelations(db);
-  rebuildGoals?.();
+  goals?.rebuild();
 }
 
 /** The 5→6 step's run: one transaction with the library's version mark; foreign keys are off for the Inbox table's rebuild. */
-export const projectLibraryV6Upgrade: Pick<SqliteUpgradeStep, "run" | "rebuilds_tables" | "reduces_rows"> = {
+export const projectLibraryV6Upgrade: Pick<SqliteUpgradeStep, "sql" | "run" | "rebuilds_tables" | "reduces_rows"> = {
+  /** A: the platform's guidance tables and their sync transport, which `run` then fills from Goals'. */
+  sql: PROJECT_GUIDANCE_SCHEMA_SQL,
   run: upgrade,
   rebuilds_tables: true,
-  get reduces_rows() { return oldTransportTables(); },
+  get reduces_rows() { return [...oldTransportTables(), ...Object.values(GOALS_V5_GUIDANCE)]; },
 };

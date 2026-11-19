@@ -402,7 +402,8 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
+export { bindGoalsManagementActions } from "./goal-callers.js";
+export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 
 export { builtinSyncBindings } from "./builtin-sync.js";

@@ -12,7 +12,6 @@ import { goalsEventActions, createGoalsEventActionHandlers } from "./event-comma
 import { goalsAcknowledgeActions, createGoalsAcknowledgeActionHandlers } from "./acknowledge-actions.js";
 import { goalDecisionAction, createGoalDecisionActionHandler } from "./decision-action.js";
 import { goalsPlanningActions, createGoalsPlanningActionHandlers, type GoalsPlanningActionPorts } from "./planning-actions.js";
-import { goalsGuidanceActions, createGoalsGuidanceActionHandlers, type GoalsGuidanceActionPorts } from "./guidance-actions.js";
 import { goalsLifecycleActions, createGoalsLifecycleActionHandlers, type GoalsLifecycleActionPorts } from "./lifecycle-actions.js";
 import { goalsTreeActions, createGoalsTreeActionHandlers } from "./tree-actions.js";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
@@ -75,7 +74,6 @@ export const goalsActions = {
   artifactInputsList: goalsArtifactInputActions.list,
   artifactInputsPin: goalsArtifactInputActions.pin,
   ...goalsPlanningActions,
-  ...goalsGuidanceActions,
   ...goalsLifecycleActions,
   ...goalsTreeActions,
   treeReview: goalEntryActions.treeReview,
@@ -115,9 +113,9 @@ export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsAct
 export const GOALS_ACTION_PERMISSIONS = ["goals:read", "goals:write", "goals:decide", "attention:write", "context-ledger:write", "artifacts:read"] as const;
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, materials }: {
+export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, materials }: {
   events: GoalEventApplication; acknowledgements: GoalEventAcknowledgementsApi; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
-  guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
+  lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
   readContract(goalId: string): GoalContractView;
   collection: GoalsDocumentReadPorts;
@@ -185,7 +183,6 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     ...createGoalsEventActionHandlers(events, projectId),
     ...createGoalsAcknowledgeActionHandlers(acknowledgements, projectId),
     ...createGoalsPlanningActionHandlers(planning, projectId),
-    ...createGoalsGuidanceActionHandlers(guidance, projectId),
     ...createGoalsLifecycleActionHandlers(lifecycle, projectId),
     ...createGoalsTreeActionHandlers(tree, projectId),
     ...createGoalsConfigurationActionHandlers(configuration, projectId),

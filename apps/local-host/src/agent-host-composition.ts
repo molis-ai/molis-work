@@ -25,7 +25,8 @@ import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/char
 import { readRoleVersion, resolveRoleCharacter } from "./characters-host.js";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PrepareProjectDirectory } from "./project-capabilities.js";
-import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { readProjectGuidance } from "./project-guidance-actions.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -412,7 +413,7 @@ function withoutSkillRound(context: ActionCallContext): ActionCallContext {
  * into an instruction, which is a different claim.
  */
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
-  let view: ProjectGuidanceFacts;
+  let view: ProjectGuidanceView;
   try {
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
     view = await readProjectGuidance(localHost.actionClient(reference), reference);

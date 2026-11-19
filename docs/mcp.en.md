@@ -55,8 +55,9 @@ Common Goals actions:
 | Agreement, decisions and closure | `goals.concerns.apply`, `goals.decisions.request`, `goals.decisions.cite`, `goals.agreement.set`, `goals.closure.submit`, `goals.work.resume` |
 | Tree proposals | `goals.tree.submit`, `goals.tree.read`, `goals.tree.check` |
 | Graph check and impact | `goals.planning.impact`, `goals.planning.graph.check` (planning methods are Skills of the catalog, picked by the assistant and Coding inside Molis Work; the catalog's actions are not MCP tools, so an external Runtime cannot read them) |
-| Project guidance | `goals.guidance.read`, `goals.guidance.add`, `goals.guidance.update` |
 | Trash | `goals.trash.set` (`trashed` true moves to trash, false restores), `goals.trash.list` |
+
+Project guidance belongs to the platform, not to Goals: `projects.guidance.read`, `projects.guidance.add`, `projects.guidance.update` (a write needs the person to have seen the exact text and agreed).
 
 Action input holds business fields only: the project, the operator and the creation channel come from the connection and Session, so `project_id`, database paths, Web URLs, `actor_id` / `actor_kind` / `runtime_actor_id` and `source_kind` are not accepted. For a Runtime write, the host records the Session as the audit author (`runtime:<runtime_id>:<session>`); without a stable Session identity the write is refused.
 

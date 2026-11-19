@@ -3,12 +3,13 @@ import { SKILL_SETTINGS_CLIENT_SCRIPT } from "./settings-skills.js";
 import { KIT_SETTINGS_LOADER_SCRIPT, renderKitSettings } from "./settings-kit.js";
 import { renderCharacters } from "./characters/ui.js";
 import { CHARACTERS_SETTINGS_LOADER_SCRIPT } from "./characters/client-asset.js";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { createProjectGuidanceDocumentRenderer } from "./project-guidance-settings.js";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MolisWorkWebView } from "./page-view.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
-import type { StagePageModel, StagePageDrawing, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
@@ -33,6 +34,7 @@ export interface ProjectSettingsPagePorts {
   catalogTextPacks(manifest: PluginManifest): readonly UiLocalePack[];
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
+  formatDate(value: string | null | undefined): string;
   icon(name: PluginIconName): string;
   htmlLang(): string;
   controlTokenMeta(token: string): string;
@@ -41,24 +43,16 @@ export interface ProjectSettingsPagePorts {
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
   navigation: Pick<ReturnType<typeof createWorkbenchSettingsNavigation>, "renderProjectSettingsNavigation">;
-  renderSettingsContent<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string;
 }
 
-/** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
-const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance"]);
-
-/** Settings page composition consumes canonical Goals facts and platform presentation ports. */
+/** Settings page composition: the platform's project facts and presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
-  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, renderSettingsContent } = ports;
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery } = ports;
   const { renderProjectSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
   const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery, projectDeletionLabels: ports.projectDeletionLabels });
-  function content<Data>(surface: string, data: Data, request: Readonly<Record<string, string>> = {}, view?: MolisWorkWebView,
-    project = view?.project ?? null, document?: StagePageDrawing["document"]): string {
-    return renderSettingsContent("goals", surface, stage => ({ ...stage, data, request,
-      context: { ...stage.context!, project }, drawing: { ...stage.drawing!, ...(document ? { document } : {}) } }), view);
-  }
+  const renderGuidance = createProjectGuidanceDocumentRenderer({ escapeHtml, icon, formatDate: ports.formatDate });
 
   function hubProject(view: MolisWorkWebView) {
     const project = view.project!;
@@ -68,10 +62,10 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     };
   }
 
-  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, section: ProjectSettingsFoldId, desktopShell: boolean): string {
+  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
-    if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
-    if (section === "guidance") return content("guidance", { guidance: guidance! }, {}, view);
+    if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
+    if (section === "guidance") return renderGuidance(guidance);
     if (section === "memory") return renderMemorySettings({ readText, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     if (section === "kit") return renderKitSettings({ projectId: view.project!.project_id });
@@ -85,7 +79,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function renderMolisWorkProjectSettingsHub(
     view: MolisWorkWebView,
-    guidance: ProjectGuidanceView | null,
+    guidance: ProjectGuidanceView,
     controlToken = "",
     desktopShell = false,
     open: ProjectSettingsFoldId = "general",
@@ -97,7 +91,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     const appearance = ports.appearance?.current();
     const routePrefix = view.route_prefix || `/projects/${encodeURIComponent(project.project_id)}`;
     const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
-    const page = renderHubSection(view, guidance, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
+    const page = renderHubSection(view, guidance, open, desktopShell), navigation = renderProjectSettingsNavigation(open, project, desktopShell);
     return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${uiText("workbench.project-settings-pages.project-settings")} · ${escapeHtml(project.display_name)} · Molis Work</title>${renderLanguageHead(htmlLang())}<script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>

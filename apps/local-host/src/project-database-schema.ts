@@ -3,7 +3,7 @@ import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
 import { applyPrivateValueAdoption, planPrivateValueAdoption } from "@molis-ai/molis-work-plugin-runtime";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
-import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
+import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
@@ -101,7 +101,7 @@ const PROJECT_DATABASE_UPGRADES = [
     // 4 → 5: what the built-in plugins keep in this library's private values in the old shape (a card's outcome as a sentence, user
     // 2026-11-17), each converted by its own declared step.
     { from: 4, run: pluginPrivateValueUpgrades(4) },
-    // 5 → 6 (batch 44, CONTRACT-CHANGES 「第 44 批存量搬迁」 D1, D3): the Inbox's declared words, and relations naming plugin objects.
+    // 5 → 6 (batch 44, CONTRACT-CHANGES 「第 44 批存量搬迁」 A, D1, D3): project guidance to the platform, the Inbox's declared words, and relations naming plugin objects.
     { from: 5, ...projectLibraryV6Upgrade },
 ] satisfies readonly SqliteUpgradeStep[];
 
@@ -111,6 +111,6 @@ export const projectLibraryV6Step: SqliteUpgradeStep = PROJECT_DATABASE_UPGRADES
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
   version: /* @version database.project_database_baseline */ 6,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V5, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}`,
+  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V5, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}\n${PROJECT_GUIDANCE_SCHEMA_SQL}`,
   upgrades: PROJECT_DATABASE_UPGRADES,
 };

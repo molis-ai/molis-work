@@ -59,8 +59,8 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings } = createWorkbenchProjectSettingsPages({
     readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, accountRegistration,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { renderProjectSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
-    catalogTextPacks: ports.catalogTextPacks,
+    navigation: { renderProjectSettingsNavigation }, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
+    catalogTextPacks: ports.catalogTextPacks, formatDate: helpers.formatDate,
   });
 
   const { renderMolisWorkWeb } =

@@ -5,8 +5,8 @@ import type { SyncSelection } from "@molis-ai/molis-work-module-sync-replication
 export interface PlatformSyncCollection {
   readonly selection: SyncSelection;
   readonly title: string;
-  readonly owner: "artifacts" | "characters" | "project-approvals";
-  readonly store: "library" | "process" | "characters" | "approvals";
+  readonly owner: "artifacts" | "characters" | "project-approvals" | "project-guidance";
+  readonly store: "library" | "process" | "characters" | "approvals" | "guidance";
 }
 export const projectApprovalSyncSelection = { plugin_id: "io.molis.work.project-approvals", publisher_id: "molis",
   publisher_signature: "official-project-approvals-binding", collection_id: "approvals",
@@ -16,4 +16,7 @@ export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
   { owner: "artifacts", store: "process", title: "过程材料与固定版本", selection: { plugin_id: "io.molis.work.artifacts", publisher_id: "molis", publisher_signature: "official-artifacts-binding", collection_id: "process_items", schema_version: /* @version sync.collection.platform.process_items */ 1 } },
   { owner: "characters", store: "characters", title: "角色草稿", selection: { plugin_id: CHARACTER_PLUGIN_ID, publisher_id: "molis", publisher_signature: CHARACTER_PUBLISHER_SIGNATURE, collection_id: "drafts", schema_version: /* @version sync.collection.platform.drafts */ 1 } },
   { owner: "project-approvals", store: "approvals", title: "项目审批记录与规则", selection: projectApprovalSyncSelection },
+  // A project's guidance (contract-design §9): Goals carried it in `project_goals` until batch 44.
+  { owner: "project-guidance", store: "guidance", title: "项目长期说明", selection: { plugin_id: "io.molis.work.project-guidance", publisher_id: "molis",
+    publisher_signature: "official-project-guidance-binding", collection_id: "guidance", schema_version: /* @version sync.collection.platform.guidance */ 1 } },
 ];

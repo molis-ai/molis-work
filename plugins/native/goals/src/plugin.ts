@@ -1,11 +1,12 @@
 import { syncBindings } from "./sync-binding.js";
 import { materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { projectGuidanceActions, type ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalEntryActions } from "./contract/goal-actions.js";
 import { createGoalItemHandlers, createGoalsPresentationHandlers } from "./presentation.js";
-import { createGoalsActionHandlers, goalsActions } from "./actions.js";
+import { createGoalsActionHandlers } from "./actions.js";
 import { createGoalsAttachActionHandlers } from "./attach-actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
 import { goalsEventActions, type GoalReportTrust } from "./event-command-actions.js";
@@ -31,6 +32,8 @@ const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version ac
 /** The platform's materials service: a reference read back (head), and what fixed versions stand for. */
 const READ_MATERIAL = { capability_id: materialsActions.read.capability_id, version: materialsActions.read.version } as const;
 const READ_PINNED = { capability_id: materialsActions.pinned.capability_id, version: materialsActions.pinned.version } as const;
+/** The project's guidance, the platform's own (contract-design §9): a terminal Run starts with its prefix. */
+const READ_GUIDANCE = { capability_id: projectGuidanceActions.read.capability_id, version: projectGuidanceActions.read.version } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
   "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list",
@@ -157,7 +160,6 @@ export function createGoalsPlugin(): PluginDefinition {
         pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)) },
       history: { snapshot, journalEvents: events },
       planning: { planning: goals.planning },
-      guidance: { commands: goals.commands, read: project => application.goalQueries.readProjectGuidance(project) },
       lifecycle: { lifecycle: goals.lifecycle, setActiveGoal: (...args) => goals.commands.setActiveGoal(...args), eventCursor: () => journal.eventCursor(projectId) },
       configuration: { commands: goals.commands, query: goals.query, eventCursor: () => journal.eventCursor(projectId) },
       tree: { submitGoalTreeProposal: input => application.goalTreeSubmission.submitGoalTreeProposal(input),
@@ -182,7 +184,7 @@ export function createGoalsPlugin(): PluginDefinition {
           throw error;
         }
       }),
-      guidancePrefix: async caller => (await actions.invoke(goalsActions.guidanceRead, {}, controlOf(caller))).runtime_prompt_prefix }));
+      guidancePrefix: async caller => (await directory.invoke<ProjectGuidanceView>(READ_GUIDANCE, {}, controlOf(caller))).runtime_prompt_prefix }));
 
     // What a call asks of other owners before its window opens (a window is synchronous). A report's cited evidence is looked up here.
     // What it worked out is handed to the handler as its third argument.

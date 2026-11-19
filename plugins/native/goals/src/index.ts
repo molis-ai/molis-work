@@ -84,6 +84,5 @@ export { GOALS_APPROVAL_TRANSFER_SOURCE, GOALS_PROJECT_DATABASE, GOALS_V5_LIBRAR
 export { verifyTreeItemDecisionHistory } from "./governance/replication-validation.js";
 export { GOALS_APPROVAL_OUTCOMES_SQL, GOALS_APPROVAL_TRANSFER_TABLES, goalsApprovalTransferManifest, isGoalsApprovalSource, readGoalsApprovalTransfer } from "./approval-transfer.js";
 export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "./approval-outcomes.js";
-export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";
 export { PluginSqlite, type PluginSqliteDatabase } from "./plugin-sqlite.js";
 

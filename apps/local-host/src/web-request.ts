@@ -231,10 +231,10 @@ const ownerRead = (owner: RuntimeStageOwner) => ({ manifest: owner.entry.manifes
 /** The person in this project, capped by one plugin's permissions and reaching each provider by its own authority (PG-008). */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
 
-/** The Goals settings pages: the project's guidance and rules, read by their owner. */
+/** The project settings pages, the platform's guidance among them (contract-design §9). */
 const goalsSettingsRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere, store, serverOptions }) =>
-    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere, store, serverOptions.homeDirectory) },
+  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, store, serverOptions }) =>
+    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, store, serverOptions.homeDirectory) },
 ];
 
 /** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */

@@ -282,3 +282,24 @@ start?: {
 | 2 | 读时现取：轮询无碍，采用要改，放在哪层 | 改为存平台形状的快照（页面看到的与今天同为快照）；`get` 收 `ids[]`，只补迁移来的空快照，放在异步层；采用的失败时机不变 |
 | 3 | D5 的修订要用户再确认 | 已请用户确认；`CONTRACT-CHANGES.md:97` 随确认结果改 |
 | 4 | 删工作台四个键改变词包 | 列进 PR 的页面资源说明 |
+
+## 9. 项目指导回平台（第 2 项，片 2；2026-11-18）
+
+按 `CONTRACT-CHANGES.md`「第 44 批存量搬迁」A（用户 2026-11-17 定）落地，下面是实现时定的细节。
+
+**合同。** 新文件 `@molis-ai/molis-work-contracts/modules/project-guidance`，主人 `modules/projects`。类型从 Goals 合同原样搬来（`ProjectGuidanceKind`、条目、修订、视图，限额 4,000／32,000 字），输入去掉 `project_id`、`actor_id`（项目与操作者从调用上下文来）。三个动作，提供方 `system.project-guidance`：
+
+| 动作 | 原来 | 观众 | 权限 |
+| --- | --- | --- | --- |
+| `projects.guidance.read@1`（查询） | `goals.guidance.read@1` | `user`、`agent`、`mcp`、`workflow`、`plugin` | `projects:guidance-read`（不设权限的平台动作对连接的客户端默认开放；原来要 `goals:read`、需本人授权，照旧要授权，用户 2026-11-18） |
+| `projects.guidance.add@1`、`projects.guidance.update@1`（命令） | `goals.guidance.add/update@1` | `user`、`agent`、`mcp`、`workflow` | `projects:guidance`；照旧 `authorship: "session"`，外部客户端没有会话身份就拒写 |
+
+写入照旧要 `user_confirmed: true`、确认摘要与理由，按 `idempotency_key` 重放；错误码从 `goals.project_guidance.*` 改为 `projects.guidance.*`。MCP 与 Agent 照旧逐个动作授权（`mcp-action-grants`），本人经宿主的提供方表拿到这两个权限；宿主替 Agent Run、助理回合读项目层时带读权限。Goals 的三个动作、HTTP 路由、快照与 Goal 事实里的 `project_guidance` 字段删掉。
+
+**存储。** 平台项目库的基线建 `guidance_entries`、`guidance_revisions`（`modules/projects` 的 `PROJECT_GUIDANCE_SCHEMA_SQL`），列与约束照 Goals 的 `project_guidance_*`，外键从 Goals 的 `boards` 改到 `project_root`。不沿用原表名：Goals 冻结的 v5 声明仍建原表，同名就是两个包建同一张表（表主人门禁）。日志与收据本来就在平台的 `events`、`idempotency_records` 里，带 Goals 的前缀（`io.molis.work.goals:project.guidance_added` 等）；升级时原地去掉前缀，成为平台的 `project.guidance_*`、对象类型 `project_guidance`、收据 `add_project_guidance`／`update_project_guidance`。请求哈希照旧是规范 JSON 的 sha256，升级前发出的请求带同一幂等键重放仍得原结果。
+
+**同步。** 平台登记「项目长期说明」集合（`io.molis.work.project-guidance` / `guidance`，`sync.collection.platform.guidance` 1），与项目审批集合同一种登记（宿主的 `projectPlatformSyncRegistration`）：一个项目一个键，副本（`modules/projects` 的 `projectGuidanceReplica`）带两张表，不带日志与收据。合并规则：修订只增不改；条目的创建字段（编号、位置、创建者与时间）不变，只往更高的修订走；同一修订内容不同、或撞上本地的位置与同类同文，算冲突、保留本地。按本人勾选。`project_goals@3` 去掉这两张表、`project.guidance_%` 日志与这两种收据。
+
+**升级。** 并进本批已有的项目库 5→6（原设计写「落在 D1、D3 之后的一步」，即 6→7）：同一事务里建平台的两张表（连同步集合的传输表与触发器），从 Goals 的两张表原样拷行（主键、位置、修订号、内容哈希、来源、操作者与时间）、核对行数、删掉 Goals 的表，去掉日志与收据的 Goals 前缀，再按 Goals v6 的声明（已无这两张表）移交 Goals 库。行里有不属于库里唯一项目的，拒绝升级、项目库保留。没装 Goals 的项目建空表；没装 Goals 却留着这两张表的，拒绝。理由：5→6 还没发出去，分两步要给一个从没在 main 上出现过的中间状态再生成一份金样；并成一步，金样 0.1.1-dev.7（项目库 5、Goals 5）就覆盖它。
+
+**消费者。** Agent Run 与助理回合的项目层（`readProjectGuidance`）、MCP 上下文工具、项目简介（`project-arrival-http`）、Goals 终端的提示词前缀、工作台设置页「项目指导」一节都改调 `projects.guidance.*`；Goals 不在时指导照常（PEQ-01）。设置页的这一节从 Goals 的设置贡献搬到工作台（`apps/workbench/src/project-guidance-settings.ts`，文字键 `goals.guidance-document.*` → `workbench.project-guidance.*`，服务端渲染，不进页面资源），写入走宿主的 `/api/project-guidance`（本人；插件页面拒绝）。Goals 的设置贡献只剩这一节，随之删掉；工作台只为它留的「插件给设置页画一节」端口也删掉。

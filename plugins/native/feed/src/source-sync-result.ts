@@ -1,6 +1,6 @@
 import type { FeedApplication } from "./application.js";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { RssFetchReceipt, SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import { SOURCE_PULL_EVIDENCE_KEY_MISSING, type RssFetchReceipt, type SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { FeedSourceRecord } from "./projection.js";
 export function sourceDedupeScope(source: FeedSourceRecord): string {
   return source.kind === "rss" ? (source.definition_id ?? source.source_id) : source.source_id;
@@ -67,6 +67,7 @@ export function interruptedMessage(code: string): string {
   if (code === "feed_parse_failed") return "同步失败：源站返回的不是可解析 RSS/Atom，本次未导入内容。";
   if (code === "feed_unavailable") return "同步失败：源站不可用或返回空正文，本机已有内容未被覆盖。";
   if (code === "budget_exhausted") return "同步失败：公开搜索额度已耗尽，没有回退到模拟数据。";
+  if (code === SOURCE_PULL_EVIDENCE_KEY_MISSING) return "同步已暂停：保存正文的钥匙找不到了。已有内容原样保留；找回原钥匙并重启后再同步。";
   return "拉取中断，没能确认这次结果。已有内容仍在，请稍后重试。";
 }
 

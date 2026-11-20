@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {join} from 'node:path';
-import { FeedModule, SignalsModule, fromBetterSqlite } from '@molis-ai/molis-work-plugin-feed/store';
+import { FeedModule, SignalsModule, fromProjectConnection } from '@molis-ai/molis-work-plugin-feed/store';
 import { feedManifest, createFeedSyncBindings } from '@molis-ai/molis-work-plugin-feed';
 import {AttentionModule} from '@molis-ai/molis-work-module-attention-resumption';
 import {createContextLedger} from '@molis-ai/molis-work-module-context-ledger';
@@ -13,7 +13,7 @@ function fixture(){
  let effects=0,authorized=true;
  const authorize=()=>{if(!authorized)throw new Error('lease revoked');};
  const owner=projectPluginSyncFixture({space:personalStorageSpace('https://auth.example','work','user'),projectId:'project',manifest:feedManifest,bindings:createFeedSyncBindings,collectionId:'messages',authorize});
- const {db,home}=owner,sql=fromBetterSqlite(db);
+ const {db,home}=owner,sql=fromProjectConnection(db);
  const attention=new AttentionModule(db,{exists:()=>true}),signals=new SignalsModule(sql);
  const feed=new FeedModule(sql,attention,{ledger:feedLedgerPort(createContextLedger(db,{authorize:()=>true})),eventSink(){effects++;}});
  const content=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')});

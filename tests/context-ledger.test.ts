@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { FEED_ITEMS_SCHEMA_SQL, fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { FEED_ITEMS_SCHEMA_SQL, fromProjectConnection, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { feedLedgerKey, feedLedgerPort } from "./fixtures/feed-ledger.js";
 
@@ -103,7 +103,7 @@ function feedHarness() {
   db.exec(ATTENTION_SCHEMA_SQL);
   const attention = new AttentionModule(db, { exists: (projectId, _type, itemId) => feed.query.exists(projectId, itemId) });
   const open = (api: ContextLedgerApi = ledger, observe?: (sql: string, count: number) => void) => {
-    const sql = fromBetterSqlite(db);
+    const sql = fromProjectConnection(db);
     const measured = { ...sql, all: <Row = Record<string, unknown>>(query: string, ...params: unknown[]): Row[] => {
       const rows = sql.all<Row>(query, ...params); observe?.(query, rows.length); return rows;
     } };

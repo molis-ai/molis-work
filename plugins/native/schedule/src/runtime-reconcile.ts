@@ -1,6 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import type { PluginJobControl, PluginInstallationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pruneUninstalledSchedules } from "./runtime-uninstall.js";
+import { endExpiredOnce } from "./missed-runs.js";
 import { reconcileScheduledOperations } from "./operations.js";
 import { rescheduleEnabledConversationTasks } from "./wakeup.js";
 import type { ScheduleRuntime } from "./runtime-actions.js";
@@ -18,12 +19,13 @@ export async function reconcileSchedule(runtime: ScheduleRuntime, projectId: str
         pruneUninstalledSchedules(runtime, projectId, installations);
         reconcileScheduledOperations(runtime.db, runtime.schedule);
         rescheduled = rescheduleEnabledConversationTasks(runtime.db, runtime.schedule);
+        rescheduled = endExpiredOnce(runtime.db, projectId, Date.now()) || rescheduled;
       });
       // Grants of archived or vanished tasks: the platform keeps them, so they are cleared there, after Schedule's own write.
       const cleared = await grants.reconcile(() => new Set(listScheduleConversationTasks(runtime.db).map(task => task.task_id)));
       // Reconcile finished, but this round may have been cancelled or stripped of authority while it ran: only a still-current job may say so.
       control.assert_authority_current();
-      // A task stopped or set for its next time after its round: the open page shows it again (96-2). Only a still-current job says so.
+      // A task stopped or set for its next time after its round, or a one-time item ended after its seven days: the open page shows it again (96-2). Only a still-current job says so.
       if (rescheduled) changed();
       report(cleared ? null : "授权清理尚未完成，稍后重试");
     } catch (error) {

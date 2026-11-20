@@ -2,7 +2,7 @@ import type { FeedSql } from "./sql.js";
 import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { sourceDeletedAt } from "../contract/sources.js";
 import { randomUUID } from "node:crypto";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type {
   MissedPullRecord,
@@ -75,7 +75,8 @@ export const FEED_MISSED_PULLS_COLUMNS = `feed_missed_pulls (
       PRIMARY KEY (project_id, run_id)
     )`;
 export const FEED_MISSED_PULLS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${FEED_MISSED_PULLS_COLUMNS};`;
-const DECIDED_KEPT_MS = 30 * 86_400_000;
+/** Rows a month past their end are deleted: a decided one a month after the decision, an undecided one a month after it expired. */
+const ENDED_KEPT_MS = 30 * 86_400_000;
 
 export class SourcesModule implements SourcesApi {
   readonly query = {
@@ -107,11 +108,17 @@ export class SourcesModule implements SourcesApi {
 
   readonly missed: SourceMissedPulls = {
     record: (projectId, entry) => this.db.transaction(() => {
-      this.db.run("DELETE FROM feed_missed_pulls WHERE project_id = ? AND decision IS NOT NULL AND decided_at < ?", projectId, new Date(Date.parse(entry.missed_at) - DECIDED_KEPT_MS).toISOString());
+      const at = Date.parse(entry.missed_at);
+      this.db.run(`DELETE FROM feed_missed_pulls WHERE project_id = ? AND ((decision IS NOT NULL AND decided_at < ?) OR (decision IS NULL AND due_at < ?))`, projectId,
+        new Date(at - ENDED_KEPT_MS).toISOString(), new Date(at - ENDED_KEPT_MS - RUN_MISSED_KEPT_MS).toISOString());
       this.db.run(`INSERT INTO feed_missed_pulls (project_id, run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(project_id, run_id) DO NOTHING`, projectId, entry.run_id, entry.source_id, entry.title, entry.due_at, entry.missed_at);
     }),
-    list: (projectId, limit) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND decision IS NULL ORDER BY due_at DESC LIMIT ?", projectId, limit) as Row[]).map(missedPull),
+    list: (projectId, limit, keptAfter) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND decision IS NULL AND due_at > ? ORDER BY due_at DESC LIMIT ?",
+      projectId, keptAfter, limit) as Row[]).map(missedPull),
+    expired: (projectId, bounds) => Number((this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM feed_missed_pulls
+      WHERE project_id = ? AND decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ? OR missed_at > ?)`,
+    projectId, bounds.listed_after, bounds.told_at, bounds.counted_after, bounds.told_at))?.n ?? 0),
     get: (projectId, runId) => {
       const row = this.db.get("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND run_id = ?", projectId, runId) as Row | undefined;
       return row ? missedPull(row) : null;

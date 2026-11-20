@@ -4,7 +4,7 @@ import test from "node:test";
 import { createGmailConnector, createGithubConnector, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromProjectConnection, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { withIntegrationHome } from "./fixtures/integration-home.js";
 
 const AT = "2026-08-30T10:00:00.000Z";
@@ -54,7 +54,7 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: one large history record drains across du
     assert.equal((chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as { historyId: string }).historyId, "200");
     assert.equal("position" in (chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as Record<string, unknown>), false);
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), ids.map(id => `${source.source_id}:gmail-msg-${id}`).sort());
-    const signals = new SignalsModule(fromBetterSqlite(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id);
+    const signals = new SignalsModule(fromProjectConnection(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id);
     assert.deepEqual(signals.map(signal => signal.provider_dedupe_id).sort(), ids.map(id => `gmail-msg-${id}`).sort());
     assert.equal(sourceAttention(chain.feed, source.source_id).length, 52);
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-repeat" });
@@ -167,7 +167,7 @@ test("W2-18-GITHUB-PAGES-01: all pages reach Signals and Feed; a later page fail
     fail = false;
     await chain.sync.sync(source.source_id, { idempotencyKey: "github-pages-ok" });
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), notifications.map(row => `${source.source_id}:github-notification-${row.id}`).sort());
-    assert.deepEqual(new SignalsModule(fromBetterSqlite(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id).map(signal => signal.provider_dedupe_id).sort(), notifications.map(row => `github-notification-${row.id}`).sort());
+    assert.deepEqual(new SignalsModule(fromProjectConnection(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id).map(signal => signal.provider_dedupe_id).sort(), notifications.map(row => `github-notification-${row.id}`).sort());
     assert.equal(sourceAttention(chain.feed, source.source_id).length, 51);
     const cursor = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as { last_modified: string };
     assert.equal(cursor.last_modified, "Sun, 30 Aug 2026 10:00:00 GMT");

@@ -95,7 +95,7 @@ test("the readiness action is a project query that reports what the Host reports
 
 test("a Host that gives no readiness check answers the way other missing host ports do, and the route says why", async () => {
   const unused = () => { throw new Error("unused"); };
-  const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], recoverReminder: unused, createTask: unused, updateTask: unused,
+  const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], getTask: unused, recoverReminder: unused, createTask: unused, updateTask: unused,
     archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => undefined }));
   const answered = await routes.handle({ method: "GET", pathname: "/api/plugins/io.molis.work.schedule/readiness", query: new URLSearchParams(), body: {} }).catch(actionErrorResponse);

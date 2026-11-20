@@ -194,12 +194,12 @@ test("BL-missed-runs-never-expire on the seventh day a one-time operation is end
   operation("moved", later, "enabled");
   operation("paused", due, "paused");
   h.clock.now = Date.parse(due) + RUN_MISSED_KEPT_MS;
-  h.reconcile();
+  assert.equal(h.reconcile(), true, "ending one says so, so the open page shows it (96-2)");
   assert.deepEqual([getScheduledOperation(h.db, projectId, "left")?.state, getScheduledOperation(h.db, projectId, "left")?.detail], ["completed", "错过后跳过"],
     "left as it was: ended as 跳过 ends it");
   assert.equal(getScheduledOperation(h.db, projectId, "moved")?.state, "enabled", "moved by the person to another time: theirs to keep");
   assert.equal(getScheduledOperation(h.db, projectId, "paused")?.state, "paused", "paused: left for the person");
-  h.reconcile();
+  assert.equal(h.reconcile(), false, "a later round ends nothing and says so");
   assert.equal(getScheduledOperation(h.db, projectId, "moved")?.at, later, "and every later round leaves it alone");
   assert.equal(h.overview().expired, 3, "all three rows are still counted: nobody decided on them");
 });

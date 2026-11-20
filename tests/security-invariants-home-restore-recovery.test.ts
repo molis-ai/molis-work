@@ -84,6 +84,12 @@ test("S-12 RAC-2915 RAC-2918 RAC-2917: recovery refuses foreign or unsafe journa
   });
 });
 
+/** A business directory and child with non-default sample modes, set exactly so the result does not depend on umask (BL-tests-umask). */
+function archivedChild(missing: string) {
+  mkdirSync(missing); chmodSync(missing, 0o750);
+  writeFileSync(join(missing, "archived.bin"), "archived child"); chmodSync(join(missing, "archived.bin"), 0o640);
+}
+
 /** Rollback restores the actual original inodes and file metadata; directory mtime records the real remove/rename operations. */
 function retainedOriginalState(home: string) {
   return Object.fromEntries(Object.entries(homeBusinessTree(home)).map(([path, value]) => {
@@ -109,7 +115,7 @@ async function faultRestore(t: import("node:test").TestContext, home: string, ar
 test("RAC-2916: a real file publication failure rolls back original business bytes, retains originals and releases the same owner", async t => {
   const f = await restoreFixture(t);
   const missing = join(f.home, "plugin-files", "missing");
-  mkdirSync(missing, { mode: 0o750 }); writeFileSync(join(missing, "archived.bin"), "archived child", { mode: 0o640 });
+  archivedChild(missing);
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
   rmSync(missing, { recursive: true });
   writeFileSync(join(f.home, "plugin-files", "original.bin"), "later state retained on failed restore");
@@ -126,7 +132,7 @@ test("RAC-2916 RAC-2917: real prepared/partial/committed interruption and clear 
   for (const fault of ["prepared-kill", "partial-kill", "committed-kill", "clear-failure"]) await t.test(fault, async t => {
     const f = await restoreFixture(t);
     const missing = join(f.home, "plugin-files", "missing");
-    mkdirSync(missing, { mode: 0o750 }); writeFileSync(join(missing, "archived.bin"), "archived child", { mode: 0o640 });
+    archivedChild(missing);
     await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
     rmSync(missing, { recursive: true });
     const original = readFileSync(join(f.home, "plugin-files", "original.bin"));

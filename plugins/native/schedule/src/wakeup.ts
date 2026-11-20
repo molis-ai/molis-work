@@ -120,16 +120,19 @@ export async function handleScheduleTaskWakeup(
   }
 }
 
+/** Sets each task that is on for its next time, or stops it; says whether any task changed (its page then shows it again). */
 export function rescheduleEnabledConversationTasks(
   db: ScheduleTaskDatabase,
   schedule: ScheduleJobPort,
   now = () => new Date(),
-): void {
+): boolean {
+  let changed = false;
   for (const task of listScheduleConversationTasks(db)) {
     if (!task.enabled) continue;
     const job = task.job_id ? schedule.get(task.job_id) : null;
-    if (job && "authorization" in job && job.authorization === "needs_confirmation") { setScheduleConversationTaskEnabled(db, task.task_id, false, now); continue; }
+    if (job && "authorization" in job && job.authorization === "needs_confirmation") { setScheduleConversationTaskEnabled(db, task.task_id, false, now); changed = true; continue; }
     if (job && (job.enabled || schedule.isExecuting?.(job.job_id))) continue;
+    changed = true;
     // A one-off task whose job is gone after its time has run (or was let go as missed): it stops instead of coming back.
     if (task.repeat === "none" && Date.parse(task.run_at ?? "") <= now().getTime()) {
       setScheduleConversationTaskEnabled(db, task.task_id, false, now);
@@ -138,6 +141,7 @@ export function rescheduleEnabledConversationTasks(
     const registered = registerConversationJob(schedule, task, now());
     if (job?.job_id !== registered.job_id) bindScheduleConversationJob(db, task.task_id, registered.job_id, now);
   }
+  return changed;
 }
 
 export function registerConversationJob(

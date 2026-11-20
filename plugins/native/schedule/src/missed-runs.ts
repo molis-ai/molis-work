@@ -80,23 +80,28 @@ export async function noteMissedWakeup(db: ScheduleTaskDatabase, projectId: stri
  * A one-time reminder or operation left behind a missed run that is over (skipped, by the person or on its own), ended as 跳过 ends it.
  * Only while it is still set for the time that was missed: one the person has moved to another time is theirs to keep.
  */
-function endOnce(db: ScheduleTaskDatabase, projectId: string, kind: MissedKind, ref: string, dueAt: string): void {
+/** Whether a reminder or operation was ended. */
+function endOnce(db: ScheduleTaskDatabase, projectId: string, kind: MissedKind, ref: string, dueAt: string): boolean {
   const due = Date.parse(dueAt), still = (item: { repeat: string; at: string } | null | undefined) => item?.repeat === "none" && Date.parse(item.at) === due;
-  if (kind === "reminder" && still(getScheduleReminder(db, ref))) db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(ref);
+  if (kind === "reminder" && still(getScheduleReminder(db, ref))) { db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(ref); return true; }
   if (kind === "operation") {
     const run = getScheduledOperation(db, projectId, ref);
-    if (run && still(run) && run.state === "enabled") saveScheduledOperation(db, { ...run, state: "completed", detail: "错过后跳过" });
+    if (run && still(run) && run.state === "enabled") { saveScheduledOperation(db, { ...run, state: "completed", detail: "错过后跳过" }); return true; }
   }
+  return false;
 }
 
 /**
  * A one-time reminder or operation whose missed run ran out its seven days without a decision is ended as 跳过 would end it, inside
  * Schedule's own write (the reconcile round), whatever Molis Work was doing on the seventh day. The rows themselves stay undecided.
+ * Answers whether anything was ended, so the open page shows it (96-2).
  */
-export function endExpiredOnce(db: ScheduleTaskDatabase, projectId: string, now: number): void {
+export function endExpiredOnce(db: ScheduleTaskDatabase, projectId: string, now: number): boolean {
   const rows = db.prepare(`SELECT kind, ref, due_at FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL AND kind IN ('reminder', 'operation') AND due_at <= ?`)
     .all(projectId, new Date(now - RUN_MISSED_KEPT_MS).toISOString()) as Array<Pick<MissedRow, "kind" | "ref" | "due_at">>;
-  for (const { kind, ref, due_at } of rows) endOnce(db, projectId, kind, ref, due_at);
+  let ended = false;
+  for (const { kind, ref, due_at } of rows) ended = endOnce(db, projectId, kind, ref, due_at) || ended;
+  return ended;
 }
 
 interface DecisionScheduler {

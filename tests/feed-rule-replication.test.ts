@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { personalStorageSpace } from "@molis-ai/molis-work-storage";
 import { FeedOutRuleStore, feedManifest, createFeedSyncBindings } from "@molis-ai/molis-work-plugin-feed";
-import { fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { openPluginProjectLibrary, pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
 import { projectPluginSyncFixture } from "./fixtures/project-plugin-sync.js";
 
@@ -10,7 +10,7 @@ const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
 const projectId = "project-one";
 function fixture() {
   const owner = projectPluginSyncFixture({space, projectId, manifest:feedManifest, bindings:createFeedSyncBindings, collectionId:'capture_rules'});
-  return {...owner, rules:new FeedOutRuleStore(fromBetterSqlite(owner.db))};
+  return {...owner, rules:new FeedOutRuleStore(fromProjectConnection(owner.db))};
 }
 
 test("Feed capture rule transfers per project but is disabled until locally enabled", () => {

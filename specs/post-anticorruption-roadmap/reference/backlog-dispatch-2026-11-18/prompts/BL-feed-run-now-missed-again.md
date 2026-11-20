@@ -2,12 +2,12 @@
 
 你点了补拉资讯就合上电脑。十几分钟后打开，它应补拉一次，不能又把同一件事推回来让你选。
 
-预计 **3–6 工时**。维护范围为Feed。正式交付项为 [95-2](../../batches/95.md#batch-95-item-2)。[原始待办](../../../../backlog/BL-feed-run-now-missed-again.md) · [派工总表](../README.md)
+预计 **3–6 工时**。维护范围为Feed。正式交付项为 [95-2](../../batches/95.md#batch-95-item-2)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-feed-run-now-missed-again.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 
 ```text
-在 goalboard 仓库完成 BL-feed-run-now-missed-again。正式交付项为 95-2，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 specs/backlog/BL-feed-run-now-missed-again.md。产品决定与验收按该 BL 的现行记录。
+在 goalboard 仓库完成 BL-feed-run-now-missed-again。正式交付项为 95-2，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-feed-run-now-missed-again.md（已完成删除）。产品决定与验收按该 BL 的现行记录。
 
 目标
 资讯更新点过「现在做」，睡醒后直接做。你点了补拉资讯就合上电脑。十几分钟后打开，它应补拉一次，不能又把同一件事推回来让你选。

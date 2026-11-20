@@ -3,17 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>输入框是切换专注的把手 · Molis Work 原型</title>
-  <link rel="stylesheet" href="../kit/kit.css">
-  <link rel="stylesheet" href="screens.css">
-  <link rel="stylesheet" href="line.css">
-  <link rel="stylesheet" href="dirs.css">
-  <link rel="stylesheet" href="focus.css">
+  <title>底栏第十版 · 桌上一叠纸 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../../kit/kit.css">
+  <link rel="stylesheet" href="../screens.css">
+  <link rel="stylesheet" href="../line.css">
+  <link rel="stylesheet" href="../dirs.css">
+  <link rel="stylesheet" href="../focus.css">
+  <link rel="stylesheet" href="../lip.css">
+  <link rel="stylesheet" href="desk.css">
 </head>
 <body class="sp-body">
   <div id="icons" hidden></div>
   <header class="sp-proto" role="region" aria-label="原型控制（不是产品界面）">
-    <b>输入框是切换专注的把手</b>
+    <b>底栏第十版</b>
     <span class="ln-ctrls" id="ctrls">
       <button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-slot="button" data-go="story"><span data-slot="button-label">演示一遍</span></button>
       <span class="ln-vr"></span>
@@ -24,9 +26,9 @@
       <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-go="reset"><span data-slot="button-label">重置</span></button>
     </span>
     <span class="grow"></span>
-    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="两边放什么" id="side">
-      <button type="button" class="mw-toggle" aria-pressed="true" value="none">两边空着</button>
-      <button type="button" class="mw-toggle" aria-pressed="false" value="recent">放最近切过的</button>
+    <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标出固定区域" id="marks">
+      <button type="button" class="mw-toggle" aria-pressed="true" value="off">不标</button>
+      <button type="button" class="mw-toggle" aria-pressed="false" value="on">标出固定区域</button>
     </span>
     <span class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="width">
       <button type="button" class="mw-toggle" aria-pressed="true" value="1440">1440</button>
@@ -40,16 +42,14 @@
   </header>
   <main id="dirs">
     <section class="d-sec" id="proto">
-      <h2>27 · 输入框是切换专注的把手（可点）</h2>
-      <p>可以直接点：点输入框上沿的焦点签、点「等你」、点主区里的任何一行、点 ＋，在输入框里打字回车；或者按 ⌘J 打开切换器、⌘] 到下一件等你的。上面的按钮让它发生一件事，「演示一遍」按顺序走完。顶部的页签是静态的，没有跟着换。</p>
-      <div class="sp-fit"><div class="sp-win c fx" id="win"></div></div>
-      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">专注在事项「发布 v2.3」上。输入框里只有 ＋、字、语音、发送。</span></div>
+      <h2>31 · 底栏第十版：桌上一叠纸</h2>
+      <p>可以直接点：左边的事项标签、右边的卡和卡上的按钮、左下在办的那一行、输入框下面那一行、主区里的行。上面的按钮让它发生一件事，「演示一遍」按顺序走完。顶部的页签是静态的，没有跟着换。</p>
+      <div class="sp-fit"><div class="sp-win c lp dz" id="win"></div></div>
+      <div class="ln-say" aria-live="polite"><b id="step">平常</b><span id="say">桌上一叠纸。最上面这张是事项「发布 v2.3」，输入框是它下沿长出来的一块；别的事项压在下面，只露出标签。右边是一叠等你定的卡。</span></div>
     </section>
-    <div id="frames"></div>
   </main>
-  <script src="../kit/kit.js"></script>
-  <script src="screens.js"></script>
-  <script src="focus.js"></script>
-  <script src="focus-proto.js"></script>
+  <script src="../../kit/kit.js"></script>
+  <script src="../screens.js"></script>
+  <script src="desk.js"></script>
 </body>
 </html>

@@ -122,7 +122,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 统一起点登记：2026-11-07，main 提交 `1b69dcb222`
 
-> **2026-11-19 发布前清理复位（用户明确批准）：** 应用尚未对外发布、无存量外部用户；用户批准将开发期间累计的 12 个 `v2`～`v5` 库及 Goals 同步集合统一拍平回第 1 版（删除具体历史升级段、Files 退役切换、Goals 审批移交、旧开发金样 `0.1.0`～`0.1.1-dev.6` 与历史结构夹具），保留通用升级引擎并在干净 v1 基线上重新生成 `0.1.0` 金样。具体复位项登记在 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md#存储版本变更登记) 与 `tooling/gates/schemas/v1-reset-exceptions.json`；本轮之后继续按「版本只升不降、带连续升级段」执行。
+> **2026-11-19／2026-11-20 发布前清理复位（用户明确批准）：** 应用尚未对外发布、无存量外部用户；用户批准将开发期间累计的 12 个 `v2`～`v5` 库及 Goals 同步集合统一拍平回第 1 版（删除具体历史升级段、Files 退役切换、Goals 审批移交、旧开发金样 `0.1.0`～`0.1.1-dev.6` 与历史结构夹具），随后第 44 批选项 A 及 2026-11-20 独立复核整改（A2 补齐 `acceptance_*` 表 SQLite `CHECK` 约束）一并落入干净 v1 基线，保留通用升级引擎并在干净 v1 基线上重新生成 `0.1.0` 金样。具体复位项与同版 v1 哈希变更分别登记在 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md#存储版本变更登记)、`tooling/gates/schemas/v1-reset-exceptions.json` 与 `tooling/gates/schemas/same-version-exceptions.json`；本轮之后继续按「版本只升不降、带连续升级段」执行。
 
 **统一起点：2026-11-07。** 操作者是第 02 批统筹会话，用户在场并确认开始。
 

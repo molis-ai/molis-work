@@ -1,6 +1,6 @@
 # 插件同等地位收口：Goals 减负与去特权（Plugin Equal Standing）
 
-状态：需求已整理，用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批、片 4 并进第 41 批；片 3 已随第 39 批 #2105 完成（平台可信决定与项目审批规则、受保护通用入口、Goals 改消费方），片 4 已随第 41 批 #2078 完成（规划方法变技能、Goals 去 Home 半实例）；其余片（1、2、5～10）仍按第 44 批推进。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
+状态：第 44 批实现已随 PR [#2155](https://github.com/molis-ai/molis-work/pull/2155)（`b819fbbf61`）合入 main，并于 2026-11-20 独立复核后完成全部 P0/P1/P2 整改（见[第 44 批合后独立复核记录](../post-anticorruption-roadmap/reference/batches/44.md#收尾检查)）；**PEQ-11 仍待一骏本人实物验收**。用户 2026-11-13 已就第 6 节 D1～D10 与 D6b 全部拍板（D9 取代 D4）；排期定为独立一批（D10）：即路线书[第 44 批](../post-anticorruption-roadmap/reference/batches/44.md)，原 44～89 已顺延为 45～90；片 3 并进第 39 批（#2105 已完成），片 4 并进第 41 批（#2078 已完成）；2026-11-19 随 #2163 按用户批准的选项 A 拍平进干净 v1 基线，2026-11-20 按用户批准的 A1～A4 完成合后复核整改。本文盘点取自 main `6f6ac8d060`，行号以该提交为准；9a.5 节的补充取自 main `dbcf562a67`。
 
 需求维护：Claude（本会话）；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Goals、Feed、Coding、Inbox、Todo、Pages、灵光、Images）。决策标记：**直接做**（D1～D10、D6b 已定，见第 6 节）。
 
@@ -127,7 +127,7 @@
 | Pages、灵光 | `apps/local-host/src/web-assets.ts:156-187`、`native-content-permissions.ts:4-13` | 宿主写死 Pages 编辑器资源路由；内容权限点名 Pages、灵光 |
 | Images、灵光 | `apps/local-host/src/home-stores.ts:80-82`、`material-home.ts:20` | Home 库快照策略按库名分支；材料模型目录建在 `lingguang/models` |
 
-待核（像是平台能力但名字取自插件，实施时逐条判断，不预设结论）：`packages/contracts/src/modules/workspace-artifacts.ts:676-677` 的 `io.molis.work.git.*` 事件名；`apps/workbench/src/assistant-board-*.ts` 的样例数据。
+两项原「待核」已于 2026-11-20 独立复核整改（A4 授权）定案并落地：① `packages/contracts/src/modules/workspace-artifacts.ts` 的 `io.molis.work.coding.*` / `io.molis.work.git.*` 事件名属于平台级工作区执行与版本控制事实，而非插件私有事件，已泛化为平台中性常量 `WORKSPACE_EXECUTION_COMPLETED_EVENT`（`molis.workspace.execution.completed`）与 `WORKSPACE_VCS_CHANGE_SET_PUBLISHED_EVENT`（`molis.workspace.vcs.change-set.published`），删除旧插件名事件字面量并在 `tests/goals-contract-ownership.test.ts` 中加入回归门禁禁止回流；② `apps/workbench/src/assistant-board-*.ts`（工作台外壳与组件板样例）清除了对特定内置插件名的硬编码分支与绑定样例，改为通用的插件声明与中性样例数据，保持外壳与插件解耦。
 
 ## 5. 方案
 
@@ -326,13 +326,13 @@
 1. **PEQ-01** 一个项目移除 Goals 后：项目能打开，Agent Run、助理回合、MCP 连接、项目设置、项目简介都正常；项目指导仍生效。
 2. **PEQ-02** 移除后重新添加 Goals，原有 Goal、关系、历史、要求认可都在。
 3. **PEQ-03** 平台目录（`apps/local-host`、`apps/workbench` 外壳、`apps/mcp`、`apps/cli`、`apps/desktop`、`packages/contracts`、`packages/kernel`、`packages/design-system`、`horizontal/*`）不 import 任何插件包（生成的登记表与第 3 节白名单除外），由门禁检查（与现有 `boundary:check` 合并）。
-4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举、`goal-acceptance` 审查 owner 类型。
+4. **PEQ-04** 合同里没有 `goal_ids`、`goal` 关联类型、【当前目标】、`goal-*` 外壳事件、`"goals"`/`"feed"` 枚举值、`"coding"` 调用方枚举（已定例外：`packages/contracts/src/services/skills.ts` 的 `"coding"` 保留为工作台调用场景类别，见 2026-11-17 D4 与 `44.md` 做法变更）、`goal-acceptance` 审查 owner 类型，以及已退役的 `io.molis.work.coding.*`/`io.molis.work.git.*`、`molis.goal.promote.*` 事件与协议字面量（由 `tests/goals-contract-ownership.test.ts` 自动守住）。
 5. **PEQ-05** 一个示例第三方插件（`examples/plugin-sample/`）能声明设置节、接续摘要、需要可信决定的动作，并在工作台与 MCP 里生效。
 6. **PEQ-06** 双实例对签名第三方插件开放，授权与沙箱规则与内置相同。
 7. **PEQ-07** 工作台首屏不再默认 Goals：无历史时进平台的「项目首页」（空项目按三问画：项目名、一句「还没有内容」、一个「添加插件」；用户 2026-11-17 定，定样 A），有历史时回到上次的面。
 8. **PEQ-08** Goals 的样式、Feed 的样式不在工作台与设计系统里；页面资源检查通过且工作台资源不变大。
 9. **PEQ-09** 项目上手、个人同步、Home 库快照、材料目录都按声明工作，不写死 Todo、Pages、Images、灵光。
-10. **PEQ-10** 升级金样：带 Goal、决定记录、项目指导的旧 Home 升级后都能读、能继续用（个人规划方法不在内：第 41 批按用户决定删除，金样回放核对旧库文件已不在）。
+10. **PEQ-10** 升级金样：带 Goal、决定记录、项目指导的旧 Home 升级后都能读、能继续用（个人规划方法不在内：第 41 批按用户决定删除，金样回放核对旧库文件已不在）。（2026-11-19 变更：随 #2163 发布前 v1 清理按用户批准的选项 A 拍平进干净 v1 基线，删除发布前中间开发迁移段与旧开发金样，保留通用升级引擎，在干净 v1 基线上重新生成唯一 `0.1.0` 金样并由 `golden-home check`、`replay-golden-homes --all` 核验所有新旧数据主人可读写；`projects/*/molis-work.db` 与 `projects/*/molis-work.db#io.molis.work.goals` 的同版 v1 变更登记于 `tooling/gates/schemas/same-version-exceptions.json`。）
 11. **PEQ-11** [人工] 用户在真实界面里添加、移除、再添加 Goals，走一遍日常动线。
 12. **PEQ-12** 新建项目里没有 Goals；Goals 的 Manifest 不声明 `always_on`，常开插件只有 Shelf。
 13. **PEQ-13** 仓库里没有桌面胶囊的窗口、宿主路由与 Goals 胶囊投影；重做待办已登记。
@@ -372,3 +372,5 @@
 | 2026-11-14 | 审查合同交付顺序（弹窗） | 39 先起草，或继续等 32-2 | 39 先起草并由同一只读代理合审 | 32-2 仍拥有要求与认可，44 消费对应平台能力，见[决定 43 补充](../post-anticorruption-roadmap/reference/decisions.md#decision-43-review-order) |
 | 2026-11-14 | 第 41 批：方法与 Goals 的关系、个人存量方法（对话与弹窗） | 搬成技能；留只读；直接删 | 方法是独立技能、和 Goals 没有关系；旧的个人方法库直接删、相关代码清掉 | 片 4 按此做完：Goals 无方法库、无 Home 半实例；项目库 Goals 的表 3→4 |
 | 2026-11-18 | 第 44 批第 3 项要求与认可（弹窗，[合同设计稿 §10.9](contract-design.md)） | 十一问，各有推荐 | 全选推荐 | 认可记录进项目库；平台加复查档；改结果说明不联动；平台采用之后的反驳让认可失效；执行方直接调平台；完成后只提示不重开；不看交付物；不一致拒绝升级；Goals 升级专用入口作「迁移例外」（D8 白名单本身不变，另开一栏）；只在要求或交付分叉时冲突；同步来的认可要凭据 |
+| 2026-11-19 | 合并 main #2163 发布前 v1 清理后的迁移口径 | 选项 A：随 #2163 一并拍平进干净 v1 基线；选项 B：保留 6→7 迁移段与 dev.8 | 选项 A | 指导、要求认可、Inbox 开放约束、Goals 私有表与同步集合、放置边、上手旅程、接入收据均拍平为干净 v1，零迁移段；PEQ-03 迁移例外清零；登记 `same-version-exceptions.json` 并重生成 `0.1.0` 金样 |
+| 2026-11-20 | 第 44 批合后独立复核整改（A1～A4） | A1 三处门禁收紧单独提交；A2 认可层 `replica.ts` + SQLite `CHECK` 双层校验并登记同版例外；A3 全量修复全部 P0/P1/P2（含按需插件 CSS 拆分许可）；A4 定案 §4.5 两项待核 | 全批（A1～A4） | 修复全部 P0/P1/P2，门禁收紧独立提交，插件共享样式净减 141 KB，`0.1.0` 金样补齐 `acceptance` 写入与 `codex.json` 收据，PEQ-11 仍待本人验收 |

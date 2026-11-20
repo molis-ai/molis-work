@@ -38,7 +38,7 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 
 **升级。** 目录库与项目库当前均为第 1 版基线（预发 v1 重置后已收平历史开发期升级段；`material_recent_uses` 建表语句由本包 `material-recent.ts` 导出并直接写入项目库 v1 基线）。后续结构变更仍沿通用升级框架升级，较新的库拒绝。
 
-**项目长期说明。** 本人确认过、项目里每次 Agent Run、助理回合和连接的客户端都先读到的说明（第 44 批从 Goals 移来，`specs/plugin-equal-standing/contract-design.md` §9）。表 `guidance_entries`、`guidance_revisions` 在项目库基线里；动作 `projects.guidance.{read,add,update}@1` 由宿主以提供方 `system.project-guidance` 登记（`apps/local-host/src/project-guidance-actions.ts`），读不要权限，写要 `projects:guidance`、本人看过原文的 `user_confirmed` 与幂等键。日志与收据写在平台的 `events`、`idempotency_records`（宿主给的 `ProjectGuidanceJournal`）。Agent 用修订条数标识说明版本，编辑同一条也产生新的冻结版本。设置页的写入已成功而随后的重读被拒时，HTTP 返回保存回执和单独的重读错误，不把已保存报成失败。同步是平台的「项目长期说明」集合，本人另行勾选。
+**项目长期说明。** 本人确认过、项目里每次 Agent Run、助理回合和连接的客户端都先读到的说明（第 44 批从 Goals 移来，`specs/plugin-equal-standing/contract-design.md` §9）。表 `guidance_entries`、`guidance_revisions` 在项目库基线里；动作 `projects.guidance.{read,add,update}@1` 由宿主以提供方 `system.project-guidance` 登记（`apps/local-host/src/project-guidance-actions.ts`），读要 `projects:guidance-read`（用户 2026-11-18 定，避免未授权 MCP 默认读取），写要 `projects:guidance`、本人看过原文的 `user_confirmed` 与幂等键。日志与收据写在平台的 `events`、`idempotency_records`（宿主给的 `ProjectGuidanceJournal`）。Agent 用修订条数标识说明版本，编辑同一条也产生新的冻结版本。设置页的写入已成功而随后的重读被拒时，HTTP 返回保存回执和单独的重读错误，不把已保存报成失败。同步是平台的「项目长期说明」集合，本人另行勾选。
 
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 

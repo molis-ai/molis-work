@@ -1,5 +1,7 @@
 # 第 44 批第 1 项：合同去插件化，合同设计稿
 
+> **2026-11-19 / 2026-11-20 实施基线说明（选项 A 发布前 v1 拍平）：** 2026-11-19 合并 main #2163（发布前 v1 清理）后，经用户批准执行选项 A，将本批涉及的项目库（项目指导、要求与认可、Inbox 开放约束）、Goals 私有库及 `project_goals` 同步集合、放置库、上手旅程库与外部 Runtime 接入收据全部拍平进干净 v1 基线，零迁移段、零读时兼容，并在干净 v1 基线上重新生成唯一 `0.1.0` 金样（`tooling/gates/schemas/same-version-exceptions.json` 登记精确 `(from → to)` 哈希对，2026-11-20 独立复核整改进一步补齐 `acceptance_*` SQLite `CHECK` 约束与 `format.runtime.integration.receipt` 门禁覆盖）。本文第 0 节与第 8～10 节中关于项目库 4→5 / 5→6 / 6→7、Goals v5→v6、放置库 1→2、上手旅程库 1→2 及中间开发金样 `dev.6`～`dev.8` 的迁移段设计均为历史设计记录，已被上述选项 A 干净 v1 基线取代；现行权威记录见 `docs/system/CONTRACT-CHANGES.md`、`docs/releases/CHECKLIST.md` §3 及 [第 44 批文件](../post-anticorruption-roadmap/reference/batches/44.md)。
+
 状态：设计稿第 5 版，2026-11-17，评审通过（第 5 轮，附 3 处文字已改）。第 1～3 版经 Opus 5.5 high 评审均为「需改后再审」（11 条、6 条、5 条、4 条，见第 8 节逐条去向；第 3、4 轮只剩 2.5 节）；本版评审通过后提交到本批分支，合同代码叠在后面（`batch-runbook.md` 第四节「合同怎么走」）。范围来自本批文件第 1 项、需求书第 5.2 节（C1～C8）与平台能力审查分给 44-1 的第 1、2、9 项；验收编号 PEQ-04、PEQ-05，另加本稿的核对编号 CD-01～CD-03（第 7 节）。存量怎么搬已由用户在 `docs/system/CONTRACT-CHANGES.md`「第 44 批存量搬迁」D1～D4 定下，本稿不重复。
 
 ## 0. 版本与影响的规矩

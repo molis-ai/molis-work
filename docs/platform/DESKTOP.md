@@ -7,10 +7,10 @@
 
 Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开窗口、启动本地服务、在菜单栏放一个只有「打开／退出」的图标，并在本地服务暂时不可用时恢复连接。它不判断 Goal 是否完成、不保存 Project 正式事实，也不复制 Feed、Session 或其他 Module 的业务规则。
 
-例如，用户从一个 Goal 打开 Codex 终端时（T-148 起）：
+例如，用户从一个声明了 `work_terminals` 的插件对象（如 Goal 或第三方插件对象）打开 Codex 终端时（第 44 批 PEQ-17）：
 
-1. 工作台的终端客户端请 Goals 的路由 `…/goals/:goalId/terminals` 开终端；Goals 调平台的启动终端服务（`services.terminal`，S-103）。
-2. 平台按配方生成命令与环境变量，在项目关联的工作目录里起进程，记下终端（`plugin_terminal_panels`）并把它的 work context 绑到项目。
+1. 工作台的终端客户端请平台对象工作终端路由 `/projects/:projectId/api/work-terminals/:pluginId/:kind/:id` 开终端；平台（`system.work-terminal`）校验插件声明与调用者授权后，调平台的启动终端服务（S-103）。
+2. 平台按配方生成命令与环境变量，在项目关联的工作目录里起进程，记下终端（`plugin_terminal_panels`）并把它的 work context 绑到项目；权限撤销、插件停用/卸载或对象删除时平台立即终止存活进程。
 3. 终端客户端经受保护的 `/pty` WebSocket 只附着、输入、改尺寸；这个通道不起进程。Desktop 不参与这条线，Tauri Adapter 控制窗口和原生入口。
 
 ## 2. 代码各管什么

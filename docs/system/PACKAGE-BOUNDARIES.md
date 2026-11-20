@@ -254,7 +254,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `apps/desktop` | 应用 | 7 | 806 | `capsule-shell.ts` 615 | 1 | 6 | 0 | 在用 | 中 | 已审 |
+| `apps/desktop` | 应用 | 6 | 233 | `shell.ts` 160 | 1 | 6 | 0 | 在用 | 中 | 已审 |
 | `apps/local-host` | 应用 | 935 | 101,938 | `context-onboarding-service.ts` 798 | 1 | 68 | 1 | 在用 | 深 | 待审 |
 | `apps/mcp` | 应用 | 15 | 997 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `apps/server` | 应用 | 3 | 103 | `main.ts` 87 | 1 | 3 | 0 | 在用 | 浅 | 已审 |

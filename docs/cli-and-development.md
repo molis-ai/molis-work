@@ -52,10 +52,10 @@ pnpm build
 公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载、插件管理、`molis-work home snapshot` 离线快照、`molis-work home restore` 恢复与中断续接与 `molis-work v1 <operation>` 管理接口；下面列出 v1 操作：
 
 ```text
-init | snapshot | active-goal
-goal-tree-propose | goal-tree-read | goal-tree-check
 review-request | review-decide
 ```
+
+（原写死的 Goals 命令 `init`、`snapshot`、`active-goal`、`goal-tree-*` 已随第 44 批删除，PEQ-15，不留旧名；CLI 仅保留平台通用受保护审阅命令。）
 
 每条 v1 命令用 `--db PATH` 指明项目数据库，并在 JSON 中带当前项目的 `project_id`。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。 `review-request` 以原动作 `action` 和 `request_id` 读取待审请求，也可传精确 `reference` 回看。本人确认当前选项后用 `review-decide` 提交同一引用、`choice_id`、稳定的 `request_key` 和可选备注。常驻 Host 给出本机本人身份和管理出处。日常笔记、报告、约定、收尾与继续用 MCP 或 Web。
 

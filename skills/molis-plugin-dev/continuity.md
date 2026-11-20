@@ -13,9 +13,9 @@
    defineSubjectContextAction("<plugin>.subject.read", 1, "<kind>", "<对象名>", ["<plugin>:read"], "home"); // 个人范围的对象
    ```
 
-   读取动作的 `goal_ids` 不是必填，对象不属于任何 Goal 就不写（不要补 `[]`）。
+   读取动作的 `attached_to` 不是必填，对象未挂到其他对象就不写（不要补 `[]`）。
 
-   handler 用 `subjectContext({ subject, revision, title, content, goal_ids, open }, input)` 返回：当前正文（一次最多 32000 字；把读取器收到的 `input` 作第二个参数传进去，就能从 `input.offset` 起一页页读长文，项目资料按页读到全文；不传只给第一页并标 `truncated`）、`revision`（你自己的版本号或令牌，内容一变它就变）、关联的 Goal、所在会话，以及 `open: { surface, id }`——工作台打开它的位置（与 `host.openItem(surface, id)` 一致）。对象不存在时抛 `<plugin>.not_found`：助理据此显示“已不存在”，而不是“暂时读不到”。一种对象只能有一个提供方。
+   handler 用 `subjectContext({ subject, revision, title, content, attached_to, open }, input)` 返回：当前正文（一次最多 32000 字；把读取器收到的 `input` 作第二个参数传进去，就能从 `input.offset` 起一页页读长文，项目资料按页读到全文；不传只给第一页并标 `truncated`）、`revision`（你自己的版本号或令牌，内容一变它就变）、挂接到的其他对象 `attached_to`（`ActionSubject[]`，如 Goal 或任意声明了读取器的插件对象），以及 `open: { surface, id }`——工作台打开它的位置（与 `host.openItem(surface, id)` 一致）。对象不存在时抛 `<plugin>.not_found`：助理据此显示“已不存在”，而不是“暂时读不到”。一种对象只能有一个提供方。
 
 2. **修改类动作说清改了哪个对象、改成了哪个版本。** `subject_kinds` 只写一种；在 `result_subject` 里声明输出中对象标识与新版本的位置，例如 `{ id: "document.id", revision: "document.version" }`（`result_subject` 必须是对象，写成字符串等别的形状会被拒绝；`id` 和 `revision` 是输出里的路径字符串，且都要在本次 `output_schema` 里写出来，没有 `output_schema` 就没有位置可指）。不声明时按下面的规则推断，只对“既不是查询也不是导航、恰好写了一种 `subject_kinds`”的动作生效：输出本身带字符串 `id` 就用它；否则用输出顶层唯一一个带字符串 `id` 的对象字段；版本取该对象的 `version`，没有就取 `revision`；输出里找不到这样的对象就看输入——输入带字符串 `id` 就指它，没有版本。平台不检查推断得对不对，所以会写东西的动作应当声明 `result_subject`。修改已有对象的动作接受 `expected_version`（或 `expected_revision`），不一致就拒绝。助理修改已有对象时必须带上读取时的版本，否则在请用户确认之前就被拒绝。
 

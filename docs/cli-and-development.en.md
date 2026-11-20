@@ -37,10 +37,10 @@ Goals Module owns graph integrity and structural impact. Reusable candidates com
 The public CLI top level provides program install, the persistent service, demo, safe uninstall, plugin management, offline `molis-work home snapshot` and `molis-work home restore`, and the `molis-work v1 <operation>` management surface. The following are v1 operations:
 
 ```text
-init | snapshot | active-goal
-goal-tree-propose | goal-tree-read | goal-tree-check
 review-request | review-decide
 ```
+
+(Hardcoded Goals subcommands `init`, `snapshot`, `active-goal`, and `goal-tree-*` were removed in batch 44 / PEQ-15; the CLI retains only the platform protected review commands.)
 
 Each v1 command requires `--db PATH` and the project's `project_id` in its JSON. The CLI resolves a relative path against the working directory and refuses a missing path. Supply input with `--json` or `--file payload.json`. `review-request` reads the original owner's current request, using `action` and `request_id` or an exact `reference`. After reviewing the choice, use `review-decide` with the returned reference, `choice_id`, a stable `request_key` and an optional note. The resident Host supplies the person's identity and records the management entry. Notes, reports, agreements, closure and resume use MCP or Web.
 

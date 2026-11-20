@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
+
 2026-11-19 第 35 批复核修复。Coding 的 `coding.runs.start@1` 与 `coding.runs.control@1` 补充项接受可选的 `command_prompt: true`。工作台发送展开后的命令时使用该字段，保留参数首尾空白。普通任务和补充在派发前去掉首尾空白，可信原文按输入回执合同保存。这个字段只决定派发文本的格式。两项动作快照随实现更新。
 
 2026-11-19 第 38 批合入后修复。`blueprints.adoption.apply/read/revert/remove@1` 的 `pending_verification` 设置项可带 `current`，由当前目录标明原主人不可用或安装换代。工作台在保留原请求号的待核对项上显示提示。按阶段一原位更新公开 API 和动作快照，提示只在返回和进度中投影。见[场景合同第 7 节](../../specs/scene-and-page-contract/spec.md#7-保存与恢复)。

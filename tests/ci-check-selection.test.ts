@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { matchesGlob } from "node:path";
 import { decideChecks } from "../scripts/ci-check-selection.mjs";
-import { evaluateExpression, fullSuiteWorkflow, jobBlock, stepScript } from "./fixtures/ci-workflow.js";
+import { evaluateExpression, fullSuiteWorkflow, jobBlock, stepScript, workflowFiles } from "./fixtures/ci-workflow.js";
 
 const change = (...paths: string[]) => ({ changes: paths.map(path => ({ path })), tests: [], full: [], uncovered: [] });
 test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unknown and malformed changes", () => {
@@ -111,4 +112,14 @@ test("CIP-06 Full builds once and runs 24 shards in one wave while preserving wo
   assert.ok(block.includes(`fail-fast: \${{ !${runsEveryFile} }}`));
   assert.ok(block.includes(`BAIL: \${{ !${runsEveryFile} && '--bail' || '' }}`));
   assert.ok(block.includes("STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}"));
+});
+
+test("MR19-07 plugin stylesheet and shared browser component changes run the PR visual audit", () => {
+  const visual = workflowFiles().find(({ file }) => file.endsWith("/visual-audit.yml"))!.text;
+  const filters = visual.split("    paths:")[1]!.split("  workflow_dispatch:")[0]!;
+  const patterns = [...filters.matchAll(/^\s+- "([^"]+)"$/gm)].map(match => match[1]!);
+  const triggers = (path: string) => patterns.some(pattern => matchesGlob(path, pattern));
+  for (const path of ["plugins/native/coding/src/styles.ts", "packages/plugin-sdk/src/browser/subtask-conversation.ts"])
+    assert.equal(triggers(path), true, path);
+  assert.equal(triggers("horizontal/evaluation/src/service.ts"), false);
 });

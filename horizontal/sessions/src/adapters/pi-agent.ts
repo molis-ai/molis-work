@@ -1,6 +1,6 @@
 import { sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import { sessionSourceFailure, type AdapterDiscoveryBatch, type AdapterReadOutput, type AdapterSourceContext, type ExternalSessionSourceAdapter } from "../ports.js";
+import type { AdapterDiscoveryBatch, AdapterReadOutput, AdapterSourceContext, ExternalSessionSourceAdapter } from "../ports.js";
 import {
   buildCliResumeTarget,
   extractJsonlMetadata,
@@ -14,6 +14,8 @@ import {
   withFileTranscriptCache,
   type JsonlLineRecord,
   type ParsedTranscriptResult,
+  discoveryCursor,
+  nextDiscoveryCursor,
 } from "./shared.js";
 
 const DISCOVERY_BATCH_SIZE = 50;
@@ -156,11 +158,12 @@ function parsePiJsonlLines(lines: readonly JsonlLineRecord[], initialStopped: { 
 export const piAgentAdapter: ExternalSessionSourceAdapter = {
   entry_id: "pi-agent",
 
-  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
+  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal, alreadyRead: number): Promise<AdapterDiscoveryBatch> {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
     const jsonlFiles = walked.files.filter(item => item.entry.name.endsWith(".jsonl"));
-    const startOffset = cursor ? Math.max(0, Number.parseInt(cursor, 10) || 0) : 0;
+    const previous = discoveryCursor(cursor, alreadyRead);
+    const startOffset = previous.offset;
     const batch = jsonlFiles.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
@@ -210,15 +213,10 @@ export const piAgentAdapter: ExternalSessionSourceAdapter = {
       }
     }
 
-    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
-      throw sessionSourceFailure("version_mismatch", "Pi Agent 会话记录版本暂不支持解析", false);
-    }
-
-    const nextOffset = startOffset + batch.length;
     return {
       sessions,
       skipped_count: skippedCount,
-      next_cursor: nextOffset < jsonlFiles.length ? String(nextOffset) : null,
+      next_cursor: nextDiscoveryCursor(previous, batch.length, jsonlFiles.length, sessions.length, unsupportedVersionFiles, "Pi Agent"),
       total: jsonlFiles.length,
     };
   },

@@ -139,7 +139,8 @@ class RoleDrawerState {
 /** How the drawer is drawn from its state. */
 class RoleDrawerView extends RoleDrawerState {
   protected controls(): void {
-    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
+    this.host.actions.controls(this.busy);
+    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools], [data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
       .forEach(control => { control.disabled = this.busy || control.dataset.rolesDisabled === "true"; });
   }
 

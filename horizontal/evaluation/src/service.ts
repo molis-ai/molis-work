@@ -42,6 +42,7 @@ import {
   resolveSampleHoldRecordIds,
 } from "./observation-bridge.js";
 import type { EvaluationReplayScenario } from "./replay.js";
+import { isPluginDeliveryRole } from "./rules.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
 import { EvaluationStore } from "./store.js";
 
@@ -96,6 +97,9 @@ function validateDeliverySources(input: EvaluationSampleInput): void {
     const judgesReply = requiresReply || facts.some(fact => platformPrefixes.some(prefix => fact.startsWith(prefix + ".")));
     if (judgesReply && ((role !== undefined && role !== "reply") || facts.some(fact => fact !== "agent.reply"))) {
       throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文。已冻结的样本请用新版本登记正确来源。");
+    }
+    if (!judgesReply && facts.length && role !== undefined && !isPluginDeliveryRole(role)) {
+      throw evaluationErrors.invalid("评判业务插件交付须使用 output 产出或 body 正文。已冻结的样本请用新版本登记正确来源。");
     }
   }
 }

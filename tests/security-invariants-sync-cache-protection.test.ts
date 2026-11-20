@@ -12,6 +12,7 @@ import {ensureStorageSpace,personalStorageSpace,createLazyFileSecretStore,create
 import type {SyncLocalProtection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 function fixture(t:TestContext,two=false){
+  t.mock.timers.enable({apis:['Date']});
   const home=mkdtempSync(join(tmpdir(),'sync-private-cache-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
   const body=Buffer.from('private-session-DO-NOT-PERSIST-PLAINTEXT'.repeat(3000)),digest=createHash('sha256').update(body).digest('hex'),reference={digest,size:body.length};
@@ -42,7 +43,7 @@ function fixture(t:TestContext,two=false){
     }});t.after(()=>client.close());return client;
   };
   const snapshot=()=>db(c=>({parts:c.prepare('SELECT * FROM sync_blob_parts ORDER BY namespace,part').all(),failures:c.prepare('SELECT * FROM sync_failures ORDER BY namespace,key').all(),cursors:c.prepare('SELECT * FROM sync_stream_cursors ORDER BY namespace').all()}));
-  return {home,body,selections,protection,secrets,keyRef,create,db,snapshot,healthy:()=>{fail=false;},selectFirst:()=>{selected=selections.slice(0,1);},get chunks(){return chunks;},get commits(){return commits;},revoke:()=>{active=false;}};
+  return {home,body,selections,protection,secrets,keyRef,create,db,snapshot,healthy:()=>{fail=false;t.mock.timers.tick(15_000);},selectFirst:()=>{selected=selections.slice(0,1);},get chunks(){return chunks;},get commits(){return commits;},revoke:()=>{active=false;}};
 }
 
 test('S-110 PCSYNC-23 private download parts and deferred events stay sealed and resume after coordinator restart',async t=>{

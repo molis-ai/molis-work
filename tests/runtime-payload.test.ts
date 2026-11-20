@@ -261,10 +261,10 @@ test("AC-T1-02 startup can warn on missing terminal tools or refuse strict mode"
     ]);
 
     await mkdir(join(repoRoot, "scripts"));
-    for (const name of ["start.mjs", "preflight-env.mjs", "script-paths.mjs"]) {
+    for (const name of ["start.mjs", "start-account-environment.mjs", "environment-properties.mjs", "environment-session.mjs", "preflight-env.mjs", "script-paths.mjs"]) {
       await copyFile(join("scripts", name), join(repoRoot, "scripts", name));
     }
-    await assert.rejects(exec(process.execPath, [join(repoRoot, "scripts/start.mjs"), "--strict-native"], {
+    await assert.rejects(exec(process.execPath, [join(repoRoot, "scripts/start.mjs"), "--env", "dev", "--strict-native"], {
       cwd: repoRoot,
       env: { ...process.env, PATH: "" },
     }), { code: 1, stderr: /\[native_toolchain_missing\]/ });

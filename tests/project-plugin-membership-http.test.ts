@@ -93,6 +93,12 @@ test("SPC-C08 public membership actions and HTTP use the same observation and re
     "saving project settings does not start a plugin platform");
   assert.deepEqual(current.plugins, observed.plugins);
   assert.notEqual(current.revision, observed.revision, "the original observation stays stale after an ABA");
+  // BL-project-membership-revision-read: the merged owner read still carries the latest member event, so the set being back as it
+  // was does not let the first observation commit.
+  const afterAba = await post("DELETE", { plugin_id: "schedule", expected_revision: observed.revision });
+  assert.equal(afterAba.status, 409);
+  assert.equal((await afterAba.json()).code, "actions.conflict");
+  assert.deepEqual(await read(), current);
   assert.deepEqual(await fromIndex(f, other.project_id), outside);
   assert.deepEqual(membershipEvents(f.home, project.project_id), [
     { type: "project.plugin_removed", actor_id: caller.actor_id, plugin_id: "schedule" },

@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {openGoalBrowser} from './fixtures/goal-browser.js';
+import {seedBoard} from './fixtures/goal-application.js';
 
 test('PCSYNC-27 sync progress distinguishes unfinished work from a past successful connection',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'fixed',collection_id:'notes',schema_version:1};
     window.syncProgress={selected:1,pending:2,conflicts:1,waiting:1,failures:1,unavailable:1,complete:false};
@@ -39,7 +40,7 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
 });
 
 test('sync settings: local space stays off and narrow layout remains usable',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
   await b.waitFor("document.querySelector('[data-sync-status]')?.textContent.includes('本地空间')");
   assert.equal(await b.evaluate("document.querySelector('[data-sync-form]').hidden"),true);
@@ -54,7 +55,7 @@ test('sync settings: local space stays off and narrow layout remains usable',{ti
 });
 
 test('sync settings: failed save retains selection and retry saves it',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
@@ -104,7 +105,7 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
 });
 
 test('waiting linked assets offers retry, not destructive conflict choices',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);let waiting=true;
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
@@ -129,19 +130,21 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
   await b.click('[data-sync-conflicts] button');await b.waitFor("document.querySelector('[data-sync-conflicts]').children.length===0");
 });
 
-test('PCSYNC-14/16/18 sync comparison, item retry, retained recovery and confirmed trash controls',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+test('PCSYNC-14/16/18 and PCSYNC-OPT-18 sync comparison, item retry, retained recovery and confirmed trash controls',{timeout:60000},async t=>{
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'test',collection_id:'notes',schema_version:1};let conflict=true,failed=true,trash=true;
+    const image=color=>{const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);const data=canvas.toDataURL().split(',')[1];return{id:'image1',mime_type:'image/png',byte_length:atob(data).length,data_base64:data};};
     const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'test-space',revision:1,selections:[selection]},quota:{usedBytes:1250000,limitBytes:100000000},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:conflict?1:0,waiting:0,failures:failed?1:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:conflict?[{key:'asset',reason:'两台设备修改了同一项',waiting:false}]:[],failures:failed?[{key:'broken',direction:'upload',reason:'源内容需要修复',revision:0}]:[]}],unavailable:[]});
     window.fetch=async(url,init={})=>{const path=new URL(String(url),location.href).pathname;if(!path.startsWith('/api/sync'))return original(url,init);
-      if(path==='/api/sync/conflict')return Response.json({key:'asset',revision:7,state:'a'.repeat(64),location:'/projects/source/?openPlugin=pages&openItem=asset',local:{title:'本机正文'},remote:{title:'云端正文'}});
+      if(path==='/api/sync/conflict')return Response.json({key:'asset',revision:7,state:'a'.repeat(64),location:'/projects/source/?openPlugin=pages&openItem=asset',local:{title:'本机正文',markdown:'same\\nlocal only',images:[image('red')]},remote:{title:'云端正文',markdown:'same\\ncloud only',images:[image('blue')]}});
       if(path==='/api/sync/resolve'){window.syncDecision=JSON.parse(init.body);window.syncSpaceHeader=init.headers['x-molis-sync-space'];conflict=false;}
       if(path==='/api/sync/retry-item')failed=false;
       if(path==='/api/sync/recoveries')return Response.json({items:[{id:'1',key:'asset',choice:'remote',revision:8}]});
       if(path==='/api/sync/recovery')return Response.json({id:'1',key:'asset',revision:8,local:{title:'保留的正文'},remote:{title:'采用的正文'}});
       if(path==='/api/sync/restore-recovery')window.syncRecovery=JSON.parse(init.body);
-      if(path==='/api/sync/trash')return Response.json({items:trash?[{namespace:JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,1]),key:'deleted',revision:11,expiresAt:Date.now()+86400000}]:[],more:false,next:null});
+      if(path==='/api/sync/trash')return Response.json({items:trash?[{namespace:JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,1]),key:'deleted',revision:11,expiresAt:Date.now()+86400000}]:[],more:false,next:null,permanentCleanup:window.allowSyncPurge===true});
+      if(path==='/api/sync/quota')return Response.json({currentBytes:500000,trashBytes:250000,historyBytes:500000,reservedAttachmentBytes:0});
       if(path==='/api/sync/purge-trash'){window.syncPurge=JSON.parse(init.body);trash=false;}
       return Response.json(state());
     };
@@ -149,6 +152,9 @@ test('PCSYNC-14/16/18 sync comparison, item retry, retained recovery and confirm
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));await b.waitFor("document.querySelector('[data-sync-quota]')?.textContent.includes('1.25 / 100 MB')");
   await b.click('[data-sync-conflicts] section:first-child button');await b.waitFor("document.querySelector('[data-sync-dialog][open] pre')?.textContent.includes('本机正文')");
   await b.waitFor("document.querySelector('[data-sync-dialog][open] table')?.textContent.includes('标题')");assert.equal(await b.evaluate("document.querySelector('[data-sync-dialog][open] a')?.getAttribute('href')"),'/projects/source/?openPlugin=pages&openItem=asset');
+  assert.equal(await b.evaluate("document.querySelector('[data-sync-dialog][open] del')?.textContent.trim()"),'− local only');
+  assert.equal(await b.evaluate("document.querySelector('[data-sync-dialog][open] ins')?.textContent.trim()"),'+ cloud only');
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] table img')].filter(img=>img.complete&&img.naturalWidth===1).length===2");
   await mkdir('.impeccable/qa/review',{recursive:true});
   for(const width of [1440,390]){await b.command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile('.impeccable/qa/review/personal-sync-compare-'+width+'.png',Buffer.from(shot.data,'base64'));}
   await b.evaluate("document.querySelector('[data-sync-dialog][open] footer button').click()");await b.waitFor('window.syncDecision?.revision===7');assert.equal(await b.evaluate('window.syncSpaceHeader'),'test-space');assert.equal(await b.evaluate('window.syncDecision.state'),'a'.repeat(64));
@@ -161,10 +167,19 @@ test('PCSYNC-14/16/18 sync comparison, item retry, retained recovery and confirm
   assert.equal(await b.evaluate("document.querySelector('[data-sync-dialog][open]').textContent.includes('永久清理暂未开放')"),true);
   for(const [width,theme] of [[1440,'light'],[1024,'dark'],[390,'light']] as const){await b.command('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false},b.sessionId);await b.evaluate("localStorage.setItem('molis-work:theme',"+JSON.stringify(theme)+");dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:"+JSON.stringify(theme)+"}))");assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);}
   assert.equal(await b.evaluate('window.syncPurge===undefined'),true,'PTR-01 the UI cannot request permanent cleanup');
+  await b.evaluate("document.querySelectorAll('[data-sync-dialog][open]').forEach(dialog=>dialog.close());window.allowSyncPurge=true");
+  await b.click('[data-sync-quota-details] summary');
+  await b.waitFor("document.querySelector('[data-sync-quota-rows]').textContent.includes('0.25 MB')");
+  await b.click('[data-sync-trash]');
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] button')].some(button=>button.textContent==='永久删除')");
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].find(button=>button.textContent==='永久删除').click()");
+  assert.equal(await b.evaluate('window.syncPurge===undefined'),true,'PCSYNC-OPT-12 opening confirmation performs no deletion');
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].find(button=>button.textContent==='确认永久删除').click()");
+  await b.waitFor("window.syncPurge?.confirm===true&&window.syncPurge.revision===11&&window.syncPurge.key==='deleted'");
 });
 
 test('PCSYNC-16 cloud history is discoverable without local history, paginated and restored with one retry identity',{timeout:90000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window),selection={plugin_id:'io.example.history',publisher_id:'example',publisher_signature:'test',collection_id:'records',schema_version:1};
     let keyReads=0,current=8;window.historyRestores=[];window.historyPurges=[];
@@ -214,7 +229,7 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
 });
 
 test('PCSYNC-20 personal project recycle UI binds confirmation to the observed state and reuses its operation identity',{timeout:60000},async t=>{
- const b=await openGoalBrowser(t,true);if(!b)return;
+ const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.recycleCalls=[];window.fetch=async(input,init={})=>{const path=new URL(String(input),location.href).pathname;
  if(path==='/api/sync')return Response.json({available:true,policy:{spaceId:'personal-test',revision:1,selections:[]},device:{automatic:false},collections:[],unavailable:[],progress:{selected:0,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false}});
  if(path==='/api/settings/projects/recycle')return Response.json({items:[{project_id:'p',display_name:'Project original',recycled:false,state:'a'.repeat(64)}]});
@@ -230,10 +245,56 @@ test('PCSYNC-20 personal project recycle UI binds confirmation to the observed s
 });
 
 test('PCSYNC-27 resident indicator reports conflict and offline states without showing a completed claim',{timeout:60000},async t=>{
- const b=await openGoalBrowser(t,'user');if(!b)return;
+ const b=await openGoalBrowser(t,'user',seedBoard);if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.fetch=async(input,init)=>new URL(String(input),location.href).pathname==='/api/sync'?Response.json({available:true,running:false,lastSuccess:null,error:null,progress:{selected:1,pending:0,conflicts:1,waiting:0,failures:0,unavailable:0,complete:false}}):original(input,init);})();`},b.sessionId);
  await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));await b.waitFor("document.querySelector('[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
  await b.evaluate("dispatchEvent(new Event('offline'))");await b.waitFor("document.querySelector('[data-sync-indicator]').dataset.syncPhase==='offline'");
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
+});
+test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project structure copy discloses what stays in the original',{timeout:60000},async t=>{
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
+  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
+    const original=window.fetch.bind(window);
+    const platformSel={plugin_id:'io.molis.work.module.projects',publisher_id:'molis',publisher_signature:'official-projects-binding',collection_id:'projects',schema_version:1};
+    const pluginSel={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
+    window.copyExecCalls=[];
+    window.fetch=async(url,init={})=>{
+      const path=new URL(String(url),location.href).pathname;
+      if(!path.startsWith('/api/sync'))return original(url,init);
+      if(path==='/api/sync/copy/projects')return Response.json({projects:[{project_id:'p1',display_name:'Local Alpha'},{project_id:'p2',display_name:'Local Beta'}]});
+      if(path==='/api/sync/copy/preview')return Response.json({projects:[{project_id:'p1',display_name:'Local Alpha'},{project_id:'p2',display_name:'Local Beta'}],preview:{assetCount:2,savedBytes:330,fingerprint:'f'.repeat(64)}});
+      if(path==='/api/sync/copy/execute'){window.copyExecCalls.push(JSON.parse(init.body));return Response.json({copied:true});}
+      return Response.json({
+        available:true,device:{automatic:true},policy:{spaceId:'opt18-space',revision:1,selections:[platformSel,pluginSel]},
+        running:true,transfer:{done:2500000,total:10000000},error:null,lastSuccess:null,
+        progress:{selected:2,pending:1,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},
+        collections:[{selection:platformSel,title:'项目目录',pending:0,conflicts:[],failures:[]},{selection:pluginSel,title:'文档与文件夹',pending:1,conflicts:[],failures:[]}],
+        unavailable:[],
+      });
+    };
+  })();`},b.sessionId);
+  await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
+  await b.waitFor("document.querySelector('[data-sync-status]')?.textContent.includes('2.5/10.0 MB')");
+  const fieldsText=await b.evaluate<string>("document.querySelector('[data-sync-fields]').textContent");
+  assert.ok(fieldsText.includes('平台与项目'),fieldsText);
+  assert.ok(fieldsText.includes('插件内容'),fieldsText);
+  assert.equal(await b.evaluate("document.querySelector('[data-sync-copy-local]').textContent"),'从本地复制项目结构');
+  await b.click('[data-sync-copy-local]');
+  await b.waitFor("document.querySelectorAll('[data-sync-dialog][open] input[type=checkbox]').length===2");
+  await b.evaluate("document.querySelectorAll('[data-sync-dialog][open] input[type=checkbox]').forEach(el=>el.click())");
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] footer button')].find(el=>el.textContent==='预览项目结构').click()");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] p')].some(el=>el.textContent.includes('2 个项目')&&el.textContent.includes('文档、附件和其他插件内容仍留在本地原项目'))");
+  for(const [width,theme] of [[1440,'light'],[1024,'dark'],[390,'light']] as const){
+    await b.command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);
+    await b.evaluate("localStorage.setItem('molis-work:theme',"+JSON.stringify(theme)+");dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:"+JSON.stringify(theme)+"}))");
+    assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+  }
+  assert.equal(await b.evaluate('window.copyExecCalls.length'),0,'preview must not execute copy before confirmation');
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] footer button')].find(el=>el.textContent==='确认复制项目结构').click()");
+  await b.waitFor('window.copyExecCalls.length===1');
+  const exec=await b.evaluate<{projectIds:string[];fingerprint:string;operationId:string}>('window.copyExecCalls[0]');
+  assert.deepEqual(exec.projectIds,['p1','p2']);
+  assert.equal(exec.fingerprint,'f'.repeat(64));
+  assert.ok(exec.operationId.length>10);
 });

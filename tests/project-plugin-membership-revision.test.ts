@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -65,7 +66,7 @@ function fixture(t: TestContext) {
     ORDER BY rowid
   `).all();
   const portable = projectReplicationOwner(first.db, { spaceId: "personal:test", authorize: () => {}, excludedProjectIds: [] });
-  return { ...first, open, events, portable, setTime: (time: string) => { now = time; } };
+  return { ...first, open, events, portable, directory, setTime: (time: string) => { now = time; } };
 }
 
 test("SPC-C08 the declared actions validate caller and input, then read and write the same owner state", async t => {
@@ -235,4 +236,93 @@ test("SPC-C08 missing facts are refused, and passive sync records only portable 
   assert.deepEqual(f.portable.read(projectId)?.plugins, ["pages"]);
   assert.deepEqual(f.get(), before);
   assert.deepEqual(f.events(), []);
+});
+
+/** The SQL each `prepare` on this connection was handed, so a test can count the owner's reads. */
+function countingStatements(db: SqliteDatabase) {
+  const statements: string[] = [];
+  const counted = new Proxy(db, {
+    get(target, key) {
+      if (key === "prepare") return (sql: string) => { statements.push(sql); return target.prepare(sql); };
+      const value = Reflect.get(target, key, target) as unknown;
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return { counted, statements };
+}
+
+test("BL-project-membership-revision-read one versioned read is one statement, with no extra event lookup", t => {
+  const f = fixture(t);
+  f.set("pages", true, f.get().revision);
+  const { counted, statements } = countingStatements(f.db);
+  const projects = new ProjectsModule({ db: counted, plugins: registry, projects_directory: f.directory, outputs_directory: join(f.directory, "outputs") });
+  const read = (operation: () => unknown) => {
+    statements.length = 0;
+    operation();
+    return [...statements];
+  };
+  const unversioned = read(() => projects.query.projectPluginMembership(projectId));
+  const versioned = read(() => projects.query.projectPluginMembershipWithRevision(projectId));
+  // Before: the project looked up twice, members, hidden marks, then a separate latest-event query (5); the unversioned read is 4.
+  assert.equal(versioned.length, 1, versioned.join("\n---\n"));
+  assert.ok(versioned.length < unversioned.length);
+  assert.match(versioned[0]!, /project_events/u);
+  assert.deepEqual(projects.query.projectPluginMembershipWithRevision(projectId), f.get());
+});
+
+test("BL-project-membership-revision-read lists and hidden rules match the unversioned read, and the revision keeps its formula", t => {
+  const f = fixture(t);
+  let personalAlwaysOn = false;
+  const { get, set, projects } = f.open({ ...registry, alwaysOn: () => personalAlwaysOn ? ["goals", "personal"] : ["goals"] });
+  const latestEvent = (project: string) => (f.db.prepare<[string], { event_id: string }>(`
+    SELECT event_id FROM project_events WHERE project_id = ? AND type IN ('project.plugin_added', 'project.plugin_removed')
+    ORDER BY rowid DESC LIMIT 1
+  `).get(project))?.event_id ?? null;
+  const check = (project: string, label: string) => {
+    const versioned = get(project);
+    const { plugins, hidden } = versioned;
+    assert.deepEqual({ plugins, hidden }, projects.query.projectPluginMembership(project), label);
+    const facts = [project, [...plugins].sort(), [...hidden].sort(), latestEvent(project)];
+    assert.equal(versioned.revision, createHash("sha256").update(JSON.stringify(facts)).digest("hex"), label);
+  };
+  check(projectId, "fresh project, only the derived always-on member");
+  check(otherProjectId, "untouched second project");
+  const withFeed = set("feed", true, get().revision);
+  set("personal", false, withFeed.revision);
+  check(projectId, "stored members with a companion and a hidden personal plugin");
+  // Rows a sync or an older always-on list can leave: a stored always-on member, a hidden mark on an always-on plugin, and ids whose
+  // byte order differs from a case-insensitive one.
+  const at = "2026-11-08T02:00:00.000Z";
+  f.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'goals', ?), (?, 'Zeta', ?)").run(projectId, at, projectId, at);
+  f.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'goals', ?), (?, 'Alpha', ?)").run(projectId, at, projectId, at);
+  check(projectId, "stored always-on member and hidden always-on mark");
+  assert.deepEqual(get().plugins, ["Zeta", "feed", "goals", "inbox"]);
+  assert.deepEqual(get().hidden, ["Alpha", "personal"]);
+  personalAlwaysOn = true;
+  check(projectId, "an always-on personal plugin is neither a derived member nor hidden");
+  assert.deepEqual(get().hidden, ["Alpha"]);
+
+  const recycle = f.projects.recycle;
+  recycle.change({
+    project_id: otherProjectId, actor_id: actorId, operation_id: "recycle-1",
+    expected_state: recycle.inspect(otherProjectId).state, recycled: true, confirmed: true,
+  }, () => {});
+  assert.throws(() => projects.query.projectPluginMembership(otherProjectId), { code: "catalog.project_not_found" });
+  assert.throws(() => get(otherProjectId), { code: "catalog.project_not_found" });
+  assert.throws(() => get(" "), { code: "catalog.project_not_found" });
+});
+
+test("BL-project-membership-revision-read adding a plugin and removing it again leaves the first observation stale", t => {
+  const f = fixture(t);
+  const before = f.get();
+  const added = f.set("pages", true, before.revision);
+  const back = f.set("pages", false, added.revision);
+  assert.deepEqual({ plugins: back.plugins, hidden: back.hidden }, { plugins: before.plugins, hidden: before.hidden });
+  assert.notEqual(back.revision, before.revision);
+  const events = f.events();
+  for (const enabled of [true, false]) {
+    assert.throws(() => f.set("pages", enabled, before.revision), { code: "actions.conflict" });
+  }
+  assert.deepEqual(f.events(), events);
+  assert.deepEqual(f.get(), back);
 });

@@ -148,10 +148,12 @@
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
 | `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |
+| `spaces/<spaceId>/sync/sync.db` | 1 → 2 | 个人同步优化 PCSYNC-OPT-13，新增重放次数和下次重试时间，保留原始失败事件、游标、设备同意及附件暂存 | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE#1→2` |
 | `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
+
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |

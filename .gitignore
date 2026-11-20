@@ -54,3 +54,5 @@ apps/sync-worker/.dev.vars
 
 # Jelly's native helper build output (swift build; generated locally, not source).
 /plugins/native/jelly/native/
+
+/secrets/

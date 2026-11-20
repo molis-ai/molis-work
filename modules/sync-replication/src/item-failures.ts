@@ -1,24 +1,30 @@
 import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type {SyncEvent,SyncLocalProtection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {createSyncBodySerialization} from '@molis-ai/molis-work-storage';
-import {openSyncDatabase} from './database.js';
-import {platformErrorKind} from '@molis-ai/molis-work-contracts/platform/actions';
+import {withSyncDatabase} from './database.js';
+import {ActionError,platformErrorKind} from '@molis-ai/molis-work-contracts/platform/actions';
 import {pinSyncProtection} from './local-protection.js';
 
 export interface SyncItemFailure {key:string;direction:'upload'|'download';reason:string;revision:number;automatic:boolean}
+const RETRY_DELAYS=[15_000,60_000,300_000,1_800_000] as const;
 export function syncItemFailures(home:string,authorize:()=>void,protection?:SyncLocalProtection) {
   const serialization=createSyncBodySerialization(authorize,protection),binding=(namespace:string,key:string)=>JSON.stringify([namespace,key]);
   const pin=(namespace:string)=>pinSyncProtection(home,namespace,authorize,protection);
-  const db=<T>(run:(connection:ReturnType<typeof openSyncDatabase>)=>T)=>{authorize();const connection=openSyncDatabase(home);try{return run(connection);}finally{connection.close();}};
-  const advance=(connection:ReturnType<typeof openSyncDatabase>,namespace:string,revision:number)=>connection.prepare('INSERT INTO sync_stream_cursors VALUES (?,?) ON CONFLICT(namespace) DO UPDATE SET cursor=MAX(cursor,excluded.cursor)').run(namespace,revision);
+  const db=<T>(run:(connection:import('node:sqlite').DatabaseSync)=>T)=>{authorize();return withSyncDatabase(home,run);};
+  const advance=(connection:import('node:sqlite').DatabaseSync,namespace:string,revision:number)=>connection.prepare('INSERT INTO sync_stream_cursors VALUES (?,?) ON CONFLICT(namespace) DO UPDATE SET cursor=MAX(cursor,excluded.cursor)').run(namespace,revision);
   return {
     cursor:(namespace:string)=>db(c=>Number(c.prepare('SELECT cursor FROM sync_stream_cursors WHERE namespace=?').get(namespace)?.cursor??0)),
     list:(namespace:string):SyncItemFailure[]=>db(c=>c.prepare('SELECT key,direction,reason,revision,automatic FROM sync_failures WHERE namespace=? ORDER BY key,direction').all(namespace).map(row=>({key:String(row.key),direction:row.direction as 'upload'|'download',reason:String(row.reason),revision:Number(row.revision),automatic:row.automatic===1}))),
-    deferred:(namespace:string):SyncEvent[]=>{pin(namespace);return db(c=>c.prepare("SELECT key,event FROM sync_failures WHERE namespace=? AND direction='download' AND automatic=1 ORDER BY revision LIMIT 20").all(namespace).map(row=>serialization.read(row.event,binding(namespace,String(row.key)),'deferred_event') as SyncEvent));},
+    deferred:(namespace:string,dependencyChanged=false):SyncEvent[]=>{pin(namespace);return db(c=>c.prepare("SELECT key,event FROM sync_failures WHERE namespace=? AND direction='download' AND automatic=1 AND (? OR next_retry_at<=?) ORDER BY revision LIMIT 20").all(namespace,dependencyChanged?1:0,Date.now()).map(row=>serialization.read(row.event,binding(namespace,String(row.key)),'deferred_event') as SyncEvent));},
     save(namespace:string,key:string,direction:'upload'|'download',error:unknown,event?:SyncEvent,automatic=false){pin(namespace);db(c=>{
       c.exec('BEGIN IMMEDIATE');try{
         const reason=protection?'同步资产暂时不可用，原内容已保留':error instanceof SyntaxError?'同步内容格式无效，原内容已保留':error instanceof Error?error.message.slice(0,1000):'同步资产校验失败';
-        c.prepare('INSERT INTO sync_failures VALUES (?,?,?,?,?,?,?) ON CONFLICT(namespace,key,direction) DO UPDATE SET event=excluded.event,reason=excluded.reason,revision=excluded.revision,automatic=excluded.automatic WHERE excluded.revision>=sync_failures.revision').run(namespace,key,direction,event?serialization.write(event,binding(namespace,key),'deferred_event'):null,reason,event?.revision??0,automatic?1:0);
+        const revision=event?.revision??0;
+        const delaysRetry=automatic&&!(error instanceof ActionError&&error.details?.sync_resume===true);
+        const previous=delaysRetry?c.prepare('SELECT attempts FROM sync_failures WHERE namespace=? AND key=? AND direction=? AND revision=? AND automatic=1').get(namespace,key,direction,revision):undefined;
+        const attempts=delaysRetry?Math.min(Number(previous?.attempts??0)+1,RETRY_DELAYS.length):0;
+        const next=attempts?Date.now()+RETRY_DELAYS[attempts-1]!:0;
+        c.prepare('INSERT INTO sync_failures(namespace,key,direction,event,reason,revision,automatic,attempts,next_retry_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(namespace,key,direction) DO UPDATE SET event=excluded.event,reason=excluded.reason,revision=excluded.revision,automatic=excluded.automatic,attempts=excluded.attempts,next_retry_at=excluded.next_retry_at WHERE excluded.revision>=sync_failures.revision').run(namespace,key,direction,event?serialization.write(event,binding(namespace,key),'deferred_event'):null,reason,revision,automatic?1:0,attempts,next);
         if(event)advance(c,namespace,event.revision);authorize();c.exec('COMMIT');
       }catch(error){rollbackPreservingError(error, () => c.exec('ROLLBACK'));throw error;}
     });},

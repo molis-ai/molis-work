@@ -4,6 +4,7 @@
   "compatibility_date": "2026-09-19",
   "workers_dev": false,
   "preview_urls": false,
+  "ratelimits": [{"name": "SYNC_RATE_LIMIT", "namespace_id": "471982701", "simple": {"limit": 600, "period": 60}}],
   "triggers": {"crons":["17 * * * *"]},
   "build": {"command": "node build.mjs", "watch_dir": ["src", "../../server/src/sync"]},
   "d1_databases": [{"binding":"DB","database_name":"molis-work-sync-local","database_id":"00000000-0000-0000-0000-000000000000","migrations_dir":"../../server/migrations/sync"}],

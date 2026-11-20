@@ -13,6 +13,11 @@ import { PersonalWebSessions, type AccountNavigation, type WebAccountSession, WE
 export function personalReturnPath(raw:string|null, desktop=false):string {
   const fallback=desktop?'/?desktop=1':'/';
   if(!raw || raw.length>4096 || !raw.startsWith('/') || raw.startsWith('//') || /[\\\r\n]/.test(raw))return fallback;
+  const path = raw.split(/[?#]/u, 1)[0];
+  try {
+    const decoded = decodeURIComponent(path);
+    if (decoded.startsWith('//') || decoded.includes('\\') || decoded.includes('%')) return fallback;
+  } catch { return fallback; }
   const url=new URL(raw,'http://local.invalid');
   if(url.origin!=='http://local.invalid' || !(/^\/$|^\/projects(?:\/|$)|^\/settings(?:\/|$)|^\/onboarding$/.test(url.pathname)))return fallback;
   if(desktop)url.searchParams.set('desktop','1');

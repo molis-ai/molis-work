@@ -2,13 +2,12 @@ import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type { SyncLocalProtection } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {checkSqliteBaselineVersion,describeSqliteBaseline,describeSqliteSchema,homeSqlitePath,readUpgradeStore,sqliteStoreLabel,storageErrors,type SqliteBaselineDatabase} from '@molis-ai/molis-work-storage';
 import {existsSync} from 'node:fs';
-import {openSyncDatabase,SYNC_STORE_BASELINE} from './database.js';
+import {withSyncDatabase,SYNC_STORE_BASELINE} from './database.js';
 import { syncError } from './sync-errors.js';
 
 /** The current local format pins the trusted owner's choice. Removing a port cannot downgrade saved bodies. */
 export function pinSyncProtection(home:string,namespace:string,authorize:()=>void,protection?:SyncLocalProtection):void {
-  authorize();const db=openSyncDatabase(home);
-  try {
+  authorize();withSyncDatabase(home,db=>{
     db.exec('BEGIN IMMEDIATE');
     try {
       const protectedMode=protection?1:0;
@@ -17,7 +16,7 @@ export function pinSyncProtection(home:string,namespace:string,authorize:()=>voi
       if(!row)db.prepare('INSERT INTO sync_payload_modes VALUES (?,?)').run(namespace,protectedMode);
       authorize();db.exec('COMMIT');
     }catch(error){rollbackPreservingError(error, () => db.exec('ROLLBACK'));throw error;}
-  }finally{db.close();}
+  });
 }
 
 /**

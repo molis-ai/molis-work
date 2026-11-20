@@ -1,13 +1,12 @@
 import {syncError} from './sync-errors.js';
-import {openSyncDatabase} from './database.js';
+import {withSyncDatabase} from './database.js';
 import type {SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 /** Business data and its receipt commit in the partition first. A crash before the shared
  * cursor commits safely replays that receipt; never advance the cursor before owner data. */
 export function partitionedReplica(options:{home:string;namespace:string;authorize():void;partitions():string[];projectPartitions?():string[];projectAbsent?(projectId:string):boolean;partition(key:string):string;projectPartition?(projectId:string):string;withPartition<T>(id:string,run:(adapter:SyncReplicaAdapter)=>T,passive?:boolean):T}):SyncReplicaAdapter {
-  const db=<T>(run:(db:ReturnType<typeof openSyncDatabase>)=>T):T=>{
-    options.authorize();const connection=openSyncDatabase(options.home);
-    try{return run(connection);}finally{connection.close();}
+  const db=<T>(run:(db:import('node:sqlite').DatabaseSync)=>T):T=>{
+    options.authorize();return withSyncDatabase(options.home,run);
   };
   const cursor=()=>db(d=>Number(d.prepare('SELECT cursor FROM sync_partition_cursors WHERE namespace=?').get(options.namespace)?.cursor??0));
   return {

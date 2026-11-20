@@ -242,11 +242,18 @@ async fn purge(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Val
         .bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(source as f64),JsValue::from_f64(base as f64),JsValue::from_f64(base as f64)])?.run().await?;
     let remaining=db.prepare("SELECT revision FROM sync_events WHERE space=? AND namespace=? AND key=? AND revision=?").bind(&[space.into(),namespace.into(),key.into(),JsValue::from_f64(source as f64)])?.first::<Value>(None).await?;
     require(remaining.is_none(), 409, "SYNC_CONFLICT")?;
+    worker::console_log!("sync.history_purged");
     Ok(json!({"accepted":true}))
 }
 
-pub(crate) async fn handle(req: &mut Request, db: &D1Database, space: &str) -> ApiResult<Response> {
-    let value = match (req.method(), req.url()?.path()) {
+pub(crate) async fn handle(
+    req: &mut Request,
+    db: &D1Database,
+    space: &str,
+    permanent_cleanup: bool,
+) -> ApiResult<Response> {
+    let url = req.url()?;
+    let mut value = match (req.method(), url.path()) {
         (Method::Get, "/v1/history") => list(req, db, space).await,
         (Method::Get, "/v1/history/keys") => keys(req, db, space).await,
         (Method::Get, "/v1/history/version") => inspect(req, db, space).await,
@@ -256,5 +263,8 @@ pub(crate) async fn handle(req: &mut Request, db: &D1Database, space: &str) -> A
         (Method::Post, "/v1/history/purge") => purge(req, db, space).await,
         _ => Err(Failure(404, "NOT_FOUND")),
     }?;
+    if permanent_cleanup && req.method() == Method::Get && url.path() == "/v1/history/version" {
+        value["permanentCleanup"] = json!(true);
+    }
     Ok(Response::from_json(&value)?)
 }

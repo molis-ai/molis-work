@@ -192,8 +192,14 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     const listed=await(await request('/api/sync/history/keys?'+new URLSearchParams({namespace:ns}))).json();assert.equal(listed.items[0].key,historyKey);
     assert.equal((await(await request('/api/sync/history'+query)).json()).items[0].revision,2);
     const inspected=await(await request('/api/sync/history/version'+query)).json();assert.equal(inspected.value,null);assert.equal(inspected.currentRevision,1);
-    const source={namespace:ns,key:historyKey,sourceRevision:2,revision:1};await request('/api/sync/history/restore','POST',{...source,operationId:'inspect-then-restore'});const beforePurge=syncRequests;const refusedPurge=await fetch(origin+'/api/sync/history/purge',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'refused-history-purge','x-molis-sync-space':spaceId},body:JSON.stringify({...source,confirm:true})});assert.equal(refusedPurge.status,409);assert.match((await refusedPurge.json()).error,/永久清理暂未开放/);assert.equal(syncRequests,beforePurge);
-    assert.deepEqual(historyWrites,[{...source,operationId:'inspect-then-restore',policyRevision:1}],'Host forwards the inspected source/head while the coordinator injects current policy');
+    const source={namespace:ns,key:historyKey,sourceRevision:2,revision:1};
+    await request('/api/sync/history/restore','POST',{...source,operationId:'inspect-then-restore'});
+    const beforePurge=syncRequests;
+    const purge=(confirm:boolean)=>fetch(origin+'/api/sync/history/purge',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'history-purge-'+confirm,'x-molis-sync-space':spaceId},body:JSON.stringify({...source,confirm})});
+    const refusedPurge=await purge(false);
+    assert.equal(refusedPurge.status,409);assert.match((await refusedPurge.json()).error,/确认永久清理/);assert.equal(syncRequests,beforePurge);
+    assert.equal((await purge(true)).status,200);
+    assert.deepEqual(historyWrites,[{...source,operationId:'inspect-then-restore',policyRevision:1},{...source,confirm:true}],'Host forwards the inspected revisions and only forwards purge after confirmation');
     await request('/api/sync/device','PUT',{automatic:true});
     await request('/api/sync/run','POST');const enabled=syncRequests;assert.ok(enabled>=2);
     await request('/api/personal/logout'+await prepareLogout(),'POST');

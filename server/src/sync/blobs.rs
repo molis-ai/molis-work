@@ -6,8 +6,8 @@ use serde_json::{Value, json};
 use wasm_bindgen::JsValue;
 use worker::*;
 
-pub(crate) fn digest(value: &Value) -> ApiResult<&str> {
-    let text = string(value, "digest", 64)?;
+pub(crate) fn digest_field<'a>(value: &'a Value, field: &str) -> ApiResult<&'a str> {
+    let text = string(value, field, 64)?;
     require(
         text.len() == 64
             && text
@@ -17,6 +17,9 @@ pub(crate) fn digest(value: &Value) -> ApiResult<&str> {
         "INVALID_DIGEST",
     )?;
     Ok(text)
+}
+pub(crate) fn digest(value: &Value) -> ApiResult<&str> {
+    digest_field(value, "digest")
 }
 async fn enabled(db: &D1Database, space: &str, namespace: &str) -> ApiResult<()> {
     require(
@@ -109,6 +112,7 @@ pub(crate) async fn complete(
     bucket: &Bucket,
     space: &str,
     digest: &str,
+    parts_digest: Option<&str>,
     permit: &Permit<'_>,
 ) -> ApiResult<Value> {
     permit.check(db, space, digest).await?;
@@ -118,35 +122,40 @@ pub(crate) async fn complete(
     }
     let size = integer(&row, "size")? as usize;
     let parts = store::parts(db, space, digest).await?;
-    require(
-        parts.len() == size.div_ceil(store::CHUNK),
-        409,
-        "SYNC_BLOB_INCOMPLETE",
-    )?;
-    let (stream, writer) = store::hasher()?;
+    let expected_count = size.div_ceil(store::CHUNK);
+    require(parts.len() == expected_count, 409, "SYNC_BLOB_INCOMPLETE")?;
+    let generation = string(&row, "generation", 32)?;
+    let mut checksums = Vec::with_capacity(expected_count);
     for (index, part) in parts.iter().enumerate() {
         require(part["part"] == index, 409, "SYNC_BLOB_INCOMPLETE")?;
-        let bytes = store::read(
+        let checksum = string(part, "checksum", 64)?;
+        store::head_part(
             bucket,
-            space,
-            digest,
-            string(&row, "generation", 32)?,
-            index as i64,
-            string(part, "checksum", 64)?,
+            store::key(space, digest, generation, index as i64, checksum),
+            (size - index * store::CHUNK).min(store::CHUNK),
         )
         .await?;
-        require(
-            bytes.len() == (size - index * store::CHUNK).min(store::CHUNK),
-            409,
-            "SYNC_BLOB_INCOMPLETE",
-        )?;
-        store::feed(&writer, &bytes).await?;
+        checksums.push(checksum);
     }
-    require(
-        store::finish(stream, writer).await? == digest,
-        409,
-        "SYNC_BLOB_DIGEST_MISMATCH",
-    )?;
+    // Single-part blobs match the whole-object SHA-256 directly. Multi-part blobs anchor on the
+    // ordered chunk SHA-256 manifest digest without re-reading up to 100 MB from R2.
+    if expected_count == 1 {
+        require(checksums[0] == digest, 409, "SYNC_BLOB_DIGEST_MISMATCH")?;
+        if let Some(expected_manifest) = parts_digest {
+            require(
+                store::parts_manifest_digest(size, &checksums).await? == expected_manifest,
+                409,
+                "SYNC_BLOB_DIGEST_MISMATCH",
+            )?;
+        }
+    } else {
+        let expected_manifest = parts_digest.ok_or(Failure(409, "SYNC_BLOB_DIGEST_MISMATCH"))?;
+        require(
+            store::parts_manifest_digest(size, &checksums).await? == expected_manifest,
+            409,
+            "SYNC_BLOB_DIGEST_MISMATCH",
+        )?;
+    }
     let (sql, mut binds) = permit.sql(space, digest);
     let mut args: Vec<JsValue> = vec![
         space.into(),
@@ -335,13 +344,26 @@ pub(crate) async fn handle(
             .await?
         }
         "/v1/blobs/complete" => {
-            fields(&value, &["namespace", "digest"])?;
+            let has_manifest = value
+                .as_object()
+                .is_some_and(|o| o.contains_key("partsDigest"));
+            if has_manifest {
+                fields(&value, &["namespace", "digest", "partsDigest"])?;
+            } else {
+                fields(&value, &["namespace", "digest"])?;
+            }
+            let parts_digest = if has_manifest {
+                Some(digest_field(&value, "partsDigest")?)
+            } else {
+                None
+            };
             let namespace = string(&value, "namespace", 2500)?;
             complete(
                 db,
                 &bucket,
                 space,
                 digest(&value)?,
+                parts_digest,
                 &Permit::Collection { namespace },
             )
             .await?

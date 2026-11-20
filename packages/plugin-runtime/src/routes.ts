@@ -1,6 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   PluginManifest,
+  PluginRouteDeclaration,
   PluginRouteMethod,
   PluginRouteRequest,
   PluginRouteResponse,
@@ -36,6 +37,14 @@ interface CompiledRoute {
   stream: boolean;
 }
 
+/**
+ * Whether a declared route answers with a stream of lines: the one stream the Manifest admits, `"ndjson"` on a POST route. The router
+ * and the withdrawal of an activation's routes (`offered-contributions.ts`) both ask this, so a route they disagree on cannot exist.
+ */
+export function streamsLines(route: Pick<PluginRouteDeclaration, "method" | "stream">): boolean {
+  return route.method === "POST" && route.stream === "ndjson";
+}
+
 function compile(manifest: PluginManifest): CompiledRoute[] {
   return (manifest.routes ?? []).map((route) => ({
     plugin_id: manifest.plugin_id,
@@ -44,7 +53,7 @@ function compile(manifest: PluginManifest): CompiledRoute[] {
     segments: route.path.split("/").filter((segment) => segment !== ""),
     permission: route.permission ?? null,
     max_body_bytes: route.max_body_bytes ?? null,
-    stream: route.stream === "ndjson",
+    stream: streamsLines(route),
   }));
 }
 

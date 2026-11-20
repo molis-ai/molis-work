@@ -184,6 +184,8 @@ function classifyError(error: unknown): string {
     // page can say the material is too long (the character excess itself stays at the port for now; carrying it to the page needs a
     // dedicated error-detail field, a separate change).
     if (hostCode === "alchemist.prompt_too_long") return "alchemist.prompt_too_long";
+    // The Home's evidence key is lost (BL-1065): its own reason, so the page says why research is paused instead of "retry".
+    if (hostCode === "alchemist.research_evidence_key_missing") return hostCode;
     if (typeof hostCode === "string" && hostCode.startsWith("alchemist.reuse_")) return hostCode;
     if (typeof hostCode === "string" && (hostCode === "alchemist.research_no_sources" || /^alchemist\.research_search_[a-z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
     if (["alchemist.lens_run_input_invalid", "alchemist.idea_version_not_found", "alchemist.ai_output_invalid", "alchemist.research_call_interrupted", "alchemist.research_no_sources", "alchemist.research_budget_invalid", "alchemist.research_budget_exhausted", "alchemist.research_budget_history_invalid", "alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured", "alchemist.runtime_shutdown"].includes(error.message)) {

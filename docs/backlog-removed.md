@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-964 | 已完成并删除 | 2026-11-20：Plugin Runtime 的路由分发与撤下贡献共用一处「是不是流」的判断 `streamsLines`（`packages/plugin-runtime/src/routes.ts`），即 Manifest 现行唯一允许的 POST `"ndjson"`；`offered-contributions.ts` 不再把任一已声明的 `stream` 当成流。撤下贡献时等着的普通请求立即答 403，进行中的流不被这个 403 截断、由路由的实例监视取消（499）且晚到的尾巴不写；见 `tests/plugin-route-stream-lifecycle.test.ts` 的 W5-01-STREAM-06 |
 | BL-960 | 已完成并删除 | 2026-11-20：补 RAC-181 等待期间撤权的拒绝测试。`tests/agent-host-actions.test.ts` 先等到 `agent.run.wait` 已在跟这一轮（Runtime 的订阅数可见为 1），再经人的权限开关 `PluginRuntime.regrant` 关掉一项可选权限（撤下发起调用的那次激活），之后让这一轮变化：调用方收到 `actions.forbidden`、拿不到轮次视图、拒绝里不带轮次内容，调用记录只留代码，订阅放掉。拒绝来自调用方的插件身份在处理器返回后的最终授权检查；不需要改产品代码 |
 | BL-project-membership-revision-read | 已完成并删除 | 2026-11-20：项目插件成员的版本化读取（`ProjectPluginMembershipService.readSnapshot`）改由项目库主人一条语句读出成员、隐藏项与最近一次成员增删事件（`modules/projects/src/project-records-repository.ts` 的 `pluginMembershipFacts`），不再另查 `project_events`；常开、个人插件的列表与隐藏规则和不带版本的读取共用同一套，revision 计算口径不变，加了又删回原样仍按事件检出。见 `tests/project-plugin-membership-revision.test.ts` 以这个编号开头的用例与 `tests/project-plugin-membership-http.test.ts` |
 | BL-015、BL-1048、BL-b16-capsule-native-verification | 随胶囊删除，并入 BL-capsule-redo | 第 44 批第 7 项（2026-11-17）删掉桌面工作胶囊（PEQ-13）；仍成立的要求由 [BL-capsule-redo](../specs/backlog/BL-capsule-redo.md) 承接 |

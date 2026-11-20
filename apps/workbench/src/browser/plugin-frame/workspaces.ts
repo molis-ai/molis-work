@@ -86,6 +86,7 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
         // Adding a folder asks only about its path, so it carries no revision (JSON leaves the undefined field out).
         body: { operation: message.operation, value: message.value, expected_revision: revision },
         headers: { "x-molis-context-page": pageId }, scope, signal: visible.signal, fallback: uiText.text("common.workspaces.unable-link-workspace"),
+      // This route writes only `projects.directories.*`, whose one conflict is a revision changed since the read.
       }).catch((error: { code?: string; message: string }) => {
         if (error?.code === "actions.conflict") error.message = uiText.text("common.workspaces.folders-changed-elsewhere");
         throw error;

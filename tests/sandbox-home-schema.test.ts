@@ -176,3 +176,18 @@ test("RAC2867 an existing owner never replays DDL into a missing or empty busine
   assert.equal(existsSync(file), false, "the missing recorded file was not recreated");
   assert.deepEqual(installedLibrarySnapshots(directory, homeStores()), before);
 });
+
+test("SQLD-02 BL-home-library-second-statement a sandboxed plugin's library in the Home (services.database_statements) takes one statement per call: two are refused and neither runs, a tail of white space and comments is fine", async t => {
+  const directory = home(t), library = await open(directory), signal = new AbortController().signal, TWO = /more than one statement/u;
+  t.after(() => library.close());
+  const write = (...sql: string[]) => library.statements.transaction(async () => {}, sql.map(text => ({ sql: text, parameters: [] })), signal);
+  await write("INSERT INTO own_rows (text) VALUES ('kept')");
+  await assert.rejects(write("INSERT INTO own_rows (text) VALUES ('first'); DELETE FROM own_rows"), TWO);
+  await assert.rejects(write("INSERT INTO own_rows (text) VALUES ('earlier')", "INSERT INTO own_rows (text) VALUES ('first');\n-- then\nDELETE FROM own_rows"), TWO);
+  await assert.rejects(library.statements.all("SELECT text FROM own_rows; DELETE FROM own_rows", [], { rows: 10, bytes: 1000 }, signal), TWO);
+  await assert.rejects(library.statements.get("SELECT text FROM own_rows; DELETE FROM own_rows", [], { bytes: 1000 }, signal), TWO);
+  await write("INSERT INTO own_rows (text) VALUES ('one');\n-- 尾注", "INSERT INTO own_rows (text) VALUES ('a;b') /* 不是; 两句 */;");
+  assert.deepEqual(await library.statements.all("SELECT text FROM own_rows ORDER BY id; ", [], { rows: 10, bytes: 1000 }, signal), [{ text: "kept" }, { text: "one" }, { text: "a;b" }]);
+  const db = new DatabaseSync(homeSqlitePath(directory, declaration.store_name), { readOnly: true });
+  try { assert.deepEqual(db.prepare("SELECT text FROM own_rows ORDER BY id").all().map(row => row.text), ["kept", "one", "a;b"]); } finally { db.close(); }
+});

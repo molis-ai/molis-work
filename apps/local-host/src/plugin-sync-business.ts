@@ -16,8 +16,6 @@ export function pluginSyncBusinessDatabase(db: PluginDatabaseConnection, inTrans
     authorize();
     if (!inTransaction()) throw new ActionError('actions.forbidden', '同步业务写入必须处于宿主当前事务');
     assertWriteStatement(sql);
-    const masked = sql.replace(/'(?:''|[^'])*'|"(?:""|[^"])*"|`(?:``|[^`])*`|\[[^\]]*\]|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\//gu, '');
-    if (masked.trim().replace(/;$/u, '').includes(';')) throw new ActionError('actions.forbidden', '同步业务写入每次只能包含一条语句');
     guard(sql, parameters, 'write');
     const run = () => db.prepare(sql).run(...parameters) as {changes: number | bigint};
     const result = perform ? perform(sql, parameters, 'write', run) : run(); authorize(); return result;

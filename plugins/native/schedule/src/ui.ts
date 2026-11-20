@@ -164,7 +164,8 @@ function renderReadsSection(task: ScheduleConversationTaskView, routePrefix: str
 function renderTaskRow(task: ScheduleConversationTaskView, p: ScheduleUiPrimitives): string {
   const status = task.unread ? uiText.text("schedule.status.updated") : task.enabled ? uiText.text("schedule.status.enabled") : uiText.text("schedule.status.paused");
   const tone = task.unread ? "attention" : task.enabled ? "progress" : "quiet";
-  const next = task.next_due_at ? `${uiText.text("schedule.label.next")} ${p.escape(p.formatDate(task.next_due_at))}` : uiText.text("schedule.label.not-scheduled");
+  // A task that is off has no next round, whatever time its last wakeup was set for (a one-off task that ran, a paused one).
+  const next = task.enabled && task.next_due_at ? `${uiText.text("schedule.label.next")} ${p.escape(p.formatDate(task.next_due_at))}` : uiText.text("schedule.label.not-scheduled");
   return `<article class="inbox-stage-item feed-stage-item" data-schedule-item-wrap="${p.escape(task.task_id)}">
     <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="task" data-schedule-task-id="${p.escape(task.task_id)}" data-schedule-enabled="${task.enabled ? "true" : "false"}">
       <span class="feed-stage-leading">${renderKindMark(p)}<strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
@@ -181,7 +182,8 @@ function renderTaskDetail(task: ScheduleConversationTaskView, routePrefix: strin
   const toggle = enabled
     ? `<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-enabled-action="false" data-schedule-task-id="${p.escape(task.task_id)}">${uiText("schedule.action.pause")}</button>`
     : `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-task-enabled-action="true" data-schedule-task-id="${p.escape(task.task_id)}">${uiText("schedule.action.resume")}</button>`;
-  const next = task.next_due_at ? p.formatDate(task.next_due_at) : uiText.text("schedule.label.not-scheduled");
+  // A task that is off has no next round, whatever time its last wakeup was set for (a one-off task that ran, a paused one).
+  const next = enabled && task.next_due_at ? `${uiText.text("schedule.label.next")} ${p.escape(p.formatDate(task.next_due_at))}` : uiText.text("schedule.label.not-scheduled");
   const turns = task.turns.map((turn) => {
     const who = turn.kind === "assistant" ? uiText.text("schedule.turn.assistant") : turn.kind === "system" ? uiText.text("schedule.turn.system") : uiText.text("schedule.turn.instructions");
     const important = turn.important ? `<span class="mw-status mw-status--attention mw-status--plain">${uiText("schedule.turn.important")}</span>` : "";
@@ -190,7 +192,7 @@ function renderTaskDetail(task: ScheduleConversationTaskView, routePrefix: strin
   return `<article class="feed-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText("schedule.action.back")}" title="${uiText("schedule.action.back")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${(task.repeat === "none" ? uiText("schedule.label.once") : uiText("schedule.label.daily-at", { time: task.clock_label }))}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span><span class="mw-status mw-status--attention" data-mw-state="approval" data-schedule-detail-reconfirm hidden>${uiText("schedule.status.reconfirm")}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${uiText("schedule.action.edit")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${uiText("schedule.action.archive")}</button></header>
     <textarea data-schedule-task-instructions hidden>${p.escape(task.instructions)}</textarea><input data-schedule-task-time type="hidden" value="${p.escape(task.clock_label)}"${task.repeat === "none" ? " data-schedule-task-once" : ""}><input data-schedule-task-notify type="hidden" value="${task.notify_important ? "true" : "false"}">
-    <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${uiText("schedule.label.next")} ${p.escape(next)}</p></header>
+    <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${next}</p></header>
     <div class="schedule-thread" data-schedule-thread>${renderReadsSection(task, routePrefix, p)}${turns}</div>
     <p class="feed-action-status" data-schedule-action-status role="status" hidden></p>
   </article>`;

@@ -56,7 +56,7 @@
     "schedule.label.every-seconds": "Every {seconds}s",
     "schedule.label.last": "Last",
     "schedule.label.next": "Next",
-    "schedule.label.not-scheduled": "Not scheduled yet",
+    "schedule.label.not-scheduled": "Not scheduled",
     "schedule.label.once": "Once",
     "schedule.list.empty-body": "Schedule a time and AI will check and report back here automatically (read-only). Reminders created by other features also appear here.",
     "schedule.list.empty-title": "No scheduled tasks yet",

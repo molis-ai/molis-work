@@ -116,6 +116,36 @@ test("RISK-07 editing a one-off task without saying how it repeats keeps it one-
   } finally { h.db.close(); }
 });
 
+test("96-1 editing a task reads that one task by its id, never the list; a repeat left out is kept; another project's id edits nothing", async () => {
+  const here = harness(async () => ({ text: "IMPORTANT: no\n好", important: false }));
+  const there = harness(async () => ({ text: "IMPORTANT: no\n好", important: false }));
+  try {
+    const at = inAnHour();
+    const { task: once } = await here.actions.invoke(scheduleActions.createTask, { title: "复查", instructions: "看", repeat: "none", at });
+    await here.actions.invoke(scheduleActions.createTask, { title: "晨报", instructions: "收", time: "08:00" });
+    await here.actions.invoke(scheduleActions.createTask, { title: "晚报", instructions: "收", time: "20:00" });
+    const { task: elsewhere } = await there.actions.invoke(scheduleActions.createTask, { title: "别处", instructions: "看", time: "09:00" });
+    // Spies on the one project's task owner: which reads an edit makes, and every statement it sends to the database.
+    const reads: string[] = [], statements: string[] = [];
+    const ports = { ...here.ports,
+      listTasks: (...args: Parameters<typeof here.ports.listTasks>) => { reads.push("list"); return here.ports.listTasks(...args); },
+      getTask: (taskId: string) => { reads.push("get:" + taskId); return here.ports.getTask(taskId); } };
+    const prepare = here.db.prepare.bind(here.db);
+    here.db.prepare = ((sql: string) => { statements.push(sql); return prepare(sql); }) as typeof here.db.prepare;
+    const actions = directScheduleActions(ports, "here");
+    const edited = await actions.invoke(scheduleActions.updateTask, { task_id: once.task_id, title: "复查供应商", instructions: "看", time: once.clock_label });
+    assert.deepEqual(reads, ["get:" + once.task_id], "the edit reads only the task it changes");
+    assert.ok(!statements.some(sql => /FROM schedule_conversation_tasks WHERE archived = 0/.test(sql)), "no statement lists the project's tasks");
+    assert.deepEqual([edited.task.repeat, edited.task.run_at], ["none", new Date(at).toISOString()], "the one-off rule the page left out is kept");
+    // Another project's task id is not one of this project's tasks: it is not found, and that task is as it was.
+    await assert.rejects(actions.invoke(scheduleActions.updateTask, { task_id: elsewhere.task_id, title: "改", instructions: "改", time: "10:00" }), { code: "schedule.task_not_found" });
+    assert.deepEqual(there.ports.getTask(elsewhere.task_id)?.title, "别处");
+    // An archived task reads as gone before its fields are checked: a blank title would otherwise be the answer.
+    await actions.invoke(scheduleActions.archiveTask, { task_id: once.task_id });
+    await assert.rejects(actions.invoke(scheduleActions.updateTask, { task_id: once.task_id, title: " ", instructions: "看" }), { code: "schedule.task_not_found" });
+  } finally { here.db.close(); there.db.close(); }
+});
+
 test("RISK-07 a one-off time is checked as a reminder's: with a time zone, not past, within a year; a daily task still needs its clock", async () => {
   const h = harness(async () => ({ text: "", important: false }));
   try {

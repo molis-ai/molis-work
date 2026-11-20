@@ -2,7 +2,7 @@
 
 任务刚失败，用户不用整页刷新，就能在当前详情里看到哪次失败、为什么失败。
 
-预计 **4–8 工时**。维护范围为E／Schedule 页面。正式交付项为 [96-2](../../batches/96.md#batch-96-item-2)。[原始待办](../../../../backlog/BL-schedule-detail-refresh-after-failed-round.md) · [派工总表](../README.md)
+预计 **4–8 工时**。维护范围为E／Schedule 页面。正式交付项为 [96-2](../../batches/96.md#batch-96-item-2)。[原始待办](https://github.com/molis-ai/molis-work/blob/6d22d58ae1a41215fe6723c15510d57b981b0200/specs/backlog/BL-schedule-detail-refresh-after-failed-round.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

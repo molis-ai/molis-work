@@ -56,7 +56,7 @@
     "schedule.label.every-seconds": "每隔 {seconds} 秒",
     "schedule.label.last": "上次",
     "schedule.label.next": "下次",
-    "schedule.label.not-scheduled": "尚未排期",
+    "schedule.label.not-scheduled": "未排期",
     "schedule.label.once": "单次",
     "schedule.list.empty-body": "设定时间后，AI 到点会自动帮你查看并在这里汇报（只读、不改文件）。其他功能添加的定时提醒也会汇总在这里。",
     "schedule.list.empty-title": "还没有定时任务",

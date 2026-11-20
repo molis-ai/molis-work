@@ -39,7 +39,7 @@ ${SHELL}:is(body,.mw-catalog-bar-stage){--dock-min:98px;--foot-input:640px}
 @media (max-width:1279px){${SHELL}:is(body,.mw-catalog-bar-stage){--foot-input:480px}}
 .work-line{min-width:0}
 .work-line-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) min(var(--foot-input),100%) minmax(0,1fr);grid-template-rows:var(--foot-rest,auto);align-items:end;column-gap:12px;min-width:0;min-height:98px;padding:12px 0;box-sizing:border-box}
-.work-line-slot{grid-column:2;grid-row:1;position:relative;min-width:0}
+.work-line-slot{grid-column:2;grid-row:1;position:relative;min-width:0;anchor-scope:--work-text}
 /* The input at rest is two rows filling its 74px block (13th version): the words across the top, wrapping before the three
    counts in its top right; ＋, who it goes to, the scene controls, the microphone and send below. Writing grows it upwards in the
    composer's own rows. The doubled class outranks the bar's one-row rest (craft-finish-bar.ts) without touching it. */
@@ -59,8 +59,8 @@ ${REST_COMPOSER}{
   &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden])){display:block}
   &:has(>.mw-composer[data-rest]~.assistant-attention:not([hidden]))>.mw-composer[data-rest]>.mw-composer__box{grid-template-columns:auto minmax(44px,max-content) minmax(72px,1fr) auto auto}
 }
-/* The words stop before the counts: the room is the text's column, so the input itself never lies under them. */
-${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px)}
+/* The words stop before the counts; anchoring the counts to the text row keeps notices and files uncovered. */
+${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room,176px);anchor-name:--work-text}
 /* The account bar: who you are (sync is a dot on the avatar), then 通知, 插件 and 设置 as round keys; no ink-blue solid here. */
 .bar-account{grid-column:1;grid-row:1;justify-self:end;display:flex;align-items:center;gap:8px;width:100%;max-width:400px;height:74px;min-width:0;box-sizing:border-box;padding:0 14px 0 10px;border-radius:20px;background:color-mix(in srgb,var(--popover) 62%,var(--desk));box-shadow:0 0 0 1px var(--line)}
 .bar-account-me{flex:1 1 auto;display:flex;align-items:center;gap:11px;min-width:0;height:54px;padding:0 12px 0 6px;border:0;border-radius:14px;background:none;color:var(--ink);font:inherit;text-align:start;cursor:pointer;transition:background-color ${HOVER}}
@@ -84,7 +84,8 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 /* 办完, 在办, 接下来 inside the input's top right while the dialog is closed (POLISH-67, POLISH-74), then a hairline and the dialog's own row. */
 /* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
    chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
-.work-counts{position:absolute;z-index:3;top:6px;right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+.work-counts{position:absolute;position-anchor:--work-text;z-index:3;top:calc(anchor(top,6px) + var(--counts-top,0px));right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
+.work-line-slot:has(.mw-composer:not([data-rest])){--counts-top:6px}
 .work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:7px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
 .work-count[data-zero]{color:var(--faint)}
@@ -149,7 +150,8 @@ button.work-stack-more:hover{background:var(--amber-soft)}
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
   .work-stack,.work-stack-card{height:auto;min-height:74px}
   .work-stack-card{padding:6px 12px 6px 14px}
-  .work-counts{top:4px;height:44px}
+  .work-counts{top:calc(anchor(top,4px) + var(--counts-top,0px));height:44px}
+  .work-line-slot:has(.mw-composer:not([data-rest])){--counts-top:4px}
   .work-counts>.work-reply-mini{height:44px}
   .work-counts>.work-reply-mini::before{top:12px;bottom:12px}
   .work-counts>.work-reply-mini :is(.work-task-mark,.mw-btn.mw-btn--icon-only){height:44px;min-height:44px;min-width:44px}

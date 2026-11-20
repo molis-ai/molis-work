@@ -109,6 +109,8 @@ export interface ScheduleActionPorts {
   listOperations?(): ScheduledOperationView[];
   recoverOperation?(input: RecoverScheduledOperationInput): ScheduledOperationView;
   listTasks(subject?: ScheduleTaskSubject): readonly ScheduleConversationTaskView[];
+  /** One task of this project by its id, or null when it is not here or is archived: a read of that one task, not of the list. */
+  getTask(taskId: string): ScheduleConversationTaskView | null;
   /** What each task may read beyond project files, from the platform's one list; a Host that cannot say leaves it out. */
   taskReads?(): Promise<ScheduleTaskReads[]>;
   /** Whether the Host can run a due task right now; a Host that cannot say leaves it out. */
@@ -190,7 +192,11 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       return ports.readiness();
     }),
     bind(scheduleActions.createTask, input => ({ task: ports.createTask(editable(input)) })),
-    bind(scheduleActions.updateTask, input => ({ task: ports.updateTask(input.task_id, editable(input, ports.listTasks().find(task => task.task_id === input.task_id))) })),
+    bind(scheduleActions.updateTask, input => {
+      const current = ports.getTask(input.task_id);
+      if (!current) throw scheduleErrors.task_not_found("定时任务不存在");
+      return { task: ports.updateTask(input.task_id, editable(input, current)) };
+    }),
     bind(scheduleActions.archiveTask, input => { ports.archiveTask(input.task_id); return { archived: true as const }; },
       async input => { await ports.archived?.(input.task_id); }),
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),

@@ -2,7 +2,7 @@
 
 改一个任务现在会先列出所有任务再找它。直接按编号查，任务多时也不用连带读一整份清单。
 
-预计 **2–4 工时**。维护范围为C／Schedule 服务。正式交付项为 [96-1](../../batches/96.md#batch-96-item-1)。[原始待办](../../../../backlog/BL-schedule-update-task-lookup.md) · [派工总表](../README.md)
+预计 **2–4 工时**。维护范围为C／Schedule 服务。正式交付项为 [96-1](../../batches/96.md#batch-96-item-1)。[原始待办](https://github.com/molis-ai/molis-work/blob/6d22d58ae1a41215fe6723c15510d57b981b0200/specs/backlog/BL-schedule-update-task-lookup.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

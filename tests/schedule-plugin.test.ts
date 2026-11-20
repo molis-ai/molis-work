@@ -177,6 +177,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
         return next;
       },
       listTasks: () => [],
+      getTask: () => null,
       recoverReminder: unused,
       createTask: unused,
       updateTask: unused,
@@ -211,7 +212,7 @@ test("读一条定时任务：先说每天几点跑、是否已停用，再是�
   const task: ScheduleConversationTaskView = { task_id: "sct-1", title: "每天早上汇总 Inbox 未读", instructions: "把未读按来源归类", hour: 9, minute: 0,
     notify_important: true, enabled: false, archived: false, unread: false, job_id: null, last_run_at: null, last_error: null,
     created_at: "2026-09-29T00:00:00.000Z", updated_at: "2026-09-29T00:00:00.000Z", turns: [], clock_label: "09:00", next_due_at: null };
-  const handlers = createScheduleActionHandlers("schedule-project", { listJobs: () => [], setEnabled: unused, listTasks: () => [task], recoverReminder: unused,
+  const handlers = createScheduleActionHandlers("schedule-project", { listJobs: () => [], setEnabled: unused, listTasks: () => [task], getTask: unused, recoverReminder: unused,
     createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const read = handlers.find(row => row.capability_id === "schedule.subject.read");
   assert.ok(read);

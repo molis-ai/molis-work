@@ -323,7 +323,7 @@ const pluginContext = (overrides: Partial<ActionExecutionContext> = {}): ActionE
   userContext({ actor_id: `plugin:${SCHEDULE_PLUGIN}`, audience: "plugin", plugin_install_id: "install-1", ...overrides });
 const notUsed = (): never => { throw new Error("this port is not used by the test"); };
 const schedulePorts = (overrides: Partial<schedulePlugin.ScheduleActionPorts>): schedulePlugin.ScheduleActionPorts => ({
-  listJobs: notUsed, setEnabled: notUsed, recoverReminder: notUsed, listTasks: notUsed, createTask: notUsed, updateTask: notUsed, archiveTask: notUsed, setTaskEnabled: notUsed, openTask: notUsed,
+  listJobs: notUsed, setEnabled: notUsed, recoverReminder: notUsed, listTasks: notUsed, getTask: notUsed, createTask: notUsed, updateTask: notUsed, archiveTask: notUsed, setTaskEnabled: notUsed, openTask: notUsed,
   ...overrides,
 });
 const bindingOf = (handlers: readonly ActionHandlerBinding[], definition: { capability_id: string; version: number }): ActionHandlerBinding => {

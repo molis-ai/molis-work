@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-375 | 已完成并删除 | 第 98 批（2026-11-19）：几个插件可以声明同一种过程项类型，每份记着平台写下的生产插件；接收方 `services.artifacts.listConsumable()` 取全部有权读取的，或按 `producer_plugin_id`、`artifact_type_id` 只取某一家、某一类；成果类型仍按 S-82 一个属主。开工前检查、合同与验收 BL375-01～07 见 [98.md](../specs/post-anticorruption-roadmap/reference/batches/98.md#batch-98-item-1-check) |
 | BL-feed-sql-driver-name、BL-feed-run-now-missed-again、BL-missed-runs-never-expire | 已完成并删除 | 第 95 批（2026-11-18）：Feed 连接工厂改名 `fromProjectConnection`；「现在做」把来源放回错过的那一刻并在错过记录上留决定，睡眠或重启后照做一次、不再问；Feed、定时任务、助理跟进错过的事都从 `due_at` 起留七天，到期没处理的自动跳过（一次性提醒与任务一并结束），运行面板与首页汇总一次，「知道了」记在 `run/expired-seen.json`；见 [95.md](../specs/post-anticorruption-roadmap/reference/batches/95.md) |
 | BL-schedule-update-task-lookup | 已完成并删除 | 第 96 批 96-1（2026-11-19）：`schedule.tasks.update@1` 按编号只读这一项（Schedule 端口 `getTask`），没写重复规则时保留原规则，别的项目、已归档的编号答「定时任务不存在」；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |
 | BL-schedule-detail-refresh-after-failed-round | 已完成并删除 | 第 96 批 96-2（2026-11-19）：一轮写回与后台停下任务、改下次时间时 Schedule 调 `services.ui.invalidate()`，开着的详情经 `scope.watchRevision` 就地显示刚没跑成的一轮和原因，重读期间保留用户的新选择；余项 BL-schedule-view-refresh-followups；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |

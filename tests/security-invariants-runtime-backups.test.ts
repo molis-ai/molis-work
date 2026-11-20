@@ -37,6 +37,18 @@ test("RAC-104: a real Runtime integration retains only a sealed reference and re
   assert.equal((await stat(restored)).mode & 0o777, 0o640);
 });
 
+test("RAC-104 BL-tests-umask: connecting rewrites the user's configuration with its original permissions under a restrictive umask", async t => {
+  const f = await runtimeBackupFixture(t), umask = process.umask(0o077);
+  try {
+    const runtime = f.service(), plan = await runtime.prepare("codex", "connect");
+    const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
+    assert.equal(result.status, "connected", result.message);
+    assert.notEqual(await readFile(f.config, "utf8"), f.contents, "the configuration was actually rewritten");
+    assert.equal((await stat(f.config)).mode & 0o777, 0o640);
+    assert.deepEqual(await reader()(f.home, "codex", plan.plan_id), { contents: f.contents, mode: 0o640 });
+  } finally { process.umask(umask); }
+});
+
 test("S-12 RAC-104: an existing empty Runtime configuration survives restart without poisoning other secrets or later backups", async t => {
   const f = await runtimeBackupFixture(t), key = join(f.home, "feed", "secrets.key"), vault = join(f.home, "feed", "secrets.json");
   await writeFile(f.config, "");

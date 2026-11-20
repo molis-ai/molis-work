@@ -28,6 +28,15 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=coding` }, b.sessionId));
   await frame.click("[data-coding-new]"); await b.waitFor(CODING_OPEN);
   const retry = "[data-coding-env-checklist] [data-coding-env-action=retry]";
+  const restoreEnvironment = async (baseline: string) => {
+    await writeFile(template, "LOCAL_URL=\n");
+    // Periodic refresh can remove Retry after the file is fixed. Look it up and activate it in the same DOM turn.
+    await frame.evaluate(`(() => {
+      const button = document.querySelector(${JSON.stringify(retry)});
+      if (button && !button.disabled && button.getClientRects().length) button.click();
+    })()`);
+    await frame.waitFor(`document.querySelector(${JSON.stringify(baseline)})`);
+  };
   await frame.waitFor(`document.querySelector(${JSON.stringify(retry)})`);
   await b.evaluate(codingType("保留我的任务草稿"));
   const draft = () => b.evaluate<string>(`document.querySelector(${JSON.stringify(CODING_BOX)}).value`);
@@ -37,8 +46,7 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
   assert.equal(await frame.evaluate("document.querySelectorAll('[data-coding-env-checklist]').length"), 1);
   assert.equal(await frame.evaluate("document.querySelector('[data-coding-env-checklist]').textContent.includes('全部就绪')"), false);
   assert.equal(await frame.evaluate("document.body.textContent.includes('private-fixture-value')"), false);
-  await writeFile(template, "LOCAL_URL=\n"); await frame.click(retry);
-  await frame.waitFor("document.querySelector('[data-coding-env-action=run-baseline]')");
+  await restoreEnvironment("[data-coding-env-action=run-baseline]");
   assert.equal(await draft(), "保留我的任务草稿"); assert.equal(model.requests.length, 0);
   for (const [id, value] of [["model", JSON.stringify(["fixture", "fixture-model"])], ["intent", "discuss"]]) {
     await b.evaluate(`{ const node = document.querySelector(${JSON.stringify(codingControl(id!))}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); }`);
@@ -65,7 +73,6 @@ test("QEA-54/QEA-55 · new and ended Coding sessions show unreadable environment
     await frame.evaluate(`document.querySelector(${JSON.stringify(retry)}).scrollIntoView({ block: 'center' })`);
     await writeFile(new URL(`environment-unavailable-${theme}-${width}.png`, evidence), Buffer.from((await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId)).data, "base64"));
   }
-  await writeFile(template, "LOCAL_URL=\n"); await frame.click(retry);
-  await frame.waitFor("document.querySelector('[data-run] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]')");
+  await restoreEnvironment("[data-run] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]");
   assert.equal(await draft(), "下一轮仍要保留"); assert.equal(model.requests.length, calls);
 });

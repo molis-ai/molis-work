@@ -33,7 +33,7 @@ const SHEET = `
 @keyframes top-strip-shown{to{visibility:visible}}
 
 ${TOP}{
-  position:relative;gap:2px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:28px;--ear-rest:28px;--ear-rise:36px;--ear-foot:calc((var(--desktop-titlebar-height,44px) - var(--ear-rest))/2);
+  position:relative;z-index:46;gap:2px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:28px;--ear-rest:28px;--ear-rise:36px;--ear-foot:calc((var(--desktop-titlebar-height,44px) - var(--ear-rest))/2);
   /* 项目首页's glyph is drawn by the page's script after the first paint: hold unseen until drawn so the strip does not jump (VUX-31). */
   &:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:top-strip-shown 0s forwards;animation-delay:3s}
 

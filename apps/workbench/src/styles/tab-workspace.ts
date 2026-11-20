@@ -56,11 +56,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--paper); }
   body.immersive-workbench .tab-pane-body > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
-  body.immersive-workbench .tab-pane-body > .feed-workbench { background: var(--canvas); }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }
-  body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
-  body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty svg { width: 20px; height: 20px; color: var(--faint); stroke-width: 1.6; }
-  body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty h1 { margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: 0; }
   body.immersive-workbench .tab-pane-empty-hint, body.immersive-workbench .tab-pane-mirror { margin: 0; padding: 12px 8px 12px; color: var(--muted); font-size: 12px; }
   body.immersive-workbench .tab-drop-edges { display: none; position: absolute; inset: 0; pointer-events: none; }
   body.immersive-workbench .tab-workspace.is-tab-dragging .tab-drop-edges { display: block; }

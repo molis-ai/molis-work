@@ -12,7 +12,7 @@ export const GOALS_MOMENTUM_STYLES = `
     align-content: start;
   }
   .goal-momentum[hidden] { display: none; }
-  .graph-zoom {
+  .goal-momentum .graph-zoom {
     min-height: 28px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -21,15 +21,15 @@ export const GOALS_MOMENTUM_STYLES = `
     align-items: center;
     overflow: hidden;
   }
-  .graph-zoom button { width: 27px; height: 27px; padding: 0; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); display: grid; place-items: center; font: 650 11px/1 var(--font); cursor: pointer; }
-  .graph-zoom button:first-child { border-left: 0; }
-  .graph-zoom button:hover { color: var(--ink); background: var(--nav-hover); }
-  .graph-zoom button:disabled { opacity: .35; cursor: default; }
-  .graph-zoom button svg { width: 12px; height: 12px; }
-  .graph-zoom output { width: 39px; color: var(--muted); text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .graph-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-  #momentum-arrow path { fill: var(--line-strong); }
-  #momentum-arrow-selected path { fill: var(--blue); }
+  .goal-momentum .graph-zoom button { width: 27px; height: 27px; padding: 0; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); display: grid; place-items: center; font: 650 11px/1 var(--font); cursor: pointer; }
+  .goal-momentum .graph-zoom button:first-child { border-left: 0; }
+  .goal-momentum .graph-zoom button:hover { color: var(--ink); background: var(--nav-hover); }
+  .goal-momentum .graph-zoom button:disabled { opacity: .35; cursor: default; }
+  .goal-momentum .graph-zoom button svg { width: 12px; height: 12px; }
+  .goal-momentum .graph-zoom output { width: 39px; color: var(--muted); text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .goal-momentum .graph-viewport { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  .goal-momentum #momentum-arrow path { fill: var(--line-strong); }
+  .goal-momentum #momentum-arrow-selected path { fill: var(--blue); }
 
   .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goals"] > [data-goal-view] {
     --busy-dim: 0; pointer-events: none; animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both;
@@ -126,7 +126,7 @@ export const GOALS_MOMENTUM_STYLES = `
   .goal-focus-context dl > div { min-height: 37px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(92px, 31%) minmax(0, 1fr); align-items: center; gap: 16px; }
   .goal-focus-context dt { color: var(--muted); font-size: 11px; }
   .goal-focus-context dd { margin: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 11px; }
-  .companion-runtime { display: none; }
+  .goal-document .companion-runtime { display: none; }
   .goal-purpose > section { padding: 12px 0; border-color: var(--line); }
 
   @media (min-width: 1181px) and (max-width: 1320px) {
@@ -141,62 +141,61 @@ export const GOALS_MOMENTUM_STYLES = `
   html[data-resolved-theme="dark"] .goal-document { background: var(--paper); color: var(--ink); }
   html[data-resolved-theme="dark"] .goal-now-body p,
   html[data-resolved-theme="dark"] .goal-purpose p,
-  html[data-resolved-theme="dark"] .business-copy,
-  html[data-resolved-theme="dark"] .trash-summary,
-  html[data-resolved-theme="dark"] .trash-restore-row,
-  html[data-resolved-theme="dark"] .relation-copy .relation-path,
-  html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
+  html[data-resolved-theme="dark"] .goal-document .business-copy,
+  html[data-resolved-theme="dark"] .goal-document .trash-summary,
+  html[data-resolved-theme="dark"] .goal-document .trash-restore-row,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-copy .relation-path,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-authority small { color: var(--ink-soft); }
   html[data-resolved-theme="dark"] .goal-meta,
-  html[data-resolved-theme="dark"] .decision-record,
-  html[data-resolved-theme="dark"] .decision-results,
-  html[data-resolved-theme="dark"] .decision-actions button:not(.mw-btn--primary) {
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision.decision-record,
+  html[data-resolved-theme="dark"] [data-goal-view] .decision-results,
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-actions button:not(.mw-btn--primary) {
     border-color: var(--line-strong);
     background: color-mix(in srgb, var(--paper) 86%, var(--rail));
     color: var(--ink);
   }
-  html[data-resolved-theme="dark"] .decision-record-heading,
-  html[data-resolved-theme="dark"] .decision-details > summary,
-  html[data-resolved-theme="dark"] .decision-reason,
-  html[data-resolved-theme="dark"] .decision-record > footer.decision-actions,
-  html[data-resolved-theme="dark"] .decision-results > header {
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-record-heading,
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-details > summary,
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-reason,
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision.decision-record > footer.decision-actions,
+  html[data-resolved-theme="dark"] [data-goal-view] .decision-results > header {
     border-color: var(--line);
     background: color-mix(in srgb, var(--rail) 76%, var(--paper));
     color: var(--ink);
   }
-  html[data-resolved-theme="dark"] .decision-guidance {
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-guidance {
     border-color: var(--line-strong);
     background: color-mix(in srgb, var(--paper) 88%, var(--rail));
   }
-  html[data-resolved-theme="dark"] .decision-guidance > section { border-color: var(--line); }
-  html[data-resolved-theme="dark"] .decision-recommendation.has-recommendation {
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-guidance > section { border-color: var(--line); }
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-recommendation.has-recommendation {
     background: color-mix(in srgb, var(--green-soft) 72%, var(--paper));
   }
-  html[data-resolved-theme="dark"] .decision-details > summary,
-  html[data-resolved-theme="dark"] .decision-kind,
-  html[data-resolved-theme="dark"] .risk-decision > footer.decision-actions a { color: var(--blue-dark); }
-  html[data-resolved-theme="dark"] .decision-actions button:disabled {
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-details > summary,
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-kind { color: var(--blue-dark); }
+  html[data-resolved-theme="dark"] .goal-tree-proposal-decision .decision-actions button:disabled {
     border-color: var(--line) !important;
     background: var(--page) !important;
     color: var(--faint) !important;
   }
-  html[data-resolved-theme="dark"] .graph-toolbar,
-  html[data-resolved-theme="dark"] .graph-legend { background: var(--rail); }
-  html[data-resolved-theme="dark"] .graph-relation-toggles button,
+  html[data-resolved-theme="dark"] .goal-momentum .graph-toolbar,
+  html[data-resolved-theme="dark"] .goal-momentum .graph-legend { background: var(--rail); }
+  html[data-resolved-theme="dark"] .goal-momentum .graph-relation-toggles button,
   html[data-resolved-theme="dark"] .goal-factor-nav,
-  html[data-resolved-theme="dark"] .relation-direction-control > div,
-  html[data-resolved-theme="dark"] .relation-editor,
-  html[data-resolved-theme="dark"] .relation-inactive-history,
-  html[data-resolved-theme="dark"] .factor-advanced { border-color: var(--line-strong); background: var(--rail); }
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-direction-control > div,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-editor,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-inactive-history,
+  html[data-resolved-theme="dark"] [data-goal-view] .factor-advanced { border-color: var(--line-strong); background: var(--rail); }
   html[data-resolved-theme="dark"] .goal-factor-nav button { border-color: var(--line); background: transparent; color: var(--muted); }
   html[data-resolved-theme="dark"] .goal-factor-nav button:hover,
   html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] { background: var(--nav-active); color: var(--ink); box-shadow: none; }
   html[data-resolved-theme="dark"] .goal-factor-nav button small { background: var(--line); color: var(--muted); }
   html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--nav-hover); color: var(--ink); }
-  html[data-resolved-theme="dark"] .relation-group > header,
-  html[data-resolved-theme="dark"] .relation-actions { background: var(--rail); }
-  html[data-resolved-theme="dark"] .relation-kind { background: var(--line); color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] .relation-authority,
-  html[data-resolved-theme="dark"] .relation-live-preview { border-color: color-mix(in srgb, var(--blue), var(--line) 68%); background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper)); }
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-group > header,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-actions { background: var(--rail); }
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-kind { background: var(--line); color: var(--ink-soft); }
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-authority,
+  html[data-resolved-theme="dark"] [data-goal-view] .relation-live-preview { border-color: color-mix(in srgb, var(--blue), var(--line) 68%); background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper)); }
 
   .goal-title-heading { min-width: 0; display: flex; align-items: center; gap: 8px; }
   .goal-title-status--narrow { display: none; }
@@ -226,21 +225,21 @@ export const GOALS_MOMENTUM_STYLES = `
   }
 
   @media (min-width: 761px) {
-    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .graph-direction-note { display: none; }
+    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .goal-momentum .graph-direction-note { display: none; }
     .workspace > .goal-momentum { grid-column: 3; grid-row: 2; min-width: 0; min-height: 0; }
     .workspace[data-workspace-mode="focus"] > .goal-momentum,
     .workspace[data-workspace-mode="runtime"] > .goal-momentum { display: none !important; }
     .workspace[data-workspace-mode="graph"] > .goal-momentum { display: grid; grid-row: 1 / -1; }
-    body[data-desktop-shell="true"] .workspace[data-workspace-mode="graph"] .graph-toolbar-copy { display: none; }
+    body[data-desktop-shell="true"] .workspace[data-workspace-mode="graph"] .goal-momentum .graph-toolbar-copy { display: none; }
     .tree-pane[data-navigator-view="graph"] .goal-list-view { display: block; }
-    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .graph-direction-note { display: flex; }
+    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .goal-momentum .graph-direction-note { display: flex; }
   }
 
   @media (max-width: 760px) {
     .workspace > .goal-momentum { grid-column: 1; grid-row: 1; }
     .goal-momentum { padding: 12px; gap: 12px; }
-    .graph-zoom button { width: 44px; height: 44px; }
-    .graph-zoom output { width: 44px; }
+    .goal-momentum .graph-zoom button { width: 44px; height: 44px; }
+    .goal-momentum .graph-zoom output { width: 44px; }
     body[data-desktop-shell="true"] .goal-document { padding: 16px 16px 32px; }
     body[data-desktop-shell="true"] .goal-header { padding-bottom: 16px; }
     body[data-desktop-shell="true"] .goal-title-row { display: flex; align-items: flex-start; gap: 12px; }
@@ -258,7 +257,7 @@ export const GOALS_MOMENTUM_STYLES = `
     body[data-desktop-shell="true"] .goal-now-body > div > strong { font-size: 15px; }
     body[data-desktop-shell="true"] .goal-now-body p { margin-top: 4px; }
     body[data-desktop-shell="true"] .goal-now-blockers { margin-top: 12px; padding-top: 12px; }
-    body[data-desktop-shell="true"] .companion-runtime {
+    body[data-desktop-shell="true"] .goal-document .companion-runtime {
       margin-top: 16px;
       padding: 16px;
       border: 1px solid var(--line);
@@ -267,25 +266,25 @@ export const GOALS_MOMENTUM_STYLES = `
       display: grid;
       gap: 12px;
     }
-    body[data-desktop-shell="true"] .companion-runtime > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    body[data-desktop-shell="true"] .companion-runtime header small { color: var(--muted); font-size: 11px; font-weight: 400; }
-    body[data-desktop-shell="true"] .companion-runtime h2 { margin: 4px 0 0; font-size: 15px; letter-spacing: -.015em; }
-    body[data-desktop-shell="true"] .companion-runtime-state { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 400; }
-    body[data-desktop-shell="true"] .companion-runtime-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
-    body[data-desktop-shell="true"] .companion-runtime-state.is-active { color: var(--green); }
-    body[data-desktop-shell="true"] .companion-runtime-state.is-active i { background: var(--green); }
-    body[data-desktop-shell="true"] .companion-runtime > p { margin: 0; color: var(--ink-soft); font-size: 11px; }
-    body[data-desktop-shell="true"] .companion-runtime dl { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
-    body[data-desktop-shell="true"] .companion-runtime dl div { display: grid; gap: 4px; }
-    body[data-desktop-shell="true"] .companion-runtime dt { color: var(--muted); font-size: 11px; }
-    body[data-desktop-shell="true"] .companion-runtime dd { margin: 0; color: var(--ink); font-size: 11px; font-weight: 400; }
-    body[data-desktop-shell="true"] .companion-runtime > button { width: fit-content; padding: 0; border: 0; background: transparent; color: var(--ink); display: inline-flex; align-items: center; gap: 4px; font: 400 10px/1.2 var(--font); cursor: pointer; }
-    body[data-desktop-shell="true"] .companion-runtime > button svg { width: 12px; height: 12px; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime header small { color: var(--muted); font-size: 11px; font-weight: 400; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime h2 { margin: 4px 0 0; font-size: 15px; letter-spacing: -.015em; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime-state { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 400; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime-state.is-active { color: var(--green); }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime-state.is-active i { background: var(--green); }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime > p { margin: 0; color: var(--ink-soft); font-size: 11px; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime dl { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime dl div { display: grid; gap: 4px; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime dt { color: var(--muted); font-size: 11px; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime dd { margin: 0; color: var(--ink); font-size: 11px; font-weight: 400; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime > button { width: fit-content; padding: 0; border: 0; background: transparent; color: var(--ink); display: inline-flex; align-items: center; gap: 4px; font: 400 10px/1.2 var(--font); cursor: pointer; }
+    body[data-desktop-shell="true"] .goal-document .companion-runtime > button svg { width: 12px; height: 12px; }
     body[data-desktop-shell="true"] .goal-focus-criteria { margin-top: 4px; padding-top: 16px; }
-    .graph-toolbar { flex-wrap: wrap; }
-    .graph-toolbar-copy { flex-basis: 100%; }
-    .graph-stage { min-width: 820px; padding-inline: 32px; }
-    .graph-legend small { display: none; }
+    .goal-momentum .graph-toolbar { flex-wrap: wrap; }
+    .goal-momentum .graph-toolbar-copy { flex-basis: 100%; }
+    .goal-momentum .graph-stage { min-width: 820px; padding-inline: 32px; }
+    .goal-momentum .graph-legend small { display: none; }
     .goal-document { padding: 16px 16px 48px; animation: none; }
     .goal-title-row h1 { font-size: 24px; }
     .goal-now { padding: 16px; }

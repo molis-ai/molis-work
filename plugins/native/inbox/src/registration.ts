@@ -1,6 +1,6 @@
 import { INBOX_CLIENT_FACTORY_SCRIPT } from "./client.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { INBOX_PROJECT_PLUGIN_ID, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
+import { INBOX_PROJECT_PLUGIN_ID, INBOX_STYLES, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -14,6 +14,7 @@ export const registration: PluginRegistration = {
     clientFactory: INBOX_CLIENT_FACTORY_SCRIPT, clientMounts: "surfaces",
     order: 6,
     contributions: [inboxUiContribution],
+    stylesheet: INBOX_STYLES,
     recordRow: { selector: "[data-inbox-row][data-inbox-entry-id]", idDataset: "inboxEntryId" },
   },
 };

@@ -1,0 +1,33 @@
+{
+  "reason": "第 44 批独立复核整改（P1-1、P1-5、P1-6、P1-7）：将残留的 Goals、Feed 与 Inbox 专属样式从共享样式表迁入各自插件按需样式包，并收紧 Goals 共享回流规则（43,010 B → 5,518 B，Feed 与 Inbox 共享回流均降至 0 B），三张共享核心 CSS 合计净缩减 141,113 B（workbench.css -83,815 B、settings.css -47,780 B、arrival.css -9,518 B）；仅在启用对应插件时按需加载 /assets/molis-work-plugins/goals.css (+55,466 B)、feed.css (+9,696 B) 与新建按需样式包 inbox.css (+3,794 B)。工作台主脚本因动态设置节发现、消除 Goals 硬编码路由/身份及通用 DOM 事件名净增 1,586 B，其余客户端微增 1–28 B。所有受控页面冷启动首屏均净缩减 26–93 KB；HTML 暖启动净增 239–330 B 来自目录清单插件身份表与 Inbox 按需样式链接。",
+  "review": "第 44 批独立复核问题清零（Waves 1–4）；相对 merge-base a1cb29d40fce9d2f63ad47fcd24ca36812022d8c 隔离构建实测（node scripts/gates/page-assets.mjs --base origin/main、node scripts/gates/first-screen.mjs --base origin/main）。",
+  "userApproval": "用户于 2026-11-20 明确回复 A3 批准全量修复并放行因插件专属样式从共享 workbench.css 迁出导致的按需插件 CSS 新增与超 10 KB 增长（含 /assets/molis-work-plugins/inbox.css 与 goals.css）。",
+  "assets": {
+    "/assets/molis-work-plugin-frame.js": 1,
+    "/assets/molis-work-plugins/characters.js": 2,
+    "/assets/molis-work-workbench.js": 1586,
+    "/assets/molis-work-plugins/plugin-builder.js": 28,
+    "/assets/molis-work-plugins/coding.js": 2,
+    "/assets/molis-work-plugins/feed.css": 9696,
+    "/assets/molis-work-plugins/inbox.css": 3794,
+    "/assets/molis-work-plugins/goals.css": 55466
+  },
+  "pages": {
+    "arrival-empty/zh": { "cold": 0, "warm": 254 },
+    "arrival-empty/en": { "cold": 0, "warm": 254 },
+    "chooser/zh": { "cold": 0, "warm": 239 },
+    "chooser/en": { "cold": 0, "warm": 239 },
+    "workbench-default/zh": { "cold": 0, "warm": 254 },
+    "workbench-default/en": { "cold": 0, "warm": 254 },
+    "workbench-all-plugins/zh": { "cold": 0, "warm": 330 },
+    "workbench-all-plugins/en": { "cold": 0, "warm": 330 }
+  },
+  "entryApprovals": [
+    {
+      "pages": ["workbench-all-plugins"],
+      "locale": "both",
+      "entry": "/assets/molis-work-plugins/goals.css",
+      "change": "growth"
+    }
+  ]
+}

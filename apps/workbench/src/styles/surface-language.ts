@@ -13,10 +13,9 @@ export const SURFACE_LANGUAGE_STYLES = `
   /* All temporary editors meet the workspace edge, rather than floating over it. */
   ${EDITOR_PANEL} { position: fixed; inset: var(--tab-strip-h, 32px) 0 0 auto; margin: 0; width: min(560px, 100vw); max-width: 100vw; height: calc(100dvh - var(--tab-strip-h, 32px)); max-height: calc(100dvh - var(--tab-strip-h, 32px)); padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: var(--paper); color: var(--ink); box-shadow: none; overflow: hidden; transform: none; animation: none; transition: opacity 130ms var(--ease-quint), overlay 130ms allow-discrete, display 130ms allow-discrete; }
   ${EDITOR_PANEL}::backdrop { background: var(--scrim); backdrop-filter: none; }
-  ${EDITOR_PANEL} > :is(form, .feed-task-dialog-shell) { height: 100%; max-height: 100%; min-height: 0; }
+  ${EDITOR_PANEL} > form { height: 100%; max-height: 100%; min-height: 0; }
   ${EDITOR_PANEL} > .dialog-shell { border: 0; border-radius: 0; box-shadow: none; }
-  ${EDITOR_PANEL} :is(.dialog-body, .feed-task-dialog-body) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; align-content: start; }
-  ${EDITOR_PANEL} .dialog-body { gap: 12px; padding: 16px 24px; }
+  ${EDITOR_PANEL} .dialog-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; align-content: start; gap: 12px; padding: 16px 24px; }
   ${EDITOR_PANEL} > form > section { flex: 1; min-height: 0; overflow: auto; align-content: start; gap: 12px; padding: 16px 24px; }
   ${EDITOR_PANEL} > form > header { border-bottom: 1px solid var(--line); }
   ${EDITOR_PANEL} header p { color: var(--muted); font-size: 13px; line-height: 1.6; }
@@ -26,15 +25,13 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} header button[data-dialog-close]:hover { background: var(--nav-hover); color: var(--ink); }
   ${EDITOR_PANEL} header button[data-dialog-close] svg { width: 16px; height: 16px; }
   ${EDITOR_PANEL} .dialog-icon { display: none; }
-  ${EDITOR_PANEL} :is(h2, .feed-task-dialog-shell h2) { font-size: 17px; font-weight: var(--weight-title, 600); line-height: 1.4; letter-spacing: -.015em; }
+  ${EDITOR_PANEL} h2 { font-size: 17px; font-weight: var(--weight-title, 600); line-height: 1.4; letter-spacing: -.015em; }
   ${EDITOR_PANEL} :is(header, footer) { box-shadow: none; }
-  ${EDITOR_PANEL} > form > header, ${EDITOR_PANEL} .feed-task-dialog-shell > header { padding: 16px 24px 12px; }
-  ${EDITOR_PANEL} > form > footer, ${EDITOR_PANEL} .feed-task-dialog-shell > footer { padding: 12px 24px; }
+  ${EDITOR_PANEL} > form > header { padding: 16px 24px 12px; }
+  ${EDITOR_PANEL} > form > footer { padding: 12px 24px; }
   ${EDITOR_PANEL} .frame-picker-list { flex: 1; }
   ${EDITOR_PANEL} .form-disclosure { margin-top: 4px; padding-top: 0; }
   ${EDITOR_PANEL} .form-disclosure > summary { min-height: 44px; display: flex; align-items: center; padding-block: 8px; }
-  ${EDITOR_PANEL} .feed-task-dialog-body { padding: 12px 24px 24px; }
-  ${EDITOR_PANEL} .feed-task-dialog-body label { margin-block: 12px; }
   /* Creation reads as writing, not as filling a form: two borderless lines and one quiet
    * disclosure. Labels become placeholders; the example disappears the moment you start. */
   ${CENTERED_EDITOR} .mw-form__header { padding-bottom: 0; align-items: center; }
@@ -122,21 +119,21 @@ export const SURFACE_LANGUAGE_STYLES = `
     transition: opacity 130ms var(--ease-quint), overlay 130ms allow-discrete, display 130ms allow-discrete;
   }
   ${CENTERED_EDITOR}::backdrop { background: var(--scrim); }
-  ${CENTERED_EDITOR} > :is(form, .feed-task-dialog-shell) { height: auto; max-height: min(calc(100dvh - 96px), 720px); }
+  ${CENTERED_EDITOR} > form { height: auto; max-height: min(calc(100dvh - 96px), 720px); }
   ${CENTERED_EDITOR} > .dialog-shell { border: 0; border-radius: 0; box-shadow: none; }
   @starting-style { ${CENTERED_EDITOR}[open] { opacity: 0; transform: translateY(6px) scale(.985); } }
   @media (max-width: 760px) {
     ${CENTERED_EDITOR} { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
-    ${CENTERED_EDITOR} > :is(form, .feed-task-dialog-shell) { max-height: calc(100dvh - 32px); }
+    ${CENTERED_EDITOR} > form { max-height: calc(100dvh - 32px); }
   }
   @starting-style { ${EDITOR_PANEL}[open] { opacity: .5; transform: none; } }
   @media (max-width: 760px) {
     ${EDITOR_PANEL} { width: 100vw; border-left: 0; }
-      ${EDITOR_PANEL} > form > header, ${EDITOR_PANEL} .feed-task-dialog-shell > header { padding: 16px; }
+      ${EDITOR_PANEL} > form > header { padding: 16px; }
     ${EDITOR_PANEL} > form > section, ${EDITOR_PANEL} .dialog-body { padding: 16px; }
     ${EDITOR_PANEL} :is(input:not([type=checkbox]), select, textarea) { font-size: 16px; }
     ${EDITOR_PANEL} header button[data-dialog-close] { min-height: 44px; }
-    ${EDITOR_PANEL} > form > footer, ${EDITOR_PANEL} .feed-task-dialog-shell > footer { padding: 12px 16px; }
+    ${EDITOR_PANEL} > form > footer { padding: 12px 16px; }
     .plugin-stage-back { width: 44px; min-height: 44px; }
   }
   /* Search and irreversible confirmations remain compact, with restrained depth. */

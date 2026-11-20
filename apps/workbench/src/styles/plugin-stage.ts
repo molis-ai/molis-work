@@ -169,8 +169,6 @@ export const PLUGIN_STAGE_STYLES = `
       grid-column: 2; grid-row: 1;
     }
     .plugin-stage-shell[data-expanded="true"] .plugin-stage-chrome { visibility: inherit; }
-    .plugin-stage-shell[data-expanded="true"] .feed-stage-search,
-    .plugin-stage-shell[data-expanded="true"] .feed-stage-count { display: none; }
     body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .feed-stage-entry {
       grid-template-columns: minmax(0, 1fr) auto;
     }
@@ -192,19 +190,6 @@ export const PLUGIN_STAGE_STYLES = `
       position: absolute; inset: 0; display: flex; flex-direction: column; grid-column: auto; grid-row: auto;
     }
   }
-  body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail {
-    flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
-    padding: 0 24px 24px; margin: 0; border-radius: 0; background: transparent; animation: none;
-  }
-  body.immersive-workbench .plugin-stage-shell .feed-filter-control { position: relative; overflow: visible; }
-  body.immersive-workbench .plugin-stage-shell .feed-filter-panel {
-    left: 0; right: auto; top: calc(100% + 6px);
-  }
-  body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-header :is(h1, .feed-detail-kicker, p, time) { display: revert; }
-  body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-body {
-    max-height: none; overflow: visible; padding: 0;
-  }
-
   .plugin-stage-list .mw-empty { padding-top: 24px; max-width: min(100%, 38em); }
   .plugin-stage-list .mw-empty > strong { font-size: 17px; font-weight: 500; line-height: 1.4; letter-spacing: -.02em; }
   .plugin-stage-list .mw-empty > p { font-size: 13px; line-height: 1.75; }

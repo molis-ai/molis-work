@@ -356,9 +356,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 24}ms; }`).join("\n  ")}
 
   /* ─── Feed: a lone source tab is not a choice (the column itself lives in the Feed plugin stylesheet) ─── */
-  ${WORKBENCH} .feed-source-tabs:not(:has(button:not([hidden]) ~ button:not([hidden]))) { display: none; }
-  ${WORKBENCH} .feed-source-tabs button { transition: color var(--dur-hover) var(--ease-quint), border-color var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .feed-source-tabs button:hover:not([aria-current]) { color: var(--ink-soft); border-bottom-color: var(--line-strong); }
 
   /* ─── Plugin list pages (Soft Workbench): a page heading, one centred column, rows that breathe ───
      The heading is the surface's own label, set once as --stage-title on the shell, so a plugin that re-renders

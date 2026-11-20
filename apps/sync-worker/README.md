@@ -25,7 +25,7 @@ With no explicit endpoint or local flag the client stays disconnected. A new dev
 
 ## Test deployment
 
-`wrangler.test.jsonc` deploys `molis-work-test` at `https://sync.test.molis.ai` with its own D1 and private R2. The application ID matches the existing registration in `https://auth.test.molis.ai`. The Worker validates Work access tokens through Auth and requires no Worker secret for this flow.
+`wrangler.test.jsonc` deploys `molis-work-test` at `https://work.test.molis.ai` with its own D1 and private R2. The application ID matches the existing registration in `https://auth.test.molis.ai`. The Worker validates Work access tokens through Auth and requires no Worker secret for this flow.
 
 Verify the test D1 has both migrations before deployment. From `examples/personal-sync-tools`, use the locked tooling with `npx wrangler deploy --cwd ../../apps/sync-worker --config wrangler.test.jsonc`. The deployment does not apply migrations. Cron starts disabled. Use the test account in a test Work Home to run a sync round after deployment.
 

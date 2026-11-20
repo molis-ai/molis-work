@@ -49,7 +49,7 @@ test("V2-03: source and installed Work use distinct loopback clients and validat
   const testConfig = join(directory, "config", "test.properties");
   const contents = await readFile(testConfig, "utf8");
   const configureSync = origin => writeFile(testConfig, contents.replace(/^syncOrigin=.*$/mu, "syncOrigin=" + origin));
-  const testOrigin = "https://sync.test.molis.ai";
+  const testOrigin = "https://work.test.molis.ai";
   const source = select("test");
   const desktop = select("test", true);
   assert.equal(source.syncOrigin, testOrigin);
@@ -59,7 +59,7 @@ test("V2-03: source and installed Work use distinct loopback clients and validat
   assert.deepEqual(source.account.redirectAllowlist, ["http://127.0.0.1:4207/account/callback"]);
   assert.deepEqual(desktop.account.redirectAllowlist, ["http://127.0.0.1:4173/account/callback"]);
   assert.deepEqual(select("prod", true).account.redirectAllowlist, ["http://127.0.0.1:4173/account/callback"]);
-  for (const origin of ["https://sync.molis.ai", "https://auth.test.molis.ai", "http://127.0.0.1:8788", testOrigin + "/api"]) {
+  for (const origin of ["https://work.molis.ai", "https://auth.test.molis.ai", "http://127.0.0.1:8788", testOrigin + "/api"]) {
     await configureSync(origin);
     assert.throws(() => select("test"), /invalid field syncOrigin/u);
   }

@@ -300,7 +300,7 @@ macOS payload 从对应环境的 properties 生成公开账号与同步配置。
 
 测试安装版显示为 Molis Work Test（`com.molis.work.test`），使用 `~/.molis-work-environments/installed-test`。测试安装版由自身启动 Host，升级时跳过正式产品的常驻服务注册。源码 test 仍使用 `~/.molis-work-environments/test`，正式安装版继续使用现有 Home。
 
-`pnpm start --env test` 在同一个源码端口 4207 启动 Work，登录连接 `https://auth.test.molis.ai`，同步连接 `https://sync.test.molis.ai`。固定端口一次只运行一个 Work 进程。登录后进入个人空间，在同步设置里选择要同步的内容。
+`pnpm start --env test` 在同一个源码端口 4207 启动 Work，登录连接 `https://auth.test.molis.ai`，同步连接 `https://work.test.molis.ai`。固定端口一次只运行一个 Work 进程。登录后进入个人空间，在同步设置里选择要同步的内容。
 
 `syncOrigin` 为空时同步不可用。dev 可选 `http://127.0.0.1:8788` 的本地同步服务，prod 使用平台核准的正式 HTTPS 入口。修改地址后重启生效。
 

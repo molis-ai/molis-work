@@ -15,7 +15,7 @@ test("V2-03: a sync round from a managed test Home uses test properties and igno
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(join(process.cwd(), "config"), join(root, "config"), { recursive: true });
   const config = join(root, "config", "test.properties");
-  const origin = "https://sync.test.molis.ai";
+  const origin = "https://work.test.molis.ai";
   await writeFile(config, (await readFile(config, "utf8")).replace(/^syncOrigin=.*$/mu, "syncOrigin=" + origin));
   const settings = workSettings("test", pathToFileURL(root + "/"), { publicOnly: true });
   configureLocalAccount("test", settings.account, "fixture-generation", settings.syncOrigin);

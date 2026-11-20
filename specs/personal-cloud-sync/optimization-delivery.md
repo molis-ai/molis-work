@@ -55,7 +55,7 @@
 | `PCSYNC-OPT-17` | 剩余 Owner 与嵌套 GC 收尾 | 通过 | Coding 真实 SDK 会话历史、Builder、Alchemist、Feed、Images、Cognia、Shelf、Sources、Attention、Runtime、Process Items 全部 20 份 Worker 集成测试 60/60 通过。 |
 | `PCSYNC-OPT-18` | 语义对比、分组进度与资源预算 | 通过 | 0 翻译问题；Chrome E2E 10/10 通过（含 Markdown/图片对比、分组、附件字节进度、本地复制预览/确认与 1440/1024/390 深浅色零溢出）；`page-assets:check` 67 项全通过且 `workbench.js` 净减 651 字节。 |
 | `PCSYNC-OPT-19` | 仓库工程门禁 | 通过（本机全绿） | 全量构建、Rust `fmt`/WASM `clippy`、`pnpm health:check`、`pnpm boundary:check`、`pnpm page-assets:check`、翻译、API/Schema/动作合同快照与 `pnpm secrets:check` 全部通过；待推送后由远端 CI 复验。 |
-| `PCSYNC-OPT-20` | `[人工]` 真实云端 24 小时压测 | 已完成 `test` 部署与连通性探针（待完整压测） | 已部署 `molis-auth-test`（Version `2c749c9a-f715-4ea7-b173-acbebe2c0c85`）与 `molis-work-test`（Version `7efb9643-a70f-457d-9dcc-e9eea07c87b6`，启用 `SYNC_READ_AUTH=signed`）；实测 `/.well-known/molis-sync-jwks.json` 200（`kid=molis-sync-test-2026-11`）、`/api/v2/auth/sync-read-proof` 200（TTL 30s）、5 次连续签名 `/v1/round` 延迟 `1667ms → 336–410ms`、`/v1/quota/breakdown` 5 项明细正常、注销后读凭证即刻 `401`，且远程 `molis-work-server-db-test` 的 `sync_rate_windows` 写入 **0 行**。24 小时双端长稳、50 MB 附件往返与 100 MB 满额压测待按计划执行。 |
+| `PCSYNC-OPT-20` | `[人工]` 真实云端 24 小时压测 | 已完成 `test` 部署与连通性探针（待完整压测） | 已部署 `molis-auth-test`（Version `2c749c9a-f715-4ea7-b173-acbebe2c0c85`）与 `molis-work-test`（`https://work.test.molis.ai`，Version `56bd3b07-b2fa-4da8-a0ed-2f906ab486a8`，启用 `SYNC_READ_AUTH=signed`）；实测 `/.well-known/molis-sync-jwks.json` 200（`kid=molis-sync-test-2026-11`）、`/api/v2/auth/sync-read-proof` 200（TTL 30s）、5 次连续签名 `/v1/round` 延迟 `1667ms → 336–410ms`、`/v1/quota/breakdown` 5 项明细正常、注销后读凭证即刻 `401`，且远程 `molis-work-server-db-test` 的 `sync_rate_windows` 写入 **0 行**。24 小时双端长稳、50 MB 附件往返与 100 MB 满额压测待按计划执行。 |
 | `PCSYNC-OPT-21` | `[人工]` 生产迁移与配对备份演练 | 未执行 | 本地已验只读维护模式拒绝写入/清理；真实 D1/R2 配对备份、隔离恢复与回退拒绝演练待窗口执行。 |
 | `PCSYNC-OPT-22` | `[人工]` 两台实体 Mac 验收 | 未执行 | 待在两台实体 Mac 覆盖完整登录、新设备确认、大附件续传、离线冲突、30 天回收、多选整项目复制及退出/切号。 |
 
@@ -77,7 +77,7 @@
 | 配置项 | 含义 | 当前状态 |
 | --- | --- | --- |
 | Auth `SYNC_READ_SIGNING_JWK` | 各环境独立 Ed25519 私钥 JWK（公钥由 `/.well-known/molis-sync-jwks.json` 提供） | `test` 环境已注入独立密钥（`kid=molis-sync-test-2026-11`）并部署至 `auth.test.molis.ai`；`prod` 未触碰 |
-| Work `SYNC_READ_AUTH` | `signed` 启用读取路由本地验签，`live` 实时回源 Auth（默认 `live`） | `test` 环境（`sync.test.molis.ai`）已启用 `signed` 并通过实测探针；`prod` 未开启 |
+| Work `SYNC_READ_AUTH` | `signed` 启用读取路由本地验签，`live` 实时回源 Auth（默认 `live`） | `test` 环境（`work.test.molis.ai`）已启用 `signed` 并通过实测探针；`prod` 未开启 |
 | Work `SYNC_PERMANENT_CLEANUP` | `enabled` 且可写时开放二次确认永久清理（默认关闭） | 本地集成已验，远端默认关闭 |
 | Work `SYNC_WRITE_MODE` | `read-only` 冻结写入与清理，`read-write` 恢复正常 | 本地已验，生产维护窗口待演练 |
 

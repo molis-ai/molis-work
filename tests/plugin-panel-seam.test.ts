@@ -69,14 +69,16 @@ test("运行中的插件给出面板时，它就出现在目录里", () => {
 });
 
 test("面板只影响给出它的那个插件，别的照旧", () => {
-  const before = renderMolisWorkWeb(baseView());
+  const enabled = ["goals", "inbox", "feed", "files", "coding"];
+  const before = renderMolisWorkWeb({ ...baseView(), enabled_plugins: enabled } as MolisWorkWebView);
   const view = {
     ...baseView(),
-    enabled_plugins: ["goals", "inbox", "feed", "files", "coding"],
+    enabled_plugins: enabled,
     plugin_panels: { coding: "<div data-coding-panel></div>" },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
   // feed 这一段在两种情况下都该存在且未被改动
   const feedBefore = /data-plugin-section="feed"/.test(before);
+  assert.equal(feedBefore, true);
   assert.equal(/data-plugin-section="feed"/.test(html), feedBefore);
 });

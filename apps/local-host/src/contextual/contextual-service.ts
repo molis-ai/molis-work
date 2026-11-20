@@ -34,7 +34,7 @@ export function fragmentOffersInput(focus: SurfaceFocus, requestId: string, whol
     targets: whole ? [{ kind: "object", role: "object", ref: object, text: (focus.granularity === "object" ? focus.targets[0]?.text : undefined) || object.title || object.id }]
       : focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
     ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
-    ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
+    ...(focus.belongs_to ? { belongs_to: { plugin_id: focus.belongs_to.plugin_id, kind: focus.belongs_to.kind, id: focus.belongs_to.id, title: focus.belongs_to.title } } : {}) } };
 }
 
 /** The directory as one caller sees it. */

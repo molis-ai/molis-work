@@ -22,7 +22,7 @@ export interface PluginAttentionClient {
 }
 
 export interface PluginAttentionDeclaration {
-    readonly subjects: readonly AttentionSubjectType[];
+    readonly subjects: readonly PluginAttentionSubjectDeclaration[];
     readonly inbox?: readonly AttentionSubjectType[];
 }
 
@@ -40,6 +40,17 @@ export type PluginAttentionEntryRecord = AttentionEntryRecord & {
 export type PluginAttentionEvent = AttentionEvent & {
     owner_plugin_id: string;
 };
+
+export interface PluginAttentionReasonDeclaration {
+    readonly id: AttentionReason;
+    readonly attention?: AttentionCategory;
+}
+
+export interface PluginAttentionSubjectDeclaration {
+    readonly type: AttentionSubjectType;
+    readonly object_kind: string;
+    readonly reasons: readonly PluginAttentionReasonDeclaration[];
+}
 
 export interface PluginAttentionSubjectReference {
     readonly owner_plugin_id: string;

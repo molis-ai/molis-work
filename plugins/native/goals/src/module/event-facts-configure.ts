@@ -52,8 +52,7 @@ export class GoalEventConfiguration {
       const nextVersion = currentVersion + 1;
       const at = this.context.now().toISOString();
       const addedTypes = this.configWrites.applyTypes(goal, input, nextVersion, at);
-      const addedRequirements = this.configWrites.applyRequirements(goal, [], input.actor_id, addedTypes, nextVersion, at);
-      const addedBindings = this.configWrites.applyBindings(goal, input, addedTypes, addedRequirements, nextVersion, at);
+      const addedBindings = this.configWrites.applyBindings(goal, input, addedTypes, nextVersion, at);
       if (addedTypes.length === 0 && addedBindings.length === 0) {
         throw goalErrors["goals.event_config.no_changes"]("配置没有增加类型、类型版本或绑定");
       }
@@ -77,7 +76,8 @@ export class GoalEventConfiguration {
       const payload = {
         config_version: nextVersion,
         types: addedTypes,
-        extra_requirements: addedRequirements,
+        // A configuration hangs no requirement (they are the platform's, contract-design §10.3); the record keeps its shape.
+        extra_requirements: [],
         requirement_bindings: addedBindings,
       };
       const cursor = this.context.repository.appendEvent({
@@ -130,7 +130,6 @@ export class GoalEventConfiguration {
       goal_id: goalId,
       version: current?.current_version ?? 0,
       types: this.records.config.listLatestTypes(projectId, goalId),
-      extra_requirements: this.records.requirements.listExtraRequirements(projectId, goalId),
       requirement_bindings: this.records.requirements.listBindings(projectId, goalId),
       updated_at: current?.updated_at ?? null,
       updated_by: current?.updated_by ?? null,

@@ -561,7 +561,7 @@ test("W3-02-G1-03 memory: recalled for this situation when the directory has it;
     if (reference.capability_id === "memory.signals.report") return { state: "counted", count: 1, distinct: 1, candidate_id: null, threshold: { count: 3, distinct: 2 } };
     return { offers: preparePagesFragmentOffers(input as FragmentOffersInput, "pages_document", pages.provider_id) };
   } };
-  const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "周报" }, goal: { id: "G1", title: "留存" },
+  const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "周报" }, belongs_to: { plugin_id: "io.molis.work.goals", kind: "goal", id: "G1", title: "留存" },
     surroundings: { heading_path: ["风险"] } });
   const recalled = await recallForJudgment(f, { directory: "memory-a", actions });
   assert.deepEqual(recalled, { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }] });

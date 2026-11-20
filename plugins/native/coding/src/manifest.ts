@@ -1,4 +1,5 @@
 import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
+import { ACCEPTANCE_READ_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -61,11 +62,13 @@ export const codingManifest: PluginManifest = {
   sync: codingSync,
   summary: "与 Agent 协作编写代码，完整记录每一轮。", summary_text: { key: "coding.directory.summary" },
   kind: "app",
+  memory_scene: "coding",
   publisher: { publisher_id: "molis", signature: CODING_PUBLISHER_BINDING },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
     { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
+    { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "读取已关联目标在要求栏里的原话" },
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
@@ -91,7 +94,7 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       memoryLearningActions.enqueue.capability_id, memoryLearningActions.form.capability_id,
-      searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
+      searchActions.references.capability_id, "goals.subject.read", "goals.search.entries", acceptanceActions.read.capability_id,
       // The embedded Git shows a file's changes through Diff, under this page.
       "diff.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
@@ -164,7 +167,6 @@ export const codingManifest: PluginManifest = {
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   presentation: codingPresentation,
   // 可承接上手材料 (batch12-design §7): onboarding hands Coding the person's code folder through this action, never by name.
-  onboarding: { takes: [{ kind: "code_root", capability_id: codingOnboardingTake.capability_id, version: codingOnboardingTake.version }] },
   actions: [memoryLearningActions.run, ...CODING_ACTIONS, ...codingPresentationActions, ...Object.values(codingExecutorActions), codingOnboardingTake, codingArtifactPreview, codingResultDocument, codingBackgroundTasks, codingWorkEventsAction],
   routes: [
     { route_id: "coding.read-subtask-conversation", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/conversation" },

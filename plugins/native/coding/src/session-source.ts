@@ -46,6 +46,6 @@ export async function codingSessionSubject(a: CodingActivation, request: PluginR
   }
   current();
   const context = subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision: "pending", title: entry.title,
-    content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [], open: { surface: "coding", id: record.session_id } });
+    content: lines.filter((line, index) => line || index > 1).join("\n"), ...(record.goal_id ? { attached_to: [{ kind: "goal", id: record.goal_id }] } : {}), open: { surface: "coding", id: record.session_id } });
   return { ...context, revision: `content-v1:${searchRevisionOf([context.title, summary.slice(0, 4000), context.content])}` };
 }

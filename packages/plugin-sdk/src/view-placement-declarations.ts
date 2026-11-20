@@ -22,14 +22,6 @@ const ADDRESS_QUERY_NAME = /^[A-Za-z0-9_-]{1,32}$/u;
 const ADDRESS_HASH = /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}$/u;
 const ADDRESS_RESERVED_QUERY = new Set(["project", "desktop", "settings", "settingsPath", "embed"]);
 /** The station ids the Manifest's own actions can create (`workflow_content` with the `create` role). */
-export function createStations(parsed: PluginManifest): ReadonlySet<string> {
-  const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
-  return new Set(actions.flatMap(action => {
-    const station = isRecord(action?.action) ? action.action.workflow_content : undefined;
-    return isRecord(station) && station.role === "create" && words(station.id) ? [station.id] : [];
-  }));
-}
-
 /** The ids of the Manifest's own actions a settings page may read its data with: one version, a query that only reads, for the person. */
 export function settingsReadActions(parsed: PluginManifest): ReadonlySet<string> {
   // Entries that are not objects are the shape rules' to report; this cross-declaration read skips them rather than throwing (W1-04).
@@ -41,7 +33,7 @@ export function settingsReadActions(parsed: PluginManifest): ReadonlySet<string>
     .map(action => action.capability_id));
 }
 
-export function viewPlacementProblems(view: UiViewDeclaration, stations: ReadonlySet<string>, readables: ReadonlySet<string>): string[] {
+export function viewPlacementProblems(view: UiViewDeclaration, readables: ReadonlySet<string>): string[] {
   const problems: string[] = [];
   const id = view.view_id;
   if (view.icon !== undefined && !words(view.icon)) problems.push(`视图 ${id} 的 icon 必须是图标名`);
@@ -49,9 +41,7 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   if (view.hue !== undefined && (typeof view.hue !== "string" || !HUES.has(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
   const opens = view.slot === "navigator" || view.slot === "island";
   if (Object.hasOwn(view, "title_en")) problems.push(`视图 ${id} 不接收 title_en：请声明 title_text 并在语言文件中写词`);
-  for (const field of ["group", "creates", "start"] as const) {
-    if (view[field] !== undefined && !opens) problems.push(`视图 ${id} 的 ${field} 只用于 navigator 或 island 视图`);
-  }
+  if (view.group !== undefined && !opens) problems.push(`视图 ${id} 的 group 只用于 navigator 或 island 视图`);
   if (view.group !== undefined && !GROUPS.has(String(view.group))) {
     problems.push(`视图 ${id} 的 group ${String(view.group)} 不是工作台的分组（${UI_VIEW_GROUPS.join("、")}）`);
   }
@@ -120,15 +110,8 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
     if (!Array.isArray(surfaces) || surfaces.length === 0 || surfaces.some(surface => !words(surface))) problems.push(`视图 ${id} 的 stage_surfaces 必须是非空的表面名数组`);
     else if (new Set(surfaces).size !== surfaces.length || surfaces.filter(surface => surface === "workbench").length !== 1) problems.push(`视图 ${id} 的 stage_surfaces 不能重复，且必须包含 workbench 一次`);
   }
-  const creates: unknown = view.creates;
-  if (creates !== undefined) {
-    if (!isRecord(creates) || !words(creates.station) || !words(creates.title)) problems.push(`视图 ${id} 的 creates 必须写明 station 与 title`);
-    else if (!stations.has(creates.station)) problems.push(`视图 ${id} 的 creates 指向 ${creates.station}，本 Manifest 没有这个能新建的工作流内容站`);
-  }
-  const start: unknown = view.start;
-  if (start !== undefined) {
-    if (!isRecord(start) || !words(start.title) || !words(start.hint)) problems.push(`视图 ${id} 的 start 必须写明 title 与 hint`);
-    else if (start.icon !== undefined && !words(start.icon)) problems.push(`视图 ${id} 的 start.icon 必须是图标名`);
+  for (const field of ["creates", "start"] as const) {
+    if (Object.hasOwn(view, field)) problems.push(`视图 ${id} 不再声明 ${field}：${field === "creates" ? "能新建的种类写在内容站的 create: { title }" : "起点写在创建入口的 intake.start"}（contract-design §2.3、§2.4）`);
   }
   return problems;
 }

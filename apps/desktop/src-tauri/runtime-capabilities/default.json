@@ -1,7 +1,7 @@
 {
   "identifier": "default",
-  "description": "Molis Work desktop workbench and live work capsule",
-  "windows": ["main", "capsule"],
+  "description": "Molis Work desktop workbench",
+  "windows": ["main"],
   "remote": {
     "urls": ["http://127.0.0.1:{port}/*", "http://localhost:{port}/*"]
   },
@@ -12,7 +12,7 @@
     "core:window:allow-start-dragging",
     "core:app:default",
     "core:webview:default",
-    "allow-capsule-window",
+    "allow-native-language",
     "allow-shelf-desktop"
   ]
 }

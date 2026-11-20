@@ -18,6 +18,7 @@ test("RAC-180 MCP Goal directory cannot be split by a queued competing Goal writ
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "组合入口", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });

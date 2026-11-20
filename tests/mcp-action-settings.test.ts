@@ -15,7 +15,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 test("H1: a grant waiting on its original scene refuses a binding edit and writes no grants", { timeout: 30_000 }, async t => {
   const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
   const f = await openTestHome(t);
-  const project = await f.createProject("Grant consumes a rule");
+  const project = await f.createProject("Grant consumes a rule", ["goals"]);
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const empty = { type: "object", additionalProperties: false }, result = { type: "boolean" };
   const scene: ActionSceneDefinition = { scene_id: "fixture.original-scene", version: 1, title: "Original rule", description: "Check the note",
@@ -59,6 +59,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "授权范围", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let connected = true, calls = 0;
@@ -186,6 +187,7 @@ test("an action that writes through other actions is granted together with them:
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "一起授权", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
   if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
   const projectId = created.project_id;
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
@@ -268,6 +270,7 @@ test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner d
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "授权的种类", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let connected = true, kind: "conflict" | "unavailable" | undefined;
@@ -333,6 +336,7 @@ test("RAC-1333 the whole-read failures of the MCP settings answer by kind over H
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "整次读取", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const id = `whole-read.${randomUUID()}`;

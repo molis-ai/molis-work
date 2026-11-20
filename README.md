@@ -20,16 +20,15 @@ Same project, three surfaces.
 
 ### Desktop
 
-A native macOS window: focus one Goal, then open a terminal that stays bound to it. Molis Work also has a clickable **status icon in the macOS menu bar**. Click it for the current project, focused Goal, status, and next action.
+A native macOS window: focus one Goal, then open a terminal that stays bound to it.
 
 <p align="center">
   <img src="docs/screenshots/showcase/desktop-focus-en-dark.jpg" width="32%" alt="Molis Work Desktop: focus one Goal beside the Goal Navigator">
   <img src="docs/screenshots/showcase/harness-runtime-en-dark.jpg" width="32%" alt="Molis Work: a terminal bound to the selected Goal">
-  <img src="docs/screenshots/showcase/macos-menu-bar-capsule-en-dark.jpg" width="32%" alt="Molis Work Work Capsule opened from the macOS status item">
 </p>
 
 <p align="center">
-  <sub><b>Goal workspace</b> · historical Goal-around-the-tree surface, not the current event document &nbsp;·&nbsp; <b>Goal-bound TUI</b> · the terminal belongs to this Goal &nbsp;·&nbsp; <b>Work Capsule</b> · a quick check-in from the macOS status item</sub>
+  <sub><b>Goal workspace</b> · historical Goal-around-the-tree surface, not the current event document &nbsp;·&nbsp; <b>Goal-bound TUI</b> · the terminal belongs to this Goal</sub>
 </p>
 
 ### Inside a Harness
@@ -201,7 +200,6 @@ Each architecture ships separately because Molis Work's PTY and Alchemist SQLite
 - [Runtime Protocol](docs/runtime.en.md)
 - [MCP Integration](docs/mcp.en.md)
 - [CLI & Development](docs/cli-and-development.en.md)
-- [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
 
 For ongoing requirements and remaining work, see the [spec index](specs/README.md) and [backlog](specs/BACKLOG.md) (Chinese). The [0.1.x Bug Card Ledger](docs/molis-work-bug-cards.md) is historical; its workflows have been retired.

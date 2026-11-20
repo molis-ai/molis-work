@@ -4,7 +4,7 @@ import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServer,type Server} from 'node:http';
-import {mkdtempSync,readFileSync,rmSync,existsSync,unlinkSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,readFileSync,rmSync,existsSync,unlinkSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -13,7 +13,8 @@ import {promisify} from 'node:util';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {createDesktopWebHost} from '@molis-ai/molis-work-app-desktop';
-import {ACCOUNT_CONNECT_PATH,connectResidentAccount,createMcpResidentStarter,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER,LocalActionGatewayClient} from '@molis-ai/molis-work-app-local-host';
+import {ACCOUNT_CONNECT_PATH,connectResidentAccount,createMcpResidentStarter,initializeProjectDatabase,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER,LocalActionGatewayClient} from '@molis-ai/molis-work-app-local-host';
+import {cliEntryProbe} from './fixtures/cli-entry-probe.js';
 
 const listen=async(server:Server)=>{await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const a=server.address();assert.ok(a&&typeof a==='object');return 'http://127.0.0.1:'+a.port;};
 const close=(server:Server)=>new Promise<void>(resolve=>server.close(()=>resolve()));
@@ -50,13 +51,20 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
  };
  const projects=async(client:Client)=>{const result=await client.callTool({name:'molis_work_v1_context_list_projects',arguments:{}});assert.notEqual(result.isError,true,JSON.stringify(result));const text=(result.content as Array<{type:string;text?:string}>).find(part=>part.type==='text')?.text;assert.ok(text);return JSON.parse(text).projects as Array<{project_id:string;display_name:string}>;};
  const cli=(args:string[])=>run(process.execPath,['--import','tsx',fileURLToPath(new URL('../apps/desktop/launchers/cli/main.ts',import.meta.url)),...args],{env:processEnv()});
- const snapshot=async(project:{project_id:string;database_path:string})=>{const result=await cli(['v1','snapshot','--db',project.database_path,'--json',JSON.stringify({project_id:project.project_id})]);assert.equal(JSON.parse(result.stdout).board.project_id,project.project_id);return result;};
+ const snapshot=async(project:{project_id:string;database_path:string})=>{
+  const error=await cli(['v1',...cliEntryProbe(project.database_path,project.project_id)]).then(()=>null,(cause:unknown)=>cause);
+  assert.ok(error&&typeof error==='object'&&'stderr'in error,'CLI probe ends at the platform review lookup');
+  const stderr=String((error as {stderr?:unknown}).stderr);
+  assert.match(stderr,/找不到|actions\.missing/,stderr);
+  assert.doesNotMatch(stderr,/不属于当前安装账号|没有登记这个项目|回退匿名业务|数据库不存在|请先登录/,stderr);
+ };
  const starter=createMcpResidentStarter();
  try{
   await assert.rejects(cli(['demo','create','--confirm','--json']),'an unlogged default installation never falls back to anonymous demo writes');
   assert.equal(existsSync(join(home,'projects','catalog.db')),false,'login-only installation has no root business catalog');
+  mkdirSync(home+'-external',{recursive:true});
   const external=join(home+'-external','project.db');
-  await cli(['v1','init','--db',external,'--json',JSON.stringify({project_id:'external',idempotency_key:'explicit-standalone'})]);
+  initializeProjectDatabase(external);
   await snapshot({project_id:'external',database_path:external});
   const unlogged=await fetch(origin+ACCOUNT_CONNECT_PATH,{method:'POST',headers:{Origin:origin,[NATIVE_SESSION_HEADER]:proof,'x-molis-work-control-token':rootToken,'x-molis-work-idempotency-key':'unlogged-native-connect'},body:'{}'});assert.equal(unlogged.status,401);
   await login('alice');

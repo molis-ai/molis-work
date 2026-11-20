@@ -10,6 +10,8 @@ import {
 } from "@molis-ai/molis-work-storage";
 import { SHELF_CATALOG_FILE } from "@molis-ai/molis-work-module-shelf";
 import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
+import { RUNTIME_INTEGRATION_RECEIPT_FILE } from "./installer/runtime-integration-receipt.js";
+import { isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
 import { COMPUTER_SETTINGS_FILE } from "./computer/computer-settings.js";
 import { MCP_TOOL_PREFERENCE_FILE } from "./mcp-settings-store.js";
@@ -141,6 +143,13 @@ function computerRecords(home: string): readonly string[] {
   return readdirSync(join(home, records)).filter(name => COMPUTER_RECORD_ID.test(name)).sort().map(name => join(records, name, "record.json"));
 }
 
+/** Each Runtime's receipt; a name that is not a supported Runtime's is not a receipt. */
+function runtimeReceipts(home: string): readonly string[] {
+  const folder = "runtime-integrations";
+  if (!entryAt(join(home, folder))?.isDirectory()) return [];
+  return readdirSync(join(home, folder)).filter(name => name.endsWith(".json") && isSupportedRuntimeId(name.slice(0, -".json".length))).sort().map(name => join(folder, name));
+}
+
 /** The Host owns this reserved path, even for disabled installations or uninstalls which kept their data. */
 function installedModelPreferences(home: string): string[] {
   const root = join(home, "plugin-files");
@@ -164,6 +173,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
   { owner: "modules/shelf", block: { kind: "shelf" }, pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
   { owner: "packages/storage", block: HOME_BLOCK, pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "runtimes" }, pattern: join("runtime-integrations", "*.json"), file: RUNTIME_INTEGRATION_RECEIPT_FILE, paths: runtimeReceipts },
   { owner: "apps/local-host", block: { kind: "setting", page: "models" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
     file: MODEL_PREFERENCE_FILE, paths: installedModelPreferences },
   ...platformModelPreferences().map(({ owner, path }) => ({ owner, block: { kind: "plugin", plugin_id: owner } as const, pattern: path, file: MODEL_PREFERENCE_FILE })),

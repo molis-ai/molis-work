@@ -1,4 +1,6 @@
+import type { StageTerminalReadOnlyGuard } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { GOALS_PLUGIN_ID } from "../identity.js";
 import { buildDecisionGroups, countGoalDecisions } from "../decision-groups.js";
 import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
 import { buildGoalsNavigationItems } from "../navigation-model.js";
@@ -23,10 +25,36 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
     renderGoalMomentum, renderGoalKanban, renderRelations, renderChildProgress, renderContractCoverage, renderPolicyEditor,
   } = goals;
 
+  function goalTerminalReadOnly(item: WebGoalView | undefined, view: TView): StageTerminalReadOnlyGuard | undefined {
+    if (!item || item.goal.decomposition_state !== "closed_compound" || item.event_work === true) return undefined;
+    const completed = item.goal.fulfillment_state === "satisfied";
+    const choices = sortGoals(partOfChildViews(item.goal.goal_id, view)).map((child) => {
+      const explanation = explainWorkState(child.status);
+      return {
+        href: `/goals/${encodeURIComponent(child.goal.goal_id)}`,
+        title: child.goal.title,
+        subtitle: `${explanation.label} · ${explanation.nextAction}`,
+        action_label: uiText.text("goals.terminal.open-child-goal"),
+      };
+    });
+    return {
+      reason: uiText.text("goals.terminal.parent-read-only-message"),
+      heading: uiText.text("goals.terminal.parent-does-not-use-terminal"),
+      summary: uiText.text(completed ? "goals.terminal.child-goals-completed" : "goals.terminal.parent-does-not-complete-own"),
+      empty_summary: uiText.text("goals.terminal.open-specific-child-goal-above"),
+      add_disabled_title: uiText.text("goals.terminal.open-specific-child-goal"),
+      empty_choices_text: uiText.text("goals.terminal.no-child-goal-ready"),
+      choices,
+    };
+  }
+
   function clientData(view: TView) {
     const summarize = (items: WebGoalView[]) => buildGoalsNavigationItems(
       items, goalId => partOfChildViews(goalId, view), visibleGoalStatusIcon,
-    );
+    ).map((entry, index) => {
+      const readOnly = goalTerminalReadOnly(items[index], view);
+      return readOnly ? { ...entry, terminal_read_only: readOnly } : entry;
+    });
     return {
       snapshot: {
         board: { project_id: view.snapshot.board.project_id },
@@ -106,18 +134,15 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
     cliAvailability: Record<string, boolean> = {},
   ): string {
     return renderTerminalPane({
+      plugin_id: GOALS_PLUGIN_ID,
+      subject_kind: "goal",
       selected: selected ? {
-        ...selected.goal,
-        event_work: selected.event_work === true,
-        statusHtml: renderVisibleGoalStatus(selected, "data-tui-owner-status", "data-tui-owner-status-label"),
+        id: selected.goal.goal_id,
+        title: selected.goal.title,
+        status_html: renderVisibleGoalStatus(selected, "data-tui-owner-status", "data-tui-owner-status-label"),
       } : undefined,
-      children: (selected ? sortGoals(partOfChildViews(selected.goal.goal_id, view)) : []).map((child) => {
-        const explanation = explainWorkState(child.status);
-        return { goal_id: child.goal.goal_id, title: child.goal.title, statusLabel: explanation.label, nextAction: explanation.nextAction };
-      }),
+      read_only: goalTerminalReadOnly(selected, view),
       cliAvailability,
-      promptRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/advance-prompt",
-      terminalsRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/terminals",
       text: readText,
       icon,
     });

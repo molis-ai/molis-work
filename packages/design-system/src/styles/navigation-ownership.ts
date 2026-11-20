@@ -67,7 +67,6 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
       background: var(--nav-hover);
     }
     body[data-desktop-shell="true"] .navigator-directory-toggle:focus-visible,
-    body[data-desktop-shell="true"] .goal-mode-switch button:focus-visible,
     body[data-desktop-shell="true"] .tui-focus-return:focus-visible {
       outline: var(--focus-stroke);
       outline-offset: var(--focus-stroke-inset);
@@ -127,47 +126,11 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
       box-shadow: var(--lift-1);
     }
 
-    body[data-desktop-shell="true"] .goal-mode-switch {
-      min-height: 30px;
-      padding: 4px;
-      border-radius: 9px;
-      background: color-mix(in srgb, var(--rail) 76%, transparent);
-      display: inline-flex;
-      align-items: center;
-      gap: 1px;
-    }
-    body[data-desktop-shell="true"] .goal-mode-switch button {
-      min-height: 26px;
-      padding: 0 8px;
-      border: 0;
-      border-radius: 7px;
-      color: var(--muted);
-      background: transparent;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 400;
-      cursor: pointer;
-      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint);
-    }
-    body[data-desktop-shell="true"] .goal-mode-switch button:hover { color: var(--ink); }
-    body[data-desktop-shell="true"] .goal-mode-switch button.is-active {
-      color: var(--ink);
-      background: var(--paper);
-      box-shadow: var(--lift-1);
-    }
-    body[data-desktop-shell="true"] .goal-mode-switch button svg { width: 12px; height: 12px; }
-
     /* Light location states stay embedded in their rail. Paper and elevation
        remain reserved for content surfaces and overlays. */
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected,
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .feed-list-item.is-selected {
       background: color-mix(in srgb, var(--blue) 8%, transparent) !important;
-      box-shadow: none;
-    }
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .goal-mode-switch button.is-active {
-      background: color-mix(in srgb, var(--blue) 10%, transparent);
       box-shadow: none;
     }
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .navigator-project-settings[aria-current="page"],
@@ -209,7 +172,6 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
   }
 
   @media (max-width: 760px) {
-    body[data-desktop-shell="true"] .goal-mode-switch,
     body[data-desktop-shell="true"] .tui-focus-return { display: none !important; }
 
     body[data-desktop-shell="true"] .feed-directory-tools { padding: 8px 12px; }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +20,6 @@ interface Fixture {
   home: string;
   userHome: string;
   release: string;
-  skillSource: string;
   launcher: string;
   executables: Record<SupportedRuntimeId, string>;
 }
@@ -32,7 +31,6 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
     await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const userHome = join(directory, "user-home");
     const release = join(home, "releases", "molis-work-test");
-    const skillSource = join(release, "skills", "goal-advance");
     const launcher = join(home, "bin", "molis-work-mcp");
     const codex = join(directory, "bin", "codex");
     const claude = join(directory, "bin", "claude");
@@ -41,7 +39,7 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
     const grok = join(directory, "bin", "grok");
     await Promise.all([
       mkdir(join(home, "config"), { recursive: true }),
-      mkdir(skillSource, { recursive: true }),
+      mkdir(release, { recursive: true }),
       mkdir(join(home, "bin"), { recursive: true }),
       mkdir(join(directory, "bin"), { recursive: true }),
       mkdir(userHome, { recursive: true }),
@@ -56,7 +54,6 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
       }, null, 2)}\n`),
       writeFile(join(release, "release.json"), JSON.stringify({ schema_version: 1, installer: "molis-work-home-install-v1",
         version: "test", dependencies: "embedded", content_digest: "a".repeat(64), created_at: "2026-01-01T00:00:00.000Z" })),
-      writeFile(join(skillSource, "SKILL.md"), "---\nname: goal-advance\n---\n"),
       writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
       writeFile(codex, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
       writeFile(claude, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
@@ -69,7 +66,6 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
       home,
       userHome,
       release,
-      skillSource,
       launcher,
       executables: { codex, "claude-code": claude, opencode, "pi-agent": pi, "grok-build": grok },
     });
@@ -122,7 +118,7 @@ test("CI-MCP-PIPE-01 a real closed launcher input returns false without an unhan
     assert.equal(await validateMolisWorkMcpLauncher({ runtime_id: "codex", launcher_path: fixture.launcher,
       home_directory: fixture.home, plan_id: "closed-input" }), false);
     // This assertion runs in the same parent after the asynchronous EPIPE was absorbed.
-    assert.equal(await readFile(join(fixture.skillSource, "SKILL.md"), "utf8"), "---\nname: goal-advance\n---\n");
+    assert.match(await readFile(join(fixture.release, "release.json"), "utf8"), /"version":"test"/);
   });
 });
 
@@ -159,7 +155,7 @@ setTimeout(() => { writeFileSync(done, "no-initialize"); process.exit(1); }, 150
   });
 });
 
-test("CI-MCP-PIPE-02 real default validation rolls a closed pipe back to exact config, Skill and existing receipt, then reconnects", async () => {
+test("CI-MCP-PIPE-02 real default validation rolls a closed pipe back to exact config and existing receipt, then reconnects", async () => {
   await withFixture(async fixture => {
     const config = join(fixture.userHome, ".codex", "config.toml"), skill = join(fixture.userHome, ".codex", "skills", "goal-advance");
     const receipt = join(fixture.home, "runtime-integrations", "codex.json"), unrelated = join(fixture.userHome, ".claude.json");
@@ -177,22 +173,20 @@ test("CI-MCP-PIPE-02 real default validation rolls a closed pipe back to exact c
     const connectedConfig = await readFile(config, "utf8"), stanza = connectedConfig.indexOf("[mcp_servers.molis-work]");
     assert.ok(stanza > 0);
     await writeFile(config, connectedConfig.slice(0, stanza));
-    await rm(skill);
     const beforeConfig = await readFile(config), beforeReceipt = await readFile(receipt), beforeUnrelated = await readFile(unrelated);
-    assert.equal(await pathMissing(skill), true);
     await writeFile(fixture.launcher, closedInputLauncher, { mode: 0o755 });
     const repair = await integration.prepare("codex", "connect");
-    assert.equal(repair.status, "ready", "the fixture's missing stanza and Skill force actual validation rather than already_connected");
+    assert.equal(repair.status, "ready", "the fixture's missing stanza forces actual validation rather than already_connected");
     const refused = await integration.confirm({ runtime_id: "codex", plan_id: repair.plan_id, decision: "confirmed" });
     assert.equal(refused.status, "rolled_back");
     assert.deepEqual(await readFile(config), beforeConfig);
     assert.deepEqual(await readFile(receipt), beforeReceipt, "failed validation writes no new successful connection receipt");
     assert.deepEqual(await readFile(unrelated), beforeUnrelated);
-    assert.equal(await pathMissing(skill), true, "the applied Skill link was removed again");
+    assert.equal(await pathMissing(skill), true, "no goal-advance link is written (PEQ-14)");
     await writeFile(fixture.launcher, available, { mode: 0o755 });
     const retry = await integration.prepare("codex", "connect");
     assert.equal((await integration.confirm({ runtime_id: "codex", plan_id: retry.plan_id, decision: "confirmed" })).status, "connected");
-    assert.equal(await readlink(skill), fixture.skillSource);
+    assert.equal(await pathMissing(skill), true, "connecting writes no goal-advance link (PEQ-14)");
     assert.match(await readFile(config, "utf8"), /\[mcp_servers\.molis-work\]/);
     assert.match(await readFile(config, "utf8"), /\[mcp_servers\.other\]\ncommand = "other-mcp"/);
     assert.deepEqual(await readFile(unrelated), beforeUnrelated);
@@ -210,7 +204,7 @@ test("default integration validation uses the real MCP launcher and rolls back a
     assert.equal(result.status, "connected", result.message);
     const codexConfig = await readFile(join(fixture.userHome, ".codex", "config.toml"), "utf8");
     assert.match(codexConfig, /\[mcp_servers.molis-work\]/);
-    assert.equal(await readlink(join(fixture.userHome, ".codex", "skills", "goal-advance")), fixture.skillSource);
+    assert.equal(await pathMissing(join(fixture.userHome, ".codex", "skills", "goal-advance")), true, "PEQ-14: no goal-advance link");
 
     await writeFile(fixture.launcher, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
     const failedPlan = await integration.prepare("claude-code", "connect");
@@ -361,7 +355,7 @@ test("Codex first and repeated connection preserve unrelated TOML and create a b
     assert.match(after, /\[mcp_servers\.molis-work\]/);
     assert.match(after, new RegExp(fixture.launcher.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.doesNotMatch(after, /env_vars\s*=|CODEX_THREAD_ID|MOLIS_WORK_WORK_CONTEXT_ID/);
-    assert.equal(await readlink(join(fixture.userHome, ".codex", "skills", "goal-advance")), fixture.skillSource);
+    assert.equal(await pathMissing(join(fixture.userHome, ".codex", "skills", "goal-advance")), true, "PEQ-14: no goal-advance link");
     const receipt = await readFile(join(fixture.home, "runtime-integrations", "codex.json"), "utf8");
     assert.match(receipt, /molis-work-runtime-integration-v1/);
     assert.doesNotMatch(receipt, /KEEP-ME/);
@@ -428,7 +422,8 @@ test("declined, mismatched, stale, and conflicting plans never overwrite Runtime
     assert.equal(stale.status, "stale");
     assert.equal(await readFile(config, "utf8"), 'model = "changed-after-preview"\n');
 
-    await writeFile(config, '[mcp_servers.molis-work]\ncommand = "not-molis-work"\n');
+    // A same-named entry Molis Work did not write (its command names someone else's server); a user file at the old Skill path is left alone too (PEQ-14).
+    await writeFile(config, '[mcp_servers.molis-work]\ncommand = "someone-elses-server"\n');
     await writeFile(skill, "user-owned skill\n");
     const conflictPlan = await integration.prepare("codex", "connect");
     assert.equal(conflictPlan.status, "conflict");
@@ -520,7 +515,7 @@ test("Claude Code connection and removal preserve unrelated JSON and other MCP s
   });
 });
 
-test("removal refuses to delete Molis Work entries or Skill links changed after connection", async () => {
+test("removal refuses to delete Molis Work entries changed after connection", async () => {
   await withFixture(async (fixture) => {
     const config = join(fixture.userHome, ".claude.json");
     await writeFile(config, '{"mcpServers":{}}\n');
@@ -535,11 +530,6 @@ test("removal refuses to delete Molis Work entries or Skill links changed after 
     const changed = JSON.parse(await readFile(config, "utf8")) as Record<string, any>;
     changed.mcpServers["molis-work"].args = ["--user-change"];
     await writeFile(config, `${JSON.stringify(changed)}\n`);
-    const skill = join(fixture.userHome, ".claude", "skills", "goal-advance");
-    await rm(skill);
-    const userSkill = join(fixture.directory, "user-skill");
-    await mkdir(userSkill);
-    await symlink(userSkill, skill, "dir");
     const before = await readFile(config, "utf8");
 
     const removePlan = await integration.prepare("claude-code", "remove");
@@ -551,11 +541,10 @@ test("removal refuses to delete Molis Work entries or Skill links changed after 
     });
     assert.equal(result.status, "conflict");
     assert.equal(await readFile(config, "utf8"), before);
-    assert.equal(await readlink(skill), userSkill);
   });
 });
 
-test("OpenCode, Pi Agent, and Grok Build write official MCP and Skill locations", async () => {
+test("OpenCode, Pi Agent, and Grok Build write official MCP locations and no Skill link (PEQ-14)", async () => {
   await withFixture(async (fixture) => {
     const integration = service(fixture);
     const opencodeConfig = join(fixture.userHome, ".config", "opencode", "opencode.json");
@@ -592,7 +581,7 @@ test("OpenCode, Pi Agent, and Grok Build write official MCP and Skill locations"
     assert.equal(opencode.mcp["molis-work"].type, "local");
     assert.deepEqual(opencode.mcp["molis-work"].command, [fixture.launcher]);
     assert.equal(opencode.mcp["molis-work"].environment?.MOLIS_WORK_RUNTIME_ID, "opencode");
-    assert.equal(await readlink(join(fixture.userHome, ".config", "opencode", "skills", "goal-advance")), fixture.skillSource);
+    assert.equal(await pathMissing(join(fixture.userHome, ".config", "opencode", "skills", "goal-advance")), true);
 
     const pi = JSON.parse(await readFile(piConfig, "utf8")) as {
       settings: { toolPrefix: string };
@@ -603,14 +592,14 @@ test("OpenCode, Pi Agent, and Grok Build write official MCP and Skill locations"
     assert.equal(pi.mcpServers["molis-work"].command, fixture.launcher);
     assert.equal(pi.mcpServers["molis-work"].env?.MOLIS_WORK_RUNTIME_ID, "pi-agent");
     assert.equal(pi.mcpServers["molis-work"].lifecycle, "eager");
-    assert.equal(await readlink(join(fixture.userHome, ".pi", "agent", "skills", "goal-advance")), fixture.skillSource);
+    assert.equal(await pathMissing(join(fixture.userHome, ".pi", "agent", "skills", "goal-advance")), true);
 
     const grok = await readFile(grokConfig, "utf8");
     assert.match(grok, /model = "keep-grok"/);
     assert.match(grok, /\[mcp_servers\.other\][\s\S]*command = "keep-grok"/);
     assert.match(grok, /\[mcp_servers\.molis-work\]/);
     assert.match(grok, /MOLIS_WORK_RUNTIME_ID = "grok-build"/);
-    assert.equal(await readlink(join(fixture.userHome, ".grok", "skills", "goal-advance")), fixture.skillSource);
+    assert.equal(await pathMissing(join(fixture.userHome, ".grok", "skills", "goal-advance")), true);
   });
 });
 

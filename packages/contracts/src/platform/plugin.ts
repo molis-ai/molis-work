@@ -19,6 +19,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-sync.js";
+export * from "./plugin-data-sections.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";
@@ -35,7 +36,7 @@ export type { PluginProjectsClient } from "./plugin-projects.js";
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory, PluginTerminalPanel, PluginTerminalProgram } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
 export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginLocalesDeclaration, SubjectContextAnswer, UiSubjectContextDeclaration, UiSubjectContextKind } from "./plugin-manifest.js";
-export { PLUGIN_LOCALE_LIMITS, SUBJECT_CONTEXT_PATH, SURFACE_BROWSER_PERMISSION, UI_SUBJECT_CONTEXT_KINDS, UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, browserSiteDeclarations } from "./plugin-manifest.js";
+export { PLUGIN_LOCALE_LIMITS, SUBJECT_CONTEXT_PATH, SURFACE_BROWSER_PERMISSION, UI_SUBJECT_CONTEXT_KIND_PATTERN, isUiSubjectContextKind, UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
 export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
 import type { PluginRouteBinding } from "./plugin-routes.js";
@@ -376,5 +377,5 @@ export type { PluginTaskSubjectsDeclaration } from "./plugin-task-subjects.js";
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
-export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "./plugin-notifications.js";
-export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "./plugin-notifications.js";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA } from "./plugin-notifications.js";

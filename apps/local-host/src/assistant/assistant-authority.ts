@@ -4,7 +4,8 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { requireSynchronous, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
+import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import { readProjectGuidance } from "../project-guidance-actions.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -13,6 +14,7 @@ import { hostLog } from "../host-log.js";
 import type { WebLocale } from "../web-locale.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantActionDelegation } from "./assistant-action-delegation.js";
+import { acceptanceSubjectOf } from "./assistant-line-actions.js";
 import type { assistantWorkConnections } from "./assistant-work-connections.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
@@ -47,6 +49,8 @@ export const assistantActionContext = (work: StoredWork, options: { call_id?: st
   actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: "assistant:" + work.work_id, call_id: options.call_id ?? newCallId(),
   ...(work.session_id ? { runtime_session_id: work.session_id } : {}), project_id: work.project_ref?.project_id ?? null,
   audience: "agent", permissions: [], locale: options.locale, signal: options.signal,
+  // The work speaks for itself in the platform's requirements and acceptance (S-acceptance-subject-owner, S-assistant-delivery-own-object).
+  acting_for: (({ provider_id, subject }) => ({ provider_id, kind: subject.kind, id: subject.id }))(acceptanceSubjectOf(work)),
 });
 
 /** The assistant's granted directory uses installed action metadata as its initial scope. Dispatch rechecks availability. */
@@ -235,7 +239,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
 export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "actionClient">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
-  let view: ProjectGuidanceFacts;
+  let view: ProjectGuidanceView;
   try { view = await readProjectGuidance(localHost.actionClient(reference), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];

@@ -641,7 +641,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];
         const plugin = link.dataset.connectorNextLink; const next = new URL(link.getAttribute('href'), location.origin);
-        if (project && plugin) { next.pathname = '/projects/' + encodeURIComponent(project) + '/'; next.searchParams.set('openPlugin', plugin); link.textContent = globalThis.t.text(plugin === 'feed' ? "workbench.connectors-settings.open-feed-add-source" : plugin === 'images' ? "workbench.connectors-settings.open-images" : "workbench.connectors-settings.open-coding"); }
+        if (project && plugin) { next.pathname = '/projects/' + encodeURIComponent(project) + '/'; next.searchParams.set('openPlugin', plugin); if (link.dataset.connectorProjectLabel) link.textContent = link.dataset.connectorProjectLabel; }
         else if (project && next.pathname.startsWith('/settings/')) next.searchParams.set('project', project);
         if (params.get('desktop')) next.searchParams.set('desktop', params.get('desktop'));
         link.href = next.pathname + next.search;

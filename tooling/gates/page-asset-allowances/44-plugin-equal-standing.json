@@ -1,0 +1,59 @@
+{
+  "reason": "第 44 批插件同等地位（PEQ-02/04/07/08）：Goals 与 Feed 样式迁回各自插件包按需加载，三张共享核心 CSS 净缩减 349,285 B（workbench.css -165,013 B、settings.css -93,871 B、arrival.css -90,401 B），仅启用对应插件时加载 /assets/molis-work-plugins/goals.css (+104,957 B) 与 feed.css (+18,269 B)；工作台脚本因定样首屏 A、移除撤销/数据已保留标记、按需壳样式同步及通用事件命名净增 3,943 B，其余插件/框架脚本因 SDK 通用列表列与事件名微增 9–123 B；首屏门禁各页冷启动均大幅净降（workbench-default 冷 -697 KB / 暖 -122 KB），仅新增按需 goals.css 入口、更新文案后的内容寻址工作台语言包入口与 arrival-empty 暖启动 +3,447 B。",
+  "review": "specs/plugin-equal-standing/spec.md（PEQ-02、PEQ-04、PEQ-07、PEQ-08）、docs/design/project-without-goals/README.md（用户 2026-11-17 选定首屏 A 与移除 A）；相对 merge-base ffd077b2dffce80370b794cb7dc676b09e7db8ea 独立构建实测。",
+  "userApproval": "用户 2026-11-19 明确回复「批准」放行第 44 批 /assets/molis-work-plugins/goals.css、feed.css 及首屏新按需入口与语言包新哈希入口许可。",
+  "assets": {
+    "/assets/molis-work-capabilities.js": 9,
+    "/assets/molis-work-chooser-search.js": 35,
+    "/assets/molis-work-plugin-frame.js": 123,
+    "/assets/molis-work-workbench.js": 3943,
+    "/assets/molis-work-plugins/shelf.js": 94,
+    "/assets/molis-work-plugins/pages.js": 56,
+    "/assets/molis-work-plugins/lingguang.js": 11,
+    "/assets/molis-work-plugins/alchemist.js": 11,
+    "/assets/molis-work-plugins/feed.css": 18269,
+    "/assets/molis-work-plugins/goals.css": 104957
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 0,
+      "warm": 3447
+    },
+    "arrival-empty/en": {
+      "cold": 0,
+      "warm": 3447
+    }
+  },
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "workbench-all-plugins"
+      ],
+      "locale": "both",
+      "entry": "/assets/molis-work-plugins/goals.css",
+      "change": "new"
+    }
+  ]
+}

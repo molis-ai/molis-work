@@ -68,7 +68,6 @@ test("RAC-711 the names ui-composition and i18n give out are listed in the entry
     for (const file of users) assert.match(read(file), new RegExp(`import [^\n]*\\b${name}\\b[^\n]* from "@molis-ai/molis-work-ui-host"`, "u"), `${file} uses ${name}`);
   }
   for (const name of ["EN", "registerPluginMessages", "unregisterPluginMessages", "inWordsOf", "withPluginWords"]) assert.equal(name in workbench, false, name);
-  assert.deepEqual(named("./capsule-view.js"), [], "Capsule projections and their types belong to Goals");
   for (const name of [...UI_COMPOSITION_NAMES, "createWorkbenchLocale", "LOCALE_COOKIE", "WEB_LOCALES", "LOCALE_SWITCH_STYLES", "installCatalogTextScope"]) {
     assert.ok(name in workbench, `${name} is given out`);
   }

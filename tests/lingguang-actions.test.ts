@@ -46,8 +46,8 @@ test("RAC-32 all Lingguang business actions register before UI, enforce identity
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
     const delivery = { title: "Workflow", body: "Written via business action", request_id: "workflow:workflow-1:1" };
     const received = await bound.invoke(content.receive, delivery);
-    assert.equal((await bound.invoke(content.receive, delivery)).item_id, received.item_id, "W4-6-02 the same request id returns the spark it made");
-    assert.equal((await bound.invoke(actions.get, { id: received.item_id })).spark.body, "Written via business action");
+    assert.equal((await bound.invoke(content.receive, delivery)).subject.id, received.subject.id, "W4-6-02 the same request id returns the spark it made");
+    assert.equal((await bound.invoke(actions.get, { id: received.subject.id })).spark.body, "Written via business action");
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
       { title: "Bypass", body: "Must not write", request_id: "workflow:workflow-1:2" }), { code: "actions.forbidden" });
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 2);
@@ -59,7 +59,7 @@ test("RAC-32 all Lingguang business actions register before UI, enforce identity
     try { foreign = store.create({ project_id: "b", body: "Another project" }).id; } finally { store.close(); }
     await assert.rejects(bound.invoke(actions.discard, { ids: [spark.id, foreign] }), { code: "lingguang.not_found" });
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "inbox", "batch failure is atomic");
-    await bound.invoke(actions.discard, { ids: [received.item_id] });
+    await bound.invoke(actions.discard, { ids: [received.subject.id] });
     assert.deepEqual((await bound.invoke(actions.list, {})).sparks.map(row => row.id), [spark.id]);
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(actions.get, { id: spark.id })).spark, edited, "reopening Runtime retains original data");

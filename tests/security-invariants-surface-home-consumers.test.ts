@@ -28,7 +28,7 @@ test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one
   let modelCalls = 0;
   const f = await serveHomeRuntime(t, { completeText: async () => { modelCalls++; throw new Error("Home must not call a model"); } });
   const project = await f.project("Home consumers"), prefix = "/projects/" + project.project_id;
-  for (const plugin of ["inbox", "coding", "feed"]) await addMember(f, project.project_id, plugin);
+  for (const plugin of ["goals", "inbox", "coding", "feed"]) await addMember(f, project.project_id, plugin);
   assert.equal((await f.request(prefix + "/")).status, 200);
   const read = (body: unknown = {}) => f.request(prefix + endpoint, { method: "POST", body }).then(response => json<SurfaceHomeDisplay>(response));
   const click = (id: string, target: unknown) => f.request(prefix + endpoint + "/click", { method: "POST", body: { owner_plugin_id: owner(id), target } });

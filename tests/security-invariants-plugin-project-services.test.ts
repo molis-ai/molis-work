@@ -61,6 +61,10 @@ interface ProbeInput {
   readonly status?: "open" | "in_progress" | "done" | "dismissed"; readonly revision?: number;
 }
 
+/** How a probe declares a subject type: the kind of its objects and the one reason it writes (the type's own name). */
+const declaredSubject = (type: string) => ({ type, object_kind: type === "goal_decision" ? "goal" : "source",
+  reasons: [{ id: type, attention: type === "goal_decision" ? "needs_decision" as const : "failed" as const }] });
+
 /** A plugin that exists only for the test, with a table of its own in the project's library; `grants` are the permissions it asks for. */
 function probe(short: string, grants: readonly string[], subjects: readonly string[], peer?: () => PluginHostServices, actionPermissions?: readonly string[],
   idOf = `io.molis.work.example.${short}`) {
@@ -78,7 +82,8 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, ...grants].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [act], databases: { project: table },
-    ...(subjects.length > 0 ? { attention: { subjects: subjects as never } } : {}),
+    // Batch 44 C8: each type in the plugin's own words, with the object kind it refers to and the reasons it may give.
+    ...(subjects.length > 0 ? { attention: { subjects: subjects.map(declaredSubject) } } : {}),
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const insert = (tx: PluginProjectDatabaseTransaction, name: string) => tx.run(`INSERT INTO ${short}_notes (text) VALUES (?)`, [name]);
   const definition: PluginDefinition = { manifest, async start(context) {
@@ -126,6 +131,10 @@ function probe(short: string, grants: readonly string[], subjects: readonly stri
       } else if (input.step === "stray") {
         // A plugin that names a project of its own in the entry it adds.
         await database.transaction(async () => {}, tx => { own.attention!.join(tx, w => { w.create({ owner_plugin_id: id, subject_type: "goal_decision", subject_id: input.name, reason: "goal_decision", project_id: "another-project" } as never); }); });
+      } else if (input.step === "undeclared-reason") {
+        // A declared type with a reason the Manifest does not give for it.
+        await database.transaction(async () => {}, tx => { insert(tx, input.name); own.attention!.join(tx, w => {
+          w.create({ owner_plugin_id: id, subject_type: "goal_decision", subject_id: input.name, reason: "source_fault" }); }); });
       } else if (input.step === "owned") {
         await database.transaction(async () => {}, tx => {
           insert(tx, input.name);
@@ -341,15 +350,15 @@ test("S-68 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   assert.notEqual(owned.entry_id, old.entry_id);
   assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).some(entry => entry.entry_id === owned.entry_id), false);
   assert.equal(feed.snapshot(DEMO_PROJECT_ID).inbox_entries.some(entry => entry.entry_id === owned.entry_id), false);
-  assert.throws(() => feed.getInboxEntry(DEMO_PROJECT_ID, owned.entry_id), { code: "inbox.entry_not_found" });
-  assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, owned.entry_id, "done"), { code: "inbox.entry_not_found" });
+  assert.throws(() => feed.getInboxEntry(DEMO_PROJECT_ID, owned.entry_id), { code: "feed.entry_not_found" });
+  assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, owned.entry_id, "done"), { code: "feed.entry_not_found" });
   let relatedReads = 0;
   const unavailable = (): never => assert.fail("this test reads a Goal subject, not Feed content or a receive operation");
   const handlers = createInboxContentHandlers({
     entries: () => feed.listInboxEntries(DEMO_PROJECT_ID), entry: entryId => feed.getInboxEntry(DEMO_PROJECT_ID, entryId),
     items: () => feed.snapshot(DEMO_PROJECT_ID).feed_items, sources: () => feed.snapshot(DEMO_PROJECT_ID).sources,
     readSubject: async subject => { relatedReads++; return subjectContext({ subject, revision: "goal-test-revision", title: goal.title,
-      content: goal.outcome, truncated: false, goal_ids: [goal.goal_id] }); },
+      content: goal.outcome, truncated: false, attached_to: [{ kind: "goal", id: goal.goal_id }] }); },
     readFeed: async () => unavailable(), receiveFeed: async () => unavailable(), ensure: unavailable, reopen: unavailable, flush: async () => unavailable(),
   });
   const subjectAction = handlers.find(handler => handler.capability_id === "inbox.subject.read")!;
@@ -361,7 +370,7 @@ test("S-68 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   });
   t.after(stop);
   const viewCaller: ActionCallContext = { actor_id: OWNER, project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["inbox:read"] };
-  await assert.rejects(inbox.invoke(viewCaller, subjectDefinition, { subject_id: owned.entry_id }), { code: "inbox.entry_not_found" });
+  await assert.rejects(inbox.invoke(viewCaller, subjectDefinition, { subject_id: owned.entry_id }), { code: "feed.entry_not_found" });
   assert.equal(relatedReads, 0, "the owned alias never reaches the old Goal material resolver");
   const context = await inbox.invoke(viewCaller, subjectDefinition, { subject_id: old.entry_id }) as ActionSubjectContext;
   assert.equal(context.content, goal.outcome);
@@ -522,6 +531,10 @@ test("S-68 an entry is added or deleted only for a kind of subject the Manifest 
     assert.equal(nothing(main.short, name), true, `${which}: another kind of subject is not this plugin's`);
   }
   main.reset();
+  await assert.rejects(client.invoke(caller(permissionsOf(main)).context, main.act, { name: "undeclared-reason", step: "undeclared-reason" }),
+    { code: "actions.forbidden", message: /没有为这种对象声明这个原因/ });
+  assert.equal(nothing(main.short, "undeclared-reason"), true, "C8: a reason the owner did not declare for the type is refused, and the plugin's own row goes with it");
+  main.reset();
   assert.equal(await client.invoke(caller(permissionsOf(main)).context, main.act, { name: "declared", step: "both" }), true);
   assert.equal(entry("declared")?.project_id, DEMO_PROJECT_ID);
   main.reset();
@@ -564,19 +577,25 @@ test("S-68 an Inbox entry and the plugin's own rows land together or not at all:
 });
 
 // RAC-279
-test("S-68 a Manifest declares attention subjects only with attention:write, only the platform's kinds, once each", () => {
+test("S-68 a Manifest declares attention subjects only with attention:write, in the owner's own declared shape, once each", () => {
   const base = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.subjects", version: "1.0.0", name: "subjects", kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-subjects" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const permission = (name: string) => ({ permission: name, required: true, reason: "测试" });
   const parse = (permissions: string[], attention: unknown) => parsePluginManifest({ ...base, permissions: permissions.map(permission), attention });
-  assert.equal(parse([A_WRITE], { subjects: ["goal_decision"] }).attention?.subjects[0], "goal_decision");
-  assert.throws(() => parse([], { subjects: ["goal_decision"] }), /attention:write/);
-  assert.throws(() => parse([A_WRITE], { subjects: ["somebody_elses"] }), /平台登记/);
-  assert.throws(() => parse([A_WRITE], { subjects: ["goal_decision", "goal_decision"] }), /重复/);
+  const own = declaredSubject("goal_decision");
+  assert.deepEqual(parse([A_WRITE], { subjects: [own] }).attention?.subjects[0], own);
+  assert.throws(() => parse([], { subjects: [own] }), /attention:write/);
+  // Batch 44 C8: the platform keeps no list of types; a bare name, a type with no reason, or a reason that asks something else is refused.
+  assert.throws(() => parse([A_WRITE], { subjects: ["goal_decision"] }), /type、object_kind/);
+  assert.throws(() => parse([A_WRITE], { subjects: [{ ...own, reasons: [] }] }), /至少要声明一个 reason/);
+  assert.throws(() => parse([A_WRITE], { subjects: [{ ...own, reasons: [{ id: "goal_decision", attention: "urgent" }] }] }), /attention 只能是/);
+  assert.throws(() => parse([A_WRITE], { subjects: [{ ...own, reasons: [{ id: "goal_decision" }, { id: "goal_decision" }] }] }), /reason 重复/);
+  assert.throws(() => parse([A_WRITE], { subjects: [own, own] }), /重复/);
+  assert.throws(() => parse([A_WRITE], { subjects: [own, { ...own, type: "another" }] }), /同一个 object_kind/);
   assert.throws(() => parse([A_WRITE], { subjects: [] }), /至少/);
-  assert.throws(() => parse([A_WRITE], { subjects: ["goal_decision"], other: 1 }), /不认/);
+  assert.throws(() => parse([A_WRITE], { subjects: [own], other: 1 }), /不认/);
 });
 
 // RAC-280

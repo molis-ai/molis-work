@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
@@ -25,7 +25,7 @@ test("QEA-15/16 QEA-169 Home keeps partial background work visible and retries o
   for (const name of ["Alpha", "Beta"]) {
     const project = await createProject(b.web, name);
     if (name === "Alpha") healthyProject = project.project_id;
-    else otherProject = project.project_id;
+    else { otherProject = project.project_id; await addProjectPlugin(b.web, otherProject, "goals"); }
     await startProjectPlugins(b.localHost, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   }
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));

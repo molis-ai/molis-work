@@ -1,4 +1,4 @@
-import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors } from "./errors.js";
 import type { BoundActionClient, ActionSceneBinding, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, type InboxPagesInput, type InboxStatusInput } from "./actions.js";
 import type { InboxPluginRouteHandler } from "./routes.js";

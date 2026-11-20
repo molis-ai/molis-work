@@ -213,10 +213,19 @@ export interface PluginDatabaseUpgradeStep {
  * closes it when idle and when the instance stops, and removes it with the project (specs/archive/plugin-project-partition). Only
  * `databases.home` may say so; the store registry says the same of the library (`HomeStoreDeclaration.library.partition`).
  */
+/** A top-level relative subdirectory inside a Home store excluded from snapshots (rebuildable cache or machine-local locks). */
+export interface HomeStoreSnapshotExclusion {
+  readonly path: string;
+  readonly reason: string;
+  readonly restore?: "preserve" | "reset";
+}
+
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
   readonly partition?: "project";
   /** The rows of this library that belong to a project, which the platform deletes with the project; never with `partition`. */
   readonly project_rows?: PluginProjectRowsDeclaration;
+  /** Top-level transient/lock paths under this store omitted from Home snapshots. */
+  readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }
 
 /**
@@ -300,6 +309,8 @@ export interface HomeStoreDeclaration {
    * `partition: "project"` there is one such file for each project, in `projects/<project>/` under the store's directory.
    */
   readonly library?: { readonly baseline: HomeStoreBaseline; readonly file?: string; readonly partition?: "project" };
+  /** Top-level transient/lock paths under this store omitted from Home snapshots. */
+  readonly snapshot_exclusions?: readonly HomeStoreSnapshotExclusion[];
 }
 
 /**

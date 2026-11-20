@@ -87,7 +87,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
     const edge = ledger.query.get(access, "goal.input:binding-feed")!;
     assert.equal(edge.actor_id, "original-user");
     assert.equal(edge.recorded_at, "2026-09-01T10:00:00Z");
-    assert.deepEqual(edge.target, { module: "feed", id: "item-a", version: null, scope: access.scope });
+    assert.deepEqual(edge.target, { module: "plugins", plugin_id: "io.molis.work.feed", object_type: "feed_item", id: "item-a", version: null, scope: access.scope }, "C6: a Feed item is a plugin object in the ledger");
     // A Feed item can move to another Goal or be deleted without changing the confirmed source receipt.
     ledger.commands.put(access, { key: "feed.goal:item-a", type: "feed.goal", source: edge.target,
       target: { ...edge.source, id: "goal-other" }, cause: "feed.link_goal" });

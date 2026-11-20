@@ -147,15 +147,22 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
     refuse('库、连接槽和文件条目必须与操作实际声明的 effects 一致');
   }
   if (homeDatabase && input.runtime?.scope !== 'home') refuse('Home 库只给 Home 范围的包');
-  if (projectDatabase && input.runtime?.scope === 'home') refuse('Home 范围的包没有项目库');
+  const dualInstance = input.runtime?.scope === 'home' && input.runtime.dual_instance === true;
+  if (projectDatabase && input.runtime?.scope === 'home' && !dualInstance) refuse('Home 范围的包没有项目库');
+  if (dualInstance && input.contract?.operations.some(op => op.effects.projectDatabase?.length && (op.effects.homeDatabase?.length || op.effects.modelSettings?.length || op.effects.imageGeneration?.length))) {
+    refuse('双实例包的单个操作不能同时声明项目库与 Home 专属效果（homeDatabase、modelSettings、imageGeneration）');
+  }
   const storeName = 'sbxdb-' + createHash('sha256').update(input.pluginId).digest('hex').slice(0, 32);
   const library = (scope: Pick<PluginDatabaseDeclaration, 'schema' | 'version' | 'upgrades'>, read_permission: string, write_permission: string) => ({
     store_name: storeName, version: scope.version, schema: scope.schema, read_permission, write_permission,
     ...(scope.upgrades === undefined ? {} : { upgrades: scope.upgrades }),
   });
+  const databases = homeDatabase || projectDatabase ? {
+    ...(homeDatabase ? { home: library(homeDatabase, HOME_READ, HOME_WRITE) } : {}),
+    ...(projectDatabase ? { project: library(projectDatabase, 'storage:private', 'storage:private') } : {}),
+  } : undefined;
   const resources: Pick<PluginManifest, 'databases' | 'connections' | 'owner_files'> = {
-    ...(homeDatabase ? { databases: { home: library(homeDatabase, HOME_READ, HOME_WRITE) } } : {}),
-    ...(projectDatabase ? { databases: { project: library(projectDatabase, 'storage:private', 'storage:private') } } : {}),
+    ...(databases ? { databases } : {}),
     ...(connections ? { connections } : {}),
     ...(ownerFiles ? { owner_files: { store_name: 'files', entries: ownerFiles, read_permission: FILE_READ, write_permission: FILE_WRITE } } : {}),
   };
@@ -201,10 +208,11 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
-    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined))
+    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.trusted_review !== undefined
+    || operation.start !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
-      title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', upgradeOperation: sandboxUpgradeOperation(sandboxUpgradeFields(input)),
-      hasProjectDatabase: !!input.projectDatabase }) : undefined;
+      title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', dualInstance: input.runtime?.scope === 'home' && input.runtime.dual_instance === true,
+      upgradeOperation: sandboxUpgradeOperation(sandboxUpgradeFields(input)), hasProjectDatabase: !!input.projectDatabase }) : undefined;
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,

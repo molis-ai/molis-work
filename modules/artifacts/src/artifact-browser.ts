@@ -3,7 +3,7 @@ import type {
   ArtifactsQueryApi, ArtifactVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, subjectContext, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsErrors } from "./artifact-errors.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 
@@ -68,17 +68,19 @@ function importedDocumentText(record: ArtifactVersionRecord): string | null {
 }
 
 /** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
-export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = [], request?: { offset?: number }): ActionSubjectContext {
-  const relatedGoals = [...new Set(goalIds)].sort();
+/** `attached`: the objects a link kind's owner attached this version to (a Goal's input), each by its kind. */
+export function artifactAnalysisContext(record: ArtifactVersionRecord, attached: readonly ActionSubject[] = [], request?: { offset?: number }): ActionSubjectContext {
+  const related = [...new Map(attached.map(subject => [JSON.stringify([subject.kind, subject.id]), { kind: subject.kind, id: subject.id }])).entries()]
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, subject]) => subject);
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: record.title,
+    revision: JSON.stringify([record.version, record.content_digest, related]), title: record.title,
     content: importedDocumentText(record) ?? JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
       artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
         binding_signature: record.producer_binding_signature },
       created_at: record.created_at, payload: record.payload, metadata: record.metadata }),
-    goal_ids: relatedGoals,
+    attached_to: related,
   }, request);
 }
 

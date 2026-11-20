@@ -2,6 +2,7 @@ import { ActionError, requireSynchronous, LOCAL_PERSON_ACTOR_ID, type ActionExec
 import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { pluginMemoryScene } from "./memory-plugin-scene.js";
 
 export function memoryCaller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller {
   const agent = context.actor_kind === "runtime" && context.audience !== "mcp", run = agent ? context.runtime_memory : undefined;
@@ -15,7 +16,10 @@ export function memoryCaller(context: ActionCallContext, work?: { work_id: strin
   if (session && (agent || context.audience !== "user" || context.actor_kind === "runtime"))
     throw new ActionError("memory.forbidden", "会话管理绑定只属于本人的原业务入口");
   session?.assertCurrent();
-  return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: context.project_id, consumer, plugin_id: run?.plugin_id ?? context.host_plugin?.plugin_id ?? null, work: work ?? null,
+  const pluginId = run?.plugin_id ?? context.host_plugin?.plugin_id ?? null;
+  const declaredScene = context.host_plugin?.declaration.manifest.memory_scene;
+  return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: context.project_id, consumer, plugin_id: pluginId, work: work ?? null,
+    ...(pluginId ? { current_scene: pluginMemoryScene(pluginId, declaredScene) } : {}),
     ...(session ? { session_id: session.session.session_id, memory_session: structuredClone({ session: session.session, current_scene: session.current_scene, target: session.target }),
       current_scene: session.current_scene, purpose: "management" as const } : {}),
     ...(context.memory_context_selection ? { context_selection: true } : {}),

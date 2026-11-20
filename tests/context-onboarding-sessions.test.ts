@@ -8,11 +8,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION, sessionsActions, sessionsErrors, type ExternalSessionEntry } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
-  adoptContextJourney, bindLocalWebActions, bindLocalWebProjectAiActions, MolisWorkLocalHost, molisWorkHostProjectReference, readContextJourney, readOnboardingSessions,
+  adoptContextJourney, bindLocalWebActions, bindLocalWebProjectAiActions, MolisWorkLocalHost, molisWorkHostProjectReference, onboardingTakers, readContextJourney, readOnboardingSessions,
   selectContextSources, sessionKeyOf, startContextJourney, updateContextDraft, waitContextJourney, withContextJourneys,
 } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -158,17 +158,22 @@ function projectPorts(dir: string, hosts: MolisWorkLocalHost[]) {
   let host: MolisWorkLocalHost | undefined;
   let runCatalog: typeof withMolisWorkProjectCatalog = withMolisWorkProjectCatalog;
   const withCatalog: typeof withMolisWorkProjectCatalog = (options, operation) => runCatalog(options, operation);
+  const client = async (projectId: string, permissions: readonly string[], original_file?: { path: string; install_id: string }) => {
+    const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
+    if (!host) {
+      host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.push(host);
+      runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
+    }
+    return bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id })),
+      () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [...permissions], ...original_file ? { original_file } : {} }));
+  };
   return {
     withCatalog,
-    actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
-      const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
-      if (!host) {
-        host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.push(host);
-        runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
-      }
-      return bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id })),
-        () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
-    },
+    takers: onboardingTakers,
+    actions: (_home: string, projectId: string, original_file?: { path: string; install_id: string }) =>
+      client(projectId, ["artifacts:read", "artifacts:write"], original_file),
+    take: (_home: string, projectId: string, definition: ActionDefinition) =>
+      client(projectId, definition.action.permissions),
   };
 }
 
@@ -183,7 +188,7 @@ test("SRB-09 B35-R3 adopting the same session and summary again reuses the origi
     await assert.rejects(adoptContextJourney(dir, id, { title: "App", blank: true }, ports), /只能采用整理结果/, "no blank start in an existing project");
     const done = await adoptContextJourney(dir, id, { title: "App 的背景", body }, ports);
     assert.equal(done.phase, "complete", done.error ?? "");
-    return { ref: done.summary!.references[0]!, documents: done.document_id, artifacts: done.artifact_references };
+    return { ref: done.summary!.references[0]!, summary_open: done.summary_open, artifacts: done.artifact_references };
   };
   const first = await round(DB_SESSION), again = await round(DB_SESSION);
   const projects = await ports.withCatalog({ homeDirectory: dir }, catalog => catalog.listProjects().map(one => one.project_id));
@@ -191,12 +196,12 @@ test("SRB-09 B35-R3 adopting the same session and summary again reuses the origi
   assert.deepEqual(again, first, "both journeys point to the original source and summary records");
   const edited = await round(DB_SESSION, "人工修订的决定 [S1]");
   assert.deepEqual(edited.ref.artifact, first.ref.artifact);
-  assert.deepEqual(edited.ref.documents, first.ref.documents);
-  assert.notEqual(edited.documents, first.documents, "a new accepted text is a separate summary");
+  assert.deepEqual(edited.ref.parts, first.ref.parts);
+  assert.notDeepEqual(edited.summary_open, first.summary_open, "a new accepted text is a separate summary");
   const grown = await round({ ...DB_SESSION, entries: [...DB_SESSION.entries, entry("5", "tool", "2026-09-03T08:00:00.000Z", "Login page done.")] });
   assert.equal(grown.ref.artifact!.artifact_id, first.ref.artifact!.artifact_id, "a session that went on is a newer version of its one material");
   assert.equal(grown.ref.artifact!.version, first.ref.artifact!.version + 1);
-  assert.notEqual(grown.documents, first.documents, "a new source version is a separate summary");
+  assert.notDeepEqual(grown.summary_open, first.summary_open, "a new source version is a separate summary");
 });
 
 test("SRB-09 the reader is the project's AI: refused on a real Host while the permit is off, and it cannot turn the permit on; the person can", { timeout: 120_000 }, async t => {
@@ -289,7 +294,7 @@ test("B35-R2 the real Sessions owner fences a late model reply and a cached retr
   const refused = await waitContextJourney(env.home, id);
   assert.equal(refused.phase, "failed");
   assert.equal(refused.summary, null);
-  assert.equal(refused.todo, undefined);
+  assert.equal(refused.drafts, undefined);
   const [kept] = refused.sources.find(source => source.kind === "sessions")!.references!;
   const original = await api(`${prefix}/${id}/text/${kept!.text.sha256}`);
   assert.match(original.text, /B35 real fixture conversation/);

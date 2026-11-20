@@ -95,12 +95,11 @@ pub(crate) fn spare_port() -> Option<u16> {
 
 /// The shell's IPC grants. They are the files in `runtime-capabilities/`, with the proved port put
 /// in; nothing else is granted, and they name no other port, host or scheme.
-const CAPABILITY_TEMPLATES: [&str; 6] = [
+const CAPABILITY_TEMPLATES: [&str; 5] = [
     include_str!("../../../src-tauri/runtime-capabilities/default.json"),
     include_str!("../../../src-tauri/runtime-capabilities/context-directories.json"),
     include_str!("../../../src-tauri/runtime-capabilities/main-external-links.json"),
     include_str!("../../../src-tauri/runtime-capabilities/main-rollback.json"),
-    include_str!("../../../src-tauri/runtime-capabilities/capsule-runtime.json"),
     include_str!("../../../src-tauri/runtime-capabilities/main-running.json"),
 ];
 
@@ -146,7 +145,7 @@ mod tests {
     fn res08_s14_grants_reach_only_the_proved_port() {
         for port in [4173_u16, 4190] {
             let granted = capabilities(port);
-            assert_eq!(granted.len(), 6);
+            assert_eq!(granted.len(), 5);
             for capability in &granted {
                 assert!(!capability.contains("{port}"));
                 let value: serde_json::Value = serde_json::from_str(capability).unwrap();
@@ -162,12 +161,12 @@ mod tests {
                 }
             }
         }
-        let proved = Url::parse("http://127.0.0.1:4190/desktop/capsule").unwrap();
+        let proved = Url::parse("http://127.0.0.1:4190/projects/").unwrap();
         assert!(is_origin(&proved, 4190));
         for other in [
-            "http://127.0.0.1:4173/desktop/capsule",
-            "http://localhost:4190/desktop/capsule",
-            "https://127.0.0.1:4190/desktop/capsule",
+            "http://127.0.0.1:4173/projects/",
+            "http://localhost:4190/projects/",
+            "https://127.0.0.1:4190/projects/",
             "http://example.org:4190/",
             "tauri://localhost/index.html",
         ] {

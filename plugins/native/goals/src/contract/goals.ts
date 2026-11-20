@@ -286,64 +286,12 @@ export interface GoalReplacementFact {
   replacement_goal_title: string;
 }
 
-export type ProjectGuidanceKind =
-  | "context"
-  | "requirement"
-  | "constraint"
-  | "convention"
-  | "workflow"
-  | "quality_bar";
-
-export interface ProjectGuidanceEntryRecord {
-  guidance_id: string;
-  project_id: string;
-  position: number;
-  revision: number;
-  active: boolean;
-  kind: ProjectGuidanceKind;
-  content: string;
-  content_hash: string;
-  source_refs: string[];
-  created_by: string;
-  confirmation_summary: string;
-  reason: string;
-  created_at: string;
-  updated_by: string;
-  updated_at: string;
-}
-
-export interface ProjectGuidanceRevisionRecord {
-  revision_id: string;
-  guidance_id: string;
-  project_id: string;
-  revision: number;
-  kind: ProjectGuidanceKind;
-  content: string;
-  content_hash: string;
-  source_refs: string[];
-  active: boolean;
-  changed_by: string;
-  change_kind: "created" | "edited" | "deactivated" | "restored";
-  confirmation_summary: string;
-  reason: string;
-  created_at: string;
-}
-
-export interface ProjectGuidanceView {
-  entries: ProjectGuidanceEntryRecord[];
-  inactive_entries: ProjectGuidanceEntryRecord[];
-  revisions: ProjectGuidanceRevisionRecord[];
-  virtual_document: string;
-  runtime_prompt_prefix: string;
-}
-
 export interface GoalsQuerySnapshot {
   board: GoalsBoardRecord;
   observed_event_cursor: number;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
   policy_bindings: GoalPolicyBindingRecord[];
-  project_guidance: ProjectGuidanceEntryRecord[];
 }
 
 export interface GoalFactsView {
@@ -360,7 +308,6 @@ export interface GoalFactsView {
   }>;
   relations: GoalRelationRecord[];
   resolved_policy: GoalPolicy;
-  project_guidance: ProjectGuidanceEntryRecord[];
 }
 
 export interface GoalsQueryApi {
@@ -386,47 +333,6 @@ export interface GoalsQueryApi {
   snapshot(projectId: string): GoalsQuerySnapshot;
   resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy;
   readGoal(projectId: string, goalId: string): GoalFactsView;
-  readProjectGuidance(projectId: string): ProjectGuidanceView;
-}
-
-export interface AddProjectGuidanceInput {
-  project_id: string;
-  actor_id: string;
-  kind: ProjectGuidanceKind;
-  content: string;
-  source_refs?: string[];
-  reason: string;
-  confirmation_summary: string;
-  user_confirmed: boolean;
-  idempotency_key: string;
-}
-
-export interface AddProjectGuidanceResult {
-  entry: ProjectGuidanceEntryRecord;
-  created: boolean;
-  observed_event_cursor: number;
-  replayed: boolean;
-}
-
-export interface UpdateProjectGuidanceInput {
-  project_id: string;
-  guidance_id: string;
-  actor_id: string;
-  action: "edit" | "deactivate" | "restore";
-  kind?: ProjectGuidanceKind;
-  content?: string;
-  source_refs?: string[];
-  reason: string;
-  confirmation_summary: string;
-  user_confirmed: boolean;
-  idempotency_key: string;
-}
-
-export interface UpdateProjectGuidanceResult {
-  entry: ProjectGuidanceEntryRecord;
-  revision: ProjectGuidanceRevisionRecord;
-  observed_event_cursor: number;
-  replayed: boolean;
 }
 
 export interface GoalsActorWrite {
@@ -482,8 +388,6 @@ export interface GoalsCommandApi {
     observed_event_cursor: number;
     replayed: boolean;
   };
-  addProjectGuidance(input: AddProjectGuidanceInput): AddProjectGuidanceResult;
-  updateProjectGuidance(input: UpdateProjectGuidanceInput): UpdateProjectGuidanceResult;
 }
 
 export interface GoalsLifecycleApi {
@@ -554,15 +458,6 @@ export type {
   GoalEventFieldDefinition,
   GoalEventFieldFormat,
   GoalEventFieldSource,
-  GoalEventJudgmentInput,
-  GoalEventJudgmentBasis,
-  GoalEventJudgmentBasisInput,
-  GoalEventJudgmentAssessment,
-  GoalEventEvidenceRef,
-  GoalEventBasisTier,
-  GoalEventBasisGap,
-  GoalEventSatisfactionGround,
-  GoalEventJudgmentVerdict,
   GoalEventLatestReports,
   GoalEventLatestReportsQuery,
   GoalEventHistoryPage,
@@ -582,8 +477,11 @@ export type {
   GoalEventRequirementCurrentStatus,
   GoalEventRequirementRevisionInput,
   GoalEventRequirementSource,
-  GoalEventRequirementReport,
-  GoalEventRequirementStatus,
+  GoalRequirementLink,
+  GoalHungRequirement,
+  GoalAcceptanceReading,
+  GoalEventDecisionRequestStatus,
+  GoalEventNewDecisionPurpose,
   GoalEventResumeResult,
   GoalEventScope,
   GoalEventSemanticFamily,
@@ -601,13 +499,10 @@ export type {
   GoalEventTypeSource,
   GoalEventTypeSourceKind,
   GoalEventUnmetReason,
-  GoalEventUserConclusion,
-  GoalEventWorkGap,
   GoalEventWorkStateView,
   GoalEventWorkStatus,
   GoalReportWorkEventRecord,
   GoalSystemWorkEventRecord,
-  GoalWorkEventJudgment,
   GoalWorkEventRecord,
   RecordGoalNoteInput,
   RecordGoalProgressSummaryInput,
@@ -633,20 +528,15 @@ export {
   GOAL_CONCERN_CITED_SUBJECT_LIMIT,
   goalEventDecisionEffectKinds,
   goalEventDecisionPurposes,
+  goalEventNewDecisionPurposes,
+  goalEventNewDecisionEffectKinds,
+  goalEventDecisionRequestStatuses,
   goalEventFieldFormats,
-  goalEventJudgmentVerdicts,
-  goalEventBasisGaps,
-  goalEventBasisTiers,
-  goalEventEvidenceKinds,
-  goalEventSatisfactionGrounds,
-  goalEventAssessmentKey,
-  GOAL_EVENT_EVIDENCE_MAX,
   goalEventRequirementCurrentStatuses,
   goalEventSemanticFamilies,
   goalEventSystemOperations,
   goalEventTrustedAuthoritySources,
   goalEventTypeSourceKinds,
-  goalEventUserConclusionVerdicts,
   goalEventWorkStatuses,
 } from "./goal-events.js";
 
@@ -657,7 +547,6 @@ export interface BoardSnapshot {
   board: GoalsBoardRecord;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
-  project_guidance: ProjectGuidanceEntryRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 

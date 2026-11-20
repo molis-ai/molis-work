@@ -181,8 +181,8 @@ async function referringPlugins(ports: ArtifactActionPorts, references: Readonly
       for (const id of batch) { const subject = answer?.get(id); if (subject) named.set(id, subject); }
     }
     const objects = group.rows.map(({ edge, kind }) => {
-      const subject = named.get(edge.source.id), own = { surface: kind.module, id: edge.source.id };
-      return { id: edge.source.id, title: subject?.title ?? edge.source.id, role: kind.role, proposal: kind.proposal, open: subject?.open.surface === kind.module ? subject.open : own };
+      const subject = named.get(edge.source.id), own = { surface: kind.surface, id: edge.source.id };
+      return { id: edge.source.id, title: subject?.title ?? edge.source.id, role: kind.role, proposal: kind.proposal, open: subject?.open.surface === kind.surface ? subject.open : own };
     });
     return { plugin_id: pluginId, plugin_title: group.title, objects: objects.sort((a, b) => a.title.localeCompare(b.title)) };
   }));
@@ -211,11 +211,11 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
       const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
-      const goalIds = edges.filter(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind !== null && !kind.proposal
+      const attached = edges.filter(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind !== null && !kind.proposal
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
-        && currentProject(edge.target.project_id) && currentProject(edge.source.project_id); })
-        .map(edge => edge.source.id);
-      return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
+        && currentProject(edge.target.project_id) && currentProject(edge.source.project_id) && edge.source.object_type !== undefined; })
+        .map(edge => ({ kind: edge.source.object_type!, id: edge.source.id }));
+      return artifactAnalysisContext(artifact, attached, input as { offset?: number });
     }),
     bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();

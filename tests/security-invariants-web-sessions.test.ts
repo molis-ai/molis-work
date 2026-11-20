@@ -89,7 +89,7 @@ test("WAS-03 WAS-05 session issuer binds origin, rejects cross-site issuance and
 
 test("WAS-09 concurrent first documents in one browser retain both original sessions without cookie overwrite", { timeout: 30_000 }, async t => {
   const f = await serveHomeRuntime(t);
-  // A Tauri main window and capsule can navigate before either response's cookie has arrived.
+  // Two tabs of one browser can navigate before either response's cookie has arrived.
   const [a, b] = await Promise.all([readPage(f.origin), readPage(f.origin)]);
   const cookie = cookieJar(a.cookie, b.cookie);
   const request = (proof: string, method = "POST", path = "/api/browser/assistant") => fetch(f.origin + path, { method,

@@ -7,8 +7,9 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import type { TodoBatch } from "@molis-ai/molis-work-plugin-todo/contract";
-import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { OnboardingDraftBatch, OnboardingDraftInput } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
+import { onboardingTakers } from "@molis-ai/molis-work-app-local-host";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
 import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -71,8 +72,15 @@ async function openJourneyBrowser(t: TestContext, mode: true | "empty") {
     }
     return id;
   };
-  const batch = async () => (await localHost!.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "model:invoke"] },
-    todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", materials: [{ title: "张总：新版方案", text: MAIL }] }) as { batch: TodoBatch }).batch;
+  // Drafts by the plugin that declares it drafts (Todo), through its own declared action (contract-design §2.5); each call is its own batch.
+  let drafted = 0;
+  const batch = async () => {
+    const drafter = onboardingTakers("drafts")[0]!;
+    const { batch: made } = await localHost!.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...drafter.take.action.permissions] },
+      drafter.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
+      { title: "开始使用时整理的待办", origin: "onboarding", request_id: `onboarding:e2e:${++drafted}`, materials: [{ title: "张总：新版方案", text: MAIL }] });
+    return { plugin_id: drafter.plugin_id, surface: drafter.project_plugin_id, batch: made };
+  };
   /** The input a `webkitdirectory` chooser takes is a directory path; the browser lists what it holds. */
   const setFiles = async (selector: string, paths: string[]) => {
     const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", { depth: 0 }, sessionId);
@@ -518,13 +526,14 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1), reference(2, "材料 2：预算表（含各部门明细与历史对比的完整版本）")] };
-    item.todo = { status: "ready", batches: [drafts], total: 1, error: null };
+    item.drafts = { plugin_id: drafts.plugin_id, surface: drafts.surface, status: "ready", key: "e2e", batches: [{ batch_id: drafts.batch.batch_id, snapshot: drafts.batch }],
+      total: 1, error: null, timing: { ms: 0, calls: 0 } };
   });
   const reviewPlain = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
     item.phase = "review";
     item.summary = { title: LONG_NAME, body: SUMMARY, references: [reference(1)] };
-    item.todo = { status: "failed", batches: [], total: 1, error: "模型暂时没有响应" };
+    item.drafts = { plugin_id: drafts.plugin_id, surface: drafts.surface, status: "failed", key: "e2e", batches: [], total: 1, error: "模型暂时没有响应", timing: { ms: 0, calls: 0 } };
   });
   const interrupted = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }, { kind: "directory", selected: true, error: "读取 会议纪要/第1次产品评审会议纪要与后续跟进事项的完整记录（含各方意见）.md 失败：文件已移动", files: [{ path: "a.md", data: "" }] }];
@@ -551,7 +560,7 @@ async function seededScreens(journey: NonNullable<Awaited<ReturnType<typeof open
     item.phase = "failed"; item.error = "读取在第 121 份时中断，已读的会沿用。";
     item.reading_bytes = { done: 48_000_000, total: 120_000_000 };
     item.synthesis = { key: "fixture", stage: 1, completed: 3, total: 8, notes: [], batches: { done: 3, all: 10 }, timing: { ms: 90_000, calls: 3 } };
-    item.todo = { status: "pending", batches: [], total: 6, error: null, timing: { ms: 0, calls: 0 } };
+    item.drafts = { plugin_id: drafts.plugin_id, surface: drafts.surface, status: "pending", key: "e2e", batches: [], total: 6, error: null, timing: { ms: 0, calls: 0 } };
   });
   const reselect = seed(item => {
     item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];

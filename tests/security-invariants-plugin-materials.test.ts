@@ -179,7 +179,7 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
   const result = await host.homeActionClient().invoke(person(probe.permissions), probe.read, {}) as { text: string };
   assert.equal(result.text, "transcript"); assert.equal(readFileSync(downloaded, "utf8"), "user approved");
   assert.deepEqual(readFileSync(choices, "utf8").trim().split("\n").map(line => JSON.parse(line)), [false, false, false, false, false, true]);
-  assert.deepEqual(readdirSync(join(home, "lingguang", "models")), [], "RAC-30 only the existing cache path is prepared");
+  assert.deepEqual(readdirSync(join(home, "materials", "models")), [], "PEQ-09 platform material model cache path is prepared under materials/models");
 });
 
 // S-39 on every platform: the materials client the Runtime gives a plugin (`createPluginMaterialsClient`, bound to this installation's

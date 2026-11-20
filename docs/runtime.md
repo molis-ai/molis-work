@@ -19,7 +19,7 @@
 
 ## 连接项目与选择目标
 
-Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp` 提供；Local Host 注入已绑定项目和操作者；Goals Module 保存当前事件事实，Goals Plugin 组装用例。Skill 不读取内部数据库或重新实现完成判断。
+Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp` 提供；Local Host 注入已绑定项目和操作者；Goals Module 保存当前事件事实，Goals Plugin 组装用例。Runtime 不读取内部数据库或重新实现完成判断。
 
 先调用 `context_resolve`。已有Session绑定或唯一、已验证的workspace关联可以恢复项目；普通候选、目录名和模型猜测不授权绑定。需要选择项目时，复用用户对唯一项目的明确选择；只有存在歧义才询问。绑定、切换、新建、解绑和删除遵循各自授权，普通绑定不设置目录默认项目。具体接入见 [MCP 接入](mcp.md)。
 
@@ -81,5 +81,3 @@ goals.state.read → 核对当前约定、要求、依赖与决定
 切换Goal不会自动改绑终端或发送消息。Host Session、终端进程与面板继续承担各自职责。
 
 项目库的打开层只认当前 schema 版本、不就地升级；低版本由启动升级过程先升（`apps/local-host/src/platform-upgrade-stores.ts`、`packages/storage/src/sqlite-upgrade.ts`，[U1 设计](../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4）；V3 导入已删除。事件之前的 Claim、Run、Evidence、Review 历史已删除（#268），事件是唯一的工作协议。
-
-实际可调用示例与必要恢复细节见 [Runtime Skill](../skills/goal-advance/SKILL.md)。

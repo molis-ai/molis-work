@@ -49,7 +49,7 @@ export { describePluginTablesRefusal, describeUnavailable, diagnosticId, dismiss
 export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type UpgradeBlock, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
 export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
-export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
+export { bindStandaloneReviewActions, catalogManagementProject, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
 export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
@@ -206,7 +206,6 @@ export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-l
 
 export * from "./onboarding.js";
 
-export { createLocalHostCapsule } from "./capsule.js";
 
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
 // The control-token binding the three page channels share; the socket regression test drives it directly.
@@ -252,7 +251,7 @@ export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopme
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
-export { createLocalGoalsReadHttp } from "./web-goals-read.js";
+export { createLocalGoalsReadHttp, createLocalProjectPagesHttp } from "./web-project-pages.js";
 export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
@@ -412,7 +411,8 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
+export { bindGoalsManagementActions } from "./goal-callers.js";
+export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 
 export { builtinSyncBindings } from "./builtin-sync.js";
@@ -448,6 +448,7 @@ export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent
 export { gatewayFactory } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
+export { exportPluginData, pluginDataActionProvider, type PluginDataExportPorts } from "./plugin-data-export.js";
 export { runtimeOverview, decideRuntimeRun, runtimeExpiredSeenRequest, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
 export { expiredOwnerKey, expiredSeen, markExpiredSeen, type ExpiredSeen } from "./runs-expired-seen.js";
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
@@ -462,4 +463,3 @@ export { contextOnboardingActions, contextOnboardingProvider } from "./context-o
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
-export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

@@ -46,6 +46,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     const grantedProject = await withMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory }, permissionsCatalog => {
       // The connection tools take no actor: the Host records the MCP client and the Runtime Session of the call.
       assert.deepEqual(permissionsCatalog.listRuntimeContextBindingEvents(host.runtimeContext).map((event) => [event.type, event.actor_id]), [["context.bound", "runtime:codex:skill-session"]]);
+      permissionsCatalog.addProjectPlugin({ project_id: connected.connection.project_id, plugin_id: "goals", actor_id: "test" });
       return permissionsCatalog.getProject(connected.connection.project_id);
     });
     // The MCP process is stopped while the person saves its grant, then reconnects to the same Home.

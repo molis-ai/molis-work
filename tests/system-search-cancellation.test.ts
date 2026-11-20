@@ -49,7 +49,7 @@ async function fixture(t: TestContext, scope: "project" | "home") {
             caller.signal?.throwIfAborted();
           } finally { caller.signal?.removeEventListener("abort", abort); }
         }
-        return subjectContext({ subject: { kind: "cancel_note", id: "one" }, revision: "1", title: "quartz note", content: "quartz body", goal_ids: [] });
+        return subjectContext({ subject: { kind: "cancel_note", id: "one" }, revision: "1", title: "quartz note", content: "quartz body" });
       } },
     ],
   });

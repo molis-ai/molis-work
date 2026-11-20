@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_ID } from "./identity.js";
 import {
   FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -12,7 +13,7 @@ import {
  */
 const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "progress", title: "记录进展", intent: "advance", apply: "record", hint: "把刚完成的这一步记为所属 Goal 的进展",
-    action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
+    action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 }, granularities: ["range", "block"], roles: ["task", "list"], belongs_to: ["goal"] },
 ];
 
 export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", /* @version action.goals.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES);
@@ -38,14 +39,20 @@ interface GoalsFragmentPorts {
   cursor(goalId: string): number | null;
 }
 
+/** The Goal the passage's object belongs to, when the page says it is one of this plugin's Goals. */
+const owningGoal = (fragment: FragmentOffersInput["fragment"]) => {
+  const owner = fragment.belongs_to;
+  return owner?.plugin_id === GOALS_PLUGIN_ID && owner.kind === "goal" ? { id: owner.id, title: owner.title } : undefined;
+};
+
 export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: GoalsFragmentPorts): FragmentActionOffer[] {
   const { fragment, request_id } = input;
+  const goal = owningGoal(fragment);
   const offers: FragmentActionOffer[] = [];
   const source = `${fragment.object.kind}:${fragment.object.id}`;
   const from = fragment.object.title ? `「${fragment.object.title}」` : "选中的内容";
   const steps = planSteps(input);
   if (fragment.granularity !== "word" && fragment.granularity !== "objects" && steps.length) {
-    const goal = fragment.goal;
     // Goal ids and proposal item ids are unique across the project: each request names its own (a second plan is not refused for reusing them).
     const ids = steps.map((_, index) => `goal-${request_id.slice(0, 36)}-${index + 1}`);
     const item = (kind: "step" | "part", index: number) => `${kind}-${request_id.slice(0, 36)}-${index + 1}`;
@@ -69,12 +76,12 @@ export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: Go
       editable: ["summary"] });
   }
   const done = fragment.targets.find(target => target.role === "task" || target.role === "list")?.text.trim();
-  const cursor = fragment.goal && done ? ports.cursor(fragment.goal.id) : null;
-  if (fragment.goal && done && cursor !== null) {
+  const cursor = goal && done ? ports.cursor(goal.id) : null;
+  if (goal && done && cursor !== null) {
     const summary = clip(`完成：${done}`, 200);
     offers.push({ offer_id: "progress", title: "记录进展", action: { capability_id: "goals.progress.record", version: /* @version action.goals.progress.record */ 1 },
-      input: { goal_id: fragment.goal.id, idempotency_key: request_id, based_on_cursor: cursor, summary },
-      summary: `为「${fragment.goal.title}」记录一条进展：${summary}`, editable: ["summary", "next_step"] });
+      input: { goal_id: goal.id, idempotency_key: request_id, based_on_cursor: cursor, summary },
+      summary: `为「${goal.title}」记录一条进展：${summary}`, editable: ["summary", "next_step"] });
   }
   return offers;
 }

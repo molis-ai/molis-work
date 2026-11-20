@@ -1,9 +1,16 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialExtractionOptions, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 import { createMaterialExtractor } from "./material-extraction.js";
 import { materialMediaExtensions, type NativeMaterialOptions } from "./material-native.js";
 import { materialErrors } from "./material-text.js";
+
+/** Platform Home store holding the rebuildable local speech/media model cache (PEQ-09). */
+export const MATERIALS_HOME_STORE: HomeStoreDeclaration = {
+  path: "materials",
+  snapshot_exclusions: [{ path: "models", reason: "Re-downloadable transcription model cache" }],
+};
 
 /** Host configuration only. Plugins receive bytes and choices, never helper paths or the Home directory. */
 export interface HomeMaterialOptions extends MaterialExtractionOptions, NativeMaterialOptions {}
@@ -17,7 +24,7 @@ async function privateDirectory(parent: string, name: string): Promise<string> {
 }
 async function modelCacheDirectory(home: string): Promise<string> {
   await mkdir(home, { recursive: true, mode: 0o700 });
-  return privateDirectory(await privateDirectory(await realpath(home), "lingguang"), "models");
+  return privateDirectory(await privateDirectory(await realpath(home), MATERIALS_HOME_STORE.path), "models");
 }
 
 /** Existing Host extraction with its existing Home cache; reading keeps no business record or uploaded copy. */

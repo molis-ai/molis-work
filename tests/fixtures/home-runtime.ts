@@ -11,7 +11,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, t
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
-import { createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 export const deferred = () => { let resolve!: () => void; return { promise: new Promise<void>(done => { resolve = done; }), resolve }; };
 export const person = (permissions: readonly string[], projectId: string | null = null): ActionCallContext =>
@@ -61,8 +61,9 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
         ...(input.authorized === false ? {} : { "x-molis-work-control-token": token }), ...input.headers },
       ...(input.raw !== undefined ? { body: input.raw } : input.body === undefined ? {} : { body: JSON.stringify(input.body) }),
     }),
-    async project(title: string) {
+    async project(title: string, plugins: readonly string[] = []) {
       const project = await createProject(web, title);
+      for (const pluginId of plugins) await addProjectPlugin(web, project.project_id, pluginId);
       return { ...project, reference: molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) };
     },
   };

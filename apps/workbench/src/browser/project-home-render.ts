@@ -124,8 +124,8 @@ export function renderHome(data: SurfaceHomeDisplay, controls: Map<string, HomeC
   }
   if (cards.length) groups.push(`<section data-home-group="plugins"><h2>${e(home("plugins"))}</h2><div class="home-plugin-cards">${cards.join("")}</div></section>`);
   if (!data.display.rows.length) groups.splice(cards.length ? groups.length - 1 : groups.length, 0,
-    `<section class="mw-empty" data-home-group="start"><h2>${e(home("start-here"))}</h2>${cards.length ? "" : `<p>${e(home("empty"))}</p>`}
-      ${homeButton("market", home("add"))}</section>`);
+    `<section class="mw-empty home-start" data-home-group="start">${cards.length ? `<h2>${e(home("start-here"))}</h2>` : `<p>${e(home("empty"))}</p>`}
+      <div class="mw-empty__actions home-start__actions">${renderButton({ label: home("add"), variant: "primary", icon: "plus", attrs: { "data-home-control": "picker" } })}<span class="home-start__hint">${e(home("assistant-hint"))}</span></div></section>`);
   return correctionHeader(data, 0, fix) + groups.join("");
 }
 

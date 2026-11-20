@@ -22,6 +22,11 @@ export const registration: PluginRegistration = {
     order: 5,
     contributions: [feedUiContribution],
     stylesheet: FEED_STYLES,
+    stylesheetPrefixes: ["source-"],
+    surfaceAliases: ["sources"],
+    searchRow: { selector: "[data-feed-task-toggle]", idDataset: "feedTaskToggle" },
+    searchRecordKinds: ["source"],
+    reopenRecord: false,
     recordRow: { selector: "[data-feed-entry-id]", idDataset: "feedEntryId" },
   },
 };

@@ -1,17 +1,26 @@
 import type { UiRequestInit } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { createTerminalScreens } from "./screens.js";
 
-/** What a Goal's terminal is to the program it runs: a recipe of the platform, or a command with its arguments. */
+/** The owning plugin and object a platform work terminal pane is bound to. */
+export interface WorkTerminalSubjectRef {
+  readonly plugin_id: string;
+  readonly subject_kind: string;
+  readonly subject_id: string;
+}
+
+/** What an object's terminal is to the program it runs: a recipe of the platform, or a command with its arguments. */
 export type PanelProgram = { runtime: string } | { command: string; args: string[] };
 
 /**
- * A terminal as Goals lists it (`goals.terminal.list`), with the Goal it was listed for; `status` is this page's own view of the process
- * (from `running` when listed, then from the channel's `spawned` and `exit`).
+ * A terminal as the platform lists it (`work_terminals.list@1`), with the object it was listed for; `status` is this page's own view
+ * of the process (from `running` when listed, then from the channel's `spawned` and `exit`).
  */
 export type PanelRecord = {
   key: string;
   panel_id: string;
-  goal_id: string;
+  plugin_id: string;
+  subject_kind: string;
+  subject_id: string;
   title: string;
   runtime: string;
   program: PanelProgram;

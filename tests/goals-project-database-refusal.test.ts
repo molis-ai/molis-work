@@ -1,6 +1,6 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
-import { copyFile, cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,7 +77,7 @@ async function directory(home: string, projectId: string, databasePath: string):
   } finally { await host.close(); }
 }
 
-/** RAC-997 PLIB-14: the real developer entry owns its state; no ordinary Home Host is marked private for a test. */
+/** RAC-997 PLIB-14: the real developer entry owns its state; this sample consumes `goals.snapshot.read` so refusing Goals refuses its poll. */
 async function developmentState(t: TestContext) {
   const directory = await scratch(t), sample = join(directory, "sample");
   const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -86,7 +86,16 @@ async function developmentState(t: TestContext) {
   await cp(join(root, "examples/plugin-sample/locales"), join(sample, "locales"), { recursive: true });
   await mkdir(join(sample, "node_modules/@molis-ai"), { recursive: true });
   await symlink(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
-  const manifest = JSON.parse(await readFile(join(sample, "manifest.json"), "utf8")) as { permissions: Array<{ permission: string }> };
+  const manifest = JSON.parse(await readFile(join(sample, "manifest.json"), "utf8")) as {
+    permissions: Array<{ permission: string; required: boolean; reason: string }>;
+    capabilities: { provides: string[]; consumes: string[] };
+  };
+  manifest.permissions.push({ permission: "goals:read", required: true, reason: "Read Goals snapshot during development refusal test" });
+  manifest.capabilities.consumes.push("goals.snapshot.read");
+  await writeFile(join(sample, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const sampleSource = await readFile(join(sample, "index.mjs"), "utf8");
+  assert.ok(sampleSource.includes("async sync() {"), "sample sync hook found");
+  await writeFile(join(sample, "index.mjs"), sampleSource.replace("async sync() {", 'async sync() {\n        await services.actions.invoke({ capability_id: "goals.snapshot.read", version: 1 }, {});'));
   const state = join(directory, "state");
   const run = () => runLocalPluginDevelopment({ directory: sample, state_directory: state,
     grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true });
@@ -159,7 +168,7 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
     const developer = await developmentState(t);
     withDatabase(developer.databasePath, db => { db.exec(sql); });
     const developerBefore = library(developer.databasePath);
-    await assert.rejects(developer.run(), { code: "actions.missing" }, "the real development entry refuses the absent public action");
+    await assert.rejects(developer.run(), { code: "actions.dependency_missing" }, "the real development entry refuses the absent consumed Goals action");
     assert.deepEqual(library(developer.databasePath), developerBefore, "the refused development entry repairs nothing and writes no half result");
 
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");

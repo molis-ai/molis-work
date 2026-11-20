@@ -96,7 +96,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
     // can include related objects and must not stand in for provider identity.
     const revision = createHash("sha256").update(JSON.stringify([reader.capability_id, reader.version, reader.provider_id,
       context.subject.kind, context.subject.id, context.revision, context.title, context.content, context.truncated,
-      [...(context.goal_ids ?? [])].sort()])).digest("hex");
+      (context.attached_to ?? []).map(item => JSON.stringify([item.kind, item.id])).sort()])).digest("hex");
     return { ...subject, content: [context.title, context.content].filter(Boolean).join("\n").slice(0, 8000), revision, reader };
   };
   const assertSubjectFits = async (subject: HomeSubject, caller: ActionCallContext) => {

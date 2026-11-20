@@ -2,7 +2,7 @@ export { renderMolisWorkArrivalStylesheet, workbenchClientSource } from "./page-
 export { renderUpgradeOpeningPage } from "./arrival/upgrade-opening.js";
 export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
-export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
+export { defaultPagePlugins } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
@@ -48,7 +48,6 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
 export { readAssistantReviewWords } from "./assistant-review-html.js";
-export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";

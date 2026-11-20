@@ -502,7 +502,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           return unavailable("actions.provider_changed", "所需能力的提供方已变化，原引用不能自动替换");
         }
       }
-      return { available: true };
+      return definition.action.required_roles?.length ? roleDependencyAvailability(this.registry, context, definition.action.required_roles, metadata) : { available: true };
     } finally { checking.delete(key); }
   }
 
@@ -517,6 +517,38 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 }
 
 /** Project the selected declarations once; only offer-based compatibility consumes a wider action directory. */
+function roleDependencyAvailability(
+  registry: CapabilityRegistry<ActionCallContext>,
+  context: ActionCallContext,
+  roles: readonly { readonly input_type: string; readonly output_type: string }[],
+  metadata: boolean,
+): ActionAvailability {
+  const byProvider = new Map<string, Map<number, ReturnType<typeof registry.descriptors>[number]>>();
+  for (const descriptor of registry.descriptors(d => !!d.action && (!d.action_provider?.project_id || d.action_provider.project_id === context.project_id))) {
+    const providerId = descriptor.action_provider?.provider_id;
+    if (!providerId) continue;
+    roles.forEach((role, index) => {
+      if (descriptor.action?.input_type === role.input_type && descriptor.action?.output_type === role.output_type) {
+        const group = byProvider.get(providerId) ?? new Map();
+        if (!group.has(index)) group.set(index, descriptor);
+        byProvider.set(providerId, group);
+      }
+    });
+  }
+  let firstFailure: ActionAvailability | null = null;
+  for (const group of byProvider.values()) {
+    if (group.size < roles.length) continue;
+    let providerFailure: ActionAvailability | null = null;
+    for (const dep of group.values()) {
+      const state = metadata ? registry.metadataAvailability(context, dep) : registry.availability(context, dep);
+      if (!state.available) { providerFailure = state; break; }
+    }
+    if (!providerFailure) return { available: true };
+    firstFailure ??= providerFailure;
+  }
+  return firstFailure ?? unavailable("actions.dependency_missing", "所需能力协议未注册");
+}
+
 function projectScenes(context: ActionCallContext, declared: readonly { scene: RegisteredScene; metadata: Pick<ActionSceneView, "definition" | "provider"> }[], directory: readonly ActionView[] = []) {
   const rows = declared.map(({ scene, metadata }) => ({ scene,
     view: { ...metadata, configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context) } }));

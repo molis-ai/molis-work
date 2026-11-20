@@ -106,17 +106,9 @@ test("a Runtime that names no Session is recorded as the client alone, and a hos
   assert.equal(reply.isError, true);
 });
 
-test("the Skill and the MCP manual tell a Runtime to send no actor to the connection tools", () => {
-  const skill = readFileSync(join(process.cwd(), "skills/goal-advance/references/project-connection.md"), "utf8");
-  const overview = readFileSync(join(process.cwd(), "skills/goal-advance/SKILL.md"), "utf8");
+test("the MCP manual tells a Runtime to send no actor to the connection tools", () => {
   const manual = readFileSync(join(process.cwd(), "docs/mcp.md"), "utf8");
   const manualEnglish = readFileSync(join(process.cwd(), "docs/mcp.en.md"), "utf8");
-  for (const [name, text] of [["project-connection.md", skill], ["SKILL.md", overview]] as const) {
-    assert.doesNotMatch(text, /current Runtime actor_id/, name);
-    assert.doesNotMatch(text, /retain their explicit identity fields/, name);
-    assert.doesNotMatch(text, /display_name, actor_id/, name);
-  }
-  assert.match(skill, /no actor_id/);
   assert.match(manual, /连接工具[^\n]*不收 `actor_id`/);
   assert.match(manualEnglish, /connection tools[^\n]*take no `actor_id`/);
 });

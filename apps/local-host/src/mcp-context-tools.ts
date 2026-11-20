@@ -1,7 +1,7 @@
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsHostActions, readGoalResumeFacts } from "./goal-callers.js";
-import type { McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
+import { ActionError, isResumeSummaryAction, type ActionDefinition, type ActionSubject, type BoundActionClient, type ResumeSummary, type ResumeSummaryInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
+import type { McpResumeSection, McpRuntimeContextPorts } from "@molis-ai/molis-work-app-mcp";
 import { homeHostUrl } from "./host-endpoint.js";
 import { createPresentationError } from "./mcp-v1-tool.js";
 
@@ -12,8 +12,8 @@ export function localMcpContextTools(ports: Omit<McpRuntimeContextPorts, "create
 }) {
   const present = createMcpContextPresenter({ connection: ports.connection, createError: createPresentationError,
     contextSignal: ports.contextSignal,
-    readGuidance: async () => (await ports.contextActions()).invoke(goalsHostActions.guidanceRead, {}),
-    readResumeFacts: async (_connection, focus) => readGoalResumeFacts(await ports.contextActions(), focus),
+    readGuidance: async () => (await ports.contextActions()).invoke(projectGuidanceActions.read, {}),
+    readResumeSections: async (_connection, focus) => readResumeSections(await ports.contextActions(), focus),
   });
   return createMcpRuntimeContextHandlers({ ...ports, createError: createPresentationError,
     // A Runtime host that did not name its URL still points at this Home's Host, which may be on a
@@ -26,4 +26,23 @@ export function localMcpContextTools(ports: Omit<McpRuntimeContextPorts, "create
 export function lookupContextTool(tools: ReturnType<typeof localMcpContextTools>, name: string):
   ((input: Record<string, unknown>, context: McpToolCallContext) => Promise<string>) | undefined {
   return Object.hasOwn(tools, name) ? tools[name as keyof typeof tools] : undefined;
+}
+
+/**
+ * Every resume summary in the project's directory (batch 44 C7), one section a plugin: none is named here. A plugin is told the host's
+ * focus only when it names that kind; one that cannot answer shows its refusal in its own section and the others still answer.
+ */
+async function readResumeSections(actions: BoundActionClient, focus: ActionSubject | null): Promise<McpResumeSection[]> {
+  const views = (await actions.discover()).filter(view => view.availability.available && isResumeSummaryAction(view.action));
+  return Promise.all(views.map(async (view): Promise<McpResumeSection> => {
+    const plugin = { plugin_id: view.provider.plugin_id ?? view.provider.provider_id, plugin: view.provider.title };
+    try {
+      const summary = await actions.invoke({ ...view, provider_id: view.provider.provider_id } as ActionDefinition<ResumeSummaryInput, ResumeSummary>,
+        focus && view.action.subject_kinds.includes(focus.kind) ? { focus } : {});
+      return { ...plugin, summary };
+    } catch (error) {
+      if (!(error instanceof ActionError) || ["actions.cancelled", "actions.scope_mismatch", "actions.transport_invalid"].includes(error.code)) throw error;
+      return { ...plugin, error: { code: error.code, message: error.message } };
+    }
+  }));
 }

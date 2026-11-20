@@ -34,6 +34,7 @@ export async function residentManagement(t: TestContext, options: MolisWorkLocal
   const withCatalog = host.configurePersonalPlanning(home, access.withCatalog);
   const catalog = await withCatalog({ homeDirectory: home }, current => current);
   const project = await catalog.createProject({ display_name: "常驻管理", actor_id: LOCAL_PERSON_ACTOR_ID });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID });
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   await host.withProject(reference, () => undefined);
   // The project is the way the app has it once opened: Goals has started and made the project's board, so "no business write" below means

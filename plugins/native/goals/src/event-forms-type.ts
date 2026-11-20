@@ -32,9 +32,6 @@ export function createTypeForms(primitives: GoalsDocumentUiPrimitives, shared: E
       <label><span>${uiText("goals.event-forms-type.general-category")}</span><select name="semantic_family"><option value="">${uiText("goals.event-forms-type.no-category")}</option><option value="progress">${uiText("goals.event-forms-type.progress")}</option><option value="delivery">${uiText("goals.event-forms-type.delivery")}</option><option value="verification">${uiText("goals.event-forms-type.verify")}</option><option value="concern">${uiText("goals.event-forms-type.issues-risks")}</option><option value="observation">${uiText("goals.event-forms-type.observe")}</option><option value="custom">${uiText("goals.event-forms-type.custom")}</option></select></label>
       <div data-type-fields>${renderFieldRow()}</div>
       <button type="button" class="mw-btn mw-btn--secondary" data-add-type-field>${uiText("goals.event-forms-type.add-field")}</button>
-      <label class="check-row"><input type="checkbox" name="add_requirement"><span>${uiText("goals.event-forms-type.also-add-completion-requirement-separate-choice-having-type")}</span></label>
-      <label data-new-requirement hidden><span>${uiText("goals.event-forms-type.completion-requirement")}</span><textarea name="requirement_statement" rows="2"></textarea>
-        <input type="hidden" name="new_requirement_id" value="${newToken("req")}"></label>
 
       <p class="event-form-help">${uiText("goals.event-forms-type.keep-least-one-field")}</p></div>
       <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-event-back>${uiText("goals.event-forms-type.cancel")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${uiText("goals.event-forms-type.register-current-goal")}</button></footer></div>

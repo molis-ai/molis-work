@@ -39,21 +39,6 @@ const goals_policy = defineErrorCodes("goals.policy", {
   invalid: "invalid",
 });
 
-const goals_project_guidance = defineErrorCodes("goals.project_guidance", {
-  action_invalid: "invalid",
-  already_active: "invalid",
-  already_inactive: "invalid",
-  duplicate: "invalid",
-  entry_too_large: "invalid",
-  inactive: "invalid",
-  invalid: "invalid",
-  kind_invalid: "invalid",
-  no_changes: "invalid",
-  not_found: "invalid",
-  total_too_large: "invalid",
-  user_confirmation_required: "invalid",
-});
-
 const goals_relation = defineErrorCodes("goals.relation", {
   already_exists: "invalid",
   deactivation_reason_required: "invalid",
@@ -89,18 +74,6 @@ export const commandErrors = {
   "goals.not_found": goals.not_found,
   "goals.policy.confirmation_required": goals_policy.confirmation_required,
   "goals.policy.invalid": goals_policy.invalid,
-  "goals.project_guidance.action_invalid": goals_project_guidance.action_invalid,
-  "goals.project_guidance.already_active": goals_project_guidance.already_active,
-  "goals.project_guidance.already_inactive": goals_project_guidance.already_inactive,
-  "goals.project_guidance.duplicate": goals_project_guidance.duplicate,
-  "goals.project_guidance.entry_too_large": goals_project_guidance.entry_too_large,
-  "goals.project_guidance.inactive": goals_project_guidance.inactive,
-  "goals.project_guidance.invalid": goals_project_guidance.invalid,
-  "goals.project_guidance.kind_invalid": goals_project_guidance.kind_invalid,
-  "goals.project_guidance.no_changes": goals_project_guidance.no_changes,
-  "goals.project_guidance.not_found": goals_project_guidance.not_found,
-  "goals.project_guidance.total_too_large": goals_project_guidance.total_too_large,
-  "goals.project_guidance.user_confirmation_required": goals_project_guidance.user_confirmation_required,
   "goals.relation.already_exists": goals_relation.already_exists,
   "goals.relation.deactivation_reason_required": goals_relation.deactivation_reason_required,
   "goals.relation.not_active": goals_relation.not_active,

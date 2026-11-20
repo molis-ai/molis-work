@@ -167,13 +167,13 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'window.addEventListener("molis:placement-reslt", () => {});',
     "document.addEventListener?.('molis:side-shwn', () => {});",
     'surface.removeEventListener("molis:surface-landing-flsh", handler);',
-    'lifetime.listen(window, "molis-work:goal-chaged", () => {});',
+    'lifetime.listen(window, "molis-work:record-selectd", () => {});',
     "lifetime.listen(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
     'window.addEventListener<any>("molis:brand-neww", () => {});',
     "document.addEventListener<CustomEvent<{ id: string }>>('molis:placement-reslt', (event) => {});",
     "surface.removeEventListener <Handler> (\"molis:surface-landing-flsh\", handler);",
     'window.addEventListener?.<Event>("molis:side-shwn", handler);',
-    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-chaged", () => {});',
+    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:record-selectd", () => {});',
     "lifetime.listen<Event>(frame.contentWindow,'molis-shelf-refrsh',e=>{});",
   ]) {
     const problems = problemsWith({ [NEW_FILE]: script(listen) });
@@ -187,7 +187,7 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'document.addEventListener("molis:surface-landing-flash", () => {});',
     'window.addEventListener<any>("molis:placement-result", () => {});',
     "document.addEventListener<CustomEvent<{ id: string }>>('molis:surface-landing-flash', (event) => {});",
-    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-changed", () => {});',
+    'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:record-selected", () => {});',
     'lifetime.listen<Event>(window, "storage", () => {});',
     'window.addEventListener<"click">("click", () => {});',
   ].join("\n")) }), []);
@@ -424,8 +424,8 @@ test("a finding that the known gaps do not name is caught, by its event and by i
   const missing = unrecorded(added, section);
   assert.equal(missing.length, 2, missing.join("\n"));
   assert.ok(missing.every((finding) => finding.startsWith(NEW_FILE)), missing.join("\n"));
-  // A gap whose event is recorded but whose file is not: one more file that sends goal-document-loaded.
-  const second = domEventReport(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:goal-document-loaded", { detail: { goalId: "g" } }));') })).findings;
+  // A gap whose event is recorded but whose file is not: one more file that sends select-item.
+  const second = domEventReport(changed({ [NEW_FILE]: script('surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: "g" } }));') })).findings;
   assert.deepEqual(unrecorded(second, section).map((finding) => finding.split(" ")[0]), [`${NEW_FILE}:2`]);
   // A gap that the document stops naming (the event still reported on the real tree, so the finding comes back).
   const forgotten = section.replace(/- `molis-work:work-mode-changed`[^\n]*\n/, "");
@@ -590,4 +590,9 @@ test("RAC-426: a page-state owner cannot mix plugin and platform files or two pl
     const problems = domEventProblems(withRegistry(shelfFiles, `$1files: ${JSON.stringify(mixed)},`));
     assert.ok(problems.some(problem => /owner "shelf" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
   }
+});
+
+test("PEQ-04 platform DOM events and page-state owners contain no goal-specific event or owner names", () => {
+  assert.deepEqual(DOM_EVENTS.filter(event => /goal/i.test(event.name)).map(event => event.name), [], "PEQ-04: no goal-* event names remain in DOM_EVENTS");
+  assert.deepEqual(Object.keys(PAGE_STATE_OWNERS).filter(owner => /goal/i.test(owner)), [], "PEQ-04: no goal-* owner keys remain in PAGE_STATE_OWNERS");
 });

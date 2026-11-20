@@ -7,19 +7,12 @@ import { pluginRecordRows, pluginSearchRows } from "./plugin-workbench.js";
 const CHARACTERS_SEARCH_ROW: [string, string, string] = ["characters", "[data-character-id]", "characterId"];
 const SESSIONS_SEARCH_ROW: [string, string, string] = ["sessions", "[data-session-key]", "sessionKey"];
 
-/**
- * Feed's search hit is a source (it switches the Feed to that source), not an entry, so it is not the `recordRow` its registration
- * declares and `pluginSearchRows()` cannot carry it without a record being opened by the source's id elsewhere (placement.ts).
- * It leaves here with the Feed source directory (PG-034, PG-093), which declares it in Feed's own registration.
- */
-const FEED_SOURCE_SEARCH_ROW: [string, string, string] = ["feed", "[data-feed-task-toggle]", "feedTaskToggle"];
-
 /** The rows a record opens from on its plugin's page, as the plugins declare them (`recordRow`). */
 export function recordRows(): Array<[string, string, string]> {
   return pluginRecordRows();
 }
 
-/** Every row a search hit is opened from: the plugins' declared `searchRow`s, then the two above. */
+/** Every row a search hit is opened from: the plugins' declared `searchRow`s, then the platform's own two. */
 export function searchRows(): Array<[string, string, string]> {
-  return [...pluginSearchRows(), FEED_SOURCE_SEARCH_ROW, CHARACTERS_SEARCH_ROW, SESSIONS_SEARCH_ROW];
+  return [...pluginSearchRows(), CHARACTERS_SEARCH_ROW, SESSIONS_SEARCH_ROW];
 }

@@ -100,7 +100,8 @@ export function fragmentOfferDeclarationProblems(key: string, action: Record<str
     && Number.isInteger(choice.action.version) && choice.action.version >= 1 && (choice.action as { provider_id?: unknown }).provider_id === undefined
     && (choice.granularities === undefined || (Array.isArray(choice.granularities) && choice.granularities.length > 0 && choice.granularities.every(item => (FRAGMENT_GRANULARITIES as readonly string[]).includes(item))))
     && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))))
-    && (choice.requires === undefined || (Array.isArray(choice.requires) && choice.requires.length > 0 && choice.requires.every(item => item === "goal")));
+    && (choice.belongs_to === undefined || (Array.isArray(choice.belongs_to) && choice.belongs_to.length > 0
+      && choice.belongs_to.every(item => typeof item === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(item))));
   // No choices: the query only prepares a creation entry's input (its `prepare`), checked against the Manifest in context-declarations.ts.
   if (!Array.isArray(choices) || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
     problems.push(`能力 ${key} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`);
@@ -164,7 +165,10 @@ export function placementRelationProblems(key: string, action: Record<string, un
   const role = isRecord(declared) ? declared.role : undefined;
   const known = (PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(role);
   const target = isRecord(declared) ? declared.target : undefined;
-  const targetOk = role === "list" ? isRecord(target) && hasText(target.kind) && hasText(target.noun) && Object.keys(target).length === 2 : target === undefined;
+  const nounText = isRecord(target) ? target.noun_text : undefined;
+  const targetOk = role === "list" ? isRecord(target) && hasText(target.kind) && hasText(target.noun)
+    && (nounText === undefined || (isRecord(nounText) && typeof nounText.key === "string" && nounText.key.length > 0 && nounText.key.length <= 200))
+    && Object.keys(target).every(field => ["kind", "noun", "noun_text"].includes(field)) : target === undefined;
   const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
   if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
     || Object.keys(declared).some(field => !["relation", "role", "target"].includes(field))

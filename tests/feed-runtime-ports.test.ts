@@ -158,7 +158,7 @@ test("RAC-506 Feed lists and finds the entries it owns, and not another plugin's
   w.transaction.run("INSERT INTO fake_entries (entry_id, body) VALUES (?, ?)", [foreign.entry_id, JSON.stringify(foreign)]);
   assert.deepEqual(w.app.listInboxEntries(PROJECT).map(entry => entry.entry_id), [own!.entry_id]);
   assert.equal(w.app.getInboxEntry(PROJECT, own!.entry_id).entry_id, own!.entry_id);
-  assert.throws(() => w.app.getInboxEntry(PROJECT, "entry-goals"), { code: "inbox.entry_not_found" });
+  assert.throws(() => w.app.getInboxEntry(PROJECT, "entry-goals"), { code: "feed.entry_not_found" });
 });
 
 test("RAC-506 the Inbox port acts for this project and for Feed's own entries only", () => {

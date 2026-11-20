@@ -1,3 +1,4 @@
+import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { findHistoryIndexItem, type GoalEventDocumentPorts } from "./event-document-model.js";
 import { renderHistoryItemBody } from "./event-history-body.js";
 import type { GoalWorkEventRecord } from "./contract/goals.js";
@@ -10,10 +11,11 @@ export interface GoalHistoryQueryPorts { snapshot(): BoardSnapshot; journalEvent
 
 /** Resolve and render one history entry from the same project snapshot: event work or a journal record. */
 export function readGoalHistory(input: { projectId: string; goalId: string; itemId: string; ports: GoalEventDocumentPorts;
-  snapshot: BoardSnapshot; events: readonly GoalsDecisionEvent[] }): GoalHistoryReadResult | null {
+  snapshot: BoardSnapshot; events: readonly GoalsDecisionEvent[]; acceptance?: AcceptanceView | null }): GoalHistoryReadResult | null {
   const item = findHistoryIndexItem(input, input.itemId);
   if (!item) return null;
-  const requirementNames = Object.fromEntries(input.ports.readState(input.projectId, input.goalId).requirements.map(row => [row.requirement_id, row.statement]));
+  // A requirement is named by its words on the platform, read before this window; an id is shown where they could not be read.
+  const requirementNames = Object.fromEntries((input.acceptance?.requirements ?? []).map(row => [row.id, row.statement]));
   const workEvent = item.source === "event_work" && item.event_id ? input.ports.readEvent(input.projectId, input.goalId, item.event_id) : null;
   const lookups = workEvent
     ? { workEvent, requirementNames, acknowledgedActorKind: acknowledgedActorKind(input, workEvent) }

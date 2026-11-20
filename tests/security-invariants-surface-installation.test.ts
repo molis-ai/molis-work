@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { HomeConsentLedger, runningProjectPlatform, PluginInstallService, SandboxPackageStore, pluginInstallActions, readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementGoalActions, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
+import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementAttachActions, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePresentationOverviewAction, definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
@@ -318,7 +318,7 @@ test("S-surface-composition SCS-16 Placement can call into the project while its
   const homeEntered = Promise.withResolvers<void>(), releasePlacement = Promise.withResolvers<void>();
   const placement = h.host.homeActionClient().invoke({ ...person(null), permissions: [PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION],
     validate_authority: async () => { homeEntered.resolve(); await releasePlacement.promise; },
-  }, ref(placementGoalActions.create), { station: "pages", project_id: project.project_id, title: "Placement during install",
+  }, ref(placementAttachActions.create), { station: "pages", project_id: project.project_id, title: "Placement during install",
     request_id: "place-during-surface-install" } satisfies PlacementCreateRequest) as Promise<{ object: { project_id: string } }>;
   try {
     await Promise.race([homeEntered.promise, placement.then(() => assert.fail("Placement did not enter the Home action line"))]);

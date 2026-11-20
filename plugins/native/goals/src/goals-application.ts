@@ -1,6 +1,6 @@
 import type { GoalEventFactsApi, GoalsApplicationApi, GoalsQueryApi } from "./contract/goals.js";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
-import { GoalEventApplication } from "./goal-event-application.js";
+import { GoalEventApplication, type GoalEventApplicationPorts } from "./goal-event-application.js";
 import { GoalReadApplication } from "./goal-query-application.js";
 import { GoalDecisionAttentionSync, type GoalDecisionAttentionPort } from "./goal-decision-attention.js";
 import { GOALS_PLUGIN_ID } from "./manifest.js";
@@ -21,6 +21,8 @@ export interface GoalsApplicationPorts {
   readonly governance: GovernanceApplicationApi;
   readonly attention: GoalDecisionAttentionPort;
   readonly clock: () => Date;
+  /** Where the requirements a new Goal hung go once its write has committed (`GoalEventApplicationPorts.requirementsHung`). */
+  readonly requirementsHung?: GoalEventApplicationPorts["requirementsHung"];
 }
 
 /**
@@ -30,7 +32,7 @@ export interface GoalsApplicationPorts {
 export function createGoalsApplication(ports: GoalsApplicationPorts) {
   const { goals, governance, clock } = ports;
   const goalEvents = new GoalEventApplication({ query: goals.query, commands: goals.commands, events: goals.events,
-    recordTrustedDecision: input => governance.eventDecisions.record(input) });
+    recordTrustedDecision: input => governance.eventDecisions.record(input), ...(ports.requirementsHung ? { requirementsHung: ports.requirementsHung } : {}) });
   const goalTree = new GoalTreeQueryApplication({ goals: goals.query, governance });
   const goalDecisionAttention = new GoalDecisionAttentionSync({ attention: ports.attention, owner: GOALS_PLUGIN_ID,
     listProposals: projectId => goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,

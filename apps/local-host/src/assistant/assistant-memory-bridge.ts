@@ -1,4 +1,5 @@
 import type { AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { findSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantContextSnapshot, AssistantRound } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -98,14 +99,25 @@ export class AssistantMemoryBridge {
     const memory = this.ports.memory?.();
     if (!memory) return null;
     // Where the person is (plugin, object kind, associated object) decides which limited memories apply; the page's claim only narrows.
-    const situation = context && !hasExternalSessionContext(context) ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
-      ...(context.object && (context.object.kind === "goal" || context.source.plugin_id)
-        ? { objects: [{ plugin_id: context.object.kind === "goal" ? "io.molis.work.goals" : context.source.plugin_id!, kind: context.object.kind, id: context.object.id }] } : {}) } : {};
+    // The object's plugin is the one that reads its kind in the work's directory (batch 44 C3), else the page's own plugin.
+    const external = !context || hasExternalSessionContext(context);
+    const owner = !external && context.object ? await this.objectOwner(work, context.object.kind) ?? context.source.plugin_id : undefined;
+    const situation = context && !external ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
+      ...(context.object && owner ? { objects: [{ plugin_id: owner, kind: context.object.kind, id: context.object.id }] } : {}) } : {};
     const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);
     return chosen && structuredClone(chosen);
+  }
+
+  /** The plugin whose reader reads `kind` in the work's scope, when exactly one does; null when it cannot be told. */
+  private async objectOwner(work: StoredWork, kind: string): Promise<string | null> {
+    try {
+      const actions = await this.ports.scopeActions?.(work);
+      const reader = actions ? findSubjectReader(await actions.discover(), kind) : null;
+      return reader?.found === "one" ? reader.view.provider.plugin_id ?? null : null;
+    } catch { return null; }
   }
 
   /** What each round was given from memory and what did not fit, and what this work changed in memory (for the panel). */

@@ -1,4 +1,4 @@
-import { MEMORY_FORMAL_KINDS, MEMORY_LIFECYCLES, type MemoryClassRestriction, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_FORMAL_KINDS, MEMORY_LIFECYCLES, memorySceneOfCaller, type MemoryClassRestriction, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 
 /** Trusted caller and canonical classification only; no permission or default classification is inferred. */
 export interface MemoryClassContext { consumer: string; current_scene: string }
@@ -47,7 +47,7 @@ export function callerClassAllowed(prefs: MemoryPrefs, caller: {
 }, scope: MemoryScope, target: MemoryClassTarget, mode: "explicit" | "task" | "resident" | "form"): boolean {
   if (caller.person && caller.purpose !== "task") return true;
   if (caller.session_id && !caller.class_restrictions) return false;
-  const current_scene = caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common");
+  const current_scene = memorySceneOfCaller(caller);
   const context = { consumer: caller.consumer, current_scene }, policy = caller.class_restrictions;
   const allowed = (rows: readonly MemoryClassRestriction[]) => mode === "form"
     ? memoryClassFormationAllowed(rows, context, target) : memoryClassReadAllowed(rows, context, target, mode);
@@ -60,8 +60,7 @@ export function callerClassReadPossible(prefs: MemoryPrefs, caller: Parameters<t
   mode: "explicit" | "task" | "resident"): boolean {
   if (caller.person && caller.purpose !== "task") return true;
   if (caller.session_id && !caller.class_restrictions) return false;
-  const context = { consumer: caller.consumer, current_scene: caller.current_scene
-    ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common") };
+  const context = { consumer: caller.consumer, current_scene: memorySceneOfCaller(caller) };
   const frozen = caller.class_restrictions?.[scope === "personal" ? "personal" : "project"] ?? [];
   return memoryClassReadPossible([...prefs.class_restrictions, ...frozen], context, mode);
 }

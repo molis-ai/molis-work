@@ -18,6 +18,10 @@ test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the origi
   const http = (...args: Parameters<typeof f.request>) => f.request(...args).catch(cause => {
     throw new Error("Transport refused " + (args[1]?.method ?? "GET") + " " + args[0], { cause });
   });
+  const { projects: listedProjects } = await json<{ projects: Array<{ project_id: string; revision: string }> }>(await http("/api/settings/project-plugins"));
+  const pluginsRevision = listedProjects.find(item => item.project_id === project.project_id)?.revision;
+  assert.ok(pluginsRevision);
+  await json(await http(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: "goals", expected_revision: pluginsRevision } }));
   assert.equal((await http(prefix + "/")).status, 200);
   const names = Array.from({ length: 8 }, (_, index) => "Discussion object " + index);
   const subjects = [];

@@ -5,7 +5,7 @@ import {
   type WorkflowChain,
   type WorkflowInstance,
   type WorkflowInstanceStatus,
-  type WorkflowItemRef,
+  type WorkflowStepItem,
   type WorkflowStep,
   advanceInstance,
   holdInstance,
@@ -148,7 +148,7 @@ export class WorkflowsStore {
     return fromInstanceRow(row);
   }
 
-  startInstance(workflow: Workflow, first: WorkflowItemRef): WorkflowInstance {
+  startInstance(workflow: Workflow, first: WorkflowStepItem): WorkflowInstance {
     const now = new Date().toISOString();
     const chain: WorkflowChain = { stations: workflow.stations, links: workflow.links };
     const instance: WorkflowInstance = {
@@ -199,7 +199,7 @@ export class WorkflowsStore {
 
 /** A real returned delivery can settle its original stopped attempt; cancellation never invents a receipt. */
 export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowInstance, from: number,
-  arrived: WorkflowItemRef, arrival: NonNullable<Parameters<typeof advanceInstance>[5]>): WorkflowInstance | null {
+  arrived: WorkflowStepItem, arrival: NonNullable<Parameters<typeof advanceInstance>[5]>): WorkflowInstance | null {
   const latest = store.instance(expected.instance_id, expected.project_id);
   const pending = expected.steps[from]?.pending;
   const recorded = latest.steps[from]?.pending;

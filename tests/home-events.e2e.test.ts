@@ -34,7 +34,7 @@ test("QEA-92/93 an unknown plugin keeps its event actions while retired Home Eve
         const note = read(); return { source: { surface: "fixture-notes", title: "自有笔记", icon: "inbox" }, events: note.done ? [] : [{ event_id: "own-event", subject,
           occurred_at: new Date().toISOString(), placement: "today", category: "personal", title: "新插件提供的首页事项", summary: "由插件管理的记录", content: note.content, facts: [["版本", String(note.revision)]], needs_attention: true, open: null }] };
       } },
-      { ...context, handle: () => subjectContext({ subject, revision: String(read().revision), title: "新插件提供的首页事项", content: read().content, goal_ids: [] }) },
+      { ...context, handle: () => subjectContext({ subject, revision: String(read().revision), title: "新插件提供的首页事项", content: read().content }) },
       { ...offers, handle: (_caller, value) => ({ offers: read().done || (value as SubjectOffersInput).subject.id !== subject.id ? [] : [{ offer_id: "complete", title: "确认记录", action: { capability_id: complete.capability_id, version: 1 }, input: { revision: read().revision, request_id: (value as SubjectOffersInput).request_id } }] }) },
       { ...complete, handle: (caller, input) => {
         assert.equal(caller.project_id, projectId);

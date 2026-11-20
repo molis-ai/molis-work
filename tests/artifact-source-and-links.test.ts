@@ -14,7 +14,7 @@ const controlToken = "artifact-source-links-control-token-0123456789";
 test("a pinned document shows when the original changed or was deleted, and which Goals and documents use it", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-source", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "artifact-source", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const origin = served.origin;
@@ -63,7 +63,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const coordinator = new GoalProjectApplication(store);
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
-    source: { module: "goals", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });
+    source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });
   const linked = await detail(pinned.artifact_id, pinned.version);
   const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -93,7 +93,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
 test("a pinned document that moved to another place says so, instead of saying it was deleted", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-moved", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "artifact-moved", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const origin = served.origin;
@@ -126,7 +126,7 @@ test("a pinned document that moved to another place says so, instead of saying i
 // RAC-2495: not being granted the naming action is told as a refusal by the kind the grant check gives it, not by its code.
 test("RAC-2088 RAC-2495 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("artifact-links-mcp");
+  const project = await served.createProject("artifact-links-mcp", ["goals"]);
   await seedDemoGoals(project.database_path, project.project_id);
   const projectOrigin = `${served.origin}/projects/${encodeURIComponent(project.project_id)}`;
   const post = async (path: string, body: unknown) => {

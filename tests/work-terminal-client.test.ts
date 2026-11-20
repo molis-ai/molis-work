@@ -82,16 +82,16 @@ test("Closed authentication handshake rejects pending connect and allows a fresh
   connection.stop();
 });
 
-/** A terminal as Goals lists it (`goals.terminal.list`). */
-function listedPanel(goalId: string, running = true) {
-  return { key: `key-${goalId}`, panel_id: `panel-${goalId}`, title: "Terminal", runtime: "command", program: { command: "cat", args: [] },
+/** A terminal as the platform lists it (`work_terminals.list`, PEQ-17). */
+function listedPanel(subjectId: string, running = true) {
+  return { key: `key-${subjectId}`, panel_id: `panel-${subjectId}`, title: "Terminal", runtime: "command", program: { command: "cat", args: [] },
     running, created_at: "2026-10-31T00:00:00.000Z" };
 }
 
 function panelsFixture(t: TestContext) {
   t.after(installTextForTest({ locale: "zh", packs: [pagePack("workbench", "zh")] }));
   BrowserSocket.instances = [];
-  const state = { goal: "goal-a", parent: false };
+  const state = { plugin: "io.molis.work.example.notes", kind: "sample_note", id: "note-a", readOnly: false };
   const sessions = new Map<string, { hasOutput: boolean; recentOutput: string; lastOutputAt: number;
     term: { write(text: string): void; reset(): void; focus(): void };
     fit: { fit(): void; proposeDimensions(): { cols: number; rows: number } } }>();
@@ -130,40 +130,43 @@ function panelsFixture(t: TestContext) {
   const statuses: Array<{ text: string; kind: unknown }> = [];
   const options: TerminalPanelsOptions = {
     screens: screen as unknown as TerminalPanelsOptions["screens"],
-    goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
-    canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
+    subject: () => ({ plugin_id: state.plugin, subject_kind: state.kind, subject_id: state.id }),
+    readOnly: () => state.readOnly, readOnlyMessage: () => "subject read-only",
+    canControlPanel: (panel): panel is PanelRecord => Boolean(
+      panel && !state.readOnly && panel.plugin_id === state.plugin && panel.subject_kind === state.kind && panel.subject_id === state.id,
+    ),
     text: pageText("zh"), errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
-    terminalsRoute: () => "/api/plugins/goals-owner/goals/:goalId/terminals", request,
+    request,
     controlToken: () => "token", setStatus(text, kind) { statuses.push({ text, kind }); }, setMenuOpen() {}, renderTabs() {},
     showTerminal: (id) => shown.push(id),
   };
   return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, statuses, resets: () => resets };
 }
 
-test("Switching Goals invalidates an in-flight panel response without adopting the old Goal's terminals", async (t) => {
+test("Switching subjects invalidates an in-flight panel response without adopting the old object's terminals", async (t) => {
   const f = panelsFixture(t);
   let finishOld!: (response: Response) => void;
-  f.io.respond = async (url) => url.includes("/goals/goal-a/")
+  f.io.respond = async (url) => url.includes("/sample_note/note-a")
     ? new Promise<Response>((resolve) => { finishOld = resolve; })
-    : Response.json({ panels: [listedPanel("goal-b", false)] });
+    : Response.json({ panels: [listedPanel("note-b", false)] });
   const oldLoad = f.controller.loadPanels();
-  f.state.goal = "goal-b";
-  f.controller.resetGoal();
+  f.state.id = "note-b";
+  f.controller.resetSubject();
   assert.deepEqual(f.controller.panels, []);
   assert.equal(f.controller.activeId, null);
   await f.controller.loadPanels();
-  finishOld(Response.json({ panels: [listedPanel("goal-a", false)] }));
+  finishOld(Response.json({ panels: [listedPanel("note-a", false)] }));
   await oldLoad;
-  assert.deepEqual(f.controller.panels.map((p) => p.goal_id), ["goal-b"]);
-  assert.equal(f.controller.activeId, "panel-goal-b");
-  assert.equal(f.shown.at(-1), "panel-goal-b");
+  assert.deepEqual(f.controller.panels.map((p) => p.subject_id), ["note-b"]);
+  assert.equal(f.controller.activeId, "panel-note-b");
+  assert.equal(f.shown.at(-1), "panel-note-b");
   assert.equal(BrowserSocket.instances.length, 0);
 });
 
-test("RAC-2566 Panel loading attaches without starting; reopen asks Goals to start the same key with its program, then only attaches", async (t) => {
+test("RAC-2566 PEQ-17 Panel loading attaches without starting; reopen asks /api/work-terminals to start the same key with its program, then only attaches", async (t) => {
   const f = panelsFixture(t);
-  const panel = listedPanel("goal-a");
-  // The Host's process: gone when listed, started by Goals' open; the channel only ever attaches.
+  const panel = listedPanel("note-a");
+  // The Host's process: gone when listed, started by platform work-terminal open; the channel only ever attaches.
   let running = false;
   f.io.respond = async (_url, init) => {
     if (init.method === "POST") { running = true; return Response.json({ panel_id: panel.panel_id, key: panel.key, started: true }); }
@@ -183,7 +186,7 @@ test("RAC-2566 Panel loading attaches without starting; reopen asks Goals to sta
   assert.equal(f.requests.filter((r) => r.method === "POST").length, 0, "nothing is told the process ended");
   await f.controller.reopenPanel();
   const opened = f.requests.find((r) => r.method === "POST")!;
-  assert.equal(opened.url, "/projects/project-a/api/plugins/goals-owner/goals/goal-a/terminals");
+  assert.equal(opened.url, "/projects/project-a/api/work-terminals/io.molis.work.example.notes/sample_note/note-a");
   assert.deepEqual(JSON.parse(opened.body!), { key: panel.key, command: "cat", args: [] });
   const reopen = ws.sent.at(-1) as Record<string, unknown>;
   assert.equal(reopen.attachOnly, true);
@@ -191,7 +194,7 @@ test("RAC-2566 Panel loading attaches without starting; reopen asks Goals to sta
   assert.equal(f.controller.isAlive(panel.panel_id), true);
   assert.equal(f.controller.panels[0]?.status, "open");
   assert.equal(f.resets(), 1);
-  f.state.parent = true;
+  f.state.readOnly = true;
   const previousRequestCount = f.requests.length;
   await f.controller.reopenPanel();
   assert.equal(f.requests.length, previousRequestCount);
@@ -201,7 +204,7 @@ test("RAC-2566 Panel loading attaches without starting; reopen asks Goals to sta
 test("Channel reconnect reattaches the live process and restores replay without relaunching it", async (t) => {
   const f = panelsFixture(t);
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const panel = listedPanel("goal-a");
+  const panel = listedPanel("note-a");
   f.io.respond = async () => Response.json({ panels: [panel] });
   const connected = f.controller.connect();
   const first = BrowserSocket.instances[0]!;
@@ -237,7 +240,7 @@ test("Channel reconnect reattaches the live process and restores replay without 
 
 test("D0267 a failed panel refresh preserves the visible panels and reports the current failure", async t => {
   const f = panelsFixture(t);
-  f.io.respond = async () => Response.json({ panels: [listedPanel("goal-a", false)] });
+  f.io.respond = async () => Response.json({ panels: [listedPanel("note-a", false)] });
   await f.controller.loadPanels();
   const previous = f.controller.panels;
   f.io.respond = async () => { throw Error("refresh refused"); };
@@ -247,7 +250,7 @@ test("D0267 a failed panel refresh preserves the visible panels and reports the 
   let reject!: (reason: Error) => void;
   f.io.respond = () => new Promise((_resolve, no) => { reject = no; });
   const old = f.controller.loadPanels();
-  f.state.goal = "goal-b"; f.controller.resetGoal(); f.statuses.length = 0;
+  f.state.id = "note-b"; f.controller.resetSubject(); f.statuses.length = 0;
   reject(Error("old failure")); await old;
-  assert.deepEqual(f.statuses, [], "old failures cannot overwrite the next goal's status");
+  assert.deepEqual(f.statuses, [], "old failures cannot overwrite the next subject's status");
 });

@@ -96,7 +96,7 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
   let caller: AgentMemoryCaller = { actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", session_id: session.session_id,
     current_scene: "coding", purpose: "management", source_use: "learning" };
   const start = async (text: string, extra: { continued_from?: AgentRunRef; original_input?: { input_id: string; text: string; written_by: "person" | "host"; occurred_at: string } } = {}) => {
-    const memory = await service.forRun({ actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent" }, { query: text });
+    const memory = await service.forRun({ actor_id: actor, project_id: project, plugin_id: coding, consumer: "agent", current_scene: "coding" }, { query: text });
     const run = await adapter.start({ ...owner, directory, session, task: text, role_id: "reader", queued: "carry", ...extra,
       role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: ["read-file"], memory } });
     caller = { ...caller, class_restrictions: (await adapter.read(run.ref)).class_restrictions };

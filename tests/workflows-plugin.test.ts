@@ -62,11 +62,11 @@ test("没配好的衔接不算接上：Function 要有规则，AI 要有要求�
 });
 
 test("Function 按规则填占位，AI 的第一行当标题", () => {
-  const input = { title: "原标题", body: "正文内容", url: "https://example.com/a", source: "Gmail", feed_item_id: "item-1" };
+  const input = { title: "原标题", body: "正文内容", url: "https://example.com/a", source: "Gmail", source_ref: { kind: "feed_item", id: "item-1" } };
   const out = applyFunctionRule(fn("来源：{来源}\n{正文}\n{未知}", "{日期} {标题}"), input, new Date("2026-09-24T08:00:00Z"));
   assert.equal(out.title, "2026-09-24 原标题");
   assert.equal(out.body, "来源：Gmail\n正文内容\n{未知}");
-  assert.equal(out.feed_item_id, null, "transformed content is new content, not the original Feed item");
+  assert.equal(out.source_ref, undefined, "transformed content is new content, not the original Feed item");
   assert.equal(applyFunctionRule(fn("{正文}"), input).title, "原标题");
   const bare = applyFunctionRule(fn("来源：{来源}\n链接：{链接}\n\n{正文}"), { ...input, url: null });
   assert.equal(bare.body, "来源：Gmail\n\n正文内容", "a line whose placeholders are all empty is left out");
@@ -216,7 +216,7 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     const third = await start(items[0]!.item_id);
     assert.equal(third.chain.links[0]!.kind, "function");
     const t1 = (await continueFrom(third, {})).body.instance as WorkflowInstance;
-    assert.equal(t1.steps[0]!.handoff?.output.feed_item_id, null, "transformed content becomes its own Feed message");
+    assert.equal(t1.steps[0]!.handoff?.output.source_ref, undefined, "transformed content becomes its own Feed message");
 
     // Runs keep their own content; history lists every run and reopens each one where it stopped.
     const history = (await call("GET", `/workflows/${workflow.workflow_id}`)).body.instances as WorkflowInstance[];

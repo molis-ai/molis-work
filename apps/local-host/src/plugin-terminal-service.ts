@@ -31,7 +31,7 @@ export function bindPluginTerminalHost(home: string, host: MolisWorkPtyHost, opt
   return () => { if (hosts.get(key) === binding) hosts.delete(key); };
 }
 
-type TerminalProgram = { readonly runtime: TerminalRuntime; readonly session?: string } | { readonly command: string; readonly args: readonly string[] };
+export type TerminalProgram = { readonly runtime: TerminalRuntime; readonly session?: string } | { readonly command: string; readonly args: readonly string[] };
 interface TerminalRequest {
   readonly key: string; readonly title: string | undefined; readonly program: TerminalProgram; readonly subject: string | null;
   readonly directory: PluginTerminalDirectory;
@@ -126,12 +126,12 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
 }
 
 /** The panel id: derived from whose terminal it is and its key, so one plugin's key never names another's terminal. */
-function terminalPanelId(owner: TerminalOwner, key: string): string {
+export function terminalPanelId(owner: TerminalOwner, key: string): string {
   const identity = [owner.install_id, owner.project_id, owner.actor_id, key];
   return "plugin-" + createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 32);
 }
 
-function terminalHost(home: string): TerminalHostBinding {
+export function terminalHost(home: string): TerminalHostBinding {
   const binding = hosts.get(resolve(home));
   if (!binding) throw new ActionError("actions.unavailable", "终端宿主尚未连接");
   return binding;
@@ -144,7 +144,7 @@ function catalogFor(home: string) {
 }
 
 /** One projection for catalog failures from open, list, close and their directory reads. Revocation always wins. */
-async function withTerminalCatalog<T>(home: string, check: () => void,
+export async function withTerminalCatalog<T>(home: string, check: () => void,
   read: (catalog: Parameters<Parameters<ReturnType<typeof catalogFor>>[1]>[0]) => T | Promise<T>): Promise<T> {
   try { return await catalogFor(home)({ homeDirectory: home }, read); }
   catch (error) {
@@ -159,7 +159,7 @@ async function withTerminalCatalog<T>(home: string, check: () => void,
  * The program recorded for a terminal is the one it keeps: a different one under the same key is a conflict, not a replacement. A runtime
  * named without a session resumes the recorded one; naming a session must name that one.
  */
-function sameProgram(record: PluginTerminalPanelRecord, program: TerminalProgram): boolean {
+export function sameProgram(record: PluginTerminalPanelRecord, program: TerminalProgram): boolean {
   if ("runtime" in program) return record.runtime === program.runtime && (program.session === undefined || program.session === record.host_session_id);
   return record.runtime === COMMAND_RUNTIME && record.launch_command === program.command
     && record.launch_args.length === program.args.length && record.launch_args.every((arg, index) => arg === program.args[index]);
@@ -169,7 +169,7 @@ function sameProgram(record: PluginTerminalPanelRecord, program: TerminalProgram
  * What starts: a recipe's command on the platform's PATH (with the recipe's resume arguments for the session the runtime reported, or the
  * one the first start named), or the plugin's command and arguments. What is recorded is the program as named, resolved again on every start.
  */
-function terminalLaunch(program: TerminalProgram, existing: PluginTerminalPanelRecord | null, searchPath: string) {
+export function terminalLaunch(program: TerminalProgram, existing: PluginTerminalPanelRecord | null, searchPath: string) {
   if ("runtime" in program) {
     const recipe = terminalRuntimeRecipe(program.runtime);
     const recorded = existing ? existing.host_session_id : program.session ?? null;
@@ -184,8 +184,9 @@ function terminalLaunch(program: TerminalProgram, existing: PluginTerminalPanelR
 }
 
 /** The platform's variables for a terminal: the runtime in it reaches this Home's MCP as this terminal's work context. */
-function terminalEnvironment(input: { home: string; record: PluginTerminalPanelRecord; webUrl: string }): Record<string, string> {
+export function terminalEnvironment(input: { home: string; record: PluginTerminalPanelRecord; webUrl: string; focusKind?: string; focusId?: string }): Record<string, string> {
   const { record } = input;
+  const focusId = input.focusId ?? record.subject;
   return {
     MOLIS_WORK_HOME: resolve(input.home),
     MOLIS_WORK_MCP_AUDIENCE: "runtime",
@@ -193,7 +194,8 @@ function terminalEnvironment(input: { home: string; record: PluginTerminalPanelR
     MOLIS_WORK_WORK_CONTEXT_ID: record.panel_id,
     MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     MOLIS_WORK_PANEL_ID: record.panel_id,
-    ...(record.subject === null ? {} : { MOLIS_WORK_FOCUS_ID: record.subject }),
+    ...(input.focusKind === undefined ? {} : { MOLIS_WORK_FOCUS_KIND: input.focusKind }),
+    ...(focusId === null ? {} : { MOLIS_WORK_FOCUS_ID: focusId }),
     MOLIS_WORK_WEB_URL: input.webUrl,
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
@@ -202,7 +204,7 @@ function terminalEnvironment(input: { home: string; record: PluginTerminalPanelR
 
 const invalid = () => new ActionError("actions.input_invalid", "终端启动参数无效");
 const text = (value: unknown, limit = TEXT_LIMIT): value is string => typeof value === "string" && value.length <= limit && !value.includes("\0");
-const terminalKey = (value: unknown): value is string => typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/u.test(value);
+export const terminalKey = (value: unknown): value is string => typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/u.test(value);
 const subjectText = (value: unknown): value is string => text(value, SUBJECT_LIMIT) && value.length > 0;
 
 function terminalListSubject(input: unknown): string | undefined {
@@ -223,7 +225,7 @@ function terminalRequest(input: unknown): TerminalRequest {
 }
 
 /** A recipe id (with the runtime session to resume, as one argument), or a command with bounded arguments. */
-function terminalProgram(program: unknown): TerminalProgram {
+export function terminalProgram(program: unknown): TerminalProgram {
   if (!plain(program)) throw invalid();
   const keys = Object.keys(program);
   if ("runtime" in program) {
@@ -269,7 +271,7 @@ const plain = (value: unknown): value is Record<string, unknown> =>
  * files; the real path must stay inside the root's real path and be a directory. Authority is checked again after every wait. A link
  * swapped into the path between this check and the spawn is not caught (S-103 does not cover it); the spawn uses the resolved `target`.
  */
-async function terminalDirectory(home: string, directory: PluginTerminalDirectory, projectId: string | null | undefined, ownerFiles: PluginOwnerFilesClient | undefined,
+export async function terminalDirectory(home: string, directory: PluginTerminalDirectory, projectId: string | null | undefined, ownerFiles: PluginOwnerFilesClient | undefined,
   check: () => void): Promise<string> {
   let rootPath: string;
   if (directory.root === "owner_files") {

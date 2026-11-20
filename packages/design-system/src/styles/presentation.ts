@@ -72,4 +72,16 @@ export const PRESENTATION_FORM_STYLES = `
     .mw-presentation--row .mw-item { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "owner title" ". fields" ". end"; }
     .mw-presentation--row .mw-item__end { flex-wrap: wrap; }
   }
+  /* Shared list column names and narrow directory presentation (44-6 / design-language-44): any plugin list can share them. */
+  .mw-list-columns {
+    display: grid; grid-template-columns: var(--mw-list-columns, minmax(12rem, 1fr) auto); column-gap: 12px; align-items: center;
+    height: 28px; margin-block-end: 2px; padding: 0 8px; border-block-end: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; white-space: nowrap; user-select: none;
+  }
+  .mw-list-columns > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 760px) { .mw-list-columns { display: none; } }
+  .mw-presentation--narrow-dir .mw-presentation__tag { inline-size: 100%; gap: 8px; padding-inline: 0; background: none; box-shadow: none; font-size: 13px; }
+  .mw-presentation--narrow-dir .mw-presentation__owner { display: none; }
+  .mw-presentation--narrow-dir .mw-presentation__tag > strong { flex: 1 1 auto; min-inline-size: 0; }
+  .mw-presentation--narrow-dir .mw-status { display: inline-flex; padding: 0; background: none; box-shadow: none; }
 `;

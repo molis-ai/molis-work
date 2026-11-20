@@ -16,9 +16,11 @@ test("PFG-23 a fresh workspace shows the project home with no tab", () => {
   assert.equal(state.solo, null);
 });
 
-// T-114 (PG-094 ②): a work surface is its plugin's id; Goals has no alias. Feed's second surface `sources` is still Feed's.
+// T-114 (PG-094 ②, PEQ-08): a work surface is its plugin's id; Goals has no alias, and surface aliases like Feed's `sources` come from plugin declarations rather than shell hardcoding.
 test("RAC-1932 a work surface names its plugin by its id, with no Goals alias", () => {
-  assert.deepEqual(["goals", "goal", "pages", "feed", "sources"].map((surface) => ops.pluginOfSurface(surface)), ["goals", "goal", "pages", "feed", "feed"]);
+  assert.deepEqual(["goals", "goal", "pages", "feed", "sources"].map((surface) => ops.pluginOfSurface(surface)), ["goals", "goal", "pages", "feed", "sources"]);
+  const declared = createTabWorkspaceOps(undefined, { sources: "feed" });
+  assert.deepEqual(["goals", "goal", "pages", "feed", "sources"].map((surface) => declared.pluginOfSurface(surface)), ["goals", "goal", "pages", "feed", "feed"]);
 });
 
 test("opening a plugin shows its default view without adding a mother tab", () => {

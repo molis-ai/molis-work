@@ -1,8 +1,7 @@
 import type { MolisWorkRuntimeContextHost, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, objectLink, type ActionSubject, type ResumeItem, type ResumeSummary } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";
-import { buildMcpResumeView, type McpResumeFacts } from "./resume-view.js";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 /** What a Runtime is told of the project's guidance: the confirmed text its first turn starts with. */
@@ -10,10 +9,14 @@ export interface McpGuidanceFacts { readonly runtime_prompt_prefix: string }
 
 type ProjectConnection = NonNullable<MolisWorkRuntimeContextResolution["connection"]>;
 
+/** One plugin's resume summary (`defineResumeSummaryAction`), or why it could not be read. */
+export type McpResumeSection = { plugin_id: string; plugin: string } & ({ summary: ResumeSummary } | { error: { code: string; message: string } });
+
 export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
   readGuidance(connection: ProjectConnection): Promise<McpGuidanceFacts>;
-  readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
+  /** Every resume summary declared in the project, by plugin, each asked with the host's focus when it is of a kind that plugin names. */
+  readResumeSections(connection: ProjectConnection, focus: ActionSubject | null): Promise<readonly McpResumeSection[]>;
   createError: McpPresentationErrorFactory;
   contextSignal?(): AbortSignal;
 }
@@ -29,10 +32,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const projectUrl = resolution.connection
       ? mcpWebUrl(`/projects/${encodeURIComponent(resolution.connection.project_id)}`, webBaseUrl, ports.createError)
       : null;
-    // Action results carry IDs only; a Runtime fills `{goal_id}` here instead of composing a URL itself.
-    const connection = resolution.connection
-      ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl, goal_url_template: `${projectUrl}/goals/{goal_id}` }
-      : null;
+    const connection = resolution.connection ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl } : null;
     ports.connection.accept(connection ? {
       projectId: connection.project_id, databasePath: connection.database_path, webBaseUrl,
     } : null, host.runtimeContext);
@@ -45,11 +45,18 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const guidance = connection ? await readOptional(() => ports.readGuidance(connection)) : { value: null };
     checkContext();
     const projectGuidance = guidance.value;
-    const hostFocus = host.focusId?.trim() || null;
-    const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, hostFocus ? [hostFocus] : [])) : { value: null };
+    const hostFocus = host.focus ?? null;
+    const facts = connection ? await readOptional(() => ports.readResumeSections(connection, hostFocus)) : { value: null };
     checkContext();
-    const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus) : null
-      : { focus: null, next_goals: [] };
+    // Each item carries the address that opens it, written by the one address writer; a Runtime never composes one.
+    const item = (projectId: string, entry: ResumeItem) => ({ ...entry,
+      url: mcpWebUrl(objectLink(projectId, { surface: entry.open.surface, id: entry.open.id, title: entry.title }), webBaseUrl, ports.createError) });
+    const resume = connection ? facts.value ? { sections: facts.value.map(section => "error" in section ? section : {
+      plugin_id: section.plugin_id, plugin: section.plugin, title: section.summary.title,
+      focus: section.summary.focus ? { ...item(connection.project_id, section.summary.focus),
+        source: hostFocus && section.summary.focus.subject.kind === hostFocus.kind && section.summary.focus.subject.id === hostFocus.id ? "host_focus" : "owner_order" } : null,
+      next: section.summary.next.map(entry => item(connection.project_id, entry)) }) } : null
+      : { sections: [] };
     return JSON.stringify({
       ...resolution, connection, project_guidance: projectGuidance,
       runtime_prompt_prefix: projectGuidance?.runtime_prompt_prefix ?? null, resume,

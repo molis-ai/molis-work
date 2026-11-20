@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SUBJECT_CONTEXT_PATH, UI_SUBJECT_CONTEXT_KINDS, UI_SUBJECT_CONTEXT_PLUGINS, type SubjectContextAnswer, type UiSubjectContextKind } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { isUiSubjectContextKind, SUBJECT_CONTEXT_PATH, UI_SUBJECT_CONTEXT_PLUGINS, type SubjectContextAnswer, type UiSubjectContextKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, subjectContextAction, subjectContextInput, subjectContextText } from "@molis-ai/molis-work-plugin-sdk";
 import { pinOwnerRead, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import { sendLocalWebJson } from "./web-http.js";
@@ -9,7 +9,6 @@ import { sendLocalWebJson } from "./web-http.js";
 const ID_LIMIT = 256;
 /** A plugin that is not there to answer, or no longer offers the read, gives nothing; any other failure is the page's to show. */
 const ABSENT = new Set(["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.provider_changed"]);
-const KINDS: ReadonlySet<string> = new Set(UI_SUBJECT_CONTEXT_KINDS);
 
 export interface SubjectContextPorts {
   /** The running owners of the plugins the project shows, in the order the Host lists its plugins. */
@@ -24,9 +23,9 @@ function requested(url: URL): { kind: UiSubjectContextKind; id: string } {
     throw new ActionError("actions.input_invalid", "关联原文只接受一个 kind 和一个 id");
   }
   const kind = kinds[0]!, id = ids[0]!;
-  if (!KINDS.has(kind)) throw new ActionError("actions.input_invalid", `关联原文的 kind 只能是 ${[...KINDS].join(" 或 ")}`);
+  if (!isUiSubjectContextKind(kind)) throw new ActionError("actions.input_invalid", "关联原文的 kind 必须是合法的对象种类标识");
   if (!id.trim() || [...id].length > ID_LIMIT) throw new ActionError("actions.input_invalid", `关联原文的 id 必须是 1 到 ${ID_LIMIT} 个字符`);
-  return { kind: kind as UiSubjectContextKind, id };
+  return { kind, id };
 }
 
 /** One owner's text about the object, read as the person through the owner's own declared read; null when it keeps none. */

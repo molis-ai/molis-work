@@ -109,9 +109,9 @@ async function fixture(t: TestContext, defaultOpen = false) {
       return await response.json() as SearchEntry[];
     }),
     { ...reader, handle: (_caller, input) => subjectContext({ subject: { kind: "authority_note", id: String(input.subject_id) },
-      revision: "1", title: "An owner's note", content: marker, goal_ids: [], open: { surface: "fixture", id: "one" } }) },
+      revision: "1", title: "An owner's note", content: marker, open: { surface: "fixture", id: "one" } }) },
     { ...unrelatedReader, handle: (_caller, input) => subjectContext({ subject: { kind: "unrelated_note", id: String(input.subject_id) },
-      revision: "1", title: "Another kind", content: "unrelated", goal_ids: [] }) },
+      revision: "1", title: "Another kind", content: "unrelated" }) },
     { ...peer, handle: () => true },
   ] });
   disposers.push(dispose);
@@ -145,7 +145,7 @@ async function fixture(t: TestContext, defaultOpen = false) {
     disposers.push(home.host.actionRegistry(project.reference).registerProvider({ provider: {
       provider_id: providerId, plugin_id: providerId, title: "HTTP owner", kind: defaultOpen ? "system" : "plugin",
     }, definitions: [next], handlers: [{ ...next, handle: (_caller, value) => subjectContext({
-      subject: { kind: "authority_note", id: String(value.subject_id) }, revision: "1", title: "An owner's note", content: marker, goal_ids: [],
+      subject: { kind: "authority_note", id: String(value.subject_id) }, revision: "1", title: "An owner's note", content: marker,
     }) }] }));
     const accepted = (await home.inspect(clientId, project.project_id)).find(item => item.capability_id === next.capability_id);
     assert.ok(accepted); await home.grant(clientId, project.project_id, [accepted]);

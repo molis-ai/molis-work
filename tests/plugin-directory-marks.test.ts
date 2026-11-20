@@ -67,7 +67,7 @@ test("RAC-710 forged marks are refused: honest changes still bring companions, h
   assert.equal(removed.status, 200);
   assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("pages"));
 
-  const kept = await change("DELETE", "goals", { always_on: false });
+  const kept = await change("DELETE", "shelf", { always_on: false });
   assert.notEqual(kept.status, 200);
   assert.equal((await kept.json() as { code?: string }).code, "catalog.plugin_always_on");
 });

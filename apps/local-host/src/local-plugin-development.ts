@@ -107,6 +107,7 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
     await ensureBoard(host, reference);
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
+      projectLibrary: typeof runtime.store.db.name === "string" ? { db: runtime.store.db, path: runtime.store.db.name } : null,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: runtime.project_id },
       artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db), bindInstallation: view => bindProjectArtifacts(runtime.store.db, view),

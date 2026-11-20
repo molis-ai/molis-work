@@ -71,7 +71,7 @@ export default definePlugin({
     };
     // The declarations every plugin can make, the same as the built-in ones (batch 44 PEQ-05): a blank starting point, 「挂到…」 on its own
     // notes, a resume summary for outside Agents, a write the person confirms in the platform's decision, and a settings section.
-    const notes = sampleNotes(storage, manifest.plugin_id);
+    const notes = sampleNotes(storage, services.project_database, manifest.plugin_id);
     const polling = definePollingIntegrationPlugin({ manifest, createProvider: () => provider });
     return { ...await polling.start(context), actions: [
       defineAction(healthAction, () => provider.health()).handler,
@@ -89,10 +89,36 @@ export default definePlugin({
 
 const NOTE = "sample_note";
 
-/** The sample's notes, kept in its private storage: a list of `{ id, title, bindings }`, with a revision that moves on every write. */
-function sampleNotes(storage, pluginId) {
-  const read = () => JSON.parse(storage.get("notes") ?? '{"revision":0,"notes":[]}');
-  const write = state => { state.revision += 1; storage.set("notes", JSON.stringify(state)); return state; };
+/** The sample's notes, kept in its project database (or private KV fallback): `{ id, title, bindings }`, with a revision that moves on every write. */
+function sampleNotes(storage, projectDatabase, pluginId) {
+  const read = () => {
+    if (projectDatabase) {
+      const row = projectDatabase.get("SELECT revision, notes_json FROM sample_notes_state WHERE id = 1");
+      if (!row) return { revision: 0, notes: [] };
+      return { revision: Number(row.revision ?? 0), notes: JSON.parse(String(row.notes_json ?? "[]")) };
+    }
+    return JSON.parse(storage.get("notes") ?? '{"revision":0,"notes":[]}');
+  };
+  const write = async (context, mutate) => {
+    if (projectDatabase) {
+      return await projectDatabase.transaction(() => context?.beforeEffect?.() ?? Promise.resolve(), tx => {
+        const row = tx.get("SELECT revision, notes_json FROM sample_notes_state WHERE id = 1");
+        const state = row ? { revision: Number(row.revision ?? 0), notes: JSON.parse(String(row.notes_json ?? "[]")) } : { revision: 0, notes: [] };
+        const outcome = mutate(state);
+        state.revision += 1;
+        tx.run(
+          "INSERT INTO sample_notes_state (id, revision, notes_json) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, notes_json = excluded.notes_json",
+          [state.revision, JSON.stringify(state.notes)],
+        );
+        return outcome;
+      });
+    }
+    const state = read();
+    const outcome = mutate(state);
+    state.revision += 1;
+    storage.set("notes", JSON.stringify(state));
+    return outcome;
+  };
   const find = (state, id) => {
     const note = state.notes.find(item => item.id === id);
     if (!note) throw Object.assign(new Error("No such sample note"), { code: "actions.not_found" });
@@ -112,23 +138,31 @@ function sampleNotes(storage, pluginId) {
       const state = read(), note = find(state, input.subject_id);
       return { subject: { kind: NOTE, id: note.id }, revision: String(state.revision), title: note.title, content: "", truncated: false, open: { surface: pluginId, id: note.id } };
     },
-    "notes.create": () => {
-      const state = read(), note = { id: "note-" + (state.revision + 1), title: "Sample note " + (state.notes.length + 1), bindings: [] };
-      state.notes.push(note); write(state);
+    "notes.create": async context => {
+      const note = await write(context, state => {
+        const created = { id: "note-" + (state.revision + 1), title: "Sample note " + (state.notes.length + 1), bindings: [] };
+        state.notes.push(created);
+        return created;
+      });
       return { note: { id: note.id, title: note.title } };
     },
     // 「挂到…」: another object hung on one of the sample's notes, in the platform's relation shape (`definePlacementRelationAction`):
     // both ends are subjects, and each part answers what the object is attached to after the call. Nothing of that object is copied.
-    "attach.bind": (_context, input) => {
-      const state = read(), note = find(state, input.target.id), key = input.subject.kind + ":" + input.subject.id;
-      if (!note.bindings.some(binding => binding.key === key)) { note.bindings.push({ key, title: input.read?.title ?? "" }); write(state); }
+    "attach.bind": async (context, input) => {
+      const key = input.subject.kind + ":" + input.subject.id;
+      await write(context, state => {
+        const note = find(state, input.target.id);
+        if (!note.bindings.some(binding => binding.key === key)) note.bindings.push({ key, title: input.read?.title ?? "" });
+      });
       return attachedTo(read(), key);
     },
     "attach.list": (_context, input) => attachedTo(read(), input.subject.kind + ":" + input.subject.id),
-    "attach.release": (_context, input) => {
-      const state = read(), note = find(state, input.target.id), key = input.subject.kind + ":" + input.subject.id, before = note.bindings.length;
-      note.bindings = note.bindings.filter(binding => binding.key !== key);
-      if (note.bindings.length !== before) write(state);
+    "attach.release": async (context, input) => {
+      const key = input.subject.kind + ":" + input.subject.id;
+      await write(context, state => {
+        const note = find(state, input.target.id);
+        note.bindings = note.bindings.filter(binding => binding.key !== key);
+      });
       return attachedTo(read(), key);
     },
     "attach.candidates": (_context, input) => {
@@ -136,13 +170,16 @@ function sampleNotes(storage, pluginId) {
       return { targets: [...notes.filter(on), ...notes.filter(note => !on(note))].map(note => ({ subject: { kind: NOTE, id: note.id }, current: on(note) })) };
     },
     // A new note named so, with the object on it; the same request makes the same note. The new one is named first.
-    "attach.create": (_context, input) => {
-      const state = read(), key = input.subject.kind + ":" + input.subject.id, request = input.request_id ?? key + ":" + input.name;
-      let note = state.notes.find(item => item.source_key === request);
-      if (!note) {
-        note = { id: "note-" + (state.revision + 1), title: input.name, source_key: request, bindings: [{ key, title: input.read?.title ?? "" }] };
-        state.notes.push(note); write(state);
-      }
+    "attach.create": async (context, input) => {
+      const key = input.subject.kind + ":" + input.subject.id, request = input.request_id ?? key + ":" + input.name;
+      const note = await write(context, state => {
+        let existing = state.notes.find(entry => entry.source_key === request);
+        if (!existing) {
+          existing = { id: "note-" + (state.revision + 1), title: input.name, source_key: request, bindings: [{ key, title: input.read?.title ?? "" }] };
+          state.notes.push(existing);
+        }
+        return existing;
+      });
       const after = attachedTo(read(), key).targets.filter(target => target.id !== note.id);
       return { targets: [{ kind: NOTE, id: note.id }, ...after] };
     },
@@ -166,13 +203,15 @@ function sampleNotes(storage, pluginId) {
     "notes.clear.review": () => {
       const state = read();
       return { request: { summary: "Clear " + state.notes.length + " sample notes", requirements: [], approver: { kind: "person" }, expires_at: null,
-        choices: [{ id: "clear", label: { owner: pluginId, key: "notes.clear.choice" }, availability: { available: true }, accepts: [], returns: [] }] },
+        choices: [{ id: "clear", label: { key: "notes.clear.choice" }, availability: { available: true }, accepts: [], returns: [] }] },
         target: { subject: { kind: NOTE, id: "all" }, version: String(state.revision) }, commands: { clear: {} } };
     },
     "notes.clear": async context => {
-      const state = read(), cleared = state.notes.length;
-      await context.beforeEffect?.();
-      state.notes = []; write(state);
+      const cleared = await write(context, state => {
+        const count = state.notes.length;
+        state.notes = [];
+        return count;
+      });
       return { cleared };
     },
     "settings.read": () => values(),

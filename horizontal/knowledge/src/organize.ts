@@ -13,6 +13,7 @@ import {
   type KnowledgeSectionNote,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
+import { reasonOf } from "./errors.js";
 import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
@@ -123,7 +124,6 @@ export const ORGANIZE_TEXT_CHARS = 12_000;
 /** Text shorter than this gets a card but no outline. */
 export const OUTLINE_MIN_CHARS = 2_000;
 const MAX_NOTES = 60;
-const ERROR_CHARS = 200;
 
 const keyOf = (subject: ActionSubject) => `${subject.kind}\u0000${subject.id}`;
 const clip = (value: unknown, max: number) => (typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim().slice(0, max);
@@ -350,7 +350,7 @@ export class KnowledgeOrganizer {
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
       this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
-        : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
+        : { ...now, state: "failed", error: reasonOf(outcome.error) });
     }
   }
 

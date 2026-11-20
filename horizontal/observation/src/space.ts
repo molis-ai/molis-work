@@ -29,7 +29,7 @@ interface SpaceRecordRow {
  * Inspect actual space used by stored work records and sealed evidence snapshots (contract-design §16.2, OCL-12).
  * Reaching or passing `space_reminder_bytes` reports `"near"` or `"exceeded"`, never deleting records or blocking writes.
  */
-export function computeObservationSpace(db: DatabaseSync): ObservationSpaceView {
+export function computeObservationSpace(db: DatabaseSync, flowOwners?: ReadonlySet<string>): ObservationSpaceView {
   const stored = readStoredSettings(db);
   const kindTotals = new Map<ObservationRecordKind, { bytes: number; count: number }>(
     OBSERVATION_RECORD_KINDS.map((kind) => [kind, { bytes: 0, count: 0 }]),
@@ -53,7 +53,7 @@ export function computeObservationSpace(db: DatabaseSync): ObservationSpaceView 
       source_class: row.source_class,
       provider_id: row.provider_id,
       ...(row.operation ? { operation: row.operation } : {}),
-    });
+    }, flowOwners);
     const bucket = kindTotals.get(kind)!;
     bucket.bytes += row.row_bytes;
     bucket.count += 1;

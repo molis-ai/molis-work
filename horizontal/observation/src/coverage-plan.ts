@@ -7,6 +7,7 @@ export interface CoveragePlanEntry {
   readonly entries: readonly ObservationEntry[];
   readonly state: Extract<ObservationCoverageState, "complete" | "not_connected" | "unavailable" | "not_applicable" | "by_rule">;
   readonly reason?: string;
+  readonly record_kind?: "flow" | "content";
 }
 
 /**
@@ -61,10 +62,5 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "shell", fact: "ui.dwell.single_look", entries: ["workbench"], state: "by_rule", reason: "dwell_summed_per_minute" },
   // A plugin's page is an isolated document: the shell does not see it scroll, and the plugin reports its own stages if it has any.
   { owner: "shell", fact: "ui.dwell.plugin_page_scroll", entries: ["workbench"], state: "unavailable", reason: "isolated_page_scroll_not_seen" },
-  // Each handoff of a run, reported by Workflows as itself: the handoff's text stays in the run and is named, the action a station ran is
-  // the exit's record under the same call. An action result over 20,000 characters is kept by the run as its size only.
-  { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step", entries: ["plugin"], state: "complete" },
-  { owner: "plugin:io.molis.work.native.workflows", fact: "io.molis.work.native.workflows.step.action_result", entries: ["plugin"], state: "by_rule", reason: "large_action_result_size_only" },
-  { owner: "plugin:io.molis.work.schedule", fact: "io.molis.work.schedule.task_turn", entries: ["plugin"], state: "complete" },
   { owner: "observation", fact: "observation.report", entries: ["workbench", "plugin"], state: "not_applicable", reason: "report_channel_itself" },
 ];

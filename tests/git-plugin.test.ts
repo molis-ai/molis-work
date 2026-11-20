@@ -4,7 +4,7 @@ import test from "node:test";
 import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type HostReviewSettledPayload, type HostWorkspaceChangedPayload,
   type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
-import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-plugin-coding";
 import {
   createGitPlugin,
   gitManifest,

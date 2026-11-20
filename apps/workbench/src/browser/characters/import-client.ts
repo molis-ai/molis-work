@@ -296,7 +296,7 @@ class ImportView {
     const { q } = this;
     if (!document.querySelector("[data-coding-workbench]")) { q("run-notice").textContent = uiText.text("workbench.characters.must-enable-coding"); return; }
     const skillIds = [...q("run-skills").querySelectorAll<HTMLInputElement>("input:checked")].map(input => input.value);
-    window.dispatchEvent(new CustomEvent("molis-work:character-coding", { detail: { reference: this.reference, title: this.runContent?.title,
+    window.dispatchEvent(new CustomEvent("molis-work:character-run-open", { detail: { reference: this.reference, title: this.runContent?.title,
       task: q<HTMLTextAreaElement>("run-task").value, workspace_id: q<HTMLSelectElement>("run-workspace").value, skill_ids: skillIds } }));
     this.runDialog.close();
   }

@@ -10,8 +10,8 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 type Collection = PluginSyncIdentity & { readonly collection_id: string; readonly schema_version: number };
 const errors = defineErrorCodes("host", { approval_dependency_missing: "conflict" });
-const incompatible = () => new ActionError("actions.conflict", "同步的目标结果与原平台决定不一致");
-const pendingApproval = (): never => { throw errors.approval_dependency_missing("原审批记录还在同步，原目标数据已保留", { sync_waiting: true }); };
+const incompatible = () => new ActionError("actions.conflict", "同步的插件结果与原平台决定不一致");
+const pendingApproval = (): never => { throw errors.approval_dependency_missing("原审批记录还在同步，原插件数据已保留", { sync_waiting: true }); };
 
 function findApprovalOutcomesOwner(identity: PluginSyncIdentity): { readonly manifest: PluginManifest; readonly binding: PluginApprovalOutcomesBinding } | null {
   for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
@@ -26,7 +26,7 @@ function findApprovalOutcomesOwner(identity: PluginSyncIdentity): { readonly man
   return null;
 }
 
-export function isGoalsApprovalCollection(identity: Collection): boolean {
+export function isPluginApprovalCollection(identity: Collection): boolean {
   const owner = findApprovalOutcomesOwner(identity);
   if (!owner) return false;
   const collection = owner.manifest.sync?.collections.find(row => row.id === owner.binding.collection_id);
@@ -34,7 +34,7 @@ export function isGoalsApprovalCollection(identity: Collection): boolean {
 }
 
 /** The same owner that produced the outcome reads it from the still-open original transaction. */
-export function freezeGoalApprovalOutcome(db: SqliteDatabase, manifest: PluginManifest, record: ProjectTrustedDecision): void {
+export function freezePluginApprovalOutcome(db: SqliteDatabase, manifest: PluginManifest, record: ProjectTrustedDecision): void {
   const owner = findApprovalOutcomesOwner({
     plugin_id: manifest.plugin_id,
     publisher_id: manifest.publisher.publisher_id,
@@ -49,7 +49,7 @@ export function freezeGoalApprovalOutcome(db: SqliteDatabase, manifest: PluginMa
   projectReviewDecisions(db, project).freezeOutcome(record, outcome.digest);
 }
 
-export function verifyGoalsApprovalLinks(db: ReplicaDatabase, project: string, owner: Collection, facts: Readonly<Record<string, ProjectReplicaRows>>,
+export function verifyPluginApprovalLinks(db: ReplicaDatabase, project: string, owner: Collection, facts: Readonly<Record<string, ProjectReplicaRows>>,
   previous?: Readonly<Record<string, ProjectReplicaRows>>): void {
   const binding = findApprovalOutcomesOwner(owner)?.binding;
   if (!binding) throw incompatible();

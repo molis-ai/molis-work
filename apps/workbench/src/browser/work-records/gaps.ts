@@ -28,8 +28,7 @@ function ownerLabel(owner: string | undefined): string {
   if (owner === "service:grants") return readText("workbench.settings-work-records.src-grants");
   if (owner === "service:connections") return readText("workbench.settings-work-records.src-connections");
   if (owner === "observation") return readText("workbench.settings-work-records.title");
-  if (owner === "plugin:io.molis.work.native.workflows") return readText("workbench.settings-work-records.src-workflows");
-  if (owner.startsWith("plugin:")) return owner.slice(7).replace(/^io\.molis\.work\.native\./, "");
+  if (owner.startsWith("plugin:")) return owner.slice(7).replace(/^io\.molis\.work\.(?:native\.)?/, "");
   return owner;
 }
 

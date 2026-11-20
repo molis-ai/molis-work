@@ -105,6 +105,7 @@ function selectMatchingCandidates(
   db: DatabaseSync,
   resolved: ResolvedCleanupScope,
   nowIso: string,
+  flowOwners?: ReadonlySet<string>,
 ): { readonly deletable: CandidateRow[]; readonly heldSampleCount: number } {
   if (resolved.kinds.length === 0) return { deletable: [], heldSampleCount: 0 };
   const where: string[] = [];
@@ -142,7 +143,7 @@ function selectMatchingCandidates(
           source_class: row.source_class,
           provider_id: row.provider_id,
           ...(row.operation ? { operation: row.operation } : {}),
-        })));
+        }, flowOwners)));
       })();
 
   const heldSeqs = activeHeldSeqSet(db, nowIso);
@@ -187,9 +188,9 @@ function measureUnreferencedBlobs(db: DatabaseSync, seqs: readonly number[]): { 
   return { count, bytes };
 }
 
-export function previewCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date): ObservationCleanupPreview {
+export function previewCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date, flowOwners?: ReadonlySet<string>): ObservationCleanupPreview {
   const resolved = resolveCleanupScope(input, now);
-  const { deletable: matching, heldSampleCount } = selectMatchingCandidates(db, resolved, now.toISOString());
+  const { deletable: matching, heldSampleCount } = selectMatchingCandidates(db, resolved, now.toISOString(), flowOwners);
   const recordBytes = matching.reduce((sum, row) => sum + row.row_bytes, 0);
   const unref = measureUnreferencedBlobs(db, matching.map((row) => row.seq));
   const stored = readStoredSettings(db);
@@ -280,10 +281,10 @@ function executeCleanupCandidates(
   }
 }
 
-export function applyCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date): ObservationCleanupResult {
+export function applyCleanup(db: DatabaseSync, input: ObservationCleanupScopeInput, now: Date, flowOwners?: ReadonlySet<string>): ObservationCleanupResult {
   const resolved = resolveCleanupScope(input, now);
   const cleaned_at = now.toISOString();
-  const { deletable: matching } = selectMatchingCandidates(db, resolved, cleaned_at);
+  const { deletable: matching } = selectMatchingCandidates(db, resolved, cleaned_at, flowOwners);
   const earliestMatched = matching.reduce<string>((min, row) => (row.occurred_at < min ? row.occurred_at : min), resolved.resolved_until);
   return executeCleanupCandidates(db, matching, {
     project_id: input.project_id ?? "",

@@ -136,11 +136,25 @@ export interface PluginApprovalOutcomesBinding {
   ): void;
 }
 
+/** One observation coverage fact declared by a built-in plugin package for the platform's coverage register. */
+export interface PluginObservationCoverageDeclaration {
+  readonly fact: string;
+  readonly entries: readonly ("plugin" | "workbench" | "cli" | "mcp" | "agent" | "workflow" | "schedule" | "background" | "host" | "desktop")[];
+  readonly state: "complete" | "not_connected" | "unavailable" | "not_applicable" | "by_rule";
+  readonly reason?: string;
+  /** Optional display/scope bucket when this plugin reports workflow/automation steps (`"flow"`). */
+  readonly record_kind?: "flow" | "content";
+}
+
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
   /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */
   readonly approval_outcomes?: PluginApprovalOutcomesBinding;
+  /** Optional observation facts reported by this plugin, collected dynamically into the observation coverage plan. */
+  readonly observation?: {
+    readonly coverage?: readonly PluginObservationCoverageDeclaration[];
+  };
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
   readonly project_plugin_id: string;
   /** Position in the catalog, unique across the build; the derived lists keep this order. */

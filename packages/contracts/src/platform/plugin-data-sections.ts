@@ -81,7 +81,7 @@ export function pluginDataSectionsFromManifest(
   if (manifest.owner_files) {
     return [{
       plugin_id: manifest.plugin_id, section_id: manifest.owner_files.store_name, title: manifest.name,
-      scope: "home", schema_version: 1, tables: [], files,
+      scope: "home", schema_version: /* @version format.plugin.data.export */ 1, tables: [], files,
     }];
   }
   return [];

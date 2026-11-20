@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ActionError, WORK_GOAL_PROMOTION_ROLES, workGoalPromotionRoleOf, type ActionReference, type ActionView, type WorkGoalPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, WORK_ITEM_PROMOTION_ROLES, workItemPromotionRoleOf, type ActionReference, type ActionView, type WorkItemPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
 import { feedErrors } from "./contract/feed.js";
@@ -8,20 +8,20 @@ import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platf
 /** At most `max` whole characters; only the first 2×max units are spread, since a title has no upper bound. */
 const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
 
-type GoalPromotionRefs = Record<WorkGoalPromotionRole, ActionReference>;
+type GoalPromotionRefs = Record<WorkItemPromotionRole, ActionReference>;
 
-/** Find the available provider implementing the 3 work-goal promotion roles (Audit #10, PEQ-01). */
+/** Find the available provider implementing the 3 work-item promotion roles (Audit #10, PEQ-01). */
 export function findGoalPromotionProvider(views: readonly ActionView[]): GoalPromotionRefs | null {
   const byProvider = new Map<string, Partial<GoalPromotionRefs>>();
   for (const view of views) {
-    const role = workGoalPromotionRoleOf(view.action);
+    const role = workItemPromotionRoleOf(view.action);
     if (!role || !view.availability.available) continue;
     const group = byProvider.get(view.provider.provider_id) ?? {};
     group[role] = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     byProvider.set(view.provider.provider_id, group);
   }
   for (const group of byProvider.values()) {
-    if (WORK_GOAL_PROMOTION_ROLES.every(role => group[role])) return group as GoalPromotionRefs;
+    if (WORK_ITEM_PROMOTION_ROLES.every(role => group[role])) return group as GoalPromotionRefs;
   }
   return null;
 }

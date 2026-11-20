@@ -125,7 +125,7 @@ export const PAGE_STATE_OWNERS = {
   },
   "immersive-navigation": {
     files: ["apps/workbench/src/scripts/client/immersive-navigation.ts"],
-    state: "The application chrome around the work area, including the Goal work mode.",
+    state: "The application chrome around the work area, including the object work mode.",
   },
   "acceptance-column": {
     files: ["apps/workbench/src/browser/work-acceptance.ts"],
@@ -143,9 +143,9 @@ export const PAGE_STATE_OWNERS = {
     files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
-  coding: {
-    files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"],
-    state: "The Coding surface: its sessions, the open session and its composer.",
+  "character-handoff": {
+    files: ["plugins/native/coding/src/browser/main/mount-events.ts"],
+    state: "A workspace surface opened from a Character run.",
   },
   "character-terminal": {
     files: ["apps/workbench/src/browser/characters/terminal.ts"],
@@ -155,9 +155,9 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/terminal/client-subject-events.ts"],
     state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.",
   },
-  "pages-landing": {
+  "surface-landing": {
     files: ["plugins/native/pages/src/landing-editor.ts"],
-    state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.",
+    state: "Where something in hand would land in an open document surface, the preview there, and the brief flash that shows the place.",
   },
   "knowledge-picker": {
     files: ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"],
@@ -245,9 +245,9 @@ export const DOM_EVENTS = [
     summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).",
   },
   {
-    name: "molis-work:character-coding", kind: "request", owner: "coding", on: "window",
+    name: "molis-work:character-run-open", kind: "request", owner: "character-handoff", on: "window",
     detail: "{ reference, title, task, workspace_id, skill_ids }",
-    summary: "Open a new Coding session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",
+    summary: "Open a new workspace session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",
   },
   {
     name: "molis-work:character-terminal", kind: "request", owner: "character-terminal", on: "window",
@@ -408,11 +408,6 @@ export const DOM_EVENTS = [
     summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.",
   },
   {
-    name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
-    detail: "{ goalId, mode }",
-    summary: "The Goal work mode changed. Nothing in the tree listens yet.",
-  },
-  {
     name: "molis-work:work-terminal-subject-changed", kind: "request", owner: "work-terminal", on: "document",
     detail: "{ pluginId, subjectKind, subjectId, title?, status?, statusLabel?, statusMeaning?, statusIconMarkup?, readOnly? }",
     summary: "A plugin surface switched the object shown beside the platform work terminal pane: reset its panels and paint the new owner title, status and read-only guard.",
@@ -425,7 +420,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:acceptance-review-requested", kind: "request", owner: "acceptance-column", on: "document",
     detail: "{ subject: { provider_id, subject: { kind, id } } }",
-    summary: "Open the requirement column on one object's requirements (a Goal page's 「逐项审阅」). The column reads them as the person and shows the platform's own card; the page that asks draws no control that accepts or returns a requirement.",
+    summary: "Open the requirement column on one object's requirements (an object surface's 「逐项审阅」). The column reads them as the person and shows the platform's own card; the page that asks draws no control that accepts or returns a requirement.",
   },
   {
     name: "molis:assistant-card-target", kind: "request", owner: "assistant", on: "document",
@@ -582,7 +577,7 @@ export const DOM_EVENTS = [
     summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; a split pane's report comes up as a pane message and is raised again on that pane's frame. The row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
   },
   {
-    name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing", on: "element",
+    name: "molis:surface-landing-flash", kind: "request", owner: "surface-landing", on: "element",
     detail: "none",
     summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.",
   },

@@ -10,9 +10,15 @@ import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkS
 import { renderConnectorRequest } from "./settings-connector-request.js";
 import { renderPluginSlots } from "./settings-plugin-slots.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { pluginSettingsNavItemsFrom } from "./plugin-settings-catalog.js";
+import { listWorkbenchUiContributions } from "./ui-composition.js";
 
 const imagePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.image_generation)?.project_plugin_id;
 const sourcePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.permissions.some(p => p.permission === "sources:pull_connector"))?.project_plugin_id;
+const agentToolsSettingsHref = () => {
+  const section = pluginSettingsNavItemsFrom(listWorkbenchUiContributions()).find(item => item.settings_runtimes);
+  return section ? `/settings/${section.section_id}` : "/settings/runtimes";
+};
 
 /**
  * 设置 › 服务连接, plan A of the service-connection decision (specs/assistant-service-connections §13.1, 2026-11-04): one column of
@@ -61,8 +67,8 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
   const { escapeHtml: e } = p;
   const active = connections.filter(connection => connection.state === "connected" && connection.enabled !== false);
   if (!active.length || card.availability !== "live") return "";
-  const instructions: Array<{ text: string; label?: string; projectLabel?: string; href?: string; plugin?: string }> = [];
-  if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-authorized-account-coding-s-mcp-settings-save"), label: uiText.text("workbench.settings-connectors.set-up-agent-tools"), href: "/settings/coding-settings" });
+  const instructions: Array<{ text: string; label?: string; projectLabel?: string; href?: string; plugin?: string; kind?: string }> = [];
+  if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-authorized-account-coding-s-mcp-settings-save"), label: uiText.text("workbench.settings-connectors.set-up-agent-tools"), href: agentToolsSettingsHref(), kind: "mcp-tools" });
   if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: uiText.text("workbench.settings-connectors.connection-uses-provider-s-native-transport-under-advanced") });
   if (active.some(row => row.auth_method === "cli")) instructions.push({ text: uiText.text("workbench.settings-connectors.account-managed-client-machine-can-check-connection-view") });
   if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
@@ -74,7 +80,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
     else if (card.connector_id !== "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.can-check-account-s-authorization-api-connection-doesn") });
   }
   if (!instructions.length) return "";
-  return `<section class="settings-connector-next" data-connector-next><h3>${uiText("workbench.settings-connectors.once-connected")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}"${step.projectLabel ? ` data-connector-project-label="${e(step.projectLabel)}"` : ""} href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
+  return `<section class="settings-connector-next" data-connector-next><h3>${uiText("workbench.settings-connectors.once-connected")}</h3>${instructions.map(step => `<div class="settings-connector-next__step"><p>${e(step.text)}</p>${step.href ? `<a class="mw-btn mw-btn--secondary" data-connector-next-link="${e(step.plugin || "")}"${step.kind ? ` data-connector-next-kind="${e(step.kind)}"` : ""}${step.projectLabel ? ` data-connector-project-label="${e(step.projectLabel)}"` : ""} href="${e(step.href)}">${e(step.label!)}</a>` : ""}</div>`).join("")}</section>`;
 }
 
 /** The folded 高级 at the bottom of a service (§13.1 ② plan A): each account's own settings, then the other ways to connect. */

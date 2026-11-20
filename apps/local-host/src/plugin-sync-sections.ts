@@ -10,7 +10,7 @@ import { pluginSyncAuthority } from './plugin-sync-authority.js';
 import { createProjectEvidenceContent } from './project-replication-content.js';
 import { replicaError } from './project-replication-errors.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
-import { isGoalsApprovalCollection, verifyGoalsApprovalLinks } from './project-approval-sync-links.js';
+import { isPluginApprovalCollection, verifyPluginApprovalLinks } from './project-approval-sync-links.js';
 
 type Context = ReturnType<typeof pluginSyncAuthority>;
 interface Port { readonly home: string; readonly manifest: PluginManifest; projectId(): string; assertActive(): void; authorize(permission: string): void }
@@ -90,10 +90,10 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
     guarded.authorize();
     const projectId = port.projectId();
     const validateLinked = (facts: Readonly<Record<string, ProjectReplicaRows>>, previous?: () => Readonly<Record<string, ProjectReplicaRows>>) => {
-      if (!isGoalsApprovalCollection(identity)) return;
+      if (!isPluginApprovalCollection(identity)) return;
       const approvals = pluginSyncAuthority(port.home, projectApprovalSyncSelection);
       approvals.project(projectId);
-      verifyGoalsApprovalLinks(db, projectId, identity, facts, previous?.());
+      verifyPluginApprovalLinks(db, projectId, identity, facts, previous?.());
       approvals.authorize();
     };
     return createSqliteReplica(db,owner(db,guarded,projectId,definition,parts,validateLinked));}),

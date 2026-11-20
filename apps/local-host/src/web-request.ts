@@ -161,7 +161,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
       sendJson(response, 404, { error: "Molis Work 数据库不存在，请先初始化" });
     } else {
       response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-      response.end(`Molis Work 数据库不存在，请先运行 molis-work v1 init --db ${options.databasePath}。\n`);
+      response.end(`Molis Work 项目数据库不存在（${options.databasePath}），请先在工作台创建项目或运行 molis-work projects create。\n`);
     }
     return true;
   } },

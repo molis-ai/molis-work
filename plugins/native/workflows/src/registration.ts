@@ -10,6 +10,14 @@ export const registration: PluginRegistration = {
   manifest: workflowsManifest,
   project_runtime: { create: createWorkflowsPlugin, package_name: "@molis-ai/molis-work-plugin-workflows", factory_export: "createWorkflowsPlugin" },
   personal: true,
+  observation: {
+    coverage: [
+      // Each handoff of a run, reported by Workflows as itself: the handoff's text stays in the run and is named, the action a station ran is
+      // the exit's record under the same call. An action result over 20,000 characters is kept by the run as its size only.
+      { fact: `${workflowsManifest.plugin_id}.step`, entries: ["plugin"], state: "complete", record_kind: "flow" },
+      { fact: `${workflowsManifest.plugin_id}.step.action_result`, entries: ["plugin"], state: "by_rule", reason: "large_action_result_size_only", record_kind: "flow" },
+    ],
+  },
   workbench: {
     order: 16,
     contributions: [workflowsUiContribution],

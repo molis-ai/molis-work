@@ -6,7 +6,7 @@ import { withPluginSyncAuthority } from './plugin-sync-authority.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import { projectSyncCatalog } from './project-sync-catalog.js';
 import { projectPluginJudge } from './project-action-availability.js';
-import { isGoalsApprovalCollection } from './project-approval-sync-links.js';
+import { isPluginApprovalCollection } from './project-approval-sync-links.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export type SyncCatalogReader = ReturnType<typeof import('./web-catalog-access.js').createWebCatalogAccess>['read'];
 
@@ -54,7 +54,7 @@ export function personalRuntimeSyncAuthority(options: {
       return withPluginSyncAuthority({home: options.home, context, assertCollection(identity) {
         authorize();
         const target = syncNamespace(identity);
-        if (target === namespace || isGoalsApprovalCollection(registration.selection) && target === syncNamespace(projectApprovalSyncSelection)
+        if (target === namespace || isPluginApprovalCollection(registration.selection) && target === syncNamespace(projectApprovalSyncSelection)
           && options.policy().selections.some(selection => syncNamespace(selection) === target)) return;
         throw new ActionError('actions.forbidden', '同步操作不能访问其他集合');
       }}, () => {

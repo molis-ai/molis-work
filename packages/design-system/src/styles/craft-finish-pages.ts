@@ -322,7 +322,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Writing gets the whole height of a short window: while a Goal record form is open the bar steps aside, and it
      returns when the form closes. Phones held sideways or with the keyboard up are short windows too. */
   @media (max-height: 560px) {
-    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; }
+    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; --dock-min: 0px; }
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
 

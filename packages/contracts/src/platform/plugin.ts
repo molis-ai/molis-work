@@ -11,7 +11,7 @@ import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstr
 import type { AgentPromptText, AgentSkillDefinition, PluginMethodDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
-export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
+export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion, PluginConsumableFilter } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackageManifest, SandboxPackageManifest, SandboxAgentBodyDeclaration, SandboxAgentBody, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
 export { CONTENT_PACKAGE_FILES, SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
 export * from "./plugin-events.js";

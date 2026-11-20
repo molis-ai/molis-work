@@ -55,6 +55,7 @@ export interface ArtifactListQuery {
     availability?: ArtifactAvailability;
     supported_types?: readonly ArtifactConsumerType[];
     personal_owner_actor_id?: string;
+    producer_plugin_id?: string;
 }
 
 export type ArtifactMetadata = Record<string, ArtifactJsonValue>;

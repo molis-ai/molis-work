@@ -89,10 +89,11 @@ test("W5-01-CODING-06 Coding lists its own outputs by type through the platform,
   // One listing and one read per listed version, however many kinds are asked for: the page refreshes these while a session is open.
   const calls = { list: 0, read: 0 }, client = platform.artifacts(CODING_PLUGIN);
   const counted = startContext(CODING_PLUGIN, { processItems: platform.processItems(CODING_PLUGIN), artifacts: { ...client,
-    listConsumable: () => { calls.list++; return client.listConsumable(); }, read: reference => { calls.read++; return client.read(reference); } } });
+    listConsumable: filter => { calls.list++; return client.listConsumable(filter); }, read: reference => { calls.read++; return client.read(reference); } } });
   const outputs = codingOutputs(counted, ["coding.report.v1", "coding.changeset.v1", "coding.plan.v1"]);
   assert.deepEqual(outputs.map(output => output.reference.artifact_id),
     [REPORT_REFERENCE.artifact_id, "coding-report:session-b:run-2", CHANGESET_REFERENCE.artifact_id, "coding-plan:session-a:run-1"]);
   assert.equal(outputs[0]?.record.artifact_id, REPORT_REFERENCE.artifact_id, "the version read for the listing comes with it, so a route does not read it again");
-  assert.deepEqual(calls, { list: 1, read: 5 }, "another producer's report is read once to be left out; the archived one is not listed at all");
+  // BL375-07: the platform lists only what it recorded Coding as producing, so another producer's report is not even read.
+  assert.deepEqual(calls, { list: 1, read: 4 }, "another producer's report and the archived one are not listed at all");
 });

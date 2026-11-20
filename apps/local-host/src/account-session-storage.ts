@@ -1,3 +1,4 @@
+import { localAccountGeneration } from "./active-release-profile.js";
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
@@ -7,6 +8,8 @@ import { accountErrors, type AccountSessionStorage } from "@molis-ai/molis-work-
 /** One encrypted record; the storage owner supplies locking, encryption and atomic replacement. */
 export function createHostAccountStorage(home: string, config: AccountEnvironmentConfig): AccountSessionStorage {
   const binding = [realpathSync(home), config.environmentId, config.authOrigin, config.applicationId, config.clientId, config.productOrigin];
+  const generation = localAccountGeneration();
+  if (generation) binding.push(generation);
   const reference = `molis.account.session.v1.${createHash("sha256").update(JSON.stringify(binding)).digest("hex")}`;
   const secrets = createLazyFileSecretStore(home);
   return {

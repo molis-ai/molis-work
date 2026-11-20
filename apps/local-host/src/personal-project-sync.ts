@@ -32,7 +32,7 @@ export function createPersonalProjectRegistrations(home:string,spaceId:string,_u
     async decode(key,value,read){authorizeKey(key);const result=await content.decode(key,value,async reference=>{authorizeKey(key);const bytes=await read(reference);authorizeKey(key);return bytes;});authorizeKey(key);return result;},
    }}:{}),
    async refresh(){check();await withCatalog({homeDirectory:home},()=>undefined);check();if(readCatalog)projects();},
-   withReplica(run){check();return run(partitionedReplica({home,namespace:syncNamespace(selection),authorize:check,partitions:()=>[...projects()].filter(([,p])=>p.allowed&&!p.recycled).map(([id])=>id),partition:projectId,projectPartition:id=>id,projectPartitions:()=>[...projects().keys()],projectAbsent:id=>!projects().has(id),
+   withReplica(run){check();return run(partitionedReplica({home,namespace:syncNamespace(selection),authorize:check,partitions:()=>[...projects()].filter(([,p])=>p.allowed&&!p.recycled).map(([id])=>id),partition:projectId,projectPartition:id=>id,projectPartitions:()=>[...projects().keys()],projectAbsent:id=>!projects().get(id)?.allowed,
     withPartition(id,operation,passive){const p=project(id,passive),authorize=()=>{const current=project(id,passive);if(current.path!==p.path)throw replicaError('replica_project_unavailable');};const context={spaceId,projectId:id,title:p.title,authorize,conflictState:createSyncConflictState};
      if(binding.scope==='project-library'){const library=binding.open(home,id);try{authorize();const result=operation(library.replica(context));authorize();return result;}finally{library.close();}}
      const store=new LocalProjectDatabase(p.path);

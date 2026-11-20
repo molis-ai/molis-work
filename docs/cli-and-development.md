@@ -282,55 +282,28 @@ npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按�
 
 ## 账号环境启动
 
-macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --frozen-lockfile` 和 `pnpm build`。先在 Auth 仓库执行 `npm run setup`（首次）及 `npm run dev`，再在本仓库执行 `pnpm dev`。
+首次使用 Node 24.15.x 和 pnpm 11.9.0，运行 `pnpm install --frozen-lockfile` 与 `pnpm build`。根据所选环境填写普通配置，并从 `secrets.example/` 复制同名文件到忽略的 `secrets/`。当前账号客户端无需供应商秘密，Work 的模板只有注释。
 
-| 命令 | Auth | Work 端口 | 独立 Home |
+| 命令 | Auth | Work | Home |
 | --- | --- | --- | --- |
-| pnpm dev | 本机 8787 / LOCAL / MOCK | 4207 | ~/.molis-work-environments/dev |
-| pnpm start:test | auth-staging.molis.ai / TEST | 44207 | ~/.molis-work-environments/test |
-| pnpm start:prod | 已登记的 production Workers 域名 / PRODUCTION / LIVE | 4207 | ~/.molis-work-environments/prod |
+| `pnpm start --env dev` | `http://127.0.0.1:8787` | `http://127.0.0.1:4207` | `~/.molis-work-environments/dev` |
+| `pnpm start --env test` | `https://auth.test.molis.ai` | `http://127.0.0.1:4207` | `~/.molis-work-environments/test` |
 
-公共配置统一在 scripts/account-environments.mjs，改端口必须同时修改 Auth 对应客户端登记。dev 不需要手动配置密钥或客户端。启动器不停止任何已有服务，不使用日常 ~/.molis-work，端口被占用直接提示。构建后改源码需重新 pnpm build。
+`--desktop` 会从当前检出启动桌面界面并附着经过本机身份校验的相同 Host。启动前需停掉自己上一次启动的 Work。账号会话按切换后的本机会话代次失效，两套 Home 和项目文件保留。
 
 <a id="local-login-test"></a>
 ### 本机登录测试（dev）
 
-开发和评审时要看真实界面、走一遍动线，就用 dev 模式起 Auth 和 Molis Work 两个服务，用测试账号登录。整个环境只在本机，不碰日常 Home，也不连云端。
+按 Auth 仓库的部署说明准备 dev 环境和 V2 客户端，再执行 `npm start -- --env dev`。在 Work 执行 `pnpm start --env dev` 并打开 127.0.0.1:4207，用已配置供应商的账号完成认证。启动失败时检查 Auth 的客户端登记和固定端口。
 
-**测试账号**（Auth 的 `npm run dev` 自动创建，普通账号，只在本机 LOCAL/MOCK 的 Auth 里有效）：
+macOS payload 从对应环境的 properties 生成公开账号与同步配置。安装版以 `http://127.0.0.1:4173/account/callback` 登记，源码开发以 `http://127.0.0.1:4207/account/callback` 登记。测试环境的 `desktopClientId` 与源码的 `clientId` 分别绑定两个回调。安装版若使用备用 Host 端口，精确回调需要 4173 恢复可用后才能完成登录。安装包内只包含客户端所需的公开配置。
 
-| 账号 | 初始密码 |
-| --- | --- |
-| `preview@example.test` | `Molis-dev-2026!` |
+测试安装版显示为 Molis Work Test（`com.molis.work.test`），使用 `~/.molis-work-environments/installed-test`。测试安装版由自身启动 Host，升级时跳过正式产品的常驻服务注册。源码 test 仍使用 `~/.molis-work-environments/test`，正式安装版继续使用现有 Home。
 
-在页面里改过的密码，Auth 重启后仍保留；忘了就把 Auth 的本机状态搬开重建（见下面「Auth 报外键错」）。
+`pnpm start --env test` 在同一个源码端口 4207 启动 Work，登录连接 `https://auth.test.molis.ai`，同步连接 `https://work.test.molis.ai`。固定端口一次只运行一个 Work 进程。登录后进入个人空间，在同步设置里选择要同步的内容。
 
-**启动步骤**：
+`syncOrigin` 为空时同步不可用。dev 可选 `http://127.0.0.1:8788` 的本地同步服务，prod 使用平台核准的正式 HTTPS 入口。修改地址后重启生效。
 
-1. Auth（仓库在 `~/code/auth`）：在 main 上拉到最新，首次装依赖并编译（约 2 分钟），再起 dev 服务，端口 8787。
-
-   ```bash
-   cd ~/code/auth && git switch main && git pull && npm run setup && npm run dev
-   ```
-
-   不是首次就省掉 `npm run setup`。Auth 落后时本机种子里没有 Work 的 dev 客户端，登录会 403。
-2. Molis Work：在已经 `pnpm build` 过的检出或工作树里，用 Node 24.15 起 dev 服务，端口固定 4207，Home 在 `~/.molis-work-environments/dev`。
-
-   ```bash
-   pnpm dev
-   ```
-
-   `pnpm dev` 就是 `node scripts/start-account-environment.mjs dev`。Node 不是 24.15（例如 nvm 默认的 24.14）时，浏览器里会报 `actions.missing`。
-3. 浏览器打开 `http://127.0.0.1:4207`，用上面的账号登录。用 `127.0.0.1`，不用 `localhost`；不经 Auth、直接起 `dist/web/server.js` 会停在「登录会话已失效」。
-
-**常见问题**：
-
-- **Auth 报外键错**：旧版本建过的 `worker/.wrangler/state` 和新种子对不上。把这个目录搬开（不删），再 `npm run dev` 重建。
-- **4207 被占**：4207 是 Auth 里唯一登记的 dev 回调端口，换工作树也还是 4207。主检出的日常 Home 服务（`AGENTS.md`「协作」）占着它时，dev 登录环境不能同时开，先和占用者约时段；自己起的用完就停。启动器只提示，不停任何进程。
-- **看到的是旧界面**：改了源码要重新 `pnpm build` 再 `pnpm dev`。
-- **Claude 桌面应用的预览窗格**：`.claude/launch.json` 不入库，各人在本机自己写两条，分别在 `~/code/auth` 跑 `npm run dev`（端口 8787）、在本仓库的检出里跑 `pnpm dev`（端口 4207）；检出路径变了要跟着改。窗格里的标签页不在前台时页面不出场、点击落不到，先切到前台再操作。
-
-test/prod 只选择对应环境，不代表云端资源已经部署；prod 首次须由部署人员应用 Auth 的 worker/deploy/production/work-client.sql 并配置密钥和外部渠道。没有可用 Auth 时不会偷偷回退 dev。启动脚本只配置账号依赖，其他插件的外部服务仍按各自配置处理。
 ### 测试文件的类型盘点
 
 `pnpm typecheck:tests` 使用严格noEmit配置检查全部测试及类型依赖，目前因存量问题返回非零；暂不属于必过CI。口径、起点对照和后续分批方案见[D0069阶段记录](reviews/daily-quality/2026-11-08-test-types.md)。

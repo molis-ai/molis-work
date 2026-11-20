@@ -108,6 +108,16 @@ fn design_resource(resources: &Path, name: &str) -> Value {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=MOLIS_WORK_RELEASE_PROFILE");
+    if env::var("MOLIS_WORK_RELEASE_PROFILE").as_deref() == Ok("test") {
+        let workspace = env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory");
+        let resources = Path::new(&workspace).join("../../local-host/src");
+        let configuration = design_resource(&resources, "release-profiles.json");
+        let home = configuration["profiles"]["test"]["desktopApplication"]["home"]
+            .as_str()
+            .expect("test desktop Home");
+        println!("cargo:rustc-env=MOLIS_WORK_TEST_DESKTOP_HOME={home}");
+    }
     tray_words();
     tauri_build::build();
 }

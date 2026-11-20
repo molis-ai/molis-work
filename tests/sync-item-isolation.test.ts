@@ -34,11 +34,13 @@ test('PCSYNC-14 temporary owner unavailability waits only this cycle; healthy it
  f.setUnavailable(false);await f.client.run();assert.ok(f.events.some(e=>e.key==='broken'));assert.equal(f.replica.counts().pending,0);assert.equal(f.client.status().error,null);
 });
 test('PCSYNC-14 temporarily unavailable incoming items persist across restart and recover without blocking healthy downloads',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1_000});
  const f=fixture(t);f.repair();f.setUnavailable(true);f.events.push({operationId:'a:1',key:'broken',base:0,revision:1,value:'later'},{operationId:'a:2',key:'healthy',base:0,revision:2,value:'ready'});
  await f.client.run();assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('healthy')?.value,'ready');assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken'),undefined);
  assert.equal(f.client.status().collections[0]!.failures[0]!.automatic,true);assert.equal(f.replica.cursor(),2);
  f.restart();f.events.push({operationId:'a:3',key:'healthy',base:2,revision:3,value:'newer healthy'});await f.client.run();assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('healthy')?.value,'newer healthy');assert.equal(f.client.status().collections[0]!.failures.length,1);
- f.setUnavailable(false);await f.client.run();assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken')?.value,'later');assert.equal(f.replica.cursor(),3);assert.equal(f.client.status().collections[0]!.failures.length,0);assert.equal(f.client.status().error,null);assert.equal(f.replica.next(),null);
+ f.setUnavailable(false);await f.client.run();assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken'),undefined,'the retry deadline survives restart');
+ t.mock.timers.tick(15_000);await f.client.run();assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken')?.value,'later');assert.equal(f.replica.cursor(),3);assert.equal(f.client.status().collections[0]!.failures.length,0);assert.equal(f.client.status().error,null);assert.equal(f.replica.next(),null);
  assert.ok(f.prepared.some(p=>p.key==='broken'&&p.retry),'automatic deferred replay passes retry semantics to owner preparation');
 });
 
@@ -49,12 +51,12 @@ test('PCSYNC-14 unavailable original bytes skip only that frozen upload; another
 });
 test('PCSYNC-14 a newer head retires a deferred download rather than reviving stale content',async t=>{
  const f=fixture(t);f.repair();f.setUnavailable(true);f.events.push({operationId:'a:1',key:'broken',base:0,revision:1,value:'stale'});await f.client.run();
- assert.equal(f.client.status().collections[0]!.failures.length,1);f.events.push({operationId:'a:2',key:'broken',base:1,revision:2,value:'current'});f.setUnavailable(false);f.replica.receive(f.events[1]!);await f.client.run();
+ assert.equal(f.client.status().collections[0]!.failures.length,1);f.events.push({operationId:'a:2',key:'broken',base:1,revision:2,value:'current'});f.setUnavailable(false);await f.client.run();
  assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken')?.value,'current');assert.equal(f.client.status().collections[0]!.failures.length,0);assert.equal(f.replica.next(),null);
 });
-test('PCSYNC-12 deferred-replay schema refuses a newer v2 sync library intact',t=>{
- const home=mkdtempSync(join(tmpdir(),'molis-sync-v2-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
- const db=openBaselineHomeSqlite(home,'sync',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
+test('PCSYNC-12 deferred-replay schema refuses a newer v3 sync library intact',t=>{
+ const home=mkdtempSync(join(tmpdir(),'molis-sync-v3-'));t.after(()=>rmSync(home,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+ const db=openBaselineHomeSqlite(home,'sync',{version:3,schema:readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8')});db.close();const file=join(home,'sync','sync.db'),before=readFileSync(file);
  assert.throws(()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',registrations:[],authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){throw new Error('Must not authenticate');}},fetch:async()=>{throw new Error('Must not connect');}}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),before);
 });
 

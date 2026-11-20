@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {projectVersionStores} from '@molis-ai/molis-work-module-artifacts';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 
 /** Run one sync migration file as separate statements, in file order (D1's local binding takes one statement per prepare). */
 export async function applySql(db,file){
@@ -12,22 +10,25 @@ export async function applySql(db,file){
 }
 
 /** Synthetic upstream + ephemeral D1 only. No Cloudflare credentials or live Auth. */
-export async function cloudFixture(t,{authOrigin='https://auth.example.test',mode='cloud',schema=true}={}) {
+export async function cloudFixture(t,{authOrigin='https://auth.example.test',mode='cloud',schema=true,rateLimit=600,signedAuth,permanentCleanup=true}={}) {
   const {Miniflare,Response,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const requests=[];
-  const options={modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'cloud-quota-test'},bindings:{DEPLOYMENT_MODE:mode,AUTH_ORIGIN:authOrigin,APPLICATION_ID:'work'},outboundService:async request=>{
+  const options={modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,ratelimits:{SYNC_RATE_LIMIT:{namespace_id:'471982705',simple:{limit:rateLimit,period:60}}},r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'cloud-quota-test'},bindings:{DEPLOYMENT_MODE:mode,AUTH_ORIGIN:authOrigin,APPLICATION_ID:'work'},outboundService:async request=>{
     requests.push(request.url);assert.equal(new URL(request.url).origin,new URL(authOrigin).origin);
+    if(signedAuth&&new URL(request.url).pathname!=='/api/v2/users/me')return signedAuth(request,Response);
     const user=request.headers.get('Authorization')?.replace('Bearer ','');
     if(user==='redirect')return new Response(null,{status:302,headers:{Location:'https://other.example.test/token-leak'}});
     if(!['alice','bob','wrong-app'].includes(user))return Response.json({error:'invalid'},{status:401});
     // Auth V2 identity shape: the Worker reads data.user.{userId,issuer} and data.session.applicationId.
     return Response.json({data:{user:{issuer:new URL(authOrigin).origin,userId:user,displayName:user,email:null},session:{applicationId:user==='wrong-app'?'other':'work'}}});
   }};
+  if(signedAuth)options.bindings.SYNC_READ_AUTH='signed';
+  if(permanentCleanup)options.bindings.SYNC_PERMANENT_CLEANUP='enabled';
   const mf=new Miniflare(convertV4MiniflareOptions(options));
   t.after(()=>mf.dispose());
   let db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('FILES');
   if(schema)await applySql(db,'0001_sync.sql');
-  const call=(path,user='alice',body,method=body===undefined?'GET':'POST',origin='https://sync.example.test')=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:'Bearer '+user,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const call=(path,user='alice',body,method=body===undefined?'GET':'POST',origin='https://sync.example.test',ip='192.0.2.1')=>mf.dispatchFetch(origin+path,{method,headers:{Authorization:'Bearer '+user,'Content-Type':'application/json','CF-Connecting-IP':ip},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const space=user=>personalStorageSpace(authOrigin,'work',user).spaceId;
   const selection={plugin_id:'io.example.quota',publisher_id:'example',publisher_signature:'synthetic-only',collection_id:'records',schema_version:1};
   const namespace=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
@@ -38,14 +39,4 @@ export async function cloudFixture(t,{authOrigin='https://auth.example.test',mod
   const transport=(url,options={})=>{const headers=new Headers(options.headers);if(options.body instanceof Uint8Array)headers.set('Content-Length',String(options.body.byteLength));return mf.dispatchFetch(String(url),{...options,headers});};
   const writeMode=async value=>{options.bindings.SYNC_WRITE_MODE=value;await mf.setOptions(convertV4MiniflareOptions(options));db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('FILES');};
   return {get db(){return db;},call,space,namespace,selection,enable,write,requests,transport,writeMode,get bucket(){return bucket;},scheduled:async()=>{const worker=await mf.getWorker();return worker.scheduled({cron:'17 * * * *',scheduledTime:Date.now()});}};
-}
-
-/**
- * The previous Host's process-item writes for Files, made while Files was installed: the library's own stores on a connection of their
- * own, without today's Manifest check (Files is retired, so the Host's check refuses its types). Seeds old states only; close it after.
- */
-export function filesEraWriter(path){
-  const db=new LocalProjectDatabase(path);
-  const {processItems}=projectVersionStores({db:db.db,homeOwner:'web-user',now:()=>new Date().toISOString(),appendEvent:event=>db.appendEvent(event),eventCursor:id=>db.eventCursor(id)});
-  return {write:input=>processItems.commands.registerVersion(input),close:()=>db.close()};
 }

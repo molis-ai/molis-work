@@ -8,11 +8,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createMolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
-import { createDesktopWebCore } from '@molis-ai/molis-work-app-desktop';
+import { createDesktopWebCore, createDesktopWebHost } from '@molis-ai/molis-work-app-desktop';
 import { ChromeHarness } from '@molis-ai/molis-work-test-kit/browser';
 const source = process.env.MOLIS_AUTH_SOURCE; assert.ok(source && isAbsolute(source));
 const { getRustProxy, initializeLocalRuntime } = await import(pathToFileURL(resolve(source, 'worker/scripts/local-runtime.mjs')).href);
-const home = await mkdtemp(join(tmpdir(), 'work04-')), control = randomBytes(32).toString('hex');
+const directory = await mkdtemp(join(tmpdir(), 'work04-')), home = join(directory, 'home'), control = randomBytes(32).toString('hex');
 process.env.MOLIS_WORK_SECRET_BACKEND = 'file'; process.env.MOLIS_WORK_ENCRYPTION_KEY = '';
 let proxy, host, server, browser, page, origin, authOrigin, barrier, maliciousStart = false;
 const authServer = http.createServer(async (req, res) => {
@@ -54,7 +54,10 @@ async function callback(url, status = 200, init = {}) {
 }
 async function grant(method, outcome = 'SUCCESS', accountId = 'mock-' + method.toLowerCase() + '-local') {
   const tx = await create(method), started = await step(tx, { step: 'START_PROVIDER' });
-  const response = await proxy.fetch(new Request(started.browserStartUrl)); assert.equal(response.status, 303);
+  return { tx, url: await authorizeMockProvider(started.browserStartUrl, method, outcome, accountId) };
+}
+async function authorizeMockProvider(startUrl, method, outcome, accountId) {
+  const response = await proxy.fetch(new Request(startUrl)); assert.equal(response.status, 303);
   const cookie = response.headers.get('set-cookie').split(';')[0], authorize = response.headers.get('location');
   const html = await (await proxy.fetch(new Request(authorize, { headers: { Cookie: cookie } }))).text();
   const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
@@ -63,7 +66,7 @@ async function grant(method, outcome = 'SUCCESS', accountId = 'mock-' + method.t
     body: new URLSearchParams({ state: new URL(authorize).searchParams.get('state'), csrf, accountId, outcome }),
   })); assert.equal(accepted.status, 303);
   const returned = await proxy.fetch(new Request(accepted.headers.get('location'), { headers: { Cookie: cookie } }));
-  assert.equal(returned.status, 303); return { tx, url: returned.headers.get('location') };
+  assert.equal(returned.status, 303); return returned.headers.get('location');
 }
 try {
   authOrigin = await listen(authServer);
@@ -73,6 +76,40 @@ try {
   for (const file of ['unified-account-local-seed.sql', 'mock-provider-local-seed.sql']) for (const sql of readFileSync(resolve(source, 'worker', file), 'utf8')
     .replaceAll('http://127.0.0.1:4207', origin).replaceAll('http://127.0.0.1:8787', authOrigin).replace(/--[^\n]*/g, '').split(';').map(v => v.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const config = { environmentId: 'unified-local', environmentKind: 'LOCAL', authOrigin, productOrigin: origin, clientId: 'molis-work-unified-local', applicationId: 'molis-work-unified-local-app', policyProfile: 'unified-account-v2', redirectAllowlist: [origin + '/account/callback'], providerMode: 'MOCK', deliveryMode: 'MOCK' };
+  // First sign-in goes through the installation router, before there is an account Home.
+  const { configureLocalAccount } = await import('../apps/local-host/dist/active-release-profile.js');
+  configureLocalAccount('dev', config, 'provider-test', '');
+  const installation = createDesktopWebHost({ ptyClientFilePath: () => join(home, 'unused.js') })({
+    homeDirectory: join(directory, 'installation'), controlToken: control,
+  });
+  await new Promise(resolve => installation.listen(Number(new URL(origin).port), '127.0.0.1', resolve));
+  try {
+    let cookie = '';
+    const submit = async (path, body, nonce) => {
+      const reply = await fetch(origin + path, { method: 'POST', headers: { Connection: 'close', Origin: origin, Cookie: cookie,
+        'content-type': 'application/json', 'x-molis-work-control-token': control, 'x-molis-work-idempotency-key': crypto.randomUUID(),
+        ...(nonce ? { 'x-molis-account-login': nonce } : {}) }, body: JSON.stringify(body) });
+      assert.equal(reply.status, 200, await reply.clone().text());
+      if (reply.headers.has('set-cookie')) cookie = reply.headers.get('set-cookie').split(';')[0];
+      return reply.json();
+    };
+    const login = await submit('/api/personal/login', {});
+    const nonce = new URL(login.loginUrl).searchParams.get('accountLogin');
+    const { data: tx } = await submit('/api/account/auth/transactions', { purpose: 'LOGIN', method: 'GITHUB' }, nonce);
+    const { data: started } = await submit('/api/account/auth/transactions/' + tx.handle + '/submit', { step: 'START_PROVIDER' }, nonce);
+    const url = await authorizeMockProvider(started.browserStartUrl, 'GITHUB', 'SUCCESS', 'mock-github-local');
+    const reply = await new Promise((resolve, reject) => {
+      http.get(url, { headers: { Cookie: cookie, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' } }, resolve).on('error', reject);
+    });
+    let message = '';
+    for await (const chunk of reply) message += chunk;
+    assert.equal(reply.statusCode, 200, message);
+    assert.match(message, /验证完成/);
+    const sessionCookie = reply.headers['set-cookie'].find(value => value.startsWith('molis-work-session=')).split(';')[0];
+    const status = await fetch(origin + '/api/personal/status', { headers: { Connection: 'close', Cookie: sessionCookie } });
+    assert.ok((await status.json()).identity?.userId);
+    process.stdout.write('PASS installation GitHub callback establishes a browser session\n');
+  } finally { await stop(installation); }
   const boot = async () => {
     host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
     server = createDesktopWebCore({ ptyClientFilePath: () => join(home, 'unused.js') })({ homeDirectory: home, localHost: host, controlToken: control, account: { environment: config, fetch: async (url, init) => {
@@ -106,7 +143,7 @@ try {
   if (await page.evaluate("Boolean(document.querySelector('#cx-exit'))")) { await Promise.all([browser.event('Page.domContentEventFired'), page.click('#cx-exit')]); await page.wait("!document.querySelector('#cx-exit')"); }
   process.stdout.write('Chrome: local entry ready\n');
   const clickText = async text => { await page.command('Page.bringToFront'); await page.evaluate(`{const b=[...document.querySelectorAll('.account-dialog button')].find(b=>b.textContent===${JSON.stringify(text)});if(!b)throw Error('Button missing');document.querySelectorAll('[data-click]').forEach(b=>b.removeAttribute('data-click'));b.dataset.click='';}`); await page.click('[data-click]'); };
-  await page.click('[data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
+  await page.click('[data-account-link]'); await page.click('#mw-account-menu [data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
   const evidence = resolve('.impeccable/qa/review/account'); await mkdir(evidence, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ['light', 'dark']) { await page.viewport(width, 900); await page.evaluate(`document.documentElement.dataset.theme=document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`); await page.screenshot(join(evidence, `providers-${width}-${theme}.png`)); assert.ok(await page.evaluate('document.querySelector(".account-dialog").getBoundingClientRect().right<=innerWidth')); }
   // Browser opens its own popup. Desktop bridge uses the same URL and Host state; no Token travels through IPC.
@@ -134,7 +171,7 @@ try {
     await page.wait("document.querySelector('.account-form')?.textContent.includes('退出登录')");
     assert.equal((await api('/session')).state, 'AUTHENTICATED');
     // Reset only the core fixture; account-installation.test.mjs verifies the actual installation logout through Chrome.
-    await logout(); assert.equal((await api('/session')).state, 'ANONYMOUS'); await clickText('关闭'); await page.click('[data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
+    await logout(); assert.equal((await api('/session')).state, 'ANONYMOUS'); await clickText('关闭'); await page.click('[data-account-link]'); await page.click('#mw-account-menu [data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
   }
   process.stdout.write('PASS WORK-04 Chrome: browser popup and desktop bridge to mock providers, real local callback and original dialog recovery, responsive screenshots\n');
-} catch (error) { if(page) { process.stderr.write(JSON.stringify(await page.evaluate('({url:location.href, text:document.body?.innerText?.slice(0,1200),state:document.readyState})').catch(()=>null))+'\n'); await page.screenshot(join(tmpdir(), 'work04-browser-failure.png')).catch(()=>{}); } throw error; } finally { await browser?.close(); if (server) await stop(server); await host?.close(); await stop(authServer); await proxy?.dispose(); await rm(home, { recursive: true, force: true }); }
+} catch (error) { if(page) { process.stderr.write(JSON.stringify(await page.evaluate('({url:location.href, text:document.body?.innerText?.slice(0,1200),state:document.readyState})').catch(()=>null))+'\n'); await page.screenshot(join(tmpdir(), 'work04-browser-failure.png')).catch(()=>{}); } throw error; } finally { await browser?.close(); if (server) await stop(server); await host?.close(); await stop(authServer); await proxy?.dispose(); await rm(directory, { recursive: true, force: true }); }

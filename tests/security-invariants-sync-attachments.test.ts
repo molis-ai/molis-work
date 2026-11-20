@@ -1,7 +1,7 @@
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,statSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createArtifactSyncContent} from '@molis-ai/molis-work-module-artifacts';
@@ -41,10 +41,12 @@ for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refu
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
   const current=readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8');
-  const schema=version===1?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
+  const schema=version<=SYNC_STORE_BASELINE.version?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);
-  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code:version===1?'storage.schema_structure_mismatch':'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);
+  const code=version<SYNC_STORE_BASELINE.version?'storage.upgrade_pending':
+    version===SYNC_STORE_BASELINE.version?'storage.schema_structure_mismatch':'storage.store_too_new';
+  assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code});assert.deepEqual(readFileSync(path),before);
 });
 
 test('S-126 PCSYNC-06/12 revocation during a file download prevents late cache and owner writes',async t=>{
@@ -62,6 +64,52 @@ test('S-126 PCSYNC-06/12 revocation during a file download prevents late cache a
     assert.equal(path,'/v1/blobs/chunk');active=false;return new Response(bytes);
   }});t.after(()=>client.close());await client.run();assert.throws(()=>client.status(),/REVOKED/);
   assert.equal(commits,0);const db=openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE);try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sync_blob_parts').get()!.n,0);}finally{db.close();}
+});
+
+test('PCSYNC-OPT-08 a 50 MB ordinary attachment resumes from private files without filling SQLite',async t=>{
+  t.mock.timers.enable({apis:['Date']});
+  const home=mkdtempSync(join(tmpdir(),'molis-file-stage-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
+  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+  const size=50_000_000,chunk=4*1024*1024,hash=createHash('sha256');
+  const partBytes=(part:number)=>Buffer.alloc(Math.min(chunk,size-part*chunk),part+1);
+  const parts=Array.from({length:Math.ceil(size/chunk)},(_,part)=>{
+    const bytes=partBytes(part);hash.update(bytes);
+    return {part,checksum:createHash('sha256').update(bytes).digest('hex')};
+  });
+  const reference={size,digest:hash.digest('hex')};
+  const selection={plugin_id:'io.example.files',publisher_id:'example',publisher_signature:'synthetic',collection_id:'files',schema_version:1};
+  const namespace=syncNamespace(selection),scope={spaceId:space.spaceId,revision:1,selections:[selection]};
+  const stage=join(home,'sync','staging','v1',createHash('sha256').update(namespace).digest('hex'),reference.digest);
+  let downloaded=0,applied=false,ready=false,active=0,peak=0;
+  const create=()=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',
+    authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
+    registrations:[{selection,title:'Files',async refresh(){},async prepare(){if(!ready)throw new Error('Missing owner dependency');},
+      content:{encode(value){return {value,blobs:[]};},async decode(_key,_value,read){
+        assert.equal(createHash('sha256').update(await read(reference)).digest('hex'),reference.digest);return {};
+      }},
+      withReplica:run=>run({cursor:()=>applied?1:0,next:()=>null,receive(){applied=true;},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}})}],
+    fetch:async input=>{
+      const url=new URL(String(input));
+      if(url.pathname==='/v1/round')return syncRoundResponse(scope,1);
+      if(url.pathname==='/v1/changes')return Response.json({events:[{key:'file',base:0,operationId:'remote',revision:1,value:{},attachments:[reference]}],more:false});
+      if(url.pathname==='/v1/blobs/status')return Response.json({...reference,ready:true,parts});
+      assert.equal(url.pathname,'/v1/blobs/chunk');
+      downloaded++;peak=Math.max(peak,++active);
+      await new Promise(resolve=>setImmediate(resolve));
+      active--;return new Response(partBytes(Number(url.searchParams.get('part'))));
+    }});
+  const first=create();
+  try{await first.run();assert.equal(applied,false);}finally{first.close();}
+  assert.equal(downloaded,parts.length);
+  assert.equal(peak,2);
+  assert.ok(statSync(join(home,'sync','sync.db')).size<1_000_000);
+  assert.equal(statSync(join(stage,'0')).mode & 0o777,0o600);
+  ready=true;t.mock.timers.tick(15_000);
+  const resumed=create();
+  try{await resumed.run();assert.equal(resumed.status().error,null);}finally{resumed.close();}
+  assert.ok(applied);
+  assert.equal(downloaded,parts.length,'restart reused the staged parts');
+  assert.equal(existsSync(stage),false,'a committed owner releases the stage');
 });
 test('S-126 PCSYNC-01/11 owner rejects foreign space, project or identity before reading bytes',async()=>{
   const codec=createArtifactSyncContent('space-alice'),encoded=codec.encode(key,value({original_file:{data_base64:Buffer.from('bytes').toString('base64'),filename:'x',mime:'application/octet-stream'}}));
@@ -83,4 +131,39 @@ test('S-126 PCSYNC-11 common coordinator rejects an undeclared body reference be
     if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes:0});
     assert.equal(url.searchParams.get('namespace'),namespace);return Response.json({events:[{operationId:'saved',key,base:0,revision:1,value:encoded.value,attachments:[]}],more:false});
   }});t.after(()=>client.close());await client.run();assert.match(client.status().error??'',/未声明/);assert.equal(commits,0);assert.equal(blobRequests,0);
+});
+
+test('PCSYNC-OPT-08 staging keeps sync.db under 1 MB across 24 MiB downloads and reports byte transfer progress',async t=>{
+  t.mock.timers.enable({apis:['Date','setTimeout']});
+  const home=mkdtempSync(join(tmpdir(),'molis-blob-progress-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
+  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+  const size=24*1024*1024,chunk=4*1024*1024;
+  const partBytes=(part:number)=>Buffer.alloc(Math.min(chunk,size-part*chunk),part+11);
+  const hasher=createHash('sha256');
+  const parts=Array.from({length:Math.ceil(size/chunk)},(_,part)=>{const b=partBytes(part);hasher.update(b);return {part,checksum:createHash('sha256').update(b).digest('hex')};});
+  const reference={size,digest:hasher.digest('hex')};
+  const selection={plugin_id:'io.example.large',publisher_id:'example',publisher_signature:'synthetic',collection_id:'large',schema_version:1};
+  const scope={spaceId:space.spaceId,revision:1,selections:[selection]};
+  let applied=false,seenProgress=false;
+  const client=new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',
+    authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
+    registrations:[{selection,title:'Large',async refresh(){},async prepare(){},
+      content:{encode(v){return {value:v,blobs:[]};},async decode(_k,_v,read){const b=await read(reference);assert.equal(createHash('sha256').update(b).digest('hex'),reference.digest);return {};}},
+      withReplica:run=>run({cursor:()=>applied?1:0,next:()=>null,receive(){applied=true;},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}})}],
+    fetch:async input=>{
+      const url=new URL(String(input));
+      if(url.pathname==='/v1/round')return syncRoundResponse(scope,1);
+      if(url.pathname==='/v1/changes')return Response.json({events:[{key:'big',base:0,operationId:'op1',revision:1,value:{},attachments:[reference]}],more:false});
+      if(url.pathname==='/v1/blobs/status')return Response.json({...reference,ready:true,parts});
+      const transfer=client.indicatorStatus().transfer;
+      if(transfer&&transfer.total===size)seenProgress=true;
+      return new Response(partBytes(Number(url.searchParams.get('part'))));
+    }});
+  t.after(()=>client.close());
+  await client.run();
+  assert.equal(client.status().error,null);
+  assert.equal(applied,true);
+  assert.equal(seenProgress,true,'byte-level attachment progress is reported during transfer');
+  assert.equal(client.indicatorStatus().transfer,null,'transfer progress clears after cycle');
+  assert.ok(statSync(join(home,'sync','sync.db')).size<1_000_000,'24 MiB download keeps sync.db under 1 MB');
 });

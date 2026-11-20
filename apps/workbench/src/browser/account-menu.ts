@@ -65,6 +65,14 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
     // Choosing the account row closes its parent details; that hidden row cannot receive focus on Escape.
     if (focus) (trigger?.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger)?.focus();
   };
+  if (links.some(link => link.closest('.arrival-tools'))) {
+    const manage = document.createElement('button');
+    manage.type = 'button';
+    manage.dataset.unifiedAccountLink = '';
+    manage.textContent = uiText.text("workbench.settings-directory.account");
+    manage.addEventListener('click', () => close(true));
+    requiredElement(menu, '[data-personal-action=login]').before(manage);
+  }
   const paint = () => {
     const {identity,space,busy,configured} = state();
     const name = identity?.displayName || identity?.email || uiText.text("workbench.account-menu.not-signed");

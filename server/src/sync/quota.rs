@@ -1,8 +1,52 @@
 use crate::protocol::{ApiResult, Failure, require};
 use serde_json::{Value, json};
-use worker::D1Database;
+use std::cell::Cell;
+use std::sync::OnceLock;
+use worker::{D1Database, Date};
+
+const SCHEMA_TTL_MS: u64 = 30_000;
+const SCHEMA: &str = include_str!("../../migrations/sync/0001_sync.sql");
+
+fn schema_guards() -> &'static (Vec<(&'static str, String)>, String) {
+    static GUARDS: OnceLock<(Vec<(&'static str, String)>, String)> = OnceLock::new();
+    GUARDS.get_or_init(|| {
+        let guards: Vec<_> = SCHEMA
+            .split("\nCREATE TRIGGER ")
+            .skip(1)
+            .map(|trigger| {
+                let (body, _) = trigger
+                    .split_once("\nEND;")
+                    .expect("sync trigger must end with END;");
+                let name = body
+                    .split_whitespace()
+                    .next()
+                    .expect("sync trigger needs a name");
+                (name, format!("CREATE TRIGGER {body}\nEND"))
+            })
+            .collect();
+        let names = json!(guards.iter().map(|(name, _)| name).collect::<Vec<_>>()).to_string();
+        (guards, names)
+    })
+}
+thread_local! {
+    // An isolate belongs to one deployment with a fixed DB binding.
+    static VALID_UNTIL: Cell<u64> = const { Cell::new(0) };
+}
 
 pub(crate) async fn check_schema(db: &D1Database) -> ApiResult<()> {
+    let now = Date::now().as_millis();
+    if now >= VALID_UNTIL.get() {
+        validate_schema(db).await?;
+        VALID_UNTIL.set(now + SCHEMA_TTL_MS);
+    }
+    Ok(())
+}
+
+pub(crate) fn invalidate_schema() {
+    VALID_UNTIL.set(0);
+}
+
+pub(crate) async fn validate_schema(db: &D1Database) -> ApiResult<()> {
     let version = db
         .prepare("SELECT version FROM sync_schema")
         .first::<Value>(None)
@@ -10,6 +54,26 @@ pub(crate) async fn check_schema(db: &D1Database) -> ApiResult<()> {
         .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?;
     require(
         version.as_ref().is_some_and(|row| row["version"] == 6),
+        503,
+        "SYNC_SCHEMA_MISMATCH",
+    )?;
+    // Validate the current quota and event guards before modifying data.
+    let (guards, names) = schema_guards();
+    let rows = db
+        .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN (SELECT value FROM json_each(?))")
+        .bind(&[names.as_str().into()])
+        .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?
+        .all()
+        .await
+        .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?
+        .results::<Value>()
+        .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?;
+    require(
+        rows.len() == guards.len()
+            && guards.iter().all(|(name, sql)| {
+                rows.iter()
+                    .any(|row| row["name"] == *name && row["sql"] == sql.as_str())
+            }),
         503,
         "SYNC_SCHEMA_MISMATCH",
     )
@@ -29,4 +93,40 @@ pub(crate) async fn read(db: &D1Database, space: &str) -> ApiResult<Value> {
         None => 0,
     };
     Ok(json!({"limitBytes":100000000,"usedBytes":used}))
+}
+
+/// On-demand accounting only. Idle round summaries never scan event or blob references.
+pub(crate) async fn breakdown(db: &D1Database, space: &str) -> ApiResult<Value> {
+    let space = wasm_bindgen::JsValue::from_str(space);
+    let row = db
+        .prepare(
+            "WITH events AS (
+            SELECT e.content_bytes,e.attachments,CASE
+                WHEN e.revision=h.revision AND h.deleted_at IS NULL THEN 3
+                WHEN h.deleted_at IS NOT NULL THEN 2
+                ELSE 1 END AS category
+            FROM sync_events e LEFT JOIN sync_heads h
+              ON h.space=e.space AND h.namespace=e.namespace AND h.key=e.key
+            WHERE e.space=?1
+        ), references_by_digest AS (
+            SELECT json_extract(ref.value,'$.digest') AS digest,MAX(events.category) AS category
+            FROM events,json_each(events.attachments) ref GROUP BY 1
+        ), billed AS (
+            SELECT content_bytes AS bytes,category FROM events
+            UNION ALL
+            SELECT b.size,COALESCE(r.category,0) FROM sync_blobs b
+            LEFT JOIN references_by_digest r ON r.digest=b.digest WHERE b.space=?1
+        )
+        SELECT COALESCE((SELECT used_bytes FROM sync_usage WHERE space=?1),0) AS usedBytes,
+               COALESCE(SUM(CASE WHEN category=3 THEN bytes END),0) AS currentBytes,
+               COALESCE(SUM(CASE WHEN category=2 THEN bytes END),0) AS trashBytes,
+               COALESCE(SUM(CASE WHEN category=1 THEN bytes END),0) AS historyBytes,
+               COALESCE(SUM(CASE WHEN category=0 THEN bytes END),0) AS reservedAttachmentBytes
+        FROM billed",
+        )
+        .bind(&[space])?
+        .first::<Value>(None)
+        .await?
+        .ok_or(Failure(503, "INVALID_STORAGE"))?;
+    Ok(row)
 }

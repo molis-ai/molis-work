@@ -43,12 +43,13 @@ export function cloudHistory(ports:Ports){
     },
     async inspect(namespace:string,key:string,revision:number){
       if(!keyValid(key)||!positive(revision))throw invalid();const {channel,registration}=ports.scope(namespace);
-      const result=await channel.json<Inspection>('/v1/history/version?'+new URLSearchParams({namespace,key,revision:String(revision)}));channel.assert();
+      const result=await channel.json<Inspection&{permanentCleanup?:boolean}>('/v1/history/version?'+new URLSearchParams({namespace,key,revision:String(revision)}));channel.assert();
       if(!result||!result.event||result.event.key!==key||result.event.revision!==revision||!positive(result.currentRevision)||!positive(result.createdAt)||typeof result.retained!=='boolean'||typeof result.event.operationId!=='string'||!result.event.operationId||!Number.isSafeInteger(result.event.base)||result.event.base<0||result.event.base>=revision||!Object.hasOwn(result.event,'value'))throw invalid();
       pinSyncProtection(ports.home,namespace,()=>channel.assert(),registration.protection);
       const transfer=blobTransfer(ports.home,channel),event=await decodeContent(registration,result.event,ref=>transfer.download(namespace,ref,registration.protection));channel.assert();
       transfer.release(namespace,result.event.attachments??[]);
-      return {key,revision,createdAt:result.createdAt,currentRevision:result.currentRevision,retained:result.retained,value:event.value};
+      return {key,revision,createdAt:result.createdAt,currentRevision:result.currentRevision,retained:result.retained,value:event.value,
+        ...(result.permanentCleanup===true?{permanentCleanup:true}:{})};
     },
     async restore(namespace:string,key:string,sourceRevision:number,revision:number,operationId:string){
       identity(key,sourceRevision,revision);if(typeof operationId!=='string'||!operationId||operationId.length>150)throw invalid();

@@ -46,6 +46,34 @@ pub(crate) async fn checksum(bytes: &[u8]) -> ApiResult<String> {
     feed(&writer, bytes).await?;
     finish(stream, writer).await
 }
+
+/// Check one immutable R2 part via metadata-only HEAD (zero payload bytes transferred).
+/// Every part was hashed and length-checked during chunk upload and stored under its checksum key.
+pub(crate) async fn head_part(
+    bucket: &Bucket,
+    object_key: String,
+    expected_size: usize,
+) -> ApiResult<()> {
+    let object = bucket
+        .head(object_key)
+        .await?
+        .ok_or(Failure(503, "SYNC_BLOB_UNAVAILABLE"))?;
+    require(
+        object.size() == expected_size as u64,
+        409,
+        "SYNC_BLOB_INCOMPLETE",
+    )
+}
+
+/// Ordered chunk SHA-256 manifest digest binding total byte size and exact per-part checksums.
+pub(crate) async fn parts_manifest_digest(size: usize, checksums: &[&str]) -> ApiResult<String> {
+    let mut manifest = format!("molis-blob-parts:v1\n{size}\n");
+    for part in checksums {
+        manifest.push_str(part);
+        manifest.push('\n');
+    }
+    checksum(manifest.as_bytes()).await
+}
 pub(crate) async fn read(
     bucket: &Bucket,
     space: &str,

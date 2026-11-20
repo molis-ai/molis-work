@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { accountErrors } from '@molis-ai/molis-work-service-account';
 import type { AccountCallControl } from '@molis-ai/molis-work-contracts/services/account';
 import { handleAccountHttp, type AccountHostBinding } from './account-host.js';
+import { requestHost } from './web-http.js';
 import type { PersonalAuth } from './personal-auth.js';
 
 interface InstallationLogin {
@@ -21,7 +22,12 @@ export function createPersonalAccountProtocol(current:()=>InstallationLogin|null
   const owns=(request:IncomingMessage,url:URL)=>{
     const login=current();
     if(!login||login.expires<=Date.now()||!login.accepts(request))return false;
-    if(url.pathname==='/account/callback')return login.auth.authentication.matchesCallback(url,request.headers.origin);
+    if (url.pathname === '/account/callback') {
+      const host = requestHost(request);
+      if (!host) return false;
+      const callback = new URL(url.pathname + url.search, `http://${host}`);
+      return login.auth.authentication.matchesCallback(callback, request.headers.origin);
+    }
     return url.pathname.startsWith('/api/account/')&&request.headers['x-molis-account-login']===login.nonce;
   };
   return {owns,entry(url:URL){const login=current();return !!login&&!login.complete&&login.expires>Date.now()&&url.pathname==='/'&&url.searchParams.get('accountLogin')===login.nonce;},async handle(request:IncomingMessage,response:ServerResponse,url:URL):Promise<boolean>{

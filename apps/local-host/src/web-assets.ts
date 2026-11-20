@@ -1,3 +1,4 @@
+import { localEnvironmentName } from "./active-release-profile.js";
 import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -76,6 +77,29 @@ export function createLocalWebAssets(ports: {
 }) {
   const { ptyClientFilePath } = ports;
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
+  const environment = localEnvironmentName();
+  const label = environment === "test" ? "TEST · 远程测试数据" : "DEV · 本地数据";
+  const markEnvironment = (css: string) => environment
+    ? css + `
+body::after {
+  content: "${label}";
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 1000;
+  margin: 0;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  background: #343943;
+  color: #fff;
+  font: 500 11px/16px system-ui, sans-serif;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}`
+    : css;
   const workbenchAssets = new Map<string, { body: string | Buffer; contentType: string; etag: string }>();
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
@@ -129,7 +153,7 @@ export function createLocalWebAssets(ports: {
       const client = plugin?.[2] === "js" ? pluginWorkbenchClientAsset(plugin[1]!) : null;
       const styles = plugin?.[2] === "css" ? pluginOnDemandStylesheet(plugin[1]!) : null;
       const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : styles ? { body: styles, contentType: "text/css; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
-      ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
+      ? { body: markEnvironment(renderMolisWorkWorkbenchStylesheet()), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-plugin-frame.js"
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
@@ -159,9 +183,9 @@ export function createLocalWebAssets(ports: {
         : pathname === "/assets/molis-work-plugins/sessions.js"
         ? { body: renderMolisWorkSessionsClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
-          ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
+          ? { body: markEnvironment(renderMolisWorkArrivalStylesheet()), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"
-          ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
+          ? { body: markEnvironment(renderMolisWorkSettingsStylesheet()), contentType: "text/css; charset=utf-8" }
           : declaredPluginClientAsset(pathname) ?? bundledAppearanceFile(pathname);
       if (!loaded) return false;
       const body = loaded.contentType.startsWith("text/javascript") ? tightenServedJs(loaded.body.toString())

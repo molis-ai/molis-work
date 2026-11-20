@@ -279,7 +279,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .navigator-personal .personal-account-copy strong { font-weight: 500; font-size: 13px; color: var(--ink); }
   ${SHELL} .navigator-personal .personal-account-copy small { font-size: 11px; color: var(--muted); }
 
-  /* The Dock: 项目首页, the one fixed place. A short rule parts it from the menu. */
+  /* The Dock: 项目主页, the one fixed place. A short rule parts it from the menu. */
   ${SHELL} .dock-pins { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; height: 44px; margin-left: 12px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
   ${SHELL} .dock-pins::before { content: ""; position: absolute; left: -9px; top: 12px; width: 1px; height: 20px; background: var(--line-strong); pointer-events: none; }
   ${SHELL} .dock-pins:empty { display: none; }

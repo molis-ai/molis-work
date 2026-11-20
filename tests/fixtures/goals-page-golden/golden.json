@@ -68,7 +68,7 @@
   "length": 296820
  },
  "page-archive-none.zh": {
-  "sha256": "4d2145cd784e17149f6c147b406522f3593c4d4df17c5da51d03960d0489cae5",
+  "sha256": "cc1977c009d024955abc62cd318a8803d8ff1466303f79ae6e783450505bfbaa",
   "length": 283977
  },
  "page-archive.en": {
@@ -76,7 +76,7 @@
   "length": 324185
  },
  "page-archive.zh": {
-  "sha256": "257ad67eb3c2d3df84446ca8b69d8e39c9a59949e74dc446be9dc1369dbdff57",
+  "sha256": "8fff6f1b342fc34bce1e2a5f0e0e5e06263adb986b6f9f37670b112ce43a2872",
   "length": 309050
  },
  "page-current-decision.en": {
@@ -84,7 +84,7 @@
   "length": 464152
  },
  "page-current-decision.zh": {
-  "sha256": "1615021ebcfa706ce77a1a569a84690137a58df1637db074d8aadd8b5352a09e",
+  "sha256": "4f4be480a00a28059bedd487064df6fe140a6278d76a6da5d2b1f6d230868e3b",
   "length": 446487
  },
  "page-current-desktop.en": {
@@ -92,7 +92,7 @@
   "length": 466001
  },
  "page-current-desktop.zh": {
-  "sha256": "670bbf2fee679f0a3b9843bd28a54527727fedc80eb12551dd62107a501ddf32",
+  "sha256": "a9b55e74aa19b3f1598dcd46256d65d6d25ade2f91502776b880a2005d98a3db",
   "length": 448330
  },
  "page-current-none.en": {
@@ -100,7 +100,7 @@
   "length": 465332
  },
  "page-current-none.zh": {
-  "sha256": "e99851aae4741554a7f583b064bd00b5d6d990b10d5311ab97c72ea454ca92de",
+  "sha256": "4f3da76a3c566faa3d0f7cedd405da8bfd3f92ba4724fd402906c7d3a12cb214",
   "length": 447671
  },
  "page-current.en": {
@@ -108,7 +108,7 @@
   "length": 465333
  },
  "page-current.zh": {
-  "sha256": "3ff390e25ed1237b36af860aa81a7d559c405218bb87c5bb5893713f343560c2",
+  "sha256": "f152793f6ddbca9ea913ba9c5d48c03842f7b061ddc6763881b4c01d8fcaaed3",
   "length": 447672
  },
  "page-trash-none.en": {
@@ -116,7 +116,7 @@
   "length": 297653
  },
  "page-trash-none.zh": {
-  "sha256": "065d09dac92a81edbeca88773a2d6f5f535fc11245233fe4b822dcb42cf24318",
+  "sha256": "0c00b17e041e6eb102e172a9815e47bac98a92da3e2899a7c4e194ab8a5f3483",
   "length": 284698
  },
  "page-trash.en": {
@@ -124,7 +124,7 @@
   "length": 309876
  },
  "page-trash.zh": {
-  "sha256": "d613417792b31f1386bbcdac2db971bc52fad98543bb6882463fca21872bcf72",
+  "sha256": "0bc1d83dd35d69b6a737568b5b2e2e42b1dbdfe19d8642f471d778dc053eb169",
   "length": 296383
  },
  "refresh-archive.en": {

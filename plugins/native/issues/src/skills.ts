@@ -11,7 +11,7 @@ const methodBody = (id: string) => readNativeMarkdown("methods", id, ["en"]);
  * Assistant. Which tool reaches an action, and what happens when one is refused, is the gateway's to say.
  */
 export const issuesSkills: readonly PluginMethodDefinition[] = [{
-  skill_id: "issues-capture", version: /* @version method.issues-capture */ 2, name: "记录与管理个人问题",
+  skill_id: "issues-capture", version: /* @version method.issues-capture */ 3, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
   // `applies_to` is "assistant": it records through the business tools, which Coding's roles do not have.
   // Method tools are a declaration (contracts SKILL_TOOLS); the Assistant's gateway also offers change-reversible.

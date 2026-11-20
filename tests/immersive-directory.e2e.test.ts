@@ -310,7 +310,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
-test("顶条与事项线：输入框常驻在线上，回答在上方先写问题；插件在顶条切换；顶条只留项目首页", { timeout: 60_000 }, async t => {
+test("顶条与事项线：输入框常驻在线上，回答在上方先写问题；插件在顶条切换；顶条只留项目主页", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;

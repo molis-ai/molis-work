@@ -34,7 +34,7 @@ const SHEET = `
 
 ${TOP}{
   position:relative;z-index:46;gap:2px;padding:0 var(--sheet-inset,14px) 0 8px;--dock-btn:28px;--ear-rest:28px;--ear-rise:36px;--ear-foot:calc((var(--desktop-titlebar-height,44px) - var(--ear-rest))/2);
-  /* 项目首页's glyph is drawn by the page's script after the first paint: hold unseen until drawn so the strip does not jump (VUX-31). */
+  /* 项目主页's glyph is drawn by the page's script after the first paint: hold unseen until drawn so the strip does not jump (VUX-31). */
   &:not([data-dock-drawn])>:not(.workspace-history){visibility:hidden;animation:top-strip-shown 0s forwards;animation-delay:3s}
 
   /* The first place, 「项目 › 项目主页」 (§4「底栏第十三版」第 1 条), then a hairline. */

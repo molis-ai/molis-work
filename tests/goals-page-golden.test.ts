@@ -291,8 +291,10 @@ const pages: Record<string, Draw> = {
 // 16 characters (`/projects/golden`) from each of the 16 page-* records alone (final net +3840 zh / +3532 en on the 7 web pages and
 // +3870 zh / +3562 en on page-current-desktop). On the merges of main 820c13d498 (#2157, B35-R1 Sessions onboarding link) and main
 // b819fbbf61 (#2155, Batch 44 plugin equal standing), all 20 moved by the exact same constants (+3840/+3870 zh, +3532/+3562 en,
-// +382 settings-general*) over each accepted main's records while the other 32 matched directly. The 20 changed records were recorded
-// with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset; no Goals markup or JSON changed.
+// +382 settings-general*) over each accepted main's records while the other 32 matched directly. On user's 2026-11-20 decision to
+// unify 「项目首页」 → 「项目主页」 across the product, only the 8 `page-*.zh` records changed hashes at exact +0 character delta
+// (all 26 en records and 18 zh fragments/settings stayed byte-identical). The changed records were recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset; no Goals markup or JSON changed.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 // QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
 // `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.

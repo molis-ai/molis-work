@@ -15,7 +15,7 @@
  * 356px with the tray's own 4px, and the bar's 2 × 8px padding and 4px column gap on top of that (375px for eight). Narrower than
  * 375px the gap and the side padding give way (the row reaches the window's edge; the Assistant line above it keeps its place):
  * eight fit from 356px and seven from 312px. Narrower than eight, the Dock drops its "+N" (navigation-presentation.ts) and keeps
- * 项目首页; the switcher lists the rest.
+ * 项目主页; the switcher lists the rest.
  *
  * The opened Assistant panel's tab bar is a row of 44px targets on touch too: the work's tab with its close mark, "new work", "all
  * works", the details, expand and minimize. On narrow phones the work title and actions use separate rows to keep both reachable.

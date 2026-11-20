@@ -16,7 +16,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
-  // A plugin opens from the start page (＋) as a tab; the top strip keeps only 项目首页 (specs/screen-polish §3 方案 C).
+  // A plugin opens from the start page (＋) as a tab; the top strip keeps only 项目主页 (specs/screen-polish §3 方案 C).
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
   await waitFor(shows("goals"));
   // PIF-ESC-01: wait for the real board's open groups before leaving; its retained state must not consume Escape.

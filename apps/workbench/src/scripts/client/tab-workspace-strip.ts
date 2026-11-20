@@ -356,7 +356,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     const strips = [titlebarStrip, ...panesEl.querySelectorAll("[data-tab-pane] > [data-tab-strip]")].filter(Boolean);
     strips.forEach((node) => node.toggleAttribute("data-unfocused", column === "side" || (node !== titlebarStrip && node.closest("[data-tab-pane]")?.dataset.tabPane !== state.focusedPaneId)));
     document.querySelectorAll("[data-side-tabs], [data-side-ear]").forEach((node) => node.toggleAttribute("data-unfocused", column !== "side"));
-    // 项目首页's glyph is its tab (the ear), so the Dock carries the main column's mark as the strip beside it does.
+    // 项目主页's glyph is its tab (the ear), so the Dock carries the main column's mark as the strip beside it does.
     document.querySelector("[data-dock-pins]")?.toggleAttribute("data-unfocused", column === "side");
   };
   const focusActiveTab = () => {

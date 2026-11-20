@@ -53,7 +53,7 @@ test("RAC-694 the rail and the Dock keep no table of plugin names; the Manifests
     .sort((left, right) => (left[3] ?? 100) - (right[3] ?? 100));
   assert.deepEqual(declared("rail"), [["goals", "core", "navigator", 10], ["inbox", "core", "navigator", 30], ["feed", "core", "navigator", 40], ["plugin-builder", "extend", "navigator", 57]]);
   // The Manifests still declare `pinned_default` (a contract field), but the top strip keeps no plugins of its own (specs/screen-polish
-  // §3 方案 C): the Dock script holds 项目首页 alone and keeps no list in the browser.
+  // §3 方案 C): the Dock script holds 项目主页 alone and keeps no list in the browser.
   assert.deepEqual(declared("pinned_default").map(([id]) => id), ["goals", "inbox", "feed"], "in the views' order");
   assert.deepEqual([...extendPluginIds()], ["plugin-builder"]);
   assert.doesNotMatch(CLIENT_SCRIPT, /DEFAULT_PINS|molis-work:dock-pins|data-dock-choice/, "the Dock script reads no pins");

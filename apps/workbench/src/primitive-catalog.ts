@@ -49,7 +49,7 @@ const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "p
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
 const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
-  { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
+  { id: "home", name: "项目主页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
   { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
   { id: SESSIONS_NAVIGATION.id, name: SESSIONS_NAVIGATION.label, icon: SESSIONS_NAVIGATION.glyph },
 ];

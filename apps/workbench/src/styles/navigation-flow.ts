@@ -34,7 +34,7 @@ export const NAVIGATION_FLOW_STYLES = `
   @media (min-width: 601px) and (max-height: 560px) {
     ${BAR} :is(.bar-start, .bar-side) { padding: 3px; }
   }
-  /* The left column never gets narrower than its tray's least content — the switcher's glyph, 项目首页 and the +N
+  /* The left column never gets narrower than its tray's least content — the switcher's glyph, 项目主页 and the +N
      fold, with the tray's padding and the gaps between them — so what folds stays inside the tray instead of sliding
      under the composer. */
   /* --bar-l, --bar-m and --bar-r: the least width of the left, middle and right columns. */

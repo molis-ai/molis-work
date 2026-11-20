@@ -136,7 +136,7 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
     const style = getComputedStyle(tray), need = Math.ceil(home.offsetWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)) + 'px';
     if (tray.style.minWidth !== need) tray.style.minWidth = need;
   };
-  // The strip shows once 项目首页 is drawn and the current one named (work-line.ts holds it unseen until then).
+  // The strip shows once 项目主页 is drawn and the current one named (work-line.ts holds it unseen until then).
   const drawn = () => { if (dockPainted && !dock.hasAttribute('data-dock-drawn')) dock.setAttribute('data-dock-drawn', ''); };
   const paintCurrent = () => {
     if (!current) { drawn(); return; }

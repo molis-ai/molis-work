@@ -176,5 +176,5 @@ test("RAC-1822 an entry the directory calls market gets the same switch-to label
   const directory = [...builtinPluginDirectory(), probe("market", {})];
   const html = renderPluginRail(primitives, ["goals", "market"], directory);
   assert.match(html, /data-plugin-id="market"[^>]*aria-label="切换到插件：[^"]+"/, "the market entry is labelled like the others");
-  assert.match(html, /data-plugin-id="home"[^>]*aria-label="项目首页"/, "the project home keeps its own label");
+  assert.match(html, /data-plugin-id="home"[^>]*aria-label="项目主页"/, "the project home keeps its own label");
 });

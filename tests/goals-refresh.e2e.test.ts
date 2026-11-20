@@ -148,7 +148,7 @@ test("QEA-113 QEA-114 QEA-161 QEA-172 QEA-199 PG094-TITLE-01 BL-140 ASC-41 T01-G
     await waitFor(destination === "home" ? "document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')"
       : "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'");
     const title = await evaluate<string>("document.title");
-    assert.match(title, destination === "home" ? /^项目首页/ : /^设置/);
+    assert.match(title, destination === "home" ? /^项目主页/ : /^设置/);
     await evaluate("globalThis.__releaseRefresh()");
     await waitFor(`Number(JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor) === ${afterExternalWrite.cursor} && document.querySelector('.tree-node[data-select-goal="${goalId}"]')`, 10_000);
     assert.equal(await evaluate("globalThis.__refreshDelivered"), true);

@@ -12,7 +12,7 @@ const start = goals + ' [data-home-control$=":start:0"]';
 const row = goals + ' [data-home-row]';
 const title = row + ' .mw-presentation__row-title';
 const endpoint = "/api/host/surface-home";
-// 项目首页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
+// 项目主页 from the start page: the browser's window is under 760px, where the strip's ⌂ shows only while the home is the
 // current page (specs/screen-polish §3 方案 C, POLISH-07), and the start page lists it at every width.
 const HOME_ENTRY = '[data-plugin-strip] [data-plugin-id="home"]';
 

@@ -30,7 +30,7 @@ export const ASSISTANT_RULE_ACTIONS = {
     { type: "object", additionalProperties: false, required: ["kind", "label"], properties: {
       kind: { type: "string", title: "规则类型", enum: ["quiet", "pause"], description: "quiet：在某些页面不提醒；pause：暂停提醒到某时" },
       surfaces: { type: "array", title: "在哪些页面", maxItems: 20, items: { type: "string", pattern: "^[a-z0-9][a-z0-9-]{0,80}$" },
-        description: "页面 id。home 是项目首页，其余是已安装插件在工作台侧栏里的页面 id；写了没有安装的页面会被拒绝，回复里列出现有的页面。" },
+        description: "页面 id。home 是项目主页，其余是已安装插件在工作台侧栏里的页面 id；写了没有安装的页面会被拒绝，回复里列出现有的页面。" },
       except: { type: "array", title: "仍然提醒的情况", items: { type: "string", enum: KINDS.map(([id]) => id) }, description: KINDS.map(([id, name]) => `${id}=${name}`).join("，") },
       until: { type: "string", format: "date-time", title: "到什么时候", description: "暂停必填；quiet 可不填（长期有效）" },
       label: { type: "string", title: "规则说法", maxLength: 200, description: "用户的原话，例如“写文档时不要提醒，失败除外”" },

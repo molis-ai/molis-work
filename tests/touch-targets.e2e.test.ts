@@ -133,7 +133,7 @@ const LINE_FIT = `(() => {
  * one another, so the room it needs is an exact sum of them. */
 const ROW_FIT = `(() => {
   const vw = document.documentElement.clientWidth;
-  // The strip's targets (specs/screen-polish §3 方案 C): 项目首页, ＋, the side's switch, the layout button and the project. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
+  // The strip's targets (specs/screen-polish §3 方案 C): 项目主页, ＋, the side's switch, the layout button and the project. The tab strip and the side's glyph row scroll inside their own boxes and are measured by the
   // layout audit, so they are left out here.
   const boxes = [...document.querySelectorAll(".workbench-header[data-dock] :is(button, summary, input, textarea, [role=tab], a[href])")]
     .filter(el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !el.closest("[hidden], [inert], .plugin-picker-popover, .top-corner-list, .navigator-project-menu-popover, [data-titlebar-tabs], .side-strip"))
@@ -701,9 +701,9 @@ for (const scheme of ["light", "dark"] as const) {
 
     // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
     // settings (a cover chip with its close mark, and the directory toggle: the widest the row gets). Since specs/screen-polish §3
-    // 方案 C (POLISH-07) the strip is one row of 44px targets that touch one another — the way back, 项目首页, the tabs' own box
+    // 方案 C (POLISH-07) the strip is one row of 44px targets that touch one another — the way back, 项目主页, the tabs' own box
     // (which scrolls inside itself), ＋, the side's switch, the directory button and the project — and no window overlaps the
-    // targets, shrinks one or pushes one off the edge. The Dock keeps 项目首页 alone there, and the switcher lists the rest.
+    // targets, shrinks one or pushes one off the edge. The Dock keeps 项目主页 alone there, and the switcher lists the rest.
     const seen = new Set<string>();
     const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;

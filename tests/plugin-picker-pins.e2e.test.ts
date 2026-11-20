@@ -10,7 +10,7 @@ import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // The switcher's grid in a real browser (specs/archive/plugin-picker-dock): buttons that appear when an entry is looked at (在旁边打开,
 // and a plus, a red trash can once the plugin is in, that adds or removes it without bringing the page back), and at the head of
-// the list the market and the studio. The pin that kept a plugin in the Dock is gone: the top strip holds 项目首页 alone
+// the list the market and the studio. The pin that kept a plugin in the Dock is gone: the top strip holds 项目主页 alone
 // (specs/screen-polish §3 方案 C).
 
 const tile = (id: string) => `[data-plugin-tile="${id}"]`;

@@ -235,6 +235,8 @@ export interface ArtifactListQuery {
   supported_types?: readonly ArtifactConsumerType[];
   /** Only personal versions are narrowed; platform consumers supply their trusted actor. */
   personal_owner_actor_id?: string;
+  /** Only versions of lines the platform recorded this plugin as producing. */
+  producer_plugin_id?: string;
 }
 
 export interface ArtifactConsumerType {

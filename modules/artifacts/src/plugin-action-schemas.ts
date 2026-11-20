@@ -2,7 +2,7 @@
 // they are built from) for its action definitions, and `tests/plugin-artifact-schemas.test.ts` holds the two equal until the plugin goes (ac-artifacts A6).
 import { arraySchema as array, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 
-export const text = { type: "string" }, id = { type: "string", minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
+export const text = { type: "string" }, id = { type: "string", minLength: 1, pattern: "\\S" } as const, version = { type: "integer", minimum: 1 };
 export const reference = object({ artifact_id: id, version });
 export const consumerTypes = array(object({ artifact_type_id: id, schema_version: version }));
 // Payload and metadata retain the producer's JSON contract, including unknown Artifact types.

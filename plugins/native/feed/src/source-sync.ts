@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import { SOURCE_PULL_EVIDENCE_KEY_MISSING, type SourcePullResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { feedErrors } from "./contract/feed.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
@@ -114,7 +114,10 @@ export class PublicSourceSync {
       await write(() => {
         this.feed.sources.upsertRun(interrupted);
         const latest = this.feed.sources.get(this.projectId, sourceId);
-        const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
+        // A pull paused because the Home's evidence key is lost (BL-1065) says nothing of the source: it is not counted as the
+        // source's failure, so it never turns into a fault that asks the person to fix or retry the source.
+        const keyMissing = errorCode === SOURCE_PULL_EVIDENCE_KEY_MISSING;
+        const rssFailure = !keyMissing && this.ports.providers.rss.isSourceKind(latest.kind)
           ? this.ports.providers.rss.withFailure(latest.cursor)
           : null;
         const actionable = rssFailure
@@ -122,7 +125,7 @@ export class PublicSourceSync {
           : null;
         this.feed.sources.upsert({
           ...latest,
-          status: latest.enabled ? (actionable ? "error" : rssFailure ? "active" : "error") : "paused",
+          status: latest.enabled ? (actionable ? "error" : rssFailure || keyMissing ? "active" : "error") : "paused",
           cursor: rssFailure?.cursor ?? latest.cursor,
           last_error_code: errorCode,
           updated_at: updatedAt,
@@ -133,7 +136,7 @@ export class PublicSourceSync {
         });
         // The fault that explains the failure is part of the same write.
         const failedSource = this.feed.sources.get(this.projectId, sourceId);
-        if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
+        if (!keyMissing && this.ports.providers.rss.isSourceKind(failedSource.kind)) {
           const fault = rssFailureAction(errorCode, this.ports.providers.rss.failureCount(failedSource.cursor));
           if (fault) this.recordRssSourceFault(failedSource, errorCode, fault, updatedAt);
         }

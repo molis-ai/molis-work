@@ -156,6 +156,8 @@ export interface RssFetchReceipt {
     readonly home_url?: string;
 }
 
+export declare const SOURCE_PULL_EVIDENCE_KEY_MISSING = "host.source_pull.evidence_key_missing";
+
 export interface SourceCatalogEntry {
     readonly source_id: string;
     readonly name: string;

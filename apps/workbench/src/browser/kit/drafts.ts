@@ -108,28 +108,27 @@ export function placeholdersOf(w: Workshop): string[] {
   return [...new Set([...Object.keys(w.replacements), ...found])];
 }
 const WORDING_KEYS = ["description", "when_not_to_use", "body"] as const;
-const restorePlaceholders = (text: string, replacements: Record<string, string>) =>
-  Object.entries(replacements).sort(([, a], [, b]) => b.length - a.length)
-    .reduce((value, [ph, own]) => own ? value.split(own).join(ph) : value, text);
-const renderPlaceholders = (template: string, replacements: Record<string, string>) => {
-  const active = Object.entries(replacements).filter(([, own]) => Boolean(own));
-  if (!active.length) return template;
-  const byKey = new Map(active);
-  const pattern = new RegExp(active.map(([ph]) => ph.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).sort((a, b) => b.length - a.length).join("|"), "gu");
-  return template.replace(pattern, match => byKey.get(match) ?? match);
+const replaceAll = (text: string, pairs: ReadonlyArray<readonly [string, string]>): string => {
+  const map = new Map<string, string>();
+  for (const [from, to] of pairs) if (from && !map.has(from)) map.set(from, to);
+  if (!map.size) return text;
+  const pattern = new RegExp([...map.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|"), "gu");
+  return text.replace(pattern, match => map.get(match) ?? match);
 };
 /** Every replaced placeholder written out in the fields: renders from a placeholder template so keystroke-by-keystroke typing never touches unrelated text. */
 export function applyReplacements(w: Workshop, placeholder: string, value: string): void {
   if (!w.placeholderBase) {
+    const inverse = Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [own, ph] as const);
     w.placeholderBase = {
-      description: restorePlaceholders(w.fields.description, w.replacements),
-      when_not_to_use: restorePlaceholders(w.fields.when_not_to_use, w.replacements),
-      body: restorePlaceholders(w.fields.body, w.replacements),
+      description: replaceAll(w.fields.description, inverse),
+      when_not_to_use: replaceAll(w.fields.when_not_to_use, inverse),
+      body: replaceAll(w.fields.body, inverse),
     };
   }
   const trimmed = value.trim();
   if (trimmed) w.replacements[placeholder] = trimmed; else delete w.replacements[placeholder];
-  for (const key of WORDING_KEYS) w.fields[key] = renderPlaceholders(w.placeholderBase[key], w.replacements);
+  const forward = Object.entries(w.replacements).filter(([, own]) => Boolean(own));
+  for (const key of WORDING_KEYS) w.fields[key] = replaceAll(w.placeholderBase[key], forward);
 }
 
 export const failureOf = (cause: unknown) => cause as UiRequestFailure;

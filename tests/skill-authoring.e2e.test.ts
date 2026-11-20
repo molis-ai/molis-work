@@ -159,6 +159,21 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
   assert.match(await text("[data-slot=leave-bar]"), /还有 2 处不同，仍然采用吗/);
   assert.equal(await page.evaluate("document.querySelectorAll('[data-sk-bar] .mw-btn--primary').length"), 1, "one main act in view");
+  // Changing known answers while the confirm bar is open clears the stale confirmation so dual primary buttons never appear.
+  await page.click(act("sk-case-add"));
+  await page.wait("document.activeElement?.id === 'sk-case-title'");
+  await page.fill("#sk-case-title", "临时样本");
+  await page.fill("#sk-case-task", "临时任务");
+  await page.fill("#sk-case-expected", "临时结果");
+  await page.click("[data-sk-case-form] [type=submit]");
+  await page.wait("document.querySelectorAll('.sk-case').length === 3", { describe: state });
+  assert.equal(await page.evaluate("!!document.querySelector('[data-slot=leave-bar]')"), false, "adding a case clears the stale adopt confirmation");
+  assert.equal(await page.evaluate("document.querySelectorAll('[data-sk-bar] .mw-btn--primary').length"), 1, "only replay-first stays primary");
+  await page.evaluate("document.querySelectorAll('.sk-case')[2].querySelector('[data-kit-act=sk-case-remove]').click()");
+  await page.wait("document.querySelectorAll('.sk-case').length === 2", { describe: state });
+  await page.click(act("sk-adopt"));
+  await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
+  assert.match(await text("[data-slot=leave-bar]"), /还有 2 处不同，仍然采用吗/);
   await shot("confirm-1440");
   await page.click(act("sk-adopt-anyway"));
   await page.wait(noticeHas("已采用为第 2 版"), { describe: state });
@@ -229,15 +244,23 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("document.querySelector('#sk-title')?.innerText.includes('「分析与决策」的草稿')", { describe: state });
   assert.ok((await page.evaluate<string>("document.querySelector('#au-body').value")).length > 100, "the copy starts from the original's body");
   assert.equal(await page.evaluate("document.querySelector('[data-sk-turn-off]').checked"), true);
-  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具，别改项目进度。`);
+  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具，任务记进 ~~项目管理工具，别改项目进度。`);
   await page.wait(saved, { describe: state });
   await page.click(act("sk-side", "compare"));
-  await page.wait("!!document.querySelector('[data-sk-placeholder]')", { describe: state });
+  await page.wait("document.querySelectorAll('[data-sk-placeholder]').length === 2", { describe: state });
   // Typing character by character with characters already present in the body must never rewrite unrelated text.
-  for (const step of ["项", "项目", "项目群", "", "S", "Sl", "Slack"]) await page.fill("[data-sk-placeholder]", step);
-  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack，别改项目进度。/);
-  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('#au-body').value"), /项目群进度|~~聊天工具进度/);
-  assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').getAttribute('aria-label')"), "把 ~~聊天工具 换成");
+  for (const step of ["项", "项目", "项目群", "", "工", "工具"]) await page.fill('[data-sk-placeholder="~~聊天工具"]', step);
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Linear");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 工具，任务记进 Linear，别改项目进度。/);
+  // Rebuild placeholderBase after a manual wording edit: single-pass restore keeps "工具" from mutating inside "~~项目管理工具".
+  const desc = await page.evaluate<string>("document.querySelector('#au-description').value");
+  await page.fill("#au-description", `${desc} `);
+  await page.fill("#au-description", desc);
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Jira");
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "Slack");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack，任务记进 Jira，别改项目进度。/);
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('#au-body').value"), /项目群进度|~~聊天工具进度|~~项目管理/);
+  assert.equal(await page.evaluate(`document.querySelector('[data-sk-placeholder="~~聊天工具"]').getAttribute('aria-label')`), "把 ~~聊天工具 换成");
   await page.wait(saved, { describe: state });
   await shot("copy-1440");
   // QEA-123: the placeholder and its expanded text are one decision, while an unrelated field survives.
@@ -251,21 +274,21 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.equal(updated.revision, oldCopy.revision + 1);
   await page.click(".au-more summary");
   await page.fill("#au-argument_hint", "补充目标");
-  await page.fill("[data-sk-placeholder]", "Teams");
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "Teams");
   await page.wait(`!!document.querySelector('[data-sk-bar] [data-kit-act=sk-review-conflict]')`, { describe: state });
   assert.equal((await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id })).fields.body, otherBody);
   await page.click(act("sk-review-conflict"));
   await page.wait(`document.activeElement?.hasAttribute('data-sk-conflict')`, { describe: state });
   const copyConflict = await text("[data-sk-conflict]");
-  assert.match(copyConflict, /结论发到 Slack，别改项目进度。/);
-  assert.match(copyConflict, /结论发到 Teams，别改项目进度。/);
+  assert.match(copyConflict, /结论发到 Slack，任务记进 Jira，别改项目进度。/);
+  assert.match(copyConflict, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
   assert.match(copyConflict, /别处补充的实操说明。/);
   await page.click(act("sk-keep-edit"));
   await page.wait(saved, { describe: state });
   const settledCopy = await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id });
   assert.deepEqual([settledCopy.revision, settledCopy.replacements, settledCopy.fields.argument_hint],
-    [updated.revision + 1, { "~~聊天工具": "Teams" }, "补充目标"]);
-  assert.match(settledCopy.fields.body, /结论发到 Teams，别改项目进度。/);
+    [updated.revision + 1, { "~~聊天工具": "Teams", "~~项目管理工具": "Jira" }, "补充目标"]);
+  assert.match(settledCopy.fields.body, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
   assert.doesNotMatch(settledCopy.fields.body, /别处补充的实操说明。/);
   // QEA-129: actual completed operations can have a late HTTP receipt. Every editor control follows the same busy state.
   const holdReceipt = (route: string) => page.evaluate(`(() => {
@@ -311,7 +334,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   const installedCopy = await api<SkillAuthoredSource>("source", { ref: copy.ref });
   assert.equal(installedCopy.when_not_to_use, "只想抄录原文时。");
   assert.equal(installedCopy.argument_hint, "补充目标");
-  assert.match(installedCopy.body, /结论发到 Teams，别改项目进度。/);
+  assert.match(installedCopy.body, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
   assert.deepEqual([duringRevise, duringAdoption], [[true, true], [true, true]], "companion fields are protected for the same operation as the main fields");
 
   // 1024 与 390、深色：1024 时两栏变成页签；390 没有横向滚动。

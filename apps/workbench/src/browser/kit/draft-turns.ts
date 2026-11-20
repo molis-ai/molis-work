@@ -26,7 +26,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
 
   async function ask(w: Workshop): Promise<void> {
     if (w.asking || w.adopting || !w.ask.trim() || !(await edit.flush(w))) return;
-    w.asking = true; w.askFailure = undefined; w.changed = undefined; draw("sk-ask");
+    w.asking = true; w.confirm = false; w.askFailure = undefined; w.changed = undefined; draw("sk-ask");
     try {
       const next = await reviseDraft(project, w.draft, w.ask);
       if (view.workshop !== w) return;
@@ -40,7 +40,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   }
   async function replay(w: Workshop, caseId: string): Promise<void> {
     if (w.running || !(await edit.flush(w))) return;
-    w.running = caseId; w.runFailure = undefined; w.runFailureCode = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
+    w.running = caseId; w.confirm = false; w.runFailure = undefined; w.runFailureCode = undefined; w.side = "try"; if (w.tab !== "edit") w.tab = "try";
     draw();
     try {
       const trial = await runTrial(project, w.draft, caseId);
@@ -62,7 +62,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     try {
       await putCase(project, w.draft.draft_id, { title: form.title.trim(), task: form.task, expected: form.expected, ...(form.material?.trim() ? { material: form.material } : {}) }, form.case_id);
       await edit.refresh(w);
-      if (view.workshop === w && w.caseForm === form) { w.caseForm = undefined; draw("sk-side"); }
+      if (view.workshop === w && w.caseForm === form) { w.confirm = false; w.caseForm = undefined; draw("sk-side"); }
     } catch (cause) { w.caseErrors = { title: messageOf(cause) }; if (view.workshop === w) draw("sk-case"); }
   }
 
@@ -143,7 +143,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
     if (name === "sk-case-add") { w.caseForm = { title: "", task: "", expected: "" }; w.caseErrors = {}; return draw("sk-case"); }
     if (name === "sk-case-edit" && value) { const known = w.draft.cases.find(item => item.case_id === value); if (known) { w.caseForm = { ...known }; w.caseErrors = {}; } return draw("sk-case"); }
     if (name === "sk-case-cancel") { w.caseForm = undefined; return draw("sk-side"); }
-    if (name === "sk-case-remove" && value) { await removeCase(project, w.draft.draft_id, value); await edit.refresh(w); if (view.workshop === w) draw("sk-side"); return; }
+    if (name === "sk-case-remove" && value) { await removeCase(project, w.draft.draft_id, value); await edit.refresh(w); if (view.workshop === w) { w.confirm = false; draw("sk-side"); } return; }
     if (name === "sk-adopt") return adopt(w, false);
     if (name === "sk-adopt-anyway") { w.confirm = false; return adopt(w, true); }
     if (name === "sk-confirm-back") { w.confirm = false; w.tab = "edit"; return draw("au"); }

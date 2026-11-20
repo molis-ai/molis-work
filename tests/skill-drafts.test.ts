@@ -97,21 +97,21 @@ test("QEA-103 adoption uses each case's latest replay, preserving another case's
   } finally { await h.close(); }
 });
 
-test("SKP-11 skill settings HTTP accepts CJK drafts and known answers near contract limits (> 32 KB UTF-8) and still rejects oversized bodies", async t => {
+test("SKP-11 skill settings HTTP accepts CJK drafts and known answers up to contract limits (> 120 KB UTF-8) and still rejects oversized bodies", async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Large CJK skill");
-  const largeBody = "正".repeat(15_000);
-  const largeCase = { title: "大中文已知答案", task: "任".repeat(3_000), material: "材".repeat(4_500), expected: "果".repeat(4_500) };
+  const largeBody = "正".repeat(20_000);
+  const largeCase = { title: "大中文已知答案", task: "任".repeat(4_000), material: "材".repeat(8_000), expected: "果".repeat(8_000) };
   const created = await f.request(`/projects/${project.project_id}/api/skills/drafts/create`, {
     method: "POST",
     body: { scope: "project", target: { kind: "new" }, fields: fields("长中文技能", { body: largeBody }), case: largeCase },
   });
-  assert.equal(created.status, 200, "full CJK body + known answer (> 80 KB UTF-8) fits the settings HTTP route");
+  assert.equal(created.status, 200, "full CJK body + known answer (> 120 KB UTF-8) fits the settings HTTP route");
   const draft = await created.json() as SkillDraft;
-  assert.equal(draft.fields.body.length, 15_000);
-  assert.equal(draft.cases[0]?.expected.length, 4_500);
+  assert.equal(draft.fields.body.length, 20_000);
+  assert.equal(draft.cases[0]?.expected.length, 8_000);
   const updated = await f.request(`/projects/${project.project_id}/api/skills/drafts/update`, {
     method: "POST",
-    body: { draft_id: draft.draft_id, expected_revision: draft.revision, fields: fields("长中文技能", { body: `${largeBody}尾` }) },
+    body: { draft_id: draft.draft_id, expected_revision: draft.revision, fields: fields("长中文技能", { body: `${"正".repeat(19_999)}尾` }) },
   });
   assert.equal(updated.status, 200);
   const oversized = await f.request(`/projects/${project.project_id}/api/skills/drafts/update`, {

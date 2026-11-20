@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {openGoalBrowser} from './fixtures/goal-browser.js';
+import {seedBoard} from './fixtures/goal-application.js';
 
 test('PCSYNC-27 sync progress distinguishes unfinished work from a past successful connection',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'fixed',collection_id:'notes',schema_version:1};
     window.syncProgress={selected:1,pending:2,conflicts:1,waiting:1,failures:1,unavailable:1,complete:false};
@@ -39,7 +40,7 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
 });
 
 test('sync settings: local space stays off and narrow layout remains usable',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
   await b.waitFor("document.querySelector('[data-sync-status]')?.textContent.includes('本地空间')");
   assert.equal(await b.evaluate("document.querySelector('[data-sync-form]').hidden"),true);
@@ -54,7 +55,7 @@ test('sync settings: local space stays off and narrow layout remains usable',{ti
 });
 
 test('sync settings: failed save retains selection and retry saves it',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
@@ -104,7 +105,7 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
 });
 
 test('waiting linked assets offers retry, not destructive conflict choices',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);let waiting=true;
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
@@ -130,7 +131,7 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
 });
 
 test('PCSYNC-14/16/18 and PCSYNC-OPT-18 sync comparison, item retry, retained recovery and confirmed trash controls',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'test',collection_id:'notes',schema_version:1};let conflict=true,failed=true,trash=true;
     const image=color=>{const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);const data=canvas.toDataURL().split(',')[1];return{id:'image1',mime_type:'image/png',byte_length:atob(data).length,data_base64:data};};
@@ -178,7 +179,7 @@ test('PCSYNC-14/16/18 and PCSYNC-OPT-18 sync comparison, item retry, retained re
 });
 
 test('PCSYNC-16 cloud history is discoverable without local history, paginated and restored with one retry identity',{timeout:90000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window),selection={plugin_id:'io.example.history',publisher_id:'example',publisher_signature:'test',collection_id:'records',schema_version:1};
     let keyReads=0,current=8;window.historyRestores=[];window.historyPurges=[];
@@ -228,7 +229,7 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
 });
 
 test('PCSYNC-20 personal project recycle UI binds confirmation to the observed state and reuses its operation identity',{timeout:60000},async t=>{
- const b=await openGoalBrowser(t,true);if(!b)return;
+ const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.recycleCalls=[];window.fetch=async(input,init={})=>{const path=new URL(String(input),location.href).pathname;
  if(path==='/api/sync')return Response.json({available:true,policy:{spaceId:'personal-test',revision:1,selections:[]},device:{automatic:false},collections:[],unavailable:[],progress:{selected:0,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false}});
  if(path==='/api/settings/projects/recycle')return Response.json({items:[{project_id:'p',display_name:'Project original',recycled:false,state:'a'.repeat(64)}]});
@@ -244,7 +245,7 @@ test('PCSYNC-20 personal project recycle UI binds confirmation to the observed s
 });
 
 test('PCSYNC-27 resident indicator reports conflict and offline states without showing a completed claim',{timeout:60000},async t=>{
- const b=await openGoalBrowser(t,'user');if(!b)return;
+ const b=await openGoalBrowser(t,'user',seedBoard);if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.fetch=async(input,init)=>new URL(String(input),location.href).pathname==='/api/sync'?Response.json({available:true,running:false,lastSuccess:null,error:null,progress:{selected:1,pending:0,conflicts:1,waiting:0,failures:0,unavailable:0,complete:false}}):original(input,init);})();`},b.sessionId);
  await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));await b.waitFor("document.querySelector('[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
@@ -252,7 +253,7 @@ test('PCSYNC-27 resident indicator reports conflict and offline states without s
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
 });
 test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project structure copy discloses what stays in the original',{timeout:60000},async t=>{
-  const b=await openGoalBrowser(t,true);if(!b)return;
+  const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);
     const platformSel={plugin_id:'io.molis.work.module.projects',publisher_id:'molis',publisher_signature:'official-projects-binding',collection_id:'projects',schema_version:1};

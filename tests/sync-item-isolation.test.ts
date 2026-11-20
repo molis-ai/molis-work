@@ -51,7 +51,7 @@ test('PCSYNC-14 unavailable original bytes skip only that frozen upload; another
 });
 test('PCSYNC-14 a newer head retires a deferred download rather than reviving stale content',async t=>{
  const f=fixture(t);f.repair();f.setUnavailable(true);f.events.push({operationId:'a:1',key:'broken',base:0,revision:1,value:'stale'});await f.client.run();
- assert.equal(f.client.status().collections[0]!.failures.length,1);f.events.push({operationId:'a:2',key:'broken',base:1,revision:2,value:'current'});f.setUnavailable(false);f.replica.receive(f.events[1]!);await f.client.run();
+ assert.equal(f.client.status().collections[0]!.failures.length,1);f.events.push({operationId:'a:2',key:'broken',base:1,revision:2,value:'current'});f.setUnavailable(false);await f.client.run();
  assert.equal(f.db.prepare('SELECT value FROM items WHERE key=?').get('broken')?.value,'current');assert.equal(f.client.status().collections[0]!.failures.length,0);assert.equal(f.replica.next(),null);
 });
 test('PCSYNC-12 deferred-replay schema refuses a newer v3 sync library intact',t=>{

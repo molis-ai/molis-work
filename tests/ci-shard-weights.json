@@ -768,7 +768,6 @@
  "tests/goal-read-entry.test.ts": 20,
  "tests/goal-relation-http.test.ts": 34,
  "tests/goal-tree-event-flow.test.ts": 5,
- "tests/goal-type-partial-save.e2e.test.ts": 40,
  "tests/goal-work-event-momentum.test.ts": 13,
  "tests/goals-absent-project.e2e.test.ts": 48,
  "tests/goals-absent-project.test.ts": 18,

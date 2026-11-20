@@ -129,7 +129,12 @@ test("PEQ-16 a synced decision with an unvouched or non-trusted origin is refuse
       }],
     },
   };
-  assert.throws(() => b.replica.receive(forged), /CHECK constraint failed/i);
+  // `receive` quarantines a failed apply as a conflict without touching acceptance tables; even resolving with `remote` cannot bypass the schema CHECK.
+  b.replica.receive(forged);
+  assert.deepEqual(b.replica.conflicts().map(item => item.key), [forged.key]);
+  assert.equal(b.rows()[3], "[]", "refused decision writes nothing");
   const state = b.view().requirements[0]!;
   assert.deepEqual([state.person, state.satisfied], ["pending", false], "refused decision writes nothing");
+  assert.throws(() => b.replica.resolve(forged.key, "remote"), /CHECK constraint failed/i);
+  assert.equal(b.rows()[3], "[]", "even resolving as remote writes nothing");
 });

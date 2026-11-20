@@ -89,7 +89,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
   - 目录库与项目库的结构改动都走升级段（`catalog-upgrade.ts`、`apps/local-host/src/project-database-schema.ts`）；低版本由启动升级过程升，较新的库拒绝，不在打开路径补表。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/project-directories.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts tests/security-invariants-project-storage.test.ts`；目录与默认输出目录另跑 `node scripts/run-tests.mjs tests/default-output-first-use.test.ts tests/material-recent-uses.test.ts`。
 - 个人资料同步另跑：`node scripts/run-tests.mjs tests/security-invariants-project-metadata-sync.test.ts tests/project-catalog.test.ts tests/personal-sync.test.ts`。
-- 项目长期说明另跑：`node scripts/run-tests.mjs tests/project-guidance-store.test.ts tests/project-guidance-characters.test.ts tests/project-guidance-actions.test.ts tests/project-guidance-sync.test.ts tests/project-guidance-upgrade.test.ts`。
+- 项目长期说明另跑：`node scripts/run-tests.mjs tests/project-guidance-store.test.ts tests/project-guidance-characters.test.ts tests/project-guidance-actions.test.ts tests/project-guidance-sync.test.ts`。
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)、[共同设计](../../specs/shared-sources-and-surfaces/spec.md) §3；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

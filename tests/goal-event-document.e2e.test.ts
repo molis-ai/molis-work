@@ -16,6 +16,7 @@ test("event document writes planning, report, concern, decision and closure thro
     project_id: DEMO_PROJECT_ID,
     title: "隔离演示：内部试用写回",
     outcome: "经正式页面写入后再读回",
+    requirements: [{ requirement_id: "r1", statement: "能读回刚才写入的事实" }],
     actor_id: "web-user",
     actor_kind: "user",
     idempotency_key: "e2e-intent",
@@ -96,12 +97,6 @@ test("event document writes planning, report, concern, decision and closure thro
     form.querySelector('[name="purpose"]').value = "记下实际做成的事";
     const fieldName = form.querySelector('[name="field_name"]');
     if (fieldName && !fieldName.value) fieldName.value = "内容";
-    form.querySelector('[name="add_requirement"]').checked = true;
-    const statement = form.querySelector('[name="requirement_statement"]');
-    if (statement) {
-      statement.closest("[data-new-requirement]")?.removeAttribute("hidden");
-      statement.value = "能读回刚才写入的事实";
-    }
     return true;
   })()`);
   await submitSuccess('[data-event-form="type"] button[type="submit"]');
@@ -178,7 +173,7 @@ test("event document writes planning, report, concern, decision and closure thro
     const conclusion = form.querySelector('[name="conclusion"]');
     if (conclusion) conclusion.value = "接受当前范围";
     form.querySelectorAll('[name="effect"]').forEach((input) => {
-      input.checked = input.value === "accept_requirements" || input.value === "accept_concerns";
+      input.checked = input.value === "accept_concerns";
     });
     form.querySelectorAll('[name="requirement_ids"]').forEach((input) => { input.checked = true; });
     form.querySelectorAll('[name="concern_ids"]').forEach((input) => { input.checked = true; });

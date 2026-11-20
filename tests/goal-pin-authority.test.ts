@@ -16,7 +16,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
       const gate = new Promise<void>(resolve => { release = resolve; }), barrier = new Promise<void>(resolve => { reached = resolve; });
       const h = await openTestHome(t, { host: { actionAvailability: (_caller, action) =>
         disabled && action.capability_id === role.pin.capability_id ? { available: false, code: "actions.plugin_disabled", reason: "Parent disabled" } : { available: true } } });
-      const { host, home } = h, project = await h.createProject("Goal and Pages pin", ["pages"]);
+      const { host, home } = h, project = await h.createProject("Goal and Pages pin", ["goals", "pages"]);
       const ref = project.reference, projectId = project.project_id;
       const user: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
         permissions: [...GOALS_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS] };

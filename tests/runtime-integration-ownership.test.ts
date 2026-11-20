@@ -259,17 +259,16 @@ test("D0071-04 explicit connect creates a private credential; failure and remova
   assert.equal(first.rollback(), false); assert.equal(await readFile(file, "utf8"), newer);
 });
 
-// Batch 44 (PEQ-14): the v1 baseline receipt carries only MCP config ownership (no goal-advance Skill fields). Any receipt carrying
-// retired skill_path/skill_target fields or a foreign owner is refused by the upgrade round without touching disk files or symlinks.
-test("PEQ-14 the upgrade round accepts clean v1 receipts and refuses receipts carrying retired goal-advance fields or foreign owners", async t => {
-  const area = await mkdtemp(join(tmpdir(), "molis-runtime-receipt-"));
-  t.after(() => rm(area, { recursive: true, force: true }));
-  const home = join(area, "home"), userHome = join(area, "user"), receipts = join(home, "runtime-integrations");
-  const target = join(home, "releases", "molis-work-old", "skills", "goal-advance");
+// Batch 44 (PEQ-14): the v1 baseline receipt carries only MCP config ownership (no goal-advance Skill fields). Clean v1 receipts are
+// accepted, while receipts carrying retired skill_path/skill_target fields or a foreign owner are refused without touching files or symlinks.
+test("PEQ-14 runtime integration accepts clean v1 receipts and refuses receipts carrying retired goal-advance fields or foreign owners", async t => {
+  const f = await fixture(t);
+  const userHome = join(f.directory, "user"), receipts = join(f.home, "runtime-integrations");
+  const target = join(f.home, "releases", "molis-work-old", "skills", "goal-advance");
   await Promise.all([mkdir(target, { recursive: true }), mkdir(receipts, { recursive: true }),
-    mkdir(join(userHome, ".codex", "skills"), { recursive: true }), mkdir(join(userHome, ".grok", "skills"), { recursive: true })]);
+    mkdir(join(userHome, ".grok", "skills"), { recursive: true })]);
   const clean = { schema_version: 1, owner: "molis-work-runtime-integration-v1", runtime_id: "codex",
-    config_path: join(userHome, ".codex", "config.toml"), config_entry_fingerprint: "fingerprint-codex", connected_at: "2026-11-01T00:00:00.000Z" };
+    config_path: f.config, config_entry_fingerprint: "fingerprint-codex", connected_at: "2026-11-01T00:00:00.000Z" };
   const legacySkill = join(userHome, ".codex", "skills", "goal-advance");
   await symlink(target, legacySkill, "dir");
   const legacyText = JSON.stringify({ ...clean, runtime_id: "claude-code", config_path: join(userHome, ".claude.json"),
@@ -279,9 +278,13 @@ test("PEQ-14 the upgrade round accepts clean v1 receipts and refuses receipts ca
   await writeFile(join(receipts, "claude-code.json"), legacyText);
   await writeFile(join(receipts, "grok-build.json"), foreignText);
 
-  const report = runHomeUpgrade(home);
-  const states = Object.fromEntries(report.units.filter(unit => unit.relative_path.startsWith("runtime-integrations")).map(unit => [unit.relative_path, unit.state]));
-  assert.deepEqual(states, { "runtime-integrations/claude-code.json": "failed", "runtime-integrations/codex.json": "current", "runtime-integrations/grok-build.json": "failed" });
+  const report = runHomeUpgrade(f.home);
+  assert.deepEqual(report.units.filter(unit => unit.relative_path.startsWith("runtime-integrations")), []);
+  const runtime = new RuntimeIntegrationService({ homeDirectory: f.home, userHomeDirectory: userHome,
+    runtimeExecutables: { codex: f.launcher, "claude-code": f.launcher, "grok-build": f.launcher }, validateConnection: () => true });
+  assert.equal((await runtime.prepare("codex", "remove")).runtime_id, "codex");
+  await assert.rejects(runtime.prepare("claude-code", "remove"), { code: "installer.receipt_invalid" });
+  await assert.rejects(runtime.prepare("grok-build", "remove"), { code: "installer.receipt_invalid" });
   assert.deepEqual(JSON.parse(await readFile(join(receipts, "codex.json"), "utf8")), clean);
   assert.equal(await readFile(join(receipts, "claude-code.json"), "utf8"), legacyText, "a receipt with retired skill fields is refused and preserved byte for byte");
   assert.equal(await readlink(legacySkill), target, "refusing the receipt does not touch symlinks");

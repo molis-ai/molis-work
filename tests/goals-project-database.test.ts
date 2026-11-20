@@ -97,7 +97,7 @@ test("PLIB-12 opening the same declaration again opens normally and changes noth
 
 test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is keyed to the project root", () => {
   const db = emptyLibrary();
-  // The frozen history (tests/fixtures/goal-event-history) taken through the project library's real upgrade, 6→7 included (batch 44
+  // The frozen history (tests/fixtures/goal-event-history) at the v1 project-library baseline (batch 44
   // hands the requirements to the platform): what the upgrade leaves must be exactly what the declaration makes on an empty library.
   const upgraded = materializeGoalEventHistory("approved");
   const expected = new DatabaseSync(upgraded.path);

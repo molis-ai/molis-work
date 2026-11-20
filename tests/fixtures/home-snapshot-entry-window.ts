@@ -1,4 +1,4 @@
-import { cliEntryProbe, REACHED_THE_PLATFORM } from "./cli-entry-probe.js";
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./cli-entry-probe.ts";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";

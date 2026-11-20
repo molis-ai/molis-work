@@ -11,6 +11,8 @@ import type {
   ExternalSessionAttributionSuggestOutput,
   ExternalSessionDiscoveryRunInput,
   ExternalSessionDiscoveryRunOutput,
+  ExternalSessionHistoryAuthorization,
+  ExternalSessionHistoryAuthorizeInput,
   ExternalSessionHistoryInput,
   ExternalSessionHistoryOutput,
   ExternalSessionListInput,
@@ -36,6 +38,7 @@ import {
   runScopeSet,
 } from "./scope-commands.js";
 import {
+  runHistoryAuthorize,
   runHistoryRead,
   runSearchEntries,
   runSessionList,
@@ -148,6 +151,10 @@ export class SessionsService {
 
   historyRead(input: ExternalSessionHistoryInput, caller: SessionsCaller): Promise<ExternalSessionHistoryOutput> {
     return runHistoryRead(input, caller, this.store, this.ports);
+  }
+
+  historyAuthorize(input: ExternalSessionHistoryAuthorizeInput, caller: SessionsCaller): Promise<ExternalSessionHistoryAuthorization> {
+    return runHistoryAuthorize(input, caller, this.store, this.ports);
   }
 
   scopeRead(input: ExternalSessionScopeReadInput, caller: SessionsCaller): Promise<ExternalSessionScopeView> {

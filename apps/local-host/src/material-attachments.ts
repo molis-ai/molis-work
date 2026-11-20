@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync, renameSync, rmSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import {
   CONVERSATION_ATTACHMENT_LIMITS, CONVERSATION_ATTACHMENT_SUBJECT_KIND, type ConversationAttachment, type ConversationAttachmentContent,
-  type ConversationAttachmentImageType, type ConversationAttachmentRequest, type MaterialUpload,
+  type ConversationAttachmentImageType, type ConversationAttachmentRequest, type ConversationAttachmentUploadRequest, type MaterialUpload,
 } from "@molis-ai/molis-work-contracts/services/materials";
 import { supportsMaterialExtension } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
@@ -90,21 +90,16 @@ async function documentText(home: string, name: string, bytes: Buffer, signal: A
   return { text: read.text, meta: { chars: read.text.length, truncated: read.coverage.truncated === true, pages: read.pages.length ? read.coverage.total_pages : null, coverage: read.coverage.status, issues: read.coverage.issues.slice(0, 20) } };
 }
 
-/** The bytes kept once under their digest: written to a temporary name and moved into place, so a half-written file is never a blob. */
-async function keepBlob(home: string, sha256: string, bytes: Buffer): Promise<void> {
-  const dir = blobsOf(home), target = path.join(dir, sha256);
-  if (existsSync(target)) return;
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const temporary = path.join(dir, `.${sha256}.${randomUUID()}`);
-  try { await writeFile(temporary, bytes, { mode: 0o600, flag: "wx" }); await rename(temporary, target); }
-  finally { await rm(temporary, { force: true }); }
-}
-
 function attachmentOf(row: AttachmentRow): ConversationAttachment {
   const ref: MaterialRef = { subject: { kind: CONVERSATION_ATTACHMENT_SUBJECT_KIND, id: subjectId(row.sha256) }, pin: { mode: "current", read_revision: row.sha256 } };
   return { ref, title: row.title, kind: row.kind, media_type: row.media_type, byte_length: row.byte_length, ...(row.text_meta ? { text: JSON.parse(row.text_meta) as NonNullable<ConversationAttachment["text"]> } : {}) };
 }
 interface AttachmentRow { sha256: string; title: string; kind: "image" | "document"; media_type: string; byte_length: number; text: string | null; text_meta: string | null }
+type AttachmentWrite = ConversationAttachmentUploadRequest & { beforeEffect?: () => void | Promise<void> };
+/** Host-owned views can download an original once the caller's saved reference has been checked. */
+export type AttachmentRead = Omit<ConversationAttachmentRequest, "as"> & { as: ConversationAttachmentRequest["as"] | "original" };
+export type AttachmentReadResult = ConversationAttachmentContent & { original?: Uint8Array };
+const attaching = new Map<string, Promise<ConversationAttachment>>();
 
 /**
  * Keeps one file the person brought, for this owner. A picture (by its bytes) is kept as it is, up to 5 MB; any other file is read
@@ -112,38 +107,76 @@ interface AttachmentRow { sha256: string; title: string; kind: "image" | "docume
  * `beforeEffect` runs after the reading and right before the write: a cancelled or revoked call keeps nothing.
  */
 export async function attachConversationFile(home: string, owner: AttachmentOwner, upload: MaterialUpload,
-  options: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<ConversationAttachment> {
+  options: AttachmentWrite = {}): Promise<ConversationAttachment> {
   const { name, bytes } = decoded(upload);
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const known = withStore(home, db => db.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
-    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined);
-  if (known && existsSync(path.join(blobsOf(home), sha256))) return attachmentOf(known);
   const image = imageTypeOf(bytes);
+  if (options.expected_kind === "image" && !image) throw attachmentErrors.not_image("请添加图片");
   if (image && bytes.length > CONVERSATION_ATTACHMENT_LIMITS.image_bytes) throw attachmentErrors.too_large("图片超过 5 MB，请压缩或截取需要的部分");
   options.signal?.throwIfAborted();
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  // Concurrent offers of the same bytes by this owner share its first successful extraction. Each offer keeps its own authority.
+  const key = JSON.stringify([home, ...ownerKey(owner), sha256]);
+  const previous = attaching.get(key);
+  const offer = (async () => {
+    await previous?.catch(() => undefined);
+    options.signal?.throwIfAborted();
+    return publishAttachment(home, owner, { name, bytes, image, sha256 }, options);
+  })();
+  attaching.set(key, offer);
+  try { return await offer; }
+  finally { if (attaching.get(key) === offer) attaching.delete(key); }
+}
+
+async function publishAttachment(home: string, owner: AttachmentOwner,
+  file: { name: string; bytes: Buffer; image: ConversationAttachmentImageType | null; sha256: string },
+  options: AttachmentWrite): Promise<ConversationAttachment> {
+  const { name, bytes, image, sha256 } = file;
+  const directory = blobsOf(home), target = path.join(directory, sha256);
+  const check = async () => { await options.beforeEffect?.(); options.signal?.throwIfAborted(); };
+  if (existsSync(target)) {
+    await check();
+    const known = ownedRow(home, owner, sha256);
+    if (known && existsSync(target)) return attachmentOf(known);
+  }
   const read = image ? null : await documentText(home, name, bytes, options.signal);
   const row: AttachmentRow = { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
     text: read?.text ?? null, text_meta: read ? JSON.stringify(read.meta) : null };
-  options.signal?.throwIfAborted();
-  await options.beforeEffect?.();
-  await keepBlob(home, sha256, bytes);
-  withStore(home, db => db.prepare(`INSERT INTO attachments (plugin_id, install_id, project_id, sha256, title, kind, media_type, byte_length, text, text_meta, attached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (plugin_id, install_id, project_id, sha256) DO NOTHING`)
-    .run(...ownerKey(owner), sha256, row.title, row.kind, row.media_type, row.byte_length, row.text, row.text_meta, new Date().toISOString()));
-  return attachmentOf(row);
+  const temporary = path.join(directory, `.${sha256}.${randomUUID()}`);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(temporary, bytes, { mode: 0o600, flag: "wx", signal: options.signal });
+    await check();
+    // A Home has one storage owner. Publish the blob and its row without yielding to another attach or forget.
+    return withStore(home, db => {
+      const known = ownedRow(home, owner, sha256, db);
+      const published = !existsSync(target);
+      if (published) renameSync(temporary, target);
+      try {
+        if (known) return attachmentOf(known);
+        db.prepare(`INSERT INTO attachments (plugin_id, install_id, project_id, sha256, title, kind, media_type, byte_length, text, text_meta, attached_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(...ownerKey(owner), sha256, row.title, row.kind, row.media_type, row.byte_length, row.text, row.text_meta, new Date().toISOString());
+        return attachmentOf(row);
+      } catch (error) {
+        if (published && !db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1").get(sha256)) rmSync(target, { force: true });
+        throw error;
+      }
+    });
+  } finally { await rm(temporary, { force: true }); }
 }
 
-/** One of this owner's attachments read back. Another owner's, an unknown one, and a reference that is not an attachment are all `not_found`. */
 /** The digest a well-formed attachment reference names, or null. */
 function digestOf(ref: MaterialRef): string | null {
   const sha256 = ref?.subject?.kind === CONVERSATION_ATTACHMENT_SUBJECT_KIND && typeof ref.subject.id === "string" ? ref.subject.id.slice(3) : "";
   return SHA256.test(sha256) && ref!.subject.id === subjectId(sha256) && ref!.pin?.mode === "current" && ref!.pin.read_revision === sha256 ? sha256 : null;
 }
 
-function ownedRow(home: string, owner: AttachmentOwner, sha256: string): AttachmentRow | undefined {
+function ownedRow(home: string, owner: AttachmentOwner, sha256: string, db?: ReturnType<typeof openBaselineHomeSqlite>): AttachmentRow | undefined {
+  const find = (store: ReturnType<typeof openBaselineHomeSqlite>) => store.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
+    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined;
+  if (db) return find(db);
   if (!existsSync(homeSqlitePath(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path))) return undefined;
-  return withStore(home, db => db.prepare("SELECT sha256, title, kind, media_type, byte_length, text, text_meta FROM attachments WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND sha256 = ?")
-    .get(...ownerKey(owner), sha256) as AttachmentRow | undefined);
+  return withStore(home, find);
 }
 
 /** Whether this owner still has the attachment, bytes included: what a page asks before it offers to show or send it again. */
@@ -152,20 +185,26 @@ export function holdsConversationAttachment(home: string, owner: AttachmentOwner
   return !!sha256 && !!ownedRow(home, owner, sha256) && existsSync(path.join(blobsOf(home), sha256));
 }
 
-export async function readConversationAttachment(home: string, owner: AttachmentOwner, ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent> {
+/** Another owner's, an unknown one, and a reference that is not an attachment are all `not_found`. */
+export async function readConversationAttachment(home: string, owner: AttachmentOwner, ref: MaterialRef, request: AttachmentRead): Promise<AttachmentReadResult> {
+  request.signal?.throwIfAborted();
   const sha256 = digestOf(ref);
   const row = sha256 ? ownedRow(home, owner, sha256) : undefined;
   if (!sha256 || !row) throw attachmentErrors.not_found("找不到这个附件");
   const attachment = attachmentOf(row);
-  if (request.as === "text") return { attachment, ...(row.text !== null ? { text: row.text } : {}) };
-  if (row.kind !== "image") throw attachmentErrors.not_image(`「${row.title}」不是图片`);
-  request.signal?.throwIfAborted();
+  const blob = path.join(blobsOf(home), sha256);
+  if (request.as === "text") {
+    if (!existsSync(blob)) throw attachmentErrors.unreadable(`附件「${row.title}」读不到了，请重新添加`);
+    return { attachment, ...(row.text !== null ? { text: row.text } : {}) };
+  }
+  if (request.as === "image" && row.kind !== "image") throw attachmentErrors.not_image(`「${row.title}」不是图片`);
   let bytes: Buffer;
-  try { bytes = await readFile(path.join(blobsOf(home), sha256)); }
-  catch { throw attachmentErrors.unreadable(`图片「${row.title}」读不到了，请重新添加`); }
-  // The bytes are checked against their name: a blob changed on disk is never shown as the picture that was attached.
-  if (createHash("sha256").update(bytes).digest("hex") !== sha256) throw attachmentErrors.unreadable(`图片「${row.title}」已损坏，请重新添加`);
-  return { attachment, image: { media_type: row.media_type as ConversationAttachmentImageType, bytes } };
+  try { bytes = await readFile(blob, { signal: request.signal }); }
+  catch { request.signal?.throwIfAborted(); throw attachmentErrors.unreadable(`附件「${row.title}」读不到了，请重新添加`); }
+  request.signal?.throwIfAborted();
+  if (!ownedRow(home, owner, sha256)) throw attachmentErrors.not_found("找不到这个附件");
+  if (createHash("sha256").update(bytes).digest("hex") !== sha256) throw attachmentErrors.unreadable(`附件「${row.title}」已损坏，请重新添加`);
+  return request.as === "original" ? { attachment, original: bytes } : { attachment, image: { media_type: row.media_type as ConversationAttachmentImageType, bytes } };
 }
 
 /** A deleted project's attachments, whoever attached them; bytes no other row names go with them. */
@@ -190,12 +229,12 @@ export async function forgetOwnedAttachments(home: string, owner: AttachmentOwne
 
 async function forget(home: string, where: string, values: string[]): Promise<void> {
   if (!existsSync(homeSqlitePath(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path))) return;
-  const orphaned = withStore(home, db => {
+  withStore(home, db => {
     const shas = (db.prepare(`SELECT DISTINCT sha256 FROM attachments WHERE ${where}`).all(...values) as Array<{ sha256: string }>).map(row => row.sha256);
     db.prepare(`DELETE FROM attachments WHERE ${where}`).run(...values);
-    return shas.filter(sha => !db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1").get(sha));
+    const named = db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1");
+    for (const sha of shas) if (!named.get(sha)) rmSync(path.join(blobsOf(home), sha), { force: true });
   });
-  await Promise.all(orphaned.map(sha => rm(path.join(blobsOf(home), sha), { force: true })));
 }
 
 /** What a document is, by its name, for the person and for the record; its text is what the model reads. */

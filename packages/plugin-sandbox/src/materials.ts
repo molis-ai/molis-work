@@ -1,6 +1,6 @@
 import type { PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxAttachmentPart, SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest, SandboxMaterialSourceContent } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { MaterialSource, MaterialUpload } from '@molis-ai/molis-work-contracts/services/materials';
+import { CONVERSATION_ATTACHMENT_LIMITS, type ConversationAttachmentContent, type MaterialSource, type MaterialUpload } from '@molis-ai/molis-work-contracts/services/materials';
 import type { MaterialRef } from '@molis-ai/molis-work-contracts/platform/project-materials';
 import { SandboxError } from './schema.js';
 
@@ -120,7 +120,7 @@ export function attachmentRef(value: SandboxJson | undefined): MaterialRef {
 
 /** Which part of an attached picture: a start inside the 5 MB a picture may be, and at most 256 KiB. */
 export function attachmentPart(offset: SandboxJson | undefined, length: SandboxJson | undefined): { offset: number; length: number } {
-  if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 || offset > 5 * 1024 * 1024) throw invalid('A start is a whole number of bytes inside the picture');
+  if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 || offset > CONVERSATION_ATTACHMENT_LIMITS.image_bytes) throw invalid('A start is a whole number of bytes inside the picture');
   if (typeof length !== 'number' || !Number.isSafeInteger(length) || length < 1 || length > ORIGINAL_PART_BYTES) throw invalid('A part is 1 byte to 256 KiB');
   return { offset, length };
 }
@@ -129,17 +129,42 @@ export function attachmentPart(offset: SandboxJson | undefined, length: SandboxJ
  * The three attachment methods the worker calls (attach, read the text, read a picture's part), each with its own argument count; undefined
  * when the Host built no attachment service for this activation. The Host's client names the owner; this side only bounds what crosses.
  */
-export function attachmentCall(method: string, args: readonly SandboxJson[], materials: PluginMaterialsClient | undefined, signal: AbortSignal | undefined): Promise<SandboxJson> | undefined {
+const attachmentReads = new WeakMap<object, Map<string, NonNullable<ConversationAttachmentContent['image']>>>();
+
+export function attachmentCall(method: string, args: readonly SandboxJson[], materials: PluginMaterialsClient | undefined, signal: AbortSignal | undefined,
+  call?: object): Promise<SandboxJson> | undefined {
   const count = (n: number) => { if (args.length !== n) throw invalid('Invalid SDK argument count'); };
-  if (method === 'materials.attach') { count(1); const upload = materialUpload(args[0]); return materials?.attach && (async () => plainJson(await materials.attach!(upload, signal ? { signal } : {})))(); }
+  if (method === 'materials.attach') {
+    if (args.length !== 2) count(1);
+    const upload = materialUpload(args[0]);
+    const expected_kind = args.length === 2 ? plainObject(args[1], 'An attachment request', ['expected_kind']).expected_kind : undefined;
+    if (expected_kind !== undefined && expected_kind !== 'image') throw invalid('An expected attachment kind is image');
+    return materials?.attach && (async () => plainJson(await materials.attach!(upload, { signal, expected_kind })))();
+  }
   if (method === 'materials.readAttachment') { count(1); const ref = attachmentRef(args[0]); return materials?.readAttachment && (async () => plainJson(await materials.readAttachment!(ref, { as: 'text', ...(signal ? { signal } : {}) })))(); }
   if (method !== 'materials.readAttachmentPart') throw invalid('Unknown materials method');
   count(3);
   const ref = attachmentRef(args[0]), { offset, length } = attachmentPart(args[1], args[2]);
   return materials?.readAttachment && (async () => {
-    const image = (await materials.readAttachment!(ref, { as: 'image', ...(signal ? { signal } : {}) })).image;
-    if (!image) throw invalid('This attachment is not a picture');
-    const bytes = Buffer.from(image.bytes).subarray(offset, offset + length);
+    let held = call && attachmentReads.get(call);
+    if (!held && call) attachmentReads.set(call, held = new Map());
+    const key = JSON.stringify([ref.subject.kind, ref.subject.id, ref.pin]);
+    let image = held?.get(key);
+    if (image) {
+      // Recheck the running grant and exact attachment row, without loading the immutable bytes again.
+      const meta = await materials.readAttachment!(ref, { as: 'text', signal });
+      if (meta.attachment.kind !== 'image') throw invalid('This attachment is not a picture');
+    } else {
+      image = (await materials.readAttachment!(ref, { as: 'image', signal })).image;
+      if (!image || image.bytes.byteLength > CONVERSATION_ATTACHMENT_LIMITS.image_bytes) throw invalid('This attachment is not a supported picture');
+    }
+    if (held) {
+      held.delete(key);
+      if (held.size >= CONVERSATION_ATTACHMENT_LIMITS.round_images) held.delete(held.keys().next().value!);
+      held.set(key, image);
+    }
+    const part = image.bytes.subarray(offset, offset + length);
+    const bytes = Buffer.from(part.buffer, part.byteOffset, part.byteLength);
     return { data_base64: bytes.toString('base64'), byte_length: bytes.length, size: image.bytes.length, media_type: image.media_type } satisfies SandboxAttachmentPart;
   })();
 }

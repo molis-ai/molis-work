@@ -1,4 +1,4 @@
-import type { ConversationAttachment, ConversationAttachmentContent } from '../services/materials.js';
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentUploadRequest } from '../services/materials.js';
 import type { MaterialRef } from './project-materials.js';
 import type { ActionSchema } from './action-schema.js';
 import type { PresentationDeclaration } from './presentation-declaration.js';
@@ -407,7 +407,7 @@ export interface SandboxSdk {
     readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
     releaseOriginal(record_key: string): Promise<void>;
     /** A file the person brought into this plugin's conversation, kept as this installation's attachment in this project (`materials:read`). */
-    attach(file: SandboxMaterialFile): Promise<ConversationAttachment>;
+    attach(file: SandboxMaterialFile, request?: Pick<ConversationAttachmentUploadRequest, 'expected_kind'>): Promise<ConversationAttachment>;
     /** One of this installation's attachments read back: its text, or a picture's bytes (read in parts of at most 256 KiB). */
     readAttachment(ref: MaterialRef, request: { as: 'text' | 'image' }): Promise<ConversationAttachmentContent>;
   };

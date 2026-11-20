@@ -3,7 +3,6 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { spawn, type IPty } from "node-pty";
 
 import type {
   PtyHostHandlers,
@@ -50,13 +49,61 @@ const BLOCKED_ENV_PREFIXES = [
   "CODEX_",
 ];
 
+// Keep the compile-time surface local so builds also work without the optional package.
+interface PtyProcess {
+  readonly pid: number;
+  onData(listener: (data: string) => void): void;
+  onExit(listener: (event: { exitCode: number; signal?: number }) => void): void;
+  resize(cols: number, rows: number): void;
+  write(data: string): void;
+  kill(): void;
+}
+
+interface NodePty {
+  spawn(command: string, args: string[], options: {
+    name: string;
+    cols: number;
+    rows: number;
+    cwd: string;
+    env: Record<string, string>;
+  }): PtyProcess;
+}
+
+const require = createRequire(import.meta.url);
+let cachedNodePty: NodePty | Error | undefined;
 let cachedLoginEnv: Record<string, string> | null = null;
+
+function loadNodePty(): NodePty {
+  if (cachedNodePty instanceof Error) throw cachedNodePty;
+  if (cachedNodePty) return cachedNodePty;
+  try {
+    const nodePty: NodePty = require("node-pty");
+    ensureMacosSpawnHelperExecutable();
+    cachedNodePty = nodePty;
+    return nodePty;
+  } catch (cause) {
+    cachedNodePty = new Error(
+      "当前环境缺少终端原生组件，工作台的其他功能仍可使用。如需打开终端，请安装编译工具后重新构建，或使用预构建安装包。",
+      { cause },
+    );
+    throw cachedNodePty;
+  }
+}
+
+export function isPtyNativeAvailable(): { available: boolean; reason?: string } {
+  try {
+    loadNodePty();
+    return { available: true };
+  } catch (error) {
+    return { available: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 function ensureMacosSpawnHelperExecutable(): void {
   if (process.platform !== "darwin") return;
   let ptyRoot: string;
   try {
-    ptyRoot = path.dirname(createRequire(import.meta.url).resolve("node-pty/package.json"));
+    ptyRoot = path.dirname(require.resolve("node-pty/package.json"));
   } catch {
     return;
   }
@@ -75,7 +122,6 @@ function ensureMacosSpawnHelperExecutable(): void {
   }
 }
 
-ensureMacosSpawnHelperExecutable();
 
 export function isBlockedPtyEnvKey(key: string): boolean {
   if (BLOCKED_ENV_KEYS.has(key)) return true;
@@ -324,7 +370,7 @@ export function buildPtyEnvironment(overlay: Record<string, string> = {}, login:
   return env;
 }
 
-function terminatePtyProcess(session: IPty): void {
+function terminatePtyProcess(session: PtyProcess): void {
   const pid = session.pid;
   if (typeof pid === "number" && pid > 1 && process.platform !== "win32") {
     try {
@@ -350,7 +396,7 @@ function clipReplay(value: string): string {
 }
 
 export class MolisWorkPtyHost {
-  private readonly sessions = new Map<string, IPty>();
+  private readonly sessions = new Map<string, PtyProcess>();
   private readonly replay = new Map<string, string>();
 
   constructor(private readonly handlers: PtyHostHandlers) {}
@@ -380,7 +426,7 @@ export class MolisWorkPtyHost {
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
       throw new Error(`工作目录不存在：${cwd}，请检查项目绑定的目录。`);
     }
-    const proc = spawn(command, request.args ?? [], {
+    const proc = loadNodePty().spawn(command, request.args ?? [], {
       name: "xterm-256color",
       cols,
       rows,

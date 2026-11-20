@@ -8,7 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import * as p from "@clack/prompts";
+import { runPreflight } from "./preflight-env.mjs";
+
+let p;
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SERVICE_LABEL = "com.molis.work.web";
@@ -161,7 +163,6 @@ function detect(opts) {
     mcpPids: pidsMatching(MCP_BINARY_PATTERN),
     listener,
     listenerIsOurs: listener ? isMolisWorkListener(listener.pid) : true,
-    nodeModulesExists: existsSync(path.join(REPO_ROOT, "node_modules")),
     dist: distState(),
     cargoAvailable: run("which", ["cargo"]).ok,
   };
@@ -404,6 +405,22 @@ function nonInteractivePlan(state, opts) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  const preflight = runPreflight({ strictNative: opts.strictNative });
+  if (preflight) {
+    process.exitCode = preflight;
+    return;
+  }
+  if (!existsSync(path.join(REPO_ROOT, "node_modules", "@clack", "prompts", "package.json"))) {
+    if (!opts.install) {
+      console.error("✗ 启动依赖缺失且指定了 --no-install，无法继续");
+      process.exitCode = 1;
+      return;
+    }
+    console.log("安装依赖（pnpm install --frozen-lockfile）…");
+    await runStreaming("pnpm", ["install", "--frozen-lockfile"]);
+    console.log("依赖安装完成");
+  }
+  p = await import("@clack/prompts");
   const interactive = Boolean(process.stdin.isTTY) && !opts.yes;
   const state = detect(opts);
 
@@ -422,16 +439,6 @@ async function main() {
     }
   } else if (plan.doClean) {
     p.log.step("没有发现需要清理的实例");
-  }
-
-  if (!state.nodeModulesExists) {
-    if (!opts.install) {
-      console.error("✗ node_modules 缺失且指定了 --no-install，无法继续");
-      process.exit(1);
-    }
-    p.log.step("安装依赖（pnpm install --frozen-lockfile）…");
-    await runStreaming("pnpm", ["install", "--frozen-lockfile"]);
-    p.log.step("依赖安装完成");
   }
 
   if (plan.rebuild) {
@@ -503,7 +510,7 @@ async function main() {
 // ---------- 参数 ----------
 
 function parseArgs(argv) {
-  const opts = { web: false, port: DEFAULT_PORT, home: null, build: false, clean: true, open: true, install: true, yes: false };
+  const opts = { web: false, port: DEFAULT_PORT, home: null, build: false, clean: true, open: true, install: true, yes: false, strictNative: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === "--web") opts.web = true;
@@ -512,6 +519,7 @@ function parseArgs(argv) {
     else if (arg === "--build") opts.build = true;
     else if (arg === "--no-clean") opts.clean = false;
     else if (arg === "--no-open") opts.open = false;
+    else if (arg === "--strict-native") opts.strictNative = true;
     else if (arg === "--no-install") opts.install = false;
     else if (arg === "--yes" || arg === "-y") opts.yes = true;
     else if (arg === "--help" || arg === "-h") {
@@ -527,6 +535,7 @@ function parseArgs(argv) {
   --no-clean     跳过清理现有实例
   --no-open      就绪后不打开浏览器
   --no-install   不自动安装依赖
+  --strict-native 缺少终端编译工具时中止启动
   --yes, -y      跳过向导，按默认值直启（非交互环境自动生效）`);
       process.exit(0);
     }

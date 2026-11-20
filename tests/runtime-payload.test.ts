@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
+import { checkNativePtyPrereqs, checkNodeVersion, runPreflight } from "../scripts/preflight-env.mjs";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
 const exec = promisify(execFile);
@@ -224,4 +225,122 @@ test("failed payload preparation leaves an existing Desktop resource untouched",
     ]));
     assert.equal(await readFile(join(resources, "existing"), "utf8"), "old working payload");
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("AC-T1-01 rejects Node outside the pinned minor version", async () => {
+  const { engines } = JSON.parse(await readFile("package.json", "utf8"));
+  const wrong = checkNodeVersion("24.22.0", engines.node);
+  assert.equal(wrong.ok, false);
+  assert.equal(wrong.code, "node_version_mismatch");
+  assert.match(wrong.message, /24\.22\.0.*24\.15\.x/);
+  assert.deepEqual(checkNodeVersion("24.15.0", engines.node), { ok: true });
+  assert.deepEqual(checkNodeVersion("24.15.11", engines.node), { ok: true });
+  assert.equal(checkNodeVersion("24.16.0", engines.node).ok, false);
+});
+
+test("AC-T1-02 startup can warn on missing terminal tools or refuse strict mode", async () => {
+  const repoRoot = await mkdtemp(join(tmpdir(), "molis-work-preflight-"));
+  try {
+    const missingTools = {
+      platform: "linux",
+      arch: "x64",
+      repoRoot,
+      hasCommand: (name: string) => name === "python3",
+    };
+    const missing = checkNativePtyPrereqs(missingTools);
+    assert.equal(missing.ok, false);
+    assert.deepEqual(missing.missing, ["make", "g++"]);
+    await copyFile("package.json", join(repoRoot, "package.json"));
+    const messages: string[] = [];
+    const report = (message: string) => messages.push(message);
+    assert.equal(runPreflight({ ...missingTools, report }), 0);
+    assert.equal(runPreflight({ ...missingTools, strictNative: true, report }), 1);
+    assert.deepEqual(messages.map(message => message.match(/^\[(.*?)\]/)?.[1]), [
+      "native_toolchain_missing",
+      "native_toolchain_missing",
+    ]);
+
+    const prebuilt = join(repoRoot, "node_modules", "node-pty", "prebuilds", "linux-x64");
+    await mkdir(prebuilt, { recursive: true });
+    await writeFile(join(prebuilt, "pty.node"), "");
+    assert.deepEqual(checkNativePtyPrereqs({
+      ...missingTools,
+      hasCommand: () => assert.fail("A prebuilt native module must bypass tool probes"),
+    }), { ok: true, mode: "prebuilt" });
+
+    await mkdir(join(repoRoot, "scripts"));
+    for (const name of ["start.mjs", "preflight-env.mjs", "script-paths.mjs"]) {
+      await copyFile(join("scripts", name), join(repoRoot, "scripts", name));
+    }
+    await assert.rejects(exec(process.execPath, [join(repoRoot, "scripts/start.mjs"), "--strict-native"], {
+      cwd: repoRoot,
+      env: { ...process.env, PATH: "" },
+    }), { code: 1, stderr: /\[native_toolchain_missing\]/ });
+  } finally {
+    await rm(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("AC-T1-03 and AC-T1-04 load without node-pty and report its absence at terminal and CLI login use", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-without-node-pty-"));
+  try {
+    // Only resolve this executable; no CLI login process should be spawned.
+    await writeFile(join(home, "gh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    await exec(process.execPath, ["--input-type=module", "-e", `
+      import assert from "node:assert/strict";
+      import { registerHooks } from "node:module";
+      let loaded = 0;
+      registerHooks({
+        resolve(specifier, context, nextResolve) {
+          if (specifier === "node-pty" || specifier === "node-pty/package.json") {
+            loaded++;
+            throw Object.assign(new Error("Fixture has no node-pty"), { code: "MODULE_NOT_FOUND" });
+          }
+          return nextResolve(specifier, context);
+        },
+      });
+      await import("@molis-ai/molis-work-app-local-host");
+      const { MolisWorkPtyHost } = await import("@molis-ai/molis-work-service-runtime-host");
+      const { isPtyNativeAvailable } = await import("./horizontal/runtime-host/dist/adapters/terminal-pty.js");
+      const terminal = new MolisWorkPtyHost({ onData() {}, onExit() {} });
+      assert.equal(terminal.alive("demo"), false);
+      assert.throws(() => terminal.spawn({ panelId: "demo" }), /缺少启动命令/);
+      assert.equal(loaded, 0);
+      assert.throws(() => terminal.spawn({
+        panelId: "demo",
+        command: process.execPath,
+        cwd: process.env.MOLIS_WORK_HOME,
+      }), /缺少终端原生组件/);
+      assert.deepEqual(isPtyNativeAvailable(), {
+        available: false,
+        reason: "当前环境缺少终端原生组件，工作台的其他功能仍可使用。如需打开终端，请安装编译工具后重新构建，或使用预构建安装包。",
+      });
+      assert.equal(loaded, 1);
+
+      const { ConnectorCliError, startCliLogin } = await import("./apps/local-host/dist/connector-cli.js");
+      await assert.rejects(startCliLogin(process.env.MOLIS_WORK_HOME, "github"), error => {
+        assert.ok(error instanceof ConnectorCliError);
+        assert.match(error.message, /缺少终端原生组件.*交互式 CLI 登录/);
+        return true;
+      });
+      assert.equal(loaded, 2);
+    `], { env: { ...process.env, MOLIS_WORK_HOME: home, PATH: home, NODE_PATH: "" } });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("AC-T1-05 pins the native terminal module as optional in all three manifests", async () => {
+  for (const file of ["package.json", "apps/local-host/package.json", "horizontal/runtime-host/package.json"]) {
+    const manifest = JSON.parse(await readFile(file, "utf8"));
+    if (file === "package.json") {
+      assert.deepEqual(manifest.devEngines.runtime, {
+        name: "node",
+        version: ">=24.15.0 <24.16.0",
+        onFail: "error",
+      });
+    }
+    assert.equal(manifest.optionalDependencies["node-pty"], "1.1.0", file);
+    assert.equal(manifest.dependencies["node-pty"], undefined, file);
+  }
 });

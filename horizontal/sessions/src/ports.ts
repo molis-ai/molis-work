@@ -224,7 +224,7 @@ export type AdapterHistoryInput = Omit<ExternalSessionHistoryInput, "session_key
 
 export interface ExternalSessionSourceAdapter {
   readonly entry_id: ExternalToolId;
-  discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch>;
+  discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal, alreadyRead: number): Promise<AdapterDiscoveryBatch>;
   readHistory?(
     context: AdapterSourceContext,
     nativeId: string,

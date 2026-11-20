@@ -7,7 +7,7 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // Roadmap batch 07-2a (docs/reviews/adversarial-review-2026-11-01.md N53, N54): a page asks nothing it knows will fail.
 // The project chooser has no project, so it asks no project's declarations; no page asks for a favicon the product does
-// not have; an old tab whose project is gone stops reading what waits on the person after the first 404.
+// not have; an old tab whose project is gone stops reading what waits on the person after the first confirmed project-deleted 404 (MR19-09).
 
 /** Every request the page sends to this origin, by path with the project prefix removed. */
 function recorder(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {

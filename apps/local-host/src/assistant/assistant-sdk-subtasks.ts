@@ -33,6 +33,7 @@ export class AssistantSdkSubtasks {
     const work = this.store.get(this.actorId, workId);
     if (!work.session_id) return [];
     const { session, port } = await this.original(workId);
+    if (port.listForRuns) return port.listForRuns(session.runs);
     return (await Promise.all(session.runs.map(run => port.list(run)))).flat();
   }
   /** The existing notice sweep reads original results, even while the parent panel is closed. */

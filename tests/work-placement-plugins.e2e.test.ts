@@ -79,9 +79,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
       [...toast.querySelectorAll('button')].find(button => button.textContent.trim() === ${text(label)}).setAttribute('data-e2e-target', ''); })()`);
     await click("[data-e2e-target]");
   };
-  const current = () => evaluate<{ kind: string; id: string; title: string } | null>(`(() => {
+  const activeObject = `(() => {
     const node = [...document.querySelectorAll('[data-assistant-context]')].find(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object);
-    return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`);
+    return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`;
+  const current = () => evaluate<{ kind: string; id: string; title: string } | null>(activeObject);
   const describe = (object: PlacedObject) => evaluate<PlacementDescription>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
@@ -150,7 +151,7 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await press("[data-form-to-dataset]");
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
-  assert.equal((await current())?.id, table!.id);
+  await waitFor(`${activeObject}?.id === ${text(table!.id)}`, 15_000);
   const datasetStore = openDatasetStore(homeDirectory);
   try {
     const appended = datasetStore.get(table!.id, projectId!);

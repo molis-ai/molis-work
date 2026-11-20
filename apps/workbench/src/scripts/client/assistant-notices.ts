@@ -133,14 +133,17 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     drawTabs(); paintList();
     if (noticePop && !noticePop.hidden) paintNotices();
   };
+  const barNotices = document.querySelector("[data-bar-notices]");
+  let noticeTrigger = null;
   const setNotices = (open) => {
     if (!noticePop) return;
+    if (open) noticeTrigger = document.activeElement === barNotices ? barNotices : noticeBtn;
     noticePop.hidden = !open;
     noticeBtn?.setAttribute("aria-expanded", String(open));
     if (open) {
       paintNotices(true); noticePop.querySelector("button")?.focus();
       void attentionObjects?.update().then(() => {
-        if (!noticePop.hidden && document.activeElement === noticeBtn) {
+        if (!noticePop.hidden && document.activeElement === noticeTrigger) {
           const first = [...objectList.querySelectorAll("[data-home-row] [tabindex], [data-home-row] button, .surface-correction-default summary")]
             .find(node => node.closest("[data-home-row]") && node.checkVisibility() && !node.disabled);
           (first || objectList.querySelector(".surface-correction-default summary"))?.focus();

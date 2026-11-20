@@ -104,7 +104,7 @@ function paintWaiting(waiting: number): void {
 function installNoticesKey(): void {
   const notices = document.querySelector<HTMLElement>("[data-bar-notices]"), bell = document.querySelector<HTMLElement>("[data-assistant-attention]");
   if (!notices || !bell) return;
-  notices.addEventListener("click", () => bell.click());
+  notices.addEventListener("click", () => { notices.focus({ preventScroll: true }); bell.click(); });
   const mirror = () => {
     const count = notices.querySelector<HTMLElement>("[data-bar-notices-count]"), n = Number(/\d+/.exec(bell.querySelector("[data-assistant-attention-count]")?.textContent ?? "")?.[0] ?? 0);
     if (count) { count.hidden = !n; count.textContent = String(n); }

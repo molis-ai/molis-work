@@ -154,4 +154,18 @@ test("BSH-08 SSC-28 a Goal follows a project-folder file with what was read, and
   await click("[data-goal-inputs] [data-goal-material-snapshot] [data-goal-input-release]");
   await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]')", 10_000);
   assert.doesNotMatch(await goalPage(), /data-goal-material-snapshot=/);
+
+  // AC-T4-01: the workbench marks the change, opens the real file, and accepts the reviewed version via the keyboard.
+  const review = '[data-source-review-pending="1"] [data-goal-source-review]';
+  await click(review);
+  await click("dialog.placement-dialog [data-goal-source-open]");
+  await waitFor("document.querySelector('[data-side-materials-window]')?.textContent === " + JSON.stringify("第二版\n"), 15_000);
+  await click(review);
+  await evaluate("document.querySelector('dialog.placement-dialog [data-placement-confirm]').focus()");
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("!document.querySelector('[data-source-review-pending]')", 15_000);
+  assert.equal(await evaluate("document.querySelector('dialog.placement-dialog')?.innerText ?? ''"), "");
+  await open();
+  await waitFor("Boolean(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-filled]'))");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-source-review-pending]'))"), false);
 });

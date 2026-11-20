@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { addProjectInputFolder } from "./fixtures/project-directories-http.js";
+import { openTestHome } from "./fixtures/test-home.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
@@ -192,4 +196,65 @@ test("RAC-1888 a bound name and a confirmed name keep every character the schema
       });
     }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is decided by the person on the exact reviewed file version", { timeout: 60_000 }, async t => {
+  const served = await openTestHome(t);
+  const project = await served.createProject("Follow original", ["goals"]);
+  const goalId = "SOURCE-REVIEW";
+  const permissions = ["goals:read", "goals:write", "goals:decide", "workspace:read"];
+  const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions };
+  const actions = served.host.actionClient(project.reference), user = bindActionClient(actions, () => person);
+  const folder = await mkdtemp(join(tmpdir(), "goals-review-source-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const { workspace_id } = await addProjectInputFolder(served.web, project.project_id, folder);
+  const file = join(folder, "source.txt");
+  const write = async (text: string) => {
+    await writeFile(file, text);
+    return createHash("sha256").update(text).digest("hex");
+  };
+  await user.invoke(goalsActions.create, { goal_id: goalId, title: "Read the original", idempotency_key: "create" });
+  const original = await write("First version");
+  const { binding } = await user.invoke(goalsActions.inputsBind, { goal_id: goalId, subject: { kind: "workspace_file", id: `${workspace_id}:source.txt` },
+    title: "source.txt", read_revision: original });
+  const stored = () => served.host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalInputs.list(project.project_id).find(row => row.binding_id === binding.binding_id)!);
+  const projectApprovals = `/projects/${project.project_id}/api/project-approvals`;
+  const review = (old: string, observed: string, note?: string) => served.web.post<ReviewRequest>(`${projectApprovals}/request`, {
+    action: { capability_id: goalsActions.inputsReviewChange.capability_id, version: goalsActions.inputsReviewChange.version, provider_id: GOALS_PLUGIN_ID },
+    request_id: binding.binding_id, draft: { goal_id: goalId, expected_old_digest: `sha256:${old}`, observed_new_digest: `sha256:${observed}`, ...(note ? { note } : {}) },
+  });
+  const decide = (offer: ReviewRequest, choice_id: "adopt_latest" | "remove", request_key = randomUUID()) =>
+    served.web.post(`${projectApprovals}/decide`, { reference: offer.reference, choice_id, request_key });
+
+  const next = await write("Second version");
+  const proposed = { goal_id: goalId, binding_id: binding.binding_id, decision: "adopt_latest", expected_old_digest: `sha256:${original}`, observed_new_digest: `sha256:${next}` } as const;
+  for (const audience of ["agent", "workflow", "mcp", "plugin"] as const) {
+    const caller: ActionCallContext = { ...person, audience, actor_kind: "runtime" };
+    const visible = await actions.discover(caller);
+    assert.ok(!visible.some(row => row.capability_id === goalsActions.inputsReviewChange.capability_id), audience);
+    await assert.rejects(actions.invoke(caller, goalsActions.inputsReviewChange, proposed), { code: "actions.forbidden" }, audience);
+  }
+  await assert.rejects(user.invoke(goalsActions.inputsReviewChange, proposed), { code: "actions.forbidden" });
+  assert.equal((await stored()).snapshot_digest, `sha256:${original}`);
+
+  await assert.rejects(review(original, next, "字".repeat(201)), { code: "actions.input_invalid" });
+  const oldOffer = await review(original, next);
+  const latest = await write("Third version");
+  await assert.rejects(decide(oldOffer, "adopt_latest"), { code: "actions.conflict" });
+  assert.equal((await stored()).snapshot_digest, `sha256:${original}`);
+  const matching = await review(original, latest, "Checked the source file");
+  const choiceKey = randomUUID();
+  await decide(matching, "adopt_latest", choiceKey);
+  await decide(matching, "adopt_latest", choiceKey);
+  assert.equal((await stored()).snapshot_digest, `sha256:${latest}`);
+  assert.match((await stored()).reason, /^人工已复核来源变更.*Checked the source file$/);
+
+  const final = await write("Fourth version");
+  await assert.rejects(review(original, final), { code: "actions.conflict" });
+  assert.equal((await stored()).snapshot_digest, `sha256:${latest}`);
+  const removal = await review(latest, final);
+  await decide(removal, "remove");
+  assert.equal((await stored()).state, "inactive");
+  assert.equal(await readFile(file, "utf8"), "Fourth version");
 });

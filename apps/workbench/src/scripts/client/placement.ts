@@ -516,7 +516,59 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         if (view.state === "ok" && object.kind === "workspace_file" && digest !== undefined) {
           if (!digest) state.textContent += " · " + globalThis.t.text("workbench.placement.content-not-checked");
           else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
-            .then((read) => { if (read.state === "changed") state.textContent += " · " + globalThis.t.text("workbench.placement.changed"); }).catch(() => {});
+            .then((read) => {
+              if (read.state !== "changed") return;
+              const bindingId = row.dataset.goalInputBinding;
+              if (!bindingId || !read.comparable || !/^[0-9a-f]{64}$/.test(read.read_revision)) {
+                state.textContent += " · " + globalThis.t.text("workbench.placement.changed"); return;
+              }
+              const latestDigest = "sha256:" + read.read_revision, normalState = state.textContent;
+              const pending = node("strong", globalThis.t.text("workbench.placement.changed-needs-review"));
+              const review = ghost(globalThis.t.text("workbench.placement.source-review"));
+              review.dataset.goalSourceReview = ""; row.dataset.sourceReviewPending = "1";
+              state.append(" · ", pending); actions.prepend(review); remove.remove();
+              review.onclick = () => {
+                const detail = node("p", globalThis.t.text("workbench.placement.source-versions", { previous: digest.slice(7, 15), current: read.read_revision.slice(0, 8) }));
+                const open = ghost(globalThis.t.text("workbench.placement.source-open")), unlink = ghost(globalThis.t.text("common.source-review.remove"));
+                open.dataset.goalSourceOpen = ""; unlink.dataset.goalSourceRemove = "";
+                let decision = "adopt_latest", reference;
+                const requestKeys = new Map();
+                const post = (path, body) => molisWorkRequest(route("/api/project-approvals/" + path), { body, fallback: globalThis.t.text("workbench.placement.source-review-failed") });
+                const shell = dialog(globalThis.t.text("workbench.placement.source-review"), globalThis.t.text("workbench.placement.source-review-hint"), [detail, open], globalThis.t.text("common.source-review.adopt"), async () => {
+                  unlink.disabled = true;
+                  try {
+                    if (!reference) ({ reference } = await post("request", {
+                      action: { capability_id: "goals.inputs.review_change", version: 1, provider_id: "io.molis.work.goals" }, request_id: bindingId,
+                      draft: { goal_id: row.dataset.goalId, expected_old_digest: digest, observed_new_digest: latestDigest },
+                    }));
+                    if (!requestKeys.has(decision)) requestKeys.set(decision, crypto.randomUUID());
+                    if (!shell.isConnected || !shell.open || !row.isConnected) return;
+                    const { record, result } = await post("decide", { reference, choice_id: decision, request_key: requestKeys.get(decision) });
+                    if (record?.reference?.id !== reference.id || record.reference.version !== reference.version || record.decision !== decision
+                      || record.effect_settled === false || record.effect_error || result?.binding_id !== bindingId || result.decision !== decision
+                      || (decision === "adopt_latest" && result.snapshot_digest !== latestDigest)) {
+                      throw new Error(globalThis.t.text("workbench.placement.source-review-failed"));
+                    }
+                    invalidate();
+                    if (decision === "remove") { row.remove(); return; }
+                    row.dataset.goalInputDigest = latestDigest; delete row.dataset.sourceReviewPending;
+                    state.textContent = normalState + " · " + globalThis.t.text("workbench.placement.source-reviewed");
+                    review.remove(); actions.append(remove);
+                  } finally { unlink.disabled = false; }
+                });
+                open.onclick = () => {
+                  shell.close();
+                  document.dispatchEvent(new CustomEvent("molis:side-open", { cancelable: true, detail: { tab: "files", target: { subject: { kind: object.kind, id: object.id }, title: view.title }, focus: true } }));
+                };
+                const submit = shell.querySelector("[data-placement-confirm]");
+                submit.onclick = () => { decision = "adopt_latest"; };
+                unlink.onclick = () => {
+                  decision = "remove";
+                  submit.form.requestSubmit();
+                };
+                submit.before(unlink);
+              };
+            }).catch(() => {});
         }
         if (view.state === "ok" && view.open) {
           const open = ghost(globalThis.t.text("common.control.open"));

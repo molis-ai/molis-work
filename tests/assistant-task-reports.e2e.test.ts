@@ -6,7 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { attentionChanged } from "@molis-ai/molis-work-app-local-host";
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
-import { openWork, sendBrowser, waitWork, readWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openWork, sendBrowser, waitWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // Batch 97 (specs/post-anticorruption-roadmap/reference/batches/97.md), as the person sees it: two Images generations
 // no conversation started end together in one project; its main conversation gets one round that only reports, listing both, and
@@ -31,7 +31,7 @@ function endImages(home: string, projectId: string, jobs: Array<{ id: string; pr
   attentionChanged(projectId);
 }
 
-test("WRB-01 WRB-02 WRB-04: two generations ending together in a project are one report round in its main conversation, each told once; another project's is its own", { timeout: 180_000 }, async t => {
+test("RRC-01 RRC-02 WRB-01 WRB-02 WRB-04: two generations ending together in a project are one report round in its main conversation, each told once; another project's is its own", { timeout: 180_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const { projectId, homeDirectory, web } = browser;
   const main = await mainConversation(browser, projectId);
@@ -55,6 +55,11 @@ test("WRB-01 WRB-02 WRB-04: two generations ending together in a project are one
   try {
     const told = kept.prepare("SELECT work_id FROM assistant_notices WHERE dedupe LIKE 'task-report-%' ORDER BY work_id").all().map(row => String(row.work_id));
     assert.deepEqual(told, [main, main, otherMain].sort());
+    // RRC-01 RRC-02 on the real path: the round the Host started to report is stored with its mark; the person's own first round is not.
+    const marks = (workId: string) => kept.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId)
+      .map(row => (JSON.parse(String(row.body)) as { report_only?: unknown }).report_only ?? null);
+    assert.deepEqual(marks(main), [null, true], "the report's round carries report_only, the person's does not");
+    assert.deepEqual(marks(otherMain), [null, true]);
   } finally { kept.close(); }
   // What the person sees in the main conversation: the forwarded results as the Host's words, then one reply.
   await openWork(browser, main);
@@ -68,8 +73,10 @@ test("WRB-01 WRB-02 WRB-04: two generations ending together in a project are one
     await writeFile(new URL("report-two-tasks-1440.png", output), Buffer.from(data, "base64"));
   }
 
-  // The project changing again tells nothing more.
-  attentionChanged(projectId);
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  assert.equal((await readWork(browser, main)).rounds.length, 2, "no second report");
+  // What was told is not told again: a later end in the project gets a round of its own that lists only it.
+  endImages(homeDirectory, projectId, [{ id: "img-d", prompt: "森林小屋", status: "succeeded" }]);
+  const later = await waitWork(browser, main, view => view.rounds.length === 3 && view.work.state === "completed");
+  const laterSaid = later.rounds[2]!.turns?.find(turn => turn.kind === "user")?.text ?? "";
+  assert.match(laterSaid, /^（Molis 转告）后台任务「森林小屋」已经办完/u, "only the new end, told as one");
+  assert.doesNotMatch(laterSaid, /海边的灯塔|雪山日出/u, "the two told before are not told again");
 });

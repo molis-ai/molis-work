@@ -10,7 +10,7 @@ import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/mol
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { backgroundTaskRow } from "@molis-ai/molis-work-service-mainline";
-import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID, ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantReportRounds, AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, roundStartInput, type TaskReport } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID, ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantReportRounds, AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, reportTurn, roundStartInput, type TaskReport } from "@molis-ai/molis-work-app-local-host";
 
 // specs/work-line contract-design §9 and spec.md (user decision 2026-11-15): a task no conversation started marks its row
 // `reports_to: "assistant"`; once the table shows it ended, the scope's Assistant runs one round in the main conversation that
@@ -298,4 +298,36 @@ test("WRB-01 WRB-03 WRB-04 one round lists every result, busy waits whole, a ret
     assert.deepEqual(started.map(one => one.work), [p.work_id, p.work_id, q.work_id]);
     assert.deepEqual(notices().map(([work]) => work), [p.work_id, p.work_id, p.work_id, q.work_id]);
   } finally { db.close(); }
+});
+
+// Batch 97-1: whether the round under way is a report is read from its stored mark (`reports`), not from a list this process kept.
+test("RRC-02 a person's words stop a round under way only when its stored mark says it reports; a report never joins a round under way", async () => {
+  const ref = { session_id: "s" } as never;
+  const run = (phase: string) => ({ latest_run: { ref: { run_id: "r1", session_id: "s" }, phase } }) as never;
+  const adapter = (after: string) => {
+    const calls: string[] = [];
+    return { calls, control: async (_ref: unknown, control: { kind: string }) => { calls.push(control.kind); },
+      observe: (_ref: unknown, listener: (view: { phase: string }) => void) => { queueMicrotask(() => listener({ phase: "stopped" })); return () => undefined; },
+      readSession: async () => { calls.push("read"); return run(after); } } as never as Parameters<typeof reportTurn>[0] & { calls: string[] };
+  };
+  const idle = adapter("stopped");
+  const ended = run("completed");
+  assert.equal(await reportTurn(idle, ref, ended, () => { throw new Error("not asked"); }, false), ended);
+  assert.equal(await reportTurn(idle, ref, ended, () => { throw new Error("not asked"); }, true), ended, "a report starts once nothing is under way");
+  assert.deepEqual(idle.calls, [], "nothing under way: nothing stopped or read again");
+
+  const answering = adapter("stopped");
+  await assert.rejects(reportTurn(answering, ref, run("running"), () => true, true), { code: "assistant.state" }, "a report waits for the round under way");
+  assert.deepEqual(answering.calls, []);
+
+  const notReport = adapter("stopped"), session = run("running");
+  assert.equal(await reportTurn(notReport, ref, session, runId => { assert.equal(runId, "r1"); return false; }, false), session, "a round with no mark goes on: the words join it");
+  assert.deepEqual(notReport.calls, []);
+
+  const report = adapter("stopped");
+  assert.deepEqual(await reportTurn(report, ref, run("running"), () => true, false), run("stopped"), "a marked report is stopped and the session read again");
+  assert.deepEqual(report.calls, ["stop", "read"]);
+
+  const stuck = adapter("running");
+  await assert.rejects(reportTurn(stuck, ref, run("running"), () => true, false), { code: "assistant.state" }, "a report that did not stop keeps the words out");
 });

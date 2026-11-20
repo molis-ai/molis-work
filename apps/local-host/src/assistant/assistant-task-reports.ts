@@ -139,15 +139,17 @@ export class AssistantReportRounds {
     const keyOf = ({ row, end }: EndedTask) => `task-report-${createHash("sha256").update(JSON.stringify([report.project_id, row.id, end, row.updated_at])).digest("base64url").slice(0, 32)}`;
     const unseen = report.tasks.flatMap(task => Date.parse(task.row.updated_at) < Date.parse(main.created_at) ? [] : [{ ...task, key: keyOf(task) }])
       .filter(task => !this.ports.store.noticeReceipts.has(this.ports.actorId, task.key));
-    // A job a conversation started and follows returns to it (assistant-jobs.ts): its provider may not know who started it.
-    const followed = unseen.length ? await this.ports.followed(report.project_id) : new Set<string>();
-    const news = unseen.filter(task => !followed.has(task.row.subject.id));
-    if (!news.length) return "none";
+    if (!unseen.length) return "none";
+    // Busy first: while the main conversation answers, a project looked at again does not read who follows what each time.
     if (main.session_id) {
       const session = await this.ports.session(main);
       if (session.recovery || (session.latest_run && !isTerminalAgentPhase(session.latest_run.phase))) return "later";
       if (await this.ports.continuation(main) === "eligible") return "later";
     }
+    // A job a conversation started and follows returns to it (assistant-jobs.ts): its provider may not know who started it.
+    const followed = await this.ports.followed(report.project_id);
+    const news = unseen.filter(task => !followed.has(task.row.subject.id));
+    if (!news.length) return "none";
     try {
       await this.ports.start(main, reportWords(news));
     } catch (error) {
@@ -164,7 +166,7 @@ export class AssistantReportRounds {
 function reportWords(tasks: readonly EndedTask[]): string {
   const ended = ({ row, end }: EndedTask) => `「${row.title}」${end === "failed" ? "没有办成" : "已经办完"}${row.step ? `：${row.step.text}` : ""}`;
   if (tasks.length === 1) {
-    const [task] = tasks as [EndedTask];
+    const task = tasks[0]!;
     return `（Molis 转告）后台任务${ended(task)}。这项任务由「${task.row.origin.title}」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。`;
   }
   const lines = tasks.map(task => `- ${ended(task)}（由「${task.row.origin.title}」发起）`).join("\n");

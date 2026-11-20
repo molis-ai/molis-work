@@ -61,8 +61,12 @@ type ReportTurnAdapter = Parameters<typeof stopAndWait>[0] & { readSession(ref: 
 /**
  * A round that only reports holds read-only authority, so the two never mix: a report never reaches a round under way (it waits for
  * that round's end), and a person's words never join a report: it is stopped (a bounded wait) and their own round starts.
+ *
+ * `reports` reads the round's stored mark. A round the Host starts to report is stored only microtasks after `host.start` returns
+ * (its `beforeEffect` has no fence of its own), so no person's words read the latest round before the mark is there. Keep it so:
+ * real I/O awaited between that start and `addRound` would open the gap.
  */
-async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, session: AgentSessionView, reports: (runId: string) => boolean, reportOnly: boolean): Promise<AgentSessionView> {
+export async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, session: AgentSessionView, reports: (runId: string) => boolean, reportOnly: boolean): Promise<AgentSessionView> {
   const running = session.latest_run && !isTerminalAgentPhase(session.latest_run.phase) ? session.latest_run.ref : undefined;
   if (!running) return session;
   if (reportOnly) throw assistantErrors.state("这段对话正在回答，汇报等它这一轮结束");

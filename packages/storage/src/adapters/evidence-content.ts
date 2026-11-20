@@ -7,9 +7,19 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
 import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
+
+const errors = defineErrorCodes("storage.evidence_content", { key_unavailable: "unavailable" });
+/**
+ * The content key is not there (or is not a key). Bodies sealed with it stay as they are and no replacement key is made while any
+ * remains, so new bodies are refused until the original key is back (BL-1065).
+ */
+const keyMissing = () => errors.key_unavailable(
+  "保存正文的钥匙找不到了。已有的动态和研究正文原样保留；找回原钥匙之前，新的正文不会保存。请找回原来的钥匙后重启 Molis Work。",
+);
 
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
 const CONTENT_REF = /^molis-work-feed\/sha256\/([0-9a-f]{64})$/u;
@@ -29,9 +39,17 @@ export function evidenceContentRef(markdown: string): string {
   return `molis-work-feed/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
 }
 
+/**
+ * Whether a body can be saved now: `ready`, the key is there; `creatable`, no key and no body anywhere it would seal, so the first
+ * save makes it; `missing`, no key while bodies sealed with it remain, so saving is paused until the original key is back.
+ */
+export type EvidenceContentKeyStatus = "ready" | "creatable" | "missing";
+
 export interface EvidenceContentStore {
   write(markdown: string): { contentRef: string };
   read(contentRef: string): string;
+  /** Asked before work that would save bodies, so it can stop and say why instead of fetching what it could not keep. */
+  sealingStatus(): EvidenceContentKeyStatus;
   has(contentRef: string): boolean;
   inspect(contentRefs: readonly string[]): {
     referenced: number;
@@ -66,22 +84,24 @@ export function createEvidenceContentStore(options: {
     return key.length === 32 ? key : null;
   };
 
+  const sealingStatus = (): EvidenceContentKeyStatus => readKey()
+    ? "ready"
+    : keySharingRoots(root).some(hasBlobFile) ? "missing" : "creatable";
+
   const keyForWrite = (): Buffer => {
     const existing = readKey();
     if (existing) return existing;
-    if (listBlobFiles(root).length > 0) {
-      throw new Error("feed evidence content key unavailable");
-    }
+    if (keySharingRoots(root).some(hasBlobFile)) throw keyMissing();
     const key = randomBytes(32);
     if (secretStore.createIfAbsent(CONTENT_KEY_REF, key.toString("base64"))) return key;
     const current = readKey();
-    if (!current) throw new Error("feed evidence content key unavailable");
+    if (!current) throw keyMissing();
     return current;
   };
 
   const read = (contentRef: string): string => {
     const key = readKey();
-    if (!key) throw new Error("feed evidence content key unavailable");
+    if (!key) throw keyMissing();
     const target = blobPath(root, contentRef);
     if (!fs.existsSync(target)) throw new Error("feed evidence content unavailable");
     const opened = openSealed(fs.readFileSync(target), contentRef, key);
@@ -125,6 +145,7 @@ export function createEvidenceContentStore(options: {
       return { contentRef };
     },
     read,
+    sealingStatus,
     has(contentRef) {
       try {
         read(contentRef);
@@ -220,10 +241,54 @@ function openSealed(data: Buffer, contentRef: string, key: Buffer): string | nul
   }
 }
 
-function listBlobFiles(root: string): string[] {
-  const blobs = path.join(root, "blobs");
-  if (!fs.existsSync(blobs)) return [];
-  return fs.readdirSync(blobs, { recursive: true, encoding: "utf8" })
-    .map((entry) => String(entry))
-    .filter((entry) => entry.endsWith(".blob"));
+/** The directory, inside an Alchemist project's own directory, that holds the bodies its research read. */
+export const RESEARCH_EVIDENCE_DIRECTORY = "search-content";
+
+/**
+ * Every directory of the Home whose bodies are sealed with the one content key (BL-1065, user 2026-11-19): Feed's
+ * `feed/evidence` and each Alchemist project's `alchemist/projects/<project>/search-content`. The Home is read off the
+ * store's own root, so a store at either place sees all the others; a root elsewhere (a test directory, an archive being
+ * checked) answers for itself alone. A new place that seals with this key is added here, not at its caller.
+ */
+function keySharingRoots(root: string): string[] {
+  const resolved = path.resolve(root);
+  const parent = path.dirname(resolved), grandparent = path.dirname(parent);
+  const projects = path.dirname(parent);
+  const home = path.basename(resolved) === "evidence" && path.basename(parent) === "feed"
+    ? grandparent
+    : path.basename(resolved) === RESEARCH_EVIDENCE_DIRECTORY && path.basename(projects) === "projects"
+      && path.basename(path.dirname(projects)) === "alchemist"
+      ? path.dirname(path.dirname(projects))
+      : undefined;
+  if (home === undefined) return [resolved];
+  const researchProjects = path.join(home, "alchemist", "projects");
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs.readdirSync(researchProjects, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const research = entries.filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(researchProjects, entry.name, RESEARCH_EVIDENCE_DIRECTORY));
+  return [...new Set([resolved, path.join(home, "feed", "evidence"), ...research])];
+}
+
+/** Whether `root` still holds any sealed body; stops at the first one. */
+function hasBlobFile(root: string): boolean {
+  const pending = [path.join(root, "blobs")];
+  while (pending.length) {
+    const directory = pending.pop()!;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".blob")) return true;
+      if (entry.isDirectory()) pending.push(path.join(directory, entry.name));
+    }
+  }
+  return false;
 }

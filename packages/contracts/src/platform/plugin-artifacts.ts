@@ -32,6 +32,17 @@ export interface PluginConsumableVersion extends ArtifactReference {
   artifact_type_id: string;
   schema_version: number;
   title: string | null;
+  /** The plugin the platform recorded as producing this version, from the identity it ran under when it wrote it (never from the content). */
+  producer_plugin_id: string;
+}
+
+/**
+ * Narrows `listConsumable` (BL-375): several plugins may produce one process item type, and a consumer may take all of it or one
+ * producer's. A filter only narrows what the declarations, grants and personal ownership already allow; it never widens it.
+ */
+export interface PluginConsumableFilter {
+  artifact_type_id?: string;
+  producer_plugin_id?: string;
 }
 
 /** Host-bound author surface: project, user and producer identity cannot be supplied by a Plugin. */
@@ -52,8 +63,8 @@ export interface PluginArtifactClient {
    * another producer pinned is refused.
    */
   readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
-  /** All consumable fixed versions: 成果 first, then process items, in each owner's listing order. */
-  listConsumable(): PluginConsumableVersion[];
+  /** All consumable fixed versions, or those `filter` keeps: 成果 first, then process items, in each owner's listing order. */
+  listConsumable(filter?: PluginConsumableFilter): PluginConsumableVersion[];
   /**
    * Runs `write` inside the plugin's current project transaction or its declared Home root row transaction. A version it pins is committed
    * or rolled back with the plugin's own rows. A Home row needs one newly pinned version and one matching row update in the same transaction.

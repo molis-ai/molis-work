@@ -185,6 +185,7 @@
     "alchemist.client-views.reports": "研究报告",
     "alchemist.client-views.research-again": "重新研究",
     "alchemist.client-views.research-build-cost": "研究实现成本",
+    "alchemist.client-views.research-key-missing-saved-material-kept": "研究已暂停：保存研究资料的钥匙找不到了。之前保存的动态和研究正文原样保留；找回原钥匙并重启后再研究。",
     "alchemist.client-views.research-did-not-finish-collected-material-kept-confirm": "研究未完成。已取得的材料保留，可重新确认计划再试。",
     "alchemist.client-views.research-market-space": "研究市场空间",
     "alchemist.client-views.research-methods": "研究方法",

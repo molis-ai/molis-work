@@ -514,6 +514,7 @@
     "common.workspaces.click-drag-file-again": "请重新点击或拖动文件",
     "common.workspaces.couldn-t-read-project-s-folders": "读不到项目目录",
     "common.workspaces.folder-no-longer-one-project-s-folders": "这个文件夹已经不是当前项目的目录",
+    "common.workspaces.folders-changed-elsewhere": "项目的文件夹刚在别处改过，这次没有改动。请再操作一次，按最新的文件夹确认。",
     "common.workspaces.unable-link-workspace": "无法关联项目目录",
     "common.workspaces.workspace-operation-failed": "项目目录操作失败",
     "common.task-grants.cannot-display-this-right-now": "暂时不能显示",

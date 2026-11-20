@@ -18,8 +18,14 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
   const page = pluginPageRequest(context.request);
   if (!page || !project || page.project_id !== project.project_id || !context.request.headers["x-molis-context-page"])
     throw new ActionError("actions.forbidden", "工作目录操作需要当前项目页面");
-  if (!body || Object.keys(body).some(key => !["operation", "value"].includes(key)) || !["add", "set_output", "read_instructions"].includes(String(body.operation))
+  if (!body || Object.keys(body).some(key => !["operation", "value", "expected_revision"].includes(key)) || !["add", "set_output", "read_instructions"].includes(String(body.operation))
     || typeof body.value !== "string" || !body.value.trim() || body.value.length > 4096) throw new ActionError("actions.input_invalid", "工作目录请求无效");
+  // Setting the output and turning on instruction reading are confirmed against the folders the shell read for its dialog: that
+  // revision comes with the request and the change commits from it, so a change made elsewhere since is refused (`actions.conflict`).
+  // Adding a folder asks only about the path, so it commits from the revision read here.
+  const confirmed = body.operation !== "add";
+  if (confirmed ? typeof body.expected_revision !== "string" || !body.expected_revision : Object.hasOwn(body, "expected_revision"))
+    throw new ActionError("actions.input_invalid", "工作目录请求无效");
   const beforeEffect = async () => {
     page.assertCurrent();
     const entry = builtinPluginByManifestId(page.plugin_id);
@@ -28,21 +34,21 @@ export async function changePageWorkspace(context: WebRequestContext, project: L
   };
   const control = { signal: page.signal, beforeEffect, assert_authority_current: page.assertCurrent };
   const actions = bindLocalWebActions(context.localHost, project, ["projects:settings"]);
-  // The person adds it from what they see now: the revision is read in the same request, so a change in between is a conflict, not lost.
-  const current = await actions.invoke(projectDirectoryActions.get, {}, control);
   // 「读取这个文件夹的说明文件」 on a page (Coding's rules menu): the person's own press turns reading on and confirms the current output
   // (batch12-design §3.2). Only on: turning it off is the project settings' switch.
   if (body.operation === "read_instructions") {
     if (body.value !== "on") throw new ActionError("actions.input_invalid", "工作目录请求无效");
-    const after = await actions.invoke(projectDirectoryActions.setInstructions, { off: false, expected_revision: current.revision }, control);
+    const after = await actions.invoke(projectDirectoryActions.setInstructions, { off: false, expected_revision: body.expected_revision as string }, control);
     return { instructions: after.instructions };
   }
   if (body.operation === "set_output") {
     // A folder that is not the project's is refused by `set_output` itself, under its own code.
     const workspaceId = body.value;
-    await actions.invoke(projectDirectoryActions.setOutput, { workspace_id: workspaceId, expected_revision: current.revision }, control);
+    await actions.invoke(projectDirectoryActions.setOutput, { workspace_id: workspaceId, expected_revision: body.expected_revision as string }, control);
     return { workspace: { workspace_id: workspaceId } };
   }
+  // The person adds it from what they see now: the revision is read in the same request, so a change in between is a conflict, not lost.
+  const current = await actions.invoke(projectDirectoryActions.get, {}, control);
   const path = body.value.trim();
   const after = await actions.invoke(projectDirectoryActions.addInput, { workspace_path: path, expected_revision: current.revision }, control);
   const added = after.directories.find(item => !current.directories.some(before => before.workspace_id === item.workspace_id))

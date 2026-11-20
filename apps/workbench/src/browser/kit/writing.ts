@@ -131,7 +131,7 @@ export function skillWriting(page: WritingPage) {
   return {
     beforeReplace: () => edit.flush(), dispose,
     run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
-    strip: () => draftsStrip(c.drafts),
+    strip: () => draftsStrip(c.drafts, c.kit() ? new Set(c.skills().map(entry => entry.skill.draft?.draft_id).filter((id): id is string => Boolean(id))) : undefined),
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
     workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),
   };

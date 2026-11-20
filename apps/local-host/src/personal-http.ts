@@ -75,6 +75,21 @@ function browserStatusFence(desktop:boolean,session:WebAccountSession|null,respo
   };
 }
 
+function respondAnonymousPersonalStatus(response: ServerResponse, configured: boolean, cookie: string | undefined, accountGeneration: number | undefined): void {
+  const configState = configured ? null : describeAccountConfigState();
+  sendLocalWebJson(response, 200, {
+    configured, identity: null,
+    accountChanged: cookie?.split(";").some(part => part.trim().startsWith(WEB_ACCOUNT_COOKIE + "=")) ?? false,
+    accountGeneration, ready: false, switching: false,
+    ...(configState && !configState.configured ? {
+      configReason: configState.reason,
+      configHint: configState.reason === "missing_env"
+        ? "当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。"
+        : "账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。",
+    } : {}),
+  });
+}
+
 interface PersonalAccountEnvironment {
   ready(retry?:boolean):Promise<void>;
   loginDelivered?():void;
@@ -210,18 +225,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
-      const configState=configured?null:describeAccountConfigState();
-      sendLocalWebJson(response,200,{
-        configured,identity:null,
-        accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,
-        accountGeneration:auth?.accountGeneration(),ready:false,switching:false,
-        ...(configState&&!configState.configured?{
-          configReason:configState.reason,
-          configHint:configState.reason==='missing_env'
-            ? '当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。'
-            : '账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。',
-        }:{}),
-      });return true;
+      respondAnonymousPersonalStatus(response, configured, request.headers.cookie, auth?.accountGeneration());return true;
     }
     const service=desktop?getAuth():session?.auth??null;
     let navigation=desktop?desktopNavigation:session?.navigation??null;

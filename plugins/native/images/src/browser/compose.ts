@@ -2,6 +2,7 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { statusOf } from "./dom.js";
 import { loadJobs, ensureContext, rememberJob, schedulePoll } from "./jobs.js";
 import { loadConnections } from "./connections.js";
+import { checkLimits } from "./limits.js";
 import type { ImageConnection, ImageJob, ImagesPage } from "./types.js";
 
 const uiText = globalThis.t;
@@ -38,6 +39,7 @@ async function submit(page: ImagesPage): Promise<void> {
   const { s, el } = page;
   ensureContext(page);
   const connection = page.pickedConn();
+  checkLimits(page);
   if (s.submitting || !s.context || !connection || !el.compose.reportValidity()) return;
   if (connection.available === false) { await needKey(page, connection); return; }
   const currentContext = s.context;

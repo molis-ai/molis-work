@@ -1,5 +1,6 @@
 /** Local SQLite technical owner. */
 export { openSqliteConnection, sqliteErrorName, sqliteRowAuthorizerCodes, type SqliteAuthorizer } from "./sqlite-connection.js";
+export { readSqlStatementShape } from "./sqlite-statement-shape.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, onEventAppended, renameJournalRecords, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";

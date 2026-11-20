@@ -10,7 +10,7 @@ import {
   WORKSPACE_SKIPPED_FOLDERS,
   type WorkspaceFileResult,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { knowledgeErrors } from "./errors.js";
+import { knowledgeErrors, reasonText } from "./errors.js";
 import { pathPattern } from "./glob.js";
 import type { KnowledgeAccess } from "./index.js";
 
@@ -45,7 +45,7 @@ export class KnowledgeWorkspace {
         const read = await invoke({ workspace_id: folder.workspace_id, path, kind: "directory" }).catch((error: unknown) => ({ outcome: "error" as const, error }));
         if (read.outcome !== "directory") {
           // A starting folder the pattern names but the project does not have is simply not there.
-          if (read.outcome !== "missing") result.unread.push({ workspace_id: folder.workspace_id, path: path.join("/"), reason: "error" in read ? String((read.error as Error)?.message ?? read.error).slice(0, 200) : NOT_TEXT[read.outcome as keyof typeof NOT_TEXT] ?? "读不了这个目录" });
+          if (read.outcome !== "missing") result.unread.push({ workspace_id: folder.workspace_id, path: path.join("/"), reason: "error" in read ? reasonText(String((read.error as Error)?.message ?? read.error)) : NOT_TEXT[read.outcome as keyof typeof NOT_TEXT] ?? "读不了这个目录" });
           continue;
         }
         result.more ||= read.truncated;

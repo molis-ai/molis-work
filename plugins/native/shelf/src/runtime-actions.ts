@@ -50,18 +50,18 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext,
   const read = async (ref: ArtifactReference) => {
     const record = await refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
-    const directory = services?.actions?.directory, projectId = context.project_id;
-    if (!directory || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
-    const views = await refused(() => directory.discover());
+    const dependencies = services?.actions?.dependencies, projectId = context.project_id;
+    if (!dependencies || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
+    const views = await refused(() => dependencies.discover());
     const owned = views.filter(view => view.availability.available && view.provider.plugin_id === record.producer_plugin_id);
     const docAction = owned.find(view => isArtifactDocumentAction(view.action));
     if (docAction) {
-      const document = checkedDocument(await refused(() => directory.invoke({ capability_id: docAction.capability_id, version: docAction.version, provider_id: docAction.provider.provider_id }, { reference: ref })));
+      const document = checkedDocument(await refused(() => dependencies.invoke({ capability_id: docAction.capability_id, version: docAction.version, provider_id: docAction.provider.provider_id }, { reference: ref })));
       return shelfCopyOf(record, document, { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
     }
     const previewAction = owned.find(view => isArtifactPreviewAction(view.action));
     if (previewAction) {
-      const preview = await refused(() => directory.invoke<FileContent>({ capability_id: previewAction.capability_id, version: previewAction.version, provider_id: previewAction.provider.provider_id }, { artifact: record }));
+      const preview = await refused(() => dependencies.invoke<FileContent>({ capability_id: previewAction.capability_id, version: previewAction.version, provider_id: previewAction.provider.provider_id }, { artifact: record }));
       return shelfCopyOf(record, documentFromPreview(record, preview), { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
     }
     throw shelfErrors.unavailable("原成果的提供方当前未提供正文读取能力");

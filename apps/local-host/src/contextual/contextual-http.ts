@@ -196,12 +196,17 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     // A draft is asked by a pane that has something in hand, or by a plugin's own page with a sentence: it needs no pane of its own.
     if (route === "draft") {
       const actions = ports.actions();
-      sendJson(response, 200, await whileWaited(response, async signal => draftRequest(body, await actions.discover(), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      sendJson(response, 200, await whileWaited(response, async signal => {
+        const views = await actions.discover();
+        return draftRequest(body, views, { actions, ports: draftPorts(ports.homeDirectory), signal }, kindOwners(views));
+      }));
       return true;
     }
     // A creation entry chosen on the bar: created at once when its owner declared how it is undone, else drafted for a card.
     if (route === "create") {
-      const actions = ports.actions(), { focus, landing } = readJudgeRequest(body);
+      const actions = ports.actions();
+      const ownerOf = needsOwnerPlugin(body) ? kindOwners(await actions.discover()) : undefined;
+      const { focus, landing } = readJudgeRequest(body, ownerOf);
       // A page that names the entry by the id its owner declared (`intake_id`) instead of a key it never saw listed.
       sendJson(response, 200, await whileWaited(response, async signal => {
         const views = await actions.discover();
@@ -220,7 +225,8 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;
     if (route === "cancel") { service.cancel(pane); sendJson(response, 200, { ok: true }); return true; }
     const caller: Caller = { directory: JSON.stringify([ports.homeDirectory ?? null, ports.scope, ports.actor_id]), actions: ports.actions() };
-    const judgeRequest: ContextualJudgeRequest = { ...readJudgeRequest(body), pane_id: pane };
+    const ownerOf = needsOwnerPlugin(body) ? kindOwners(await caller.actions.discover()) : undefined;
+    const judgeRequest: ContextualJudgeRequest = { ...readJudgeRequest(body, ownerOf), pane_id: pane };
     if (route === "candidates") { sendJson(response, 200, await service.candidates(judgeRequest, caller)); return true; }
     if (route === "judge") {
       // The page gave up on this context (the person moved on): stop waiting on the model for it.
@@ -301,4 +307,25 @@ export function surfaceKinds(directory: readonly ActionView[]): Record<string, {
     out[surface] = { kind, plugin_id };
   }
   return out;
+}
+
+function needsOwnerPlugin(body: Record<string, unknown>): boolean {
+  const focus = body.focus;
+  if (!focus || typeof focus !== "object") return false;
+  const owner = (focus as Record<string, unknown>).belongs_to;
+  return Boolean(owner && typeof owner === "object" && typeof (owner as Record<string, unknown>).kind === "string"
+    && !(typeof (owner as Record<string, unknown>).plugin_id === "string" && (owner as Record<string, unknown>).plugin_id));
+}
+
+function kindOwners(directory: readonly ActionView[]): (kind: string) => string | undefined {
+  const owners = new Map<string, Set<string>>();
+  for (const { kind, plugin_id } of Object.values(surfaceKinds(directory))) {
+    const set = owners.get(kind) ?? new Set<string>();
+    set.add(plugin_id);
+    owners.set(kind, set);
+  }
+  return kind => {
+    const found = owners.get(kind);
+    return found && found.size === 1 ? [...found][0] : undefined;
+  };
 }

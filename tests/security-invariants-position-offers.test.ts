@@ -207,7 +207,7 @@ function watchReceiver(t: Parameters<typeof serveHomeRuntime>[0], receive = "pag
 
 test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion card links and converts through the original Placement and receiver", { timeout: 90_000 }, async t => {
   const swap = watchReceiver(t);
-  const f = await serveHomeRuntime(t), project = await f.project("Card source"), target = await f.project("A real linked project");
+  const f = await serveHomeRuntime(t), project = await f.project("Card source", ["goals"]), target = await f.project("A real linked project");
   const prefix = "/projects/" + project.project_id;
   const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
   await addProjectPlugin(web, project.project_id, "pages");

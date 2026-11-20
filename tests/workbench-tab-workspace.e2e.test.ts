@@ -158,6 +158,7 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
   await addProjectPlugin(browser.web, projectId!, "pages");
   const target = await createProject(browser.web, "PR2 destination");
+  await addProjectPlugin(browser.web, target.project_id, "goals");
 
   await seedDemoGoals(target.database_path, target.project_id);
   const pages = openPagesStore(homeDirectory);

@@ -52,6 +52,7 @@ type Declarations = Readonly<Record<string, Raiser>>;
 
 const FEED: OwnerCodes = { prefix: "feed", status: {
   contract_source_history_decision_required: 500,
+  entry_not_found: 404,
   item_not_found: 404, source_not_found: 404, out_rule_not_found: 404,
   revision_conflict: 409, source_paused: 409, source_use_catalog: 409,
   invalid_transition: 400, request_invalid: 400, out_rule_invalid: 400,
@@ -63,9 +64,9 @@ const FEED: OwnerCodes = { prefix: "feed", status: {
 const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400, revision_conflict: 409 } };
 const SCHEDULE: OwnerCodes = { prefix: "schedule", status: { task_not_found: 404, task_invalid: 400, job_not_found: 404, job_invalid: 400 } };
 
-/** Where each owner's declaration lives: Feed's in its own public contract (PG-111), Inbox's in the platform contract it shares with Feed, Schedule's in the plugin. */
+/** Where each owner's declaration lives: Feed's in its own public contract (PG-111), Inbox's and Schedule's in their own plugin packages (PEQ-03/04). */
 function declarationsOf(owner: "feed" | "inbox" | "schedule"): Declarations | undefined {
-  const holder = owner === "feed" ? feedContracts : owner === "inbox" ? attentionContracts : schedulePlugin;
+  const holder = owner === "feed" ? feedContracts : owner === "inbox" ? inboxPlugin : schedulePlugin;
   return (holder as Record<string, unknown>)[`${owner}Errors`] as Declarations | undefined;
 }
 

@@ -40,8 +40,6 @@ export function publishContext(page: PagesPage) {
 }
 
 
-/** Whose Goals a document belongs to: the plugin that answers `goals.collection.read`, the list Pages offers in its 「所属目标」 menu. */
-const GOALS_PROVIDER = "io.molis.work.goals";
 /** What the list (a listbox that picks several) says is selected: the picked documents, else the open one. */
 export const chosen = (page: PagesPage, id: string) => (page.picked.size ? page.picked.has(id) : page.sel?.id === id);
 
@@ -60,7 +58,7 @@ function surfaceFocus(page: PagesPage): SurfaceDetail | null {
     object: { kind: "pages_document", id: sel.id, version: sel.version, title: titleInput.value || sel.title },
     targets: focusNow.targets, surroundings: focusNow.surroundings,
     ...(page.saveTimer || page.dirty ? { unsaved: true } : {}),
-    ...(goal ? { belongs_to: { plugin_id: GOALS_PROVIDER, kind: "goal", id: goal.id, title: goal.title } } : {}) };
+    ...(goal ? { belongs_to: { kind: "goal", id: goal.id, title: goal.title } } : {}) };
 }
 
 function pickedRect(page: PagesPage) {

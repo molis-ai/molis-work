@@ -92,7 +92,7 @@ function readPlace(focus: Record<string, unknown>): { place?: SurfacePlace; side
 }
 
 /** A page's claim about what the person has in hand, bounded before anything else reads it. */
-export function readJudgeRequest(body: Record<string, unknown>): Omit<ContextualJudgeRequest, "pane_id"> {
+export function readJudgeRequest(body: Record<string, unknown>, ownerOf?: (kind: string) => string | undefined): Omit<ContextualJudgeRequest, "pane_id"> {
   const raw = body.focus;
   if (!raw || typeof raw !== "object") throw invalid("focus");
   const focus = raw as Record<string, unknown>;
@@ -103,14 +103,17 @@ export function readJudgeRequest(body: Record<string, unknown>): Omit<Contextual
   const targets = readTargets(focus.targets, "focus.targets", MAX_TARGETS);
   const surroundings = readSurroundings(focus.surroundings);
   const owner = focus.belongs_to && typeof focus.belongs_to === "object" ? focus.belongs_to as Record<string, unknown> : null;
+  const ownerPlugin = owner && typeof owner.plugin_id === "string" && owner.plugin_id
+    ? owner.plugin_id
+    : owner && typeof owner.kind === "string" ? ownerOf?.(owner.kind) : undefined;
   return {
     focus: {
       context_id: readString(focus.context_id, "focus.context_id", 240), plugin_id: readString(focus.plugin_id, "focus.plugin_id", 120),
       activity: activity as SurfaceActivity, granularity: granularity as SurfaceFocus["granularity"], object: readRef(focus.object, "focus.object"), targets,
       ...(surroundings ? { surroundings } : {}),
       ...(focus.unsaved === true ? { unsaved: true } : {}),
-      ...(owner && typeof owner.plugin_id === "string" && typeof owner.kind === "string" && typeof owner.id === "string" && typeof owner.title === "string"
-        ? { belongs_to: { plugin_id: cutHead(owner.plugin_id, 120), kind: cutHead(owner.kind, 120), id: cutHead(owner.id, 200), title: cutHead(owner.title, 200),
+      ...(owner && ownerPlugin && typeof owner.kind === "string" && typeof owner.id === "string" && typeof owner.title === "string"
+        ? { belongs_to: { plugin_id: cutHead(ownerPlugin, 120), kind: cutHead(owner.kind, 120), id: cutHead(owner.id, 200), title: cutHead(owner.title, 200),
           ...(typeof owner.state === "string" ? { state: cutHead(owner.state, 40) } : {}), ...(typeof owner.noun === "string" ? { noun: cutHead(owner.noun, 40) } : {}) } } : {}),
       ...readPlace(focus),
     },

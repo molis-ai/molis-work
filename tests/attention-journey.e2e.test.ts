@@ -109,7 +109,7 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   assert.equal(await evaluate("document.querySelector('[data-event-form=note] textarea').value"),"焦点应留在输入框");
   await click('[data-event-form=note] footer [data-event-back]');
   assert.equal(await evaluate("document.querySelector('[data-event-form=note]').hidden"),true);
-  await waitFor(`document.querySelector('[data-tui-pane]')?.dataset.goalId==='${goal.goal_id}' && document.querySelector('[data-tui-pane]')?.dataset.tuiParentReadOnly!=='true' && !document.querySelector('[data-goal-work-main]')?.hasAttribute('inert')`);
+  await waitFor(`document.querySelector('[data-tui-pane]')?.dataset.tuiSubjectId==='${goal.goal_id}' && document.querySelector('[data-tui-pane]')?.getAttribute('data-tui-read-only')!=='true' && !document.querySelector('[data-goal-work-main]')?.hasAttribute('inert')`);
   // Soft Workbench (DESIGN.md → Goal document): a Goal without a session opens as its document; the terminal
   // is one switch away.
   await click('[data-goal-view-tab="work"]');

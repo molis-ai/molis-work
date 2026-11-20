@@ -32,9 +32,9 @@ test("overview and filtered HTTP pages share the real bounded Action and never f
   t.mock.method(MemoryService.prototype, "list", async () => { assert.fail("HTTP management must not use the old full list"); });
   let calls = 0; const page = MemoryService.prototype.page;
   t.mock.method(MemoryService.prototype, "page", function(this: MemoryService, ...args: Parameters<MemoryService["page"]>) { calls++; return page.apply(this, args); });
-  const response = await env.request("/api/memory/overview?scope=personal"), first = await response.json() as MemoryPageResponse & { labels: { goals: object }; pairs: null };
+  const response = await env.request("/api/memory/overview?scope=personal"), first = await response.json() as MemoryPageResponse & { labels: { objects: object }; pairs: null };
   assert.equal(response.status, 200, JSON.stringify(first)); assert.equal(first.items.length, 40); assert.ok(first.items.every(item => item.owner === LOCAL_PERSON_ACTOR_ID)); assert.equal(calls, 1);
-  assert.equal(first.exhausted, false); assert.deepEqual(first.total, { kind: "unknown" }); assert.deepEqual(first.labels, { goals: {} });
+  assert.equal(first.exhausted, false); assert.deepEqual(first.total, { kind: "unknown" }); assert.deepEqual(first.labels, { objects: {} });
   assert.equal(first.pairs, null); assert.equal(fullLists, 0, "even a nonempty pending pair must not trigger a first-screen full read");
   const next = await env.request(`/api/memory/page?input=${encodeURIComponent(JSON.stringify({ scope: "personal", cursor: first.cursor }))}`);
   const last = await next.json() as MemoryPageResponse;

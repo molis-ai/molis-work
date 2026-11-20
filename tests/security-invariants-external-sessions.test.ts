@@ -748,7 +748,7 @@ test("S-sessions-person-decides 5: plugins with knowledge:read cannot proxy-read
         },
       },
     });
-    const proj = await home.createProject("Alpha", ["coding"]);
+    const proj = await home.createProject("Alpha", ["coding", "goals"]);
     const ref = proj.reference;
     const personProjectCaller = await home.host.localPersonContext(ref);
     await home.web.get(`/projects/${proj.project_id}/api/plugins/io.molis.work.coding/goals`);

@@ -20,7 +20,11 @@ const recorded: ActionDefinition<{ text: string }, { author: string }> = { capab
 
 test("the gateway refuses a Runtime client that names no Session for an action that declares authorship, and records the Session otherwise", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-authorship-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Gateway", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "Gateway", actor_id: "user" });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    return created;
+  });
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const handled: string[] = [];

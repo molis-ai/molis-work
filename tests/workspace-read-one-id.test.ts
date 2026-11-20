@@ -148,7 +148,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   const projectId = project.project_id;
   catalog.changeDirectories({ project_id: projectId, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: folder } },
     expected_revision: catalog.projectDirectories(projectId).revision });
-  for (const plugin_id of ["git"]) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "web-user" });
+  for (const plugin_id of ["goals", "git"]) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "web-user" });
   catalog.close();
   const workspace = (await withMolisWorkProjectCatalog({ homeDirectory: home }, item => item.listWorkspaceDirectory(projectId))).find(item => item.canonical_path === folder)!;
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });

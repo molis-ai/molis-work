@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import test, { type TestContext } from "node:test";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -355,6 +356,7 @@ test("IUI-03 SSC-14: an actual Assistant material is composed from its owner whi
   const b = await sendBrowser(t);
   if (!b) return;
   const prefix = "/projects/" + b.projectId, title = "Goal shown across the conversation and tree";
+  await addProjectPlugin(b.web, b.projectId!, "goals");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));
   const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals", { title, outcome: title, idempotency_key: randomUUID() });
   const object = { kind: "goal", id: goal.goal_id };

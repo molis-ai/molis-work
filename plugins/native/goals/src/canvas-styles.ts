@@ -680,7 +680,7 @@ export const GOAL_CANVAS_STYLES = `
   .frame-picker > footer { border-top:1px solid var(--line); }
   .frame-picker > footer > span { color:var(--muted); font-size:12px; line-height:1.5; }
   @media (max-width:760px) { .frame-picker > header button, .frame-picker > footer button { min-width:44px; min-height:44px; } .frame-picker-tools :is(input,select) { min-height:44px; font-size:16px; } }
-  .frame-empty strong { font-size:15px; font-weight: var(--weight-control, 500); color:var(--ink); }
+  .frame-empty strong { font-size:15px; font-weight: var(--weight-title, 600); color:var(--ink); }
   .frame-empty p { max-width:36ch; margin:0; color:var(--ink-soft); font-size:13px; line-height:1.6; }
   @media(max-width:760px) { .frame-goal-summary { padding:24px 16px; } .frame-goal-heading { align-items:flex-start; flex-direction:column; gap:4px; } .frame-goal-heading h1 { font-size:20px; } .frame-goal-actions button { min-height:44px; } }
 

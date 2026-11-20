@@ -52,12 +52,12 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
   });
 });
 
-test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and Shelf discovers it through actions:delegate without pinning Coding's action id", () => {
-  // The definition lives in Coding (`@molis-ai/molis-work-plugin-coding/contract`, PG-111) and tags the artifact-document role; Shelf discovers it via `actions:delegate` (Audit #10).
+test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and Shelf discovers it through actions:invoke without pinning Coding's action id", () => {
+  // The definition lives in Coding (`@molis-ai/molis-work-plugin-coding/contract`, PG-111) and tags the artifact-document role; Shelf discovers it via `actions:invoke` (`services.actions.dependencies`, Audit #10).
   assert.ok(codingManifest.actions?.some(row => Object.is(row, codingResultDocument)), "Coding's Manifest declares the contract's definition");
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(shelfManifest)));
   assert.deepEqual(manifest.capabilities.consumes, []);
-  assert.ok(manifest.permissions.some(row => row.permission === "actions:delegate" && row.required), "Shelf requires actions:delegate for role discovery");
+  assert.ok(manifest.permissions.some(row => row.permission === "actions:invoke" && row.required), "Shelf requires actions:invoke for role discovery");
   for (const permission of codingResultDocument.action.permissions) {
     assert.ok(manifest.permissions.some(row => row.permission === permission && row.required), `Shelf's Manifest requires ${permission}`);
   }

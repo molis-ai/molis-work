@@ -22,8 +22,8 @@ function goalFacts(state: GoalEventStateView): string {
     `工作状态：${state.work_status}`,
     state.agreement.outcome ? `当前约定：${state.agreement.outcome}` : "",
     state.progress_summary?.next_step ? `下一步：${state.progress_summary.next_step}` : "",
-    state.pending_decisions.length ? `待决定：${state.pending_decisions.map(item => item.question).join("；")}` : "",
-    state.current_decisions.length ? `已决定：${state.current_decisions.map(item => item.conclusion).join("；")}` : "",
+    state.pending_decisions.length ? `待决定：${state.pending_decisions.map(item => item.question).join("; ")}` : "",
+    state.current_decisions.length ? `已决定：${state.current_decisions.map(item => item.conclusion).join("; ")}` : "",
   ].filter(Boolean).join("\n");
 }
 

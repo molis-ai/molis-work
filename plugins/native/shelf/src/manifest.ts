@@ -43,7 +43,6 @@ export const shelfManifest: PluginManifest = {
     { permission: "artifacts:write", required: true, reason: "将副本保存到项目成果" },
     { permission: "projects:exist", required: true, reason: "副本来自的项目被删除后，在副本上标出「项目已删除」" },
     { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
-    { permission: "actions:delegate", required: true, reason: "按角色发现并读取已装插件提供的成果正文" },
     { permission: "model:read", required: true, reason: "读取当前可用模型" },
     { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上已安装的外部 AI 工具" },
   ],

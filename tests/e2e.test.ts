@@ -348,6 +348,16 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       });
       assert.equal(projectResponse.status, 201, await projectResponse.clone().text());
       const created = await projectResponse.json() as { project: { project_id: string } };
+      const projectPluginsList = await (await fetch(`${origin}/api/settings/project-plugins`)).json() as {
+        projects: Array<{ project_id: string; revision: string }>;
+      };
+      const expectedRevision = projectPluginsList.projects.find((item) => item.project_id === created.project.project_id)?.revision;
+      assert.equal(typeof expectedRevision, "string");
+      const enableGoals = await post(origin, token, `/api/settings/projects/${created.project.project_id}/plugins`, {
+        plugin_id: "goals",
+        expected_revision: expectedRevision,
+      });
+      assert.equal(enableGoals.status, 200, await enableGoals.text());
 
       const mcpEnvironment = {
         ...environment,

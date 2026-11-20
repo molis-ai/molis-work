@@ -10,10 +10,10 @@ ${F} {
   container: feed-workbench / size; height: 100%; padding: 0; gap: 0; background: var(--paper); overflow: hidden;
 }
 .feed-workbench [hidden] { display: none !important; }
-/* Controls take the copper stroke; fields keep the shared field focus (copper edge and halo), so nothing shows two rings. */
+/* Focus ring */
 .feed-workbench :is(button:not(.mw-select), summary, select:not(.mw-select), input:not(.mw-input), textarea:not(.mw-textarea)):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
 
-/* ─── The article column ─────────────────────────────────────────────── */
+/* Article column */
 ${F} > .feed-column { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: var(--surface-soft); }
 ${F} .feed-column-head { flex: none; padding: 24px 16px 0; border: 0; }
 ${F} .feed-column-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 16px; }
@@ -47,7 +47,7 @@ ${F} .feed-source-rail > header > span { font-size: 12px; color: var(--muted); }
 ${F} .feed-source-rail > header .mw-btn { min-height: 28px; font-size: 12px; }
 ${F} .feed-source-rail > nav { display: flex; flex-direction: column; gap: 4px; }
 ${F} .feed-rail-label { color: var(--muted); font-size: 12px; padding: 12px 8px 4px; }
-${F} .feed-source-nav { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding: 8px 8px; border: 0; border-radius: 8px; color: var(--ink-soft); background: transparent; text-align: left; cursor: pointer; width: 100%; font: inherit; }
+${F} .feed-source-nav { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding: 8px; border: 0; border-radius: 8px; color: var(--ink-soft); background: none; text-align: left; cursor: pointer; width: 100%; font: inherit; }
 ${F} .feed-source-nav:hover { background: var(--nav-hover); }
 ${F} .feed-source-nav.is-selected { background: var(--nav-active); color: var(--ink); }
 ${F} .feed-source-nav-icon { display: grid; place-items: center; color: var(--muted); }
@@ -61,7 +61,7 @@ ${F} .feed-source-nav em { font-style: normal; color: var(--muted); font-size: 1
 
 /* One source: its messages, settings and capture rules are three tabs under the menu. */
 ${F} .feed-source-tabs { display: flex; gap: 24px; margin: 12px 4px 0; border-bottom: 1px solid var(--line); }
-${F} .feed-source-tabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 8px 0 8px; margin-bottom: -1px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
+${F} .feed-source-tabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 8px 0; margin-bottom: -1px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
 ${F} .feed-source-tabs button[aria-current] { color: var(--ink); border-bottom-color: var(--ink); }
 
 /* Search with its filter menu, then the three-way switch. */
@@ -70,7 +70,7 @@ ${F} .feed-search-row { display: flex; align-items: center; gap: 4px; min-width:
 ${F} .feed-search-row:focus-within { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
 ${F} .feed-search-row .feed-stage-search { display: flex; order: 0; align-items: center; gap: 8px; flex: 1; min-width: 0; width: auto; height: 34px; max-width: none; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--muted); }
 ${F} .feed-search-row .feed-stage-search svg { flex: none; width: 16px; height: 16px; }
-${F} .feed-search-row .feed-stage-search input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; background: transparent; box-shadow: none; outline: 0; font: inherit; font-size: 13px; color: var(--ink); }
+${F} .feed-search-row .feed-stage-search input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; appearance: none; -webkit-appearance: none; background: transparent; box-shadow: none; outline: 0; font: inherit; font-size: 13px; color: var(--ink); }
 ${F} .feed-search-row .feed-stage-search input::placeholder { color: var(--muted); }
 ${F} .feed-search-row .feed-directory-tools { order: 1; flex: none; }
 ${F} .feed-search-row .feed-filter-trigger { width: 30px; height: 30px; min-height: 30px; border-radius: 6px; }
@@ -86,7 +86,7 @@ ${F} .feed-stage-item-line { display: block; }
 ${F} .plugin-stage-list .feed-stage-entry {
   display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; align-items: start; gap: 0;
   width: 100%; height: auto; min-height: 0; padding: 12px 16px 16px; border: 0; border-radius: 10px;
-  background: transparent; box-shadow: none; color: var(--ink); text-align: left; cursor: pointer;
+  background: none; box-shadow: none; color: var(--ink); text-align: left; cursor: pointer;
 }
 ${F} .plugin-stage-list .feed-stage-entry:hover { background: color-mix(in srgb, var(--nav-hover) 80%, transparent); }
 ${F} .plugin-stage-list .feed-stage-entry:is(.is-selected, .is-open, [aria-expanded="true"]) { background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-1); }
@@ -313,7 +313,7 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
 .feed-directory-tools { display: grid; gap: 8px; }
 .feed-directory-toolbar { min-width: 0; position: relative; display: flex; align-items: center; gap: 4px; }
 .feed-filter-control { position: relative; overflow: visible; }
-.feed-filter-trigger { width: 28px; height: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; display: grid; place-items: center; position: relative; cursor: pointer; }
+.feed-filter-trigger { width: 28px; height: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: none; display: grid; place-items: center; position: relative; cursor: pointer; }
 .feed-filter-trigger:is(:hover, [aria-expanded="true"], .is-active) { color: var(--ink); background: var(--nav-active); }
 .feed-filter-trigger > svg { width: 16px; height: 16px; }
 .feed-filter-trigger > span { min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; color: var(--action-ink); background: var(--action); display: grid; place-items: center; position: absolute; top: -4px; right: -4px; font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1; box-shadow: var(--lift-1); }
@@ -327,19 +327,19 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
 .feed-filter-section + .feed-filter-section { margin-top: 8px; }
 .feed-filter-section > span { color: var(--faint); font-size: 11px; }
 .feed-filter-options { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.feed-filter-option { min-width: 0; min-height: 30px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; display: grid; grid-template-columns: minmax(0, 1fr) 12px; align-items: center; gap: 4px; font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.feed-filter-option { min-width: 0; min-height: 30px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--muted); background: none; display: grid; grid-template-columns: minmax(0, 1fr) 12px; align-items: center; gap: 4px; font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
 .feed-filter-option:hover { color: var(--ink); background: var(--nav-hover); }
 .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); }
 .feed-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed-filter-option svg { width: 12px; height: 12px; opacity: 0; }
 .feed-filter-option[aria-checked="true"] svg { opacity: 1; }
-.feed-workbench .feed-list-empty { margin: 8px 4px; padding: 24px 12px; border-radius: 12px; color: var(--muted); background: transparent; display: grid; justify-items: center; gap: 8px; text-align: center; }
+.feed-workbench .feed-list-empty { margin: 8px 4px; padding: 24px 12px; border-radius: 12px; color: var(--muted); background: none; display: grid; justify-items: center; gap: 8px; text-align: center; }
 .feed-workbench .feed-list-empty[hidden] { display: none; }
 .feed-workbench .feed-list-empty strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
 .feed-workbench .feed-list-empty p { margin: 0; font-size: 11px; line-height: 1.5; }
 .feed-directory-footer { min-height: 38px; padding: 4px 8px; border-top: 1px solid color-mix(in srgb, var(--line) 62%, transparent); display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--faint); }
 .feed-directory-footer small { display: inline-flex; align-items: center; gap: 8px; }
-.feed-directory-footer small button { min-height: 24px; padding: 0 4px; border: 0; color: var(--blue-dark); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.feed-directory-footer small button { min-height: 24px; padding: 0 4px; border: 0; color: var(--blue-dark); background: none; font: inherit; font-size: 11px; cursor: pointer; }
 .feed-materials { max-width: 76ch; margin-top: 24px; border: 1px solid var(--line); border-radius: 8px; }
 .feed-materials > summary { display: flex; align-items: center; gap: 8px; padding: 12px; list-style: none; font-size: 12px; cursor: pointer; }
 .feed-materials > summary::-webkit-details-marker { display: none; }

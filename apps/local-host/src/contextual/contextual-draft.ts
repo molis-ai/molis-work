@@ -90,14 +90,15 @@ async function draftForSentence(entry: ReturnType<typeof readEntry>, said: strin
  * `POST /api/contextual/draft`. With a `key`: the creation entry the person chose for what they have in hand, optionally with a sentence
  * of their own added (`said`). Without one: the entry a plugin's page names (`action`, `intake_id`) and the sentence written there.
  */
-export async function draftRequest(body: Record<string, unknown>, views: readonly ActionView[], context: DraftRequestContext): Promise<ContextualDraft> {
+export async function draftRequest(body: Record<string, unknown>, views: readonly ActionView[], context: DraftRequestContext,
+  ownerOf?: (kind: string) => string | undefined): Promise<ContextualDraft> {
   const requestId = readString(body.request_id, "request_id", 120);
   const said = body.said === undefined ? undefined : readString(body.said, "said", CONTEXTUAL_DRAFT_LIMITS.said);
   if (body.key === undefined) {
     if (said === undefined) throw invalid("said");
     return draftForSentence(readEntry(body), said, requestId, views, context);
   }
-  const { focus, landing } = readJudgeRequest(body);
+  const { focus, landing } = readJudgeRequest(body, ownerOf);
   return draftChosen(views, focus, landing, readString(body.key, "key", 80), said, requestId, context);
 }
 

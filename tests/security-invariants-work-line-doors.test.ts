@@ -23,6 +23,11 @@ test("S-work-line-person-doors WLN-39 PWA-144: a plugin's page gets nothing thro
   const before = (await (await post("/api/acceptance/read", { subjects: [SUBJECT] })).json() as AcceptanceReadResult).views[0]!;
   assert.deepEqual(before.requirements.map(one => [one.id, one.version, one.statement]), [["r1", 1, "三档并排"]]);
 
+  const pluginsRes = await f.request("/api/settings/project-plugins");
+  const { projects: listedProjects } = await pluginsRes.json() as { projects: Array<{ project_id: string; revision: string }> };
+  const revision = listedProjects.find(item => item.project_id === project.project_id)?.revision;
+  assert.ok(revision);
+  assert.equal((await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: "goals", expected_revision: revision } })).status, 200);
   const opened = await post("/api/host/plugin-pages", { plugin_id: "io.molis.work.goals" });
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json() as { page_id: string };

@@ -14,7 +14,9 @@ export async function pluginActionView(client: HostActionClient, caller: ActionC
   if (client.discoverOne) {
     const view = await client.discoverOne(caller, reference);
     caller.signal?.throwIfAborted();
-    if (!view) throw new ActionError("actions.dependency_missing", "声明消费的动作或版本未在当前项目登记");
+    if (!view || (reference.provider_id && view.provider.provider_id !== reference.provider_id)) {
+      throw new ActionError("actions.dependency_missing", "声明消费的动作或版本未在当前项目登记");
+    }
     return view;
   }
   const matches = (await client.discover(caller)).filter(view => view.capability_id === reference.capability_id && view.version === reference.version

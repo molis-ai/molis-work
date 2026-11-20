@@ -25,11 +25,11 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const TOAST_KEY = projectId ? 'molis-work:plugin-toast:' + projectId : '';
   const readRetained = () => {
     if (!RETAINED_KEY) return new Set();
-    try { const raw = JSON.parse(sessionStorage.getItem(RETAINED_KEY) || '[]'); return new Set(Array.isArray(raw) ? raw.filter((id) => typeof id === 'string') : []); } catch { /* Storage may be unavailable; the retained badge is best-effort. */ return new Set(); }
+    try { const raw = JSON.parse(sessionStorage.getItem(RETAINED_KEY) || '[]'); return new Set(Array.isArray(raw) ? raw.filter((id) => typeof id === 'string') : []); } catch { /* best-effort storage */ return new Set(); }
   };
   const writeRetained = (set) => {
     if (!RETAINED_KEY) return;
-    try { if (set.size) sessionStorage.setItem(RETAINED_KEY, JSON.stringify([...set])); else sessionStorage.removeItem(RETAINED_KEY); } catch { /* Storage may be unavailable; the retained badge is best-effort. */ }
+    try { if (set.size) sessionStorage.setItem(RETAINED_KEY, JSON.stringify([...set])); else sessionStorage.removeItem(RETAINED_KEY); } catch { /* best-effort storage */ }
   };
   const paintRetained = () => {
     const retained = readRetained();
@@ -44,19 +44,17 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       if (badge && badge.textContent !== label) badge.textContent = label;
     }
   };
-  const showReceipt = (receipt) => {
-    if (!receipt) return;
-    const also = (receipt.alsoNames || []).join(readText("common.list.separator"));
-    if (receipt.kind === 'removed') {
-      const base = readText("workbench.plugin-membership.removed-data-stays", { name: receipt.name });
-      const text = also ? base + ' ' + readText("workbench.plugin-membership.also-removed-list", { list: also }) : base;
-      showToast?.(text, false, { label: readText("workbench.plugin-membership.undo"), onClick: () => void change(receipt.pluginId, 'add') });
-    } else if (receipt.kind === 'readded') {
-      const base = readText("workbench.plugin-membership.readded-data-back", { name: receipt.name });
-      const text = also ? base + ' ' + readText("workbench.plugin-membership.also-added-list", { list: also }) : base;
-      showToast?.(text, false);
-    } else if (also) {
-      showToast?.(readText("workbench.plugin-membership.also-added-list", { list: also }));
+  const showReceipt = (r) => {
+    if (!r) return;
+    const list = (r.also || []).join(readText("common.list.separator")), k = r.kind;
+    if (k === 'removed') {
+      const base = readText("workbench.plugin-membership.removed-data-stays", { name: r.name });
+      showToast?.(list ? base + ' ' + readText("workbench.plugin-membership.also-removed-list", { list }) : base, false, { label: readText("workbench.plugin-membership.undo"), onClick: () => void change(r.id, 'add') });
+    } else if (k === 'readded') {
+      const base = readText("workbench.plugin-membership.readded-data-back", { name: r.name });
+      showToast?.(list ? base + ' ' + readText("workbench.plugin-membership.also-added-list", { list }) : base, false);
+    } else if (list) {
+      showToast?.(readText(k === 'ar' ? "workbench.plugin-membership.also-removed-list" : "workbench.plugin-membership.also-added-list", { list }));
     }
   };
   const keys = (nodes, key) => [...nodes].map(key).join(',');
@@ -195,13 +193,13 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     gone.forEach((id) => retained.add(id));
     came.forEach((id) => retained.delete(id));
     writeRetained(retained);
-    const also = [...came, ...gone].filter((id) => id !== pluginId);
-    const alsoNames = also.map(nameOf);
-    const receipt = quiet ? null : adding
-      ? (wasRetained ? { kind: 'readded', pluginId, name, alsoNames } : alsoNames.length ? { kind: 'added', pluginId, name, alsoNames } : null)
-      : (gone.includes(pluginId) ? { kind: 'removed', pluginId, name, alsoNames } : null);
+    const also = [...came, ...gone].filter((id) => id !== pluginId).map(nameOf);
+    const kind = quiet ? (also.length ? (adding ? 'aa' : 'ar') : '')
+      : adding ? (wasRetained ? 'readded' : also.length ? 'aa' : '')
+      : (gone.includes(pluginId) ? 'removed' : also.length ? 'ar' : '');
+    const receipt = kind ? { kind, id: pluginId, name, also } : null;
     const reloadAfter = () => {
-      if (receipt && TOAST_KEY) try { sessionStorage.setItem(TOAST_KEY, JSON.stringify(receipt)); } catch { /* Storage may be unavailable; the post-reload toast is best-effort. */ }
+      if (receipt && TOAST_KEY) try { sessionStorage.setItem(TOAST_KEY, JSON.stringify(receipt)); } catch { /* best-effort storage */ }
       reload();
     };
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
@@ -298,7 +296,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     try {
       const pending = sessionStorage.getItem(TOAST_KEY);
       if (pending) { sessionStorage.removeItem(TOAST_KEY); const parsed = JSON.parse(pending); queueMicrotask(() => showReceipt(parsed)); }
-    } catch { /* Storage may be unavailable; the post-reload toast is best-effort. */ }
+    } catch { /* best-effort storage */ }
   }
   return { change, save };
 }`;

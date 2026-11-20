@@ -69,7 +69,7 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   const homes=[join(root,'source'),join(root,'target')],space=personalStorageSpace('https://auth.example.test','work','alice');
   homes.forEach(home=>ensureStorageSpace(home,space));let active=true;
   const authorize=()=>{if(!active)throw new Error('REVOKED');};
-  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Actual Goal',actor_id:'alice'}));
+  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async catalog=>{const created=await catalog.createProject({display_name:'Actual Goal',actor_id:'alice'});catalog.addProjectPlugin({project_id:created.project_id,plugin_id:'goals',actor_id:'alice'});return created;});
   const database=new LocalProjectDatabase(project.database_path);
   try{const app=new GoalProjectApplication(database);app.initializeBoard({project_id:project.project_id,actor_id:'alice',idempotency_key:'fixture-board'});app.goalEvents.createIntent({project_id:project.project_id,goal_id:'goal',title:'Portable Goal',actor_id:'runtime:fixture',actor_kind:'runtime',idempotency_key:'intent'});}finally{database.close();}
   const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',authorize));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
@@ -95,7 +95,7 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   active=false;await assert.rejects(()=>target!.prepare(event),/REVOKED/);active=true;
   assert.deepEqual(await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[]);
   await assert.rejects(()=>target!.prepare(event),/SYNC_OWNER_NOT_INSTALLED/,'even valid Goal content cannot install a project owner');
-  await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},authorize));
+  await runtimes[1]!.withCatalog({homeDirectory:homes[1]},async catalog=>{await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},authorize);await catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'goals',actor_id:'alice'});});
   await target!.refresh();
   for(const [index,mutate] of mutations.entries()){
     const value=structuredClone(next.value);mutate(goalWire(value) as Unit);

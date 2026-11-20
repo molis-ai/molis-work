@@ -952,7 +952,13 @@
     "goals.dialogs-ui.generated-if-empty": "Generated if left empty",
     "goals.event-document-ui.requirements-changed-after-completion": "Requirements changed after completion",
     "goals.event-document-ui.outcome-changed-after-acceptance": "The expected result was changed after acceptance",
-    "goals.event-document-ui.requirements-not-hung": "{count} requirements not attached",
+    "goals.event-document-ui.requirements-not-hung": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "{count} requirement not attached",
+        "other": "{count} requirements not attached"
+      }
+    },
     "goals.event-document-ui.requirements-not-read": "Requirements could not be read right now; try again later",
     "goals.event-document-ui.requirement-returned": "Returned",
     "goals.event-document-ui.review-requirements": "Review item by item",

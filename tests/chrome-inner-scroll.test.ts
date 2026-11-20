@@ -38,8 +38,8 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 
   assert.match(workbench, /body\.immersive-workbench \{[\s\S]*overflow: hidden;[\s\S]*overscroll-behavior: none;/);
   assert.ok(workbench.includes("immersive-plugin-stage > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }"));
-  assert.ok(workbench.includes("immersive-plugin-stage > .goal-canvas-shell"));
-  assert.ok(workbench.includes("tab-pane-body > .goal-canvas-shell"));
+  assert.ok(withPlugins.includes("immersive-plugin-stage > .goal-canvas-shell"));
+  assert.ok(withPlugins.includes("tab-pane-body > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-workspace { position: absolute; inset: 0"));
   assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
   assert.ok(workbench.includes(":is(.immersive-plugin-stage > .immersive-market, .tab-workspace-exclusive > .immersive-market, .tab-pane-body > .immersive-market) { overflow: hidden; display: flex; flex-direction: column;"));
@@ -52,9 +52,10 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /\.global-search-field input:is\(:focus, :focus-visible\) \{[\s\S]*background: transparent;/);
   assert.ok(workbench.includes("plugin-market-list { display: grid;"));
   assert.doesNotMatch(workbench, /plugin-market-grid article \{ padding: 24px;/);
-  assert.ok(workbench.includes(".feed-workbench { padding: 0; background: var(--canvas); overflow: auto; overscroll-behavior: contain; }"));
-  assert.match(workbench, /feed-stage-list .goal-collection-fold > summary/);
-  assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
+  assert.match(withPlugins, /\.feed-workbench\.plugin-stage-shell\[data-feed-stage-shell\] \{[^}]*padding: 0;[^}]*overflow: hidden;/);
+  assert.match(withPlugins, /> \.feed-column > \.feed-stage-list \{[^}]*overflow: auto; overscroll-behavior: contain;/);
+  assert.match(withPlugins, /feed-stage-list .goal-collection-fold > summary/);
+  assert.match(withPlugins, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
   assert.match(withPlugins, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
   assert.doesNotMatch(withPlugins, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
@@ -62,10 +63,10 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(withPlugins, /@container shelf \(min-width: 640px\) ?\{\s*\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
-  assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
+  assert.match(withPlugins, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   // No region draws a scrollbar; one design-system rule hides them all (tests/scrollbars-hidden.test.ts).
   assert.ok(workbench.includes("@media not (forced-colors:active){*{scrollbar-width:none}*::-webkit-scrollbar{display:none;width:0;height:0}}"));
-  assert.ok(workbench.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
+  assert.ok(withPlugins.includes(":is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
   // Project home (DESIGN.md → Home): the home column scrolls in its own box under fixed chrome; it has no shortcut margin any more.
   assert.match(workbench, /\.immersive-home \.home-scroll \{ flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;/);
@@ -97,17 +98,18 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /\.immersive-plugin-stage \{ grid-column: 3; grid-row: 2 \/ -1; position: relative; z-index: 0;/);
   assert.match(workbench, /grid-template-rows: var\(--desktop-titlebar-height\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(workbench, /\.immersive-titlebar > \.workspace-chrome \{/);
-  assert.match(workbench, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
+  assert.match(withPlugins, /\[data-board-view="list"\]\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
   // Bar insets and the back button's optical pull snapped to the 4/8 scale in the visual refinement
   // (spec → 第三轮 · 间距与形状): 20px → 24px, -6px → -8px, 10px → 12px. The bars are still pinned the same way.
   assert.match(workbench, /\.plugin-stage-detail-bar \{[\s\S]*padding: 8px 16px 8px 24px;/);
   assert.match(workbench, /\.plugin-stage-detail-bar\[data-stage-back-only\] \{[\s\S]*position: absolute;/);
-  assert.match(workbench, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
+  assert.match(withPlugins, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
   assert.match(workbench, /\.plugin-stage-detail-bar > h1 \{[\s\S]*font-size: 13px;/);
   assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -8px;/);
-  assert.match(workbench, /body\.immersive-workbench \.goal-node-toolbar,[\s\S]*body\.immersive-workbench \.plugin-stage-detail-bar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
+  assert.match(withPlugins, /body\.immersive-workbench \.goal-node-toolbar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
+  assert.match(workbench, /body\.immersive-workbench \.plugin-stage-detail-bar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
   assert.match(workbench, /plugin-stage-workspace \.artifact-detail,[\s\S]*plugin-stage-workspace \.artifact-empty \{ max-width: none; margin: 0; \}/);
   assert.doesNotMatch(workbench, /plugin-stage-workspace \.artifact-empty \{ max-width: 800px; margin: 24px auto; \}/);
   assert.match(workbench, /immersive-plugin-stage > \.plugin-stage-shell[\s\S]*?padding: 0;/);
@@ -125,11 +127,11 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 });
 
 test("feed stage search keeps a single frame", () => {
-  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /:not\(\[data-feed-search\]\)/);
-  assert.match(workbench, /body\.immersive-workbench \.feed-stage-search \{[^}]*border: 1px solid var\(--line\)/);
-  assert.match(workbench, /\.feed-stage-search input \{[\s\S]*appearance: none; -webkit-appearance: none;/);
-  assert.match(workbench, /\.feed-stage-search input:is\(:focus, :focus-visible\) \{[\s\S]*background: transparent;/);
+  assert.match(workbench, /\.feed-search-row \{[^}]*box-shadow: inset 0 0 0 1px var\(--line\)/);
+  assert.match(workbench, /\.feed-search-row \.feed-stage-search \{[^}]*border: 0;/);
+  assert.match(workbench, /\.feed-search-row \.feed-stage-search input \{[^}]*border: 0; appearance: none; -webkit-appearance: none; background: transparent; box-shadow: none; outline: 0;/);
   assert.doesNotMatch(workbench, /\.feed-stage-search input \{[^}]*border: 1px solid/);
 });
 

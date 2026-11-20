@@ -87,7 +87,6 @@ export interface Studio {
 }
 
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
-const MODEL_KEY = INSTALLED_MODEL_KEY;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 /** The HTTP action has not finished. Its locale is still live, and these words are the shipped Builder's. */
 function studioWord(key: string, fallback: string): string {
@@ -329,7 +328,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
     }
     if (route === '/state' && method === 'GET') {
-      const raw = studio.storage.get(MODEL_KEY);
+      const raw = studio.storage.get(INSTALLED_MODEL_KEY);
       // A directory that cannot be read leaves the board with the studio's own list, and says why rather than hiding it.
       let catalogError: string | undefined;
       const state = await workflow.state(), catalog = await studio.catalog().catch(error => {
@@ -344,12 +343,12 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       const body = await readLocalWebBody(request), models = await options.models(); pageAuthority?.assertCurrent();
       const chosen = models.find(item => item.provider_id === body.provider_id && item.model_id === body.model_id);
       if (!chosen) throw studioProblem("plugin-builder.request.model-not-configured", '所选模型尚未配置，请在模型设置中完成配置');
-      studio.storage.set(MODEL_KEY, JSON.stringify({ provider_id: chosen.provider_id, model_id: chosen.model_id }));
+      studio.storage.set(INSTALLED_MODEL_KEY, JSON.stringify({ provider_id: chosen.provider_id, model_id: chosen.model_id }));
       sendLocalWebJson(response, 200, { model: chosen }); return true;
     }
     if (route === '/builds' && method === 'POST') {
       const body = await readLocalWebBody(request); pageAuthority?.assertCurrent();
-      if (!studio.storage.get(MODEL_KEY) && !options.agents) throw studioProblem("plugin-builder.request.model-required", '请先选择构建使用的模型');
+      if (!studio.storage.get(INSTALLED_MODEL_KEY) && !options.agents) throw studioProblem("plugin-builder.request.model-required", '请先选择构建使用的模型');
       sendLocalWebJson(response, 201, { build: publicBuild(workflow.create(String(body.brief ?? ''))) }); return true;
     }
     if (build && !build[2] && method === 'GET') { sendLocalWebJson(response, 200, { build: publicBuild(workflow.store.require(build[1]!)), versions: workflow.store.versions(build[1]!).map(publicRelease) }); return true; }

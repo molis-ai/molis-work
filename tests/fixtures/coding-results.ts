@@ -150,8 +150,8 @@ export async function startShelf(platform: FakePlatform, options: { connected?: 
   const actions: PluginActionClient = {
     discover: async () => [],
     invokeQuery: async () => { throw new Error("a plugin-only action is reached by invoke"); },
-    invoke: async () => { throw new Error("Shelf discovers document providers via actions.directory"); },
-    directory: {
+    invoke: async () => { throw new Error("Shelf discovers document providers via actions.dependencies"); },
+    dependencies: {
       discover: async () => [codingView],
       check: async () => {},
       invoke: async <Output>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => {

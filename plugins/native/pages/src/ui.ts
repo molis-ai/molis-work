@@ -69,6 +69,25 @@ function templateWords(p: PagesUiPrimitives, item: { id: string; title: string; 
   }
 }
 
+function renderVersionDiffDialog(): string {
+  return `<dialog class="mw-dialog mw-dialog--form pages-version-diff" data-pages-version-diff aria-labelledby="pages-version-diff-title">
+      <form class="mw-form" method="dialog">
+        <header class="mw-form__header"><h2 id="pages-version-diff-title">${uiText("pages.version.compare")}</h2></header>
+        <div class="mw-form__body">
+          <div class="pages-version-pickers">
+            <label>${uiText("pages.version.before")} <select class="mw-select" data-pages-version-before></select></label>
+            <label>${uiText("pages.version.after")} <select class="mw-select" data-pages-version-after></select></label>
+          </div>
+          <p data-pages-version-status role="status"></p>
+          <div data-pages-version-result></div>
+        </div>
+        <footer class="mw-form__footer">
+          <button class="mw-btn mw-btn--ghost" type="submit">${uiText("pages.version.close")}</button>
+        </footer>
+      </form>
+    </dialog>`;
+}
+
 export function renderPagesWorkbench(model: PagesUiModel): string {
   const { primitives: p } = model;
   const templates = PAGES_TEMPLATES.map((item) => {
@@ -147,22 +166,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </div>
       <p class="pages-note" data-pages-note hidden></p>
     </div>
-    <dialog class="mw-dialog mw-dialog--form pages-version-diff" data-pages-version-diff aria-labelledby="pages-version-diff-title">
-      <form class="mw-form" method="dialog">
-        <header class="mw-form__header"><h2 id="pages-version-diff-title">${uiText("pages.version.compare")}</h2></header>
-        <div class="mw-form__body">
-          <div class="pages-version-pickers">
-            <label>${uiText("pages.version.before")} <select class="mw-select" data-pages-version-before></select></label>
-            <label>${uiText("pages.version.after")} <select class="mw-select" data-pages-version-after></select></label>
-          </div>
-          <p data-pages-version-status role="status"></p>
-          <div data-pages-version-result></div>
-        </div>
-        <footer class="mw-form__footer">
-          <button class="mw-btn mw-btn--ghost" type="submit">${uiText("pages.version.close")}</button>
-        </footer>
-      </form>
-    </dialog>
+    ${renderVersionDiffDialog()}
     <dialog class="mw-dialog mw-dialog--form creative-confirm" data-pages-confirm>
       <form class="mw-form" method="dialog">
         <div class="mw-form__body"><p data-confirm-text></p><div class="mw-field__error" role="alert" hidden></div></div>

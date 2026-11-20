@@ -206,6 +206,20 @@ export interface PagesActionPorts extends PagesStores {
   promote?(id: string, expectedVersion?: number, goalId?: string): ReturnType<typeof promotePagesDocument>;
 }
 
+function diffFixedVersions(ports: PagesActionPorts, input: InferActionInput<typeof artifactDiffInput>, projectId: string): PagesVersionDiffResult {
+  ports.read(store => store.get(input.id, projectId));
+  if (input.before_version === input.after_version) throw pagesErrors.invalid("请选择两个不同的固定版本");
+  const before = ports.readFixedVersion?.(input.id, input.before_version);
+  const after = ports.readFixedVersion?.(input.id, input.after_version);
+  if (!before || !after) throw pagesErrors.not_found("找不到指定的固定版本，请刷新后重试");
+  try {
+    return comparePagesFixedVersions({ page_id: input.id, before_version: input.before_version, after_version: input.after_version, before, after });
+  } catch (error) {
+    if (error instanceof RangeError) throw pagesErrors.invalid("这个固定版本的正文无法读取");
+    throw error;
+  }
+}
+
 /**
  * The file Pages reads to continue from an imported 成果 version. An original the 成果库 keeps in its store (over 6 MB) continues from
  * the text read out of it, as Markdown.
@@ -355,19 +369,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     }, () => ports.modelAvailability()),
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
     bind(pagesActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
-    bind(pagesActions.artifactDiff, (input, caller) => {
-      ports.read(store => store.get(input.id, project(caller)));
-      if (input.before_version === input.after_version) throw pagesErrors.invalid("请选择两个不同的固定版本");
-      const before = ports.readFixedVersion?.(input.id, input.before_version);
-      const after = ports.readFixedVersion?.(input.id, input.after_version);
-      if (!before || !after) throw pagesErrors.not_found("找不到指定的固定版本，请刷新后重试");
-      try {
-        return comparePagesFixedVersions({ page_id: input.id, before_version: input.before_version, after_version: input.after_version, before, after });
-      } catch (error) {
-        if (error instanceof RangeError) throw pagesErrors.invalid("这个固定版本的正文无法读取");
-        throw error;
-      }
-    }),
+    bind(pagesActions.artifactDiff, (input, caller) => diffFixedVersions(ports, input, project(caller))),
     bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.read(store => store.get(id, project(caller)))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "body"]),
       // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.

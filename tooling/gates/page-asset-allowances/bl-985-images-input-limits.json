@@ -1,0 +1,5 @@
+{
+  "reason": "BL-985：Images 五个输入框按服务的字符上限计数（emoji 算一个），输入法组字结束后再截、截了在提示行说明，提交与保存前再核一次页面带入的超长值；原 maxlength 按 UTF-16 单元计数，不能表达字符上限。上限与服务共用 src/limits.ts 一份，无新增资源。",
+  "review": "BL-981、BL-985 小修 PR「页面资源增长」一节",
+  "assets": { "/assets/molis-work-plugins/images.js": 1662 }
+}

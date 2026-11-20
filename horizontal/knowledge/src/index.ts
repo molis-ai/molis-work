@@ -44,7 +44,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { knowledgeErrors } from "./errors.js";
+import { knowledgeErrors, reasonOf } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
 import { RoundBudget, roundOf } from "./budget.js";
@@ -97,9 +97,7 @@ const DEFAULT_CARDS = 10;
 const HINT_CHARS = 160;
 const DEFAULT_GREP_LIMIT = 30;
 const DEFAULT_LIST = 30;
-const REASON_CHARS = 200;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
-const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS);
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */

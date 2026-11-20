@@ -2,6 +2,7 @@ import { WEB_PAGE_SESSION_HEADER, webPageToken } from './web-sessions.js';
 import { createPersonalAccountProtocol } from './personal-account-protocol.js';
 import { createPersonalPageHttp } from './personal-page-http.js';
 import { AccountRefreshPages } from './account-refresh-pages.js';
+import { describeAccountConfigState } from './active-release-profile.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
 import { fileAccountSecrets, personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
@@ -209,7 +210,18 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
-      sendLocalWebJson(response,200,{configured,identity:null,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;
+      const configState=configured?null:describeAccountConfigState();
+      sendLocalWebJson(response,200,{
+        configured,identity:null,
+        accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,
+        accountGeneration:auth?.accountGeneration(),ready:false,switching:false,
+        ...(configState&&!configState.configured?{
+          configReason:configState.reason,
+          configHint:configState.reason==='missing_env'
+            ? '当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。'
+            : '账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。',
+        }:{}),
+      });return true;
     }
     const service=desktop?getAuth():session?.auth??null;
     let navigation=desktop?desktopNavigation:session?.navigation??null;

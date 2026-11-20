@@ -126,3 +126,38 @@ test("S-conversation-attachments CATT-06 a round's pictures come only from the c
   await assert.rejects(attachedImages({ image_materials: [image("one"), image("one")] }, owned), /不同的图片/);
   await assert.rejects(attachedImages({ image_materials: Array.from({ length: 7 }, (_, index) => image(`p${index}`)) }, owned), /最多带 6 张/);
 });
+
+test("MR19-01 deleting the last owner while another project claims the same picture preserves the new copy", async () => inHome(async home => {
+  const other = { ...coding, project_id: "project-b" };
+  await attachConversationFile(home, coding, upload("original.png", pixel));
+  let clearing: Promise<void> | undefined;
+  const added = await attachConversationFile(home, other, upload("same.png", pixel), { beforeEffect() {
+    // Let the old owner's cleanup race the new owner's publication.
+    queueMicrotask(() => queueMicrotask(() => { clearing = forgetProjectAttachments(home, coding.project_id); }));
+  } });
+  assert.ok(clearing);
+  await clearing;
+  assert.deepEqual((await readConversationAttachment(home, other, added.ref, { as: "image" })).image?.bytes, pixel);
+  await assert.rejects(readConversationAttachment(home, coding, added.ref, { as: "image" }), notFound);
+}));
+
+test("MR19-02 reattaching the original repairs a damaged picture and preserves its owner's metadata", async () => inHome(async home => {
+  const first = await attachConversationFile(home, coding, upload("first.png", pixel));
+  await writeFile(join(blobs(home), sha(pixel)), "damaged");
+  const read = () => readConversationAttachment(home, coding, first.ref, { as: "image" });
+  await assert.rejects(read(), { code: "material.attachment.unreadable" });
+  await assert.rejects(attachConversationFile(home, coding, upload("new.png", pixel), { beforeEffect() { throw new Error("revoked"); } }), /revoked/);
+  await assert.rejects(read(), { code: "material.attachment.unreadable" });
+  assert.deepEqual(await attachConversationFile(home, coding, upload("new.png", pixel)), first);
+  assert.deepEqual((await read()).image?.bytes, pixel);
+  assert.deepEqual((await readConversationAttachment(home, coding, first.ref, { as: "original" })).original, pixel);
+}));
+
+test("MR19-02 restoring missing document bytes keeps the original name and extracted text", async () => inHome(async home => {
+  const words = Buffer.from("周三同步");
+  const note = await attachConversationFile(home, coding, upload("note.txt", words));
+  await rm(join(blobs(home), sha(words)));
+  assert.deepEqual(await attachConversationFile(home, coding, upload("renamed.bin", words)), note);
+  assert.equal((await readConversationAttachment(home, coding, note.ref, { as: "text" })).text, "周三同步");
+  assert.deepEqual((await readConversationAttachment(home, coding, note.ref, { as: "original" })).original, words);
+}));

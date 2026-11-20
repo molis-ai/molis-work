@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { openCharacterRuns, openCharacters, purgeCharactersProject } from "@molis-ai/molis-work-module-characters";
+import { CHARACTERS_STORE_BASELINE, openCharacterRuns, openCharacters, purgeCharactersProject } from "@molis-ai/molis-work-module-characters";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -74,16 +74,16 @@ test("RAC-255 BL-385: the Host lists Characters among a project's data owners an
   assert.deepEqual(rows(directory, "SELECT panel_id FROM character_runs"), [{ panel_id: "panel-3" }]);
 });
 
-test("RAC-255 BL-385: a Home with no Characters library has nothing to clear and gets none; a store at another version is refused untouched", t => {
+test("MR19-12 RAC-255 BL-385: a Home with no Characters library has nothing to clear and gets none; a store at another version is refused untouched", t => {
   const empty = home(t);
   purgeCharactersProject(empty, "doomed");
   assert.equal(existsSync(join(empty, "characters")), false, "the purge creates nothing");
-  const old = home(t);
-  seed(old);
-  const file = join(old, "characters", "characters.sqlite"), db = new DatabaseSync(file);
-  db.exec("PRAGMA user_version = 3"); db.close();
+  const newer = home(t);
+  seed(newer);
+  const file = join(newer, "characters", "characters.sqlite"), db = new DatabaseSync(file);
+  const expected = CHARACTERS_STORE_BASELINE.version, found = expected + 1;
+  db.exec(`PRAGMA user_version = ${found}`); db.close();
   const bytes = readFileSync(file);
-  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.found === 3 && error.details?.expected === 2);
+  assert.throws(() => purgeCharactersProject(newer, "doomed"), error => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.found === found && error.details?.expected === expected);
   assert.deepEqual(readFileSync(file), bytes, "the refusal writes nothing");
-  writeFileSync(file, bytes);
 });

@@ -54,6 +54,7 @@ export function draftEditing(c: WritingContext) {
   function typedField(w: Workshop, target: HTMLInputElement | HTMLTextAreaElement): void {
     const name = target.dataset.auField as FieldName;
     w.fields[name] = target.value;
+    if (name === "description" || name === "when_not_to_use" || name === "body") w.placeholderBase = undefined;
     if (w.errors[name]) { delete w.errors[name]; target.removeAttribute("aria-invalid"); root.querySelector(`[data-au-error="${name}"]`)?.remove(); }
     if (name === "body") {
       const count = countOf(w.fields.body, c.limits), shown = root.querySelector<HTMLElement>("[data-au-count] .mw-text-count__n");

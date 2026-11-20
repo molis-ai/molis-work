@@ -115,7 +115,22 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   await open("characters");
   const adjust = `[data-characters] [data-roles-act="open"][data-roles-arg="original:${draft.character_id}"]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(adjust)}))`, 60_000);
-  await click(adjust); await waitFor(drawerOpen);
+  // MR19-08: hold the real version read so the editor cannot appear ready while edits would be discarded.
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      if (String(args[0]).endsWith('/roles/versions')) {
+        window.fetch = original;
+        await new Promise(resolve => { window.releaseRoleRead = resolve; });
+      }
+      return original.apply(window, args);
+    };
+  })()`);
+  await click(adjust);
+  await waitFor("typeof window.releaseRoleRead === 'function'");
+  assert.equal(await evaluate("document.querySelector('[data-character-title]').disabled"), true);
+  await evaluate("window.releaseRoleRead(); delete window.releaseRoleRead");
+  await waitFor(drawerOpen);
   // Saving is a new version that runs: with its chosen action withdrawn, the save is refused and the person's edit stays in the drawer.
   await fill('[data-character-title]', "保留失效能力的角色"); await click('[data-roles-drawer="save"]');
   await waitFor("[...document.querySelectorAll('[data-character-drawer-notices], [data-character-notice]')].some(node => node.textContent.includes('不可用'))");

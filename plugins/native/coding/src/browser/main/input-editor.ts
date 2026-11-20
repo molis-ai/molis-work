@@ -28,7 +28,8 @@ export function mountInputEditor(page: Page) {
         input.value = value.draft;
         window.molisFit?.(input);
         if (changed) {
-          for (const form of root.querySelectorAll<HTMLElement & { ix?: { destroy(): void } }>("[data-coding-question]")) { form.ix?.destroy(); form.remove(); }
+          // A submitted card holds this window's answer and receipt independently of the saved draft.
+          for (const form of root.querySelectorAll<HTMLElement & { ix?: { destroy(): void } }>("[data-coding-question]:not([data-busy],[data-refused])")) { form.ix?.destroy(); form.remove(); }
           if (s.lastData) renderRuns(page, s.lastData.runs);
         }
       }

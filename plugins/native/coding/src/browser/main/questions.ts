@@ -120,7 +120,7 @@ function bind(page: Page, card: QuestionCard, key: string, run: QuestionRun, que
 function questionCard(page: Page, block: HTMLElement, run: QuestionRun, question: PendingQuestion, key: string): QuestionCard | null {
   const cards = [...block.querySelectorAll<QuestionCard>("[data-coding-question]")];
   let form = cards.find(node => node.dataset.questionKey === key) ?? null;
-  if (form && question.html && form.dataset.questionDefinition !== question.html) {
+  if (form && !form.dataset.busy && question.html && form.dataset.questionDefinition !== question.html) {
     form.ix?.destroy();
     form.remove();
     form = null;

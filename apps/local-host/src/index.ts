@@ -24,7 +24,7 @@ export { hostDependencyCheck, type PluginDependencyCheck } from "./plugin-action
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
-export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
+export { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
@@ -447,7 +447,8 @@ export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent
 export { gatewayFactory } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
-export { runtimeOverview, decideRuntimeRun, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
+export { runtimeOverview, decideRuntimeRun, runtimeExpiredSeenRequest, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
+export { expiredOwnerKey, expiredSeen, markExpiredSeen, type ExpiredSeen } from "./runs-expired-seen.js";
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
 export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";

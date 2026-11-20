@@ -121,6 +121,34 @@ pub(crate) async fn runtime_decide(
     .map_err(|error| error.to_string())?
 }
 
+/// The one instant the popover can send back: the `through` of the summary of runs skipped on their own that the person read.
+pub(crate) fn expired_seen_body(through: &str) -> Result<serde_json::Value, String> {
+    let instant = through.len() <= 40
+        && !through.is_empty()
+        && through.chars().all(|character| {
+            character.is_ascii_digit() || matches!(character, '-' | ':' | '.' | 'T' | 'Z' | '+')
+        });
+    if !instant {
+        return Err("这个时刻无效".into());
+    }
+    Ok(serde_json::json!({ "through": through }))
+}
+
+/// 「知道了」 on the summary of missed runs skipped on their own: it is not said again (the Host keeps the mark).
+#[tauri::command]
+pub(crate) async fn runtime_expired_seen(
+    window: tauri::WebviewWindow,
+    through: String,
+) -> Result<String, String> {
+    from_capsule(&window)?;
+    let body = expired_seen_body(&through)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::shelf_http::post_json_with("/api/runtime/expired/seen", &body, "")
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 /// The menu bar's dot: there are missed runs the person has not decided on.
 #[tauri::command]
 pub(crate) fn runtime_missed_dot(
@@ -347,6 +375,24 @@ mod tests {
             (None, "feed", "a\nb", "skip"),
         ] {
             assert!(decision_body(scope, provider, run, decision).is_err());
+        }
+    }
+
+    #[test]
+    fn bl_missed_runs_never_expire_the_popover_sends_back_only_an_instant() {
+        assert_eq!(
+            expired_seen_body("2026-11-18T09:00:00.000Z").unwrap()["through"],
+            "2026-11-18T09:00:00.000Z"
+        );
+        let long = "9".repeat(41);
+        for through in [
+            "",
+            "later",
+            "2026-11-18T09:00:00.000Z\n",
+            "2026-11-18 09:00",
+            long.as_str(),
+        ] {
+            assert!(expired_seen_body(through).is_err(), "{through}");
         }
     }
 

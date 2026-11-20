@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * What Feed's store reads and writes through. Synchronous, like both sides of it: a project connection (`fromBetterSqlite`, named for the driver it once was) and the
+ * What Feed's store reads and writes through. Synchronous, like both sides of it: a project connection (`fromProjectConnection`) and the
  * project-database transaction a Runtime plugin is given. Every statement is passed with its parameters, so nothing here can keep a
  * prepared statement or a connection in a field; a Module built over a `FeedSql` holds the reference and does no I/O when it is made.
  */
@@ -24,10 +24,13 @@ export interface SqliteHandle {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-/** A handle with `transaction` gives the whole interface; one that can only prepare (a reader) gives the statements without it. */
-export function fromBetterSqlite(db: SqliteHandle): FeedSql;
-export function fromBetterSqlite(db: Pick<SqliteHandle, "prepare">): Omit<FeedSql, "transaction">;
-export function fromBetterSqlite(db: Pick<SqliteHandle, "prepare"> & Partial<SqliteHandle>): Omit<FeedSql, "transaction"> & Partial<Pick<FeedSql, "transaction">> {
+/**
+ * Feed's database interface over a project connection. A handle with `transaction` gives the whole interface, with each transaction
+ * taken immediately; one that can only prepare (a reader) gives the statements without it.
+ */
+export function fromProjectConnection(db: SqliteHandle): FeedSql;
+export function fromProjectConnection(db: Pick<SqliteHandle, "prepare">): Omit<FeedSql, "transaction">;
+export function fromProjectConnection(db: Pick<SqliteHandle, "prepare"> & Partial<SqliteHandle>): Omit<FeedSql, "transaction"> & Partial<Pick<FeedSql, "transaction">> {
   return {
     get: <Row>(sql: string, ...params: unknown[]) => db.prepare(sql).get(...params) as Row | undefined,
     all: <Row>(sql: string, ...params: unknown[]) => db.prepare(sql).all(...params) as Row[],

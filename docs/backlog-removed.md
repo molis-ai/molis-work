@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-feed-sql-driver-name、BL-feed-run-now-missed-again、BL-missed-runs-never-expire | 已完成并删除 | 第 95 批（2026-11-18）：Feed 连接工厂改名 `fromProjectConnection`；「现在做」把来源放回错过的那一刻并在错过记录上留决定，睡眠或重启后照做一次、不再问；Feed、定时任务、助理跟进错过的事都从 `due_at` 起留七天，到期没处理的自动跳过（一次性提醒与任务一并结束），运行面板与首页汇总一次，「知道了」记在 `run/expired-seen.json`；见 [95.md](../specs/post-anticorruption-roadmap/reference/batches/95.md) |
 | BL-schedule-update-task-lookup | 已完成并删除 | 第 96 批 96-1（2026-11-19）：`schedule.tasks.update@1` 按编号只读这一项（Schedule 端口 `getTask`），没写重复规则时保留原规则，别的项目、已归档的编号答「定时任务不存在」；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |
 | BL-schedule-detail-refresh-after-failed-round | 已完成并删除 | 第 96 批 96-2（2026-11-19）：一轮写回与后台停下任务、改下次时间时 Schedule 调 `services.ui.invalidate()`，开着的详情经 `scope.watchRevision` 就地显示刚没跑成的一轮和原因，重读期间保留用户的新选择；余项 BL-schedule-view-refresh-followups；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |
 | BL-plugin-cli-dev-uncoded-errors | 已完成并删除 | 2026-11-19：`molis-work plugin dev` 被拒时各给自己的码，不再一律报 `plugin.manifest_invalid`：普通非空状态目录 `host.plugin_development_directory_occupied`（目录原样不动）、标记不认得 `host.plugin_development_directory_unsupported`、漏写 `--allow-unsigned-development` 为 `plugin.unsigned_development_required`、dev 其余无码失败兜底 `plugin.development_failed`；`plugin.manifest_invalid` 兜底只留给 `validate`，手册与 Skill 的「误报」说明已删。归入 [48-1](../specs/post-anticorruption-roadmap/reference/batches/48.md#batch-48-item-1) 的 CLI 子项，已由 [#2152](https://github.com/molis-ai/molis-work/pull/2152)（`517c2c6716`）合入；48-1 其余照原排期。 |

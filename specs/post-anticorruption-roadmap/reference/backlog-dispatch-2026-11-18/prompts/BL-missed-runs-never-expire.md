@@ -2,12 +2,12 @@
 
 资讯、定时、助理跟进和一次性提醒都从原定时间起保留七天。七天内你可补做或跳过，逾期未处理的统一跳过并汇总。
 
-预计 **12–24 工时**。维护范围为主动助理线协调各来源。正式交付项为 [95-3](../../batches/95.md#batch-95-item-3)。[原始待办](../../../../backlog/BL-missed-runs-never-expire.md) · [派工总表](../README.md)
+预计 **12–24 工时**。维护范围为主动助理线协调各来源。正式交付项为 [95-3](../../batches/95.md#batch-95-item-3)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-missed-runs-never-expire.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 
 ```text
-在 goalboard 仓库完成 BL-missed-runs-never-expire。正式交付项为 95-3，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 specs/backlog/BL-missed-runs-never-expire.md。产品决定与验收按该 BL 的现行记录。
+在 goalboard 仓库完成 BL-missed-runs-never-expire。正式交付项为 95-3，批次文件在 specs/post-anticorruption-roadmap/reference/batches/95.md。开工前同步核对当前 main、协调单 #1743 和对应开放 PR，沿原认领交接。读 https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-missed-runs-never-expire.md（已完成删除）。产品决定与验收按该 BL 的现行记录。
 
 目标
 错过的任务统一留七天，到期一次说清跳过了几件。资讯、定时、助理跟进和一次性提醒都从原定时间起保留七天。七天内你可补做或跳过，逾期未处理的统一跳过并汇总。

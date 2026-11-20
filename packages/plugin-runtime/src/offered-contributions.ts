@@ -4,6 +4,7 @@ import { actionErrorResponse, isCodedFailure } from "@molis-ai/molis-work-plugin
 
 import { currentPluginInvocation, endPluginRoute, pluginActivationOpen, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
 import type { PluginContributionSource } from "./lifecycle.js";
+import { streamsLines } from "./routes.js";
 
 /**
  * What each running activation offers, keyed by installation. A route an activation offers runs as a call of its own (BL-403,
@@ -51,8 +52,9 @@ const stoppedAnswer = () => actionErrorResponse(new ActionError("actions.forbidd
 
 function offer(contribution: PluginContribution, manifest: PluginManifest, context: PluginStartContext | undefined): Offer {
   if (contribution.kind !== "app" || !contribution.routes?.length) return { contribution, withdraw: () => undefined };
-  // The router's own test for a streamed route (`routes.ts`), so a second kind of stream is never raced against the 403 and cut short.
-  const streamed = new Set((manifest.routes ?? []).filter(route => route.stream !== undefined).map(route => route.route_id));
+  // The router's own test for a streamed route (`routes.ts`): a route it streams is never raced against the 403 and cut short, and one
+  // it answers plainly is answered 403 at once.
+  const streamed = new Set((manifest.routes ?? []).filter(streamsLines).map(route => route.route_id));
   const waiting = new Set<() => void>();
   let withdrawn = false;
   const answer = (binding: PluginRouteBinding, request: PluginRouteRequest): Promise<PluginRouteResponse> => {

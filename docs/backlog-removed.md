@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-964 | 已完成并删除 | 2026-11-20：Plugin Runtime 的路由分发与撤下贡献共用一处「是不是流」的判断 `streamsLines`（`packages/plugin-runtime/src/routes.ts`），即 Manifest 现行唯一允许的 POST `"ndjson"`；`offered-contributions.ts` 不再把任一已声明的 `stream` 当成流。撤下贡献时等着的普通请求立即答 403，进行中的流不被这个 403 截断、由路由的实例监视取消（499）且晚到的尾巴不写；见 `tests/plugin-route-stream-lifecycle.test.ts` 的 W5-01-STREAM-06 |
 | BL-report-rounds-auto-cap | 已完成并删除 | 第 97 批 97-1（2026-11-19）：宿主为没有对话来源的任务起的只汇报一轮在轮次上记 `report_only`，两处上限（接续起跑、委托交回）共用 `roundsOnItsOwn`，跳过汇报轮、不加也不清零；标记存在库里，重启后照样分得出。用户定不升助理库版本、不迁移：标记之前存下的汇报轮照旧计数。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-1) |
 | BL-work-line-report-batch | 已完成并删除 | 第 97 批 97-2（2026-11-19）：`AssistantTaskReports` 把一次读取里同一项目结束的行交成一批，`AssistantReportRounds.report` 起一轮列出全部结果（一件时措辞照旧），忙时整批等下一次空闲；每件任务仍各一条提醒、按任务去重。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-2) |
 | BL-set-output-revision | 已完成并删除 | 2026-11-20：插件页面设输出目录（`UiPageWorkspaces.setOutput`）与打开说明文件时，外壳把确认框读到的目录 `revision` 随请求交给 Host（`apps/workbench/src/browser/plugin-frame/workspaces.ts`），Host 按它调 `projects.directories.set_output@1` / `set_instructions@1`，不再在写入请求里重读（`apps/local-host/src/plugin-page-workspaces.ts`）；期间别处改过目录就按 `actions.conflict` 拒绝，页面得到「项目的文件夹刚在别处改过」的提示，别处的选择保留，再问一次按最新目录确认即可。两窗口回归见 `tests/plugin-page-workspaces.e2e.test.ts`「BL-set-output-revision」 |

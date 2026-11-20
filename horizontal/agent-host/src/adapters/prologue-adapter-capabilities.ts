@@ -65,6 +65,7 @@ export function guardedSubagents(subagents: NonNullable<PrologueRuntimePort["sub
   return {
     ...(subagents.workspaces ? { workspaces: true as const } : {}),
     list: async run => { await read(run); return subagents.list(run); },
+    ...(subagents.listForRuns ? { listForRuns: parents => subagents.listForRuns!(parents, read) } : {}),
     ...(subagents.resultCandidates ? { resultCandidates: sessions => subagents.resultCandidates!(sessions) } : {}),
     ...(subagents.subscribe ? { subscribe: async (run, changed) => { await read(run); return subagents.subscribe!(run, changed); } } : {}),
     ...(subagents.conversation ? { conversation: async (run, id) => { await read(run); return subagents.conversation!(run, id); } } : {}),

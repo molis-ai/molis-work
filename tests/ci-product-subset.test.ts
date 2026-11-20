@@ -517,7 +517,7 @@ test("ci.yml: a blocking job runs the subset's own rules", () => {
   }
 });
 
-test("workflows: shared dist build artifacts are passed via build job outputs so --failed reruns resolve attempt-1 outputs", () => {
+test("MR19-06 workflows: shared dist build artifacts are passed via build job outputs so --failed reruns resolve attempt-1 outputs", () => {
   for (const [file, prefix, expectedDownloads] of [
     ["ci.yml", "ci-dist", 6],
     ["full-suite.yml", "full-suite-dist", 1],

@@ -90,6 +90,11 @@ async function documentText(home: string, name: string, bytes: Buffer, signal: A
   return { text: read.text, meta: { chars: read.text.length, truncated: read.coverage.truncated === true, pages: read.pages.length ? read.coverage.total_pages : null, coverage: read.coverage.status, issues: read.coverage.issues.slice(0, 20) } };
 }
 
+async function stillMatches(target: string, bytes: Buffer, signal?: AbortSignal): Promise<boolean> {
+  try { return (await readFile(target, { signal })).equals(bytes); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+}
+
 function attachmentOf(row: AttachmentRow): ConversationAttachment {
   const ref: MaterialRef = { subject: { kind: CONVERSATION_ATTACHMENT_SUBJECT_KIND, id: subjectId(row.sha256) }, pin: { mode: "current", read_revision: row.sha256 } };
   return { ref, title: row.title, kind: row.kind, media_type: row.media_type, byte_length: row.byte_length, ...(row.text_meta ? { text: JSON.parse(row.text_meta) as NonNullable<ConversationAttachment["text"]> } : {}) };
@@ -133,13 +138,14 @@ async function publishAttachment(home: string, owner: AttachmentOwner,
   const { name, bytes, image, sha256 } = file;
   const directory = blobsOf(home), target = path.join(directory, sha256);
   const check = async () => { await options.beforeEffect?.(); options.signal?.throwIfAborted(); };
-  if (existsSync(target)) {
+  const saved = ownedRow(home, owner, sha256);
+  if (saved && await stillMatches(target, bytes, options.signal)) {
     await check();
-    const known = ownedRow(home, owner, sha256);
-    if (known && existsSync(target)) return attachmentOf(known);
+    const current = ownedRow(home, owner, sha256);
+    if (current && existsSync(target)) return attachmentOf(current);
   }
-  const read = image ? null : await documentText(home, name, bytes, options.signal);
-  const row: AttachmentRow = { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
+  const read = saved || image ? null : await documentText(home, name, bytes, options.signal);
+  const row: AttachmentRow = saved ?? { sha256, title: name, kind: image ? "image" : "document", media_type: image ?? mediaTypeOf(name), byte_length: bytes.length,
     text: read?.text ?? null, text_meta: read ? JSON.stringify(read.meta) : null };
   const temporary = path.join(directory, `.${sha256}.${randomUUID()}`);
   await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -149,8 +155,7 @@ async function publishAttachment(home: string, owner: AttachmentOwner,
     // A Home has one storage owner. Publish the blob and its row without yielding to another attach or forget.
     return withStore(home, db => {
       const known = ownedRow(home, owner, sha256, db);
-      const published = !existsSync(target);
-      if (published) renameSync(temporary, target);
+      renameSync(temporary, target);
       try {
         if (known) return attachmentOf(known);
         db.prepare(`INSERT INTO attachments (plugin_id, install_id, project_id, sha256, title, kind, media_type, byte_length, text, text_meta, attached_at)
@@ -158,7 +163,7 @@ async function publishAttachment(home: string, owner: AttachmentOwner,
           .run(...ownerKey(owner), sha256, row.title, row.kind, row.media_type, row.byte_length, row.text, row.text_meta, new Date().toISOString());
         return attachmentOf(row);
       } catch (error) {
-        if (published && !db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1").get(sha256)) rmSync(target, { force: true });
+        if (!db.prepare("SELECT 1 FROM attachments WHERE sha256 = ? LIMIT 1").get(sha256)) rmSync(target, { force: true });
         throw error;
       }
     });

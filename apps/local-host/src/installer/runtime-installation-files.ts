@@ -18,6 +18,8 @@ export async function writeAtomic(filePath: string, contents: string, mode?: num
   const temporaryPath = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(temporaryPath, contents, mode == null ? undefined : { mode });
   try {
+    // The creation mode passes through the process umask; a retained original permission is set exactly (BL-tests-umask).
+    if (mode != null) await fs.chmod(temporaryPath, mode & 0o777);
     assertCurrent();
     const identity = await fs.lstat(temporaryPath); assertCurrent();
     await fs.rename(temporaryPath, filePath);

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -22,6 +22,8 @@ export async function runtimeBackupFixture(t: TestContext) {
     writeFile(join(release, "release.json"), JSON.stringify({ schema_version: 1,
       installer: "molis-work-home-install-v1", version: "test", dependencies: "embedded", content_digest: "a".repeat(64),
       created_at: "2026-01-01T00:00:00.000Z" }))]);
+  // Creation modes pass through umask, so the fixture sets the exact sample permissions itself (BL-tests-umask).
+  await Promise.all([chmod(launcher, 0o755), chmod(config, 0o640)]);
   const service = () => new RuntimeIntegrationService({ homeDirectory: home, userHomeDirectory: userHome,
     runtimeExecutables: { codex: launcher }, validateConnection: () => true });
   return { home, userHome, directory, secret, contents, config, service };

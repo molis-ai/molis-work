@@ -99,7 +99,7 @@ function caseForm(w: Workshop): string {
 function tryPanel(w: Workshop): string {
   const draft = w.draft, busy = Boolean(w.running || w.adopting);
   const cases = draft.cases.map(known => {
-    const current = draft.trial?.case_id === known.case_id && replayedNow(w);
+    const current = !draft.untried.includes(known.case_id);
     return `<li class="mw-item sk-case">${icon(current ? "check" : "file")}<div class="sk-case__text"><strong>${esc(known.title)}</strong><small>${esc(improve(known.origin === "conversation" ? "case-from-conversation" : "case-from-person"))}</small><small class="sk-case__task">${esc(known.task)}</small></div>
       <span class="mw-item__end">${w.running === known.case_id ? renderStatusMark({ label: improve("replaying"), tone: "progress", state: "running" })
         : button(improve(current ? "replay-again" : "replay"), { variant: current ? "ghost" : "primary", icon: "play", attrs: act("sk-run", known.case_id), disabled: busy })}${
@@ -164,7 +164,7 @@ export function adoptBar(w: Workshop): string {
   const differs = (draft: SkillDraft) => draft.trial?.cells.filter(cell => cell.side === "draft" && cell.verdict === "differs").reduce((sum, cell) => sum + Math.max(1, cell.differences.length), 0) ?? 0;
   return `<div class="sk-work__bar" data-sk-bar>${failed}${renderAdoptBar({ primary, actions: button(improve("discard"), { variant: "ghost", attrs: act("sk-discard"), disabled: busy }), status: status.text,
     ...(status.state ? { state: status.state } : {}),
-    ...(w.confirm ? { confirm: { id: "sk-confirm", text: improve("confirm-differs", { n: Math.max(1, differs(w.draft)) }),
+    ...(w.confirm ? { confirm: { id: "sk-confirm", text: improve("confirm-differs", { n: typeof w.confirm === "number" ? w.confirm : Math.max(1, differs(w.draft)) }),
       actions: button(improve("go-back"), { variant: "ghost", attrs: act("sk-confirm-back") }) + button(improve("adopt-anyway"), { variant: "primary", attrs: act("sk-adopt-anyway") }) } } : {}) })}</div>`;
 }
 
@@ -182,9 +182,9 @@ export function workshopMarkup(w: Workshop, limits: SkillWritingLimits): string 
     <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w)}</div>`;
 }
 
-/** New Skills not adopted yet, above the list: each opens its draft. A change to an existing Skill is found at that Skill. */
-export function draftsStrip(drafts: readonly SkillDraftSummary[]): string {
-  const fresh = drafts.filter(draft => draft.target.kind === "new" && !draft.discarded_at);
+/** Open drafts without a Skill row holding them (new Skills, drafts of deleted Skills, or extra drafts), plus discarded drafts. */
+export function draftsStrip(drafts: readonly SkillDraftSummary[], linked?: ReadonlySet<string>): string {
+  const fresh = drafts.filter(draft => !draft.discarded_at && (linked ? !linked.has(draft.draft_id) : draft.target.kind === "new"));
   const dropped = drafts.filter(draft => draft.discarded_at);
   const verdict = (draft: SkillDraftSummary) => draft.verdict === "match" ? renderStatusMark({ label: improve("verdict-match"), tone: "done", state: "done" })
     : draft.verdict === "differs" ? renderStatusMark({ label: improve("verdict-differs-short"), tone: "attention", state: "verify" }) : "";

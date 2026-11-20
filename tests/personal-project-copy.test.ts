@@ -7,7 +7,7 @@ import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-stor
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {executeLocalProjectsCopy,listCopyableLocalProjects,previewLocalProjectsCopy} from '@molis-ai/molis-work-app-local-host';
 
-test('PCSYNC-OPT-15 multi-project copy previews, stages invisibly on failure, retries idempotently offline, and leaves local source unchanged', async t => {
+test('PCSYNC-OPT-15 foundation: copies project structure offline, rejects account changes, and replays without touching source files', async t => {
   const root = mkdtempSync(join(tmpdir(), 'molis-opt15-copy-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const localHome = join(root, 'local'), personalHome = join(root, 'personal');

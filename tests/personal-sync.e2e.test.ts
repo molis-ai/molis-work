@@ -251,7 +251,7 @@ test('PCSYNC-27 resident indicator reports conflict and offline states without s
  await b.evaluate("dispatchEvent(new Event('offline'))");await b.waitFor("document.querySelector('[data-sync-indicator]').dataset.syncPhase==='offline'");
  assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
 });
-test('PCSYNC-OPT-18 grouped collections, transfer progress, and multi-project local copy preview/confirm UI',{timeout:60000},async t=>{
+test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project structure copy discloses what stays in the original',{timeout:60000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window);
@@ -262,7 +262,7 @@ test('PCSYNC-OPT-18 grouped collections, transfer progress, and multi-project lo
       const path=new URL(String(url),location.href).pathname;
       if(!path.startsWith('/api/sync'))return original(url,init);
       if(path==='/api/sync/copy/projects')return Response.json({projects:[{project_id:'p1',display_name:'Local Alpha'},{project_id:'p2',display_name:'Local Beta'}]});
-      if(path==='/api/sync/copy/preview')return Response.json({projects:[{project_id:'p1',display_name:'Local Alpha'},{project_id:'p2',display_name:'Local Beta'}],preview:{assetCount:6,savedBytes:3500000,fingerprint:'f'.repeat(64)}});
+      if(path==='/api/sync/copy/preview')return Response.json({projects:[{project_id:'p1',display_name:'Local Alpha'},{project_id:'p2',display_name:'Local Beta'}],preview:{assetCount:2,savedBytes:330,fingerprint:'f'.repeat(64)}});
       if(path==='/api/sync/copy/execute'){window.copyExecCalls.push(JSON.parse(init.body));return Response.json({copied:true});}
       return Response.json({
         available:true,device:{automatic:true},policy:{spaceId:'opt18-space',revision:1,selections:[platformSel,pluginSel]},
@@ -278,18 +278,19 @@ test('PCSYNC-OPT-18 grouped collections, transfer progress, and multi-project lo
   const fieldsText=await b.evaluate<string>("document.querySelector('[data-sync-fields]').textContent");
   assert.ok(fieldsText.includes('平台与项目'),fieldsText);
   assert.ok(fieldsText.includes('插件内容'),fieldsText);
+  assert.equal(await b.evaluate("document.querySelector('[data-sync-copy-local]').textContent"),'从本地复制项目结构');
   await b.click('[data-sync-copy-local]');
   await b.waitFor("document.querySelectorAll('[data-sync-dialog][open] input[type=checkbox]').length===2");
   await b.evaluate("document.querySelectorAll('[data-sync-dialog][open] input[type=checkbox]').forEach(el=>el.click())");
-  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] footer button')].find(el=>el.textContent==='预览复制内容').click()");
-  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] p')].some(el=>el.textContent.includes('2 个项目')&&el.textContent.includes('6 项内容')&&el.textContent.includes('3.50 MB'))");
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] footer button')].find(el=>el.textContent==='预览项目结构').click()");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] p')].some(el=>el.textContent.includes('2 个项目')&&el.textContent.includes('文档、附件和其他插件内容仍留在本地原项目'))");
   for(const [width,theme] of [[1440,'light'],[1024,'dark'],[390,'light']] as const){
     await b.command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);
     await b.evaluate("localStorage.setItem('molis-work:theme',"+JSON.stringify(theme)+");dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:"+JSON.stringify(theme)+"}))");
     assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
   }
   assert.equal(await b.evaluate('window.copyExecCalls.length'),0,'preview must not execute copy before confirmation');
-  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1).querySelector('footer button').click()");
+  await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] footer button')].find(el=>el.textContent==='确认复制项目结构').click()");
   await b.waitFor('window.copyExecCalls.length===1');
   const exec=await b.evaluate<{projectIds:string[];fingerprint:string;operationId:string}>('window.copyExecCalls[0]');
   assert.deepEqual(exec.projectIds,['p1','p2']);

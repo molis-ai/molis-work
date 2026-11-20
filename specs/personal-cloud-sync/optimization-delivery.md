@@ -27,9 +27,9 @@
   - 本机变更 1.5 秒防抖合并触发（覆盖 Web API、MCP HTTP 与动作网关非 `/api/sync` 写操作），空闲轮询退避至 120 秒，`Retry-After` 统一节流。
   - 上传/下载预算解耦 + 拓扑分层并发（`projects` 目录层 → 平台 `artifacts` 固定版本层 → 引用提供层 → 其他独立集合 3 路有界并发）+ 单附件分块双路并发 + 实时字节传输进度（`transfer: { done, total }`）。[同步协调器](../../modules/sync-replication/src/index.ts)
   - 普通大附件下载分块落盘私有 `0600` 文件暂存并支持重启续传（`sync.db` 保持 `< 1 MB`），受保护内容严格沿用 S-110 加密缓存；`sync.db` v2 持久化失败重试次数与截止时间并提供 v1 → v2 连续升级。[分块文件暂存](../../modules/sync-replication/src/blob-files.ts) · [本机数据库](../../modules/sync-replication/src/database.ts)
-  - 彻底移除 Host 中 Goals/Todo 插件名特判；补齐未启用插件分区被动检查边界；新增 `ProjectDeletionService.finalizeExpiredPersonalProject`（核验云端 `server_purged_at`、全部子 owner 未结算队列、活动任务与终端后才执行本机最终删除）；新增本地→个人多选整项目复制预览、隐藏暂存、原子发布与幂等重试链路（`/api/sync/copy/{projects,preview,execute}`）。[整项目复制](../../apps/local-host/src/personal-project-copy.ts) · [项目删除服务](../../apps/local-host/src/project-deletion-service.ts)
+  - 彻底移除 Host 中 Goals/Todo 插件名特判；补齐未启用插件分区被动检查边界；新增 `ProjectDeletionService.finalizeExpiredPersonalProject`（核验云端 `server_purged_at`、全部子 owner 未结算队列、活动任务与终端后才执行本机最终删除）；新增本地→个人多选项目结构复制预览、隐藏暂存、原子发布与幂等重试链路（`/api/sync/copy/{projects,preview,execute}`）。[项目结构复制](../../apps/local-host/src/personal-project-copy.ts) · [项目删除服务](../../apps/local-host/src/project-deletion-service.ts)
 - **工作台 UI 与资源体积（`OPT-18`）**：
-  - 同步设置按「平台与项目 / 插件内容」分组展示，状态栏与常驻指示器均展示实时附件字节进度，新增「从本地复制项目」多选预览与二次确认弹窗，完善 Markdown 行级差异与图片缩略图对比，所有文案 100% 走中英双语词表。
+  - 同步设置按「平台与项目 / 插件内容」分组展示，状态栏与常驻指示器均展示实时附件字节进度，新增「从本地复制项目结构」多选预览与二次确认，明确文档、附件和其他插件内容保留在本地原项目，完善 Markdown 行级差异与图片缩略图对比，所有文案 100% 走中英双语词表。
   - 通过复用已有本地翻译别名清理冗余 `globalThis.t.text` 展开，`/assets/molis-work-workbench.js` 较 merge-base 净缩减 651 字节（`1,350,265 → 1,349,614`）。[同步设置](../../apps/workbench/src/settings-sync.ts) · [版本对比](../../apps/workbench/src/settings-sync-comparison.ts) · [常驻指示器](../../apps/workbench/src/sync-indicator.ts)
 
 ## 3. 逐项验收总览
@@ -50,10 +50,10 @@
 | `PCSYNC-OPT-12` | 受控永久清理与配额明细 | 通过 | 默认关闭、开启需二次确认且绑定确切版本、跨账号拒绝、文本配额原子释放与 5 项分项明细通过（[retention.test.mjs](../../apps/sync-worker/retention.test.mjs)、[personal-sync.e2e.test.ts](../../tests/personal-sync.e2e.test.ts)）。 |
 | `PCSYNC-OPT-13` | 临时失败持久化重试 | 通过 | `sync.db` v1 → v2 升级保留延迟队列，重启后遵循退避截止时间，依赖恢复或手动单项重试即恢复（[sync-device.test.ts](../../tests/sync-device.test.ts)）。 |
 | `PCSYNC-OPT-14` | Host 去特判（插件同等待遇） | 通过 | 无 Goals/Todo 插件名分支；无 Goals 个人项目经真实 Host 与 Rust/D1 完整同步、回收站往返与恢复通过（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
-| `PCSYNC-OPT-15` | 本地到个人多选整项目复制 | 通过 | 一次多选 2+ 本地项目预览（项目/资产数/预计容量）、隐藏暂存防半成品可见、离线/中断幂等重试无重复副本、原本地项目字节零改动，Workbench E2E 通过（[personal-project-copy.test.ts](../../tests/personal-project-copy.test.ts)、[personal-sync.e2e.test.ts](../../tests/personal-sync.e2e.test.ts)）。 |
+| `PCSYNC-OPT-15` | 本地到个人多选整项目复制 | 未完成 | 当前只交付项目结构复制，保留预览、暂存与幂等。文档、成果附件和其他插件内容的复制，以及真实内容端到端验收，见 [后续事项 #2184](https://github.com/molis-ai/molis-work/issues/2184)。 |
 | `PCSYNC-OPT-16` | 项目云端级联过期与本机最终清理 | 通过 | 云端项目过 30 天清理后级联释放全部子集合正文与无共享 R2 附件（计费归零）并保留防复活墓碑；本机 `finalizeExpiredPersonalProject` 强制核对 `server_purged_at`、子 owner 未结算队列与活动任务/终端（[projects.test.mjs](../../apps/sync-worker/projects.test.mjs)）。 |
 | `PCSYNC-OPT-17` | 剩余 Owner 与嵌套 GC 收尾 | 通过 | Coding 真实 SDK 会话历史、Builder、Alchemist、Feed、Images、Cognia、Shelf、Sources、Attention、Runtime、Process Items 全部 20 份 Worker 集成测试 60/60 通过。 |
-| `PCSYNC-OPT-18` | 语义对比、分组进度与资源预算 | 通过 | 0 翻译问题；Chrome E2E 10/10 通过（含 Markdown/图片对比、分组、附件字节进度、本地复制预览/确认与 1440/1024/390 深浅色零溢出）；`page-assets:check` 67 项全通过且 `workbench.js` 净减 651 字节。 |
+| `PCSYNC-OPT-18` | 语义对比、分组进度与资源预算 | 通过 | 0 翻译问题；Chrome E2E 10/10 通过（含 Markdown/图片对比、分组、附件字节进度、项目结构复制预览/确认与 1440/1024/390 深浅色零溢出）；`page-assets:check` 67 项全通过且 `workbench.js` 净减 651 字节。 |
 | `PCSYNC-OPT-19` | 仓库工程门禁 | 通过（本机全绿） | 全量构建、Rust `fmt`/WASM `clippy`、`pnpm health:check`、`pnpm boundary:check`、`pnpm page-assets:check`、翻译、API/Schema/动作合同快照与 `pnpm secrets:check` 全部通过；待推送后由远端 CI 复验。 |
 | `PCSYNC-OPT-20` | `[人工]` 真实云端 24 小时压测 | 已完成 `test` 部署与连通性探针（待完整压测） | 已部署 `molis-auth-test`（Version `2c749c9a-f715-4ea7-b173-acbebe2c0c85`）与 `molis-work-test`（`https://work.test.molis.ai`，Version `56bd3b07-b2fa-4da8-a0ed-2f906ab486a8`，启用 `SYNC_READ_AUTH=signed`）；实测 `/.well-known/molis-sync-jwks.json` 200（`kid=molis-sync-test-2026-11`）、`/api/v2/auth/sync-read-proof` 200（TTL 30s）、5 次连续签名 `/v1/round` 延迟 `1667ms → 336–410ms`、`/v1/quota/breakdown` 5 项明细正常、注销后读凭证即刻 `401`，且远程 `molis-work-server-db-test` 的 `sync_rate_windows` 写入 **0 行**。24 小时双端长稳、50 MB 附件往返与 100 MB 满额压测待按计划执行。 |
 | `PCSYNC-OPT-21` | `[人工]` 生产迁移与配对备份演练 | 未执行 | 本地已验只读维护模式拒绝写入/清理；真实 D1/R2 配对备份、隔离恢复与回退拒绝演练待窗口执行。 |

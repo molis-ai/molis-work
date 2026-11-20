@@ -172,7 +172,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         for(const p of projects){const l=node('label','mw-check-row'),c=node('input','mw-check');c.type='checkbox';c.value=p.project_id;l.append(c,node('span','',p.display_name));body.append(l);}
         sheet("workbench.settings-sync.copy-local-projects",body,[["workbench.settings-sync.copy-preview",async()=>{
           const ids=[...body.querySelectorAll('input:checked')].map(el=>el.value),res=await request('/copy/preview',{projectIds:ids},'POST'),op=crypto.randomUUID();
-          const pBody=node('p','settings-muted',readText("workbench.settings-sync.copy-summary",{projects:res.projects.length,assets:res.preview.assetCount,mb:(res.preview.savedBytes/1e6).toFixed(2)}));
+          const pBody=node('p','settings-muted',readText("workbench.settings-sync.copy-summary",{projects:res.projects.length}));
           sheet("workbench.settings-sync.copy-local-projects",pBody,[["workbench.settings-sync.copy-confirm",async()=>{await request('/copy/execute',{projectIds:ids,fingerprint:res.preview.fingerprint,operationId:op},'POST');load();}]]);
         }]]);
       }catch(failure){error.hidden=false;error.textContent=failure.message;}

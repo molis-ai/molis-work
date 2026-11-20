@@ -8,11 +8,11 @@ import test from "node:test";
 import { mkdtempSync, mkdirSync, existsSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { LocalSqliteStorage, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
-import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
-import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
+import { ModelProviderStore, initializeCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -25,7 +25,10 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   mkdirSync(join(home, "projects"));
   const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
-  const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close();
+  try {
+    createContextLedger(db.db, { initializeSchema: true, authorize: () => false });
+    initializeCatalog(db);
+  } finally { db.close(); }
   const secrets = runWithMolisWorkHome(home, () => createFileSecretStore());
   const models = <T>(run: (store: ModelProviderStore) => T): T => {
     const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));

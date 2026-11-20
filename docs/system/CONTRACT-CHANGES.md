@@ -470,3 +470,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **图片改引用：** `AgentImageMaterial` 与 `AssistantMaterial.image` 由 `resource_id`／`revision` 改为 `attachment: MaterialRef`；`agent.run.start@1` 的 `image_materials` 至多 6 张。`AgentDocumentCapability`、`AgentDocumentParser` 删除。
   - **命令模板：** 新子路径 `@molis-ai/molis-work-plugin-sdk/prompt-commands` 与合同 `services/prompt-commands`；动作 `commands.personal.list@1`（要 `commands:read`）与 `commands.project.list@1`（要 `workspace:read`）。
 - **第 35 批独立复核修复**（[验收编号](../../specs/batch-35-audit-fixes/spec.md)）。新增 `sessions.history.authorize@1`，调用者沿用 Sessions 已有的历史读取许可。引导比较指定会话的许可版本和归属，原文取自已读缓存。原 `coding.images.read@1` 与 Coding 私有 HTTP 入口改为用会话及轮次一次读图，由同版工作台消费。内置和沙箱的附件客户端都接收 `expected_kind: "image"`。助理库采用 #2163 的 v1 基线。助理轮次用 `file_attachment` 引用原件，宿主核对当前工作与轮次后从平台附件库提供下载。已有作用域、安装与项目权由原主人复核。
+- **第 98 批：多个插件共用过程项类型，接收方按来源或类型取**（PR [#2154](https://github.com/molis-ai/molis-work/pull/2154)，BL-375）：在原版本上改，不升版本，没有读取兼容。
+  - **列表：** `PluginArtifactClient.listConsumable(filter?: PluginConsumableFilter)`，条件 `{ artifact_type_id?, producer_plugin_id? }` 只缩小名单（声明、授权、个人归属照旧先筛）；不带条件的旧调用不变。SDK 动作 `sdk.artifacts.<安装>.list@1` 的输入从 `{}` 变成这两个可选字段。
+  - **摘要：** `PluginConsumableVersion` 加必有字段 `producer_plugin_id`（平台按运行身份记下的生产插件）；自己造这个类型的测试替身或适配要补上。`ArtifactListQuery` 加可选 `producer_plugin_id`。
+  - **声明：** 几个插件可以在 `process_items.produces` 声明同一种类型；成果类型仍按 S-82 只有一个属主。

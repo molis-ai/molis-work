@@ -20,7 +20,7 @@
 
 **归属：** 版本的生产者（工作流、Agent、MCP 客户端、人）记在 `created_by`；归属 `owner_actor_id` 另给。一个人的 Home 装配 `homeOwner` 后，这个 Home 里的个人成果一律归这个人，不论谁生产，也不要求读它的行为者就是生产者；固定与导入端口传本机的人。已存的、归在行为者名下的身份读作这个人的，不迁移数据。`team_project` 仍归共享它的行为者。
 
-**当前实现：** 成果库（`library_artifacts` / `library_artifact_versions`，人要留存、引用的固定版本）与过程项（`process_items` / `process_item_versions`，插件之间交接的数据）两套版本库，同一套版本/owner/digest/scope 校验；类型由 manifest 的 `artifacts.produces` 与 `process_items.produces` 声明，宿主拒绝未声明的写入。过程项不进成果库、侧栏文件和搜索。旧代码的字符串引用不会被猜测回填；其浏览、下载和明确转换归平台成果界面。
+**当前实现：** 成果库（`library_artifacts` / `library_artifact_versions`，人要留存、引用的固定版本）与过程项（`process_items` / `process_item_versions`，插件之间交接的数据）两套版本库，同一套版本/owner/digest/scope 校验；类型由 manifest 的 `artifacts.produces` 与 `process_items.produces` 声明，宿主拒绝未声明的写入。成果类型在整个 Home 只有一个属主（S-82）；过程项类型可以由几个插件共同声明，每一份记着平台写下的生产插件，接收方按类型取全部有权读取的，或按 `producer_plugin_id` 只取某一家（BL-375）。过程项不进成果库、侧栏文件和搜索。旧代码的字符串引用不会被猜测回填；其浏览、下载和明确转换归平台成果界面。
 
 **文档导入：** 平台成果库可将 Notion、飞书/Lark docx、Google Docs 或本地 Markdown/TXT/HTML 转成 `io.molis.work.document` v1 的个人正文快照。读取外部 API 由官方 catalog integration 负责，凭据与 HTTP 由 Local Host 注入；本 Module 继续只保存通用 Artifact 事实，不理解文档供应商、不抓取外部内容、不承担同步。从成果目录选择「导入文档」，选择已有连接或本地文件，再保存正文快照；在线内容变化时新增版本，旧版本与精确引用保留。HTML 在可终止 worker 中解析，原文件及正文均受 2 MiB 限制。取消、撤权或提供方撤下不新增版本。真实在线账号联调与本人验收仍未建立。
 

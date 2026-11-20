@@ -185,6 +185,7 @@
     "alchemist.client-views.reports": "Reports",
     "alchemist.client-views.research-again": "Research again",
     "alchemist.client-views.research-build-cost": "Research build cost",
+    "alchemist.client-views.research-key-missing-saved-material-kept": "Research is paused: the key that protects saved research material is missing. Feed and research material already saved is kept as it is. Restore the original key and restart, then research again.",
     "alchemist.client-views.research-did-not-finish-collected-material-kept-confirm": "Research did not finish. Collected material is kept. Confirm a new plan to retry.",
     "alchemist.client-views.research-market-space": "Research market space",
     "alchemist.client-views.research-methods": "Research methods",

@@ -52,12 +52,12 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
   });
 });
 
-test("W5-01-CODING-09 the action Shelf asks for is the one definition Coding declares, and Shelf's Manifest names it by id and holds the permission it needs", () => {
-  // The definition lives in Coding (`@molis-ai/molis-work-plugin-coding/contract`, PG-111) and Shelf consumes its id: the Host runs Coding's schemas, Shelf keeps only a view to ask with.
+test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and Shelf discovers it through actions:invoke without pinning Coding's action id", () => {
+  // The definition lives in Coding (`@molis-ai/molis-work-plugin-coding/contract`, PG-111) and tags the artifact-document role; Shelf discovers it via `actions:invoke` (`services.actions.dependencies`, Audit #10).
   assert.ok(codingManifest.actions?.some(row => Object.is(row, codingResultDocument)), "Coding's Manifest declares the contract's definition");
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(shelfManifest)));
-  assert.deepEqual(manifest.capabilities.consumes, [codingResultDocument.capability_id]);
-  assert.deepEqual(manifest.capabilities.consumes, ["coding.results.document"]);
+  assert.deepEqual(manifest.capabilities.consumes, []);
+  assert.ok(manifest.permissions.some(row => row.permission === "actions:invoke" && row.required), "Shelf requires actions:invoke for role discovery");
   for (const permission of codingResultDocument.action.permissions) {
     assert.ok(manifest.permissions.some(row => row.permission === permission && row.required), `Shelf's Manifest requires ${permission}`);
   }
@@ -79,8 +79,8 @@ test("W5-01-CODING-10 the list is the platform's, filtered to the types and port
     { reference: CHANGESET_REFERENCE, title: "这一轮的固定变更", connected: true },
     { reference: { artifact_id: second.artifact_id, version: second.version }, title: "报告 run-2", connected: false },
   ] });
-  // A candidate is asked about once; the plan type is not one Shelf consumes, and an archived version is not even listed.
-  assert.deepEqual(asked, Array(4).fill("coding.results.document@1"), "report, change set, the second report and the other producer's, each once");
+  // A candidate is asked about once; the plan type is not one Shelf consumes, an archived version is not listed, and a foreign producer with no registered role provider is skipped without asking Coding.
+  assert.deepEqual(asked, Array(3).fill("coding.results.document@1"), "report, change set, and the second report, each once");
   const unconnected = await handlerOf((await startShelf(platform)).handlers, shelfRuntimeActions.results).handle(owner, {}) as { results: { connected: boolean }[] };
   assert.deepEqual(unconnected.results.map(row => row.connected), [false, false, false]);
 });
@@ -90,7 +90,7 @@ test("W5-01-CODING-11 a refusal of the platform or of Coding reaches the person 
   assert.equal(await code(fakePlatform({ artifacts: [reportRecord({ lifecycle_state: "archived" })] }, CONSUMED), REPORT_REFERENCE), "artifacts.plugin_incompatible", "archived");
   assert.equal(await code(fakePlatform({ artifacts: [reportRecord({ availability: "unavailable", unavailable_reason: "原正文失效" })] }, CONSUMED), REPORT_REFERENCE), "artifacts.plugin_incompatible", "unavailable");
   assert.equal(await code(fakePlatform({}, CONSUMED), REPORT_REFERENCE), "shelf.unavailable", "another project's version is not in this project's store");
-  assert.equal(await code(fakePlatform({ artifacts: [reportRecord({ producer_plugin_id: "io.molis.work.other" })] }, CONSUMED), REPORT_REFERENCE), "artifacts.plugin_denied", "another producer's");
+  assert.equal(await code(fakePlatform({ artifacts: [reportRecord({ producer_plugin_id: "io.molis.work.other" })] }, CONSUMED), REPORT_REFERENCE), "shelf.unavailable", "another producer without a document/preview role");
   const forged = reportRecord({ payload: { title: "伪造", run_id: "other-run", source: { session_id: "session-a" }, body_markdown: "x" } });
   assert.equal(await code(fakePlatform({ artifacts: [forged] }, CONSUMED), REPORT_REFERENCE), "coding.shelf_material_invalid", "not a Coding report of that session and round");
   const other = changeSetRecord({ artifact_id: "coding-changeset:session-a:other-run" });

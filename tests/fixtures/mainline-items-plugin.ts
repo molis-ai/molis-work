@@ -100,7 +100,11 @@ export async function mainlineRig(t: TestContext, plugins: { notes: NotesPlugin;
   const home = await mkdtemp(join(tmpdir(), "mainline-items-"));
   const references = new Map<string, LocalHostProjectReference>();
   for (const name of names) {
-    const project = await withCatalog({ homeDirectory: home }, projects => projects.createProject({ display_name: name, actor_id: "user" }));
+    const project = await withCatalog({ homeDirectory: home }, async projects => {
+      const created = await projects.createProject({ display_name: name, actor_id: "user" });
+      projects.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+      return created;
+    });
     references.set(name, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   }
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,

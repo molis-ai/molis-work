@@ -1,9 +1,9 @@
-import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReadResult, type AcceptanceReportInput,
   type AcceptanceReportRequest, type AcceptanceSetRequest, type AcceptanceSubject, type AcceptanceTier, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { acceptanceView, currentRequirements, standsOn, type DeliveryRow } from "./state.js";
-import { openStore, AcceptanceStore } from "./store.js";
+import type { SqliteBaselineDatabase } from "@molis-ai/molis-work-storage";
+import { acceptanceView, currentRequirements, standsOn, type DecisionVoucher, type DeliveryRow } from "./state.js";
+import { AcceptanceStore } from "./store.js";
 
 /** Who is calling, as the Host established it: never read from an action's input. `session` is a session the Host itself bound. */
 export interface AcceptanceCaller { project_id: string; actor_id: string; person: boolean; session: string | null }
@@ -38,7 +38,9 @@ async function weigh(report: AcceptanceReportInput, delivery: DeliveryRow, calle
     if (reference.kind === "artifact_version" && await lookup(() => ports.artifactReadable(reference)) !== true) return gap("evidence_unreadable");
   }
   const receipts = evidence.flatMap(reference => reference.kind === "command_receipt" ? [reference] : []);
-  if (!receipts.length) return SELF;
+  // Readable evidence and no command: a known session other than the one that made this version checked it (contract-design §10.9
+  // question 2). The maker saying so again, or a session nobody bound, stays the reporter's own word.
+  if (!receipts.length) return caller.session && delivery.made_in_session && delivery.made_in_session !== caller.session ? { tier: "peer_reviewed", gap: null } : SELF;
   // No platform session behind the call: nothing it cites can be looked up as its own.
   if (!caller.session) return gap("evidence_missing");
   // A command of another round, or of a session that did not make this version, says nothing about this version.
@@ -57,7 +59,12 @@ async function weigh(report: AcceptanceReportInput, delivery: DeliveryRow, calle
  * operation is scoped to the caller's project; nothing here knows which plugin an object belongs to beyond the name it is filed under.
  */
 export class AcceptanceService {
-  constructor(private readonly store: AcceptanceStore, private readonly now: () => string = () => new Date().toISOString()) {}
+  constructor(private readonly store: AcceptanceStore, private readonly now: () => string = () => new Date().toISOString(), private readonly vouched?: DecisionVoucher) {}
+
+  /** The caller's project is the library's: a call made in one project never reads or writes another's record. */
+  private scoped(caller: AcceptanceCaller): void {
+    if (caller.project_id !== this.store.projectId) throw acceptanceErrors.scope("要求与认可记在调用所在的项目里");
+  }
 
   private subject(input: AcceptanceSubject): AcceptanceSubject {
     const subject = { provider_id: input.provider_id.trim(), subject: { kind: input.subject.kind.trim(), id: input.subject.id.trim() } };
@@ -65,11 +72,13 @@ export class AcceptanceService {
     return subject;
   }
   private view(caller: AcceptanceCaller, subject: AcceptanceSubject): AcceptanceView {
-    const subjectNo = this.store.subjectNo(caller.project_id, subject, null);
-    return acceptanceView(subject, subjectNo === null ? { requirements: [], deliveries: [], checks: [], decisions: [] } : this.store.rows(subjectNo));
+    this.scoped(caller);
+    const subjectNo = this.store.subjectNo(subject, null);
+    return acceptanceView(subject, subjectNo === null ? { requirements: [], deliveries: [], checks: [], decisions: [] } : this.store.rows(subjectNo), this.vouched);
   }
   private known(caller: AcceptanceCaller, subject: AcceptanceSubject): number {
-    const subjectNo = this.store.subjectNo(caller.project_id, subject, null);
+    this.scoped(caller);
+    const subjectNo = this.store.subjectNo(subject, null);
     if (subjectNo === null) throw acceptanceErrors.subject_unknown("这个对象上还没有挂要求");
     return subjectNo;
   }
@@ -87,7 +96,8 @@ export class AcceptanceService {
     const listed = request.requirements.map(item => ({ requirement_id: item.id.trim(), statement: item.statement.trim(), expected: clean(item.expected), part: clean(item.part), requires_person: item.requires_person === true }));
     if (listed.some(item => !item.requirement_id || !item.statement) || new Set(listed.map(item => item.requirement_id)).size !== listed.length) throw acceptanceErrors.invalid("每项要求要有不重复的编号和一句说明");
     this.store.write(() => {
-      const subjectNo = this.store.subjectNo(caller.project_id, subject, { at })!, rows = this.store.rows(subjectNo);
+      this.scoped(caller);
+      const subjectNo = this.store.subjectNo(subject, { at })!, rows = this.store.rows(subjectNo);
       if (rows.deliveries.length && !caller.person) throw acceptanceErrors.requirements_fixed("已经交付过，之后只有用户本人能改要求");
       const latest = new Map(rows.requirements.map(row => [row.requirement_id, row]));
       listed.forEach((item, position) => {
@@ -167,8 +177,7 @@ export class AcceptanceService {
    * every listed requirement still at the version shown. Each accepted or returned requirement is recorded against the delivery it
    * stands on, under one decision id; requirements not listed are untouched. Only the person's own call reaches here.
    */
-  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(),
-    beforeCommit?: (view: AcceptanceView) => void): AcceptanceView {
+  decide(caller: AcceptanceCaller, request: AcceptanceDecideRequest, decisionId: string = randomUUID(), beforeCommit?: () => void): AcceptanceView {
     if (!caller.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
     const subject = this.subject(request.subject), at = this.now();
     const items = [...request.accepts.map(item => ({ ...item, decision: "accepted" as const, note: null as string | null })), ...request.returns.map(item => ({ ...item, decision: "returned" as const, note: clean(item.note) }))];
@@ -190,26 +199,17 @@ export class AcceptanceService {
             decision: item.decision, note: item.note, actor_id: caller.actor_id, decided_at: at });
         }
       }
-      const view = this.view(caller, subject);
-      beforeCommit?.(view);
-      return view;
+      // The trusted-decision record goes in first: the view counts a decision only once its record is in this library (`vouched`).
+      beforeCommit?.();
+      return this.view(caller, subject);
     });
   }
-
-  /** The acceptance rows are present, so a pending intent is a completed acceptance transaction. */
-  hasDecision(projectId: string, decisionId: string): boolean { return this.store.hasDecision(projectId, decisionId); }
-
 }
 
-/** The service on a Home's library, for as long as the caller needs it; `close` releases the file. `now` is for tests. */
-export function openAcceptance(homeDirectory: string, now?: () => string): { service: AcceptanceService; close(): void } {
-  const store = openStore(homeDirectory);
-  return { service: new AcceptanceService(store, now), close: () => store.close() };
-}
-
-/** Host composition only: the owner applies its rules on the same native transaction as the trusted decision. */
-export function decideAcceptanceInTransaction(db: SqliteDatabase, schema: string, caller: AcceptanceCaller, request: AcceptanceDecideRequest,
-  decisionId: string, beforeCommit: (view: AcceptanceView) => void): AcceptanceView {
-  if (!db.inTransaction || schema === "main") throw new Error("Acceptance requires an attached owner transaction");
-  return new AcceptanceService(new AcceptanceStore(db, schema)).decide(caller, request, decisionId, beforeCommit);
+/**
+ * The service on one project's library (contract-design §10.2): the caller holds the connection and its transaction. `vouched` says
+ * which trusted decisions this library holds the record of (the Host reads it from the project approvals); `now` is for tests.
+ */
+export function openAcceptance(db: SqliteBaselineDatabase, projectId: string, options: { now?: () => string; vouched?: DecisionVoucher } = {}): AcceptanceService {
+  return new AcceptanceService(new AcceptanceStore(db, projectId), options.now, options.vouched);
 }

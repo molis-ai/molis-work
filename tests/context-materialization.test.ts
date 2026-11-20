@@ -6,8 +6,8 @@ import type { ContextObjectRead, ObjectRef } from "@molis-ai/molis-work-contract
 
 const scope = { kind: "personal" as const, id: "project-a" };
 const access = { actor_id: "test-reader", scope };
-const goal: ObjectRef = { module: "goals", id: "goal-a", version: null, scope };
-const feed: ObjectRef = { module: "feed", id: "item-a", version: null, scope };
+const goal: ObjectRef = { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "goal-a", version: null, scope };
+const feed: ObjectRef = { module: "plugins", plugin_id: "io.molis.work.feed", object_type: "feed_item", id: "item-a", version: null, scope };
 const artifact: ObjectRef = { module: "artifacts", id: "artifact-a", version: 2, scope };
 
 test("Context rebuild walks cyclic references once, preserves exact versions, and exposes missing/denied/stale sources", () => {

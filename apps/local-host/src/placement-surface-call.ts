@@ -70,10 +70,11 @@ export function surfacePlacementCallPorts(ports: PlacementPorts, origin: ActionE
           try { result = await client.invoke(observed.caller, target, input); }
           catch (error) { if (observed.mayHaveWritten(error)) bound.committed = true; throw error; }
           bound.committed = true;
-          if (receiverResult(result) !== true || !isRecord(result) || result.plugin !== receiver.station
-            || typeof result.item_id !== "string" || !result.item_id.trim() || result.item_id.length > 200) throw homeChanged();
-          const item: WorkflowItemRef = { plugin: receiver.station, item_id: result.item_id, title: String(result.title) };
-          created = { kind: receiver.kind, id: item.item_id, project_id: bound.project };
+          const subject = isRecord(result) && isRecord(result.subject) ? result.subject : undefined;
+          if (receiverResult(result) !== true || !subject || subject.kind !== receiver.kind
+            || typeof subject.id !== "string" || !subject.id.trim() || subject.id.length > 200) throw homeChanged();
+          const item: WorkflowItemRef = { subject: { kind: receiver.kind, id: subject.id }, title: String((result as { title: unknown }).title) };
+          created = { kind: receiver.kind, id: item.subject.id, project_id: bound.project };
           return item;
         }
         if (forReceiver && created && sameReference(reference, ref(receiver.reader)) && isRecord(input) && input.subject_id === created.id) {

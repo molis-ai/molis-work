@@ -6,19 +6,18 @@ import {goalSyncSelection as selection} from './fixtures/runtime-goal-sync.js';
 import {createContextLedger} from '@molis-ai/molis-work-module-context-ledger';
 import {projectApprovalRules, projectReviewDecisions} from '@molis-ai/molis-work-service-project-approvals';
 
-test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, history, proposal, guidance and precise references', async t => {
+test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, history, proposal and precise references (since batch 44 the guidance travels in the platform collection)', async t => {
   const f = await fixture(t), p = f.project.project_id;
   f.edit(0, (app, db) => {
     work(app, p);
     app.goalEvents.createIntent({ project_id: p, goal_id: 'child', title: '子目标', actor_id: 'runtime-1', actor_kind: 'runtime', idempotency_key: 'child' });
     app.goals.commands.addRelation(p, { from_goal_id: 'child', to_goal_id: 'goal-main', type: 'part_of', reason: '包含' }, { actor_id: 'alice', idempotency_key: 'relation' });
     app.setActiveGoal(p, { goal_id: 'child', reason: '定位' }, { actor_id: 'alice', idempotency_key: 'active' });
-    app.goals.commands.addProjectGuidance({ project_id: p, actor_id: 'alice', kind: 'quality_bar', content: '完整恢复事实', reason: '同步', confirmation_summary: '已确认', user_confirmed: true, idempotency_key: 'guidance' });
     app.saveProjectApproval(p, 'alice', true, 'Reviewed project rule');
     app.goalTreeSubmission.submitGoalTreeProposal({ project_id: p, root_goal_id: 'goal-main', actor_id: 'runtime-1', summary: '待确认结构', idempotency_key: 'proposal', items: [{ item_id: 'proposed-child', kind: 'goal', operation: 'create', payload: { goal_id: 'proposed', title: '未执行的提案', outcome: '用户决定后创建' }, source_refs: ['conversation://plan'], reason: '候选', confidence: 1, affected_objects: [{ object_type: 'goal', object_id: 'proposed' }] }] });
     app.goalInputs.register({ binding_id: 'input', project_id: p, goal_id: 'goal-main', input_name: '资料', source_type: 'feed_item', source_ref: 'feed-item:missing-feed', snapshot_digest: null, state: 'confirmed', reason: '引用', created_by: 'alice', created_at: new Date().toISOString() });
     const ledger = createContextLedger(db.db, { authorize: () => true, initializeSchema: false }), access = { actor_id: 'alice', scope: { kind: 'personal' as const, id: p } };
-    ledger.commands.put(access, { key: 'output', type: 'goal.output', source: { module: 'goals', id: 'goal-main', version: null, scope: access.scope }, target: { module: 'artifacts', id: 'not-downloaded', version: 3, scope: access.scope }, cause: '交付' });
+    ledger.commands.put(access, { key: 'output', type: 'goal.output', source: { module: 'plugins', plugin_id: 'io.molis.work.goals', object_type: 'goal', id: 'goal-main', version: null, scope: access.scope }, target: { module: 'artifacts', id: 'not-downloaded', version: 3, scope: access.scope }, cause: '交付' });
     ledger.commands.remove(access, 'output', '移除');
     db.appendEvent({ eventId: 'local-only-source', projectId: p, actorId: 'alice', type: 'artifact.local_note', objectType: 'artifact', objectId: 'private', reason: 'not Goal', payload: {}, at: new Date().toISOString() });
   });

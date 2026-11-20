@@ -34,7 +34,7 @@ test("RAC-2682 the declared Goals refresh surface returns content without docume
 
 test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation states as values without another collection read", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals stage");
+  const project = await served.createProject("Goals stage", ["goals"]);
   const response = await fetch(`${served.origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goals`, {
     method: "POST", headers: { origin: served.origin, "content-type": "application/json", "x-molis-work-control-token": served.controlToken,
       "x-molis-work-idempotency-key": randomUUID() },
@@ -49,11 +49,12 @@ test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation stat
   const subjects = ["WAITING-CHOICE", "WAITING-ACCEPTANCE"].map(id => ({ kind: "goal", id }));
   for (const { id } of subjects) await command.invoke(goalsActions.create, { goal_id: id, title: id, idempotency_key: "create-" + id,
     requirements: [{ requirement_id: "human-" + id, statement: "People accept the deliverable", human_decision_required: true }] });
-  const ask = (index: number, purpose: "suggestion" | "requirement_acceptance") => command.invoke(goalsActions.requestDecision, {
+  const ask = (index: number, purpose: "suggestion") => command.invoke(goalsActions.requestDecision, {
     goal_id: subjects[index]!.id, idempotency_key: "decision-" + index, purpose, question: "Proceed with the work?",
     options: [{ option_id: "yes", label: "Yes", impact: "Proceed" }, { option_id: "no", label: "No", impact: "Revise" }], scope: { requirement_ids: ["human-" + subjects[index]!.id] },
   });
-  await ask(0, "suggestion"); await ask(1, "requirement_acceptance");
+  // The first waits on a choice; the second only on the person's acceptance, which the platform holds (its requirement needs the person).
+  await ask(0, "suggestion");
   const before = await actions.invoke(goalsActions.collection, {});
   const document = await actions.invoke(goalsActions.document, { goal_id: goal.goal_id });
   const stage = await actions.invoke(goalsActions.stage, { goal_id: goal.goal_id });
@@ -88,7 +89,7 @@ test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation stat
     "a Goal outside the requested collection is not selected; the page route supplies its original 404 body");
   const untrusted = { goal_id: goal.goal_id, project_id: "another-project", actor_id: "another-person" };
   await assert.rejects(actions.invoke(goalsActions.stage, untrusted), "request input cannot replace the trusted scope or actor");
-  const other = await served.createProject("Other Goals stage");
+  const other = await served.createProject("Other Goals stage", ["goals"]);
   const otherActions = bindActionClient(served.host.actionClient(other.reference), () => ({ ...caller, project_id: other.project_id }));
   const outside = await otherActions.invoke(goalsActions.stage, { goal_id: goal.goal_id });
   assert.equal(outside.selected, null);
@@ -106,11 +107,12 @@ test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation stat
   const chip = (page: string, goalId: string) => page.match(new RegExp('data-goal-id="' + goalId + '"[^>]*>[\\s\\S]*?class="mw-presentation mw-presentation--chip"([\\s\\S]*?)</div>', "u"))?.[1] ?? "";
   assert.match(chip(html, subjects[0]!.id), /等你决定|Needs your decision/u);
   assert.match(chip(html, subjects[1]!.id), /等你验收|Needs your acceptance/u);
-  const selectedState = await actions.invoke(goalsActions.state, { goal_id: goal.goal_id });
-  const requirement = selectedState.requirements.find(row => row.statement === "Check the new result");
+  // The criterion's words are on the platform's requirement list (contract-design §10).
+  const listed = await served.host.withProject(project.reference, runtime => goalApplicationOf(runtime).acceptanceView(project.project_id, goal.goal_id));
+  const requirement = listed.requirements.find(row => row.statement === "Check the new result");
   assert.ok(requirement, "the web form's criterion has an original requirement ID");
   await command.invoke(goalsActions.requestDecision, { goal_id: goal.goal_id, idempotency_key: "later-request", purpose: "suggestion", question: "Wait for a decision?",
-    options: [{ option_id: "yes", label: "Yes", impact: "Proceed" }, { option_id: "no", label: "No", impact: "Revise" }], scope: { requirement_ids: [requirement.requirement_id] } });
+    options: [{ option_id: "yes", label: "Yes", impact: "Proceed" }, { option_id: "no", label: "No", impact: "Revise" }], scope: { requirement_ids: [requirement.id] } });
   const refreshed = await fetch(`${served.origin}/projects/${project.project_id}/api/board/refresh?goal_id=${subjects[0]!.id}`);
   assert.equal(refreshed.status, 200);
   assert.match(chip(await refreshed.text(), goal.goal_id), /等你决定|Needs your decision/u, "the refresh reads the new state of a now unselected Goal");

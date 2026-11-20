@@ -406,7 +406,8 @@ export const DOCK_SCRIPT = `(readText, projectId, host = {}) => {
   });
   document.addEventListener('click', (event) => {
     const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
-    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
+    const opensPicker = event.target?.nodeType === 1 && event.target.closest('[data-home-control="picker"]');
+    if (pickerPopover && !pickerPopover.hidden && !inSearch && !opensPicker && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
     if (!(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) closeOverflows();
   });
   // ⌥↵ on a tile opens its plugin beside what is showing (PFG-23).

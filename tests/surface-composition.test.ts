@@ -195,11 +195,11 @@ test("IUI-02 SCS-11 SCS-13 the same directory's unique reader owns the fallback 
 test("SCS-04 SCS-06 SCS-17 Attention uses only active owner references and suppresses unproved objects and relations", async () => {
   const held = "2026-11-08T00:00:00.000Z";
   const h = harness({ attention: () => [
-    { owner_plugin_id: pluginId, subject: note("fail"), reason: "artifact_out_failed", entered_at: "2026-11-08T02:00:00.000Z", revision: 1 },
+    { owner_plugin_id: pluginId, subject: note("fail"), reason: "artifact_out_failed", attention: "failed", entered_at: "2026-11-08T02:00:00.000Z", revision: 1 },
     { owner_plugin_id: pluginId, subject: note("ready"), reason: "manual", entered_at: "2026-11-08T03:00:00.000Z", revision: 1 },
-    { owner_plugin_id: pluginId, subject: note("decision"), reason: "goal_decision", entered_at: held, revision: 1 },
-    { owner_plugin_id: pluginId, subject: note("7"), reason: "goal_decision", entered_at: held, revision: 1 },
-    { owner_plugin_id: "another-owner", subject: note("different-owner"), reason: "goal_decision", entered_at: held, revision: 1 },
+    { owner_plugin_id: pluginId, subject: note("decision"), reason: "goal_decision", attention: "needs_decision", entered_at: held, revision: 1 },
+    { owner_plugin_id: pluginId, subject: note("7"), reason: "goal_decision", attention: "needs_decision", entered_at: held, revision: 1 },
+    { owner_plugin_id: "another-owner", subject: note("different-owner"), reason: "goal_decision", attention: "needs_decision", entered_at: held, revision: 1 },
   ], relations: candidates => {
     assert.deepEqual(candidates.map(item => item.id), ["decision", "ready", "fail"]);
     return [{ derived: note("decision"), origin: note("fail"), type: CONTEXT_RELATION_TYPES.derived_from, revision: 1 },

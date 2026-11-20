@@ -260,7 +260,7 @@ Cookie 保存明确语言或“跟随系统”策略；后者按入口提供的�
 
 ### 6.1 macOS 原生接点
 
-桌面覆盖不能只检查主 WebView（胶囊已于第 44 批删除，重做时另验；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。[胶囊](../../apps/desktop/src/capsule-shell.ts)的 Web 外观已接入同一展示投影（2026-11-12 合后整改：`apps/local-host/src/capsule.ts`/`web-composition.ts` 把既有 `appearanceForHome`→`createWorkbenchAppearancePorts` 传给胶囊，`apps/workbench/src/capsule.ts` 用同一 `appearanceHead` + `renderSkinScope(BASELINE_SKIN, true)`；不再内联 `renderShellTokens`/`FONT_STACK`）。仍未做：[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示、`sync_capsule_locale` 重新 navigate 胶囊——这两项与原生菜单/托盘/剪贴板权限的实操验一起记 BL-b16-capsule-native-verification，待用户验收。
+桌面覆盖不能只检查主 WebView（胶囊已于第 44 批删除，重做时另验；2026-11-13 按插件同等地位收口改，[决定 43](../post-anticorruption-roadmap/reference/decisions.md#decision-43)）。胶囊（`apps/desktop/src/capsule-shell.ts`，已删除）的 Web 外观已接入同一展示投影（2026-11-12 合后整改：`apps/local-host/src/capsule.ts`/`web-composition.ts` 把既有 `appearanceForHome`→`createWorkbenchAppearancePorts` 传给胶囊，`apps/workbench/src/capsule.ts` 用同一 `appearanceHead` + `renderSkinScope(BASELINE_SKIN, true)`；不再内联 `renderShellTokens`/`FONT_STACK`）。仍未做：[Tauri 入口](../../apps/desktop/adapters/tauri/src/main.rs)的 `CapsuleLocale` 写死中文/英文提示、`sync_capsule_locale` 重新 navigate 胶囊——这两项与原生菜单/托盘/剪贴板权限的实操验一起记 BL-b16-capsule-native-verification，待用户验收。
 
 主窗口及内容窗口（胶囊重做时加入）各自消费同一入口偏好和 Host 展示快照。原生菜单、托盘 tooltip 与断线提示经受信 IPC 获得已翻译的有限字段，原地更新菜单项；校验发送窗口、字段、长度与版本，不接收任意脚本、动作或模型自称的窗口身份。Rust 只做系统菜单装配与当前投影缓存，不维护另一份翻译规则。
 

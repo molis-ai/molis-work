@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
@@ -36,6 +37,7 @@ test("EGCD-01 EGCD-02 EGCD-03 empty Goals opens the create dialog, a closed dial
   if (!browser) return;
   const { origin, projectId, sessionId, command, evaluate, waitFor, click, navigate } = browser;
   assert.ok(projectId);
+  await addProjectPlugin(browser.web, projectId, "goals");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   const home = `${origin}/projects/${projectId}/`;
   await navigate(() => command("Page.navigate", { url: home }, sessionId));

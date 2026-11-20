@@ -7,17 +7,20 @@ import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { FEED_ITEMS_SCHEMA_SQL, fromProjectConnection, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { ATTENTION_SCHEMA_SQL, AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { feedLedgerKey, feedLedgerPort } from "./fixtures/feed-ledger.js";
+import { feedLedgerKey, feedLedgerPort, unassignedFeedAttention } from "./fixtures/feed-ledger.js";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
 const reference = (module: ObjectRef["module"], id: string, version: number | null = null): ObjectRef =>
   ({ module, id, version, scope: access.scope });
+/** A plugin's object (PEQ-04: Goals and Feed are plugins, not modules of the platform). */
+const pluginObject = (plugin: "goals" | "feed", object_type: string, id: string): ObjectRef =>
+  ({ module: "plugins", plugin_id: `io.molis.work.${plugin}`, object_type, id, version: null, scope: access.scope });
 
 test("Ledger retains exact reference revisions, idempotent replay, removal and scope isolation", () => {
   const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: (request) => request.actor_id === "alice" });
-    const input = { key: "output", type: "goal.output", source: reference("goals", "goal-1"),
+    const input = { key: "output", type: "goal.output", source: pluginObject("goals", "goal", "goal-1"),
       target: reference("artifacts", "artifact-1", 2), cause: "published" };
     const first = ledger.commands.put(access, input);
     assert.equal(first.revision, 1);
@@ -41,7 +44,7 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
     assert.equal(ledger.query.history(access, "output").length, 2);
     assert.throws(() => ledger.commands.put(access, { ...input, target: { ...input.target, scope: { kind: "team_project", id: "project-a" } } }), { code: "context_ledger.scope_mismatch" });
     assert.throws(() => ledger.commands.put(access, { ...input, target: reference("artifacts", "artifact-1") }), { code: "context_ledger.invalid_reference" });
-    assert.throws(() => ledger.commands.put(access, { ...input, source: reference("goals", "other") }), { code: "context_ledger.key_conflict" });
+    assert.throws(() => ledger.commands.put(access, { ...input, source: pluginObject("goals", "goal", "other") }), { code: "context_ledger.key_conflict" });
     assert.equal(ledger.commands.remove(access, "output", "removed")?.revision, 3);
     assert.equal(ledger.commands.remove(access, "output", "retry")?.revision, 3);
     assert.equal(ledger.query.get(access, "output"), null);
@@ -59,7 +62,7 @@ test("Ledger keeps a reference to an input an agent run holds as given, without 
     const ledger = createContextLedger(db, { authorize: (request) => request.actor_id === "alice" });
     const input: ObjectRef = { ...reference("agent-host", "sess-1/inp-2"), object_type: "agent_input", project_id: "project-a" };
     const proposal = { key: "goal.conversation_input.proposal:goal-1:sess-1/inp-2", type: "goal.conversation_input.proposal",
-      source: reference("goals", "goal-1"), target: input, cause: "AI 转述" };
+      source: pluginObject("goals", "goal", "goal-1"), target: input, cause: "AI 转述" };
     const edge = ledger.commands.put(access, proposal);
     assert.deepEqual(edge.target, input);
     assert.deepEqual(ledger.commands.put(access, proposal), edge);
@@ -107,7 +110,7 @@ function feedHarness() {
     const measured = { ...sql, all: <Row = Record<string, unknown>>(query: string, ...params: unknown[]): Row[] => {
       const rows = sql.all<Row>(query, ...params); observe?.(query, rows.length); return rows;
     } };
-    feed = new FeedModule(measured, attention, { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });
+    feed = new FeedModule(measured, unassignedFeedAttention(attention), { ledger: feedLedgerPort(api), eventSink: () => { if (fail) throw new Error("event failed"); } });
     return feed;
   };
   const ingest = (id: string) => feed.commands.ingest({ project_id: "project-a", source_id: "source-a",
@@ -164,7 +167,7 @@ test("D0195: exact-key ledger batches are bounded, isolated and preserve removal
   const db = openTestSqlite(":memory:");
   try {
     const ledger = createContextLedger(db, { authorize: request => request.actor_id === "alice" });
-    for (let n = 0; n < 205; n++) ledger.commands.put(access, { key: `edge-${n}`, type: "feed.goal", source: reference("feed", `item-${n}`), target: reference("goals", `goal-${n}`), cause: "test" });
+    for (let n = 0; n < 205; n++) ledger.commands.put(access, { key: `edge-${n}`, type: "feed.goal", source: pluginObject("feed", "feed_item", `item-${n}`), target: pluginObject("goals", "goal", `goal-${n}`), cause: "test" });
     const keys = Array.from({ length: 200 }, (_, n) => `edge-${n}`);
     assert.equal(ledger.query.list(access, { keys }).length, 200);
     assert.deepEqual(ledger.query.list(access, { keys: [] }), []);

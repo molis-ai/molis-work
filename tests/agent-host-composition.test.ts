@@ -18,6 +18,7 @@ import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contrac
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { managementGoals } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -95,7 +96,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
   // The Host is the Home's, which Goals runs in; the Home's own Agent service takes the workspace this test names.
   const localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null,
     workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }), actionAvailability: (_caller, action) => {
-    if (action.capability_id === "goals.guidance.read") {
+    if (action.capability_id === "projects.guidance.read") {
       reads++;
       if (denied) return { available: false, code: "actions.plugin_disabled", reason: "说明不可用" };
     }
@@ -126,14 +127,14 @@ test("Agent Host loads current guidance through actions and freezes each real re
     await ensureProjectRoot(localHost, reference);
     const management = managementGoals(localHost.actionClient(reference), "board");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
-    const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
+    const added = await management.invoke(projectGuidanceActions.add, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const starter = await roundStarter(localHost, reference, store, "guidance"), client = starter.actions; owner = starter.owner;
     const request: AgentStartInput = { session: { runtime_id: "probe", session_id: "s" }, task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
     assert.match(first.body, /保留源文件/); assert.equal(first.version, 1);
-    await management.invoke(goalsActions.guidanceUpdate, { guidance_id: added.entry.guidance_id,
+    await management.invoke(projectGuidanceActions.update, { guidance_id: added.entry.guidance_id,
       action: "edit", kind: "constraint", content: "保留源文件和备份。", reason: "补充边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "edit" });
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     const second = captured[1]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
@@ -163,7 +164,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const composition = localHost.ensureAgentService(home, () => { throw new Error("the Host already owns its Home's Agent service"); });
   // The tool lives on this Host, whose real catalog and access settings serve the grant.
   served = await serveTestHost(null, { home, host: localHost });
-  const project = await served.createProject("Numbers");
+  const project = await served.createProject("Numbers", ["goals"]);
   const reference = project.reference;
   // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in, as its output (SSC-15).
   const withHostCatalog = localHost.configurePersonalPlanning(home, withCatalog);

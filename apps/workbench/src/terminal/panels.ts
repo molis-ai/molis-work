@@ -1,19 +1,18 @@
+import { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createTerminalConnection, type PtyServerMessage } from "./connection.js";
 import { createPanelSpawner } from "./panel-spawn.js";
-import type { PanelProgram, PanelRecord, SpawnMode, TerminalPanelState, TerminalRequest, TerminalScreens, TerminalStatusSetter } from "./types.js";
+import type { PanelProgram, PanelRecord, SpawnMode, TerminalPanelState, TerminalRequest, TerminalScreens, TerminalStatusSetter, WorkTerminalSubjectRef } from "./types.js";
 
 export interface TerminalPanelsOptions {
   screens: TerminalScreens;
-  goalId(): string;
-  parentReadOnly(): boolean;
-  parentReadOnlyMessage(): string;
+  subject(): WorkTerminalSubjectRef;
+  readOnly(): boolean;
+  readOnlyMessage(): string;
   canControlPanel(panel: PanelRecord | null | undefined): panel is PanelRecord;
   text(value: string, vars?: Record<string, string | number>): string;
   errorText(error: unknown): string;
   route(path: string): string;
-  /** The Goal's terminals route with `:goalId` for its id, as the pane was given it: this client names no plugin. */
-  terminalsRoute(): string;
   request: TerminalRequest;
   controlToken(): string;
   setStatus: TerminalStatusSetter;
@@ -31,21 +30,24 @@ interface PanelContext {
   readonly spawner: ReturnType<typeof createPanelSpawner>;
 }
 
-const terminalsPath = (options: TerminalPanelsOptions, goalId: string, key?: string) => {
-  const route = options.terminalsRoute();
-  if (!route) throw new Error(uiText.text("workbench.panels.could-not-open"));
-  return options.route(route.replace(":goalId", encodeURIComponent(goalId)) + (key === undefined ? "" : `/${encodeURIComponent(key)}`));
+const sameSubject = (left: WorkTerminalSubjectRef, right: WorkTerminalSubjectRef) =>
+  left.plugin_id === right.plugin_id && left.subject_kind === right.subject_kind && left.subject_id === right.subject_id;
+const hasSubject = (ref: WorkTerminalSubjectRef) => Boolean(ref.plugin_id && ref.subject_kind && ref.subject_id);
+const terminalsPath = (options: TerminalPanelsOptions, ref: WorkTerminalSubjectRef, key?: string) => {
+  if (!hasSubject(ref)) throw new Error(uiText.text("workbench.panels.could-not-open"));
+  return options.route(`${WORK_TERMINAL_PATH}/${encodeURIComponent(ref.plugin_id)}/${encodeURIComponent(ref.subject_kind)}/${encodeURIComponent(ref.subject_id)}`
+    + (key === undefined ? "" : `/${encodeURIComponent(key)}`));
 };
-const listedPanel = (goalId: string, row: ListedPanel): PanelRecord => ({
-  key: row.key, panel_id: row.panel_id, goal_id: goalId, title: row.title, runtime: row.runtime, program: row.program,
-  status: row.running ? "open" : "exited",
+const listedPanel = (ref: WorkTerminalSubjectRef, row: ListedPanel): PanelRecord => ({
+  key: row.key, panel_id: row.panel_id, plugin_id: ref.plugin_id, subject_kind: ref.subject_kind, subject_id: ref.subject_id,
+  title: row.title, runtime: row.runtime, program: row.program, status: row.running ? "open" : "exited",
 });
-/** The Goal's terminals as Goals lists them. */
-const listPanels = async (options: TerminalPanelsOptions, goalId: string) =>
-  ((await options.request<{ panels?: ListedPanel[] } | null>(terminalsPath(options, goalId)))?.panels ?? []).map(row => listedPanel(goalId, row));
-/** Asks Goals to open (or, under a known key, start again) a terminal: the Host starts it, the page only attaches. */
-const openTerminal = (options: TerminalPanelsOptions, goalId: string, body: Record<string, unknown>) =>
-  options.request<Opened | null>(terminalsPath(options, goalId), { body, fallback: uiText.text("workbench.panels.could-not-open") });
+/** The object's terminals as the platform lists them (`work_terminals.list@1`). */
+const listPanels = async (options: TerminalPanelsOptions, ref: WorkTerminalSubjectRef) =>
+  ((await options.request<{ panels?: ListedPanel[] } | null>(terminalsPath(options, ref)))?.panels ?? []).map(row => listedPanel(ref, row));
+/** Asks the platform to open (or, under a known key, start again) a terminal: the Host starts it, the page only attaches. */
+const openTerminal = (options: TerminalPanelsOptions, ref: WorkTerminalSubjectRef, body: Record<string, unknown>) =>
+  options.request<Opened | null>(terminalsPath(options, ref), { body, fallback: uiText.text("workbench.panels.could-not-open") });
 
 function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: "exit" }>) {
   const { options, state } = ctx;
@@ -97,7 +99,7 @@ async function spawnQuietly(ctx: PanelContext, panel: PanelRecord, mode: SpawnMo
 }
 
 const stubPanel = (panelId: string): PanelRecord => ({
-  key: "", panel_id: panelId, goal_id: "", title: "", runtime: "", program: { runtime: "" }, status: "open",
+  key: "", panel_id: panelId, plugin_id: "", subject_kind: "", subject_id: "", title: "", runtime: "", program: { runtime: "" }, status: "open",
 });
 
 async function reconnectLivePanels(ctx: PanelContext, connection: ReturnType<typeof createTerminalConnection>) {
@@ -121,9 +123,9 @@ async function reconnectLivePanels(ctx: PanelContext, connection: ReturnType<typ
 
 async function loadPanels(ctx: PanelContext) {
   const { options, state } = ctx;
-  const id = options.goalId();
+  const ref = options.subject();
   const requestSequence = ++state.loadSequence;
-  if (!id) {
+  if (!hasSubject(ref)) {
     state.panels = [];
     state.activeId = null;
     options.renderTabs();
@@ -132,12 +134,12 @@ async function loadPanels(ctx: PanelContext) {
   }
   let panels: PanelRecord[];
   try {
-    panels = await listPanels(options, id);
+    panels = await listPanels(options, ref);
   } catch (error) {
-    if (requestSequence === state.loadSequence && id === options.goalId()) options.setStatus(options.errorText(error), "error");
+    if (requestSequence === state.loadSequence && sameSubject(ref, options.subject())) options.setStatus(options.errorText(error), "error");
     return;
   }
-  if (requestSequence !== state.loadSequence || id !== options.goalId()) return;
+  if (requestSequence !== state.loadSequence || !sameSubject(ref, options.subject())) return;
   state.panels = panels;
   if (!state.panels.some((item) => item.panel_id === state.activeId)) state.activeId = state.panels[0]?.panel_id ?? null;
   options.renderTabs();
@@ -149,25 +151,25 @@ async function loadPanels(ctx: PanelContext) {
 
 async function openPanel(ctx: PanelContext, body: Record<string, unknown>) {
   const { options, state } = ctx;
-  const id = options.goalId();
-  if (!id) {
-    options.setStatus(uiText.text("workbench.panels.after-opening-project-add-terminal-right-goal"));
+  const ref = options.subject();
+  if (!hasSubject(ref)) {
+    options.setStatus(uiText.text("workbench.panels.after-opening-project-add-terminal-right-item"));
     return;
   }
-  if (options.parentReadOnly()) {
-    options.setStatus(options.parentReadOnlyMessage(), "error");
+  if (options.readOnly()) {
+    options.setStatus(options.readOnlyMessage(), "error");
     return;
   }
   let record: PanelRecord | undefined;
   try {
-    const opened = await openTerminal(options, id, body);
-    // The title and program are Goals' record of it: read back once, by the key it was opened under.
-    record = opened ? (await listPanels(options, id)).find(row => row.key === opened.key) : undefined;
+    const opened = await openTerminal(options, ref, body);
+    // The title and program are the platform's record of it: read back once, by the key it was opened under.
+    record = opened ? (await listPanels(options, ref)).find(row => row.key === opened.key) : undefined;
   } catch (error) {
     options.setStatus(options.errorText(error), "error");
     return;
   }
-  if (!record || id !== options.goalId()) {
+  if (!record || !sameSubject(ref, options.subject())) {
     if (!record) options.setStatus(uiText.text("workbench.panels.could-not-open"), "error");
     return;
   }
@@ -190,8 +192,8 @@ async function closePanel(ctx: PanelContext, panelId: string) {
   const { options, state } = ctx;
   const panel = state.panels.find((item) => item.panel_id === panelId);
   if (!options.canControlPanel(panel)) return;
-  // Goals ends the process and forgets it. Any answer closes the tab here; only a request that got no answer stops it.
-  await options.request(terminalsPath(options, panel.goal_id, panel.key), { method: "DELETE", as: "response" });
+  const ref: WorkTerminalSubjectRef = { plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id };
+  await options.request(terminalsPath(options, ref, panel.key), { method: "DELETE", as: "response" });
   options.screens.remove(panelId);
   state.alive.delete(panelId);
   ctx.spawner.forget(panelId);
@@ -205,9 +207,10 @@ async function reopenPanel(ctx: PanelContext) {
   const { options, state } = ctx;
   const panel = state.panels.find((item) => item.panel_id === state.activeId) ?? null;
   if (!options.canControlPanel(panel)) return;
-  // The same key with the program it was opened with: Goals starts it again (resuming the runtime's session when one was reported).
+  const ref: WorkTerminalSubjectRef = { plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id };
+  // The same key with the program it was opened with: the platform starts it again (resuming the runtime's session when one was reported).
   try {
-    await openTerminal(options, panel.goal_id, { key: panel.key, ...panel.program });
+    await openTerminal(options, ref, { key: panel.key, ...panel.program });
   } catch (error) {
     options.setStatus(options.errorText(error), "error");
     return;
@@ -251,7 +254,7 @@ export function createTerminalPanels(options: TerminalPanelsOptions) {
     send: connection.send,
     stop: connection.stop,
     select(panelId: string) { state.activeId = panelId; options.renderTabs(); options.showTerminal(state.activeId); },
-    resetGoal() {
+    resetSubject() {
       state.loadSequence += 1; state.panels = []; state.activeId = null;
       options.renderTabs(); options.showTerminal(null);
     },

@@ -167,14 +167,17 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
     });
   });
   const owner = entry.stage_read, ownActions = new Set(owner?.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
+  const requiredRoles = owner?.manifest.actions?.flatMap(action => action.action.required_roles ?? []) ?? [];
   owner?.assertCurrent();
   const sourceChecks = new Map<LocalActionMetadata, Array<() => void>>();
   const authority = owner ? accepted.filter(view => ownActions.has(`${view.capability_id}@${view.version}`)
     ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)
-    : owner.manifest.capabilities.consumes.includes(view.capability_id) && (() => {
-      try { sourceChecks.set(view, view.action.permissions.map(permission => owner.capturePermission(permission))); return true; } catch { return false; }
-    })()) : accepted;
+    : (owner.manifest.capabilities.consumes.includes(view.capability_id)
+        || requiredRoles.some(role => view.action.input_type === role.input_type && view.action.output_type === role.output_type))
+      && (() => {
+        try { sourceChecks.set(view, view.action.permissions.map(permission => owner.capturePermission(permission))); return true; } catch { return false; }
+      })()) : accepted;
   const permissions = [...new Set([...builtinPermissions, ...accepted.flatMap(view => view.action.permissions), ...scenePermissions])];
   const stage = owner && stageAction && owner.manifest.ui.views?.some(view => view.stage_data?.action === stageAction.capability_id)
     ? authority.find(view => view.capability_id === stageAction.capability_id && view.version === stageAction.version

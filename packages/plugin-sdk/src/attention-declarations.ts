@@ -1,5 +1,5 @@
 import { isRecord } from "./json-value.js";
-import { ATTENTION_SUBJECT_TYPES } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { ATTENTION_CATEGORIES, isAttentionName } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { PLUGIN_ATTENTION_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 
 // The shape of a Manifest's `attention` (PG-087, S9-0b): the kinds of subject the plugin's own objects are, which is what lets it add
@@ -13,14 +13,34 @@ export function attentionDeclarationProblems(value: unknown, permissions: Readon
   if (extra.length > 0) return [`attention 不认这些字段：${extra.join("、")}`];
   const problems: string[] = permissions.has(PLUGIN_ATTENTION_WRITE_PERMISSION) ? [] : [`声明 attention.subjects 要同时声明权限 ${PLUGIN_ATTENTION_WRITE_PERMISSION}`];
   if (!Array.isArray(value.subjects) || value.subjects.length === 0) return [...problems, "attention.subjects 至少要声明一种对象"];
-  const seen = new Set<string>();
+  const seen = new Set<string>(), kinds = new Set<string>();
   for (const subject of value.subjects) {
-    if (typeof subject !== "string" || !(ATTENTION_SUBJECT_TYPES as readonly string[]).includes(subject)) {
-      problems.push(`attention.subjects 只能是平台登记的对象种类：${ATTENTION_SUBJECT_TYPES.join("、")}`);
-    } else if (seen.has(subject)) problems.push(`attention.subjects 重复：${subject}`);
-    else seen.add(subject);
+    if (!isRecord(subject) || Object.keys(subject).some(field => field !== "type" && field !== "object_kind" && field !== "reasons")
+      || !isAttentionName(subject.type) || !isAttentionName(subject.object_kind)) {
+      problems.push("attention.subjects 的每一项要有 type、object_kind（小写字母开头，小写字母、数字或下划线，最长 64）与 reasons");
+      continue;
+    }
+    if (seen.has(subject.type)) problems.push(`attention.subjects 重复：${subject.type}`);
+    if (kinds.has(subject.object_kind)) problems.push(`attention.subjects 里两种对象指向同一个 object_kind：${subject.object_kind}`);
+    seen.add(subject.type);
+    kinds.add(subject.object_kind);
+    problems.push(...reasonProblems(subject.type, subject.reasons));
   }
   if (value.inbox !== undefined) problems.push(...inboxProblems(value.inbox, seen));
+  return problems;
+}
+
+/** A type's reasons: at least one, each named once, with at most the one thing it asks of the person. */
+function reasonProblems(type: string, reasons: unknown): string[] {
+  if (!Array.isArray(reasons) || reasons.length === 0) return [`attention.subjects 的 ${type} 至少要声明一个 reason`];
+  const problems: string[] = [], seen = new Set<string>();
+  for (const reason of reasons) {
+    if (!isRecord(reason) || Object.keys(reason).some(field => field !== "id" && field !== "attention") || !isAttentionName(reason.id)
+      || (reason.attention !== undefined && !(ATTENTION_CATEGORIES as readonly unknown[]).includes(reason.attention))) {
+      problems.push(`attention.subjects 的 ${type} 的 reason 要有 id，attention 只能是 ${ATTENTION_CATEGORIES.join("、")}`);
+    } else if (seen.has(reason.id)) problems.push(`attention.subjects 的 ${type} 的 reason 重复：${reason.id}`);
+    else seen.add(reason.id);
+  }
   return problems;
 }
 

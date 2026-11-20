@@ -1,6 +1,6 @@
 import type { ActionDefinition, ActionExecutionContext, ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkflowContentPorts, workflowsActions } from "./actions.js";
-import { advanceInstance, handoffKey, isActionStation, nextUpdatedAt, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
+import { advanceInstance, handoffKey, isActionStation, nextUpdatedAt, type WorkflowInstance, type WorkflowStepItem, type WorkflowPayload, type WorkflowStation } from "./model.js";
 import { recordStoppedDelivery, type WorkflowsStore, type WorkflowsStores } from "./store.js";
 import { workflowRequestId } from "./content-client.js";
 import { workflowsErrors } from "./error.js";
@@ -19,7 +19,7 @@ interface Dependencies<Reach> {
   report?: WorkflowStepReport;
   prepareHandoff(caller: ActionExecutionContext, content: WorkflowContentPorts, reach: Reach, current: WorkflowInstance, from: number, input: Input): Promise<{ stopped: WorkflowInstance } | { instance: WorkflowInstance; pending: Pending }>;
   runActionStep(caller: ActionExecutionContext, reach: Reach, current: WorkflowInstance, from: number, pending: Pending,
-    target: WorkflowStation & { action: NonNullable<WorkflowStation["action"]> }, retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: Arrival }>;
+    target: WorkflowStation & { action: NonNullable<WorkflowStation["action"]> }, retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowStepItem; arrival: Arrival }>;
 }
 
 /** One continuation owns its fixed handoff and attempt; the store's CAS, rather than a process queue, settles concurrent calls. */
@@ -43,7 +43,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
     }
     await caller.beforeEffect();
     const target = current.chain.stations[from + 1]!;
-    let arrived: WorkflowItemRef;
+    let arrived: WorkflowStepItem;
     let arrival: Arrival = {};
     const retry = input.retry_action === true;
     try {

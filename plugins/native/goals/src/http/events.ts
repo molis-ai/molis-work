@@ -18,9 +18,9 @@ const HTTP_ALLOWED: Record<string, readonly string[]> = {
   "event-decision-request": [
     "idempotency_key", "question", "options", "purpose", "proposed_change", "scope",
   ],
+  // The outcome alone: the requirements are changed in the platform's requirement column (contract-design §10.3).
   "event-agree": [
-    "idempotency_key", "expected_agreement_version", "expected_config_version",
-    "outcome", "new_requirements", "revise_requirements", "retire_requirement_ids",
+    "idempotency_key", "expected_agreement_version", "expected_config_version", "outcome",
   ],
   "event-close": ["idempotency_key", "kind", "result", "reason", "expected_config_version", "expected_agreement_version"],
   "event-note": ["idempotency_key", "body", "note"],
@@ -116,11 +116,6 @@ const EVENT_WRITERS = {
     expected_agreement_version: requiredInt(body.expected_agreement_version, "expected_agreement_version"),
     expected_config_version: requiredInt(body.expected_config_version, "expected_config_version"),
     outcome: optionalText(body.outcome),
-    new_requirements: Array.isArray(body.new_requirements) ? body.new_requirements as never : undefined,
-    revise_requirements: Array.isArray(body.revise_requirements) ? body.revise_requirements as never : undefined,
-    retire_requirement_ids: Array.isArray(body.retire_requirement_ids)
-      ? body.retire_requirement_ids.map((value) => String(value))
-      : undefined,
   }),
   // Its kind was checked before it runs (`writeEvent`).
   "event-close": (actions, common, body) => actions.invoke(goalsActions.close, {

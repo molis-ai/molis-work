@@ -14,7 +14,9 @@ const STEP_FIELDS = new Set(["from", "sql", "reduces_rows"]);
  * A library in the Home may also be partitioned by project, or say which of its rows belong to a project; a project's library is one
  * per project already.
  */
-const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows"]);
+const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows", "snapshot_exclusions"]);
+const EXCLUSION_FIELDS = new Set(["path", "reason", "restore"]);
+const EXCLUSION_PATH = /^[a-z0-9][a-z0-9._-]*$/u;
 
 /** `ownerFiles`: the Manifest's `owner_files`, whose directories a library's `project_rows.files` may name. */
 export function databaseDeclarationProblems(value: unknown, permissions: ReadonlySet<string>, ownerFiles?: unknown): string[] {
@@ -45,7 +47,29 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
   }
   problems.push(...upgradeStepsProblems(path, declaration.upgrades, declaration.version));
   if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
-  if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
+  if (scope === "home") {
+    problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
+    problems.push(...snapshotExclusionsProblems(`${path}.snapshot_exclusions`, declaration.snapshot_exclusions));
+  }
+  return problems;
+}
+
+function snapshotExclusionsProblems(path: string, value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return [`${path} 必须是快照排除项数组`];
+  const problems: string[] = [], seen = new Set<string>();
+  value.forEach((entry, index) => {
+    const at = `${path}[${index}]`;
+    if (!isRecord(entry)) { problems.push(`${at} 必须为对象`); return; }
+    const unknown = Object.keys(entry).filter(field => !EXCLUSION_FIELDS.has(field));
+    if (unknown.length > 0) problems.push(`${at} 不认这些字段：${unknown.join("、")}`);
+    if (typeof entry.path !== "string" || !EXCLUSION_PATH.test(entry.path) || entry.path === "." || entry.path === "..") {
+      problems.push(`${at}.path 必须是单个相对路径段`);
+    } else if (seen.has(entry.path)) problems.push(`${at}.path 重复：${entry.path}`);
+    else seen.add(entry.path);
+    if (typeof entry.reason !== "string" || entry.reason.trim().length === 0) problems.push(`${at}.reason 必须写明排除原因`);
+    if (entry.restore !== undefined && entry.restore !== "preserve" && entry.restore !== "reset") problems.push(`${at}.restore 只能是 "preserve" 或 "reset"`);
+  });
   return problems;
 }
 

@@ -46,6 +46,8 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     // Where the original was itself handed in from stays with it: one hop only. What this call carries is the running handler's own
     // action, from the Runtime's scope of it (BL-803), never from the caller.
     Reflect.deleteProperty(inherited, "delegated_action"); Reflect.deleteProperty(inherited, "direct_person_entry");
+    // Whose object the Host's own grant was for is that grant's, never a plugin's to hand on (S-acceptance-subject-owner).
+    Reflect.deleteProperty(inherited, "acting_for");
     const plugin = original.audience === "plugin";
     const source = () => { grant(); assertCapturedPluginActionCurrent(scope, context); };
     const check = async () => { source(); await original.beforeEffect(); source(); };

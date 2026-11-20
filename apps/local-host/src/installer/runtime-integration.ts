@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
-import { INTEGRATION_OWNER, isOwnedIntegrationOwner, integrationResult } from "./runtime-integration-contract.js";
+import { INTEGRATION_OWNER, integrationResult } from "./runtime-integration-contract.js";
+import { RUNTIME_INTEGRATION_RECEIPT_FILE } from "./runtime-integration-receipt.js";
+import { readVersionedFile } from "@molis-ai/molis-work-storage";
 import { readInstalledRelease } from "./home-files.js";
 import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState } from "./runtime-integration-contract.js";
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
@@ -11,7 +13,7 @@ import { applyRuntimeIntegration, serializeRuntimeConfirmation } from "./runtime
 import { RuntimeIntegrationPlanner } from "./runtime-integration-planner.js";
 import { captureRuntimeConfigBackup, runtimeConfigBackupPath } from "./runtime-config-backups.js";
 import { digest } from "./runtime-config-text.js";
-import { inspectSkillLink, writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
+import { writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
 import { resolveConfiguredHome } from "../product-home.js";
 import { hasMcpClientCredential } from "../mcp-client-credentials.js";
 
@@ -49,7 +51,6 @@ export class RuntimeIntegrationService {
       display_name: snapshot.adapter.displayName,
       executable_path: snapshot.executablePath,
       config_path: snapshot.adapter.configPath(this.userHomeDirectory),
-      skill_path: snapshot.adapter.skillPath(this.userHomeDirectory),
       connection_state: connectionState,
       message: detectionMessage(connectionState, snapshot.adapter.displayName),
     };
@@ -121,14 +122,14 @@ export class RuntimeIntegrationService {
     const replay = await this.replayedResult(prepared, current);
     assertCurrent();
     if (replay) return replay;
-    if (current.configHash !== prepared.beforeConfigHash || current.skill.signature !== prepared.beforeSkill.signature) {
+    if (current.configHash !== prepared.beforeConfigHash) {
       return integrationResult(
         "stale",
         plan.runtime_id,
         plan.plan_id,
         null,
         this.receiptPath(plan.runtime_id),
-        "Runtime 配置或 Skill 在预览后发生了变化。没有写入，请重新生成预览。",
+        "Runtime 配置在预览后发生了变化。没有写入，请重新生成预览。",
       );
     }
     if (plan.status === "no_change") {
@@ -152,10 +153,7 @@ export class RuntimeIntegrationService {
     const artifacts = await this.installedArtifacts();
     const configPath = adapter.configPath(this.userHomeDirectory);
     const configText = await readTextOrNull(configPath);
-    const inspectionArtifacts = artifacts ?? {
-      launcherPath: path.join(this.homeDirectory, "bin", "molis-work-mcp"),
-      skillSourcePath: path.join(this.homeDirectory, "releases", "missing", "skills", "goal-advance"),
-    };
+    const inspectionArtifacts = artifacts ?? { launcherPath: path.join(this.homeDirectory, "bin", "molis-work-mcp") };
     const desired = adapter.desiredConnection(inspectionArtifacts, this.homeDirectory);
     let configInspection: ConfigInspection;
     try {
@@ -169,7 +167,6 @@ export class RuntimeIntegrationService {
     }
     const credentialPresent = hasMcpClientCredential(this.homeDirectory, `runtime:${adapter.id}`);
     if (configInspection.state === "current" && !credentialPresent) configInspection = { ...configInspection, state: "outdated", summary: "独立客户端连接凭据缺失，请重新接入" };
-    const skill = await inspectSkillLink(adapter.skillPath(this.userHomeDirectory), artifacts?.skillSourcePath ?? null, this.homeDirectory);
     return {
       adapter,
       executablePath,
@@ -179,7 +176,6 @@ export class RuntimeIntegrationService {
       configHash: configText == null ? null : digest(configText),
       configInspection,
       credentialPresent,
-      skill,
     };
   }
 
@@ -190,13 +186,8 @@ export class RuntimeIntegrationService {
       const releasePath = path.resolve(this.homeDirectory, installed.installation.release_path);
       if (!isInside(this.homeDirectory, releasePath)) return null;
       const nextLauncher = path.join(this.homeDirectory, "bin", "molis-work-mcp");
-      const skillSourcePath = path.join(releasePath, "skills", "goal-advance");
-      const [nextState, skill] = await Promise.all([
-        pathState(nextLauncher),
-        pathState(skillSourcePath),
-      ]);
-      if (!nextState?.isFile() || !skill?.isDirectory()) return null;
-      return { launcherPath: nextLauncher, skillSourcePath };
+      if (!(await pathState(nextLauncher))?.isFile()) return null;
+      return { launcherPath: nextLauncher };
     } catch {
       return null;
     }
@@ -224,9 +215,9 @@ export class RuntimeIntegrationService {
     const current = await this.snapshot(prepared.adapter);
     assertCurrent();
     if (plan.action === "remove") {
-      return current.configInspection.state === "absent" && current.skill.state === "absent";
+      return current.configInspection.state === "absent";
     }
-    if (!prepared.artifacts || current.configInspection.state !== "current" || current.skill.state !== "current") {
+    if (!prepared.artifacts || current.configInspection.state !== "current") {
       return false;
     }
     const validate = this.options.validateConnection ?? validateMolisWorkMcpLauncher;
@@ -244,7 +235,7 @@ export class RuntimeIntegrationService {
     const plan = prepared.publicPlan;
     const receipt = await this.readReceipt(plan.runtime_id);
     if (plan.action === "connect") {
-      if (current.configInspection.state === "current" && current.skill.state === "current" && receipt) {
+      if (current.configInspection.state === "current" && receipt) {
         return integrationResult(
           "already_connected",
           plan.runtime_id,
@@ -256,7 +247,7 @@ export class RuntimeIntegrationService {
       }
       return null;
     }
-    if (current.configInspection.state === "absent" && current.skill.state === "absent" && !receipt) {
+    if (current.configInspection.state === "absent" && !receipt) {
       return integrationResult("already_removed", plan.runtime_id, plan.plan_id, null, null, `${plan.display_name} 接入已经移除。`);
     }
     return null;
@@ -268,17 +259,11 @@ export class RuntimeIntegrationService {
 
   private async readReceipt(runtimeId: SupportedRuntimeId): Promise<IntegrationReceipt | null> {
     const filePath = this.receiptPath(runtimeId);
-    const text = await readTextOrNull(filePath);
-    if (text == null) return null;
-    try {
-      const receipt = JSON.parse(text) as IntegrationReceipt;
-      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== /* @version format.runtime.integration.receipt */ 1 || receipt.runtime_id !== runtimeId) {
-        throw new Error("owner mismatch");
-      }
-      return receipt;
-    } catch {
-      throw installerErrors["installer.receipt_invalid"](`Molis Work 接入收据无法解析: ${filePath}`);
-    }
+    // Only the current version is read; an older receipt is the upgrade round's (platform-upgrade-stores.ts), never converted here.
+    const read = readVersionedFile(RUNTIME_INTEGRATION_RECEIPT_FILE, filePath, this.homeDirectory);
+    if (read.status === "absent") return null;
+    if (read.status === "current" && read.value.runtime_id === runtimeId) return read.value;
+    throw installerErrors["installer.receipt_invalid"](`Molis Work 接入收据无法解析: ${filePath}`);
   }
 
   private async writeReceipt(receipt: IntegrationReceipt, assertCurrent?: () => void, mode?: number): Promise<{identity: import("node:fs").Stats; contents: string}> {
@@ -305,9 +290,9 @@ export class RuntimeIntegrationService {
 function connectionStateFor(snapshot: RuntimeSnapshot): RuntimeConnectionState {
   if (!snapshot.runtimeDetected) return "not_detected";
   if (!snapshot.artifacts) return "molis_work_unavailable";
-  if (snapshot.configInspection.state === "conflict" || snapshot.skill.state === "conflict") return "conflict";
-  if (snapshot.configInspection.state === "current" && snapshot.skill.state === "current") return "connected";
-  if (snapshot.configInspection.state === "absent" && snapshot.skill.state === "absent") return "not_connected";
+  if (snapshot.configInspection.state === "conflict") return "conflict";
+  if (snapshot.configInspection.state === "current") return "connected";
+  if (snapshot.configInspection.state === "absent") return "not_connected";
   return "needs_repair";
 }
 

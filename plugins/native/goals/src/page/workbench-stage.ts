@@ -31,12 +31,18 @@ export const goalsStageUiContribution: UiContribution<StagePageModel<GoalsStageD
     const ports = goalsPagePorts(model);
     const page = createGoalsPage(ports);
     const selected = data.selected;
+    const artifact = data.artifact_context;
     const states = new Map(data.presentation_states.map(({ goal_id, status }) => [goal_id, status]));
     const decorate = (item: GoalsPageView["goals"][number]) => ({ ...item,
       ...(item.goal.goal_id === selected?.goal_id ? { event_document: selected.document } : {}),
+      ...(artifact && item.goal.goal_id === artifact.subject_id && artifact.html !== undefined
+        ? { artifact_embed_html: artifact.html, artifact_outputs: artifact.outputs, artifact_inputs: artifact.inputs } : {}),
       ...(states.has(item.goal.goal_id) ? { presentation_status: states.get(item.goal.goal_id) } : {}),
     });
-    const view: GoalsPageView = { ...data.collection, project: context.project, demo: context.demo, route_prefix: model.route_prefix,
+    const snapshot = context.project
+      ? { ...data.collection.snapshot, board: { ...data.collection.snapshot.board, project_id: "" } }
+      : data.collection.snapshot;
+    const view: GoalsPageView = { ...data.collection, snapshot, project: context.project, demo: context.demo, route_prefix: model.route_prefix,
       goals: data.collection.goals.map(decorate), archived_goals: data.collection.archived_goals.map(decorate), trashed_goals: data.collection.trashed_goals.map(decorate) };
     if (surface === "create-dialog") return page.documents.renderCreateDialog(view);
     if (surface === "trash-dialog") return page.documents.renderGoalTrashDialog();

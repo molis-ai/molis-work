@@ -176,7 +176,10 @@ test("RAC-1330 RAC-2568 project deletion refuses a live Goal terminal and succee
   const folder = join(directory, "terminal-workspace");
   await mkdir(folder);
   const canonical = await realpath(folder);
-  await withCatalog({ homeDirectory }, catalog => linkTerminalFolder(catalog, project.project_id, canonical));
+  await withCatalog({ homeDirectory }, async catalog => {
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test-user" });
+    await linkTerminalFolder(catalog, project.project_id, canonical);
+  });
   addTerminalGoal(project, "test-terminal-goal");
   const opened = await post(goalTerminalsPath(project.project_id, "test-terminal-goal"), { key: "live", command: "/bin/cat" });
   assert.equal(opened.status, 200, await opened.clone().text());

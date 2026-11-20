@@ -22,6 +22,8 @@ export interface ArtifactBrowserUiModel {
   readonly relationship?: "input" | "output";
   /** The plugins that can start new work from the selected version (A4b, 「从这一版继续」), as the host found them declared. */
   readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
+  /** Work-executor plugins currently available in this project to receive this version as material (PEQ-09). */
+  readonly handoffExecutors?: ReadonlyArray<{ id: string; plugin_id: string; title: string }>;
   /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`: by the plugin that declares the link (BL-646). */
   readonly links?: { readonly plugins: ReadonlyArray<{ plugin_id: string; plugin_title: string; objects: ReadonlyArray<{ id: string; title: string; role: "input" | "output"; proposal: boolean; open: { surface: string; id: string } }> }>; readonly other: number;
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
@@ -156,7 +158,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${!languagePreview && artifact.unavailable_reason ? `<p translate="no">${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.escape(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview translate="no">${model.presentation.body_html}</section>` : ""}
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
-    ${!embedded ? handoffActions(artifact, p, languagePreview) : ""}
+    ${!embedded ? handoffActions(artifact, p, model.handoffExecutors, languagePreview) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact, model.goalInput !== false, languagePreview) : ""}
     ${!embedded && model.pluginInputs?.length ? renderArtifactPortInputs(model.pluginInputs, { artifact_id: artifact.artifact_id, version: artifact.version }, p) : ""}
@@ -182,13 +184,15 @@ function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continu
 }
 
 /**
- * 「交给助理 / Coding」 (artifact-positioning 五.1): the version goes to a new work as material, with what the detail shows of
- * it. Coding is offered only where the project has it; the 成果 client finds out and shows the button.
+ * 「交给助理 / 执行插件」 (artifact-positioning 五.1, PEQ-09): the version goes to a new work as material, with what the detail
+ * shows of it. Work-executor plugins are discovered by protocol role rather than named by plugin ID.
  */
-function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], languagePreview?: boolean): string {
+function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], executors: ArtifactBrowserUiModel["handoffExecutors"], languagePreview?: boolean): string {
   if (artifact.availability !== "available" || artifact.lifecycle_state === "archived") return "";
   const data = languagePreview ? "" : `data-artifact-subject="${p.escape(artifactSubjectId(artifact))}" data-artifact-title="${p.escape(artifact.title)}" data-artifact-version="${artifact.version}"`;
-  return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${uiText("workbench.browser-ui.hand-assistant")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${uiText("workbench.browser-ui.hand-coding")}</button></p>`;
+  const executorButtons = (executors ?? []).map(item =>
+    `<button class="mw-btn" type="button" data-artifact-hand="${p.escape(item.id)}" data-artifact-executor="${p.escape(item.plugin_id)}">${uiText("workbench.browser-ui.hand-to-plugin", { plugin: item.title })}</button>`).join("");
+  return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${uiText("workbench.browser-ui.hand-assistant")}</button>${executorButtons}</p>`;
 }
 
 const LINK_ROLES = { input: "workbench.browser-ui.inputs", output: "workbench.browser-ui.deliverable", proposed_input: "workbench.browser-ui.proposed-input", proposed_output: "workbench.browser-ui.proposed-deliverable" } as const;

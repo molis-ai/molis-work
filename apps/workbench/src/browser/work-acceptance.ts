@@ -44,7 +44,7 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
   const column = document.createElement("aside");
   column.className = "work-reqs"; column.hidden = true; column.dataset.acceptanceColumn = ""; column.setAttribute("aria-label", uiText.text("workbench.acceptance.title"));
   document.body.append(column);
-  let open: string | null = null, opener: HTMLElement | null = null, back = false, watched = false, drawn = "", ui: RequirementColumnUi = { returning: null, editing: null, busy: false, error: "" };
+  let open: string | null = null, opener: HTMLElement | null = null, back = false, watched = false, drawn = "", ui: RequirementColumnUi = { returning: null, editing: null, adding: false, busy: false, error: "" };
   // The column stands where the work surface stands: between whatever chrome this width puts above and below it.
   const place = () => {
     const stage = [...document.querySelectorAll<HTMLElement>("[data-plugin-stage]")].find(one => one.getClientRects().length)?.getBoundingClientRect();
@@ -68,7 +68,7 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
   };
   const show = (key: string | null, from?: HTMLElement) => {
     const was = open;
-    open = key; ui = { returning: null, editing: null, busy: false, error: "" };
+    open = key; ui = { returning: null, editing: null, adding: false, busy: false, error: "" };
     if (key) {
       const panel = document.querySelector<HTMLElement>("[data-assistant-panel]");
       opener = from ?? null; back = panel?.hidden === false; dialog(false);
@@ -87,9 +87,18 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     const now = open ? known.get(open) : undefined;
     if (!now || ui.busy) return;
     ui = { ...ui, busy: true, error: "" }; draw();
-    try { now.view = await work(now); ui = { returning: null, editing: null, busy: false, error: "" }; }
+    try { now.view = await work(now); ui = { returning: null, editing: null, adding: false, busy: false, error: "" }; }
     catch (error) { ui = { ...ui, busy: false, error: error instanceof Error ? error.message : String(error) }; await read(now.target).catch(() => undefined); }
     draw(); for (const paint of slots) paint();
+  };
+  /** A new requirement after the ones that stand, with an id of its own; nothing is sent without its words. */
+  const add = (field: HTMLTextAreaElement) => {
+    const words = field.value.trim();
+    if (!words) { field.focus(); return; }
+    const id = `req-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
+    void act(now => post("requirements", { subject: now.target, requirements: [...now.view.requirements.map(each =>
+      ({ id: each.id, statement: each.statement, ...(each.expected ? { expected: each.expected } : {}), ...(each.part ? { part: each.part } : {}), requires_person: each.requires_person })),
+    { id, statement: words, requires_person: false }] }));
   };
   const item = (from: Element) => { const card = from.closest<HTMLElement>("[data-requirement]"); return card ? { id: card.dataset.requirement!, version: Number(card.dataset.requirementVersion) } : null; };
   const send = (from: Element) => {
@@ -105,21 +114,31 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>("button") : null, one = target ? item(target) : null;
     if (!target) return;
     if (target.matches("[data-acceptance-close]")) show(null);
-    else if (target.matches("[data-acceptance-cancel]")) { ui = { ...ui, returning: null, editing: null, error: "" }; draw(); }
+    else if (target.matches("[data-acceptance-cancel]")) { ui = { ...ui, returning: null, editing: null, adding: false, error: "" }; draw(); }
+    else if (target.matches("[data-acceptance-add]")) { ui = { ...ui, adding: true, returning: null, editing: null, error: "" }; draw(); }
+    else if (target.matches("[data-acceptance-new-send]")) { const field = column.querySelector<HTMLTextAreaElement>("[data-acceptance-new]"); if (field) add(field); }
     else if (target.matches("[data-acceptance-note-send], [data-acceptance-text-send]")) send(target);
     else if (!one) return;
     else if (target.matches("[data-acceptance-accept]")) void act(now => post("decide", { subject: now.target, version: now.view.version, accepts: [one], returns: [] }));
-    else if (target.matches("[data-acceptance-return]")) { ui = { ...ui, returning: one.id, editing: null, error: "" }; draw(); }
-    else if (target.matches("[data-acceptance-edit]")) { ui = { ...ui, editing: one.id, returning: null, error: "" }; draw(); }
+    else if (target.matches("[data-acceptance-return]")) { ui = { ...ui, returning: one.id, editing: null, adding: false, error: "" }; draw(); }
+    else if (target.matches("[data-acceptance-edit]")) { ui = { ...ui, editing: one.id, returning: null, adding: false, error: "" }; draw(); }
   });
   column.addEventListener("keydown", event => {
     const field = event.target instanceof HTMLTextAreaElement ? event.target : null;
-    if (event.key === "Escape") { event.stopPropagation(); if (ui.returning || ui.editing) { ui = { ...ui, returning: null, editing: null }; draw(); } else show(null); }
-    else if (field && event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); send(field); }
+    if (event.key === "Escape") { event.stopPropagation(); if (ui.returning || ui.editing || ui.adding) { ui = { ...ui, returning: null, editing: null, adding: false }; draw(); } else show(null); }
+    else if (field && event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (field.matches("[data-acceptance-new]")) add(field); else send(field); }
   });
   document.addEventListener("click", event => {
     const from = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-acceptance-open]") : null;
     if (from && known.has(from.dataset.acceptanceOpen ?? "")) show(from.dataset.acceptanceOpen!, from);
+  });
+  // A page that shows an object's requirements in its own words (a Goal page) asks for the column on that object: it is read as the
+  // person first, so what opens is what stands now, and the press that asked gets the focus back when the column closes.
+  document.addEventListener("molis:acceptance-review-requested", event => {
+    const detail = (event as CustomEvent<{ subject?: AcceptanceTarget }>).detail, target = detail?.subject;
+    if (!target || typeof target.provider_id !== "string" || typeof target.subject?.kind !== "string" || typeof target.subject.id !== "string") return;
+    const from = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    void read(target).then(() => show(keyOf(target), from), () => undefined);
   });
 
   return {
@@ -140,7 +159,7 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     // What stands may have moved (a report came in, rework was delivered): the open column is read again, unless the person is writing in it.
     refresh() {
       const now = open ? known.get(open) : undefined;
-      if (now && !ui.busy && !ui.returning && !ui.editing) void read(now.target).then(draw, () => undefined);
+      if (now && !ui.busy && !ui.returning && !ui.editing && !ui.adding) void read(now.target).then(draw, () => undefined);
     },
   };
 }

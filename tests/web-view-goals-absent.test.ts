@@ -1,29 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
-// ac-trust N3 (review of T7+T3b, RAC-400), with batch-41's full-run fix: whether a project has Goals is its plugin list, not the code a Goals
-// read is refused with. A project without Goals draws as one with none and does not ask Goals; in a project with Goals, a refused read
-// (any code: the policy answers `actions.plugin_disabled` too) is shown as the error it is.
+// ac-trust N3 (review of T7+T3b, RAC-400) + PEQ-03/PEQ-07: the platform WebView itself carries no Goals fields and
+// never calls Goals; Goals stage data is read only through declared stage reads when "goals" is among the shown plugins.
 
 const options = { databasePath: "/nonexistent/project.sqlite", projectId: "project-one" };
-const answering = (code: string) => ({ invoke: async () => { throw new ActionError(code as never, "refused"); } }) as never;
 
-test("RAC-400 a project without Goals draws as one with no Goals and does not read Goals", async () => {
+test("RAC-400 a project without Goals draws a generic WebView with no Goals fields and does not read Goals", async () => {
+  const view = cachedMolisWorkWebView(new Map(), options);
+  assert.equal("goals" in view, false, "platform WebView carries no Goals list");
+  assert.equal("snapshot" in view, false, "platform WebView carries no Goals BoardSnapshot");
   const asked: string[] = [];
-  // The page's other areas (Feed, Inbox, Schedule) answer as plugins that are off; only what was asked is recorded.
-  const recording = { invoke: async (definition: { capability_id: string }) => { asked.push(definition.capability_id); throw new ActionError("actions.plugin_disabled", "off"); } } as never;
-  const view = await cachedMolisWorkWebView(new Map(), null as never, options, recording, false);
-  assert.equal(asked.includes(goalsActions.collection.capability_id), false, "a project without Goals does not read Goals");
-  assert.deepEqual(view.goals, []);
-  assert.equal(view.snapshot.board.project_id, options.projectId);
+  const recording = { discover: async () => [], invoke: async (definition: { capability_id: string }) => { asked.push(definition.capability_id); throw new ActionError("actions.plugin_disabled", "off"); } } as never;
+  const stageData = await declaredStageData(["schedule"], () => recording);
+  assert.equal(asked.includes(goalsActions.collection.capability_id), false, "a project without Goals does not read goals.collection.read");
+  assert.equal(asked.includes("goals.stage.read"), false, "a project without Goals does not read goals.stage.read");
+  assert.equal("goals" in stageData, false);
 });
 
-for (const code of ["actions.plugin_disabled", "actions.missing", "actions.forbidden"]) {
-  test(`RAC-400 a project with Goals whose read is refused (${code}) is an error to show, not a project with no Goals`, async () => {
-    await assert.rejects(cachedMolisWorkWebView(new Map(), null as never, options, answering(code), true),
-      error => error instanceof ActionError && error.code === code);
-  });
-}
+test("RAC-400 declaredStageData omits a plugin whose read is refused by policy and propagates unexpected errors", async () => {
+  for (const code of ["actions.plugin_disabled", "actions.missing", "actions.forbidden"] as const) {
+    const answering = { discover: async () => [], invoke: async () => { throw new ActionError(code, "refused"); } } as never;
+    const stageData = await declaredStageData(["goals"], () => answering);
+    assert.equal("goals" in stageData, false, `${code} omits the optional stage payload`);
+  }
+  const failing = { discover: async () => [], invoke: async () => { throw new ActionError("actions.unavailable", "broken"); } } as never;
+  await assert.rejects(declaredStageData(["goals"], () => failing),
+    error => error instanceof ActionError && error.code === "actions.unavailable");
+});

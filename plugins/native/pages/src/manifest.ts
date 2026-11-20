@@ -1,4 +1,4 @@
-import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_READABLE_EXTENSIONS } from "./actions.js";
+import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMPORTED_DOCUMENT_READ_TYPES } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -62,17 +62,15 @@ export const pagesManifest: PluginManifest = {
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档", title_text: { key: "pages.artifacts.type-title" },
       preview: { capability_id: "pages.artifacts.preview", version: /* @version action.pages.artifacts.preview */ 1 }, pin: { capability_id: "pages.artifacts.pin", version: /* @version action.pages.artifacts.pin */ 1 },
-      compare: { capability_id: "pages.artifacts.compare", version: /* @version action.pages.artifacts.compare */ 1 }, continue: { capability_id: "pages.artifacts.continue", version: /* @version action.pages.artifacts.continue */ 1 } }],
-    // Pages also continues from imported files it can read (artifact-positioning A3, A4b).
-    consumes: IMPORTED_DOCUMENT_READ_TYPES.map(type => ({ ...type, continue: { capability_id: "pages.artifacts.continue", version: /* @version action.pages.artifacts.continue */ 1 },
-      file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } })),
+      compare: { capability_id: "pages.artifacts.compare", version: /* @version action.pages.artifacts.compare */ 1 } }],
+    // Pages also continues from imported files it can read (artifact-positioning A3, A4b): its continue action's intake names them.
+    consumes: [...IMPORTED_DOCUMENT_READ_TYPES],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [PAGES_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "comments", slot: "side", context_binding: "focused-object", title: "评论与备注", title_text: { key: "pages.directory.view-comments" }, contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "message" },
-      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", hue: "cyan", order: 56, group: "make", accepts_objects: true,
-        creates: { station: "pages", title: "文档", title_text: { key: "pages.create.kind-title" } }, start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file" , title_text: { key: "pages.directory.start-title" }, hint_text: { key: "pages.directory.start-hint" } } },
+      { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", hue: "cyan", order: 56, group: "make", accepts_objects: true },
     ],
   },
 };

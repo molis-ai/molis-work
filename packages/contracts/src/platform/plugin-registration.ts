@@ -76,6 +76,8 @@ export interface PluginWorkbenchRegistration {
   readonly clientUses?: readonly string[];
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
+  /** Built-in asset routes served from package specifiers under this plugin's own package (e.g. `{ "/assets/...": "<pkg>/editor" }`). */
+  readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
   readonly settingsClient?: string;
   /**
    * The rules of the settings pages this plugin's settings contributions draw. The settings sheet carries them, and so does the
@@ -88,6 +90,12 @@ export interface PluginWorkbenchRegistration {
    */
   readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;
+  /** Surface aliases routed to this plugin's canonical surface (e.g. Feed's `sources`). */
+  readonly surfaceAliases?: readonly string[];
+  /** Search hit kinds that jump to `searchRow` on the plugin's page instead of opening an item tab. */
+  readonly searchRecordKinds?: readonly string[];
+  /** Set `false` when reloading the plugin's page should not auto-reopen the previously selected record. */
+  readonly reopenRecord?: false;
   /**
    * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
    * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).
@@ -105,9 +113,34 @@ export interface PluginWorkbenchRegistration {
  * each plugin package writes its own and the catalog is generated from them (W5-02, PG-065 in
  * specs/archive/repository-anti-corruption/privileges.md).
  */
+/** One decision outcome digest computed from the owning plugin's immutable rows. */
+export interface PluginApprovalOutcome {
+  readonly kind: string;
+  readonly id: string;
+  readonly digest: string;
+}
+
+/**
+ * Trusted owner binding for freezing and verifying synced decision outcomes alongside platform project approvals.
+ * Declaring this grants no approval or synchronization authority.
+ */
+export interface PluginApprovalOutcomesBinding {
+  readonly collection_id: string;
+  readonly subject_kinds: readonly string[];
+  readOutcome(db: { prepare(sql: string): { all(...params: string[]): unknown[] } }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
+  outcomesFromFacts(facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
+  assertHistory(
+    previous: ReadonlyMap<string, PluginApprovalOutcome>,
+    incoming: ReadonlyMap<string, PluginApprovalOutcome>,
+    facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>,
+  ): void;
+}
+
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
+  /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */
+  readonly approval_outcomes?: PluginApprovalOutcomesBinding;
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
   readonly project_plugin_id: string;
   /** Position in the catalog, unique across the build; the derived lists keep this order. */

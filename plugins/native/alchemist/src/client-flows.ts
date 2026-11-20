@@ -44,7 +44,7 @@ body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
 async function action(name,el){
-if(name==='to-goal'&&model){const nl='\n\n',made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx("alchemist.client-flows.decision-go-ahead")+made.reason:'',made&&made.revisitCondition?tx("alchemist.client-flows.next")+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx("alchemist.client-flows.idea-decision-its-source-alchemist-record-stays")}}));return;}
+if(name==='to-goal'&&model){const nl='\n\n',made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},attach_kind:'goal',payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx("alchemist.client-flows.decision-go-ahead")+made.reason:'',made&&made.revisitCondition?tx("alchemist.client-flows.next")+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx("alchemist.client-flows.idea-decision-its-source-alchemist-record-stays")}}));return;}
 if(name==='notice-close'){notice('');return;}
 if(name==='back'){closeDetail();return;}
 if(name==='close'){closeDialog();return;}

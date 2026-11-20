@@ -1,27 +1,18 @@
 import { createHash } from "node:crypto";
-import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfArtifactPreview } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
-/** What Shelf reads from a Coding answer: the fixed version, its title, when it was saved, and the body as Markdown. */
+/** What Shelf reads from an artifact producer: the fixed version, its title, when it was saved, and the body as Markdown. */
 export interface CodingResultDocument { reference: ArtifactReference; title: string; saved_at: string; markdown: string }
 
-/**
- * Shelf's view of `coding.results.document@1`, the action Coding answers (PG-111: Coding's contract lives in Coding, so Shelf names the
- * action by its id and keeps only what it needs to ask). Coding's own definition governs the call: the Host runs the provider's schemas
- * and permissions, and `capabilities.consumes` in Shelf's Manifest names this id.
- */
-export const CODING_RESULT_DOCUMENT_ID = "coding.results.document";
-export const codingResultDocument: ActionDefinition<{ reference: ArtifactReference }, CodingResultDocument> = {
-  capability_id: CODING_RESULT_DOCUMENT_ID, version: /* @version action.coding.results.document */ 1, operation: "query",
-  action: {
-    title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 成果转成可复制的 Markdown 正文；只读", kind: "query", scope: "project",
-    audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],
-    input_schema: { type: "object", properties: { reference: { type: "object" } }, required: ["reference"], additionalProperties: false },
-  },
-};
+/** Convert a standard artifact preview (`FileContent`) into a copyable Markdown document. */
+export function documentFromPreview(record: Pick<FixedVersionRecord, "artifact_id" | "version" | "created_at" | "metadata">, preview: FileContent): CodingResultDocument {
+  const markdown = preview.encoding === "utf8" ? preview.data : Buffer.from(preview.data, "base64").toString("utf8");
+  const title = preview.title || (typeof record.metadata.title === "string" ? record.metadata.title : record.artifact_id);
+  return { reference: { artifact_id: record.artifact_id, version: record.version }, title, saved_at: record.created_at, markdown };
+}
 
 /** The answer must be the document's four fields; anything else is Coding's fault, not text to put on the shelf. */
 export function checkedDocument(value: unknown): CodingResultDocument {

@@ -1,6 +1,7 @@
 import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { pluginMemoryScene } from "./memory-plugin-scene.js";
 
 /** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
 export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapability>, control?: AgentMemoryExecutionControl, caller?: MemoryCaller): MemoryBackendPort {
@@ -15,7 +16,7 @@ export function prologueMemoryBackend(source: () => Promise<AgentMemoryCapabilit
       ...(caller.candidate_access ? { candidate_access: structuredClone(caller.candidate_access) } : {}),
       ...(caller.class_restrictions ? { class_restrictions: structuredClone(caller.class_restrictions) } : {}),
       ...(caller.character ? { character_id: caller.character.id } : {}),
-      current_scene: caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });
+      current_scene: caller.current_scene ?? (caller.plugin_id ? pluginMemoryScene(caller.plugin_id) : caller.consumer === "assistant" ? "assistant" : "common"), purpose: caller.purpose ?? "management" });
     if (!control) return memory;
     if (!memory.withExecution) throw memoryErrors.off("当前运行时不能保留记忆调用的执行控制");
     return memory.withExecution(control);

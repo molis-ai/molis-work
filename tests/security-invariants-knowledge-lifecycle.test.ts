@@ -136,7 +136,7 @@ for (const stoppedBeforeOrganize of [false, true]) test(stoppedBeforeOrganize
     permissions: [{ permission, required: true, reason: "读取测试资料" }], actions: [entries, reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
     async start() { return { kind: "app", actions: [
       { ...entries, ...bindSearchEntriesHandler(entries, () => [{ subject: { kind: "quality_piece", id: "one" }, revision: "1", title: "来源探针资料", summary: "", updated_at: null, content: "context", open: null }]) },
-      { ...reader, handle: () => subjectContext({ subject: { kind: "quality_piece", id: "one" }, revision: "1", title: "来源探针资料", content: "只有当前来源获准时才交模型。", goal_ids: [] }) },
+      { ...reader, handle: () => subjectContext({ subject: { kind: "quality_piece", id: "one" }, revision: "1", title: "来源探针资料", content: "只有当前来源获准时才交模型。" }) },
     ] }; } });
   const home = await openTestHome(t, { host: { pluginFixtures: { home: [definition] } } }), project = await home.createProject("来源撤销");
   const platform = await home.host.homePlugins!.ready(), install = home.host.homePlugins!.installation(id)!;

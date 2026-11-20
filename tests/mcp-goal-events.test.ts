@@ -1,6 +1,6 @@
 // R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -13,7 +13,7 @@ import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDa
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
-import { GoalProjectApplication, boardSnapshot, goalApplicationOf } from "./fixtures/goal-application.js";
+import { GoalProjectApplication, boardSnapshot, goalApplicationFor, goalApplicationOf } from "./fixtures/goal-application.js";
 
 function localType() {
   return {
@@ -35,6 +35,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -241,6 +242,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -301,6 +303,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   let host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -345,7 +348,9 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     }
     const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE project_id=?").get(project_id) as { n: number }).n);
     assert.equal(created.observed_event_cursor, finalCursor);
-    assert.deepEqual(state.requirements.map((item) => item.statement), ["包含真实付款金额"]);
+    // Goals hung the requirement on the platform after the write; its words are the platform's (contract-design §10).
+    assert.deepEqual(state.requirements.map((item) => item.origin?.kind), ["create_input"]);
+    assert.deepEqual(goalApplicationFor(store).acceptanceView(project_id, created.goal.goal_id).requirements.map((item) => item.statement), ["包含真实付款金额"]);
     assert.equal(boardSnapshot(store, project_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
     const replay = await call("goals.create", input);
     assert.equal(replay.replayed, true);
@@ -408,6 +413,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -445,18 +451,13 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "note-cfg", types: [localType()],
     });
-    const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_action_goals.agreement.set__v1", {
-      goal_id, idempotency_key: "note-agree",
-      expected_config_version: state.config.version,
-      expected_agreement_version: state.agreement.version,
-      new_requirements: [{ requirement_id: "ready", statement: "开场可玩" }],
-    });
+    // The requirement is the platform's (contract-design §10).
+    const projectRef = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+    await host.withProject(projectRef, runtime => goalApplicationOf(runtime).setRequirements(project.project_id, goal_id, [{ requirement_id: "ready", statement: "开场可玩" }]));
     const batch = {
       goal_id, idempotency_key: "note-report",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "开场", fields: { piece: "洞穴" },
-        judgments: [{ requirement_id: "ready", verdict: "supports" }],
       }],
       progress: { summary: "开场可玩", next_step: "等确认" },
     };
@@ -479,11 +480,8 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     );
     assert.equal(JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 })).events.length, prior.events.length);
 
-    // The session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
-    await host.withProject(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }), runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
-      project_id: project.project_id, goal_id, idempotency_key: "note-accept", authority: hostEventDecisionAuthority("web", project.project_id, "web-user", "note-accept"),
-      conclusion: "开场我试过可玩", accepts_requirements: true, scope: { requirement_ids: ["ready"] },
-    }));
+    // The session's report is its own word (PWA-144): the person accepts the requirement on the platform before closing.
+    await host.withProject(projectRef, runtime => goalApplicationOf(runtime).decide(project.project_id, goal_id, ["ready"]));
     const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     const closed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "note-close", kind: "complete",

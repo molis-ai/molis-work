@@ -300,9 +300,13 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 插件调自己的动作（`services.actions.invoke`）沿用外层调用的受众（S-73）：Agent 的调用经过插件的代码不会变成本人的；`start` 和定时器里没有外层调用，自调用按 `plugin` 受众，目标动作的 `audiences` 不放行 `plugin` 的就被拒。
 
-### 放置里的关联：`placement_relation`
+### 「挂到…」：`placement_relation`
 
-插件要让放置面板（对象放在哪、关联到什么）列出、挂上、取消它自己保存的“对象挂在某个目标上”这种关系（Goals 的“挂到 Goal”），在同一个关联的五个动作上各写 `placement_relation: { relation, role }`：`list`（这个对象挂在哪些目标上，同时写 `target: { kind, noun }`：目标的对象种类和人读的名词）、`bind`、`release`、`candidates`（能选的目标）、`create`（把内容建成一个目标）。放置服务在目录里按这项声明找动作，不按能力 id，也不点插件的名字；缺哪个角色就是那个操作 `placement.target_unavailable`。一个项目里同一个关联只能有一个提供方在管：两个可用的插件声明同一个 `relation`，放置服务的每个操作都 `placement.relation_ambiguous`，不挑一个、也不混着取。`relation` 是小写词（今天线上只有 `goal`），同一个关联同一个角色只能有一个动作，SDK 的声明检查拦下写错的。不写这项声明的动作，放置服务不会碰。Goals 自己的动作用的是它包里的 `inGoalRelation(定义, 角色)`（`plugins/native/goals/src/contract/goal-action-definition.ts`），别的插件直接写这项声明。
+插件要让别人的对象挂到它保存的目标上（Goals 的「挂到 Goal」：把一份文档挂成某个 Goal 的输入，不复制、不移动原对象），用 `definePlacementRelationAction(关联, 角色, 能力, 版本, { kinds, title, description, permissions, audiences?, target? })` 写五个动作，每个在动作上写 `placement_relation: { relation, role }`：`list`（这个对象此刻挂在哪些目标上，同时写 `target: { kind, noun, noun_text? }`：目标的对象种类、人读的名词和它的语言键）、`bind`（挂上）、`release`（取下）、`candidates`（这里能选的目标，已挂上的标 `current`、排在前）、`create`（新建一个目标并把对象挂上去）。两端都是 `ActionSubject`，每一步都回「调用之后这个对象挂在哪些目标上」，`create` 把新建的那个放在第一个；`bind` 与 `create` 可能带 `read: { title, revision?, excerpt? }`（放置服务以本人身份读到的标题、版本与开头一段），`create` 可能带 `request_id`（同一个请求建同一个目标）。`kinds` 是能挂的对象种类，空表示本人读得到的任何对象。
+
+放置服务（`horizontal/placement`）只读这份声明，只认平台形状的部分（类型 `molis.placement.relation.v1.<角色>`）：可挂的种类是 `list` 的 `target.kind`，不按能力 id、不点插件名；没有可用的 `list` 就没有这个关联，缺别的角色（没写或不可用）那个操作就是 `placement.target_unavailable`。一个项目里一个关联只能有一个主人、一个目标种类只能属于一个关联：两个可用的插件声明同一个关联，或两个关联落在同一种类上，放置服务的每个操作都 `placement.relation_ambiguous`，不挑一个、也不混着取。SDK 的声明检查拦下：关联名不是小写词、角色不在五个里、同一角色两个动作、缺 `list` 或 `list` 没写 `target`、`target` 写在别的角色上、字段不认识、查询与命令和角色不符、不是项目范围或不对本人开放。例子：`plugins/native/goals/src/attach-actions.ts`、`examples/plugin-sample`。
+
+后台任务「为哪个事件办」也是一种关联（`serves`），但形状不同（任务与事件），用 `defineTaskServesAction(角色, …)` 写，工作线（`mainline.place@1`）按声明找任务的主人；放置服务不碰它。
 
 ### UI 贡献里没有 `plugin_id`
 

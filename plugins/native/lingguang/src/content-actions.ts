@@ -15,13 +15,13 @@ export function createLingguangContentHandlers(actions: BoundActionClient) {
       assert_authority_current: () => { caller.assert_authority_current?.(); authority.assertCurrent(); },
     });
   };
-  const ref = (spark: { id: string; title: string }) => ({ plugin: "lingguang", item_id: spark.id, title: spark.title });
+  const ref = (spark: { id: string; title: string }) => ({ subject: { kind: "lingguang_spark", id: spark.id }, title: spark.title });
   return bindWorkflowContentHandlers(lingguangContentActions, {
     list: async caller => (await invoke(lingguangActions.list, {}, caller)).sparks
       .map(spark => ({ item_id: spark.id, title: spark.title, caption: "灵光", at: spark.updated_at })),
     read: async ({ item_id }, caller) => {
       const { spark } = await invoke(lingguangActions.get, { id: item_id }, caller);
-      return { title: spark.title, body: spark.body, source: "灵光", feed_item_id: null };
+      return { title: spark.title, body: spark.body, source: "灵光" };
     },
     create: async ({ title }, caller) => ref((await invoke(lingguangActions.create, { title, body: "" }, caller)).spark),
     // One delivery is one spark: a retried handoff returns the spark it created the first time.

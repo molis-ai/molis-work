@@ -63,6 +63,5 @@ export function insertGoalSystemEvent(
     kind: "system",
     type: null,
     payload,
-    judgments: [],
   };
 }

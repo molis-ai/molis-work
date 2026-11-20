@@ -203,7 +203,7 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
     actions.registerProvider({ provider: { provider_id: "feed", title: "Feed", kind: "system", project_id: DEMO_PROJECT_ID },
       definitions: [feedContentActions.receive], handlers: [receive] });
     // Retained judgment authority comes from the real dispatch, including its current action and provider.
-    const received = await actions.invoke(caller, feedContentActions.receive, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" });
+    const received = { item_id: (await actions.invoke(caller, feedContentActions.receive, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" })).subject.id };
     const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
     assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
     assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, received.item_id).source_label, "工作流程", "W4-6-05 a workflow audience files under 「工作流程」");

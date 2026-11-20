@@ -5,6 +5,7 @@ import type {
   UiViewRail,
   UiViewSlot,
   UiViewStartEntry,
+  UiViewIntakeEntries,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
@@ -35,7 +36,8 @@ export interface UiPlacedView {
 export interface UiViewRegistryManifest {
   readonly plugin_id: string;
   readonly name: string;
-  readonly ui: { readonly views?: readonly UiViewDeclaration[] };
+  /** A Manifest's own views; the directory's also carry what the Host placed on them from the plugin's intakes. */
+  readonly ui: { readonly views?: readonly (UiViewDeclaration & UiViewIntakeEntries)[] };
 }
 
 export interface UiViewRegistryInput<Manifest extends UiViewRegistryManifest = UiViewRegistryManifest> {

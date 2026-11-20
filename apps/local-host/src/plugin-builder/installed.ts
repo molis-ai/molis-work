@@ -103,10 +103,20 @@ function installedUpgradeValidator(release: InstalledRelease, manifest: PluginMa
   };
 }
 
-/** Model selection and image connections belong to the person's Home (BL-491). */
-function assertSandboxActivationScope(projectId: string | null | undefined, approved: SandboxEffects): void {
-  if (projectId && (approved.modelSettings?.length || approved.imageGeneration?.length))
+/** Model selection and image connections belong to the person's Home (BL-491). Dual-instance project halves strip Home-only effects instead of failing activation. */
+function assertSandboxActivationScope(projectId: string | null | undefined, approved: SandboxEffects, dualInstance = false): void {
+  if (projectId && !dualInstance && (approved.modelSettings?.length || approved.imageGeneration?.length))
     throw pluginErrors.declaration_invalid('模型设置和图片生成只给装在 Home 里的插件，项目里的实例不提供');
+}
+
+function effectsForHalf(effects: SandboxEffects, projectId: string | null | undefined, dualInstance: boolean): SandboxEffects {
+  if (!dualInstance) return effects;
+  if (projectId) {
+    const { homeDatabase: _h, modelSettings: _m, imageGeneration: _i, ...projectEffects } = effects;
+    return projectEffects;
+  }
+  const { projectDatabase: _p, ...homeEffects } = effects;
+  return homeEffects;
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
@@ -129,11 +139,12 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
     execution: 'sandbox',
     async start(context) {
       context.requireGrant('storage:private');
-      assertSandboxActivationScope(context.project_id, approved);
+      const dualInstance = manifest.runtime?.scope === 'home' && manifest.runtime.dual_instance === true;
+      assertSandboxActivationScope(context.project_id, approved, dualInstance);
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       // The approval as this activation may use it (BL-701): an effect whose switch is off never reaches the broker.
-      const allowed = grantedEffects(approved, context.grants);
+      const allowed = effectsForHalf(grantedEffects(approved, context.grants), context.project_id, dualInstance);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
         contract: release.design.contract, grants: allowed, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });

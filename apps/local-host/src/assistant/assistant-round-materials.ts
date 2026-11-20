@@ -240,11 +240,11 @@ export class AssistantRoundMaterials {
       const moved = await whereNow(work, actions, object);
       return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;
     }
-    const goals = (await Promise.all((context.goal_ids ?? []).slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
+    const attached = (await Promise.all((context.attached_to ?? []).slice(0, 5).map(async item => (await read(item.kind, item.id))?.title ?? item.id)));
     const others = (await this.link.related(identity(work).project_id, { kind: object.kind, id: object.id })).filter(row => row.work_id !== work.work_id).slice(0, 5);
     const claimed = object.version === undefined ? null : String(object.version);
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,
-      goals.length ? `关联目标：${goals.join("、")}` : "",
+      attached.length ? `挂在：${attached.join("、")}` : "",
       others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
       `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
   }

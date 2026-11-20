@@ -162,6 +162,8 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `feed_runtime_blobs` |
 | `modules/context-ledger` | `CONTEXT_LEDGER_SCHEMA` | `context_edges` |
 | `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `inbox_entries`、`attention_events` |
+| `modules/projects` | `PROJECT_GUIDANCE_SCHEMA_SQL`（`src/project-guidance.ts`） | `guidance_entries`、`guidance_revisions`（项目长期说明及其修订，第 44 批从 Goals 接过来） |
+| `modules/acceptance` | `ACCEPTANCE_SCHEMA_SQL`（`src/schema.ts`） | `acceptance_subjects`、`acceptance_requirements`、`acceptance_deliveries`、`acceptance_checks`、`acceptance_decisions`（要求与认可，第 44 批从 Home 库搬进项目库），`acceptance_sync_resolving`（同步冲突选择时的临时标记） |
 | `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs`（含 `publisher_trust` 列） |
 | | `PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL` | `plugin_runtime_release_artifacts` |
 | | `PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL` | `plugin_private_values`（每个启用的 Runtime 插件的私有值） |
@@ -228,7 +230,6 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `agent-runtime/leases/` | SDK（`node_modules/@prologue/sdk/dist/host/plugin/node.js:174-177`）：持有者写成 `pid-<进程号>` | 目录 · 无版本 | 临时 | purge |
 | `agent-runtime/storage.key` | SDK `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`（`KEY_FILE`，`:6`）：32 字节，首次以 `wx` 创建，0600 | 密钥文件 | 密钥：丢了 `records/` 里的加密正文读不出 | purge |
 | `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-documents.ts:33` | 目录 | 临时 | purge |
-| `acceptance/commit-intents/<decision_id>.json` | `modules/acceptance/src/intents.ts`：原分次提交路径已留下的两阶段回执；新认可由同连接 ATTACH 单次 COMMIT，不再写此文件。既存完整 `ProjectTrustedDecision` 由 Host 启动/读取按同一 `decision_id` 幂等恢复后删除；文件读取/清理仅归 `modules/acceptance` | JSON · 无存储版本（恢复时按当前合同校验，校验失败保留并记日志） | 必备份（短命回执，随 `acceptance` 目录默认纳入快照，恢复后删；丢了平台决定无法自动恢复，只能按验收结果重新认可或核对） | purge（`acceptance` 目录已登记；删项目时在数据库提交后按 `project_id` 清） |
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
 | `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
@@ -259,7 +260,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `context-onboarding/journeys/<journey_id>/{files,texts,notes}/<sha256>` | 宿主；`apps/local-host/src/context-onboarding-staging.ts`：新建项目「来源」一轮的暂存（2026-10-22 起不限份数与大小）——人交来的文件、读出的全文、摘要分批的笔记，各按内容摘要存一份；整理记录只记摘要。项目采用完成后整轮目录删掉；超过 30 天没有继续的整理，宿主启动时与每 6 小时清一次暂存、保留记录（`removeIdleJourneyStaging`） | 文件目录 · 无版本 | 不必备份（采用前的暂存，采用后原件在成果库、全文在 Pages） | purge（随 `context-onboarding` 目录） |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
-| `lingguang/models/` | `apps/local-host/src/material-home.ts` 的 `modelCacheDirectory`：平台材料服务拥有的音视频转写模型缓存；路径沿用既有名称。只有可信 user 调用且明确允许时，原生辅助程序才可下载（`apps/local-host/src/material-native.ts`）；读取音视频时按需创建目录 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
+| `materials/models/` | `apps/local-host/src/material-home.ts` 的 `MATERIALS_HOME_STORE` / `modelCacheDirectory`：平台材料服务拥有的音视频转写模型缓存。只有可信 user 调用且明确允许时，原生辅助程序才可下载（`apps/local-host/src/material-native.ts`）；读取音视频时按需创建目录 | 目录 · 无版本 | 可重建（重新下载） | purge（`materials` 目录） |
 | `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | Home 内原字节及权限由现有 Home payload owner 密封；限原机器原路径，OS 拒绝后须重选；外部 AppData 不复制 | purge |
 
 ### 6.3 配置、日志与安装物
@@ -291,7 +292,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `run/endpoint.json` | `apps/local-host/src/host-endpoint.ts`：宿主开始监听后写端口、进程号、开始时间，不含令牌，退出时只删自己写的那份；只是指路，桌面（`host_port.rs`）、启动器与命令行读了照旧核身份（S-07、S-14），核不过就当没有（§6，BL-108） | JSON · `format.home.run.endpoint` 第 1 版 | 同上 | 同上 |
 | `config/desktop.json` | 桌面 `apps/desktop/adapters/tauri/src/runtime.rs`：设置 › 运行的「关掉窗口后继续运行」，原子写、0600，宿主不读；没有文件或版本不认得都按默认「开」；「登录时启动」以系统的登录项为准，不存在这里（§5） | JSON · `format.home.desktop` 第 1 版 | 必备份（很小） | purge |
 | `runtime/connectors/` | Local Host 的受管连接工具安装器；`apps/local-host/src/connector-tool-download.ts` 的 `CONNECTOR_TOOLS_HOME_STORE` 声明整个 `runtime/`，由 `home-stores.ts` 登记；`connector-tool-install.ts` 拥有安装及所有权记录，`connector-tool-runtime.ts` 拥有共享运行时；`connector-cli-launch.ts` 将 HOME/XDG 指到安装的 `.home` | 安装专有目录、共享运行时与缓存；`installs/<id>/.home` 含第三方 CLI 自己的登录凭据和独有配置 | 安装所有权与固定版本记录必备；CLI 私有状态须由 owner 密封后按原路径/字节/权限恢复（W5-16 B2b 已提供密封/预检 owner，完整快照与恢复仍待），不能按包或缓存省略；包、共享运行时与已证缓存可重建 | 普通卸载保留，purge 随登记的 `runtime` 清除；移除连接只清理未引用的专有安装 |
-| `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 1 | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
+| `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 2（第 44 批去掉 Skill 链接，低版本由宿主升级轮次升） | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-config-backups.ts`：原 Runtime 配置的 owner 引用，完整正文在现有 SecretStore 中密封；公开 `readRuntimeConfigBackup` 明确恢复读取 `{contents, mode}` | JSON · `schema_version` = 1，owner `molis-work-runtime-config-backup-v1`，含 Runtime/plan 身份、`auth_ref` 与原权限 | 必备份，引用与 vault 同点、依赖同 Home 原 master；旧原文条目仍拒绝，旧转换已取消且孤立维护标记分支删除；旧Home整体搬开，不带入新快照 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
 | `upgrade/` | `apps/local-host/src/home-upgrade.ts`、`apps/local-host/src/home-upgrade-ledger.ts`：升级记录 `ledger.json`、戳记 `state.json`（持这个 Home 的存储主人锁才写）、中断的一轮被接着做完时给首页的提示 `notice.json`（人关掉就删，只对记录里那一轮有效；U3 §3）和每轮的快照 `upgrade/<run-id>/`（`packages/storage/src/upgrade-snapshot.ts`）；一轮全部成功后只留这一轮的快照 | JSON · `schema_version` = 1；快照是库和带版本文件的原样拷贝加 `manifest.json` | 不备份：Home 快照跳过（`reset`），恢复之后下次启动全量扫 | purge |
@@ -339,7 +340,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | E 个人内容 | 10 个个人插件库、`images/assets/`、`lingguang/imports/`、`shelf/`、`jelly/preferences.json`、`plugin-builder/`、Alchemist 工作室库、`characters/`、`mainline/`、`server/`（讨论库 `server.sqlite`，带 `-wal`、`-shm`；当前 v1 库的邀请只存哈希，仍含私人正文，见 3.4）、`placement/`、`functions/`、`context-onboarding/`、`external-sessions/` | 彼此独立；按 `project_id` 分区的行引用 A 里的项目 |
 | F 配置 | `config/` 里的 `onboarding.json`、`project-arrival.json`、`ui-locale.json`、`mcp-tools.json`、`desktop.json`，`interface/state.json`、`runtime-integrations/`、`runtime-config-backups/`、`browser/sites.json` | 很小，授权类的丢了不能凭空重建 |
 
-不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`lingguang/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
+不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`materials/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
 
 浏览器 profile 的排除意味着恢复后重新登录，`browser/sites.json` 的站点授权仍保留。`directory-access/bookmarks.json` 含目录授权能力，显式 Home 内只密封保存原字节及权限，不能当普通配置导出、刷新或伪造授权；OS 不接受时由用户重选，Home 外 AppData 不复制。CLI `.home` 的独有配置和登录文件必须密封保存。预留的 `backups/` 若非空而没有现行 owner 解释内容，拒绝分类，不能默认为派生缓存。
 
@@ -401,7 +402,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 缺口（按处理它的路线图条目）：
 
-- `lingguang/models/` 是平台材料服务的缓存，名称仍沿用灵光目录；W5-01 材料前置片只改服务归属与调用，不搬目录。今后改路径单列维护并核对已有授权和缓存，无需在读取时保留两条查找路径。
+- `materials/models/` 是平台材料服务的缓存（`MATERIALS_HOME_STORE`，已随第 44 批 PEQ-09 离开灵光目录）；不随快照备份，首次转写时按需下载。
 
 - Home 存储已有单一登记（W4-11）。登记只认 owner 声明的条目，没有门禁去找代码里**没登记**就写进 Home 的新目录；这一点仍靠评审、本表和上面几条用例（讨论挂载那条用例的写法可以照搬到别的入口）。
 - 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。

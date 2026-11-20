@@ -1,5 +1,5 @@
 import type { FeedItemPage } from "./feed-page.js";
-import type { AttentionApi, AttentionReason } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "archived";
@@ -55,8 +55,11 @@ export interface FeedItemRecord {
   materials: FeedMaterialRecord[];
 }
 
+/** The reasons Feed declares for an item it puts in the Inbox itself (`attention.subjects` in its Manifest). */
+export type FeedAttentionReason = "manual" | "source_rule";
+
 export interface FeedAttentionRequest {
-  reason: Extract<AttentionReason, "manual" | "source_rule">;
+  reason: FeedAttentionReason;
   detail?: Record<string, unknown>;
 }
 
@@ -154,6 +157,7 @@ export interface FeedModuleDependencies {
  */
 export const feedErrors = defineErrorCodes("feed", {
   contract_source_history_decision_required: "internal",
+  entry_not_found: "not_found",
   item_not_found: "not_found",
   source_not_found: "not_found",
   out_rule_not_found: "not_found",

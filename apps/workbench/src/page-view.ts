@@ -1,4 +1,3 @@
-import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { UiContribution, UiLocalePack, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
@@ -43,7 +42,6 @@ export interface MolisWorkWebView {
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
    */
   plugin_directory?: PluginDirectory;
-  snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];
   /** Empty only for in-process test fixtures; normal Web URLs are project-scoped. */

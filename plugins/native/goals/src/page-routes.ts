@@ -2,14 +2,12 @@ import type { UiPageRouteDeclaration } from "@molis-ai/molis-work-contracts/plat
 
 /**
  * The GET pages Goals answers, declared as data in its Manifest (`ui.page_routes`, T-116 / PG-060). The Host matches a request with
- * one matcher over every plugin's declarations and hands Goals the match; Goals reads what the route means (`goalsReadRouteOf`,
- * `goalsPageRouteOf`) and refuses what it does not accept. The fragment routes keep the paths the page's scripts
- * fetch; the page routes are the project's Goal pages.
+ * one matcher over every plugin's declarations and dispatches page vs fragment / refresh_document generically without importing Goals.
  */
 export const GOALS_PAGE_ROUTES: UiPageRouteDeclaration[] = [
-  { route_id: "board-refresh", path: "/api/board/refresh", query: ["view", "goal_id", "projection"] },
-  { route_id: "board-momentum", path: "/api/board/momentum", query: ["view", "goal_id"] },
-  { route_id: "goal-document", path: "/api/goals/:goal_id/document", query: ["view"] },
+  { route_id: "board-refresh", kind: "refresh_document", path: "/api/board/refresh", query: ["view", "goal_id", "projection"], params: { route_kind: "refresh" } },
+  { route_id: "board-momentum", kind: "fragment", path: "/api/board/momentum", query: ["view", "goal_id"], params: { route_kind: "momentum" } },
+  { route_id: "goal-document", kind: "fragment", path: "/api/goals/:goal_id/document", query: ["view"], params: { route_kind: "document" } },
   { route_id: "project-page", path: "/", params: { collection: "current" } },
   { route_id: "archive-page", path: "/archive", params: { collection: "archive" } },
   { route_id: "trash-page", path: "/trash", params: { collection: "trash" } },

@@ -110,7 +110,7 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     const refused = code !== undefined && !disabled;
     // A plugin calls one approved action at a time and the kernel checks an action's required actions against that same
     // caller, so a capability that needs another action would be refused whenever the plugin called it.
-    const dependent = (view.action.required_actions?.length ?? 0) > 0, isOffered = reachable && !refused && !dependent;
+    const dependent = (view.action.required_actions?.length ?? 0) > 0 || (view.action.required_roles?.length ?? 0) > 0, isOffered = reachable && !refused && !dependent;
     // MCP tools are registered under whoever holds their configuration (the Coding plugin, or 服务连接 as a system
     // provider); on the board they are MCP.
     const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: view.provider.title }

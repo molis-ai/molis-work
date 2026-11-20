@@ -4,10 +4,10 @@ import test from "node:test";
 import { checkDraftDialogueOwnership, checkGoalTreeApplicationOwnership } from "../scripts/check-package-boundaries.mjs";
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-for (const [method, file, action] of [
-  ["submitGoalTreeProposal", "goal-tree-submission", "treeSubmit"],
-  ["checkGoalTreeProposal", "goal-tree-check", "treeCheck"],
-  ["decideGoalTreeProposal", "goal-tree-decision", "treeDecide"],
+for (const [method, file, action, capabilityId] of [
+  ["submitGoalTreeProposal", "goal-tree-submission", "treeSubmit", "goals.tree.submit"],
+  ["checkGoalTreeProposal", "goal-tree-check", "treeCheck", "goals.tree.check"],
+  ["decideGoalTreeProposal", "goal-tree-decision", "treeDecide", "goals.tree.decide"],
 ]) test(`${method} stays behind the shared action and original Module owners`, () => {
   const application = read(`plugins/native/goals/src/${file}.ts`), callers = read("apps/local-host/src/goal-callers.ts");
   assert.deepEqual(checkGoalTreeApplicationOwnership(application, method), []);
@@ -19,7 +19,7 @@ for (const [method, file, action] of [
   const typed = read("apps/local-host/src/project-capabilities.ts");
   assert.equal(typed.includes(`goalsActions.${action}`), false, "no typed bridge is registered for the action");
   assert.equal(typed.includes(`coordinator.${method}(`), false, "typed transport cannot bypass action policy");
-  assert.equal(callers.includes(`goalsActions.${action}`), action !== "treeDecide", "only non-decision actions stay in management callers; treeDecide uses the generic trusted review door");
+  assert.equal(callers.includes(`"${capabilityId}"`), action !== "treeDecide", "only non-decision actions stay in management callers; treeDecide uses the generic trusted review door");
   assert.ok(read("plugins/native/goals/src/tree-actions.ts").includes(`goalsTreeActions.${action}`), "and the Goals owner registers it");
 });
 

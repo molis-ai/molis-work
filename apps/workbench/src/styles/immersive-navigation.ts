@@ -140,7 +140,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .directory-content-scroll {
     display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-right: 4px;
   }
-  body.immersive-workbench .tree-pane .goal-list-view { display: block; }
   body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; }
   body.immersive-workbench .immersive-workspace .desktop-directory-heading { display: none !important; }
@@ -177,7 +176,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-filter-control { margin: 0; flex: none; }
   body.immersive-workbench .tree-tool svg { width: 14px; height: 14px; }
   body.immersive-workbench .immersive-workspace :is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
-  body.immersive-workbench .goal-tree { padding: 0; margin: 0; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 4px 0; margin: 0; }
   body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
@@ -255,7 +253,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .container-tab-close { width: 18px; height: 18px; border-radius: 4px; margin-left: 4px; color: var(--muted); display: grid; place-items: center; opacity: .7; padding: 0; border: 0; background: transparent; }
   body.immersive-workbench .container-tab-close:hover { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .container-tab-close svg { width: 12px; height: 12px; }
-  body.immersive-workbench .immersive-plugin-stage > .goal-frame-surface { overflow: hidden; background: var(--canvas); padding: 0; }
   body.immersive-workbench .immersive-goal-tools { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
   body.immersive-workbench .immersive-icon-button { width: 28px; height: 28px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-icon-button svg { height: 16px; width: 16px; }
@@ -266,8 +263,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-plugin-stage > .desktop-work-surface:not(.plugin-stage-shell, .immersive-home) { min-height: 0; background: var(--paper); padding: 32px clamp(18px, 4%, 56px); }
   body.immersive-workbench .immersive-plugin-stage > .plugin-stage-shell { padding: 0; overflow: hidden; }
   body.immersive-workbench .immersive-plugin-stage > .document-pane { padding: 0; }
-  body.immersive-workbench .immersive-plugin-stage > .goal-canvas-shell, body.immersive-workbench .tab-pane-body > .goal-canvas-shell { overflow: hidden; background: var(--canvas); }
-  body.immersive-workbench .immersive-plugin-stage > .goal-canvas-shell[data-board-view="list"], body.immersive-workbench .tab-pane-body > .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   body.immersive-workbench .immersive-sidebar-scrim { display: none; }
   body.immersive-workbench :is(.immersive-plugin-stage > .immersive-market, .tab-workspace-exclusive > .immersive-market, .tab-pane-body > .immersive-market) { overflow: hidden; display: flex; flex-direction: column; padding: 0; background: var(--paper); }
   body.immersive-workbench .plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; width: 100%; padding: 32px clamp(20px, 4%, 48px) 48px; }

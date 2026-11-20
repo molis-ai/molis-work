@@ -17,7 +17,7 @@ type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 async function sourceSessionAllowed(owner: AgentSessionView["owner"], projectPath: (projectId: string) => Promise<string | undefined>): Promise<boolean> {
   if (owner.actor_id !== LOCAL_PERSON_ACTOR_ID) return false;
   if (owner.plugin_id === ASSISTANT_PLUGIN_ID) return owner.install_id === ASSISTANT_INSTALL_ID;
-  if (owner.plugin_id !== "io.molis.work.coding") return false;
+  if (!owner.plugin_id) return false;
   const path = await projectPath(owner.project_id);
   if (!path) return false;
   const storage = new LocalSqliteStorage(path, { readonly: true });

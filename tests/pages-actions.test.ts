@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { body, fixture, selection } from "./fixtures/pages-action-host.js";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -32,8 +32,8 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
     const delivery = { title: "Workflow", body: "# Shared\nActual content", request_id: "workflow:workflow-1:1" };
     const received = await bound.invoke(content.receive, delivery);
-    assert.equal((await bound.invoke(content.receive, delivery)).item_id, received.item_id, "W4-6-02 the same request id returns the document it made");
-    const receivedDocument = await bound.invoke(actions.get, { id: received.item_id });
+    assert.equal((await bound.invoke(content.receive, delivery)).subject.id, received.subject.id, "W4-6-02 the same request id returns the document it made");
+    const receivedDocument = await bound.invoke(actions.get, { id: received.subject.id });
     assert.match(JSON.stringify(receivedDocument.document.body), /Actual content/);
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
       { title: "Bypass", body: "Denied", request_id: "workflow:workflow-1:2" }), { code: "actions.forbidden" });
@@ -58,7 +58,7 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     await host.closeProject(ref);
     await reopen();
     assert.equal((await bound.invoke(actions.get, { id: document.id })).document.artifact_id, promoted.artifact.artifact_id);
-    await bound.invoke(actions.delete, { id: received.item_id });
+    await bound.invoke(actions.delete, { id: received.subject.id });
     assert.deepEqual((await bound.invoke(actions.list, {})).documents.map(row => row.id), [document.id]);
   });
 });
@@ -172,7 +172,7 @@ test("W4-2-06 W4-2-12: 存为文档 is declared on pages.create@1 with its own d
   assert.equal(actions.create.version, 1);
   // RAC-633-MIG-01: the current directory exposes the revised shapes at the common starting version.
   for (const action of Object.values(actions)) assert.equal(action.version, 1, action.capability_id);
-  const intake = actions.create.action.intake!;
+  const intake = actions.create.action.intake as PersonIntake;
   assert.deepEqual([intake.intake_id, intake.verb, intake.material_field, intake.effect, intake.prepare], ["document", "存为文档", "markdown", undefined, { capability_id: "pages.intake.offers", version: 1 }]);
   assert.ok(intake.examples.length >= 1 && intake.examples.length <= 3);
   assert.equal(actions.create.action.undo?.capability_id, "pages.discard", "taken back by Pages' own undo, not by a platform rule");

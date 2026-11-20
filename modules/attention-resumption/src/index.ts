@@ -1,5 +1,5 @@
 import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
-import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { attentionErrors, isAttentionName } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -10,6 +10,7 @@ import type {
   AttentionReason,
   AttentionStatus,
   AttentionSurfaceEntry,
+  AttentionSubjectDeclarations,
   AttentionSubjectResolver,
   AttentionSubjectType,
   CreateAttentionEntryInput,
@@ -56,9 +57,9 @@ const INBOX_ENTRIES_COLUMNS = `
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       owner_plugin_id TEXT,
-      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
+      subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
-      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
+      reason TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'dismissed')),
       detail_json TEXT NOT NULL DEFAULT '{}',
       revision INTEGER NOT NULL DEFAULT 1,
@@ -120,18 +121,6 @@ export class AttentionModule implements AttentionApi {
 
   readonly commands = {
     create: (input: CreateAttentionEntryInput) => this.create(input),
-    ensureFeedItem: (
-      projectId: string,
-      itemId: string,
-      reason: Extract<AttentionReason, "manual" | "source_rule">,
-      detail?: Record<string, unknown>,
-    ) => this.create({
-      project_id: projectId,
-      subject_type: "feed_item",
-      subject_id: itemId,
-      reason,
-      detail,
-    }),
     setStatus: (
       projectId: string,
       entryId: string,
@@ -152,10 +141,12 @@ export class AttentionModule implements AttentionApi {
     private readonly options: AttentionModuleOptions = {},
   ) {}
 
-  /** Active references only. The owner is the persisted owner, never inferred from the object kind. */
-  listSurfaceEntries(projectId: string, selected?: Pick<AttentionSurfaceEntry, "owner_plugin_id" | "subject">): AttentionSurfaceEntry[] {
-    const subjectKinds: Record<AttentionSubjectType, string> = { feed_item: "feed_item", goal_decision: "goal", source_fault: "source" };
-    const kind = selected && Object.keys(subjectKinds).find(key => subjectKinds[key as AttentionSubjectType] === selected.subject.kind);
+  /**
+   * Active references only. The owner is the persisted owner, never inferred from the object kind; each entry's object kind and the
+   * category of its reason are what that owner declared (`declared`), and an entry of a type its owner did not declare is left out.
+   */
+  listSurfaceEntries(projectId: string, declared: AttentionSubjectDeclarations, selected?: Pick<AttentionSurfaceEntry, "owner_plugin_id" | "subject">): AttentionSurfaceEntry[] {
+    const kind = selected && declared.subjectType(selected.owner_plugin_id, selected.subject.kind);
     if (selected && !kind) return [];
     const rows = this.db.prepare(`
       SELECT owner_plugin_id, subject_type, subject_id, reason, revision, created_at
@@ -164,8 +155,13 @@ export class AttentionModule implements AttentionApi {
       ORDER BY created_at DESC, entry_id
     `).all(projectId, ...(selected ? [kind, selected.subject.id, selected.owner_plugin_id] : [])) as Array<{ owner_plugin_id: string; subject_type: AttentionSubjectType; subject_id: string;
       reason: AttentionReason; revision: number; created_at: string }>;
-    return rows.map(row => ({ owner_plugin_id: row.owner_plugin_id, subject: { kind: subjectKinds[row.subject_type], id: row.subject_id },
-      reason: row.reason, revision: row.revision, entered_at: row.created_at }));
+    return rows.flatMap(row => {
+      const objectKind = declared.objectKind(row.owner_plugin_id, row.subject_type);
+      if (!objectKind) return [];
+      const category = declared.category(row.owner_plugin_id, row.subject_type, row.reason);
+      return [{ owner_plugin_id: row.owner_plugin_id, subject: { kind: objectKind, id: row.subject_id }, reason: row.reason,
+        ...(category ? { attention: category } : {}), revision: row.revision, entered_at: row.created_at }];
+    });
   }
 
   private list(projectId: string): AttentionEntryRecord[] {
@@ -214,7 +210,7 @@ export class AttentionModule implements AttentionApi {
   private create(input: CreateAttentionEntryInput): { entry: AttentionEntryRecord; created: boolean } {
     return this.db.transaction(() => {
       assertReference(input.subject_type, input.subject_id);
-      assertReason(input.subject_type, input.reason);
+      if (!isAttentionName(input.reason)) throw attentionErrors.invalid_transition("Inbox Entry 的原因必须是它的主人声明过的名字");
       if (!this.subjects.exists(input.project_id, input.subject_type, input.subject_id)) {
         throw attentionErrors.invalid_reference(referenceMessage(input.subject_type));
       }
@@ -358,15 +354,6 @@ export {assertAttentionEntryShape} from './entry-shape.js';
 import {assertAttentionEntryShape as assertShape,assertAttentionReference as assertReference} from './entry-shape.js';
 export {attentionContentReplicationDefinition} from './replication.js';
 
-function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason): void {
-  const valid = subjectType === "feed_item"
-    ? reason === "manual" || reason === "source_rule" || reason === "artifact_out_failed"
-    : subjectType === "source_fault"
-      ? reason === "source_fault"
-      : reason === "goal_decision";
-  if (!valid) throw attentionErrors.invalid_transition(referenceMessage(subjectType));
-}
-
 function assertTransition(from: AttentionStatus, to: AttentionStatus): void {
   if (from === to) return;
   if (!ATTENTION_STATUS_TRANSITIONS[from].includes(to)) {
@@ -375,9 +362,7 @@ function assertTransition(from: AttentionStatus, to: AttentionStatus): void {
 }
 
 function referenceMessage(subjectType: AttentionSubjectType): string {
-  if (subjectType === "feed_item") return "Feed Item 只能由手工标记或来源规则进入 Inbox";
-  if (subjectType === "source_fault") return "来源故障必须使用 source_fault 原因";
-  return "Goal 决定必须引用当前项目内的 Goal";
+  return `这个 ${subjectType} 不在当前项目里，不能进入 Inbox`;
 }
 
 function mapAttentionEntry(row: Row): AttentionEntryRecord {

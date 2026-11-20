@@ -1,10 +1,10 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isArtifactDocumentAction, isArtifactPreviewAction, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { objectSchema as object, createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
-import { checkedDocument, codingResultDocument, shelfCopyOf } from "./coding-result.js";
+import { checkedDocument, documentFromPreview, shelfCopyOf } from "./coding-result.js";
 
 const text = { type: "string" };
 const reference = object({ artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } });
@@ -46,14 +46,25 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext,
   manifest: Pick<PluginManifest, "ports" | "artifacts" | "process_items">): ActionHandlerBinding[] {
   const services = context.services;
   const consumed = new Set([...manifest.artifacts.consumes, ...manifest.process_items?.consumes ?? []].map(type => type.artifact_type_id));
-  // The version is read here, as this plugin; its text is the producer's own, asked for through the action this plugin consumes.
+  // The version is read here, as this plugin; its text is discovered from the producer's declared document or preview role (Audit #10).
   const read = async (ref: ArtifactReference) => {
     const record = await refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
-    const actions = services?.actions, projectId = context.project_id;
-    if (!actions || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
-    const document = checkedDocument(await refused(() => actions.invoke(codingResultDocument, { reference: ref })));
-    return shelfCopyOf(record, document, { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
+    const dependencies = services?.actions?.dependencies, projectId = context.project_id;
+    if (!dependencies || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
+    const views = await refused(() => dependencies.discover());
+    const owned = views.filter(view => view.availability.available && view.provider.plugin_id === record.producer_plugin_id);
+    const docAction = owned.find(view => isArtifactDocumentAction(view.action));
+    if (docAction) {
+      const document = checkedDocument(await refused(() => dependencies.invoke({ capability_id: docAction.capability_id, version: docAction.version, provider_id: docAction.provider.provider_id }, { reference: ref })));
+      return shelfCopyOf(record, document, { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
+    }
+    const previewAction = owned.find(view => isArtifactPreviewAction(view.action));
+    if (previewAction) {
+      const preview = await refused(() => dependencies.invoke<FileContent>({ capability_id: previewAction.capability_id, version: previewAction.version, provider_id: previewAction.provider.provider_id }, { artifact: record }));
+      return shelfCopyOf(record, documentFromPreview(record, preview), { project_id: projectId, project_path: `/projects/${encodeURIComponent(projectId)}` });
+    }
+    throw shelfErrors.unavailable("原成果的提供方当前未提供正文读取能力");
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, async () => {

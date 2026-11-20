@@ -3,7 +3,6 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
-import { acceptanceProjectData } from "@molis-ai/molis-work-module-acceptance";
 import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -110,7 +109,6 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
     ownerOf(home, "artifacts", artifactsProjectData),
     ownerOf(home, "functions", functionsProjectData),
     // The requirements, deliveries, checks and decisions attached to the project's objects (modules/acceptance).
-    ownerOf(home, "acceptance", acceptanceProjectData),
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)

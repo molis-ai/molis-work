@@ -1,5 +1,6 @@
 // S-upgrade-lock-only, S-upgrade-too-new-untouched, S-upgrade-ledger-verified (docs/system/security-invariants/): the design's provisional
 // S-141, S-142, S-144 (specs/upgrade-continuity/upgrade-chain-design.md §10). Each test asserts the refusal, and that the refused thing changed nothing.
+import { cliEntryProbe } from "./fixtures/cli-entry-probe.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -54,7 +55,7 @@ test("S-upgrade-lock-only: entries that upgrade report `storage.upgrade_in_progr
   const f = await catalogHome(t), before = sha256(f.catalog);
   raiseCatalogBaseline(t);
   await withPeer(t, f.lock, async () => {
-    await assert.rejects(runV1Cli(["snapshot", "--db", f.project.database_path, "--json", JSON.stringify({ project_id: f.project.project_id })], { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" });
+    await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, f.project.project_id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), { code: "storage.upgrade_in_progress" });
     await assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: f.home }, async () => 0), { code: "storage.upgrade_in_progress" });
   });
   assert.equal(sha256(f.catalog), before);

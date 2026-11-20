@@ -10,6 +10,7 @@ interface HomeHost {
   order(): string[];
   navigationFrom(source: HTMLElement): (result: unknown) => boolean;
   market(): void;
+  picker?(): void;
   projectKey: string;
   translate(key: string): string;
   changed(): void;
@@ -222,7 +223,7 @@ export function mountHome(host: HomeHost) {
     needsRead = true;
     if (!visible()) return;
     if (invalidate) cancel(true);
-    reading?.abort(); placement.close(false);
+    reading?.abort();
     const request = reading = new AbortController();
     if (!display) caption("loading");
     try {
@@ -241,6 +242,7 @@ export function mountHome(host: HomeHost) {
       releaseText(display); display = result; needsRead = false;
       const editing = corrections.rendering(result);
       if (!before) {
+        placement.close(false);
         const html = renderHome(result, controls, editing);
         reconcileSurfaceRows(groups, html, rowMarkup);
       }
@@ -250,7 +252,7 @@ export function mountHome(host: HomeHost) {
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); showLead(null); }
+      if (unsafe(error)) { releaseText(display); display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); placement.close(false); showLead(null); }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -263,6 +265,7 @@ export function mountHome(host: HomeHost) {
       return;
     }
     if (key === "market") { host.market(); return; }
+    if (key === "picker") { (host.picker ?? host.market)(); return; }
     if (key === "lead-toggle") { lead.toggle(display); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);
     if (!control) return;

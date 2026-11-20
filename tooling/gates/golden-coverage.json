@@ -88,10 +88,6 @@
     {
       "path": "evaluation/evaluation.db",
       "reason": "第 30 批新增的端到端评测 Home 库（按需懒打开，普通使用不产生空文件）；现有历史金样生成时未跑评测样本，由 tests/evaluation-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖建库、读写、离线快照和删项目。"
-    },
-    {
-      "path": "acceptance/commit-intents/<decision_id>.json",
-      "reason": "短命两阶段回执：只有 acceptance 已提交而项目库最终提交失败/崩溃后才存在；正常金样没有待恢复决定，恢复成功后立即删除。原子写入、按项目幂等恢复、无待办不创建 acceptance 库由 tests/security-invariants-acceptance.test.ts 覆盖；删除项目由 purgeAcceptanceProject 清理。"
     }
   ],
   "writes": {
@@ -101,6 +97,7 @@
     "projects/<project_id>/molis-work.db": {
       "cases": [
         "goals.ts",
+        "project-guidance.ts",
         "artifacts.ts",
         "coding.ts",
         "feed.ts",

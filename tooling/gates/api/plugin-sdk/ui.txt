@@ -943,6 +943,11 @@ export declare function renderLabel(options: {
     className?: string;
 }): string;
 
+export declare function renderListColumns(labels: readonly string[], options?: {
+    className?: string;
+    attrs?: string;
+}): string;
+
 export declare function renderListToolbar(options: {
     label: string;
     search: string;

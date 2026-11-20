@@ -38,7 +38,7 @@ function sceneProbe(short: string, scenePermissions: readonly string[]) {
     publisher: { publisher_id: "molis", signature: `probe-${short}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", read, write, A_WRITE, L_WRITE, "attention:read"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [], action_scenes: [scene],
-    databases: { project: table }, attention: { subjects: ["goal_decision"] },
+    databases: { project: table }, attention: { subjects: [{ type: "goal_decision", object_kind: "goal", reasons: [{ id: "goal_decision" }] }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const attempt = (tx: PluginProjectDatabaseTransaction, name: string, services: PluginHostServices) => {
     tx.run(`INSERT INTO ${short}_notes (text) VALUES (?)`, [name]);

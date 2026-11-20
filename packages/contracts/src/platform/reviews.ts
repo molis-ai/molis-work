@@ -111,7 +111,7 @@ export interface ReviewTarget {
 }
 
 export type ReviewEvidence = { readonly target: ReviewTarget } & (
-  | { readonly tier: "self_reported" | "machine_checked" }
+  | { readonly tier: "self_reported" | "machine_checked" | "peer_reviewed" }
   | { readonly tier: "person_accepted"; readonly decision: ReviewDecisionReference }
 );
 

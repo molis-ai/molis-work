@@ -7,7 +7,6 @@ import {
   type AcceptanceCheck, type AcceptanceDecideRequest, type AcceptanceReviewRequest, type AcceptanceSubject, type AcceptanceView,
 } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import type { ProjectTrustedDecision, TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { openAcceptance } from "@molis-ai/molis-work-module-acceptance";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { acceptanceSubjectOf, type AssistantLineAcceptance } from "./assistant/assistant-line-actions.js";
 import type { StoredWork } from "./assistant/assistant-store.js";
@@ -15,6 +14,7 @@ import { decideProjectReview, readProjectReview, type ProtectedReviewEntry, type
 import { hasProtectedWebAction } from "./plugin-consent-settings-entry.js";
 import { projectReviewPerson } from "./project-review-entry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { withProjectAcceptance } from "./acceptance-library.js";
 
 export const ACCEPTANCE_DECIDE_ACTION = {
   capability_id: acceptanceActions.decide.capability_id,
@@ -59,9 +59,9 @@ export async function assertAcceptanceObjectReadable(
 }
 
 function checkEvidence(requestId: string, itemId: string, check: AcceptanceCheck, owner: Extract<ReviewTarget["owner"], { kind: "system"; scope: "project" }>): ReviewEvidence {
-  const passed = check.verdict === "supports" && check.tier === "machine_checked" && check.gap === null;
+  const passed = check.verdict === "supports" && (check.tier === "machine_checked" || check.tier === "peer_reviewed") && check.gap === null;
   return {
-    tier: passed ? "machine_checked" : "self_reported",
+    tier: passed ? check.tier : "self_reported",
     target: {
       owner,
       subject: { kind: "acceptance_check", id: `${requestId}:${itemId}:${check.kind}` },
@@ -210,7 +210,6 @@ function buildDraftAcceptanceOffer(
  * and commit through the same protected trusted-decision entry (APR-15, APR-16).
  */
 export function assistantLineAcceptance(ports: {
-  homeDirectory: string;
   localHost: MolisWorkLocalHost;
   projectReference?: (projectId: string) => Promise<LocalHostProjectReference>;
 }): AssistantLineAcceptance {
@@ -219,11 +218,11 @@ export function assistantLineAcceptance(ports: {
       if (!works.length || !ports.projectReference) return new Map();
       const subjects = works.map(work => ({ work, subject: acceptanceSubjectOf(work) }));
       const openByWork = new Map<string, StoredWork>();
-      const opened = openAcceptance(ports.homeDirectory);
-      try {
+      const project = await ports.projectReference(projectId);
+      await withProjectAcceptance(ports.localHost, project, service => {
         for (let at = 0; at < subjects.length; at += ACCEPTANCE_READ_MAX) {
           const part = subjects.slice(at, at + ACCEPTANCE_READ_MAX);
-          const { views } = opened.service.read({ project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, person: true, session: null }, { subjects: part.map(item => item.subject) });
+          const { views } = service.read({ project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, person: true, session: null }, { subjects: part.map(item => item.subject) });
           part.forEach((item, index) => {
             const view = views[index]!;
             if (view.version !== null && view.requirements.some(req => req.stands_on !== null && req.person === "pending" && req.recheck !== "returned")) {
@@ -231,9 +230,8 @@ export function assistantLineAcceptance(ports: {
             }
           });
         }
-      } finally { opened.close(); }
+      });
       if (!openByWork.size) return new Map();
-      const project = await ports.projectReference(projectId);
       const assertCurrent = () => {
         rawCaller?.signal?.throwIfAborted();
         if (ports.localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主正在关闭");
@@ -276,10 +274,8 @@ export function assistantLineAcceptance(ports: {
       }
       const note = input.note?.trim() ?? "";
       if (!note) throw acceptanceErrors.note_required("退回要写原因");
-      const opened = openAcceptance(ports.homeDirectory);
-      let view: AcceptanceView;
-      try { view = opened.service.read({ project_id: project.project_id, actor_id: personCaller.actor_id, person: true, session: null }, { subjects: [subject] }).views[0]!; }
-      finally { opened.close(); }
+      const view: AcceptanceView = await withProjectAcceptance(ports.localHost, project, service =>
+        service.read({ project_id: project.project_id, actor_id: personCaller.actor_id, person: true, session: null }, { subjects: [subject] }).views[0]!);
       const openItems = view.requirements.filter(req => req.stands_on !== null && req.person === "pending" && req.recheck !== "returned");
       if (!view.version || !openItems.length) throw new ActionError("actions.conflict", "当前没有待退回的要求");
       const prepared = await readProjectReview(ports.localHost, project, {

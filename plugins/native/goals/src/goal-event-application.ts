@@ -29,7 +29,7 @@ import {
   type GoalEventTimelinePage,
   type GoalEventTrustedAuthority,
   type GoalEventTrustedDecisionRecord,
-  type GoalEventWorkGap,
+  type GoalHungRequirement,
   type GoalRecord,
   type GoalsCommandApi,
   type GoalsQueryApi,
@@ -44,6 +44,8 @@ import {
   type SetGoalEventAgreementInput,
   type SubmitGoalEventClosureInput,
 } from "./contract/goals.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
+import { goalIntentRequirements } from "./intent-requirements.js";
 
 
 const STATE_REPORT_LIMIT = 5;
@@ -53,6 +55,11 @@ export interface GoalEventApplicationPorts {
   commands: Pick<GoalsCommandApi, "createGoal" | "addRelation">;
   events: GoalEventFactsApi;
   recordTrustedDecision?: (input: RecordGoalUserDecisionInput) => GoalEventTrustedDecisionRecord;
+  /**
+   * Where the requirements a new Goal hung go: the plugin hangs them on the platform's acceptance once the write that recorded them has
+   * committed (contract-design §10.3). Called again on a replay of the same request, which sets the same list again.
+   */
+  requirementsHung?: (goal: { project_id: string; goal_id: string }, requirements: GoalHungRequirement[]) => void;
 }
 
 /** Compose intent, event facts and typed state effects without a second state machine. */
@@ -73,7 +80,11 @@ export class GoalEventApplication {
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
       const replay = this.ports.events.intent.replay(input.project_id, input.actor_id, input.idempotency_key, hash);
-      if (replay) return { ...replay, replayed: true };
+      if (replay) {
+        // The ids are worked out from the request again, so a replay hangs exactly what the first call hung.
+        this.hung(replay.goal.project_id, replay.goal.goal_id, goalIntentRequirements(replay.goal.goal_id, input.requirements));
+        return { ...replay, replayed: true };
+      }
       const result = this.ports.commands.createGoal(input.project_id, {
         goal_id: input.goal_id?.trim() || undefined,
         title,
@@ -90,7 +101,7 @@ export class GoalEventApplication {
         idempotency_key: `${input.idempotency_key}::identity`,
         reason: "保存原始意图",
       });
-      this.ports.events.intent.recordArtifacts({
+      const hung = this.ports.events.intent.recordArtifacts({
         project_id: result.goal.project_id,
         goal_id: result.goal.goal_id,
         actor_id: input.actor_id,
@@ -99,6 +110,7 @@ export class GoalEventApplication {
         outcome,
         requirements: input.requirements,
       });
+      this.hung(result.goal.project_id, result.goal.goal_id, hung);
       const parentGoalId = input.parent_goal_id?.trim();
       if (parentGoalId) {
         this.ports.commands.addRelation(input.project_id, {
@@ -150,18 +162,10 @@ export class GoalEventApplication {
   readState(projectId: string, goalId: string): GoalEventStateView {
     const goal = this.requireGoal(projectId, goalId);
     const config = this.ports.events.readConfig(projectId, goalId);
-    const requirements = this.ports.events.readCurrentRequirements(projectId, goalId);
+    const requirements = this.ports.events.readRequirementLinks(projectId, goalId);
     const work = this.ports.events.state.readWorkState(projectId, goalId);
     const latest = this.ports.events.listLatestReports(projectId, goalId, { limit: STATE_REPORT_LIMIT });
     const latestReports = latest.reports.map(reportSummary);
-    const gaps: GoalEventWorkGap[] = requirements
-      .filter((requirement) => !requirement.currently_satisfied)
-      .map((requirement) => ({
-        requirement_id: requirement.requirement_id,
-        statement: requirement.statement,
-        current_verdict: requirement.current_report?.verdict ?? null,
-        human_decision_required: requirement.human_decision_required,
-      }));
     return {
       project_id: projectId,
       goal_id: goal.goal_id,
@@ -173,8 +177,8 @@ export class GoalEventApplication {
       },
       config,
       requirements,
+      acceptance_subject: goalAcceptanceSubject(goal.goal_id),
       latest_reports: latestReports,
-      gaps,
       observed_event_cursor: latest.observed_event_cursor,
       goal_event_cursor: this.ports.events.listLatestTimeline(projectId, goalId, { limit: 1 }).items[0]?.journal_seq ?? 0,
       event_list_next_cursor: null,
@@ -245,7 +249,6 @@ export class GoalEventApplication {
       observed_event_cursor: state.observed_event_cursor,
       goal_event_cursor: state.goal_event_cursor,
       work_status: state.work_status,
-      gaps: state.gaps,
       progress_summary: state.progress_summary,
       completion_effect: state.completion_effect,
       can_record: state.can_record,
@@ -319,6 +322,10 @@ export class GoalEventApplication {
     return this.ports.events.state.recordNote(input);
   }
 
+  private hung(projectId: string, goalId: string, requirements: GoalHungRequirement[]): void {
+    if (requirements.length) this.ports.requirementsHung?.({ project_id: projectId, goal_id: goalId }, requirements);
+  }
+
   private requireGoal(projectId: string, goalId: string): GoalRecord {
     const goal = this.ports.query.getGoal(projectId, goalId);
     if (!goal) throw new ActionError("goals.not_found", `找不到这个 Goal: ${goalId}`, { kind: "not_found" });
@@ -349,7 +356,6 @@ function reportSummary(event: Extract<GoalWorkEventRecord, { kind: "report" }>):
     type_version: event.type?.version ?? null,
     received_at: event.received_at,
     journal_seq: event.journal_seq,
-    judgments: event.judgments,
   };
 }
 
@@ -397,7 +403,7 @@ function nextHint(state: GoalEventStateView): string {
   if (state.work_status === "completed") return "已完成，明确继续后开启新一轮";
   if (state.work_status === "cancelled") return "已取消，普通记录不会重开";
   if (state.pending_decisions.length) return "可记录，待用户决定";
-  if (state.concerns.some((item) => item.status === "open" && item.blocks_closure) || state.gaps.length) {
+  if (state.concerns.some((item) => item.status === "open" && item.blocks_closure)) {
     return "可记录，尚不可完成";
   }
   return "可记录";
@@ -411,7 +417,6 @@ function directoryItem(goal: GoalRecord, state: GoalEventStateView): GoalEventDi
     completion_effect: state.completion_effect,
     can_record: state.can_record,
     next_hint: nextHint(state),
-    unmet_requirement_count: state.gaps.length,
     pending_decision_count: state.pending_decisions.length,
     blocking_concern_count: state.concerns.filter((item) => item.status === "open" && item.blocks_closure).length,
     updated_at: goal.updated_at,
@@ -437,4 +442,9 @@ function isAfterDirectoryCursor(
   const time = item.updated_at.localeCompare(cursor.updated_at);
   if (time !== 0) return time < 0;
   return item.goal_id.localeCompare(cursor.goal_id) > 0;
+}
+
+/** A Goal's requirements and acceptance on the platform: one subject per Goal, provided by Goals (contract-design §10.3). */
+export function goalAcceptanceSubject(goalId: string): GoalEventStateView["acceptance_subject"] {
+  return { provider_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: goalId } };
 }

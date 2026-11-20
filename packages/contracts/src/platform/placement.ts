@@ -1,6 +1,7 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
+import type { TextRef } from "./ui-text.js";
 
 /**
  * How a plugin lets the system move or copy one of its objects between locations (specs/archive/work-placement §7.1).
@@ -61,46 +62,71 @@ export function isObjectCopier(action: { input_type?: string; output_type?: stri
 }
 
 /**
- * A relation between an object and a target its owner keeps (a document's Goal), which placement lists, binds and releases for the
- * person (PG-032). Each action of the owner says which part it plays with `placement_relation`; placement finds them in the directory
- * by that declaration, never by a capability id, so the relation's owner is whoever declares it. `target` is on the `list` role only:
- * the subject kind of the other end and the noun a person reads it by.
+ * A relation between an object and a target its owner keeps (a document's Goal, the work item that holds it), which placement lists, binds and
+ * releases for the person (PG-032; 「挂到…」, specs/plugin-equal-standing/contract-design.md §2.2). Each action of the owner says which part it
+ * plays with `placement_relation`; placement finds them in the directory by that declaration, never by a capability id, so the relation's
+ * owner is whoever declares it. `target` is on the `list` role only: the subject kind of the other end and the noun a person reads it by
+ * (`noun_text` when the owner's words have it, `noun` as written otherwise).
  */
 export const PLACEMENT_RELATION_ROLES = ["list", "bind", "release", "candidates", "create"] as const;
 export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
+export interface PlacementRelationTarget { readonly kind: string; readonly noun: string; readonly noun_text?: TextRef }
 export interface PlacementRelationDeclaration {
   readonly relation: string;
   readonly role: PlacementRelationRole;
-  readonly target?: { readonly kind: string; readonly noun: string };
+  readonly target?: PlacementRelationTarget;
 }
 export function isPlacementRelation(action: { placement_relation?: PlacementRelationDeclaration }, relation: string, role: PlacementRelationRole): boolean {
   return action.placement_relation?.relation === relation && action.placement_relation.role === role;
 }
 
 /**
+ * The type names of a part in the platform's shape (`definePlacementRelationAction`), so placement can tell a part it may call with that
+ * shape from a relation kept in another (a background task's `serves`, which the mainline service calls itself).
+ */
+export const PLACEMENT_RELATION_TYPE = /* @version type.molis.placement.relation "molis.placement.relation.v{version}" */ "molis.placement.relation.v1";
+export const placementRelationType = (role: PlacementRelationRole, side: "input" | "output") => `${PLACEMENT_RELATION_TYPE}.${role}.${side}`;
+export function isPlacementRelationPart(action: { input_type?: string; output_type?: string }, role: PlacementRelationRole): boolean {
+  return action.input_type === placementRelationType(role, "input") && action.output_type === placementRelationType(role, "output");
+}
+
+/**
  * The parts of a relation as one shape for any relation and any owner (specs/work-mainline/contract-design.md §3): both ends are
  * `ActionSubject`s. `list` says what the object is related to now; `bind` and `release` add or take away one target; `candidates` are
  * the targets the person may pick, the current one first; `create` makes a new target named so and binds it. Each returns what the
- * object is related to after the call. A relation's owner declares its five parts with this, and placement finds them by
+ * object is related to after the call; `create` names the target it made first (or made before for the same `request_id`). A relation's owner declares its five parts with this, and placement finds them by
  * `placement_relation`, never by a capability id.
  */
 export interface PlacementRelationSubjectInput { subject: ActionSubject }
 export interface PlacementRelationTargetInput { subject: ActionSubject; target: ActionSubject }
-export interface PlacementRelationCreateInput { subject: ActionSubject; name: string }
+/**
+ * What the person had in hand when they related it, as the caller read it under the person's authority (placement reads the object
+ * first): the owner may name the object by `title` and tell later whether it changed since (`revision`); `excerpt` is the start of its
+ * content, for a target made from it. An owner that reads the object itself ignores it.
+ */
+export interface PlacementRelationRead { title: string; revision?: string; excerpt?: string }
+export interface PlacementRelationBindInput extends PlacementRelationTargetInput { read?: PlacementRelationRead }
+/** `request_id`: the same request makes the same target again, so a retry after a cancel or a conflict adds none. */
+export interface PlacementRelationCreateInput { subject: ActionSubject; name: string; request_id?: string; read?: PlacementRelationRead }
 export interface PlacementRelationResult { targets: ActionSubject[] }
 export interface PlacementRelationCandidates { targets: Array<{ subject: ActionSubject; current: boolean }> }
-type RelationInput<R extends PlacementRelationRole> = R extends "bind" | "release" ? PlacementRelationTargetInput : R extends "create" ? PlacementRelationCreateInput : PlacementRelationSubjectInput;
+type RelationInput<R extends PlacementRelationRole> = R extends "bind" ? PlacementRelationBindInput : R extends "release" ? PlacementRelationTargetInput
+  : R extends "create" ? PlacementRelationCreateInput : PlacementRelationSubjectInput;
 type RelationOutput<R extends PlacementRelationRole> = R extends "candidates" ? PlacementRelationCandidates : PlacementRelationResult;
-export const PLACEMENT_RELATION_LIMITS = { targets: 500, name: 120 } as const;
+export const PLACEMENT_RELATION_LIMITS = { targets: 500, name: 120, title: 200, revision: 200, excerpt: 2000, request_id: 200 } as const;
 
 /**
  * The shapes a relation part takes and returns, built when a part is defined: top-level schema objects that read the limits would stay
  * in every page bundle that imports this module, used or not.
  */
 function relationInput(role: PlacementRelationRole): object {
-  if (role === "bind" || role === "release") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false };
-  if (role === "create") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name } },
-    required: ["subject", "name"], additionalProperties: false };
+  const read = { type: "object", properties: { title: { type: "string", maxLength: PLACEMENT_RELATION_LIMITS.title },
+    revision: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.revision }, excerpt: { type: "string", maxLength: PLACEMENT_RELATION_LIMITS.excerpt } },
+  required: ["title"], additionalProperties: false };
+  if (role === "release") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false };
+  if (role === "bind") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA, read }, required: ["subject", "target"], additionalProperties: false };
+  if (role === "create") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name },
+    request_id: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.request_id }, read }, required: ["subject", "name"], additionalProperties: false };
   return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false };
 }
 function relationOutput(role: PlacementRelationRole): object {
@@ -116,7 +142,7 @@ export interface PlacementRelationOptions {
   description: string;
   permissions: readonly string[];
   /** The other end, on the `list` part only: its subject kind and the noun a person reads it by. */
-  target?: { kind: string; noun: string };
+  target?: PlacementRelationTarget;
   audiences?: readonly ("user" | "agent" | "workflow" | "mcp")[];
 }
 
@@ -128,6 +154,7 @@ export function definePlacementRelationAction<R extends PlacementRelationRole>(r
     kind: reads ? "query" : "operation", scope: "project", scheduling: "concurrent", effect: reads ? "read" : "write",
     audiences: [...options.audiences ?? (reads ? ["user", "agent", "workflow", "mcp"] : ["user", "agent", "mcp"])], permissions: [...options.permissions], subject_kinds: [...options.kinds],
     placement_relation: { relation, role, ...(role === "list" ? { target: options.target! } : {}) },
+    input_type: placementRelationType(role, "input"), output_type: placementRelationType(role, "output"),
     input_schema: inputSchemaFor<RelationInput<R>>()(relationInput(role) as never), output_schema: relationOutput(role) } } as ActionDefinition<RelationInput<R>, RelationOutput<R>>;
 }
 

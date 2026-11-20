@@ -254,8 +254,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       if (failedUpgrade && !manifest?.databases?.home) return [];
       return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
     }),
+    isDualInstance: (pluginId: string): boolean => { const record = recordFor(pluginId); return Boolean(record && standing.trusted(record) && releaseFor(pluginId)?.packaged?.manifest.runtime?.dual_instance === true); },
     refreshPublicActions,
-    /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,
   };
 }

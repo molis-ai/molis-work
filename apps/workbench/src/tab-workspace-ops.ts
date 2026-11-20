@@ -1,6 +1,6 @@
 // @ts-nocheck
 /** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
-export function createTabWorkspaceOps(titles) {
+export function createTabWorkspaceOps(titles, aliases) {
   const GROUP_COLORS = ["blue", "pink", "green", "purple", "yellow", "cyan", "red", "grey"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
@@ -8,7 +8,7 @@ export function createTabWorkspaceOps(titles) {
   const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
   // Plugins name their tabs with their Manifest views' titles (the page passes `pluginTabTitles`); only the Host's own surfaces are named here.
   const pluginTitle = (plugin) => (titles && titles[plugin]) || ({ home: "项目首页", characters: "Characters", market: "插件市场" }[plugin] || plugin);
-  const pluginOfSurface = (surface) => surface === "sources" ? "feed" : surface;
+  const pluginOfSurface = (surface) => (aliases && Object.hasOwn(aliases, surface) ? aliases[surface] : surface);
   const countTabs = (state) => state.panes.reduce((sum, pane) => sum + pane.tabs.length, 0);
   const focused = (state) => state.panes.find((pane) => pane.id === state.focusedPaneId) || state.panes[0];
   const mapTree = (node, fn) => node.paneId ? fn(node) : { ...node, children: node.children.map((child) => mapTree(child, fn)) };

@@ -1,6 +1,6 @@
 import { format as uiFormat, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { presentationOwnerHue, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { presentationOwnerHue, renderListColumns, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { goalsPresentation } from "./presentation.js";
 import { GOALS_PLUGIN_ID } from "./identity.js";
 import type { GoalCollectionModel } from "./collection-model.js";
@@ -135,7 +135,8 @@ function renderGoalTree(
             ${chip ? `<div class="tree-presentation-name" title="${title}"><div aria-hidden="true">${chip}</div>${choose(`<strong class="mw-sr-only">${title}</strong>`)}</div>`
               : choose(`<span class="tree-copy"><span class="tree-title-line"><strong title="${title}">${title}</strong></span></span>`)}
           </div>
-          <span class="directory-row-state">${renderVisibleGoalStatus(item)}</span>
+          <span class="directory-row-state">${renderVisibleGoalStatus(item.presentation_status === "changed_after_completion"
+            ? { ...item, status_label: uiText.text("goals.tree-ui.requirements-changed-after-completion") } : item)}</span>
           ${renderTreeProgress(item, nodeChildren)}
           ${renderTreeDependencies(item, view)}
           <span class="tree-created-meta" data-select-goal="${escapeHtml(item.goal.goal_id)}">${created}${avatar}</span>
@@ -237,9 +238,7 @@ function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionMode
   return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${uiText("goals.tree-ui.goal-list")}"><div class="goal-list-view" data-goal-list-view>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
 }
 
-function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string {
-  return "";
-}
+function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string { return ""; }
 
 function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, proposals = ""): string {
   const { selectedId, archiveView, trashView } = collection;
@@ -256,7 +255,7 @@ function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollect
  */
 function treeColumns(): string {
   const names = ["goals.tree-ui.column-goal", "goals.tree-ui.status", "goals.tree-ui.column-progress", "goals.tree-ui.column-relations", "goals.tree-ui.column-created"] as const;
-  return `<div class="tree-columns" data-tree-columns aria-hidden="true">${names.map(name => `<span>${uiText(name)}</span>`).join("")}</div>`;
+  return renderListColumns(names.map(name => uiText.text(name)), { className: "tree-columns", attrs: "data-tree-columns" });
 }
 
 export type GoalsTreeRenderer = ReturnType<typeof createTreeRenderer>;

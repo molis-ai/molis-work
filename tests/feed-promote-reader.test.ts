@@ -36,21 +36,19 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
       assert.equal(response.status, 200);
       return response.text();
     };
+    // PEQ-12: a new project does not enable Goals by default, so the Feed reader starts without 「升格为 Goal」.
+    const initial = await detail();
+    assert.doesNotMatch(initial, /data-feed-action="promote"/);
+    for (const action of ["inbox", "save", "archive"]) assert.match(initial, new RegExp(`data-feed-action="${action}"`));
+    // Once Goals is added to the project, the reader offers promotion.
+    await withCatalog({ homeDirectory: home }, c => c.commit(() =>
+      c.addProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
     const withGoals = await detail();
     assert.match(withGoals, /data-feed-action="promote"/);
     for (const action of ["inbox", "save", "archive"]) assert.match(withGoals, new RegExp(`data-feed-action="${action}"`));
-    // Goals is 常开 (ac-trust T3): no project removes it while the standing agreement holds, so the reader keeps offering the promotion.
-    const remove = () => withCatalog({ homeDirectory: home }, c => c.commit(() =>
+    // PEQ-01: Goals is removable like any other plugin; removing it hides promotion again.
+    await withCatalog({ homeDirectory: home }, c => c.commit(() =>
       c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
-    await assert.rejects(remove(), { code: "catalog.plugin_always_on" });
-    assert.match(await detail(), /data-feed-action="promote"/);
-    // The person takes the agreement back (ac-trust T5, `plugins.consents.revoke`): Goals is a plugin like any other, and the project
-    // without it has nothing to write a promotion through, so the reader stops offering it.
-    const ledger = new HomeConsentLedger(home);
-    const agreement = ledger.consents("io.molis.work.goals").find(row => row.kind === "always_on" && row.revoked_at === null);
-    assert.ok(agreement, "the Host agreed for its own build when the project started");
-    ledger.revoke(agreement.consent_id, new Date().toISOString());
-    await remove();
     const without = await detail();
     assert.doesNotMatch(without, /data-feed-action="promote"/);
     for (const action of ["inbox", "save", "archive"]) assert.match(without, new RegExp(`data-feed-action="${action}"`));

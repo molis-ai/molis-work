@@ -5,7 +5,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_context_resolve",
     description:
-      "由统一 Molis Work Skill 显式解析当前 Runtime 宿主提供的稳定工作入口；本工具只读，候选、目录和历史本身都不授权绑定。若用户当前消息已经明确要求用 Molis Work 连接或推进一个已命名项目，且返回的现有项目中只有一个与该指代无歧义匹配，Skill 应直接调用 context_bind，不要让用户重复确认；否则，suggested 时展示候选并询问，unbound 时展示项目列表并询问选择或新建。仅提到项目、含糊表达或宿主线索都不能当成选择。",
+      "显式解析当前 Runtime 宿主提供的稳定工作入口；本工具只读，候选、目录和历史本身都不授权绑定。若用户当前消息已经明确要求用 Molis Work 连接或推进一个已命名项目，且返回的现有项目中只有一个与该指代无歧义匹配，应直接调用 context_bind，不要让用户重复确认；否则，suggested 时展示候选并询问，unbound 时展示项目列表并询问选择或新建。仅提到项目、含糊表达或宿主线索都不能当成选择。",
     inputSchema: {
       type: "object",
       properties: {},

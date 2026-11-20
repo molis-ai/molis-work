@@ -23,6 +23,8 @@ ProjectsModule 用注入数据库在包内建立 repository 与 service，公开
 | [src/project-paths.ts](src/project-paths.ts) | 项目库/暂存目录的路径推导 |
 | [src/installation-inspection.ts](src/installation-inspection.ts) | 卸载只读检查 |
 | [src/project-root.ts](src/project-root.ts) | 项目库里的项目根行 `project_root` |
+| [src/project-guidance.ts](src/project-guidance.ts) | 项目长期说明：表与读写（`createProjectGuidance`） |
+| [src/project-guidance-replica.ts](src/project-guidance-replica.ts) | 「项目长期说明」同步集合的副本与传输表 |
 
 可对照现有调用方 [apps/local-host/src/project-catalog.ts](../../apps/local-host/src/project-catalog.ts) 阅读装配方式。
 
@@ -35,6 +37,8 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 **最近用过。** 项目库的 `material_recent_uses`（`src/material-recent.ts` 的 `MaterialRecentUses`）按调用方（本人或插件 id）记引用的 `MaterialRef`，不记正文；项目随库删除时一起清。`materials.recent`、`materials.recent.record`、`materials.origins` 三个动作由宿主装配，出处每次现读，不在本模块。
 
 **升级。** 目录库与项目库当前均为第 1 版基线（预发 v1 重置后已收平历史开发期升级段；`material_recent_uses` 建表语句由本包 `material-recent.ts` 导出并直接写入项目库 v1 基线）。后续结构变更仍沿通用升级框架升级，较新的库拒绝。
+
+**项目长期说明。** 本人确认过、项目里每次 Agent Run、助理回合和连接的客户端都先读到的说明（第 44 批从 Goals 移来，`specs/plugin-equal-standing/contract-design.md` §9）。表 `guidance_entries`、`guidance_revisions` 在项目库基线里；动作 `projects.guidance.{read,add,update}@1` 由宿主以提供方 `system.project-guidance` 登记（`apps/local-host/src/project-guidance-actions.ts`），读不要权限，写要 `projects:guidance`、本人看过原文的 `user_confirmed` 与幂等键。日志与收据写在平台的 `events`、`idempotency_records`（宿主给的 `ProjectGuidanceJournal`）。Agent 用修订条数标识说明版本，编辑同一条也产生新的冻结版本。设置页的写入已成功而随后的重读被拒时，HTTP 返回保存回执和单独的重读错误，不把已保存报成失败。同步是平台的「项目长期说明」集合，本人另行勾选。
 
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 
@@ -68,7 +72,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
 - 负责：项目身份、目录（Catalog）、项目目录的输入/输出角色、默认输出目录与「最近用过」、生命周期；项目库里代表项目本身的根行（`project_root`）。
 - 不负责：Session、桌面面板、Goal、Artifact、Runtime 进程状态；「最近用过」的出处读取（宿主装配 `materials.*`）。
 - 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts、plugin-sdk、storage 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录库不保存项目库路径：由必填的 `projects_directory` 与单段 `project_id` 推导，合同的 `database_path` 是读出值。不是普通目录名的 id 在创建和读取时拒绝，项目库不由本模块移动（W5-17、S-102）。
   - 每个项目恰好一个输出目录，且每一项成员记录它的角色（`role_input`、`role_output`）：没选过输出的项目有默认输出目录那一行，`canonical_path` 是 `project-output:<project_id>`，路径由 `outputs_directory` 与 `project_id` 推导，第一次用到才建。默认输出目录的 id 以已写下的行为准（首个事件按 `created_at, rowid` 排，设备时钟回拨也不换 id）。
@@ -85,6 +89,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
   - 目录库与项目库的结构改动都走升级段（`catalog-upgrade.ts`、`apps/local-host/src/project-database-schema.ts`）；低版本由启动升级过程升，较新的库拒绝，不在打开路径补表。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/project-directories.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts tests/project-recycle.test.ts tests/security-invariants-project-storage.test.ts`；目录与默认输出目录另跑 `node scripts/run-tests.mjs tests/default-output-first-use.test.ts tests/material-recent-uses.test.ts`。
 - 个人资料同步另跑：`node scripts/run-tests.mjs tests/security-invariants-project-metadata-sync.test.ts tests/project-catalog.test.ts tests/personal-sync.test.ts`。
+- 项目长期说明另跑：`node scripts/run-tests.mjs tests/project-guidance-store.test.ts tests/project-guidance-characters.test.ts tests/project-guidance-actions.test.ts tests/project-guidance-sync.test.ts`。
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)、[共同设计](../../specs/shared-sources-and-surfaces/spec.md) §3；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

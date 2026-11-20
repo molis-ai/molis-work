@@ -24,11 +24,8 @@ export function languagePreview(request: IncomingMessage, response: ServerRespon
   return value;
 }
 
-export function requestLanguage(request: IncomingMessage, url: URL, preview: WebLocale | null) {
-  const capsule = request.method === "GET" && (url.pathname === "/desktop/capsule" || /^\/projects\/[^/]+\/api\/capsule$/u.test(url.pathname))
-    ? url.searchParams.get("locale") : null;
-  const selected = preview ?? capsule;
-  return isWebLocale(selected) ? { tag: selected, source: "explicit" as const }
+export function requestLanguage(request: IncomingMessage, preview: WebLocale | null) {
+  return isWebLocale(preview) ? { tag: preview, source: "explicit" as const }
     : resolveWebLocaleChoice(request.headers.cookie, request.headers["accept-language"]);
 }
 

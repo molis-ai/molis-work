@@ -169,7 +169,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
         sessions.bind(request, controlToken, response);
         const preview = languagePreview(request, response, url, controlToken); if (preview === false) return;
         if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, appearance.locale.remember); return; }
-        const locale = requestLanguage(request, url, preview);
+        const locale = requestLanguage(request, preview);
         await runWithLocale(locale.tag, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");

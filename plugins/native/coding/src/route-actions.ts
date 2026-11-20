@@ -1,5 +1,6 @@
 import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, SUBJECT_STATE_INPUT_SCHEMA, SUBJECT_STATE_OUTPUT_SCHEMA, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MEMORY_SESSION_BINDING_INPUT_TYPE, MEMORY_SESSION_BINDING_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/services/memory";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
 
@@ -40,7 +41,10 @@ export const codingCreateSessionAction = { ...createSession, action: { ...create
     project_id: id, session_id: id, title: { type: "string" }, state: { const: "idle" }, archived: { const: false },
     goal_id: { type: "null" }, runtime_id: id, runtime_session_id: { type: "null" },
     created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" },
-  }) }), result_subject: { id: "session.session_id", revision: "session.updated_at" } } };
+  }) }), result_subject: { id: "session.session_id", revision: "session.updated_at" },
+  // The overview's 「从哪开始」 (contract-design §2.4): a blank session, in the words the home showed for it.
+  intake: { intake_id: "session", item_kind: "coding_session", title: "编码会话", verb: "新建编码会话", describe: "一个新的编码会话：在本机代码文件夹里分几轮完成编码任务",
+    accepts: [], examples: [], start: { title: "新建编码会话", hint: "新建一个编码会话；第一轮任务开始前不会调用模型" } } } };
 
 const childIdentity = { ...round, child_id: id };
 const childParams = (input: Record<string, unknown>) => ({ ...params(input), childId: String(input.child_id) });
@@ -59,6 +63,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => ({ ...childInput(request), command: body(request) }), toRequest: input => ({ method: "POST", params: childParams(input), query: {}, body: input.command }) },
   "coding.session-binding": { definition: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL),
       action: { ...define("sessions.binding.read", /* @version action.coding.sessions.binding.read */ 1, "读取会话的执行绑定", "本人只读当前业务会话的原执行引用与归档状态，不读取正文或创建执行", "query", closed(session), ["artifact:read"], LOCAL).action,
+        input_type: MEMORY_SESSION_BINDING_INPUT_TYPE, output_type: MEMORY_SESSION_BINDING_OUTPUT_TYPE,
         output_schema: closed({ session_id: id, project_id: id, archived: { type: "boolean" }, runtime: { anyOf: [{ type: "null" },
           closed({ runtime_id: id, session_id: id })] } }) } },
     toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },

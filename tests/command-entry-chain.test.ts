@@ -1,5 +1,5 @@
 import { managementGoals } from "./goal-management-caller.js";
-import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -14,11 +14,12 @@ import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 
-test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
+test("actual MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-command-chain-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "真实命令链", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
@@ -35,17 +36,6 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   // The MCP server below binds this Host to the Home, and a Home has one Host: the same Host serves the access settings the grant goes through.
   const served = await serveTestHost(null, { home: directory, host });
-  async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
-    const lines: string[] = [];
-    const original = console.log;
-    console.log = (...values: unknown[]) => { lines.push(values.map(String).join(" ")); };
-    try {
-      assert.equal(await runV1Cli([operation, "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }), 0);
-      return JSON.parse(lines.at(-1)!) as T;
-    } finally {
-      console.log = original;
-    }
-  }
   try {
     await grantGoalsMcp(served, project, "runtime:chain");
     const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
@@ -60,19 +50,13 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
         fields: [{ field_id: "result", name: "结果", purpose: "当前交付", format: "text", required: true }],
       }],
     });
-    const configured = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_action_goals.agreement.set__v1", {
-      goal_id, idempotency_key: "agree",
-      expected_config_version: configured.config.version,
-      expected_agreement_version: configured.agreement.version,
-      new_requirements: [{ requirement_id: "result", statement: "完成跨入口链" }],
-    });
+    // The requirement is the platform's (contract-design §10).
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).setRequirements(projectId, goal_id, [{ requirement_id: "result", statement: "完成跨入口链" }]));
     const reportInput = {
       goal_id, idempotency_key: "report",
       events: [{
         type_id: "result", type_version: 1, title: "跨入口记录已接通",
-        fields: { result: "MCP 写入、CLI 读取同一份事实" },
-        judgments: [{ requirement_id: "result", verdict: "supports" }],
+        fields: { result: "MCP 写入、管理入口读取同一份事实" },
       }],
     };
     const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput)) as ReportGoalEventsResult;
@@ -92,11 +76,8 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
       /未知 V1 operation: select-goal/,
     );
 
-    // The MCP session's supports report is its own word (PWA-144): the person accepts the requirement through the protected entry before closing.
-    await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
-      project_id: projectId, goal_id, idempotency_key: "accept", authority: hostEventDecisionAuthority("web", projectId, "web-user", "accept"),
-      conclusion: "跨入口结果我核对过", accepts_requirements: true, scope: { requirement_ids: ["result"] },
-    }));
+    // The MCP session's report is its own word (PWA-144): the person accepts the requirement on the platform before closing.
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).decide(projectId, goal_id, ["result"]));
     const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "close", kind: "complete",
@@ -108,7 +89,6 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     assert.equal(state.work_status, "completed");
     const final = await client.invoke(goalsActions.snapshot, {});
     assert.equal(final.goals.find((goal) => goal.goal_id === goal_id)?.title, "跨入口验收");
-    assert.deepEqual(await cli("snapshot", { project_id: projectId }), final);
   } finally {
     await mcp.close();
     await served.close();

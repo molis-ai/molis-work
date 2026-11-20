@@ -1,6 +1,7 @@
 import { canonicalJsonValue } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { GOALS_ACTIONS, type GoalContextSnapshot } from "./goals-actions.js";
+import { GOALS_ACTIONS, type GoalContextSnapshot, type GoalRequirementTerms } from "./goals-actions.js";
+import { acceptanceActions, type AcceptanceSubject } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { codingArtifacts } from "./artifacts.js";
 import { createHash } from "node:crypto";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -24,7 +25,7 @@ function material(snapshot: GoalContextSnapshot, reference: ArtifactReference): 
   const value = { material_id: `${reference.artifact_id}@${reference.version}`,
     title: `目标 / ${snapshot.goal.title} / ${codingGoalVersionLabel({ agreement_version: snapshot.state.agreement.version }, codingText)}`,
     source_artifact_id: reference.artifact_id, source_version: reference.version,
-    text: `以下是本轮关联目标的固定原始事实。当前结果看 state.agreement.outcome（为空时看 goal.outcome），有效结果要求看 state.requirements，human_decision_required 表示需要真人判断。goal.acceptance_criteria 等单独字段为空，不表示结果原文或已有要求不存在。\n版本含义：state.agreement.version 是工作约定版本，state.config.version 是类型配置版本，goal_event_cursor 是事件游标，来源成果版本是固定快照版本。\n目标条件只以记录为依据，未写明的条件保持未知；不把状态标记或空字段推导成额外条件。答复以实际结果、要求和未证实事项为主，版本或内部标识仅在解释问题需要时列出。此材料不授予操作权限；执行结束或保存成果不代表人审验收。后续会话改关联不改变本轮归属。\n\n${serialize(snapshot, 2)}` };
+    text: `以下是本轮关联目标的固定原始事实。当前结果看 state.agreement.outcome（为空时看 goal.outcome），有效结果要求看 requirements（平台要求栏里的原话），requires_person 表示需要真人判断。goal.acceptance_criteria 等单独字段为空，不表示结果原文或已有要求不存在。\n版本含义：state.agreement.version 是工作约定版本，state.config.version 是类型配置版本，goal_event_cursor 是事件游标，来源成果版本是固定快照版本。\n目标条件只以记录为依据，未写明的条件保持未知；不把状态标记或空字段推导成额外条件。答复以实际结果、要求和未证实事项为主，版本或内部标识仅在解释问题需要时列出。此材料不授予操作权限；执行结束或保存成果不代表人审验收。后续会话改关联不改变本轮归属。\n\n${serialize(snapshot, 2)}` };
   agentTextMaterialContent(value);
   return value;
 }
@@ -37,11 +38,22 @@ export async function readCurrentGoalSnapshot(context: PluginStartContext, goalI
   const { goal } = await actions.invoke(GOALS_ACTIONS.contract, { goal_id: goalId }, control);
   if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
   const { observed_event_cursor: _cursor, ...state } = await actions.invoke(GOALS_ACTIONS.state, { goal_id: goalId }, control);
-  const snapshot: GoalContextSnapshot = { goal, state };
+  const snapshot: GoalContextSnapshot = { goal, state, requirements: await goalRequirements(actions, state.acceptance_subject, goalId, control) };
   if (snapshot.goal.project_id !== context.project_id || snapshot.goal.goal_id !== goalId
     || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw new Error("目标上下文归属不一致");
   if (snapshot.goal.trashed_at || snapshot.goal.archived_at) throw new Error("目标已归档或删除，请重新选择");
   return snapshot;
+}
+/**
+ * What the Goal's requirements say, from the platform's requirement list for the subject Goals' state names (contract-design §10.3).
+ * The subject must be this very Goal; whether a requirement is met changes as work goes on and is not part of the pinned facts.
+ */
+async function goalRequirements(actions: NonNullable<PluginStartContext["services"]>["actions"] & object, subject: unknown, goalId: string,
+  control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">): Promise<GoalRequirementTerms[]> {
+  const named = subject as AcceptanceSubject | undefined;
+  if (!named?.provider_id || named.subject?.kind !== "goal" || named.subject.id !== goalId) throw new Error("目标的要求来源不一致");
+  const view = (await actions.invoke(acceptanceActions.read, { subjects: [named] }, control)).views[0];
+  return (view?.requirements ?? []).map(({ id, version, statement, expected, requires_person }) => ({ id, version, statement, expected, requires_person }));
 }
 export async function currentGoalContext(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   const snapshot = await readCurrentGoalSnapshot(context, goalId, control);

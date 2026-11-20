@@ -1,21 +1,9 @@
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { OnboardingDocumentsResult, OnboardingDraftBatch } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 
-/**
- * A Todo organizing result as the journey keeps it. Only the fields the journey reads are named; Todo's `todo.organize.*` output
- * schema is the source of the shape, and the rest of the result rides along untouched to the page (PG-111: the journey calls Todo
- * by action id and does not import its contract).
- */
-export interface OnboardingTodoBatch {
-  readonly batch_id: string;
-  readonly revision: number;
-  readonly candidates: readonly OnboardingTodoCandidate[];
-}
-export interface OnboardingTodoCandidate {
-  readonly candidate_id: string;
-  readonly existing: null | { readonly relation: "same" | "update" | "conflict" | "maybe_done" | "reopen" };
-  readonly decision: null | { readonly item_id: string | null };
-}
+/** Where one part of a material, or the summary, went: the `documents` taker's object and where it opens (contract-design §2.5). */
+export type ContextDocumentPart = OnboardingDocumentsResult["parts"][number];
 
 /** `sessions`: the external AI sessions filed to the round's project, read as that project's AI (batch 35 item 1, SRB-09). */
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat" | "sessions";
@@ -52,8 +40,8 @@ export interface ContextReference {
   text: { sha256: string; bytes: number; chars: number };
   original: { filename: string; mime: string; sha256: string; size_bytes: number };
   artifact?: ArtifactReference;
-  /** The Pages documents adoption made from it, one per part of a long text. */
-  documents?: string[];
+  /** The documents adoption made from it, one per part of a long text, as the `documents` taker answered. */
+  parts?: ContextDocumentPart[];
   /** True when the file had no standard document suffix and was recognized as readable text by its content (ONB-37). */
   recognized_by_content?: boolean;
   /** True when the summary cited this material's `[S<n>]` label (ONB-38, C3). */
@@ -103,7 +91,9 @@ export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
-  project_id: string; document_id: string | null; updated_at: string;
+  project_id: string; updated_at: string;
+  /** Where the work summary opens once adoption kept it (the `documents` taker's answer); none before. */
+  summary_open?: ContextDocumentPart["open"] | null;
   /** The round adds to a project that already exists (batch 35 item 1): adoption makes no project and writes into this one. */
   existing?: true;
   /** Monotonic generation incremented when starting or reopening so late responses from older passes never overwrite newer scope (ONB-45, C11). */
@@ -124,13 +114,27 @@ export interface ContextJourney {
    * `take`: the person's own code folder, made the project's output and handed to the plugin they picked among those that declare they
    * take one (ONB-44, batch12-design §7); `code_root` is the folder as this round read it, never a path from a request.
    */
-  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[]; take?: { plugin_id: string; project_plugin_id: string; code_root: string; output_set?: true } };
+  adoption?: {
+    title: string; body: string; blank: boolean;
+    /** The drafts the person kept. Kept as given once adoption starts, so a retry adds the same ones (a retry takes no new input). */
+    keep?: string[];
+    /** The plugin that keeps the materials and the summary as documents: installed in the new project. */
+    documents?: { plugin_id: string; project_plugin_id: string };
+    take?: { plugin_id: string; project_plugin_id: string; code_root: string; output_set?: true };
+  };
   /** What that plugin answered: where the person goes on, and how many of the round's materials went with the folder; `not_taken` when nothing was handed (the plugin gone, the output no longer the folder, or the plugin refused). */
   take_result?: { open: { item_id: string; title: string } | null; materials: number; of: number; not_taken?: "unavailable" | "moved" | "refused" };
-  /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
-  /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
-  /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */
-  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: OnboardingTodoBatch[]; total: number; error: string | null; added?: string[]; timing: CallTiming };
+  /** The plugin the person chose to draft from the materials, when more than one can (contract-design §2.5); with one, that one. */
+  drafts_taker?: string;
+  /**
+   * Drafts from the same materials, by the `drafts` taker (`plugin_id`, opened at `surface`): one batch per 50 materials (or parts of long
+   * ones), each kept as the platform-shaped snapshot it was drafted as (null for a batch drafted before version 2, read again by id when
+   * shown); `total` is how many the round needs, `key` the material set they came from (another set starts over). `none`: no plugin drafts.
+   */
+  drafts?: {
+    plugin_id: string | null; surface: string | null; status: "pending" | "ready" | "failed" | "none"; key: string;
+    batches: { batch_id: string; snapshot: OnboardingDraftBatch | null }[]; total: number; error: string | null; added?: string[]; timing: CallTiming;
+  };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];
@@ -157,7 +161,11 @@ export function contextJourneyId(value: unknown): string {
   return value;
 }
 /** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
-export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: /* @version database.context_onboarding_baseline */ 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
+export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = {
+  version: /* @version database.context_onboarding_baseline */ 1,
+  schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);",
+  upgrades: [],
+};
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
   const db = openHomeSqliteDatabase(home, CONTEXT_ONBOARDING_HOME_STORE.path);
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }
@@ -199,7 +207,7 @@ class ContextJourneyStore {
     contextJourneyId(id);
     this.db.prepare("INSERT OR IGNORE INTO journeys VALUES (?,?,?)").run(id, JSON.stringify({
       id, phase: "selecting", sources: [], model: null, error: null, summary: null,
-      project_id: projectId ?? `project-onboarding-${id}`, ...(projectId ? { existing: true as const } : {}), document_id: null, updated_at: new Date().toISOString(),
+      project_id: projectId ?? `project-onboarding-${id}`, ...(projectId ? { existing: true as const } : {}), summary_open: null, updated_at: new Date().toISOString(),
     } satisfies ContextJourney), new Date().toISOString());
     const journey = this.get(id);
     if (journey.existing !== (projectId ? true : undefined) || (projectId && journey.project_id !== projectId)) {

@@ -26,8 +26,8 @@ const ids = (response: SearchQueryResponse) => response.hits.map(hit => `${hit.p
 test("real Host: unopened content of every wired plugin is searchable, kept current, scoped and opened by its owner", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-host-"));
   const [a, b] = await withCatalog({ homeDirectory: home }, async catalog => [
-    await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }),
-    await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }),
+    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }); catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "goals", actor_id: "owner" }); return p; })(),
+    await (async () => { const p = await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }); catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "goals", actor_id: "owner" }); return p; })(),
   ]);
   const refA = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const refB = molisWorkHostProjectReference({ databasePath: b.database_path, projectId: b.project_id });
@@ -124,7 +124,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
       async start() { return { kind: "app", actions: [
         { ...entries, ...bindSearchEntriesHandler(entries, () => [{ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", summary: "",
           updated_at: null, content: "context", open: { surface: "newcomer", id: "n1" } }]) },
-        { ...reader, handle: () => subjectContext({ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", content: "插件自己的正文里有鲸鱼", goal_ids: [] }) },
+        { ...reader, handle: () => subjectContext({ subject: { kind: "newcomer-note", id: "n1" }, revision: "1", title: "新来的笔记", content: "插件自己的正文里有鲸鱼" }) },
       ] }; } });
     const repository = await host.withProject(refA, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
     runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(refA), project_id: refA.project_id } });

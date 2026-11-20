@@ -101,9 +101,13 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
   operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
   const providerId = exposedProviderId(release), title = release.design.title;
   const upgradeOperation = sandboxUpgradeOperation(release.packaged?.manifest);
-  const operations = release.design.contract.operations.filter(operation => operation.id !== upgradeOperation);
-  const definitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
-    scope: actions.project_id === null ? 'home' : 'project', upgradeOperation, hasProjectDatabase: !!release.packaged?.manifest.databases?.project });
+  const dualInstance = release.packaged?.manifest.runtime?.scope === 'home' && release.packaged.manifest.runtime.dual_instance === true;
+  const halfScope: 'home' | 'project' = actions.project_id === null ? 'home' : 'project';
+  const allDefinitions = sandboxOperationActions({ contract: release.design.contract, buildId: release.buildId, version: release.version, title,
+    scope: halfScope, dualInstance, upgradeOperation, hasProjectDatabase: !!release.packaged?.manifest.databases?.project });
+  const definitions = dualInstance ? allDefinitions.filter(definition => definition.action.scope === halfScope) : allDefinitions;
+  const exposedIds = new Set(definitions.map(definition => definition.action.local_id));
+  const operations = release.design.contract.operations.filter(operation => operation.id !== upgradeOperation && (!dualInstance || exposedIds.has(operation.id)));
   const handlers: ActionHandlerBinding[] = operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {

@@ -5,17 +5,14 @@
 // generated registry (`node scripts/generate-plugin-registry.mjs`), which names every built-in package by design.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 
 const ROOT = new URL("../", import.meta.url);
 const GOALS_PACKAGE = /@molis-ai\/molis-work-plugin-goals\b/u;
 
-/** Who takes each remaining name out: T-117 owns remaining view types; settings forwards existing facts without Goals presentation types. */
-const WORKBENCH_FILES_NAMING_GOALS: ReadonlyArray<readonly [string, string]> = [
-  ["page-view.ts", "T-117 (PG-064): existing BoardSnapshot and GoalPolicyHistoryRecord facts from Goals /contract"],
-  ["project-settings-pages.ts", "Existing ProjectGuidanceView facts from Goals /contract"],
-];
+/** Zero workbench files outside generated `builtin-plugins.ts` name the Goals package (PEQ-03). */
+const WORKBENCH_FILES_NAMING_GOALS: ReadonlyArray<readonly [string, string]> = [];
 
 const sourceFiles = (directory: URL): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
   entry.isDirectory() ? sourceFiles(new URL(`${entry.name}/`, directory)).map(name => `${entry.name}/${name}`) : entry.name.endsWith(".ts") ? [entry.name] : []);
@@ -29,7 +26,8 @@ test("RAC-2685 the workbench files that name the Goals package are exactly the w
 
 test("RAC-2685 the host's route handlers match pages with the declared routes and import none of Goals' matchers", () => {
   const removed = ["resolveGoalsReadRoute", "resolveGoalsPageRoute", "matchGoalsPlanningRoute"];
-  for (const name of ["web-goals-read.ts", "web-owner-unavailable.ts"]) {
+  assert.equal(existsSync(new URL("apps/local-host/src/web-goals-read.ts", ROOT)), false, "web-goals-read.ts is gone (PEQ-10)");
+  for (const name of ["web-owner-unavailable.ts"]) {
     const text = readFileSync(new URL(`apps/local-host/src/${name}`, ROOT), "utf8");
     for (const matcher of removed) assert.equal(text.includes(matcher), false, `${name} names ${matcher}`);
     assert.equal(text.includes("GOALS_PAGE_ROUTES"), false, `${name} reads Goals' declarations instead of the Host's matcher`);

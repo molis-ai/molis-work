@@ -1,6 +1,6 @@
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, intakeMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertManifest, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -296,24 +296,28 @@ test("D0041: demo_seed refuses missing, query, wrong audience and nonempty input
   assert.deepEqual(parsePluginManifest({ ...base, actions: [command], demo_seed: declaration }).demo_seed, declaration);
 });
 
-test("BCD-15: onboarding takes refuse a missing, query, Home-scoped, shared or reshaped action, and a second take of a kind", () => {
+test("BCD-15: a code-root intake refuses a query, Home-scoped, shared or reshaped action, a second one in the Manifest, and the retired onboarding field", () => {
+  // contract-design §2.5: a plugin says it takes the person's code folder by its take action's intake, not a Manifest `onboarding` list.
   const base = currentManifest();
   const command = { capability_id: "sample.onboarding.take", version: 1, operation: "command", action: { kind: "operation", scope: "project", subject_kinds: ["project"], title: "Take", description: "Sample", audiences: ["user"], permissions: [], input_schema: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output_schema: ONBOARDING_TAKE_RESULT_SCHEMA } };
-  const declaration = { takes: [{ kind: "code_root", capability_id: command.capability_id, version: 1 }] };
+  const intake = { intake_id: "onboarding.code-root", item_kind: "sample_session", accepts: [{ kind: "code_root" }] };
+  const taking = { ...command, action: { ...command.action, intake } };
   const refuses = (run: () => unknown) => assert.throws(run, (error: { code?: string }) => error.code === "plugin.declaration_invalid");
-  refuses(() => parsePluginManifest({ ...base, onboarding: declaration }));
-  for (const action of [{ ...command, action: { ...command.action, scope: "home" } }, { ...command, operation: "query" },
-    { ...command, action: { ...command.action, audiences: ["user", "agent"] } }, { ...command, action: { ...command.action, audiences: ["workflow"] } },
-    { ...command, action: { ...command.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } },
-    { ...command, action: { ...command.action, output_schema: { type: "object", properties: {}, additionalProperties: false } } }])
-    refuses(() => parsePluginManifest({ ...base, actions: [action], onboarding: declaration }));
-  for (const bad of [{}, { takes: [] }, { takes: [{ ...declaration.takes[0], kind: "folder" }] }, { takes: [declaration.takes[0], declaration.takes[0]] }, { ...declaration, extra: true }])
-    refuses(() => parsePluginManifest({ ...base, actions: [command], onboarding: bad }));
-  // Pointing at an action this Manifest does not declare is refused through the same path as a missing one.
-  refuses(() => parsePluginManifest({ ...base, actions: [command], onboarding: { takes: [{ ...declaration.takes[0], capability_id: "coding.onboarding.take" }] } }));
-  assert.deepEqual(parsePluginManifest({ ...base, actions: [command], onboarding: declaration }).onboarding, declaration);
+  assert.equal(parsePluginManifest({ ...base, actions: [taking] }).actions?.[0]?.action.intake?.accepts?.[0]?.kind, "code_root");
+  refuses(() => parsePluginManifest({ ...base, actions: [taking], onboarding: { takes: [{ kind: "code_root", capability_id: command.capability_id, version: 1 }] } }));
+  for (const action of [{ ...taking, action: { ...taking.action, scope: "home" } }, { ...taking, operation: "query", action: { ...taking.action, kind: "query" } },
+    { ...taking, action: { ...taking.action, audiences: ["user", "agent"] } }, { ...taking, action: { ...taking.action, audiences: ["workflow"] } },
+    { ...taking, action: { ...taking.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } },
+    { ...taking, action: { ...taking.action, output_schema: { type: "object", properties: {}, additionalProperties: false } } }])
+    refuses(() => parsePluginManifest({ ...base, actions: [action] }));
+  for (const bad of [{ ...intake, accepts: [{ kind: "folder" }] }, { ...intake, accepts: [{ kind: "code_root" }, { kind: "code_root" }] }, { ...intake, accepts: [{ kind: "code_root", path: "/x" }] },
+    { ...intake, extra: true }, { ...intake, title: "Take the folder" }, { ...intake, intake_id: "Bad Id" }])
+    refuses(() => parsePluginManifest({ ...base, actions: [{ ...taking, action: { ...taking.action, intake: bad } }] }));
+  // The platform hands the folder to one action of a plugin: a second take of the kind would never be called, so it is refused.
+  const second = { ...taking, capability_id: "sample.onboarding.take-again", action: { ...taking.action, intake: { ...intake, intake_id: "onboarding.code-root-again" } } };
+  assert.throws(() => parsePluginManifest({ ...base, actions: [taking, second] }), /一个插件只能声明一个/);
   // Coding is the first plugin to declare one, and its Manifest passes the same check.
-  assert.deepEqual(parsePluginManifest(codingManifest).onboarding?.takes.map(take => take.kind), ["code_root"]);
+  assert.deepEqual(parsePluginManifest(codingManifest).actions?.filter(item => intakeMaterial(item.action.intake, "code_root")).map(item => item.capability_id), ["coding.onboarding.take"]);
 });
 
 test("retired io.goalboard.* plugin IDs are rejected while io.molis.work.* is accepted", () => {

@@ -6,7 +6,7 @@ import { nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
-export const pagesContentActions = defineWorkflowContentActions({ id: "pages", title: "Pages", icon: "note", create: true, subject_kind: PAGES_SUBJECT_KIND,
+export const pagesContentActions = defineWorkflowContentActions({ id: "pages", title: "Pages", icon: "note", create: { title: "文档", title_text: { key: "pages.create.kind-title" } }, subject_kind: PAGES_SUBJECT_KIND,
   read_permissions: ["pages:read"], write_permissions: ["pages:write"] });
 
 /** The content protocol translates to the same business actions as HTTP and MCP. */
@@ -21,14 +21,14 @@ export function createPagesContentHandlers(actions: BoundActionClient) {
       assert_authority_current: () => { caller.assert_authority_current?.(); authority.assertCurrent(); },
     });
   };
-  const ref = (page: { id: string; title: string }) => ({ plugin: "pages", item_id: page.id, title: page.title });
+  const ref = (page: { id: string; title: string }) => ({ subject: { kind: PAGES_SUBJECT_KIND, id: page.id }, title: page.title });
   return bindWorkflowContentHandlers(pagesContentActions, {
     list: async caller => (await invoke(pagesActions.list, {}, caller)).documents.map(page => ({ item_id: page.id, title: page.title, caption: "Pages", at: page.updated_at })),
     read: async ({ item_id }, caller) => {
       const { document: page } = await invoke(pagesActions.get, { id: item_id }, caller);
       const nodes: Array<Parameters<typeof nodesToMarkdown>[0][number]> = [];
       nodeFromUnknown(page.body).forEach(node => { nodes.push(node); });
-      return { title: page.title, body: nodesToMarkdown(nodes).trim(), source: "Pages", feed_item_id: null };
+      return { title: page.title, body: nodesToMarkdown(nodes).trim(), source: "Pages" };
     },
     create: async ({ title }, caller) => ref((await invoke(pagesActions.create, { title }, caller)).document),
     receive: async (input, caller) => {

@@ -52,7 +52,7 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
 test("W5-01-CODING-13 a plugin that declares what Shelf declares and holds the grant gets Coding's own Markdown on the real host, and Coding's own refusals", { timeout: 90_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Coding text", ["coding"]);
   await seed(home, project);
-  const shelfLike = await consumer(t, home, project, { name: "shelf-like", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
+  const shelfLike = await consumer(t, home, project, { name: "shelf-like", consumes: [codingResultDocument.capability_id], permissions: shelfPermission, grants: ["artifact:read"] });
   const document = await shelfLike.invoke(codingResultDocument, { reference: REPORT });
   assert.deepEqual([document.reference, document.title, document.markdown], [REPORT, "已固定的原报告", BODY]);
   assert.equal(typeof document.saved_at, "string");
@@ -68,9 +68,9 @@ test("W5-01-CODING-14 without the declaration, without the grant, without Coding
   // It consumes another Coding action, so the client exists, but not this one.
   const undeclared = await consumer(t, home, project, { name: "undeclared", consumes: ["coding.artifacts.preview"], permissions: shelfPermission, grants: ["artifact:read"] });
   await assert.rejects(undeclared.invoke(codingResultDocument, input), refused("actions.forbidden"));
-  const ungranted = await consumer(t, home, project, { name: "ungranted", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission.map(row => ({ ...row, required: false })), grants: [] });
+  const ungranted = await consumer(t, home, project, { name: "ungranted", consumes: [codingResultDocument.capability_id], permissions: shelfPermission.map(row => ({ ...row, required: false })), grants: [] });
   await assert.rejects(ungranted.invoke(codingResultDocument, input), refused("plugin.grant_denied"));
-  const elsewhere = await consumer(t, home, without, { name: "elsewhere", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
+  const elsewhere = await consumer(t, home, without, { name: "elsewhere", consumes: [codingResultDocument.capability_id], permissions: shelfPermission, grants: ["artifact:read"] });
   await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.dependency_missing"), "a project that has not installed Coding does not offer its text");
   // Not an action a person, an Agent, a workflow or an MCP client can pick.
   const views = await home.inspect("runtime:coding-text", project.project_id);

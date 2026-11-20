@@ -4,6 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { goalsQueryOf } from "./fixtures/goal-application.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 /**
@@ -42,9 +43,12 @@ for (const width of [1440, 390]) {
     await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
     assert.equal(await evaluate("document.querySelector('.mw-ctx').hidden"), true, "nothing in hand, nothing offered");
 
-    const selectParagraph = (index: number) => child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const selectParagraph = async (index: number) => {
+      if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click(`[data-pages-editor] .ProseMirror p:${index === 2 ? "first" : "last"}-of-type`);
+      await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+    };
     // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
     // does not fit goes to 更多's 推荐 rather than being squeezed under its text (context-toolbar §6, QA-014).
     const shown = `(${width === 390 ? "n => n >= 1 && n <= 2" : "n => n === 3"})(document.querySelectorAll(${JSON.stringify(ACTION)}).length)`;
@@ -133,6 +137,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
@@ -148,6 +153,7 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await child.waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value === '候选文字'");
   // The frozen text is edited before accepting: nothing is written anywhere.
   // The person clicks into the frozen text (the editor takes focus) and types a character there.
+  await child.click(".pages-focus-frozen");
   await child.evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
     range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await command("Input.insertText", { text: "改" }, sessionId);
@@ -175,6 +181,7 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await child.evaluate("document.addEventListener('molis:surface-focus', event => window.contextualFocus = event.detail)");
   const select = async (index: number, from: number, to?: number) => {
+    if (!await child.evaluate<boolean>("document.hasFocus()")) await child.click("[data-pages-editor] .ProseMirror p");
     await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); window.expectedContextText = selection.toString(); document.dispatchEvent(new Event('selectionchange')); })()`);
@@ -204,7 +211,7 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
   await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '拆成目标步骤'", 8000);
 
   // A Goal's own text: the frame names the Goal, so what is selected in it can become steps under it.
-  const goalId = await evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/board', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(board => board.goals[0].goal.goal_id)`);
+  const goalId = goalsQueryOf(browser.store).listGoals(projectId!)[0]!.goal_id;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=${encodeURIComponent(goalId)}` }, sessionId));
   await waitFor(`JSON.parse(document.querySelector('[data-goal-frame-surface]')?.getAttribute('data-assistant-context') || '{}').object?.id === ${JSON.stringify(goalId)}`, 10_000);
   await evaluate(`(() => { const frame = document.querySelector('[data-goal-frame-surface]'); const walker = document.createTreeWalker(frame, NodeFilter.SHOW_TEXT);
@@ -238,6 +245,7 @@ test("contextual actions: a command that cannot run keeps its name on one line a
   const page = (() => { try { return setup.create({ project_id: projectId!, title: "草稿", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.click("[data-pages-editor] .ProseMirror p");
   await child.evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[1].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 10);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);

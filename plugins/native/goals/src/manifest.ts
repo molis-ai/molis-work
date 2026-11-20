@@ -2,13 +2,14 @@ import { goalSectionsDeclaration, goalSectionsTracking } from "./sync-sections.j
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
-import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
+import { goalsWorkPromptAction } from "./work-prompt.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { goalsPresentation, goalsPresentationActions } from "./presentation.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
+import { ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
@@ -27,9 +28,6 @@ const GOALS_EVENT_WRITES = ["event-configure", "event-report", "event-progress",
 const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.create", method: "POST", path: "/goals" },
   { route_id: "goals.directory", method: "GET", path: "/goals/directory" },
-  { route_id: "goals.guidance-read", method: "GET", path: "/project-guidance" },
-  { route_id: "goals.guidance-add", method: "POST", path: "/project-guidance" },
-  { route_id: "goals.guidance-update", method: "PATCH", path: "/project-guidance/:guidanceId" },
   { route_id: "goals.relation-add", method: "POST", path: "/goals/:goalId/relations" },
   { route_id: "goals.relation-deactivate", method: "POST", path: "/relations/:relationId/deactivate" },
   { route_id: "goals.active", method: "POST", path: "/goals/:goalId/active" },
@@ -45,10 +43,6 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.artifact-inputs-read", method: "GET", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.artifact-inputs-write", method: "POST", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.inputs", method: "POST", path: "/goals/:goalId/inputs" },
-  { route_id: "goals.terminal-list", method: "GET", path: "/goals/:goalId/terminals" },
-  { route_id: "goals.terminal-open", method: "POST", path: "/goals/:goalId/terminals" },
-  { route_id: "goals.terminal-close", method: "DELETE", path: "/goals/:goalId/terminals/:key" },
-  { route_id: "goals.advance-prompt", method: "POST", path: "/goals/:goalId/advance-prompt" },
 ];
 
 /**
@@ -67,9 +61,6 @@ export const goalsManifest: PluginManifest = {
   summary: "确定目标，推进工作，留下结果。", summary_text: { key: "goals.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
-  // 常开插件 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person
-  // takes the mark back. The Host reads the agreement from the consent ledger, not from this list.
-  always_on: true,
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Every permission is required and written out here. The first four are what its actions ask of the caller
   // (`actionPermissionDeclarations` over `GOALS_ACTIONS`, which `tests/goals-project-database.test.ts` holds
@@ -87,13 +78,15 @@ export const goalsManifest: PluginManifest = {
     { permission: PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, required: true, reason: "读取目标的交付物和输入引用" },
     { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
     { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
-    { permission: "actions:invoke", required: true, reason: "读取项目说明" },
-    { permission: "terminal:run", required: true, reason: "在项目的工作目录里为目标打开工作终端" },
-    { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
+    { permission: "actions:invoke", required: true, reason: "读写平台上的目标要求与认可" },
+    { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
+    { permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
   ],
-  capabilities: { provides: [], consumes: [] },
-  actions: [...GOALS_ACTIONS, ...GOALS_TERMINAL_ACTIONS, ...goalsPresentationActions],
+  // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
+  capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
+  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, ...goalsPresentationActions],
   presentation: goalsPresentation,
+  work_terminals: [{ subject_kind: "goal", prompt_action: goalsWorkPromptAction.capability_id }],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
     actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",
@@ -105,7 +98,7 @@ export const goalsManifest: PluginManifest = {
     { kind: "goal.input", role: "input" }, { kind: "goal.input.proposal", role: "input", proposal: true },
     { kind: "goal.output", role: "output" }, { kind: "goal.output.proposal", role: "output", proposal: true },
   ] },
-  attention: { subjects: ["goal_decision"], inbox: ["goal_decision"] },
+  attention: { subjects: [{ type: "goal_decision", object_kind: "goal", reasons: [{ id: "goal_decision", attention: "needs_decision" }] }], inbox: ["goal_decision"] },
   databases: { project: GOALS_PROJECT_DATABASE },
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
@@ -115,9 +108,8 @@ export const goalsManifest: PluginManifest = {
     page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "stage", slot: "stage", title: "Goals", contribution_id: GOALS_STAGE_CONTRIBUTION_ID,
-        stage_data: { action: "goals.stage.read", input: ["collection", "goal_id", "projection"] } },
-      { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
-        start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" , title_text: { key: "goals.directory.start-title" }, hint_text: { key: "goals.directory.start-hint" } } },
+        stage_data: { action: "goals.stage.read", input: ["collection", "view", "goal_id", "projection", "route_kind"] } },
+      { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true },
     ],
   },
 };

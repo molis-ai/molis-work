@@ -159,6 +159,15 @@ export interface PluginPlatform {
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
+const isDualSandboxDefinition = (definition: PluginDefinition): boolean =>
+  definition.execution === "sandbox" && definition.manifest.runtime?.scope === "home" && definition.manifest.runtime.dual_instance === true;
+
+function isDualSandboxPlugin(supervisor: PluginSupervisor, records: ReturnType<typeof pluginInstallRecords>, pluginId: string): boolean {
+  const state = supervisor.state(pluginId);
+  const record = state?.install_id ? records.get(state.install_id) : undefined;
+  return Boolean(record && record.execution === "sandbox" && record.publisher_trust === "pinned" && supervisor.manifest(pluginId)?.runtime?.dual_instance === true);
+}
+
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
   // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
@@ -179,13 +188,15 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
   const installations = openPluginInstallationDirectory(options.db, records, pluginId => supervisor.manifest(pluginId));
+  const isDualDefinition = (definition: PluginDefinition): boolean => identity.dualInstance(definition) || isDualSandboxDefinition(definition);
+  const isDualId = (pluginId: string): boolean => identity.dualInstanceId(pluginId) || isDualSandboxPlugin(supervisor, records, pluginId);
   const executor = new PluginHostExecutor({
     installations: installations.client,
     record: installId => records.get(installId),
     invalidateView,
     providerFor, localePacks: identity.localePacks,
     databaseFor: identity.databaseFor,
-    dualInstance: identity.dualInstance,
+    dualInstance: isDualDefinition,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.projects ? { projects: options.projects } : {}),
     ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
@@ -205,12 +216,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: options.db, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
-      permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
-        if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
-        return options.home.capturePermission(record, permission);
-      } : undefined,
+      // S-48: dual-instance project halves (built-in and pinned sandbox) cannot exceed Home optional permissions.
+      permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions) } });
   const supervisor = new PluginSupervisor(runtime, {
@@ -279,12 +288,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       await events.close();
       await hostEvents.close();
     },
-    dualInstance: identity.dualInstanceId,
+    dualInstance: isDualId,
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
     }), { capturePermission: (pluginId, permission) => {
-      if (!identity.dualInstanceId(pluginId) || !supervisor.manifest(pluginId)?.permissions.some(item => item.permission === permission && item.required === false)) return () => {};
+      if (!isDualId(pluginId) || !supervisor.manifest(pluginId)?.permissions.some(item => item.permission === permission && item.required === false)) return () => {};
       const state = supervisor.state(pluginId);
       if (!state?.install_id) throw pluginErrors.grant_denied("插件权限当前不可用");
       return runtime.capturePermission(state.install_id, permission);

@@ -19,7 +19,7 @@ This is the protocol an AI Runtime uses with the Goals plugin: Goals keeps goals
 
 ## Connect a project and select a Goal
 
-The Runtime uses Molis Work through MCP. `apps/mcp` owns tool names, inputs, and presentation; Local Host injects the bound project and actor; Goals Module owns current event facts, and the Goals Plugin composes use cases. The Skill does not inspect internal databases or reimplement completion checks.
+The Runtime uses Molis Work through MCP. `apps/mcp` owns tool names, inputs, and presentation; Local Host injects the bound project and actor; Goals Module owns current event facts, and the Goals Plugin composes use cases. The Runtime does not inspect internal databases or reimplement completion checks.
 
 Start with `context_resolve`. An existing Session binding or one verified workspace association can recover the project. Suggestions, directory names, and model guesses do not authorize binding. Reuse the user's explicit choice when it identifies one project; ask only when the choice is ambiguous. Binding, switching, creating, unlinking, and deleting retain their respective authorization. An ordinary binding does not set a directory default. See [MCP integration](mcp.en.md).
 
@@ -81,5 +81,3 @@ For `mcp.context_refresh_required`, resolve context read-only, then retry the un
 Changing Goals never automatically rebinds a terminal or sends it a message. Host Sessions, terminal processes, and panels retain their separate duties.
 
 Project databases accept only the current schema version and are never upgraded in place; V3 import is gone. The pre-event Claim, Run, Evidence and Review history was deleted (#268); events are the only work protocol.
-
-For executable examples and recovery details, see the [Runtime Skill](../skills/goal-advance/SKILL.md).

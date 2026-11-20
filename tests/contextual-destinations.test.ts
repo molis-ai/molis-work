@@ -330,7 +330,7 @@ test("W1-05: a kind read at Home scope is a person's own space, found from the d
 test("W1-05 AC-P05: what is in a person's own space reaches the judgment as shape and kind only", () => {
   const secret = "合同里写着 SECRET-WORDS 与 SECRET-TITLE";
   const mine = hand({ object: { kind: "shelf_item", id: "i1", title: "SECRET-TITLE" }, targets: [{ kind: "block", role: "paragraph", text: secret }],
-    surroundings: { heading_path: ["SECRET-HEADING"], before: "SECRET-BEFORE", after: "SECRET-AFTER" }, goal: { id: "g", title: "SECRET-GOAL" } });
+    surroundings: { heading_path: ["SECRET-HEADING"], before: "SECRET-BEFORE", after: "SECRET-AFTER" }, belongs_to: { plugin_id: "io.example.owner", kind: "goal", id: "g", title: "SECRET-GOAL" } });
   const text = judgmentState(mine, { personal: true, landing: landing({ surroundings: { heading_path: ["计划"], before: "左边的前文" } }) }).text;
   assert.equal(text.includes("SECRET"), false, text);
   assert.ok(text.includes("【对象】shelf_item · （仅本人可见，不进判断）") && text.includes("【选中内容 1（paragraph）】（仅本人可见，不进判断）"));

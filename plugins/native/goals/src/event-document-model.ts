@@ -22,6 +22,8 @@ import {
   type GoalHistoryTimelinePage,
 } from "./event-history-map.js";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
+import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import { goalAcceptanceSummary, type GoalAcceptanceSummary } from "./acceptance-summary.js";
 
 const TIMELINE_PAGE = 40;
 
@@ -45,6 +47,8 @@ export interface GoalEventDocumentView {
     kind: "resume_cancelled" | "reopen_event_completed" | null;
   };
   types: GoalEventTypeDefinition[];
+  /** The Goal's requirements as the platform has them; null when they could not be read for this page. */
+  acceptance: GoalAcceptanceSummary | null;
 }
 
 export type GoalEventDocumentPorts = Pick<
@@ -149,6 +153,8 @@ export function createGoalEventDocumentView(input: {
   snapshot: BoardSnapshot;
   relations: readonly GoalRelationRecord[];
   events?: readonly GoalsDecisionEvent[];
+  /** What `acceptance.read@1` gave Goals for this Goal before the read window opened. */
+  acceptance?: AcceptanceView | null;
 }): GoalEventDocumentView {
   const state = input.ports.readState(input.projectId, input.goal.goal_id);
   const timeline = listGoalDocumentHistory({
@@ -176,6 +182,7 @@ export function createGoalEventDocumentView(input: {
     relations: [...input.relations],
     transfer: transferFor(owned, state.work_status),
     types: state.config.types,
+    acceptance: input.acceptance ? goalAcceptanceSummary(state, input.acceptance) : null,
   };
 }
 
@@ -257,3 +264,27 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
   };
 }
 
+
+/** One requirement as the Goal page lists it: the platform's words and state, with the types Goals bound to it. */
+export interface GoalRequirementRow {
+  requirement_id: string;
+  statement: string;
+  human_decision_required: boolean;
+  bound_type_ids: string[];
+  /** Null when the platform's view could not be read for this page. */
+  satisfied: boolean | null;
+  person: GoalAcceptanceSummary["requirements"][number]["person"] | null;
+}
+
+/** The Goal's requirements in the platform's order; where its view could not be read, the ids Goals hung, without words. */
+export function goalRequirementRows(doc: Pick<GoalEventDocumentView, "state" | "acceptance"> | null | undefined): GoalRequirementRow[] {
+  if (!doc) return [];
+  const links = new Map(doc.state.requirements.map(link => [link.requirement_id, link]));
+  if (doc.acceptance) {
+    return doc.acceptance.requirements.map(requirement => ({ requirement_id: requirement.id, statement: requirement.statement,
+      human_decision_required: requirement.requires_person, bound_type_ids: links.get(requirement.id)?.bound_type_ids ?? [],
+      satisfied: requirement.satisfied, person: requirement.person }));
+  }
+  return doc.state.requirements.map(link => ({ requirement_id: link.requirement_id, statement: link.requirement_id, human_decision_required: false,
+    bound_type_ids: link.bound_type_ids, satisfied: null, person: null }));
+}

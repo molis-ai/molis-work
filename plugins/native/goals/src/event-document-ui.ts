@@ -2,7 +2,8 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalEventStateView } from "./contract/goals.js";
 import { renderProgressSource, formatEventTime } from "./event-history-body.js";
 import type { GoalsDocumentContext, GoalsDocumentItem, GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import { type GoalEventDocumentView } from "./event-document-model.js";
+import { goalRequirementRows, type GoalEventDocumentView, type GoalRequirementRow } from "./event-document-model.js";
+import type { GoalAcceptanceSummary } from "./acceptance-summary.js";
 import { createEventDocumentForms } from "./event-document-forms.js";
 import type { GoalHistoryIndexItem } from "./event-history-map.js";
 
@@ -19,7 +20,8 @@ export function renderGoalEventDocument(
   const goalId = escapeHtml(goal.goal_id);
   const owned = isEventStateOwner(item, doc);
   const state = doc?.state;
-  const judgment = currentJudgment(state, readText);
+  const rows = goalRequirementRows(doc);
+  const judgment = currentJudgment(state, doc?.acceptance ?? null, rows, readText);
   const stale = state?.progress_summary?.stale
     ? `<span class="overview-timestamp">${uiText("goals.event-document-ui.summary-has-not-caught-up-latest-updates")}</span>`
     : state?.progress_summary
@@ -48,7 +50,7 @@ export function renderGoalEventDocument(
           <h1 id="goal-title-${goalId}">${escapeHtml(goal.title)}</h1>
           <p class="goal-info-outcome">${escapeHtml((state?.agreement.outcome || goal.outcome) || uiText.text("goals.event-document-ui.intended-result-has-not-been-explained-yet"))}</p>
           <div class="goal-info-status" data-current-summary><p class="goal-current-fact">${escapeHtml(judgment.lead)}</p>${judgment.action ? `<button type="button" class="mw-btn mw-btn--link" ${judgment.form && owned ? `data-event-form-open="${judgment.form}"` : `data-event-reader="${judgment.reader || "requirements"}"`}>${escapeHtml(judgment.action)}${icon("chevron-right")}</button>` : ""}${state?.progress_summary?.summary && state.progress_summary.summary !== judgment.lead ? `<p class="goal-progress-fact">${escapeHtml(state.progress_summary.summary)}</p>` : ""}${stale}${renderProgressSource(state?.progress_summary?.source, escapeHtml)}${state?.progress_summary?.next_step ? `<p>${uiText("goals.event-document-ui.next")}${uiText.text("common.punctuation.label-separator")}${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>
-          <button type="button" class="goal-info-requirements" data-event-reader="requirements" data-goal-requirement-progress><span>${uiText("goals.event-document-ui.completion-requirement")}</span><span>${state?.requirements.length ? uiText("goals.event-document-ui.done-total-satisfied", { done: state.requirements.filter((requirement) => requirement.currently_satisfied).length, total: state.requirements.length }) : uiText("goals.event-document-ui.not-defined")}</span>${icon("chevron-right")}</button>
+          <button type="button" class="goal-info-requirements" data-event-reader="requirements" data-goal-requirement-progress><span>${uiText("goals.event-document-ui.completion-requirement")}</span><span>${doc?.acceptance && rows.length ? uiText("goals.event-document-ui.done-total-satisfied", { done: rows.filter((requirement) => requirement.satisfied).length, total: rows.length }) : rows.length ? uiText("goals.event-document-ui.count", { count: rows.length }) : uiText("goals.event-document-ui.not-defined")}</span>${icon("chevron-right")}</button>
           ${(() => { const materials = (item.input_bindings ?? []).filter((binding) => binding.state !== "inactive" && binding.source_type === "plugin_object").length + (item.artifact_inputs?.length ?? 0);
             return `<button type="button" class="goal-info-requirements" data-event-reader="description" data-goal-materials-entry><span>${uiText("goals.event-document-ui.inputs")}</span><span>${materials ? uiText("goals.event-document-ui.count", { count: materials }) : uiText("goals.event-document-ui.create-link")}</span>${icon("chevron-right")}</button>`; })()}
           ${item.artifact_outputs ? `<button type="button" class="goal-info-requirements" data-event-reader="requirements" data-goal-deliverables-entry><span>${uiText("goals.event-document-ui.deliverable")}</span><span>${uiText("goals.event-document-ui.count", { count: item.artifact_outputs })}</span>${icon("chevron-right")}</button>` : ""}
@@ -88,11 +90,10 @@ export function renderGoalEventDocument(
         ${owned && doc ? forms.renderTypeForm(doc) : ""}
         ${owned && doc ? forms.renderTypeEditForms(doc) : ""}
         ${owned && doc ? doc.types.map((type) => forms.renderReportForm(doc, type)).join("") : ""}
-        ${owned && doc ? forms.renderRequirementForm(doc) : ""}
         ${owned && state ? forms.renderAgreementForm(state) : ""}
         ${owned && state ? forms.renderProgressForm(state) : ""}
-        ${owned && state ? forms.renderConcernForm(state) : ""}
-        ${owned && state ? forms.renderDecisionForm(state) : ""}
+        ${owned && state ? forms.renderConcernForm(state, rows) : ""}
+        ${owned && state ? forms.renderDecisionForm(state, rows) : ""}
         ${owned && state ? forms.renderClosureForm(state) : ""}
         ${owned && doc ? forms.renderResumeForm(doc) : ""}
         ${owned ? forms.renderNoteForm(doc) : ""}
@@ -102,9 +103,15 @@ export function renderGoalEventDocument(
   </article>`;
 }
 
-function currentJudgment(state: GoalEventStateView | undefined, _L: GoalsDocumentUiPrimitives["translate"]): { lead: string; action?: string; form?: string; reader?: string } {
+function currentJudgment(state: GoalEventStateView | undefined, acceptance: GoalAcceptanceSummary | null, rows: readonly GoalRequirementRow[],
+  _L: GoalsDocumentUiPrimitives["translate"]): { lead: string; action?: string; form?: string; reader?: string } {
   if (!state) return { lead: uiText.text("goals.event-document-ui.reading-current-facts") };
   if (!state.owner) return { lead: uiText.text("goals.event-document-ui.read-original-description-requirements-history-view-read-only") };
+  const review = uiText.text("goals.event-document-ui.view-completion-requirements");
+  // A completed Goal stays completed when its requirements later stop being met; the person decides whether to reopen it (§10.9 question 6).
+  if (state.work_status === "completed" && acceptance?.changed_after_completion) {
+    return { lead: uiText.text("goals.event-document-ui.requirements-changed-after-completion"), action: review, reader: "requirements" };
+  }
   if (state.work_status === "completed") return { lead: state.closure?.result || state.agreement.outcome || uiText.text("goals.event-document-ui.completion-conclusion-already-exists") };
   if (state.work_status === "cancelled") return { lead: uiText.text("goals.event-document-ui.cancelled-ordinary-records-will-not-restore-automatically") };
   const pending = state.pending_decisions[0];
@@ -112,21 +119,16 @@ function currentJudgment(state: GoalEventStateView | undefined, _L: GoalsDocumen
   const concern = state.concerns.find((item) => item.status === "open" && item.blocks_closure);
   if (concern) return { lead: uiText.text("goals.event-document-ui.resolve-text", { text: concern.title }), action: uiText.text("goals.event-document-ui.review-issues-risks"), form: "concern" };
   const unmet = state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons[0] : null;
-  if (unmet) return { lead: unmet.message, action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
-  const rejected = state.requirements.find((item) => !item.currently_satisfied && item.user_conclusion?.verdict === "rejected");
-  if (rejected) return { lead: uiText.text("goals.event-document-ui.did-not-accept-text", { text: rejected.statement }), action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
-  const human = state.requirements.find((item) => item.human_decision_required && !item.currently_satisfied);
-  if (human) return { lead: uiText.text("goals.event-document-ui.awaiting-review-text", { text: human.statement }), action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
-  // Only the reporter's own "supports" is behind it (PWA-144), or a later report took the acceptance back (user 2026-11-05): the
-  // person's acceptance meets it, so the next step is their decision.
-  const claimed = state.requirements.find((item) => item.current_report?.verdict === "supports" && !item.currently_satisfied);
-  if (claimed) return { lead: uiText.text("goals.event-document-ui.awaiting-acceptance-text", { text: claimed.statement }), action: uiText.text("goals.event-document-ui.record-decision"), form: "decision" };
-  const requirement = state.requirements.find((item) => !item.currently_satisfied);
-  if (requirement) return { lead: uiText.text("goals.event-document-ui.still-complete-text", { text: requirement.statement }), action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
-  const gap = state.gaps[0];
-  if (gap) return { lead: gap.statement, action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
-  if (!state.requirements.length) return { lead: uiText.text("goals.event-document-ui.completion-requirements-have-not-been-defined-yet"), action: uiText.text("goals.event-document-ui.add-completion-requirement"), form: "requirement" };
-  return { lead: state.progress_summary?.summary || uiText.text("goals.event-document-ui.requirements-satisfied-completion-still-needs-confirmation"), action: uiText.text("goals.event-document-ui.view-completion-requirements"), reader: "requirements" };
+  if (unmet) return { lead: unmet.message, action: review, reader: "requirements" };
+  // What stands for each requirement is the platform's; the person accepts or returns it on the platform's own card.
+  const returned = rows.find((item) => item.person === "returned");
+  if (returned) return { lead: uiText.text("goals.event-document-ui.did-not-accept-text", { text: returned.statement }), action: review, reader: "requirements" };
+  const human = rows.find((item) => item.person === "pending" && item.satisfied === false);
+  if (human) return { lead: uiText.text("goals.event-document-ui.awaiting-review-text", { text: human.statement }), action: review, reader: "requirements" };
+  const requirement = rows.find((item) => item.satisfied === false);
+  if (requirement) return { lead: uiText.text("goals.event-document-ui.still-complete-text", { text: requirement.statement }), action: review, reader: "requirements" };
+  if (!rows.length) return { lead: uiText.text("goals.event-document-ui.completion-requirements-have-not-been-defined-yet"), action: uiText.text("goals.event-document-ui.add-completion-requirement"), reader: "requirements" };
+  return { lead: state.progress_summary?.summary || uiText.text("goals.event-document-ui.requirements-satisfied-completion-still-needs-confirmation"), action: review, reader: "requirements" };
 }
 
 function renderTimeline(items: readonly GoalHistoryIndexItem[], _L: GoalsDocumentUiPrimitives["translate"], escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"], state?: GoalEventStateView): string {
@@ -222,20 +224,31 @@ function renderRequirements(
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   owned = false,
 ): string {
-  const rows = doc?.state.requirements ?? [];
+  const rows = goalRequirementRows(doc);
+  const acceptance = doc?.acceptance ?? null;
   const original = item.goal.acceptance_criteria ?? [];
+  // The page shows what stands and says what changed; accepting, returning and adding a requirement are the platform's column.
+  const hints = [
+    acceptance?.changed_after_completion ? uiText.text("goals.event-document-ui.requirements-changed-after-completion") : "",
+    acceptance?.outcome_changed_after_acceptance ? uiText.text("goals.event-document-ui.outcome-changed-after-acceptance") : "",
+    acceptance?.unhung.length ? uiText.text("goals.event-document-ui.requirements-not-hung", { count: acceptance.unhung.length }) : "",
+    !acceptance && rows.length ? uiText.text("goals.event-document-ui.requirements-not-read") : "",
+  ].filter(Boolean).map((hint) => `<p class="form-note" data-acceptance-hint>${escapeHtml(hint)}</p>`).join("");
+  const standing = (row: GoalRequirementRow) => row.satisfied === null ? ""
+    : row.satisfied ? uiText.text("goals.event-document-ui.currently-satisfied")
+      : row.person === "returned" ? uiText.text("goals.event-document-ui.requirement-returned")
+        : row.person === "pending" ? uiText.text("goals.event-document-ui.needs-user-acceptance")
+          : uiText.text("goals.event-document-ui.not-yet-satisfied");
+  const subject = doc ? escapeHtml(JSON.stringify(doc.state.acceptance_subject)) : "";
   return `<div class="event-reader-panel" id="goal-requirements-${escapeHtml(item.goal.goal_id)}" data-event-panel="requirements" hidden>
     <h3>${uiText("goals.event-document-ui.current-completion-requirements")}</h3>
+    ${hints}
     ${rows.length ? `<ul>${rows.map((requirement) => {
-      const source = requirement.user_conclusion?.verdict === "accepted"
-        ? uiText.text("goals.event-document-ui.accepted-user")
-        : requirement.current_report
-          ? `${uiText.text("goals.event-document-ui.reporter")} ${escapeHtml(requirement.current_report.actor_id)} · ${uiText.text("goals.event-document-ui.not-independently-checked")}`
-          : requirement.human_decision_required ? uiText.text("goals.event-document-ui.needs-user-acceptance") : "";
       const boundType = owned ? escapeHtml(requirement.bound_type_ids[0] ?? "") : "";
-      return `<li><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(requirement.current_report?.event_id ?? "")}"${boundType ? ` data-bound-type="${boundType}"` : ""}>${escapeHtml(requirement.statement)}</button><small>${requirement.currently_satisfied ? uiText("goals.event-document-ui.currently-satisfied") : uiText("goals.event-document-ui.not-yet-satisfied")}${source ? ` · ${source}` : ""}</small></li>`;
+      const words = standing(requirement);
+      return `<li>${boundType ? `<button type="button" class="mw-btn mw-btn--link" data-locate-event="" data-bound-type="${boundType}">${escapeHtml(requirement.statement)}</button>` : `<span>${escapeHtml(requirement.statement)}</span>`}${words ? `<small>${escapeHtml(words)}</small>` : ""}</li>`;
     }).join("")}</ul>` : `<p>${uiText("goals.event-document-ui.there-no-completion-requirements-yet")}</p>`}
-    ${owned ? `<div class="event-actions"><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="requirement">${uiText("goals.event-document-ui.add-completion-requirement-2")}</button><button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="agreement">${uiText("goals.event-document-ui.change-current-agreement")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="decision">${uiText("goals.event-document-ui.record-decision")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="closure">${uiText("goals.event-document-ui.check-close")}</button></div>` : ""}
+    <div class="event-actions">${doc ? `<button type="button" class="mw-btn mw-btn--secondary" data-acceptance-review="${subject}">${uiText("goals.event-document-ui.review-requirements")}</button>` : ""}${owned ? `<button type="button" class="mw-btn mw-btn--secondary" data-event-form-open="agreement">${uiText("goals.event-document-ui.change-current-agreement")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="decision">${uiText("goals.event-document-ui.record-decision")}</button><button type="button" class="mw-btn mw-btn--primary" data-event-form-open="closure">${uiText("goals.event-document-ui.check-close")}</button>` : ""}</div>
     ${renderOriginalCriteria(original, readText, escapeHtml)}
     ${context.artifactHtml}
   </div>`;

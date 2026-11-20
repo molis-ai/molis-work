@@ -14,7 +14,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 test("local administrator grants through the protected owner API and gateway keeps member actors separate",{timeout:120000},async()=>{
   const home=await mkdtemp(join(tmpdir(),'continuity-gateway-'));
-  const project=await withCatalog({homeDirectory:home},c=>c.createProject({display_name:'Shared gateway',actor_id:'user'}));
+  const project=await withCatalog({homeDirectory:home},async c => { const created = await c.createProject({display_name:'Shared gateway',actor_id:'user'}); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: 'user' }); return created; });
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
   const ref=molisWorkHostProjectReference({projectId: project.project_id,databasePath:project.database_path});
   const local=host.actionClient(ref),owner={actor_id:'owner',project_id:project.project_id,audience:'user' as const,permissions:['goals:read','goals:write']};

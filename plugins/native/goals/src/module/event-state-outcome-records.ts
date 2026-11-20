@@ -2,14 +2,13 @@ import type {
   GoalEventClosureView,
   GoalEventProgressSummaryView,
   GoalEventUnmetReason,
-  GoalEventUserConclusion,
 } from "../contract/goals.js";
 import { storedJson } from "../stored-json.js";
 import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
-/** `goal_event_progress`, `goal_event_conclusions` and `goal_event_closures`: what a Goal's work has produced and how it was closed. */
+/** `goal_event_progress_summaries` and `goal_event_closures`: what a Goal's work has produced and how it was closed. */
 export class GoalEventOutcomeRecords {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
@@ -56,55 +55,6 @@ export class GoalEventOutcomeRecords {
     };
   }
 
-  insertConclusions(input: {
-    projectId: string;
-    goalId: string;
-    requirementIds: string[];
-    decisionId: string;
-    actorId: string;
-    verdict: "accepted" | "rejected";
-    at: string;
-    journalSeq: number;
-    /** The version each requirement's report had checked when the person decided; absent where it named none. */
-    checked: ReadonlyMap<string, { artifact_id: string; version: number }>;
-  }): void {
-    const insert = this.db.prepare(`
-      INSERT INTO goal_event_requirement_conclusions (
-        project_id, goal_id, requirement_id, decision_id, actor_id, verdict, received_at, journal_seq, checked_artifact_id, checked_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const requirementId of input.requirementIds) {
-      const checked = input.checked.get(requirementId);
-      insert.run(
-        input.projectId, input.goalId, requirementId, input.decisionId,
-        input.actorId, input.verdict, input.at, input.journalSeq, checked?.artifact_id ?? null, checked?.version ?? null,
-      );
-    }
-  }
-
-  latestConclusions(projectId: string, goalId: string): Map<string, GoalEventUserConclusion> {
-    const rows = this.db.prepare(`
-      SELECT * FROM goal_event_requirement_conclusions
-      WHERE project_id = ? AND goal_id = ?
-      ORDER BY journal_seq DESC, decision_id DESC
-    `).all(projectId, goalId) as Row[];
-    const latest = new Map<string, GoalEventUserConclusion>();
-    for (const row of rows) {
-      const requirementId = rowText(row.requirement_id);
-      if (latest.has(requirementId)) continue;
-      latest.set(requirementId, {
-        decision_id: rowText(row.decision_id),
-        actor_id: rowText(row.actor_id),
-        verdict: rowText(row.verdict) as GoalEventUserConclusion["verdict"],
-        received_at: rowText(row.received_at),
-        journal_seq: Number(row.journal_seq),
-        checked: typeof row.checked_artifact_id === "string" && row.checked_version != null
-          ? { artifact_id: row.checked_artifact_id, version: Number(row.checked_version) } : null,
-      });
-    }
-    return latest;
-  }
-
   insertClosure(input: {
     closureId: string;
     projectId: string;
@@ -119,19 +69,20 @@ export class GoalEventOutcomeRecords {
     configVersion: number | null;
     agreementVersion: number | null;
     unmetReasons: GoalEventUnmetReason[];
+    acceptanceRound: number | null;
     at: string;
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_closures (
         closure_id, project_id, goal_id, event_id, kind, result, reason, completion_applied,
         expected_config_version, expected_agreement_version, config_version, agreement_version,
-        unmet_reasons_json, superseded, recorded_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+        unmet_reasons_json, superseded, recorded_at, acceptance_round
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `).run(
       input.closureId, input.projectId, input.goalId, input.eventId, input.kind, input.result,
       input.reason, input.completionApplied ? 1 : 0, input.expectedConfigVersion,
       input.expectedAgreementVersion, input.configVersion, input.agreementVersion,
-      sqliteJson(input.unmetReasons), input.at,
+      sqliteJson(input.unmetReasons), input.at, input.acceptanceRound,
     );
   }
 
@@ -193,5 +144,6 @@ function mapClosure(row: Row): GoalEventClosureView {
     superseded: Number(row.superseded) === 1,
     superseded_reason: row.superseded_reason == null ? null : rowText(row.superseded_reason),
     recorded_at: rowText(row.recorded_at),
+    acceptance_round: row.acceptance_round == null ? null : Number(row.acceptance_round),
   };
 }

@@ -9,20 +9,17 @@ import type {
   GoalsBoardRecord,
   GoalsQueryApi,
   GoalsQuerySnapshot,
-  ProjectGuidanceView,
 } from "../contract/goals.js";
 
 import {
   GoalsCommandContext,
   type GoalsCommandContextOptions,
 } from "./command-support.js";
-import { GuidanceCommands } from "./guidance-commands.js";
 import { GoalsRepository } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
 
 export class GoalsQueryService implements GoalsQueryApi {
   private readonly context: GoalsCommandContext;
-  private readonly guidance: GuidanceCommands;
   private readonly facts: GoalQueryFactsRepository;
 
   readonly #repository: GoalsRepository;
@@ -33,7 +30,6 @@ export class GoalsQueryService implements GoalsQueryApi {
   ) {
     this.#repository = repository;
     this.context = new GoalsCommandContext(repository, options);
-    this.guidance = new GuidanceCommands(this.context);
     this.facts = new GoalQueryFactsRepository(repository.db);
   }
 
@@ -100,7 +96,6 @@ export class GoalsQueryService implements GoalsQueryApi {
       goals: this.#repository.listGoals(projectId),
       relations: this.#repository.listRelations(projectId),
       policy_bindings: this.#repository.listActivePolicyBindings(projectId),
-      project_guidance: this.#repository.listProjectGuidanceEntries(projectId),
     };
   }
 
@@ -150,12 +145,7 @@ export class GoalsQueryService implements GoalsQueryApi {
           binding.goal_id == null || binding.goal_id === goalId
         ),
       ),
-      project_guidance: snapshot.project_guidance,
     };
-  }
-
-  readProjectGuidance(projectId: string): ProjectGuidanceView {
-    return this.guidance.read(projectId);
   }
 
   private requireGoal(projectId: string, goalId: string): GoalRecord {

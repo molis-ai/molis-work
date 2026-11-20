@@ -4,17 +4,16 @@ import { mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { changeMcpClientCredential, createMcpClientProof, hasMcpClientCredential, mcpClientCredentialPath, RuntimeIntegrationService, readRuntimeConfigBackup, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, createMcpClientProof, hasMcpClientCredential, mcpClientCredentialPath, RuntimeIntegrationService, readRuntimeConfigBackup, runHomeUpgrade, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(t: TestContext, before = 'model = "original"\n') {
   const directory = await mkdtemp(join(tmpdir(), "molis-runtime-owner-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const home = join(directory, "home"), userHome = join(directory, "user");
   const config = join(userHome, ".codex", "config.toml"), skill = join(userHome, ".codex", "skills", "goal-advance");
-  const skillSource = join(home, "releases", "molis-work-test", "skills", "goal-advance");
   const launcher = join(home, "bin", "molis-work-mcp");
   await Promise.all([mkdir(join(home, "config"), { recursive: true }), mkdir(join(home, "bin"), { recursive: true }),
-    mkdir(skillSource, { recursive: true }), mkdir(join(userHome, ".codex", "skills"), { recursive: true })]);
+    mkdir(join(home, "releases", "molis-work-test"), { recursive: true }), mkdir(join(userHome, ".codex", "skills"), { recursive: true })]);
   await Promise.all([writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }), writeFile(config, before),
     writeFile(join(home, "config", "installation.json"), JSON.stringify({ schema_version: 1,
       installer: "molis-work-home-install-v1", version: "test", release_path: "releases/molis-work-test",
@@ -25,10 +24,10 @@ async function fixture(t: TestContext, before = 'model = "original"\n') {
   const service = (validateConnection: RuntimeIntegrationServiceOptions["validateConnection"] = () => true) =>
     new RuntimeIntegrationService({ homeDirectory: home, userHomeDirectory: userHome,
       runtimeExecutables: { codex: launcher }, validateConnection });
-  return { directory, home, config, skill, skillSource, launcher, before, service };
+  return { directory, home, config, skill, launcher, before, service };
 }
 
-test("W2-18-RUNTIME-ROLLBACK-01 preserves later config edits and a user Skill link after failed validation", async t => {
+test("W2-18-RUNTIME-ROLLBACK-01 preserves later config edits after failed validation", async t => {
   const f = await fixture(t);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const runtime = f.service(async () => { entered.resolve(); await release.promise; return false; });
@@ -38,14 +37,11 @@ test("W2-18-RUNTIME-ROLLBACK-01 preserves later config edits and a user Skill li
   await entered.promise;
   const laterConfig = (await readFile(f.config, "utf8")).replace('model = "original"', 'model = "user-edit"');
   await writeFile(f.config, laterConfig);
-  const userSkill = join(f.directory, "user-skill");
-  await mkdir(userSkill); await rm(f.skill); await symlink(userSkill, f.skill, "dir");
   release.resolve();
   const result = await pending;
   assert.equal(result.status, "conflict");
   assert.match(result.message, /保留|未完整回滚/);
   assert.equal(await readFile(f.config, "utf8"), laterConfig);
-  assert.equal(await readlink(f.skill), userSkill);
   assert.equal((await readRuntimeConfigBackup(f.home, "codex", plan.plan_id)).contents, f.before);
   await assert.rejects(readFile(join(f.home, "runtime-integrations", "codex.json")), { code: "ENOENT" });
 });
@@ -67,7 +63,7 @@ test("W2-18-RUNTIME-ROLLBACK-02 rolls back only its own unchanged writes and ser
   release.resolve();
   assert.equal((await firstPending).status, "rolled_back");
   assert.equal((await secondPending).status, "connected");
-  assert.equal(await readlink(f.skill), f.skillSource);
+  await assert.rejects(readlink(f.skill), { code: "ENOENT" }, "PEQ-14: connecting writes no goal-advance link");
   assert.equal((await second.detect("codex")).connection_state, "connected");
   assert.equal((await readRuntimeConfigBackup(f.home, "codex", firstPlan.plan_id)).contents, f.before);
 });
@@ -156,7 +152,7 @@ test("ASR installation confirmation waiting in the real target queue cannot writ
   assert.equal((await readdir(f.home)).includes("runtime-integration-attempts"), false, "a never-started cancelled confirmation records no new attempt");
 });
 
-test("ASR installation withdrawal after validation restores only its own config and Skill and writes no receipt or attempt", async t => {
+test("ASR installation withdrawal after validation restores only its own config and writes no receipt or attempt", async t => {
   const f = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const runtime = f.service(async () => { entered.resolve(); await release.promise; return true; });
   const plan = await runtime.prepare("codex", "connect");
@@ -167,7 +163,7 @@ test("ASR installation withdrawal after validation restores only its own config 
   t.after(async () => { release.resolve(); await pending.catch(() => undefined); });
   await entered.promise;
   assert.notEqual(await readFile(f.config, "utf8"), f.before, "validation is after the real config effect");
-  assert.equal(await readlink(f.skill), f.skillSource);
+  await assert.rejects(readlink(f.skill), { code: "ENOENT" }, "PEQ-14: no goal-advance link even mid-confirmation");
   const backup = await readFile(join(f.home, "runtime-config-backups", "codex", plan.plan_id + ".bak"));
   withdrawn = true; release.resolve(); await rejected;
   assert.equal(await readFile(f.config, "utf8"), f.before);
@@ -187,7 +183,7 @@ for (const action of ["connect", "remove"] as const) for (const replacement of [
     assert.equal((await runtime.confirm({ runtime_id: "codex", plan_id: initial.plan_id, decision: "confirmed" })).status, "connected");
     const receipt = join(f.home, "runtime-integrations", "codex.json");
     await filesystem.chmod(receipt, 0o600);
-    if (action === "connect") { await writeFile(f.config, f.before); await rm(f.skill); }
+    if (action === "connect") await writeFile(f.config, f.before);
     const beforeConfig = await readFile(f.config, "utf8"), beforeReceipt = await readFile(receipt);
     const plan = await runtime.prepare("codex", action); assert.equal(plan.status, "ready");
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -220,8 +216,7 @@ for (const action of ["connect", "remove"] as const) for (const replacement of [
     }
     withdrawn = true; release.resolve(); await rejected;
     assert.equal(await readFile(f.config, "utf8"), beforeConfig, "only this confirmation's config effect is restored");
-    if (action === "connect") await assert.rejects(readlink(f.skill), { code: "ENOENT" });
-    else assert.equal(await readlink(f.skill), f.skillSource);
+    await assert.rejects(readlink(f.skill), { code: "ENOENT" }, "PEQ-14: no goal-advance link either way");
     assert.deepEqual(await readFile(receipt), replacement ? effectReceipt : beforeReceipt);
     const finalReceipt = await filesystem.lstat(receipt);
     if (replacementIdentity) {
@@ -262,4 +257,37 @@ test("D0071-04 explicit connect creates a private credential; failure and remova
   const first = changeMcpClientCredential(f.home, client, "connect"); changeMcpClientCredential(f.home, client, "remove");
   changeMcpClientCredential(f.home, client, "connect"); const newer = await readFile(file, "utf8");
   assert.equal(first.rollback(), false); assert.equal(await readFile(file, "utf8"), newer);
+});
+
+// Batch 44 (PEQ-14): the v1 baseline receipt carries only MCP config ownership (no goal-advance Skill fields). Clean v1 receipts are
+// accepted, while receipts carrying retired skill_path/skill_target fields or a foreign owner are refused without touching files or symlinks.
+test("PEQ-14 runtime integration accepts clean v1 receipts and refuses receipts carrying retired goal-advance fields or foreign owners", async t => {
+  const f = await fixture(t);
+  const userHome = join(f.directory, "user"), receipts = join(f.home, "runtime-integrations");
+  const target = join(f.home, "releases", "molis-work-old", "skills", "goal-advance");
+  await Promise.all([mkdir(target, { recursive: true }), mkdir(receipts, { recursive: true }),
+    mkdir(join(userHome, ".grok", "skills"), { recursive: true })]);
+  const clean = { schema_version: 1, owner: "molis-work-runtime-integration-v1", runtime_id: "codex",
+    config_path: f.config, config_entry_fingerprint: "fingerprint-codex", connected_at: "2026-11-01T00:00:00.000Z" };
+  const legacySkill = join(userHome, ".codex", "skills", "goal-advance");
+  await symlink(target, legacySkill, "dir");
+  const legacyText = JSON.stringify({ ...clean, runtime_id: "claude-code", config_path: join(userHome, ".claude.json"),
+    skill_path: legacySkill, skill_target: target });
+  const foreignText = JSON.stringify({ ...clean, runtime_id: "grok-build", owner: "someone-else" });
+  await writeFile(join(receipts, "codex.json"), JSON.stringify(clean));
+  await writeFile(join(receipts, "claude-code.json"), legacyText);
+  await writeFile(join(receipts, "grok-build.json"), foreignText);
+
+  const report = runHomeUpgrade(f.home);
+  assert.deepEqual(report.units.filter(unit => unit.relative_path.startsWith("runtime-integrations")), []);
+  const runtime = new RuntimeIntegrationService({ homeDirectory: f.home, userHomeDirectory: userHome,
+    runtimeExecutables: { codex: f.launcher, "claude-code": f.launcher, "grok-build": f.launcher }, validateConnection: () => true });
+  assert.equal((await runtime.prepare("codex", "remove")).runtime_id, "codex");
+  await assert.rejects(runtime.prepare("claude-code", "remove"), { code: "installer.receipt_invalid" });
+  await assert.rejects(runtime.prepare("grok-build", "remove"), { code: "installer.receipt_invalid" });
+  assert.deepEqual(JSON.parse(await readFile(join(receipts, "codex.json"), "utf8")), clean);
+  assert.equal(await readFile(join(receipts, "claude-code.json"), "utf8"), legacyText, "a receipt with retired skill fields is refused and preserved byte for byte");
+  assert.equal(await readlink(legacySkill), target, "refusing the receipt does not touch symlinks");
+  assert.equal(await readFile(join(receipts, "grok-build.json"), "utf8"), foreignText, "a foreign receipt is refused and preserved byte for byte");
+  await assert.doesNotReject(filesystem.stat(target));
 });

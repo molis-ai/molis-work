@@ -22,7 +22,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 test("RAC-2914, AUT-06: restoring an offline Home returns the project's suggestion switch to its captured value", async t => {
   const f = await restoreFixture(t);
   const original = await serveTestHost(t, { home: f.home });
-  const project = await original.createProject("Weekly review");
+  const project = await original.createProject("Weekly review", ["goals"]);
   const path = `/projects/${project.project_id}/api/automation/recommendations/offers`;
   assert.deepEqual(await original.web.post(path, { enabled: false }), { enabled: false });
   await original.close();
@@ -82,7 +82,7 @@ test("RAC-2913 RAC-2914: actual empty snapshot initializes reviewed Memory only 
   const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
     const withCatalog = host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
-    const project = await withCatalog({ homeDirectory: f.home }, catalog => catalog.createProject({ display_name: "Restored fresh Home", actor_id: LOCAL_PERSON_ACTOR_ID }));
+    const project = await withCatalog({ homeDirectory: f.home }, async catalog => { const created = await catalog.createProject({ display_name: "Restored fresh Home", actor_id: LOCAL_PERSON_ACTOR_ID }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID }); return created; });
     assert.equal(project.display_name, "Restored fresh Home");
   } finally { await host.close(); }
 });

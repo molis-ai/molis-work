@@ -81,7 +81,7 @@ export interface MolisWorkRuntimeContextHost {
     molisWorkSessionId?: string | null;
     nativeRuntimeSessionId?: string | null;
     hostWorkContextId?: string | null;
-    focusId?: string | null;
+    focus?: ActionSubject | null;
     projectSuggestionClues?: readonly RuntimeProjectSuggestionClue[];
     panelId?: string | null;
 }
@@ -111,7 +111,6 @@ export interface RuntimeIntegrationDetection {
     display_name: string;
     executable_path: string | null;
     config_path: string;
-    skill_path: string;
     connection_state: RuntimeConnectionState;
     message: string;
 }

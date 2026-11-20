@@ -1,9 +1,5 @@
-// What Inbox declares of the Pages it hands material to. Inbox calls Pages by action id (`pages.generate`, `pages.generations.*`,
-// `pages.get`) and names the fields it uses here; the shape's source is Pages' action schema, kept honest by the action gateway's
-// schema check and the snapshot in tooling/gates/actions. Inbox does not import Pages' contract or package (PG-111).
-
-/** The Pages that ship with the Host: the provider Inbox pins for the actions above. */
-export const PAGES_PROVIDER_ID = "io.molis.work.pages";
+// What Inbox declares of a document-generation provider discovered by role (`DOCUMENT_GENERATION_ROLES`, Audit #10).
+// Inbox does not pin a provider ID or import Pages' contract or package (PG-111).
 
 /** Exact material adopted for one draft; its source stays with its owner. */
 export interface InboxPagesInputSnapshot {

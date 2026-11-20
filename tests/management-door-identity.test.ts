@@ -39,8 +39,9 @@ async function structureProject(name: string, plugins: readonly PluginDefinition
   const management = new MolisWorkServer("management", null, null, host);
   try {
     await runtime.invoke(goalsActions.create, { goal_id: "draft", title: "整理入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start" });
-    await runV1Cli(["goal-tree-propose", "--db", project.database_path, "--json", JSON.stringify({ project_id, summary: "拆一个子目标", idempotency_key: "propose", root_goal_id: "draft",
-      items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: "child", title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] })], { localHost: host });
+    // The person submits it as the management caller (the CLI's `goal-tree-propose` was removed, PEQ-15).
+    await managementGoals(host.actionClient(ref), project_id).invoke(goalsActions.treeSubmit, { summary: "拆一个子目标", idempotency_key: "propose", root_goal_id: "draft",
+      items: [{ item_id: "child", kind: "goal", operation: "create", payload: { goal_id: "child", title: "子目标", outcome: "结果" }, source_refs: ["runtime"], reason: "需要", confidence: 0.9 }] } as never);
     const proposal = (await runtime.invoke(goalsActions.treeRead, {})).proposals[0]!;
     const reviews = mcpGoalReviews(management, project_id, project.database_path);
     const decideEntry = (input: TrustedReviewCommand) => reviews.submit<GoalTreeProposalDecisionResult>(input);

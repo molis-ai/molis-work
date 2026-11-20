@@ -28,7 +28,7 @@
 - 触发：周四晚上准备上线 Stripe 退款，Claude Code 说"已完成，测试 42 个全过"；周五早上要发公告。
 - 链路：
   1. Goals 新建 Goal "退款上线"，用 `goals.agreement.set` 写当前约定：四条要求（全额退款、部分退款、失败重试、手机 Safari 完成退款），最后一条标"必须由人验收"。Work 替人把"什么算完成"落成一份所有 AI 都读同一份的账。
-  2. 项目设置写项目长期说明（`goals.guidance.add`）："金额一律用整数分；不改 `/api/v1` 公共接口"。内置助理和 Coding 每轮都带上当前版本；外部 Runtime 在经 MCP 读连接摘要（`context_resolve`）时拿到，读不读由它决定，Work 不往外部 Agent 的每一轮推送。
+  2. 项目设置写项目长期说明（`projects.guidance.add`）："金额一律用整数分；不改 `/api/v1` 公共接口"。内置助理和 Coding 每轮都带上当前版本；外部 Runtime 在经 MCP 读连接摘要（`context_resolve`）时拿到，读不读由它决定，Work 不往外部 Agent 的每一轮推送。
   3. Claude Code 经 MCP 连上这个项目，读连接摘要拿到这条 Goal、四条要求和项目说明（也可以从这条 Goal 打开 Claude Code 终端（F-011），推进提示带着目标和项目说明；从 Goal 打开的绑定终端还在，10-31 起归 Goals，由平台终端服务打开（#1643））。
   4. Claude Code 经 MCP 调 `goals.events.report` / `goals.progress.record`，只为自动化覆盖的三条要求报支持。
   5. 它调 `goals.closure.submit` 时被 `goals.event_closure.human_decision_required` 拦下：Goal 页写明"还差手机 Safari 本人验收"，已交的三条保留。

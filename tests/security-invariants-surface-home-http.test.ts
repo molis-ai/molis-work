@@ -66,6 +66,9 @@ async function removedInbox(f: Fixture) {
 
 async function fixture(t: TestContext) {
   const dual = dualPlugin("surface-dual", true);
+  // The overview's start is the project action, so it declares a starting point on its intake (contract-design §2.4); with no form it is called as it is.
+  Object.assign(dual.actions.project.action, { intake: { intake_id: "surface-dual.project", item_kind: "surface-dual-item", title: "Item", verb: "Start",
+    describe: "Start a blank item", accepts: [], examples: [], start: { title: "Start an item", hint: "Begin with a blank one." } } });
   const overview = definePresentationOverviewAction("surface-dual.overview", 1, "Project overview", [dual.read]);
   const start = { capability_id: dual.actions.project.capability_id, version: dual.actions.project.version };
   dual.manifest.actions = [...dual.manifest.actions ?? [], overview];

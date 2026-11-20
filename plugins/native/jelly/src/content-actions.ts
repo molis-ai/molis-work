@@ -8,7 +8,7 @@ import type { JellyStores } from "./store.js";
 export const jellyContentActions = defineWorkflowContentActions({ id: "jelly", title: "Jelly 笔记", icon: "note", subject_kind: JELLY_NOTE_SUBJECT_KIND,
   read_permissions: ["jelly:read"], write_permissions: ["jelly:read", "jelly:write"] });
 
-const ref = (note: { id: string; title: string }) => ({ plugin: "jelly", item_id: note.id, title: note.title || "新笔记" });
+const ref = (note: { id: string; title: string }) => ({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, title: note.title || "新笔记" });
 
 export function createJellyContentHandlers(stores: JellyStores): ActionHandlerBinding[] {
   return bindWorkflowContentHandlers(jellyContentActions, {
@@ -17,7 +17,7 @@ export function createJellyContentHandlers(stores: JellyStores): ActionHandlerBi
     read: ({ item_id }) => stores.read(store => {
       const note = store.read().notes.find(entry => entry.id === item_id && !entry.archived_at);
       if (!note) throw jellyErrors.not_found("笔记已删除或已归档");
-      return { title: note.title, body: note.blocks.map(block => block.text).join("\n"), source: "Jelly", feed_item_id: null };
+      return { title: note.title, body: note.blocks.map(block => block.text).join("\n"), source: "Jelly" };
     }),
     // One delivery is one note: a retried handoff finds the note it made the first time.
     receive: ({ title, body, url, source, request_id }, caller) => stores.write(caller, store => {

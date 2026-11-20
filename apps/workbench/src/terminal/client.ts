@@ -1,37 +1,41 @@
 import xtermCss from "@xterm/xterm/css/xterm.css";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createPageToast, errorText, paintTerminalStatus, queryTerminalPane, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
-import { listenGoalEvents } from "./client-goal-events.js";
+import { listenSubjectEvents } from "./client-subject-events.js";
 import { createTerminalGuard } from "./client-guard.js";
 import { createTerminalMenu } from "./client-menu.js";
 import { createAdvancePrompt } from "./client-prompt.js";
 import { createTerminalView } from "./client-view.js";
 import { createTerminalPanels } from "./panels.js";
 import { createTerminalScreens } from "./screens.js";
-import type { TerminalRequest, TerminalScreens } from "./types.js";
+import type { TerminalRequest, TerminalScreens, WorkTerminalSubjectRef } from "./types.js";
 
 /** The page's request helper (`packages/ui-host`), installed by the Workbench program before this bundle runs. */
 declare const molisWorkRequest: TerminalRequest;
 
-/** The work terminal: the shell's own pane (`[data-tui-pane]`, a tab per panel of the open Goal); a page without the pane only gets xterm's styles. */
+/** The platform object work terminal: the shell's own pane (`[data-tui-pane]`, a tab per panel of the open object); a page without the pane only gets xterm's styles. */
 export function startWorkTerminalClient() {
   const style = document.createElement("style");
   style.textContent = String(xtermCss);
   document.head.appendChild(style);
   const pane = document.querySelector<HTMLElement>("[data-tui-pane]");
-  if (pane) mountGoalTerminal(pane);
+  if (pane) mountWorkTerminal(pane);
 }
 
-function mountGoalTerminal(pane: HTMLElement) {
+function mountWorkTerminal(pane: HTMLElement) {
   const els = queryTerminalPane(pane);
   const readText: TerminalTranslate = uiText.text;
   const routePrefix = document.body.dataset.routePrefix || "";
   const route = (pathname: string) => routePrefix + pathname;
   const request: TerminalRequest = (url, init) => molisWorkRequest(url, init);
-  const goalId = () => pane.dataset.goalId || "";
+  const subject = (): WorkTerminalSubjectRef => ({
+    plugin_id: pane.dataset.tuiPluginId || "",
+    subject_kind: pane.dataset.tuiSubjectKind || "",
+    subject_id: pane.dataset.tuiSubjectId || "",
+  });
   const setStatus: TerminalStatus = (text, tone = "idle", state) => paintTerminalStatus(els.statusEl, text, tone, state);
   const showPageToast = createPageToast(setStatus);
-  const guard = createTerminalGuard({ els, text: readText, route, goalId, setStatus, closeMenu: () => menu.setMenuOpen(false) });
+  const guard = createTerminalGuard({ els, text: readText, route, subject, setStatus, closeMenu: () => menu.setMenuOpen(false) });
   const { canControlPanel } = guard;
 
   const screens = createTerminalScreens({
@@ -43,25 +47,25 @@ function mountGoalTerminal(pane: HTMLElement) {
     },
   });
   const panelController = createTerminalPanels({
-    screens, goalId,
-    parentReadOnly: guard.readOnly,
-    parentReadOnlyMessage: guard.parentReadOnlyMessage,
+    screens, subject,
+    readOnly: guard.readOnly,
+    readOnlyMessage: guard.readOnlyMessage,
     canControlPanel,
-    text: readText, errorText, route, request, terminalsRoute: () => pane.dataset.tuiTerminalsRoute || "",
+    text: readText, errorText, route, request,
     controlToken: () => document.querySelector('meta[name="molis-work-page-session"]')?.getAttribute("content") || "",
     setStatus, setMenuOpen: (open) => menu.setMenuOpen(open),
     renderTabs: () => view.renderTabs(),
     showTerminal: (panelId) => view.showTerminal(panelId),
   });
   const menu = createTerminalMenu({ els, text: readText, route, request, guard, setStatus, openPanel: panelController.openPanel });
-  const view = createTerminalView({ els, text: readText, screens, guard, goalId, setStatus, panels: () => panelController });
+  const view = createTerminalView({ els, text: readText, screens, guard, subject, setStatus, panels: () => panelController });
   const prompt = createAdvancePrompt({
-    text: readText, route, request, goalId, promptRoute: () => pane.dataset.tuiPromptRoute || "", guard, current: panelController.current,
+    text: readText, route, request, subject, guard, current: panelController.current,
     sendPty: panelController.send, copyBtn: els.copyBtn, showToast: showPageToast,
   });
   menu.listen();
   listenPaneButtons(els, setStatus, panelController, prompt);
-  listenGoalEvents({ els, goalId, guard, panelController, resetPrompt: prompt.resetCache });
+  listenSubjectEvents({ els, subject, guard, panelController, resetPrompt: prompt.resetCache });
   followTerminalHost(els.terminalHost, screens, panelController);
 
   void (async () => {

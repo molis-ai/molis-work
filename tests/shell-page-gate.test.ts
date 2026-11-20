@@ -18,7 +18,6 @@ import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 const EXCEPTIONS: readonly (readonly [RegExp, string])[] = [
   [/^\/$/, "进入页：项目选择"],
   [/^\/onboarding(?:[/?]|$)/, "进入页：Onboarding"],
-  [/^\/desktop\/capsule(?:[/?]|$)/, "桌面菜单栏胶囊"],
   [/^\/__ui\/catalog(?:[/?]|$)/, "开发规格板"],
   [/^\/projects\/[^/]+\/side\//, "宿主排版的侧栏文档"],
   [/^\/(?:continuity|im)(?:[/?]|$)/, "协作服务"],
@@ -155,7 +154,6 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/context-onboarding-renderer.ts": "进入页：Onboarding",
   "apps/workbench/src/settings-renderer.ts": "进入页：还没有项目时的设置；有项目时工作台用 fetch 读它的内容",
   "apps/workbench/src/project-settings-pages.ts": "工作台用 fetch 读它的内容；页面导航一律进工作台",
-  "apps/desktop/src/capsule-shell.ts": "桌面菜单栏胶囊",
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",

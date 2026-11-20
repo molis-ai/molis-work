@@ -2,5 +2,5 @@ export { createTerminalConnection, type PtyServerMessage, type TerminalConnectio
 export { createTerminalScreens } from "./screens.js";
 export { createTerminalPanels, type TerminalPanelsOptions } from "./panels.js";
 export { renderTerminalPane, type TerminalPaneModel } from "./pane.js";
-export type { PanelRecord, SpawnMode, TerminalRequest } from "./types.js";
+export type { PanelRecord, SpawnMode, TerminalRequest, WorkTerminalSubjectRef } from "./types.js";
 export { createPageTerminal, type TerminalRenderer } from "./page-terminal.js";

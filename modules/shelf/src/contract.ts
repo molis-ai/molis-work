@@ -1,6 +1,6 @@
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FILE_COPY_INTAKE_INPUT_TYPE, FILE_COPY_INTAKE_OUTPUT_TYPE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import type { MaterialExtractor, MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -80,6 +80,7 @@ export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item:
   action: {
     title: "放进 Shelf", description: "把一段文字或一个文件副本放进置物架；文字里的网址按链接保存，不抓取网页", kind: "operation",
     scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read"], subject_kinds: ["shelf_item"],
+    input_type: FILE_COPY_INTAKE_INPUT_TYPE, output_type: FILE_COPY_INTAKE_OUTPUT_TYPE,
     input_schema: {
       type: "object",
       properties: {

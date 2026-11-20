@@ -10,6 +10,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
+  PluginInstanceRecord,
   PluginManifest,
   PluginPrivateStorage,
   PluginUpgradeContext,
@@ -49,7 +50,7 @@ import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEn
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { assertSurfacePresentation } from "./surface-installation.js";
-import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
+import { projectedPermissionDeclarations, projectedPermissionsOf } from "./installed-permission-projection.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -133,6 +134,10 @@ export interface PluginPlatform {
     reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
     control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
   dualInstance(pluginId: string): boolean;
+  /** Whether a dual-instance plugin's matching Home half is currently running (always true for non-dual plugins). */
+  dualHomeRunning(record: PluginInstanceRecord): boolean;
+  /** Grants effective right now for an installation (intersects dual-instance project halves with Home S-48 ceiling). */
+  effectiveGrants(record: PluginInstanceRecord): readonly string[];
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
   /** What the Host itself tells one running installation (X-6, S-54): not stored, never replayed. */
@@ -214,6 +219,19 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
+  const dualHomeRunning = (record: PluginInstanceRecord): boolean => {
+    if (!isDualId(record.plugin_id)) return true;
+    if (!options.home) return false;
+    if (options.home.dualHomeRunning) return options.home.dualHomeRunning(record);
+    try { options.home.capturePermission(record, "storage:private"); return true; } catch { return false; }
+  };
+  const effectiveGrants = (record: PluginInstanceRecord): readonly string[] => {
+    if (!isDualId(record.plugin_id)) return record.grants;
+    if (!dualHomeRunning(record)) return [];
+    return record.grants.filter(permission => {
+      try { runtime.capturePermission(record.install_id, permission); return true; } catch { return false; }
+    });
+  };
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
     { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
@@ -221,7 +239,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       // S-48: dual-instance project halves (built-in and pinned sandbox) cannot exceed Home optional permissions.
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
-        register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions) } });
+        register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions, {
+          dualHomeRunning: () => { const now = records.get(record.install_id); return Boolean(now && dualHomeRunning(now)); },
+          effectiveGrants: () => { const now = records.get(record.install_id); return now ? effectiveGrants(now) : []; },
+        }) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
@@ -289,12 +310,16 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       await hostEvents.close();
     },
     dualInstance: isDualId,
+    dualHomeRunning,
+    effectiveGrants,
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
     }), { capturePermission: (pluginId, permission) => {
-      if (!isDualId(pluginId) || !supervisor.manifest(pluginId)?.permissions.some(item => item.permission === permission && item.required === false)) return () => {};
       const state = supervisor.state(pluginId);
+      const current = state?.install_id ? records.get(state.install_id) : undefined;
+      const allPermissions = [...(supervisor.manifest(pluginId)?.permissions ?? []), ...(current ? projectedPermissionsOf(current) : [])];
+      if (!isDualId(pluginId) || !allPermissions.some(item => item.permission === permission && item.required === false)) return () => {};
       if (!state?.install_id) throw pluginErrors.grant_denied("插件权限当前不可用");
       return runtime.capturePermission(state.install_id, permission);
     } }),

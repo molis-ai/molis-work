@@ -224,6 +224,17 @@ export class HomePluginHost {
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
   }
+  /** Whether the matching Home half of a dual-instance plugin is currently running (S-48, PEQ-06). */
+  dualHomeRunning(project: PluginInstanceRecord): boolean {
+    if (this.closed || !this.platform) return false;
+    const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";
+    const home = this.installation(pinnedSandbox ? project.plugin_id : project.install_id);
+    const sameIdentity = pinnedSandbox
+      ? Boolean(home && home.publisher_trust === "pinned" && home.execution === "sandbox")
+      : Boolean(home && home.install_id === project.install_id);
+    return Boolean(home && sameIdentity && this.dualInstance(project.plugin_id) && home.plugin_id === project.plugin_id
+      && home.publisher_id === project.publisher_id && home.publisher_signature === project.publisher_signature && home.state === "running");
+  }
   /** Only the matching trusted project half may use this Home activation as its optional permission upper bound. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void {
     const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";

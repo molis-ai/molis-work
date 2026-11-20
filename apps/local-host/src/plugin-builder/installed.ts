@@ -143,8 +143,12 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       assertSandboxActivationScope(context.project_id, approved, dualInstance);
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
+      // S-48 (PEQ-06): a dual-instance project half's optional grants are bounded live by its Home half's grants and running state.
+      const liveGrants = () => dualInstance && context.project_id !== null
+        ? context.grants.filter(permission => { try { context.requireGrant(permission); return true; } catch { return false; } })
+        : context.grants;
       // The approval as this activation may use it (BL-701): an effect whose switch is off never reaches the broker.
-      const allowed = effectsForHalf(grantedEffects(approved, context.grants), context.project_id, dualInstance);
+      const allowed = effectsForHalf(grantedEffects(approved, liveGrants()), context.project_id, dualInstance);
       const backgroundServices = sandboxServicesFor(context.services, instructions ? { ...host, instructions } : host);
       background = createBackgroundLane({ contract: release.design.contract, create: () => createSandboxRunner({ bundlePath: release.bundlePath, bundleSha256: release.packaged?.entrypointSha256,
         contract: release.design.contract, grants: allowed, identity, services: backgroundServices, limits: SANDBOX_BACKGROUND_LIMITS, localePacks }) });
@@ -152,16 +156,17 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       const guardedBackground: SandboxBackgroundLane = { check: lane.check, stop: lane.stop, async run(operationId, input, control) {
         const operation = release.design.contract.operations.find(item => item.id === operationId)!;
         const effects = sandboxOperationEffects(release.design.contract, operation);
-        assertOperationGranted(effects, context.grants);
+        host.assertLive?.(identity);
+        assertOperationGranted(effects, liveGrants());
         const callContext: SandboxServiceContext = { identity, operationId, signal: control.signal ?? new AbortController().signal, projectReach: control.projectReach };
-        await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+        await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity); assertOperationGranted(effects, liveGrants());
         const binding = capabilityPolicyBinding(effects, effects.capabilities?.length ? await host.capabilities?.(callContext) ?? [] : []);
         const beforeEffect = async () => {
-          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity); assertOperationGranted(effects, liveGrants());
           if (effects.capabilities?.length && host.capabilities && capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
             throw new SandboxError('plugin_builder.capability_changed', '后台依赖的提供方、版本或执行策略已变化；请核对已发生的结果');
           }
-          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity);
+          await control.beforeEffect?.(); control.signal?.throwIfAborted(); host.assertLive?.(identity); assertOperationGranted(effects, liveGrants());
         };
         await beforeEffect();
         return lane.run(operationId, input, { ...control, beforeEffect, locale: host.backgroundLocale?.() });
@@ -177,7 +182,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
       // A bundle that cannot start fails the installation, not the person's first click.
       await open('quick');
       const contribution: PluginAppContribution = { kind: 'app',
-        routes: [sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation })],
+        routes: [sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation, liveGrants })],
         views: [{ descriptor, render: () => installedStageFrame({ pluginId: release.pluginId, label: manifest.name,
           prefix: context.project_id ? '/projects/' + encodeURIComponent(context.project_id) : '',
           installation: { scope: context.project_id ? 'project' : 'home', install_id: context.install_id,
@@ -207,7 +212,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
 }
 
 /** Execute the original registered action in the correct sandbox lane, preserving its host refusal or uncertain outcome. */
-function sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation }: {
+function sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation, liveGrants }: {
   release: InstalledRelease;
   context: PluginStartContext;
   host: SandboxedPluginHost;
@@ -215,6 +220,7 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
   lanes: Map<Lane, Promise<SandboxRunner>>;
   open(lane: Lane): Promise<SandboxRunner>;
   upgradeOperation?: string;
+  liveGrants(): readonly string[];
 }): PluginRouteBinding {
   return { route_id: 'studio.call', async handle(request) {
     let outcomeUnknown = false, refused: unknown;
@@ -230,8 +236,8 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
       const operation = release.design.contract.operations.find(item => item.id === call.operationId && item.id !== upgradeOperation);
       if (!operation) throw new ActionError('actions.forbidden', '这个操作不在已安装页面的合同内');
       const effects = sandboxOperationEffects(release.design.contract, operation), dependencies = effects.capabilities ?? [];
-      // Before any of its code runs, whichever door it came through (BL-701).
-      try { assertOperationGranted(effects, context.grants); } catch (error) { refused = error; throw error; }
+      // Before any of its code runs, whichever door it came through (BL-701, S-48).
+      try { host.assertLive?.(identity); assertOperationGranted(effects, liveGrants()); } catch (error) { refused = error; throw error; }
       const projectReach = executionProjectReach(request.execution);
       const callContext: SandboxServiceContext = { identity, operationId: call.operationId, signal: request.execution?.signal ?? new AbortController().signal, projectReach };
       const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
@@ -245,12 +251,14 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
       const binding = capabilityPolicyBinding(effects, capabilities); let policyChanged = false;
       const beforeEffect = async () => {
         await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
+        assertOperationGranted(effects, liveGrants());
         if (!host.capabilities || !dependencies.length) return;
         if (capabilityPolicyBinding(effects, await host.capabilities(callContext)) !== binding) {
           policyChanged = true;
           throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
         }
         await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
+        assertOperationGranted(effects, liveGrants());
       };
       await beforeEffect();
       // The owner's review query must stay runnable while its protected command waits at the final check.

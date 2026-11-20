@@ -9,6 +9,7 @@ import { pluginProjectsPort } from './plugin-projects-service.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { openProjectVersionStores } from './project-version-stores.js';
@@ -151,7 +152,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   let closed = false;
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
-    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record)) {
+    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record) || !platform.dualHomeRunning(record)) {
       throw staleInstallation();
     }
   };
@@ -222,7 +223,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
-        if (record.state === 'disabled' || record.state === 'quarantined') {
+        if (record.state === 'disabled' || record.state === 'quarantined' || (release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record))) {
           const restored = definition(release, approved); platform.runtime.register(restored);
           await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
         }
@@ -234,7 +235,46 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     }
 
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
-    return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
+    /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
+    const reconcileDualHalf = async (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) => {
+      if (closed) return;
+      const record = recordFor(pluginId);
+      const release = record ? releaseFor(pluginId) : undefined;
+      const isDual = Boolean(record && (platform.dualInstance(pluginId) || release?.packaged?.manifest.runtime?.dual_instance === true));
+      if (!record || !isDual) return;
+      if (action === 'disable' || action === 'uninstall') {
+        withdraw(pluginId);
+        // Stop with `preserve_enabled: true` BEFORE `supervisor.revoke` so the record moves to `installed` (not user-`disabled`)
+        // and can resume cleanly if the Home half is re-enabled later.
+        if (record.state === 'running') {
+          await platform.runtime.stop(record.install_id, { preserve_enabled: true }).catch((error: unknown) => {
+            if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+          });
+        }
+        platform.supervisor.revoke(pluginId);
+        return;
+      }
+      if (action === 'regrant') {
+        if (!permission || !record.grants.includes(permission)) return;
+        const wasRunning = record.state === 'running';
+        await platform.runtime.regrant(record.install_id, permission, false);
+        const currentRelease = wasRunning ? releaseFor(pluginId) : undefined;
+        if (currentRelease && recordFor(pluginId)?.state === 'running') await expose(currentRelease);
+        return;
+      }
+      if (!standing.trusted(record) || !platform.dualHomeRunning(record)) return;
+      if (record.state !== 'installed') return;
+      const approved = approvedFor(pluginId);
+      if (!release || !approved) return;
+      if (!platform.supervisor.manifest(pluginId)) {
+        const def = definition(release, approved);
+        platform.runtime.register(def);
+        await platform.start([{ definition: def, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
+      }
+      const state = await platform.supervisor.enable(pluginId);
+      if (state.status === 'running') await expose(release);
+    };
+    return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
         lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions }),

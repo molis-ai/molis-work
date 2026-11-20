@@ -102,7 +102,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     },
     listConsumable(value) {
       requirePermission("artifact:read");
-      const filter = checked("list", filterInput(value));
+      const filter = filterInput(checked("list", value === undefined ? {} : value));
       // Filter declarations, availability, lifecycle and the caller's filter in SQL; only one bounded content page is held at a time.
       const listed: PluginConsumableVersion[] = [];
       const walk = (query: ArtifactsApplicationApi["query"] | ProcessItemsApplicationApi["query"], types: PluginManifest["artifacts"]["consumes"], consume: (page: Array<ArtifactVersionRecord | ProcessItemRecord>) => void, personalOwner?: string) => {

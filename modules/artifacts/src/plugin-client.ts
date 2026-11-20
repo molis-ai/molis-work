@@ -6,7 +6,7 @@ import type {
 import { bindActionHandler, type ActionDefinition, type ActionRegistryPort, type SyncActionClient, type ActionCallContext, type ActionAvailability, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
-import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput } from "./plugin-action-contracts.js";
+import { pluginArtifactContracts, referenceInput, processInput, artifactInput } from "./plugin-action-contracts.js";
 
 /**
  * Created by the trusted Host for one installation; authors receive only the returned clients. Its calls run under the caller
@@ -70,7 +70,7 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
     head: artifactId => invoke(head, { artifact_id: artifactId }) as ReturnType<PluginArtifactClient["head"]>,
     readOwn: value => invoke(own, referenceInput(value)) as ReturnType<PluginArtifactClient["readOwn"]>,
     publish: value => invoke(publish, artifactInput(value)) as ReturnType<PluginArtifactClient["publish"]>,
-    listConsumable: filter => invoke(list, filterInput(filter)) as ReturnType<PluginArtifactClient["listConsumable"]>,
+    listConsumable: filter => invoke(list, filter === undefined ? {} : filter) as ReturnType<PluginArtifactClient["listConsumable"]>,
   }, process: {
     record: value => invoke(recordItem, processInput(value)) as ReturnType<PluginProcessItemClient["record"]>,
     head: artifactId => invoke(processHead, { artifact_id: artifactId }) as ReturnType<PluginProcessItemClient["head"]>,

@@ -109,7 +109,9 @@ for (const order of [[RESEARCH, WRITING], [WRITING, RESEARCH]] as const) {
     assert.equal(reader.listConsumable({ producer_plugin_id: RESEARCH }).some(row => row.artifact_id === "research:other-person"), false);
     assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ producer_plugin_id: RESEARCH }), [], "the writing plugin does not declare that it reads excerpts");
     assert.deepEqual(started.get(WRITING)!.artifacts!.listConsumable({ artifact_type_id: EXCERPT }), [], "nor by type, though excerpts are there");
-    assert.throws(() => reader.listConsumable({ producer_plugin_id: "" }), { code: "actions.input_invalid" });
+    for (const bad of [{ producer_plugin_id: "" }, null, RESEARCH, [EXCERPT], 123, { producer_id: RESEARCH }, { type: EXCERPT }, { actor_id: "forged" }, { project_id: "other" }]) {
+      assert.throws(() => Reflect.apply(reader.listConsumable, null, [bad]), { code: "actions.input_invalid" }, `invalid filter must not widen to all: ${JSON.stringify(bad)}`);
+    }
   });
 }
 

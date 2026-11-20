@@ -266,7 +266,10 @@ test("W5-01-D1-04: projected direct inputs use the Kernel validator and refusals
       () => ops.process.head(" "),
       () => ops.process.readOwn({ artifact_id: "step", version: -1 }),
       () => ops.client.read({ artifact_id: "", version: 1 }),
+      ...[null, PLUGIN, [TYPE], 123, { producer_id: PLUGIN }, { actor_id: "forged" }, { project_id: "other" }].map(bad => () => Reflect.apply(ops.client.listConsumable, null, [bad])),
     ]) assert.throws(operation, inputInvalid);
+    assert.equal(ops.client.listConsumable(Object.assign(Object.create(null), { producer_plugin_id: PLUGIN })).length, 2, "own fields on a null-prototype filter work");
+    assert.equal(ops.client.listConsumable({ producer_plugin_id: undefined }).length, 2, "an omitted/undefined optional field still lists all");
     for (const operation of [
       () => ops.client.publish({ ...artifact("bad"), schema_version: 2 }),
       () => ops.process.record({ ...item("bad"), artifact_type_id: "undeclared" }),

@@ -126,24 +126,25 @@ export const PLACEMENT_RELATION_LIMITS = { targets: 500, name: 120, title: 200, 
  * The shapes a relation part takes and returns, built when a part is defined: top-level schema objects that read the limits would stay
  * in every page bundle that imports this module, used or not.
  */
+function relationMaterialRefSchema(): object {
+  const version = { type: "object", properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false };
+  return { type: "object", properties: {
+    subject: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 16_584 } }, required: ["kind", "id"], additionalProperties: false },
+    pin: { oneOf: [
+      { type: "object", properties: { mode: { const: "current" }, read_revision: { type: "string", minLength: 1, maxLength: 1000 } }, required: ["mode", "read_revision"], additionalProperties: false },
+      { type: "object", properties: { mode: { const: "fixed" }, version }, required: ["mode", "version"], additionalProperties: false },
+      { type: "object", properties: { mode: { const: "snapshot" }, version }, required: ["mode", "version"], additionalProperties: false },
+    ] },
+    range: { type: "object", properties: { anchor: { type: "string", minLength: 1, maxLength: 200 }, line: { type: "integer", minimum: 1 }, length: { type: "integer", minimum: 1 }, page: { type: "integer", minimum: 1 } }, additionalProperties: false, minProperties: 1 },
+  }, required: ["subject", "pin"], additionalProperties: false };
+}
+
 function relationInput(role: PlacementRelationRole): object {
   const read = { type: "object", properties: { title: { type: "string", maxLength: PLACEMENT_RELATION_LIMITS.title },
     revision: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.revision }, excerpt: { type: "string", maxLength: PLACEMENT_RELATION_LIMITS.excerpt } },
   required: ["title"], additionalProperties: false };
   if (role === "release") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA }, required: ["subject", "target"], additionalProperties: false };
-  if (role === "bind") {
-    const version = { type: "object", properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false };
-    const materialRef = { type: "object", properties: {
-      subject: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 16_584 } }, required: ["kind", "id"], additionalProperties: false },
-      pin: { oneOf: [
-        { type: "object", properties: { mode: { const: "current" }, read_revision: { type: "string", minLength: 1, maxLength: 1000 } }, required: ["mode", "read_revision"], additionalProperties: false },
-        { type: "object", properties: { mode: { const: "fixed" }, version }, required: ["mode", "version"], additionalProperties: false },
-        { type: "object", properties: { mode: { const: "snapshot" }, version }, required: ["mode", "version"], additionalProperties: false },
-      ] },
-      range: { type: "object", properties: { anchor: { type: "string", minLength: 1, maxLength: 200 }, line: { type: "integer", minimum: 1 }, length: { type: "integer", minimum: 1 }, page: { type: "integer", minimum: 1 } }, additionalProperties: false, minProperties: 1 },
-    }, required: ["subject", "pin"], additionalProperties: false };
-    return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA, read, mode: { enum: ["live", "fixed"] }, material_ref: materialRef }, required: ["subject", "target"], additionalProperties: false };
-  }
+  if (role === "bind") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, target: ACTION_SUBJECT_SCHEMA, read, mode: { enum: ["live", "fixed"] }, material_ref: relationMaterialRefSchema() }, required: ["subject", "target"], additionalProperties: false };
   if (role === "create") return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, name: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.name },
     request_id: { type: "string", minLength: 1, maxLength: PLACEMENT_RELATION_LIMITS.request_id }, read }, required: ["subject", "name"], additionalProperties: false };
   return { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false };

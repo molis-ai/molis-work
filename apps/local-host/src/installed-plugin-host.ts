@@ -215,65 +215,10 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
   try {
-    for (const record of records()) {
-      try {
-        if (!standing.trusted(record)) { await stops.suspend(record); continue; }
-        const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
-        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
-        if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
-        registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
-        if (record.state === 'disabled' || record.state === 'quarantined' || (release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record))) {
-          const restored = definition(release, approved); platform.runtime.register(restored);
-          await platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
-        }
-        // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
-        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
-        if (report.running.includes(record.plugin_id)) await expose(release);
-        else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
-    }
-
+    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose });
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
-    /** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
-    const reconcileDualHalf = async (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) => {
-      if (closed) return;
-      const record = recordFor(pluginId);
-      const release = record ? releaseFor(pluginId) : undefined;
-      const isDual = Boolean(record && (platform.dualInstance(pluginId) || release?.packaged?.manifest.runtime?.dual_instance === true));
-      if (!record || !isDual) return;
-      if (action === 'disable' || action === 'uninstall') {
-        withdraw(pluginId);
-        // Stop with `preserve_enabled: true` BEFORE `supervisor.revoke` so the record moves to `installed` (not user-`disabled`)
-        // and can resume cleanly if the Home half is re-enabled later.
-        if (record.state === 'running') {
-          await platform.runtime.stop(record.install_id, { preserve_enabled: true }).catch((error: unknown) => {
-            if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
-          });
-        }
-        platform.supervisor.revoke(pluginId);
-        return;
-      }
-      if (action === 'regrant') {
-        if (!permission || !record.grants.includes(permission)) return;
-        const wasRunning = record.state === 'running';
-        await platform.runtime.regrant(record.install_id, permission, false);
-        const currentRelease = wasRunning ? releaseFor(pluginId) : undefined;
-        if (currentRelease && recordFor(pluginId)?.state === 'running') await expose(currentRelease);
-        return;
-      }
-      if (!standing.trusted(record) || !platform.dualHomeRunning(record)) return;
-      if (record.state !== 'installed') return;
-      const approved = approvedFor(pluginId);
-      if (!release || !approved) return;
-      if (!platform.supervisor.manifest(pluginId)) {
-        const def = definition(release, approved);
-        platform.runtime.register(def);
-        await platform.start([{ definition: def, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
-      }
-      const state = await platform.supervisor.enable(pluginId);
-      if (state.status === 'running') await expose(release);
-    };
+    const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
+      reconcileInstalledDualHalf({ closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, standing, definition }, pluginId, action, permission);
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
@@ -286,6 +231,83 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }
+}
+
+async function recoverInstalledRecords(ctx: {
+  records(): PluginInstanceRecord[];
+  standing: ReturnType<typeof publisherStanding>;
+  stops: ReturnType<typeof publisherStops>;
+  releaseFor(pluginId: string): InstalledRelease | undefined;
+  approvedFor(pluginId: string): SandboxEffects | null;
+  recoveryErrors: RecoveryErrors;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
+  platform: ReturnType<typeof createPluginPlatform>;
+  definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
+  expose(release: InstalledRelease): Promise<void>;
+}) {
+  for (const record of ctx.records()) {
+    try {
+      if (!ctx.standing.trusted(record)) { await ctx.stops.suspend(record); continue; }
+      const release = ctx.releaseFor(record.plugin_id), approved = ctx.approvedFor(record.plugin_id);
+      if (!release) { if (!ctx.recoveryErrors.has(record.plugin_id)) ctx.recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
+      if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
+      ctx.registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' || holdsFailedDatabaseUpgrade(record) ? 'disabled' : 'enabled');
+      if (record.state === 'disabled' || record.state === 'quarantined' || (release.packaged?.manifest.runtime?.dual_instance === true && !ctx.platform.dualHomeRunning(record))) {
+        const restored = ctx.definition(release, approved); ctx.platform.runtime.register(restored);
+        await ctx.platform.start([{ definition: restored, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]); continue;
+      }
+      const report = await ctx.platform.start([{ definition: ctx.definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
+      if (report.running.includes(record.plugin_id)) await ctx.expose(release);
+      else throw new Error(ctx.platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
+    } catch (error) { ctx.recoveryErrors.set(record.plugin_id, error); }
+  }
+}
+
+/** Reconciles an installed dual-instance project half when its Home half changes state or optional permissions (S-48, PEQ-06). */
+async function reconcileInstalledDualHalf(ctx: {
+  closed(): boolean;
+  recordFor(pluginId: string): PluginInstanceRecord | undefined;
+  releaseFor(pluginId: string): InstalledRelease | undefined;
+  approvedFor(pluginId: string): SandboxEffects | null;
+  platform: ReturnType<typeof createPluginPlatform>;
+  withdraw(pluginId: string): void;
+  expose(release: InstalledRelease): Promise<void>;
+  standing: ReturnType<typeof publisherStanding>;
+  definition(release: InstalledRelease, approved: SandboxEffects): ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
+}, pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) {
+  if (ctx.closed()) return;
+  const record = ctx.recordFor(pluginId);
+  const release = record ? ctx.releaseFor(pluginId) : undefined;
+  const isDual = Boolean(record && (ctx.platform.dualInstance(pluginId) || release?.packaged?.manifest.runtime?.dual_instance === true));
+  if (!record || !isDual) return;
+  if (action === 'disable' || action === 'uninstall') {
+    ctx.withdraw(pluginId);
+    if (record.state === 'running') {
+      await ctx.platform.runtime.stop(record.install_id, { preserve_enabled: true }).catch((error: unknown) => {
+        if (!(error instanceof ActionError && error.code === 'plugin.state_invalid')) throw error;
+      });
+    }
+    ctx.platform.supervisor.revoke(pluginId);
+    return;
+  }
+  if (action === 'regrant') {
+    if (!permission || !record.grants.includes(permission)) return;
+    const wasRunning = record.state === 'running';
+    await ctx.platform.runtime.regrant(record.install_id, permission, false);
+    const currentRelease = wasRunning ? ctx.releaseFor(pluginId) : undefined;
+    if (currentRelease && ctx.recordFor(pluginId)?.state === 'running') await ctx.expose(currentRelease);
+    return;
+  }
+  if (!ctx.standing.trusted(record) || !ctx.platform.dualHomeRunning(record) || record.state !== 'installed') return;
+  const approved = ctx.approvedFor(pluginId);
+  if (!release || !approved) return;
+  if (!ctx.platform.supervisor.manifest(pluginId)) {
+    const def = ctx.definition(release, approved);
+    ctx.platform.runtime.register(def);
+    await ctx.platform.start([{ definition: def, grants: record.grants, enabled: false, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
+  }
+  const state = await ctx.platform.supervisor.enable(pluginId);
+  if (state.status === 'running') await ctx.expose(release);
 }
 
 /**

@@ -173,70 +173,99 @@ function isDualSandboxPlugin(supervisor: PluginSupervisor, records: ReturnType<t
   return Boolean(record && record.execution === "sandbox" && record.publisher_trust === "pinned" && supervisor.manifest(pluginId)?.runtime?.dual_instance === true);
 }
 
+function dualHomeRunningFor(home: PluginPlatformHome | null, isDualId: (pluginId: string) => boolean, record: PluginInstanceRecord): boolean {
+  if (!isDualId(record.plugin_id)) return true;
+  if (!home) return false;
+  if (home.dualHomeRunning) return home.dualHomeRunning(record);
+  try { home.capturePermission(record, "storage:private"); return true; } catch { return false; }
+}
+
+function effectiveGrantsFor(runtime: PluginRuntime, isDualId: (pluginId: string) => boolean, dualHomeRunning: (record: PluginInstanceRecord) => boolean, record: PluginInstanceRecord): readonly string[] {
+  if (!isDualId(record.plugin_id)) return record.grants;
+  if (!dualHomeRunning(record)) return [];
+  return record.grants.filter(permission => {
+    try { runtime.capturePermission(record.install_id, permission); return true; } catch { return false; }
+  });
+}
+
+function buildPlatformRouter(supervisor: PluginSupervisor, runtime: PluginRuntime, records: ReturnType<typeof pluginInstallRecords>, isDualId: (pluginId: string) => boolean): PluginRouteRouter {
+  return new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
+    const manifest = supervisor.manifest(state.plugin_id);
+    return manifest ? [manifest] : [];
+  }), {
+    capturePermission: (pluginId, permission) => {
+      const state = supervisor.state(pluginId);
+      const current = state?.install_id ? records.get(state.install_id) : undefined;
+      const allPermissions = [...(supervisor.manifest(pluginId)?.permissions ?? []), ...(current ? projectedPermissionsOf(current) : [])];
+      if (!isDualId(pluginId) || !allPermissions.some(item => item.permission === permission && item.required === false)) return () => {};
+      if (!state?.install_id) throw pluginErrors.grant_denied("插件权限当前不可用");
+      return runtime.capturePermission(state.install_id, permission);
+    },
+  });
+}
+
+async function startPlatformEntries(ctx: {
+  options: PluginPlatformOptions;
+  identity: ReturnType<typeof pluginEntryIdentity>;
+  supervisor: PluginSupervisor;
+  wiring: PluginInputGraph;
+  events: PluginEventBus;
+  closed(): boolean;
+}, entries: readonly PluginPlatformEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport> {
+  control?.assertCurrent?.();
+  const listed = new Set<string>();
+  for (const { definition } of entries) {
+    if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
+    listed.add(definition.manifest.plugin_id);
+  }
+  assertDatabaseEntries(entries, ctx.options.home, "project");
+  assertOwnerFilesEntries(homeOwnerFilesEntries(ctx.options.home?.directory ?? null), entries, ctx.options.home);
+  ctx.identity.remember(entries);
+  const report = await ctx.supervisor.start(entries.map(entry => rememberingRestored(entry, ctx.identity.remember)), control);
+  control?.assertCurrent?.();
+  ctx.wiring.evaluateAll();
+  await ctx.events.resume(ctx.options.project_id);
+  await initializeDemoPlugins({ home: ctx.options.home?.directory, projectId: ctx.options.project_id, actorId: ctx.options.actor_id, client: ctx.options.actions.client,
+    assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
+      const state = ctx.supervisor.state(entry.definition.manifest.plugin_id);
+      if (!state?.install_id || state.status !== "running") return [];
+      const installId = state.install_id;
+      return [{ manifest: entry.definition.manifest, providerId: ctx.identity.providerFor(entry.definition, installId),
+        current: () => !ctx.closed() && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
+    }) });
+  return report;
+}
+
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
-  // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
   if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
-  // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
-  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list giving a definition `host` trust
-  // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
-  // plugin_id gets no more than an installation id.
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
-  // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
   const records = pluginInstallRecords(options.db);
   let closed = false;
   const views = new PluginViewRevisions(id => !closed && supervisor.state(id)?.status === "running");
-  // The Host and the plugin itself (`services.ui.invalidate`, PG-061) bump the same count; only a running plugin's moves.
   const { invalidateView, viewRevision, waitForView } = views;
-  // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
-  // carries the same plugin_id is given none.
   const installations = openPluginInstallationDirectory(options.db, records, pluginId => supervisor.manifest(pluginId));
   const isDualDefinition = (definition: PluginDefinition): boolean => identity.dualInstance(definition) || isDualSandboxDefinition(definition);
   const isDualId = (pluginId: string): boolean => identity.dualInstanceId(pluginId) || isDualSandboxPlugin(supervisor, records, pluginId);
   const executor = new PluginHostExecutor({
-    installations: installations.client,
-    record: installId => records.get(installId),
-    invalidateView,
-    providerFor, localePacks: identity.localePacks,
-    databaseFor: identity.databaseFor,
-    dualInstance: isDualDefinition,
+    installations: installations.client, record: installId => records.get(installId), invalidateView,
+    providerFor, localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.projects ? { projects: options.projects } : {}),
     ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
     ...(options.sourcePullGit ? { sourcePullGit: options.sourcePullGit } : {}),
     ...(options.sourcePullIntegrations ? { sourcePullIntegrations: options.sourcePullIntegrations } : {}),
-    project_id: options.project_id,
-    actor_id: options.actor_id,
-    artifacts: options.artifacts,
-    processItems: options.processItems,
-    actions: options.actions,
-    home: options.home,
-    ui: options.ui,
-    privateStorageFor: options.privateStorageFor,
-    deleteInstallationData: options.deleteInstallationData,
-    capturePrivateData: options.capturePrivateData,
-    restorePrivateData: options.restorePrivateData,
+    project_id: options.project_id, actor_id: options.actor_id, artifacts: options.artifacts, processItems: options.processItems,
+    actions: options.actions, home: options.home, ui: options.ui, privateStorageFor: options.privateStorageFor,
+    deleteInstallationData: options.deleteInstallationData, capturePrivateData: options.capturePrivateData, restorePrivateData: options.restorePrivateData,
   });
-  const dualHomeRunning = (record: PluginInstanceRecord): boolean => {
-    if (!isDualId(record.plugin_id)) return true;
-    if (!options.home) return false;
-    if (options.home.dualHomeRunning) return options.home.dualHomeRunning(record);
-    try { options.home.capturePermission(record, "storage:private"); return true; } catch { return false; }
-  };
-  const effectiveGrants = (record: PluginInstanceRecord): readonly string[] => {
-    if (!isDualId(record.plugin_id)) return record.grants;
-    if (!dualHomeRunning(record)) return [];
-    return record.grants.filter(permission => {
-      try { runtime.capturePermission(record.install_id, permission); return true; } catch { return false; }
-    });
-  };
-  // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
+  const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
+  const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
     { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: options.db, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
-      // S-48: dual-instance project halves (built-in and pinned sandbox) cannot exceed Home optional permissions.
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions, {
@@ -247,112 +276,41 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
-  // What this project's installs declare is read from its supervisor while the platform is open: for display (all projects together)
-  // and, for the writes in this project, by this project's database alone. A closed connection cannot answer, so a view over it is
-  // as gone as one whose coordination closed: the Host closes coordination first, but a store closed on its own must not make every
-  // other project's read of the shared directory throw.
   const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);
   const unwatchArtifacts = installedArtifacts.watch(artifactView), unbindArtifacts = bindProjectArtifacts(options.db, artifactView);
   const wiring = new PluginInputGraph({
-    projectId: options.project_id,
-    lifecycle: supervisor,
-    canReadCommitted: () => options.db.inTransaction !== true,
-    repository: new SqlitePluginWiringRepository(options.db), systemSources: SYSTEM_OUTPUT_SOURCES, // and the platform's materials service
-    // A port carries a process item it recorded, or a 成果 it pinned and selected.
+    projectId: options.project_id, lifecycle: supervisor, canReadCommitted: () => options.db.inTransaction !== true,
+    repository: new SqlitePluginWiringRepository(options.db), systemSources: SYSTEM_OUTPUT_SOURCES,
     artifacts: {
-      read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)
-        ?? options.artifacts.query.getArtifactVersion(options.project_id, reference),
-      // Someone can give an input port a fixed version from the 成果库, never a process item.
+      read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference) ?? options.artifacts.query.getArtifactVersion(options.project_id, reference),
       library: (reference) => options.artifacts.query.getArtifactVersion(options.project_id, reference),
     },
   });
-  const events = new PluginEventBus({
-    projectId: options.project_id,
-    lifecycle: supervisor,
-    repository: new SqlitePluginEventsRepository(options.db),
-  });
+  const events = new PluginEventBus({ projectId: options.project_id, lifecycle: supervisor, repository: new SqlitePluginEventsRepository(options.db) });
   const hostEvents = new PluginHostEvents({ projectId: options.project_id, lifecycle: supervisor });
-  executor.attach({
-    events,
-    hostEvents,
-    wiring,
-    ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }),
-    scopeKey: options.scopeKey ?? options.project_id,
-  });
-
-  // Work queued for a Plugin survives a restart of that Plugin, so replay what
-  // it never acknowledged once it is running again.
+  executor.attach({ events, hostEvents, wiring, ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }), scopeKey: options.scopeKey ?? options.project_id });
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
-    wiring.revoke(pluginId);
-    wiring.evaluate(pluginId);
-    void events.resume(options.project_id);
+    wiring.revoke(pluginId); wiring.evaluate(pluginId); void events.resume(options.project_id);
   });
-
   return {
-    runtime,
-    invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
-    supervisor,
-    events,
-    hostEvents,
-    wiring,
-    invalidateView, viewRevision, waitForView,
+    runtime, invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
+    supervisor, events, hostEvents, wiring, invalidateView, viewRevision, waitForView,
     stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     async closeCoordination() {
       closed = true; views.close(); installations.dispose(); unwatchArtifacts(); unbindArtifacts();
-      stopArtifactRefresh?.();
-      detachActivation();
-      await wiring.close();
-      await events.close();
-      await hostEvents.close();
+      stopArtifactRefresh?.(); detachActivation();
+      await wiring.close(); await events.close(); await hostEvents.close();
     },
-    dualInstance: isDualId,
-    dualHomeRunning,
-    effectiveGrants,
-    router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
-      const manifest = supervisor.manifest(state.plugin_id);
-      return manifest ? [manifest] : [];
-    }), { capturePermission: (pluginId, permission) => {
-      const state = supervisor.state(pluginId);
-      const current = state?.install_id ? records.get(state.install_id) : undefined;
-      const allPermissions = [...(supervisor.manifest(pluginId)?.permissions ?? []), ...(current ? projectedPermissionsOf(current) : [])];
-      if (!isDualId(pluginId) || !allPermissions.some(item => item.permission === permission && item.required === false)) return () => {};
-      if (!state?.install_id) throw pluginErrors.grant_denied("插件权限当前不可用");
-      return runtime.capturePermission(state.install_id, permission);
-    } }),
-    consents,
-    upgradeCandidates: () => supervisor.upgradeCandidates(),
-    upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
+    dualInstance: isDualId, dualHomeRunning, effectiveGrants,
+    router: () => buildPlatformRouter(supervisor, runtime, records, isDualId),
+    consents, upgradeCandidates: () => supervisor.upgradeCandidates(),
+    upgrade: (pluginId, definition, opt) => supervisor.upgrade(pluginId, definition, opt),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    async start(entries, control) {
-      control?.assertCurrent?.();
-      // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
-      const listed = new Set<string>();
-      for (const { definition } of entries) {
-        if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
-        listed.add(definition.manifest.plugin_id);
-      }
-      assertDatabaseEntries(entries, options.home, "project");
-      assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
-      identity.remember(entries);
-      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)), control);
-      control?.assertCurrent?.();
-      // Deliver whatever was already bound and published before this process.
-      wiring.evaluateAll();
-      await events.resume(options.project_id);
-      await initializeDemoPlugins({ home: options.home?.directory, projectId: options.project_id, actorId: options.actor_id, client: options.actions.client,
-        assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
-          const state = supervisor.state(entry.definition.manifest.plugin_id);
-          if (!state?.install_id || state.status !== "running") return [];
-          const installId = state.install_id;
-          return [{ manifest: entry.definition.manifest, providerId: providerFor(entry.definition, installId),
-            current: () => !closed && supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
-        }) });
-      return report;
-    },
+    start: (entries, control) => startPlatformEntries({ options, identity, supervisor, wiring, events, closed: () => closed }, entries, control),
   };
 }
 

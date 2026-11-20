@@ -34,7 +34,7 @@
 | 创作台生成的插件（沙箱进程） | `plugin:<插件 id>`，`actor_kind` 为 `runtime`，受众 `plugin`（`apps/local-host/src/plugin-builder/catalog.ts` 的 `catalogCapabilities`） | 每次调用只带被调那一项能力自己的权限，先由沙箱 broker 对照该安装的 grant；能调用的是目录里对 `plugin` 受众开放的能力：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外（`actionReachesAudience`），不限于自己声明的动作 | 同上 | 抛给沙箱里的插件代码；不确定的结局报 `unknown` | 沿用调起这次操作的编号：沙箱在 `call()` 记下当时的异步上下文，SDK 调用在其中重进，同一次操作里的调用同号 |
 | 工作流 | 沿用触发运行的调用者，Workflows 插件把受众改成 `workflow` | 调用者原有的权限 | 同上 | 步骤状态 | 内核补：沿用此刻打开的作用域里的编号，没有就新生成；比触发它的请求活得久的步骤拿到新编号 |
 | 后台定时器 | 到期拉取（连同它触发的判断）：`web-user`，`user`，权限为本机用户的权限集（`LOCAL_OWNER_PERMISSIONS`）；Schedule 唤醒投递提醒或定时操作结果后的判断（项目运行环境打开时装配的触发器）：`workflow-events`，`workflow` | 前者是权限集，后者是触发器写死的权限串 | 到期拉取是 concurrent | 只记在来源状态与事件里 | 每次一个新编号：Feed 的每次拉取、Schedule 的每次 tick、助理的两个定时器各开自己的作用域；Schedule 到点跑的 Agent 一轮沿用那次 tick 的编号 |
-| CLI（`molis-work v1`） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`，出处 `management`：Host 造的受保护审阅管理调用者（`apps/local-host/src/project-approvals-callers.ts`），只开放 `project.approvals.request.read@1` 与 `project.approvals.request.decide@1` | 该审阅动作自己的权限，`allowed_actions` 钉在这两个平台审批动作上（旧 Goals 专用 CLI 命令与 `goal-callers.ts` 已随第 44 批删除） | 进程内的 `LocalHost` 队列（已连常驻宿主时转发） | 命令行 `错误: …` | 一条命令一个（`runV1Cli` 打开作用域），命令里的调用同号；命令行进程没有调用记录，不打印 |
+| CLI（`molis-work v1`） | `web-user`（`LOCAL_PERSON_ACTOR_ID`），`user`，出处 `management`：Host 造的受保护审阅管理调用者（`apps/local-host/src/management-actions.ts` 的 `bindManagementActions`），只开放 `project.approvals.request.read@1` 与 `project.approvals.request.decide@1` | 该审阅动作自己的权限，`allowed_actions` 钉在这两个平台审批动作上（旧 Goals 专用 CLI 命令与 `goal-callers.ts` 已随第 44 批删除） | 进程内的 `LocalHost` 队列（已连常驻宿主时转发） | 命令行 `错误: …` | 一条命令一个（`runV1Cli` 打开作用域），命令里的调用同号；命令行进程没有调用记录，不打印 |
 
 ## 2. 链 1：界面操作 → 事件 → 界面刷新
 

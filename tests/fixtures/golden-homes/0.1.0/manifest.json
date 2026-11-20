@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.0",
-  "commit": "926ace60e36124ed0ffe6688c5922037b13e6061",
+  "commit": "610b27ff8f39e02ea13aa044f543bc0e474d81e9",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -615,7 +615,7 @@
         "skill_uses": 0,
         "sqlite_sequence": 0
       },
-      "sha256": "11a77df13ccbc5edbcb18ee72be3cad3ed0cdb8f4da8c66e5cc612fba745effb"
+      "sha256": "565bbdc276dc0fa5fb5bd36fcdfa193d3590ae3c3ece4528dadb9fdcdd840f83"
     },
     {
       "path": "agent-runtime/records.sqlite",
@@ -1321,8 +1321,8 @@
         "plugin_runtime_installs": 9,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "f9a2c7c234e53e725ced3ad5e59f78a874d437732f3d6db6ad6a006453b6fa46",
-      "expanded_sha256": "deb0de42ba9f390f176a94b80ec320af1db2b8044d922135c217cc9e1135b241"
+      "sha256": "27aebf843dd426d6893587fd87165f78f63cc819548e5d524376a4df1827f1d5",
+      "expanded_sha256": "9306b343a6556ca1548cb0576f7496ba652ddc01b12be58ea3158e5c942ab90e"
     },
     {
       "path": "ppt/ppt.db",
@@ -1589,8 +1589,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "114f1275cb6994ba16b27abe5cd5aba0f953741a29d80e6f724783360332dd39",
-      "expanded_sha256": "8e5b6a05264021c5c064c9415c81b6883d29fb5b7706d01de5083974950386ab"
+      "sha256": "0a82df8e9933565caa4a3f6dbe19b304332db7f47a5983bfc82cbb3d3709209e",
+      "expanded_sha256": "61c0c77305e57af560a0253a0d9eae2e372dc5729dfb71d514fe389f34b74560"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1795,8 +1795,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "b0bee612b9afa6c3c202b896bd5937bac6da451f4b6c4bdb2e455e729a091206",
-      "expanded_sha256": "8ce91295f14037f37ea218ed0210d191b0742550d88a60a74e2545efcb5393bd"
+      "sha256": "25e666141416d13d76156c14ea0f1d912e672c61b83e81e85b1c0e5d948b3d69",
+      "expanded_sha256": "c9f8819efc992db79be7e29eefc8bcfb59b321f1ab5268b9340190a687ea1f46"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -2001,8 +2001,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "2bb0d4afe5379caaa2a2c57dd64fe74d0f5a1cf7e8f29c5e243168bcc631bbb6",
-      "expanded_sha256": "7ba7f681020875018d601d6fb8d48c68c649e1a2d6b78ec54036b728a1c33ba4"
+      "sha256": "9f4241e32ce9bec4979ad661068383f4587ce1a3103bdead9fb97cb02525ff87",
+      "expanded_sha256": "2a18104f6a0c2d7b659385168d3a6104d3ce049f2abeb7a5af49d3335beddbff"
     },
     {
       "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db",
@@ -2207,8 +2207,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "10e290062531b66b5230a432335347413d9fbc2af681a26be43dfd0beebf14a1",
-      "expanded_sha256": "e274f53b98e61e0c6d458e10938503d11fb845e148dae9e26e2cef6bb1670554"
+      "sha256": "077c36ab8b2a0126d42a76ce5369f0d93f1aeee8592937fb124111a56ca0d261",
+      "expanded_sha256": "61b7d1805d532748f48763d3ca69ff278bb02d0f24cc2d46d5bbc8a5cae3c503"
     },
     {
       "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
@@ -2828,8 +2828,8 @@
         "plugin_runtime_installs": 8,
         "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "5e3ee34f08210f8ade7d26edcaf321449490d078ef5d5aa60c54a7ab316946a3",
-      "expanded_sha256": "e5d3cde59ffbd4740e88f148d0ec0140aa7a6f0471c5d8e234db4d0ea954f78a"
+      "sha256": "28b088a8e12bb56c1214f13848f30f6daec4bb0a7f1eb120bd1db99d0863e053",
+      "expanded_sha256": "887925acfb3e36439c57f8c839acd35d31cca66760c2d8f4a5a5b9b34512ef02"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
@@ -3096,8 +3096,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "655a48f7472eb5e06f83b906f952bc635a6f66e2cc4a738326cb7ce5fa65ec9f",
-      "expanded_sha256": "e30211ba0c646c3bb3dd734b6011e01d1b129234d88ed4b7ad51011057864a36"
+      "sha256": "6c3bc66ac532262c4af3210f077adf7d0f793b462d712215ff2648008c9f6195",
+      "expanded_sha256": "a827c082455d6783e653090d01b5d6152c1e42591009c89c3a764935444b45c9"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db",
@@ -3302,15 +3302,15 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "00ea346341c884842be0a2af4cc1dafed021e6f243fa702efa687d7f4f09d120",
-      "expanded_sha256": "c831771d447c64735cdc38140581aaa8cc73861028b98497d135ba9956dfa601"
+      "sha256": "2e20ad6e6f8320a1e477d443f0a785e85cb427c7717fce6ebc5f782d71a8436d",
+      "expanded_sha256": "337267ee8d841e12fc9112da50554079001aba101ded47ae78564a3d9c50b2d2"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
       "owner": "modules/sync-replication",
       "mode": 384,
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db.sql",
-      "schema_version": 1,
+      "schema_version": 2,
       "tables": {
         "molis_storage_space": 1,
         "sync_blob_parts": 0,
@@ -3321,7 +3321,7 @@
         "sync_policy": 0,
         "sync_stream_cursors": 0
       },
-      "sha256": "8b5840f0172ba9252b83e94e63acb7b89d836e8ef1951723c7ed21084aaaef9e"
+      "sha256": "a962254f546b520cb0f931c29bd856178b238e3861276d201c8cdfea0d05345d"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db",
@@ -3647,7 +3647,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-6gu5w.json",
       "size": 21630,
-      "sha256": "937393d0a5ddf6032b921f94e9901eedd099a624222459cf96e6f59bd894dfb7"
+      "sha256": "49ab8f759f6d55546a84001659bb61249f648dee93c03e3d96bb8d304ed85843"
     },
     {
       "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/2a8f858b8f74baacaba725940596a44185a475642a011bda3c2dc2ba05c1e4db.json",
@@ -3977,19 +3977,19 @@
   "product_version": "0.1.0",
   "module_sources": [
     {
-      "digest": "0c47a4034f7e5683f164a42281be0cc2e2585e0cc2c80f28bc4a6632606f8147",
-      "payload": "files/module-sources/0c47a4034f7e5683f164a42281be0cc2e2585e0cc2c80f28bc4a6632606f8147.br",
-      "bytes": 375687
+      "digest": "0103d37d0c30c48896bdc2f6901df0bf69a8af48fb3fcb31522df4e265018247",
+      "payload": "files/module-sources/0103d37d0c30c48896bdc2f6901df0bf69a8af48fb3fcb31522df4e265018247.br",
+      "bytes": 1377198
     },
     {
-      "digest": "12a3f4443d820207710bb14c010a2925f01210c7b467d5adaee6ffa1d1e705a8",
-      "payload": "files/module-sources/12a3f4443d820207710bb14c010a2925f01210c7b467d5adaee6ffa1d1e705a8.br",
-      "bytes": 813730
+      "digest": "03538c421415ea518132efcd28dab5f117345954e9e34363cf646bf63913746f",
+      "payload": "files/module-sources/03538c421415ea518132efcd28dab5f117345954e9e34363cf646bf63913746f.br",
+      "bytes": 220884
     },
     {
-      "digest": "20487813a03047a875d404b93858c1c601af6da367ed7e1e6f46a7f724e78c5a",
-      "payload": "files/module-sources/20487813a03047a875d404b93858c1c601af6da367ed7e1e6f46a7f724e78c5a.br",
-      "bytes": 186547
+      "digest": "0b16b01949416c7d9b21d846ec191efd659b4155a1dc0ec6b7bc03b1ba59f983",
+      "payload": "files/module-sources/0b16b01949416c7d9b21d846ec191efd659b4155a1dc0ec6b7bc03b1ba59f983.br",
+      "bytes": 381417
     },
     {
       "digest": "238faa4a52eba87be418e0fb1d7a5adcfc2bd8d666560566fe8f0c8bf9f601c5",
@@ -3997,24 +3997,14 @@
       "bytes": 2220441
     },
     {
-      "digest": "2caf7061c4d289e31bec1e8df831bd9c1a741bcf00f1ad6f6f1b991037a723c8",
-      "payload": "files/module-sources/2caf7061c4d289e31bec1e8df831bd9c1a741bcf00f1ad6f6f1b991037a723c8.br",
-      "bytes": 1371460
+      "digest": "28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e",
+      "payload": "files/module-sources/28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e.br",
+      "bytes": 161728
     },
     {
-      "digest": "2e0996404298d3d66647eb4ec0a7e671982c7afea82773aaa79435787242a8dd",
-      "payload": "files/module-sources/2e0996404298d3d66647eb4ec0a7e671982c7afea82773aaa79435787242a8dd.br",
-      "bytes": 1320331
-    },
-    {
-      "digest": "33f1bc7cff8b4cc5b8a06bf30432ff277ab7d896a5aeb8655bf983173f5a04fd",
-      "payload": "files/module-sources/33f1bc7cff8b4cc5b8a06bf30432ff277ab7d896a5aeb8655bf983173f5a04fd.br",
-      "bytes": 274617
-    },
-    {
-      "digest": "352be38023db7967b5dc3396b1cde64c32463056d81dc2c510eb0b7f94881ad6",
-      "payload": "files/module-sources/352be38023db7967b5dc3396b1cde64c32463056d81dc2c510eb0b7f94881ad6.br",
-      "bytes": 156000
+      "digest": "351d3eeb14341371bfc558d917aab9548483996d21cdb602c9c116d1125bf8be",
+      "payload": "files/module-sources/351d3eeb14341371bfc558d917aab9548483996d21cdb602c9c116d1125bf8be.br",
+      "bytes": 1320350
     },
     {
       "digest": "3fcec1888dfa5f8328a4f7cc25330b173dcf6ab410ff04c0b5096be7ed20b088",
@@ -4027,19 +4017,9 @@
       "bytes": 122156
     },
     {
-      "digest": "66a4f8f4afe82269f2723222443e0db2528b60dc75dec1e406bce8fe345cd2c5",
-      "payload": "files/module-sources/66a4f8f4afe82269f2723222443e0db2528b60dc75dec1e406bce8fe345cd2c5.br",
-      "bytes": 290821
-    },
-    {
-      "digest": "744b7d19e7efccfecc2bb90114794806df51a6fae648412c5ac16fb6c0d812fd",
-      "payload": "files/module-sources/744b7d19e7efccfecc2bb90114794806df51a6fae648412c5ac16fb6c0d812fd.br",
-      "bytes": 142087
-    },
-    {
-      "digest": "74afbe01f1c059cba2e68633b85850698a8b56fabf664e04f9d441e51788cf33",
-      "payload": "files/module-sources/74afbe01f1c059cba2e68633b85850698a8b56fabf664e04f9d441e51788cf33.br",
-      "bytes": 215156
+      "digest": "8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f",
+      "payload": "files/module-sources/8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f.br",
+      "bytes": 235194
     },
     {
       "digest": "8944eb3cdbdb61f83ae062399b6b03d92d0bad5600160d4da2f49b0d56ebf6f9",
@@ -4052,14 +4032,14 @@
       "bytes": 164557
     },
     {
+      "digest": "933996e1960217ac40316f40b955b7b0c8d1cd18ca1ea7cf638b39d650e42343",
+      "payload": "files/module-sources/933996e1960217ac40316f40b955b7b0c8d1cd18ca1ea7cf638b39d650e42343.br",
+      "bytes": 147845
+    },
+    {
       "digest": "96056c6a38ac0d282b18a6c784e7d35ba0a75fd113c7914737115f05804211a6",
       "payload": "files/module-sources/96056c6a38ac0d282b18a6c784e7d35ba0a75fd113c7914737115f05804211a6.br",
       "bytes": 86579
-    },
-    {
-      "digest": "9701e01169837d533a67e141d221cfce6f035261beb92aed2a182f899cfbacfb",
-      "payload": "files/module-sources/9701e01169837d533a67e141d221cfce6f035261beb92aed2a182f899cfbacfb.br",
-      "bytes": 229454
     },
     {
       "digest": "a3aca2fc1c6fadbbb17f6f0834aa7fc1530c3365186f6a8a02df07b62ba0d270",
@@ -4072,9 +4052,29 @@
       "bytes": 234385
     },
     {
-      "digest": "d3ea982eef756bac961c7f48ed5c4315d9c0b3c2438891b7a489f6effcedf919",
-      "payload": "files/module-sources/d3ea982eef756bac961c7f48ed5c4315d9c0b3c2438891b7a489f6effcedf919.br",
-      "bytes": 170905
+      "digest": "ab330492e519e3939b5be57941ce78652f1c685e9b0fc1a861b1b50d7ae008fc",
+      "payload": "files/module-sources/ab330492e519e3939b5be57941ce78652f1c685e9b0fc1a861b1b50d7ae008fc.br",
+      "bytes": 231038
+    },
+    {
+      "digest": "bb79ba05b06a859ae3524943688a594b4a81d9d97698697d460ccdc3d9f957ca",
+      "payload": "files/module-sources/bb79ba05b06a859ae3524943688a594b4a81d9d97698697d460ccdc3d9f957ca.br",
+      "bytes": 296573
+    },
+    {
+      "digest": "c19e5ff6f8b80850e81c5a9e301dbe12183945d536eae0e75f3a0e77f444ea6f",
+      "payload": "files/module-sources/c19e5ff6f8b80850e81c5a9e301dbe12183945d536eae0e75f3a0e77f444ea6f.br",
+      "bytes": 819460
+    },
+    {
+      "digest": "d311847682cfa063f26cd1339bc3768031e8a858cb238ba82083e3717c317168",
+      "payload": "files/module-sources/d311847682cfa063f26cd1339bc3768031e8a858cb238ba82083e3717c317168.br",
+      "bytes": 174583
+    },
+    {
+      "digest": "dabb5517e5badb7c1bbe48b421a9356d1faa0b69d3c578f3c9802c97142337c0",
+      "payload": "files/module-sources/dabb5517e5badb7c1bbe48b421a9356d1faa0b69d3c578f3c9802c97142337c0.br",
+      "bytes": 192277
     },
     {
       "digest": "de4e9bac183062f82adc7c7311b41b361b0c3629d9c2dc5413942a9557ea6419",
@@ -4082,14 +4082,14 @@
       "bytes": 190332
     },
     {
+      "digest": "e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c",
+      "payload": "files/module-sources/e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c.br",
+      "bytes": 176633
+    },
+    {
       "digest": "e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78",
       "payload": "files/module-sources/e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78.br",
       "bytes": 216660
-    },
-    {
-      "digest": "e9f2d09f5f527de34a3d0fe0215c06b42e7968316c1a06e97601755da238e8f1",
-      "payload": "files/module-sources/e9f2d09f5f527de34a3d0fe0215c06b42e7968316c1a06e97601755da238e8f1.br",
-      "bytes": 225303
     },
     {
       "digest": "ecdfdeff7f43f531bd8dd1215b26fd4ab4db4e163cc6323341faed40f98730fe",
@@ -4097,9 +4097,9 @@
       "bytes": 190797
     },
     {
-      "digest": "ffd9d80c9250ac631b376b5563372b426015a3323994aa22289c1312d8adce3d",
-      "payload": "files/module-sources/ffd9d80c9250ac631b376b5563372b426015a3323994aa22289c1312d8adce3d.br",
-      "bytes": 168855
+      "digest": "f14fdb267e018070d9e63b6c28a81adb7f482a7353bdaa732ea20a359c00da7c",
+      "payload": "files/module-sources/f14fdb267e018070d9e63b6c28a81adb7f482a7353bdaa732ea20a359c00da7c.br",
+      "bytes": 280362
     }
   ],
   "release_manifests": [

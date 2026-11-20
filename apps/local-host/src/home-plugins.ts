@@ -91,23 +91,11 @@ export class HomePluginHost {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
     if (!start) return this.platform ? Promise.resolve(this.platform) : Promise.reject(languagePreviewUnavailable());
     if (inLanguagePreview() && !this.opening) return Promise.reject(languagePreviewUnavailable());
-    return this.opening ??= this.open();
+    return this.opening ??= this.start();
   }
   retry(): Promise<HomePluginPlatform> {
     if (this.closed || !this.retryable) return this.ready();
-    return this.opening = this.open();
-  }
-  private async open(): Promise<HomePluginPlatform> {
-    this.retryable = false; this.startFailure = undefined;
-    try { return await this.start(); }
-    catch (error) {
-      this.startFailure = error;
-      // A failed cleanup must not allow a second instance beside unreleased resources.
-      try { await this.release(); }
-      catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与清理失败"); }
-      this.retryable = true;
-      throw error;
-    }
+    return this.opening = this.start();
   }
   /**
    * The plugins registered in the Home, as its pages and routes find them (#679, S-31): the start list's entries, the Host's
@@ -226,26 +214,12 @@ export class HomePluginHost {
   }
   /** Whether the matching Home half of a dual-instance plugin is currently running (S-48, PEQ-06). */
   dualHomeRunning(project: PluginInstanceRecord): boolean {
-    if (this.closed || !this.platform) return false;
-    const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";
-    const home = this.installation(pinnedSandbox ? project.plugin_id : project.install_id);
-    const sameIdentity = pinnedSandbox
-      ? Boolean(home && home.publisher_trust === "pinned" && home.execution === "sandbox")
-      : Boolean(home && home.install_id === project.install_id);
-    return Boolean(home && sameIdentity && this.dualInstance(project.plugin_id) && home.plugin_id === project.plugin_id
-      && home.publisher_id === project.publisher_id && home.publisher_signature === project.publisher_signature && home.state === "running");
+    return !this.closed && Boolean(this.platform && matchingDualHomeRecord(this, project));
   }
   /** Only the matching trusted project half may use this Home activation as its optional permission upper bound. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void {
-    const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";
-    const home = this.installation(pinnedSandbox ? project.plugin_id : project.install_id);
-    const sameIdentity = pinnedSandbox
-      ? Boolean(home && home.publisher_trust === "pinned" && home.execution === "sandbox")
-      : Boolean(home && home.install_id === project.install_id);
-    if (!home || !sameIdentity || !this.dualInstance(project.plugin_id) || home.plugin_id !== project.plugin_id
-      || home.publisher_id !== project.publisher_id || home.publisher_signature !== project.publisher_signature || home.state !== "running" || !this.platform) {
-      throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
-    }
+    const home = matchingDualHomeRecord(this, project);
+    if (!home || !this.platform) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
     const check = this.platform.runtime.capturePermission(home.install_id, permission);
     return () => {
       if (this.installation(home.install_id)?.state !== "running") throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
@@ -290,79 +264,130 @@ export class HomePluginHost {
     if (failures.length) throw new AggregateError(failures, "Home 插件关闭失败");
   }
   private async start(): Promise<HomePluginPlatform> {
-    const identity = pluginEntryIdentity();
-    const shipped = this.options.entries.map(entry => {
-      const binding = { trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance };
-      const loaded: ReturnType<typeof registeredNativePlugin> = registeredNativePlugin(entry, definition => identity.remember([{ ...binding, definition, localePacks: loaded.localePacks }]));
-      return { ...loaded, ...binding };
-    });
-    const entries = [...shipped, ...pluginFixtureEntries(this.options.fixtures ?? [])];
-    const ids = new Set<string>();
-    for (const entry of entries) {
-      if (ids.has(entry.definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
-      ids.add(entry.definition.manifest.plugin_id);
+    this.retryable = false; this.startFailure = undefined;
+    try {
+      const started = await startHomePlatformRuntime({
+        options: this.options, views: this.views, installationScope: this.installationScope,
+        active: () => !this.closed, closed: () => this.closed || this.options.ownerClosing?.() === true,
+        setLive: live => {
+          this.db = live.db; this.executor = live.executor; this.platform = live.platform;
+          this.releaseProjectOwners = live.releaseProjectOwners; this.installationDirectory = live.installationDirectory;
+          this.unwatchArtifacts = live.unwatchArtifacts;
+        },
+      });
+      this.installed = started.installed;
+      return started.platform;
+    } catch (error) {
+      this.startFailure = error;
+      // A failed cleanup must not allow a second instance beside unreleased resources.
+      try { await this.release(); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与清理失败"); }
+      this.retryable = true;
+      throw error;
     }
-    const home = pluginHomeFor(this.options.home);
-    assertOwnerFilesEntries(entries, fixtureDeclarationsFor(this.options.home, "project"), home);
-    assertDatabaseEntries(entries, home, "home");
-    assertModelConfigurationEntries(entries, home);
-    assertImageGenerationEntries(entries, home);
-    assertProjectCleanupEntries(entries);
-    identity.remember(entries);
-    const { db, storage } = openHomePluginStore(this.options.home);
-    this.db = db;
-    const repository = pluginInstallRecords(db);
-    const isDualDefinition = (definition: PluginDefinition): boolean =>
-      identity.dualInstance(definition) || (definition.execution === "sandbox" && definition.manifest.runtime?.scope === "home" && definition.manifest.runtime.dual_instance === true);
-    const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
-      invalidateView: pluginId => this.platform?.invalidateView(pluginId), wakeView: id => this.views.wake(id), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
-      modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor, dualInstance: isDualDefinition, localePacks: identity.localePacks });
-    // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const ledger = new SqlitePluginConsentLedger(db);
-    recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
-      assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, this.installationScope.catalog(), runtime, rollback),
-      redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
-      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
-        register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
-          { registry: this.options.registry, client: this.options.client, project_id: null }),
-        ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
-    this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
-      definition: entry.definition, project_data: identity.projectDataFor(entry.definition), localePacks: identity.localePacks(entry.definition),
-    })), executor);
-    const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
-    this.installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));
-    this.unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, () => !this.closed));
-    this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
-      invalidateView: this.views.invalidateView, viewRevision: this.views.viewRevision, waitForView: this.views.waitForView,
-      router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
-        const manifest = supervisor.manifest(state.plugin_id);
-        return manifest ? [manifest] : [];
-      })) };
-    await supervisor.start(entries.map(entry => ({ ...entry,
-      enabled: !repository.list().some(record => record.plugin_id === entry.definition.manifest.plugin_id && ["disabled", "uninstalled"].includes(record.state)),
-    })));
-    const platform = this.platform;
-    // The packages installed in the Home start after the Host's own plugins, each on its own: one that cannot start leaves its reason and nothing else less (BL-628).
-    // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
-    this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
-      db, privateStorage: storage, closed: () => this.closed || this.options.ownerClosing?.() === true, projectActions: this.options.projectActions,
-      // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
-      integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
-      platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-        start: async (started, control) => {
-          control?.assertCurrent?.();
-          const listed = new Set<string>();
-          for (const { definition, trust } of started) {
-            if (definition.execution !== "sandbox" || trust?.level !== "pinned") throw pluginErrors.home_scope_unavailable("Home 里只有来自已固定发布者的沙箱包才能这样启动");
-            if (listed.has(definition.manifest.plugin_id) || ids.has(definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
-            listed.add(definition.manifest.plugin_id);
-          }
-          return supervisor.start(started, control);
-        } } });
-    return platform;
   }
+}
+
+function matchingDualHomeRecord(
+  host: { installation(providerId: string): PluginInstanceRecord | null; dualInstance(pluginId: string): boolean },
+  project: PluginInstanceRecord,
+): PluginInstanceRecord | null {
+  const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";
+  const home = host.installation(pinnedSandbox ? project.plugin_id : project.install_id);
+  const sameIdentity = pinnedSandbox
+    ? Boolean(home && home.publisher_trust === "pinned" && home.execution === "sandbox")
+    : Boolean(home && home.install_id === project.install_id);
+  return home && sameIdentity && host.dualInstance(project.plugin_id) && home.plugin_id === project.plugin_id
+    && home.publisher_id === project.publisher_id && home.publisher_signature === project.publisher_signature && home.state === "running"
+    ? home : null;
+}
+
+async function startHomePlatformRuntime(input: {
+  options: ConstructorParameters<typeof HomePluginHost>[0];
+  views: PluginViewRevisions;
+  installationScope: ReturnType<typeof createHomeInstallationScope>;
+  active(): boolean;
+  closed(): boolean;
+  setLive(live: {
+    db: ReturnType<typeof openHomePluginStore>["db"];
+    executor: HomePluginExecutor;
+    platform: HomePluginPlatform;
+    releaseProjectOwners: () => void;
+    installationDirectory: ReturnType<typeof openPluginInstallationDirectory>;
+    unwatchArtifacts: () => void;
+  }): void;
+}): Promise<{ platform: HomePluginPlatform; installed: HomeInstalledPlugins }> {
+  const { options, views, installationScope } = input;
+  const identity = pluginEntryIdentity();
+  const shipped = options.entries.map(entry => {
+    const binding = { trust: HOST_BUILD_TRUST, project_data: entry.project_data, dual_instance: entry.dual_instance };
+    const loaded: ReturnType<typeof registeredNativePlugin> = registeredNativePlugin(entry, definition => identity.remember([{ ...binding, definition, localePacks: loaded.localePacks }]));
+    return { ...loaded, ...binding };
+  });
+  const entries = [...shipped, ...pluginFixtureEntries(options.fixtures ?? [])];
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    if (ids.has(entry.definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
+    ids.add(entry.definition.manifest.plugin_id);
+  }
+  const home = pluginHomeFor(options.home);
+  assertOwnerFilesEntries(entries, fixtureDeclarationsFor(options.home, "project"), home);
+  assertDatabaseEntries(entries, home, "home");
+  assertModelConfigurationEntries(entries, home);
+  assertImageGenerationEntries(entries, home);
+  assertProjectCleanupEntries(entries);
+  identity.remember(entries);
+  const { db, storage } = openHomePluginStore(options.home);
+  const repository = pluginInstallRecords(db);
+  const isDualDefinition = (definition: PluginDefinition): boolean =>
+    identity.dualInstance(definition) || (definition.execution === "sandbox" && definition.manifest.runtime?.scope === "home" && definition.manifest.runtime.dual_instance === true);
+  let livePlatform: HomePluginPlatform | undefined;
+  let installationDirectory: ReturnType<typeof openPluginInstallationDirectory> | undefined;
+  const executor = new HomePluginExecutor({ ...options, storage, active: input.active, record: id => repository.get(id),
+    invalidateView: pluginId => livePlatform?.invalidateView(pluginId), wakeView: id => views.wake(id), installations: () => installationDirectory?.client, database: identity.databaseFor,
+    modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
+    providerFor: identity.providerFor, dualInstance: isDualDefinition, localePacks: identity.localePacks });
+  // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
+  const ledger = new SqlitePluginConsentLedger(db);
+  recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
+  const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+    assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, installationScope.catalog(), runtime, rollback),
+    redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
+    actions: { registry: options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
+      register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
+        { registry: options.registry, client: options.client, project_id: null }),
+      ...(options.projectReach ? { projectReach: options.projectReach } : {}) } });
+  const releaseProjectOwners = registerPluginProjectCleanup(options.home, runtime, entries.map(entry => ({
+    definition: entry.definition, project_data: identity.projectDataFor(entry.definition), localePacks: identity.localePacks(entry.definition),
+  })), executor);
+  const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
+  installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));
+  const unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, input.active));
+  const platform: HomePluginPlatform = livePlatform = { runtime, supervisor, upgrade: (pluginId, definition, opt) => supervisor.upgrade(pluginId, definition, opt),
+    invalidateView: views.invalidateView, viewRevision: views.viewRevision, waitForView: views.waitForView,
+    router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
+      const manifest = supervisor.manifest(state.plugin_id);
+      return manifest ? [manifest] : [];
+    })) };
+  input.setLive({ db, executor, platform, releaseProjectOwners, installationDirectory, unwatchArtifacts });
+  await supervisor.start(entries.map(entry => ({ ...entry,
+    enabled: !repository.list().some(record => record.plugin_id === entry.definition.manifest.plugin_id && ["disabled", "uninstalled"].includes(record.state)),
+  })));
+  const installed = await openHomeInstalledPlugins({ home: options.home, actorId: options.actorId, actions: { registry: options.registry, client: options.client, ...options.inspect ? { inspect: options.inspect } : {} },
+    db, privateStorage: storage, closed: input.closed, projectActions: options.projectActions,
+    integrations: { registry: () => homeIntegrationRegistry(options.home), connections: createCallConnectionsPort(options.home) },
+    platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
+      start: async (started, control) => {
+        control?.assertCurrent?.();
+        const listed = new Set<string>();
+        for (const { definition, trust } of started) {
+          if (definition.execution !== "sandbox" || trust?.level !== "pinned") throw pluginErrors.home_scope_unavailable("Home 里只有来自已固定发布者的沙箱包才能这样启动");
+          if (listed.has(definition.manifest.plugin_id) || ids.has(definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
+          listed.add(definition.manifest.plugin_id);
+        }
+        return supervisor.start(started, control);
+      } } });
+  return { platform, installed };
 }
 
 /** What a Home install is checked against: the Host's own plugins and fixtures as they start, over the Home's installed records. */

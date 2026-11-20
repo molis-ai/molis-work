@@ -44,7 +44,7 @@ projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	d1c505276d1b2bd
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-
 projects/catalog.db	apps/local-host	1	f704641f25a9cbb2	-
 server/server.sqlite	server	1	2c4efaa24415de5e	-
-sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
+sync/sync.db	modules/sync-replication	2	4ffa2f326552fc84	1
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-
 web-search/web-search.db	apps/local-host	1	8cc2e4721c5a1e6e	-
 work-brief/work-brief.db	io.molis.work.work-brief	1	57259b770650ee22	-

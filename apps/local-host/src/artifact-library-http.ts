@@ -135,39 +135,41 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+async function importArtifactJson(request: IncomingMessage, response: ServerResponse, context: ArtifactHttpContext): Promise<boolean> {
+  const stop = new AbortController();
+  const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+  const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
+  const input = await readArtifactImportBody(request);
+  // Preserve the established HTTP wire errors; the shared action contract
+  // still validates the complete input before any business operation.
+  if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
+    throw documentErrors.source_invalid("请选择支持的文档来源");
+  }
+  if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
+    throw documentErrors.content_invalid("请选择要导入的文件");
+  }
+  const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
+    const transport = on_progress ? { on_progress } : undefined;
+    const saved = input.source === "file"
+      ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
+      : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
+    const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
+    return { status: result.reused ? 200 : 201, body: result };
+  };
+  // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
+  if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
+  const result = await answer();
+  sendLocalWebJson(response, result.status, result.body);
+  return true;
+}
+
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
 export function createLocalArtifactHttp() {
   return async function handleArtifactNativePluginHttp(
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
   ): Promise<boolean> {
     try {
-      if (pathname === "/api/artifacts/import" && request.method === "POST") {
-        const stop = new AbortController();
-        const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
-        const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
-        const input = await readArtifactImportBody(request);
-        // Preserve the established HTTP wire errors; the shared action contract
-        // still validates the complete input before any business operation.
-        if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
-          throw documentErrors.source_invalid("请选择支持的文档来源");
-        }
-        if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
-          throw documentErrors.content_invalid("请选择要导入的文件");
-        }
-        const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
-          const transport = on_progress ? { on_progress } : undefined;
-          const saved = input.source === "file"
-            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
-            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
-          const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: result };
-        };
-        // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
-        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
-        const result = await answer();
-        sendLocalWebJson(response, result.status, result.body);
-        return true;
-      }
+      if (pathname === "/api/artifacts/import" && request.method === "POST") return importArtifactJson(request, response, context);
       if (pathname === "/api/artifacts/import/original" && request.method === "POST") { await importRawOriginal(request, response, context); return true; }
       // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
       if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {

@@ -486,23 +486,20 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       await takeAsInput(projectId, targetKind, goalId, view.object, data.get("mode") === "fixed");
       invalidate(); repaint();
       const goal = found.find((entry) => entry.project_id === projectId && entry.kind === targetKind && entry.goal_id === goalId);
-      // Open the target on whatever surface its owner declares rather than assuming one plugin name.
       const openTarget = async () => {
         try {
-          const targetView = await describe({ kind: targetKind, id: goalId, project_id: projectId }, false);
-          if (targetView?.open) {
-            if (targetView.open.surface === "goals") {
-              if (projectId === here()) { openItem(targetView.open.surface, targetView.open.id, goal ? goal.title : ""); if (host.openGoalWork) host.openGoalWork(); return; }
-              const url = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin);
-              url.searchParams.set("openPlugin", targetView.open.surface); url.searchParams.set("openItem", targetView.open.id); url.searchParams.set("openView", "work");
-              if (goal) url.searchParams.set("openTitle", goal.title);
-              location.assign(url.pathname + url.search);
-              return;
-            }
-            openObject(targetView.open, goal ? goal.title : targetView.title);
+          const next = await describe({ kind: targetKind, id: goalId, project_id: projectId }, false), open = next?.open;
+          if (!open) return;
+          if (open.surface === "goals") {
+            if (projectId === here()) { openItem(open.surface, open.id, goal ? goal.title : ""); host.openGoalWork?.(); return; }
+            const u = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin), q = u.searchParams;
+            q.set("openPlugin", open.surface); q.set("openItem", open.id); q.set("openView", "work");
+            if (goal) q.set("openTitle", goal.title);
+            location.assign(u.pathname + u.search);
             return;
           }
-        } catch {}
+          openObject(open, goal ? goal.title : next.title);
+        } catch { /* no-op */ }
       };
       card(readText("workbench.placement.linked-goal-goal", { goal: goal ? goal.title : "" }), readText("workbench.placement.open-goal-s-inputs-where-s-stored-doesn"),
         [{ label: readText("workbench.placement.open-goal"), primary: true, run: () => { void openTarget(); } }], "done");

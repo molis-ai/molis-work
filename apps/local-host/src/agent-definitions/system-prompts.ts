@@ -79,7 +79,7 @@ export const MEMORY_TIDY = defineInstructionPrompt({
  */
 const CONTEXTUAL_OWNER = "system:contextual";
 export const CONTEXTUAL_NEXT = defineInstructionPrompt({
-  owner_id: CONTEXTUAL_OWNER, prompt_id: "contextual.next", version: /* @version prompt.contextual.next */ 2, title: "选区推荐：下一步",
+  owner_id: CONTEXTUAL_OWNER, prompt_id: "contextual.next", version: /* @version prompt.contextual.next */ 3, title: "选区推荐：下一步",
   purpose: "选中内容后，请判断服务选出用户此刻最可能要做的一件事。程序会在最前面加上“用户在文档里选中了……想对它做一件事。”，并在第一段与第二段之间的空行处，按选中的范围或正在做的事加一句提示；没有空行时，提示放在最后",
   used_by: ["选区旁推荐"],
   ...promptBody("contextual.next"),

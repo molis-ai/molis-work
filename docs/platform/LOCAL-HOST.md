@@ -2,7 +2,7 @@
 
 ## 白话说明
 
-DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 与命令行（`molis-work v1`）通过宿主构造的受保护审阅管理动作端口（`apps/local-host/src/project-approvals-callers.ts`，本机这个人、出处 management，仅放行平台审批动作 `project.approvals.request.read@1` 与 `project.approvals.request.decide@1`；原 `goal-callers.ts` 与 CLI 写死的 7 个 Goals 命令已于第 44 批删除，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Host 注册动作提供方，不再登记已退役的 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
+DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 与命令行（`molis-work v1`）通过宿主构造的受保护审阅管理动作端口（`apps/local-host/src/management-actions.ts` 的 `bindManagementActions`，本机这个人、出处 management，仅放行平台审批动作 `project.approvals.request.read@1` 与 `project.approvals.request.decide@1`；原 `goal-callers.ts` 与 CLI 写死的 7 个 Goals 命令已于第 44 批删除，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Host 注册动作提供方，不再登记已退役的 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
 Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的目录、约定、状态、进展与回执按动作 id 和版本调用 Goals 的五个插件动作（Goals 的合同在 `plugins/native/goals/src/contract/`，Coding 就地声明用到的字段，PG-111），原四个 typed 依赖已删除；四项受限读写要求宿主当前运行且声明消费的内置实例，生成插件仍被拒绝。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。typed 通道已删（R8）；现存宿主内服务全部以动作登记，消费者与退场按防腐线 W3-07-PR-9 核对。
 

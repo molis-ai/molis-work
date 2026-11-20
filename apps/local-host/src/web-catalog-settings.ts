@@ -2,12 +2,13 @@ import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.j
 import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, DynamicPluginSettingsNavItem, WebSettingsProject, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SettingsDeclaration, SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
 import { functionsConnectionStatus } from "./judgment-rules-host.js";
 import { capabilitiesView } from "./web-capabilities.js";
@@ -38,6 +39,8 @@ interface DiscoveredDynamicSettingsPlugin extends DynamicPluginSettingsNavItem {
   readonly declaration: SettingsDeclaration;
   readonly scope: "home" | "project";
   readonly provider_id: string;
+  readonly readAction: ActionDefinition;
+  readonly writeAction: ActionDefinition;
 }
 
 /**
@@ -56,7 +59,8 @@ async function discoverDynamicSettingsPlugins(
     const nonModel = manifest.settings_entries.entries.filter(entry => entry.key !== modelKey);
     if (!nonModel.length) return;
     const readAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.read.capability_id && a.version === manifest.settings_entries!.read.version);
-    if (!readAction || readAction.action.scope !== scope) return;
+    const writeAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.write.capability_id && a.version === manifest.settings_entries!.write.version);
+    if (!readAction || !writeAction || readAction.action.scope !== scope) return;
     if (found.has(manifest.plugin_id)) return;
     found.set(manifest.plugin_id, {
       section_id: manifest.plugin_id,
@@ -66,6 +70,8 @@ async function discoverDynamicSettingsPlugins(
       declaration: manifest.settings_entries,
       scope,
       provider_id: providerId,
+      readAction: { ...readAction, provider_id: providerId },
+      writeAction: { ...writeAction, provider_id: providerId },
     });
   };
   if (localHost.homePlugins) {
@@ -81,7 +87,7 @@ async function discoverDynamicSettingsPlugins(
   if (contextProject) {
     const projectRef = molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id });
     try {
-      await localHost.localPersonContext(projectRef);
+      await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS).discover();
       await localHost.withProject(projectRef, async runtime => {
         const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
         if (!platform) return;
@@ -242,14 +248,11 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
       const projectRef = target.scope === "project" && contextProject
         ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id })
         : undefined;
-      const writeRef = { capability_id: target.declaration.write.capability_id, version: target.declaration.write.version, provider_id: target.provider_id };
       const writeInput = {
         key: body.key, layer: body.layer, change: body.change, expected_revision: body.expected_revision, request_id: body.request_id,
         ...(body.recovery !== undefined ? { recovery: body.recovery } : {}),
       };
-      const caller = await localWebActionContext(localHost, projectRef, LOCAL_OWNER_PERMISSIONS);
-      const client = projectRef ? localHost.actionClient(projectRef) : localHost.homeActionClient();
-      const result = await client.invoke(caller, writeRef, writeInput);
+      const result = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS).invoke(target.writeAction, writeInput);
       sendJson(response, 200, result);
     } catch (error) {
       sendJson(response, actionHttpStatus(error), actionErrorBody(error));
@@ -290,10 +293,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     const projectRef = dynamicTarget!.scope === "project" && contextProject
       ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id })
       : undefined;
-    const readRef = { capability_id: dynamicTarget!.declaration.read.capability_id, version: dynamicTarget!.declaration.read.version, provider_id: dynamicTarget!.provider_id };
-    const caller = await localWebActionContext(localHost, projectRef, LOCAL_OWNER_PERMISSIONS);
-    const client = projectRef ? localHost.actionClient(projectRef) : localHost.homeActionClient();
-    const values = await client.invoke(caller, readRef, { keys: dynamicTarget!.declaration.entries.map(entry => entry.key) }) as SettingsValues;
+    const values = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS).invoke(dynamicTarget!.readAction, { keys: dynamicTarget!.declaration.entries.map(entry => entry.key) }) as SettingsValues;
     plugin_settings_html = renderDynamicPluginSettingsHtml(dynamicTarget!, values, contextProject?.project_id ?? null);
     sectionId = dynamicTarget!.section_id;
   }

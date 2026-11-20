@@ -79,6 +79,13 @@ function standIn(root: HTMLElement, field: HTMLTextAreaElement | null, say: { te
   return { mirror, release };
 }
 
+/** The bar's input width and left edge: a page lines its conversation up with it through these variables (§10.4, UIV-19). */
+function applyBarColumn(width: number, left?: number): void {
+  const style = document.documentElement.style;
+  if (Number.isFinite(width) && width > 0) style.setProperty("--mw-bar-column", Math.round(width) + "px");
+  if (Number.isFinite(left)) style.setProperty("--mw-bar-left", Math.round(left!) + "px");
+}
+
 /**
  * The page's side of the one input (composer-bridge.ts): `window.molisComposer` for an AI composer becomes a receiver of the bar
  * when the frame is in a workbench pane with one. The page keeps its handle and its options; the root it gave stays hidden, its
@@ -183,13 +190,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (message.type === "composer-ready") { readiness.answer(message); return; }
       if (message.type === "composer-text") { mirror(message.text); return; }
       if (message.type === "composer-materials") { materials = message.materials; files = message.files ?? []; ai.onMaterials?.(); changed(); return; }
-      // The bar's input width and left edge: a page lines its conversation up with it through these variables (§10.4, UIV-19).
-      if (message.type === "composer-column") {
-        const rootStyle = document.documentElement.style;
-        if (Number.isFinite(message.width) && message.width > 0) rootStyle.setProperty("--mw-bar-column", Math.round(message.width) + "px");
-        if (Number.isFinite(message.left)) rootStyle.setProperty("--mw-bar-left", Math.round(message.left!) + "px");
-        return;
-      }
+      if (message.type === "composer-column") { applyBarColumn(message.width, message.left); return; }
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();

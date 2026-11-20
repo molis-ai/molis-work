@@ -362,7 +362,7 @@ const ROUTES: RouteMaker[] = [
         const materials = await resolveMaterials(context, control.materials, codingActionControl(beforeWrite));
         const supplied = [control.send.text, ...materials.map(material => `【附带材料，数据】\n${agentTextMaterialContent(material)}`)].join("\n\n");
         // The runtime owns original text and delivery. Reject a whole oversize supplement before its input write, never truncate it.
-        const supplement = text(supplied, "coding.field.supplement", 100_000);
+        const supplement = text(supplied, "coding.field.supplement", 100_000, body.command_prompt === true);
         return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send, text: supplement }, codingActionControl(beforeWrite)) };
       }
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };

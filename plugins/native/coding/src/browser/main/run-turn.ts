@@ -30,24 +30,27 @@ function drawText(page: Page, node: HTMLElement, run: RunView, turn: TurnView, w
  */
 function roundPictures(page: Page, node: HTMLElement, run: RunView) {
   if (node.querySelector(":scope > .coding-turn__pictures")) return;
-  const { readText, s } = page, row = el("ul", "", "coding-turn__pictures"), session = s.current;
-  row.setAttribute("aria-label", readText("coding.images.sent", { n: run.frozen.image_materials!.length }));
-  for (const image of run.frozen.image_materials!) {
-    const item = el("li"), open = el("button", "", "coding-turn__picture");
-    open.type = "button";
-    open.setAttribute("aria-label", readText("coding.images.open", { name: image.title }));
-    open.title = image.title;
-    item.append(open);
-    row.append(item);
-    void api<{ media_type: string; data: string }>(page, sessionPath(session, run.ref.run_id) + "/images/" + encodeURIComponent(image.material_id)).then(found => {
-      const bytes = Uint8Array.from(atob(found.data), char => char.charCodeAt(0));
-      const src = URL.createObjectURL(new Blob([bytes], { type: found.media_type })), thumb = document.createElement("img");
+  const { readText, s } = page, row = el("ul", "", "coding-turn__pictures");
+  const images = run.frozen.image_materials!;
+  row.setAttribute("aria-label", readText("coding.images.sent", { n: images.length }));
+  node.append(row);
+  void api<{ images: { material_id: string; media_type: string; data: string }[] }>(page, sessionPath(s.current, run.ref.run_id) + "/images").catch(() => null).then(result => {
+    if (!row.isConnected) return;
+    for (const image of images) {
+      const open = el("button", "", "coding-turn__picture");
+      const found = result?.images.find(item => item.material_id === image.material_id);
+      open.type = "button";
+      open.title = image.title;
+      open.setAttribute("aria-label", readText("coding.images.open", { name: image.title }));
+      open.disabled = !found;
+      row.appendChild(el("li")).append(open);
+      if (!found) { open.textContent = readText("coding.images.unreadable", { name: image.title }); continue; }
+      const src = "data:" + found.media_type + ";base64," + found.data, thumb = el("img");
       thumb.src = src; thumb.alt = "";
       open.append(thumb);
-      page.lifetime.listen(open, "click", () => window.molisPicture?.(open, { src, title: image.title, close: readText("coding.images.close") }));
-    }, () => { open.disabled = true; open.textContent = readText("coding.images.unreadable", { name: image.title }); });
-  }
-  node.append(row);
+      open.onclick = () => window.molisPicture?.(open, { src, title: image.title, close: readText("coding.images.close") });
+    }
+  });
 }
 
 /** The node of one turn in a round's block: made once, drawn again only when its text changed. */

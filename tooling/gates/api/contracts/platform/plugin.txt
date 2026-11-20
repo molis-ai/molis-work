@@ -4577,9 +4577,7 @@ export interface PluginMaterialsClient {
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
-    attach?(upload: MaterialUpload, request?: {
-        signal?: AbortSignal;
-    }): Promise<ConversationAttachment>;
+    attach?(upload: MaterialUpload, request?: ConversationAttachmentUploadRequest): Promise<ConversationAttachment>;
     readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }
 
@@ -5618,12 +5616,8 @@ export declare const RUNS_OVERVIEW_SCHEMA: {
                 readonly additionalProperties: false;
             };
         };
-        readonly expired: {
-            readonly type: "integer";
-            readonly minimum: 0;
-        };
     };
-    readonly required: readonly ["source", "upcoming", "missed", "expired"];
+    readonly required: readonly ["source", "upcoming", "missed"];
     readonly additionalProperties: false;
 };
 
@@ -5642,17 +5636,8 @@ export declare const RUNS_WINDOW_SCHEMA: {
             readonly type: "string";
             readonly minLength: 1;
         };
-        readonly expired_after: {
-            readonly anyOf: readonly [{
-                readonly type: "null";
-            }, {
-                readonly format: "date-time";
-                readonly type: "string";
-                readonly minLength: 1;
-            }];
-        };
     };
-    readonly required: readonly ["now", "upcoming_until", "expired_after"];
+    readonly required: readonly ["now", "upcoming_until"];
     readonly additionalProperties: false;
 };
 
@@ -5689,8 +5674,6 @@ export declare const RUN_DECISION_SCHEMA: {
 
 export declare const RUN_MISSED_GRACE_MS: number;
 
-export declare const RUN_MISSED_KEPT_MS: number;
-
 export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
@@ -5714,12 +5697,6 @@ export type RunDecisionChoice = "run_now" | "skip";
 
 export type RunNeed = "network" | "model";
 
-export interface RunsExpiryBounds {
-    listed_after: string;
-    counted_after: string | null;
-    told_at: string | null;
-}
-
 export interface RunsOverview {
     source: {
         surface: string;
@@ -5727,7 +5704,6 @@ export interface RunsOverview {
     };
     upcoming: ScheduledRun[];
     missed: MissedRun[];
-    expired: number;
 }
 
 export type RunsOwnerScope = "project" | "home";
@@ -5735,7 +5711,6 @@ export type RunsOwnerScope = "project" | "home";
 export interface RunsWindow {
     now: string;
     upcoming_until: string;
-    expired_after: string | null;
 }
 
 export declare const SANDBOX_PACKAGE_FILES: {
@@ -8202,16 +8177,7 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
-export declare function runExpiredUntold(run: {
-    due_at: string;
-    missed_at: string;
-}, bounds: RunsExpiryBounds): boolean;
-
-export declare function runHasExpired(dueAt: string | number, now: number): boolean;
-
 export declare function runIsMissed(dueAt: string | number, now: number): boolean;
-
-export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

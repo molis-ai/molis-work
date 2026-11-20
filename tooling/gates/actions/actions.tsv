@@ -85,7 +85,7 @@ coding.executor.session.read	1	io.molis.work.coding	io.molis.work.coding	query	q
 coding.executor.session.update	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	molis.work-executor.session.update.input.v1	molis.work-executor.session.update.output.v1	54d924e8770a	54d924e8770a	-
 coding.executor.state	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	user	artifact:read	coding_session	molis.work-executor.state.input.v1	molis.work-executor.state.output.v1	d746974fa9af	0c83490b84e8	-
 coding.images.keep	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	materials:read	coding_session	-	-	6b613a7cca3d	a2c799262a3c	-
-coding.images.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	materials:read	coding_session	-	-	54266b376e6d	a2c799262a3c	-
+coding.images.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	user	materials:read	coding_session	-	-	993e3b323156	a2c799262a3c	-
 coding.onboarding.take	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	-	-	6843234e11ed	5f0591e92383	-
 coding.plans.confirm	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	4aabd3af2f6e	a2c799262a3c	-
 coding.plans.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	6fcf1e55751d	a2c799262a3c	-
@@ -96,10 +96,10 @@ coding.reports.list	1	io.molis.work.coding	io.molis.work.coding	query	query	proj
 coding.reports.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	251a5e9a8685	a2c799262a3c	-
 coding.reports.save	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	993e3b323156	a2c799262a3c	-
 coding.results.document	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	plugin	artifact:read	-	-	-	c8e7ccee276b	2abc3616118a	-
-coding.runs.control	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	-	coding_session	-	-	13c24c109262	a2c799262a3c	-
+coding.runs.control	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	-	coding_session	-	-	ed9979ef1743	a2c799262a3c	-
 coding.runs.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	4df15e5f3177	a2c799262a3c	-
 coding.runs.queued	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	da6ad19016c7	a2c799262a3c	613063238287
-coding.runs.start	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	59f38281553e	a2c799262a3c	613063238287
+coding.runs.start	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	2dd5f1ee8dd8	a2c799262a3c	613063238287
 coding.search.entries	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	29db9185f4f9
 coding.sessions.binding.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	user	artifact:read	coding_session	-	-	f7c20bffe580	6b5aef45f1e7	-
 coding.sessions.create	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	agent,mcp,user,workflow	storage:private	coding_session	-	-	5da338271f9e	f4cb74cc57c8	47570190a787
@@ -204,7 +204,7 @@ feed.rules.preview-judgment	1	io.molis.work.feed	io.molis.work.feed	command	oper
 feed.rules.recommendations	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user,workflow	evidence:read,feed:read	feed_item,source	-	-	d746974fa9af	d0dacb75e441	-
 feed.rules.update	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	agent,mcp,user,workflow	attention:write,feed:read,feed:write,judgments:write	feed_item,source	-	-	545f8d52cacd	8709a3814411	-
 feed.runs.decide	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	user	feed:read,feed:write	-	molis.runs.decision.v1	molis.runs.decided.v1	12968c9ca8e8	e1ce928bbdef	-
-feed.runs.overview	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	user	feed:read	-	molis.runs.window.v1	molis.runs.overview.v1	cd0f6b8a17dc	595ba54c09f3	c54c2003ed18
+feed.runs.overview	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	user	feed:read	-	molis.runs.window.v1	molis.runs.overview.v1	e725fb9bdf61	d8d2556288e4	c54c2003ed18
 feed.search.entries	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	feed_item,source	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	fdb16a63c291
 feed.snapshot	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	evidence:read,feed:read	feed_item	-	-	aebc8614fcfa	0d7b0029e110	-
 feed.source.subject.read	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read	source	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
@@ -548,7 +548,7 @@ schedule.reminder.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command
 schedule.reminders.list	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	-	agent,mcp,user,workflow	schedule:read	schedule_task	-	-	d746974fa9af	281e567b15dc	-
 schedule.reminders.recover	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	agent,mcp,user,workflow	schedule:write	schedule_task	-	-	7d166bfb9194	94f0313dd382	5e0374458cf9
 schedule.runs.decide	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	-	user	schedule:read,schedule:write	-	molis.runs.decision.v1	molis.runs.decided.v1	12968c9ca8e8	e1ce928bbdef	-
-schedule.runs.overview	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	user	schedule:read	-	molis.runs.window.v1	molis.runs.overview.v1	cd0f6b8a17dc	595ba54c09f3	c54c2003ed18
+schedule.runs.overview	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	user	schedule:read	-	molis.runs.window.v1	molis.runs.overview.v1	e725fb9bdf61	d8d2556288e4	c54c2003ed18
 schedule.search.entries	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	a54d5f58204b
 schedule.subject.read	1	io.molis.work.schedule	io.molis.work.schedule	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	schedule:read	schedule_task	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	3cfff55e5308
 schedule.task.wakeup	1	io.molis.work.schedule	io.molis.work.schedule	command	operation	project	write	concurrent	plugin	agent:run,schedule:read,schedule:write,storage:private	-	-	-	26a141b2b83f	6b95cd75c054	e043d8211b2d

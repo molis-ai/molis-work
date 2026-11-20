@@ -1,5 +1,9 @@
 # 合同变更流程
 
+2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
+
+2026-11-19 第 35 批复核修复。Coding 的 `coding.runs.start@1` 与 `coding.runs.control@1` 补充项接受可选的 `command_prompt: true`。工作台发送展开后的命令时使用该字段，保留参数首尾空白。普通任务和补充在派发前去掉首尾空白，可信原文按输入回执合同保存。这个字段只决定派发文本的格式。两项动作快照随实现更新。
+
 2026-11-19 第 38 批合入后修复。`blueprints.adoption.apply/read/revert/remove@1` 的 `pending_verification` 设置项可带 `current`，由当前目录标明原主人不可用或安装换代。工作台在保留原请求号的待核对项上显示提示。按阶段一原位更新公开 API 和动作快照，提示只在返回和进度中投影。见[场景合同第 7 节](../../specs/scene-and-page-contract/spec.md#7-保存与恢复)。
 
 2026-11-18 第 38 批：公开设置写入请求支持可选的 `recovery`。场景采用时由设置主人核对并保存原层值，撤销时引用那次请求的回执；主人核对身份、设置项、层与修订后，可以恢复当时已保存但如今离线的选择。原回执匹配但目标层已经变化时，冲突详情返回原请求的 `undo_of` 及 `reason: "revision_changed"`，供撤销记录结束该项并保留手工修改。普通设置调用可继续发送原有字段。`blueprints.adoption.preview@1` 和 `blueprints.library.read@1` 的预览项可带 `model_selection: true`，来自设置主人的模型声明，供界面选择编辑控件。参见[场景与设置合同](../../specs/scene-and-page-contract/spec.md)。
@@ -465,3 +469,4 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **对话附件：** `PluginMaterialsClient.attach` 与 `readAttachment`（要 `materials:read`）和沙箱 SDK 同名方法：附件归调用的插件安装与项目，只有它读得回；不进成果库。说明见 [S-conversation-attachments](security-invariants/S-conversation-attachments.md)。
   - **图片改引用：** `AgentImageMaterial` 与 `AssistantMaterial.image` 由 `resource_id`／`revision` 改为 `attachment: MaterialRef`；`agent.run.start@1` 的 `image_materials` 至多 6 张。`AgentDocumentCapability`、`AgentDocumentParser` 删除。
   - **命令模板：** 新子路径 `@molis-ai/molis-work-plugin-sdk/prompt-commands` 与合同 `services/prompt-commands`；动作 `commands.personal.list@1`（要 `commands:read`）与 `commands.project.list@1`（要 `workspace:read`）。
+- **第 35 批独立复核修复**（[验收编号](../../specs/batch-35-audit-fixes/spec.md)）。新增 `sessions.history.authorize@1`，调用者沿用 Sessions 已有的历史读取许可。引导比较指定会话的许可版本和归属，原文取自已读缓存。原 `coding.images.read@1` 与 Coding 私有 HTTP 入口改为用会话及轮次一次读图，由同版工作台消费。内置和沙箱的附件客户端都接收 `expected_kind: "image"`。助理库采用 #2163 的 v1 基线。助理轮次用 `file_attachment` 引用原件，宿主核对当前工作与轮次后从平台附件库提供下载。已有作用域、安装与项目权由原主人复核。

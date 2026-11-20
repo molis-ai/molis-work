@@ -11,8 +11,8 @@
  *   from their owners (`view.objects`), so one that changed since says so.
  * - The drop zone stays first: dropping or picking a file adds to 待发送.
  */
-export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere, sidePreview,
-  readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
+export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere,
+  readBack, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
   const GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   const nameOf = (material) => material.title.replace(/^(方法|用|图片|引用)：/, "");
   const objectTile = (object, round) => {
@@ -28,8 +28,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
   };
   const materialTile = ({ material, round }) => {
     const box = el("div", "assistant-tile"), name = nameOf(material);
-    const readable = material.kind === "file" && material.text && sidePanelHere()
-      ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: material.text } }); } : readBack(material, name) || readImage(material, name);
+    const readable = readBack(material, name);
     const title = el(readable ? "button" : "span", "assistant-item-title", name);
     if (readable) { title.type = "button"; title.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-context.preview-named", { name })); box.classList.add("is-openable"); title.addEventListener("click", readable); }
     box.append(tile(GLYPH[material.kind] || "file", ""), title, el("span", "assistant-item-sub", [globalThis.t.text(kinds[material.kind] || "workbench.assistant-side-context.material"),

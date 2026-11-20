@@ -1,0 +1,7 @@
+{
+  "reason": "角色编辑抽屉在版本读取或保存期间同步禁用字段和能力选择，避免早到的输入被覆盖。",
+  "review": "specs/main-review-1119/spec.md 的 MR19-08。对 2526d48b52 的隔离构建实测角色脚本从 79,255 增至 79,398 字节；浏览器回归延迟读取并验证控件禁用以及保存拒绝后原编辑仍在。",
+  "assets": {
+    "/assets/molis-work-plugins/characters.js": 143
+  }
+}

@@ -1300,3 +1300,43 @@ test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy run
   const comparison = await fx.service.invoke(person(), evaluationActions.runsCompare, { baseline_run_id: legacy.run_id, candidate_run_id: current.run_id }) as EvaluationRunComparison;
   assert.equal(comparison.comparable, false);
 });
+
+test("MR19-03 plugin delivery accepts only the plugin's output, including unrestricted queries and frozen samples", async t => {
+  const fx = createEvaluationFixture(t);
+  const fact = "pages.summary_saved";
+  const query = { project_id: "p1", work_ref: "plugin-delivery" };
+  await fx.service.invoke(pluginCaller("pages", "p1"), observationActions.report, { facts: [{
+    fact, outcome: "succeeded", work: { work_ref: query.work_ref }, evidence: [
+      { role: "input", ref: { kind: "content", media_type: "text/plain", text: "requested marker" } },
+      { role: "output", ref: { kind: "content", media_type: "text/plain", text: "partial result" } },
+    ],
+  }] });
+  fx.layer.flush();
+  const criterion = { expectation_id: "criterion", stage: "delivery", source: "deterministic", description: "Check delivered text" } as const;
+  const rule = { check: "evidence_text", contains_all: ["requested marker"] } as const;
+  const sample = { sample_id: "plugin-delivery", version: 1, title: "Plugin output", purpose: "validation", work_mode: "manual_plugin",
+    project_id: "p1", initial_intent: "include the requested marker", query };
+  const put = (id: string, expectation: unknown) => fx.service.invoke(person(), evaluationActions.samplesPut,
+    { ...sample, sample_id: id, expectations: [expectation] });
+  const run = async (id: string) => await fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: id }) as EvaluationRunView;
+  await assert.rejects(put("input", { ...criterion, rule: { ...rule, fact, evidence_role: "input" } }), /output/);
+  await assert.rejects(put("evaluator-input", { ...criterion, source: "evaluator", rule: {
+    evaluator_id: "quality", evaluator_version: "1", rubric: "Check delivered text",
+    evidence_source: { fact, role: "input" }, required_evidence_terms: ["requested marker"],
+  } }), /output/);
+  await put("with-output", { ...criterion, rule: { ...rule, fact } });
+  const judged = await run("with-output");
+  assert.equal(judged.effective_verdict, "failed");
+  assert.deepEqual(judged.expectation_results[0]!.evidence_refs.map(ref => ref.role), ["output"]);
+  await put("query-only", { ...criterion, rule: { ...rule, evidence_role: "input" } });
+  const unnamed = await run("query-only");
+  assert.equal(unnamed.effective_verdict, "unknown");
+  assert.deepEqual(unnamed.expectation_results[0]!.evidence_refs, []);
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.prepare("UPDATE evaluation_samples SET spec_json=json_set(spec_json, '$.expectations[0].rule.evidence_role','input') WHERE sample_id=?").run("with-output");
+  } finally { db.close(); }
+  await assert.rejects(run("with-output"), /output/);
+  const historical = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: judged.run_id }) as EvaluationRunView;
+  assert.equal(historical.effective_verdict, "failed");
+});

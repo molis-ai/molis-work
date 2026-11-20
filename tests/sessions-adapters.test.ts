@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { appendFile, mkdir, mkdtemp, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -8,12 +9,14 @@ import type { ExternalToolId } from "@molis-ai/molis-work-contracts/platform/ext
 import type { ExternalSessionRow } from "@molis-ai/molis-work-contracts/services/sessions";
 import { createHostSessionsPorts } from "@molis-ai/molis-work-app-local-host";
 import {
+  EXTERNAL_SESSIONS_STORE,
   SessionsService,
   identifySessionDirectory,
   type SessionCommandResult,
   type SessionProjectSnapshot,
   type SessionsPorts,
 } from "@molis-ai/molis-work-service-sessions";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 
 const PERSON: ActionCallContext = {
   actor_id: LOCAL_PERSON_ACTOR_ID,
@@ -92,6 +95,9 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
         ],
       }),
     );
+    // MR19-04: an entire newer page of unrelated JSON precedes the valid older conversation.
+    await utimes(path.join(geminiChats, "session-gem-1.json"), 1, 1);
+    await Promise.all(Array.from({ length: 50 }, (_, n) => writeFile(path.join(geminiChats, `future-${n}.json`), "{}")));
 
     // 3. Pi Agent: merges toolCall + toolResult
     const piDir = path.join(userHome, ".pi", "agent", "sessions", "proj");
@@ -197,6 +203,25 @@ test("SRB-01 SRB-02 SRB-10 SRB-13 local file adapters (Claude, Gemini, Pi, Qoder
       assert.equal(kimiRow.title, "Kimi Metadata Title");
     } finally {
       svc.close();
+    }
+
+    // MR19-04: resume the saved offset after the previous version indexed the valid file on page one.
+    await utimes(path.join(geminiChats, "future-0.json"), 0, 0);
+    {
+      using db = new DatabaseSync(homeSqlitePath(homeDir, EXTERNAL_SESSIONS_STORE));
+      const updated = db.prepare("UPDATE session_sources SET state = 'reading', progress_cursor = '50', progress_read = 1, skipped_count = 49 WHERE entry_id = 'gemini-cli'").run();
+      assert.equal(updated.changes, 1);
+    }
+    const restarted = new SessionsService(homeDir, ports);
+    try {
+      await restarted.waitForDiscoveryIdle();
+      const listed = await restarted.list({ view: "all", limit: 50 }, PERSON);
+      const source = listed.sources.find(item => item.entry_id === "gemini-cli");
+      assert.equal(source?.state, "complete");
+      assert.equal(source.session_count, 1);
+      assert.ok(listed.sessions.some(row => row.identity.native_id === "gem-session-1"));
+    } finally {
+      restarted.close();
     }
   });
 });

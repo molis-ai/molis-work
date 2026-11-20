@@ -1560,7 +1560,7 @@ test("RAC-2921 Assistant.send keeps ordinary attachments and internal directorie
       materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page, source: { surface: "browser", title: "Example Domain" } }] }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "round");
     assert.equal((done.rounds[0]!.materials[0] as { text?: string }).text, undefined, "the work view stays small");
-    const material = f.service.materials.material(sent.work.work_id, "web-1");
+    const material = await f.service.materialAccess.material(sent.work.work_id, "web-1");
     assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
     const work = f.store.get("web-user", sent.work.work_id);
     const frozen = (await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.text_materials;
@@ -1583,7 +1583,7 @@ test("RAC-2921 Assistant.send keeps ordinary attachments and internal directorie
       assert.equal(Object.hasOwn(header, "artifact_id"), false);
       assert.equal(Object.hasOwn(header, "version"), false);
     }
-    assert.throws(() => f.service.materials.material(sent.work.work_id, "missing"), /没有这份材料/);
+    await assert.rejects(f.service.materialAccess.material(sent.work.work_id, "missing"), /没有这份材料/);
   } finally { await f.close(); }
 });
 

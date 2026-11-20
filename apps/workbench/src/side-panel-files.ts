@@ -279,8 +279,9 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
     const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(globalThis.t.text("workbench.side-panel-files.original-page"))+esc(globalThis.t.text("common.punctuation.label-separator"))+'<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
-    const head=source+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content"))+'</p>':'');
     const type=file.media_type||'text/plain';
+    const download=type==='text/plain'&&file.url?.startsWith('/')?'<a class="side-files-link" download href="'+esc(file.url)+'">'+esc(readText("workbench.browser-ui.download-original-file"))+'</a>':'';
+    const head=source+download+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content"))+'</p>':'');
     if(file.url&&type==='application/pdf'){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.url)+'"></iframe>';return;}
     if(file.url&&/^image\//.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="'+esc(file.url)+'">';return;}
     if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
@@ -353,7 +354,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // A preview another surface hands over (the Assistant's attachment, a result it made): shown as given.
   // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
-  const safeUrl=(url)=>typeof url==='string'&&(/^\/(?!\/)/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
+  const safeUrl=(url)=>typeof url==='string'&&(/^\/(?![\/\\])/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
   const openGiven=(given)=>{
     current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);reader.close();delete body.dataset.assistantContext;cardBox.hidden=true;
     title.textContent=given.title||globalThis.t.text("workbench.side-panel-files.files");meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;

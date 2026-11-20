@@ -2,13 +2,13 @@
 
 This directory is the Cloudflare composition root, not the owner of server business logic. `src/lib.rs` registers `fetch` and `scheduled` events and forwards them to [`server/src/sync`](../../server/src/sync/README.md), built using `server/Cargo.toml`. The D1 baseline lives in `server/migrations/sync`; this App retains the build/configuration and actual-runtime integration tests. The module still uses Cloudflare APIs; this move does not make Node IM deployable on Workers or change any live resource.
 
-Both Wrangler templates watch the App and `server/src/sync` during local development, so changing the moved source rebuilds the Worker. Existing private Wrangler configs must also update `build.watch_dir` and `migrations_dir` to match the templates; do not replace their actual resource IDs.
+The Wrangler configurations watch the App and `server/src/sync` during local development, so changing either source rebuilds the Worker. Existing private Wrangler configs must also update `build.watch_dir` and `migrations_dir` to match the templates; do not replace their actual resource IDs.
 
 The Workflows collection carries definitions and run history. Imported runs remain observation-only and cannot dispatch work on the receiving device. Jelly transfers the personal calendar, notes and their links; device-specific import receipts, undo history and previews stay local.
 
 Rust/WASM + D1 transport for space-scoped incremental replication. Auth validates the Bearer token; the server derives the space from issuer, application and user. The request cannot choose another owner. No real cloud resources are created by these instructions.
 
-The approved scope and delivery plan are in [Personal cloud sync](../../specs/personal-cloud-sync/spec.md). Device opt-in, trusted HTTPS, shared D1/R2 quota, resumable private content, per-item isolation and record-tombstone retention are implemented for local verification. Runtime lifecycle discovery, Shelf files and Builder authoring have actual owner/Host round-trip evidence. Complete project lifecycle/copy/recovery and production acceptance remain outstanding. Nothing here has deployed a cloud resource. The personal/main integration removes the retired Work/Sessions owner and migrates current consumers through public Runtime services; its verification results are recorded separately from earlier runs.
+The approved scope and delivery plan are in [Personal cloud sync](../../specs/personal-cloud-sync/spec.md). Device opt-in, trusted HTTPS, shared D1/R2 quota, resumable private content, per-item isolation and record-tombstone retention are implemented for local verification. Runtime lifecycle discovery, Shelf files and Builder authoring have actual owner/Host round-trip evidence. Complete project lifecycle/copy/recovery and production acceptance remain outstanding. The personal/main integration removes the retired Work/Sessions owner and migrates current consumers through public Runtime services; its verification results are recorded separately from earlier runs.
 
 Registered local business adapters currently cover Goals (project graph, work records and decisions), Pages, Artifacts, Form (including submissions), Dataset (including saved snapshots), PPT, Lingguang, Workflows, Jelly, Todo, Issues, Schedule conversation tasks, Character drafts, Feed capture rules/source descriptions/messages/materials/fixed Signal history and original evidence, Inbox references/dispositions/history, Images saved terminal results, Cognia knowledge graph, the Alchemist studio graph, Shelf saved files/results, Coding metadata/plans/unsent input and Builder complete authoring files. They share opaque transport; Rust does not import business schemas. Received Schedule tasks, Feed rules and new source descriptions remain disabled; receiving content never starts image/research generation, knowledge scans, listeners or Inbox judgments. Feed evidence is re-encrypted with the receiving Home's own key; keys and connection setup never travel. This is **not all-plugin synchronization**: nested owner recovery/GC and full project/copy/recovery work remain outstanding. D1 metadata stays limited to 512 KiB; content uses owner-selected R2 projection, with domain validation and the 100 MB account admission enforced. Full coverage and remaining owners: `specs/personal-cloud-sync/plugin-replication.md`.
 
@@ -23,7 +23,13 @@ Registered local business adapters currently cover Goals (project graph, work re
 
 With no explicit endpoint or local flag the client stays disconnected. A new device asks before automatic transfer; choosing not now is remembered per account/Home. Sync Now runs one bounded cycle and never creates a timer. Saving collections does not change device consent. An opted-in device resumes when its personal space is activated; logout, account change and local-space selection cancel the old loop.
 
-## Cloud configuration (prepare only; deployment needs approval)
+## Test deployment
+
+`wrangler.test.jsonc` deploys `molis-work-test` at `https://sync.test.molis.ai` with its own D1 and private R2. The application ID matches the existing registration in `https://auth.test.molis.ai`. The Worker validates Work access tokens through Auth and requires no Worker secret for this flow.
+
+Verify the test D1 has both migrations before deployment. From `examples/personal-sync-tools`, use the locked tooling with `npx wrangler deploy --cwd ../../apps/sync-worker --config wrangler.test.jsonc`. The deployment does not apply migrations. Cron starts disabled. Use the test account in a test Work Home to run a sync round after deployment.
+
+## Production configuration (prepare only; deployment needs approval)
 
 `wrangler.production.jsonc` targets the existing `molis-work-production` Worker, `molis-work-server-db-production` D1 database (`DB`) and private `molis-work-server-files-production` R2 bucket (`FILES`). It contains resource identifiers, not credentials. The separate `wrangler.production.example.jsonc` is only a placeholder template for another installation; do not deploy it unchanged or copy it over this production configuration.
 

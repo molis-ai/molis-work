@@ -1,0 +1,35 @@
+{
+  // Existing test resources. No credentials or Auth placeholder values belong here.
+  "name": "molis-work-test",
+  "account_id": "200c8682734af6babc8d4ae4afaff221",
+  "main": "dist/index.js",
+  "compatibility_date": "2026-09-19",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{"pattern": "sync.test.molis.ai", "custom_domain": true}],
+  "vars": {
+    "AUTH_ORIGIN": "https://auth.test.molis.ai",
+    "APPLICATION_ID": "molis-work-staging-app",
+    "DEPLOYMENT_MODE": "cloud",
+    "SYNC_WRITE_MODE": "read-write"
+  },
+  // Enable hourly maintenance only after cloud Auth and attachment acceptance.
+  "triggers": {"crons": []},
+  "build": {"command": "node build.mjs", "watch_dir": ["src", "../../server/src/sync"]},
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "molis-work-server-db-test",
+    "database_id": "9943da1d-1e39-4c0d-8ae7-3fc1e1cc6260",
+    "migrations_dir": "../../server/migrations/sync"
+  }],
+  "r2_buckets": [{
+    "binding": "FILES",
+    "bucket_name": "molis-work-server-files-test"
+  }],
+  "observability": {
+    "enabled": true,
+    "logs": {"enabled": true, "head_sampling_rate": 1, "invocation_logs": true},
+    "traces": {"enabled": false},
+    "issues": {"enabled": true}
+  }
+}

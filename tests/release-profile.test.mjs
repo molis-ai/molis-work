@@ -50,7 +50,6 @@ test("V2-03: source and installed Work use distinct loopback clients and validat
   const contents = await readFile(testConfig, "utf8");
   const configureSync = origin => writeFile(testConfig, contents.replace(/^syncOrigin=.*$/mu, "syncOrigin=" + origin));
   const testOrigin = "https://sync.test.molis.ai";
-  await configureSync(testOrigin);
   const source = select("test");
   const desktop = select("test", true);
   assert.equal(source.syncOrigin, testOrigin);

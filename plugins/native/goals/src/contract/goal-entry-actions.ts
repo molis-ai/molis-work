@@ -1,4 +1,5 @@
 import { WORK_GOAL_PROMOTION_PROTOCOL, type ActionDefinition, type ActionIntake, type ActionResultView, type InferActionInput, type WorkGoalPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { objectLinkTemplate } from "@molis-ai/molis-work-contracts/platform/object-link";
 import { TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, type TrustedReviewOffer } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, GoalEventDecisionResult, GoalEventDirectoryItem, GoalsCommandApi,
@@ -87,16 +88,38 @@ const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goal
     scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
   object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
 
+/** Reader declarations carry text keys; the approval service binds their owners when it presents the request. */
+export type GoalSourceReviewOffer = Omit<TrustedReviewOffer, "request"> & { request: Omit<TrustedReviewOffer["request"], "choices"> & {
+  choices: readonly (Omit<TrustedReviewOffer["request"]["choices"][number], "label"> & { label: { key: string } })[];
+} };
+const inputSourceReview = reviewReader<GoalSourceReviewOffer>("goals.inputs.review_source", /* @version action.goals.inputs.review_source */ 1, "goal-input", "查看待复核的来源版本");
+const inputReviewFields = {
+  goal_id: { ...identifier, type: "string" }, binding_id: { ...identifier, type: "string" },
+  expected_old_digest: { ...snapshotDigest, type: "string" }, observed_new_digest: { ...snapshotDigest, type: "string" },
+  note: { type: "string", maxLength: 200 },
+} as const;
+const inputReviewSchema = { oneOf: [
+  { type: "object", additionalProperties: false, properties: { ...inputReviewFields, decision: { const: "adopt_latest" } },
+    required: ["goal_id", "binding_id", "decision", "expected_old_digest", "observed_new_digest"] },
+  { type: "object", additionalProperties: false, properties: { ...inputReviewFields, decision: { const: "remove" } },
+    required: ["goal_id", "binding_id", "decision", "expected_old_digest"] },
+] } as const;
+const inputReviewChange = goalAction<InferActionInput<typeof inputReviewSchema>, { decision: "adopt_latest"; binding_id: string; snapshot_digest: string } | { decision: "remove"; binding_id: string }>(
+  "goals.inputs.review_change", /* @version action.goals.inputs.review_change */ 1, "复核来源变更",
+  "本人核对原文后采纳当前版本或移除目标中的引用。提交时再次核对绑定与原文的版本", "command", inputReviewSchema,
+  { oneOf: [object({ decision: { const: "adopt_latest" }, binding_id: identifier, snapshot_digest: snapshotDigest }),
+    object({ decision: { const: "remove" }, binding_id: identifier })] });
+
 const eventReview = reviewReader("goals.decisions.review", /* @version action.goals.decisions.review */ 1, "goal", "查看目标事件决定");
 const treeReview = reviewReader("goals.tree.review", /* @version action.goals.tree.review */ 1, "goal-tree-proposal", "查看目标树决定");
 
-function reviewReader(id: string, version: number, subject: string, title: string) {
-  const definition = goalAction<InferActionInput<typeof TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>, TrustedReviewOffer>(id, version, title,
+function reviewReader<Output = TrustedReviewOffer>(id: string, version: number, subject: string, title: string) {
+  const definition = goalAction<InferActionInput<typeof TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA>, Output>(id, version, title,
     "查看原对象和已选事项，供本人确认。", "query", TRUSTED_REVIEW_OWNER_DRAFT_INPUT_SCHEMA, { type: "object" });
   return { ...definition, action: { ...definition.action, audiences: ["user"] as const, subject_kinds: [subject] } };
 }
 
-function protectedDecision<I, O>(definition: ActionDefinition<I, O>, reader: typeof eventReview) {
+function protectedDecision<I, O>(definition: ActionDefinition<I, O>, reader: Pick<typeof eventReview, "capability_id" | "version" | "action">) {
   const action = userOnly(definition, ["goals:decide"]);
   return { ...action, action: { ...action.action, subject_kinds: reader.action.subject_kinds,
     requires_trusted_decision: true as const, trusted_decision_request: { capability_id: reader.capability_id, version: reader.version } } };
@@ -133,6 +156,9 @@ export const goalEntryActions = {
       recorded: { const: true }, completion_effect: { const: false } }), false, GOALS_START_INTAKE), "create"),
   directoryItem: withPromotionRole(goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", /* @version action.goals.directory.read */ 1, "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
     object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)), "directory.read"),
+  inputsReviewSource: { ...inputSourceReview, action: { ...inputSourceReview.action, scheduling: "concurrent" as const,
+    required_actions: [{ capability_id: materialsActions.read.capability_id, version: materialsActions.read.version, provider_id: MATERIALS_PROVIDER_ID }] } },
+  inputsReviewChange: protectedDecision(inputReviewChange, inputSourceReview),
   inputsConfirm: withPromotionRole(goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,
     "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
     object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: { ...identifier, maxLength: 300 } }),

@@ -591,6 +591,8 @@
     "action.goals.inputs.confirm": 1,
     "action.goals.inputs.list": 1,
     "action.goals.inputs.release": 1,
+    "action.goals.inputs.review_change": 1,
+    "action.goals.inputs.review_source": 1,
     "action.goals.items.create": 1,
     "action.goals.items.next": 1,
     "action.goals.list": 1,

@@ -301,6 +301,8 @@ goals.inputs.bind	1	io.molis.work.goals	io.molis.work.goals	command	operation	pr
 goals.inputs.confirm	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	context-ledger:write,goals:write	goal	molis.goal.promote.confirm.input.v1	molis.goal.promote.confirm.output.v1	3f9dc5d3fbad	a50779e05950	9a20bdba744a
 goals.inputs.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	1b72d3bb5995	88f3e0d5af3c	-
 goals.inputs.release	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	13352bb01dc1	946832ab5da4	9a20bdba744a
+goals.inputs.review_change	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:decide	goal-input	-	-	a6bf98af298f	a9d358a41c80	f4043a77667b
+goals.inputs.review_source	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	user	goals:read	goal-input	-	-	72f0db8bc372	a2c799262a3c	722862b3d60a
 goals.items.create	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user	goals:write	goal	-	-	2f6662cf612c	99b557e4a48f	-
 goals.items.next	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	e8e92080905f	74ce4211fd19	-
 goals.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	573ae9304527	45ca7222da7a	-
@@ -456,7 +458,6 @@ memory.learning.run	1	io.molis.work.coding	io.molis.work.coding	command	operatio
 pages.ai	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	read	concurrent	agent,mcp,user,workflow	model:invoke,pages:read	pages_document	-	-	a09dfbc42319	06e756ed5469	613063238287
 pages.artifacts.compare	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	concurrent	user	pages:read	-	molis.artifacts.compare.request.v1	molis.artifacts.compare.v1	b5dd5a809ad7	3347f6b0970c	5e0374458cf9
 pages.artifacts.continue	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	concurrent	user	materials:read,pages:read,pages:write	-	molis.artifacts.continue.request.v1	molis.artifacts.continue.v1	b5dd5a809ad7	f38691804ac7	a774b0037fc4
-pages.artifacts.diff	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	agent,mcp,user,workflow	artifact:read,pages:read	pages_document	-	-	5e784aedf3f8	87ab2200e3f3	-
 pages.artifacts.pin	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	concurrent	agent,mcp,user,workflow	artifact:write,pages:read,pages:write	pages_document	molis.artifacts.pin.request.v1	molis.artifacts.pin.v1	56056e2eba4c	4637898b30c2	382039db68b0
 pages.artifacts.preview	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	concurrent	user,workflow	pages:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 pages.artifacts.referrers	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	agent,user	pages:read	-	molis.artifacts.referrers.request.v1	molis.artifacts.referrers.v1	6aa6a79cf3a5	c42898cc4ecf	-

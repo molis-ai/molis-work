@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { createHomeSnapshot, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
@@ -49,7 +49,7 @@ test("RAC-2914, AUT-06: restoring an offline Home returns the project's suggesti
 
 test("RAC-2914: actual restore CLI replaces later facts, retains original keys/modes and supports real Host continuation", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), source = readFileSync(join(f.home, "plugin-files", "original.bin")), key = randomBytes(32);
-  writeFileSync(join(f.root, "storage.key"), key, { mode: 0o640 });
+  writeFileSync(join(f.root, "storage.key"), key); chmodSync(join(f.root, "storage.key"), 0o640); // exact sample mode under any umask
   const inode = lstatSync(join(f.root, ".molis-runtime-owner.db")).ino, root = lstatSync(f.root).ino;
   const captured = await restoreCli(t, ["snapshot", "--home", f.home, "--to", f.snapshot, "--json"]);
   assert.equal(captured.code, 0, captured.stderr);

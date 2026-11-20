@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,8 @@ async function fixture(t: TestContext) {
   const home = join(directory, "home"), snapshot = join(directory, "snapshot");
   await mkdir(join(home, "config"), { recursive: true });
   const body = JSON.stringify({ schema_version: 1, completed: true, display_name: "Retained person" }) + "\n";
-  await writeFile(join(home, "config", "onboarding.json"), body, { mode: 0o640 });
+  // The creation mode passes through umask, so the fixture sets the exact sample permissions itself (BL-tests-umask).
+  await writeFile(join(home, "config", "onboarding.json"), body); await chmod(join(home, "config", "onboarding.json"), 0o640);
   return { directory, home, snapshot, body };
 }
 

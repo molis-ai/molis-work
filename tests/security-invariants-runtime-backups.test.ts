@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { link, lstat, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { chmod, link, lstat, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import * as localHost from "@molis-ai/molis-work-app-local-host";
@@ -32,9 +32,21 @@ test("RAC-104: a real Runtime integration retains only a sealed reference and re
   assert.deepEqual(await reader()(f.home, "codex", plan.plan_id), first);
   // A caller can restore the original bytes and permissions from the owner result, without exporting the master key.
   const restored = join(f.userHome, "recovered.toml");
-  await writeFile(restored, first.contents, { mode: first.mode });
+  await writeFile(restored, first.contents, { mode: first.mode }); await chmod(restored, first.mode); // creation mode passes through umask
   assert.equal(await readFile(restored, "utf8"), f.contents);
   assert.equal((await stat(restored)).mode & 0o777, 0o640);
+});
+
+test("RAC-104 BL-tests-umask: connecting rewrites the user's configuration with its original permissions under a restrictive umask", async t => {
+  const f = await runtimeBackupFixture(t), umask = process.umask(0o077);
+  try {
+    const runtime = f.service(), plan = await runtime.prepare("codex", "connect");
+    const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
+    assert.equal(result.status, "connected", result.message);
+    assert.notEqual(await readFile(f.config, "utf8"), f.contents, "the configuration was actually rewritten");
+    assert.equal((await stat(f.config)).mode & 0o777, 0o640);
+    assert.deepEqual(await reader()(f.home, "codex", plan.plan_id), { contents: f.contents, mode: 0o640 });
+  } finally { process.umask(umask); }
 });
 
 test("S-12 RAC-104: an existing empty Runtime configuration survives restart without poisoning other secrets or later backups", async t => {
@@ -52,7 +64,7 @@ test("S-12 RAC-104: an existing empty Runtime configuration survives restart wit
   const recovered = JSON.parse(restarted.stdout) as { contents: string; mode: number };
   assert.deepEqual(recovered, { contents: "", mode: 0o640 });
   const restored = join(f.userHome, "empty-original.toml");
-  await writeFile(restored, recovered.contents, { mode: recovered.mode, flag: "wx" });
+  await writeFile(restored, recovered.contents, { mode: recovered.mode, flag: "wx" }); await chmod(restored, recovered.mode);
   assert.deepEqual(await readFile(restored), Buffer.alloc(0)); assert.equal((await stat(restored)).mode & 0o777, 0o640);
   assert.equal(readExistingSecret(f.home, "unrelated-owner"), f.secret);
   assert.equal(inspectSealedSecretsSnapshot(f.home, await readFile(vault, "utf8")).entries, 2);

@@ -145,6 +145,8 @@ function assertGrantAvailable(view: ActionView, accepted: readonly ActionView[],
     const roles = view.action.required_roles;
     const byProvider = new Map<string, Map<number, ActionView>>();
     for (const candidate of all) {
+      if (!candidate.action.audiences.includes(context.audience)) continue;
+      if (candidate.action.scope === "project" && context.project_id === null) continue;
       roles.forEach((role, index) => {
         if (candidate.action.input_type === role.input_type && candidate.action.output_type === role.output_type) {
           const group = byProvider.get(candidate.provider.provider_id) ?? new Map();
@@ -157,9 +159,11 @@ function assertGrantAvailable(view: ActionView, accepted: readonly ActionView[],
       .filter(([, group]) => group.size === roles.length)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, group]) => roles.map((_, index) => group.get(index)!));
-    if (complete.length && !complete.some(group => group.every(dep => isAllowed({ capability_id: dep.capability_id, version: dep.version, provider_id: dep.provider.provider_id })))) {
+    const availableComplete = complete.filter(group => group.every(dep => dep.availability.available));
+    const candidates = availableComplete.length ? availableComplete : complete;
+    if (candidates.length && !candidates.some(group => group.every(dep => isAllowed({ capability_id: dep.capability_id, version: dep.version, provider_id: dep.provider.provider_id })))) {
       let bestMissing: string[] | undefined;
-      for (const group of complete) {
+      for (const group of candidates) {
         const absent = group.filter(dep => !isAllowed({ capability_id: dep.capability_id, version: dep.version, provider_id: dep.provider.provider_id })).map(dep => dep.capability_id);
         if (!bestMissing || absent.length < bestMissing.length) bestMissing = absent;
       }

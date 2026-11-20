@@ -42,7 +42,7 @@ import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { ownerFilesGiven, type PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
-import { disposeWorkTerminalsForOwner } from "./work-terminal-service.js";
+import { disposeWorkTerminalsForOwner, registerWorkTerminalOwner } from "./work-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -190,7 +190,8 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      registerWorkTerminalOwner({ home: this.options.home, install_id: context.install_id, project_id: null, assertActive });
+      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

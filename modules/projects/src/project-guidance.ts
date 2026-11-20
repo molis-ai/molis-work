@@ -9,7 +9,7 @@ import { PROJECT_GUIDANCE_REPLICA_SQL, withinCharacters } from "./project-guidan
 
 /*
  * A project's confirmed guidance (specs/plugin-equal-standing/contract-design.md §9): its two tables in the project library, beside
- * `project_root`. Until batch 44 Goals kept the same rows, rules and receipts; the project library's 6→7 step hands them over.
+ * `project_root`, created directly in the project library's v1 baseline.
  */
 
 const GUIDANCE_TABLES_SQL = `
@@ -52,7 +52,7 @@ CREATE TABLE guidance_revisions (
 );
 CREATE INDEX guidance_revisions_project_idx ON guidance_revisions(project_id, guidance_id, revision DESC);
 `;
-/** The project library creates these with its version; the 6→7 step builds them from Goals' rows. With them, the guidance collection's transport. */
+/** The project library creates these in its v1 baseline, together with the guidance collection's replication transport. */
 export const PROJECT_GUIDANCE_SCHEMA_SQL = GUIDANCE_TABLES_SQL + PROJECT_GUIDANCE_REPLICA_SQL;
 
 export const PROJECT_GUIDANCE_TABLES = ["guidance_entries", "guidance_revisions"] as const;

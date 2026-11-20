@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { WORK_TERMINAL_PROVIDER_ID, workTerminalActions } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -54,6 +54,7 @@ async function served(t: TestContext, hostOptions: NonNullable<Parameters<typeof
     const made = [];
     for (const name of ["终端项目", "别的项目"]) {
       const project = await catalog.createProject({ display_name: name, actor_id: "test-user" });
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test-user" });
       const folder = await realpath(await mkdtemp(join(tmpdir(), "goals-terminal-workspace-")));
       folders.push(folder);
       // The folder is the project's output: a terminal opens in the output (batch 05), the project's output directory.
@@ -356,4 +357,89 @@ test("PEQ-17 a third-party plugin declares work_terminals with zero terminal/wor
   assert.equal((await noteApi(String(opened.body.key), { method: "DELETE" })).status, 200);
   await samplePage.wait(message => message.type === "exit");
   samplePage.close();
+});
+
+test("PEQ-17 work-terminal open refuses mid-flight caller revocation or plugin disablement with zero panel rows and zero spawned processes", { timeout: 60_000 }, async t => {
+  const { f, project, reference } = await served(t);
+  const person = await f.host.localPersonContext(reference), client = f.host.actionClient(reference);
+  const catalogPath = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => catalog.databasePath);
+  const panelCount = () => {
+    const db = openTestSqlite(catalogPath, { fileMustExist: true });
+    try { return (db.prepare("SELECT COUNT(*) AS n FROM plugin_terminal_panels").get() as { n: number }).n; }
+    finally { db.close(); }
+  };
+
+  // Case 1: Caller authority revoked after validate_authority / prompt read, before spawn.
+  const beforeRevoke = await runs();
+  let allowAuthority = true;
+  let calls = 0;
+  await assert.rejects(client.invoke({
+    ...person,
+    assert_authority_current: () => {
+      if (!allowAuthority) throw new Error("session_revoked");
+    },
+    validate_authority: async () => {
+      // Allow initial admission + nested goals.work_prompt read, then revoke on the handler's beforeEffect wait.
+      if (++calls >= 3) allowAuthority = false;
+    },
+  }, workTerminalActions.open, { plugin_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: "LEAF" }, runtime: "codex", key: "revoked-open" }), /session_revoked/);
+  assert.equal(panelCount(), 0, "caller revocation leaves zero panel rows");
+  assert.equal(await runs(), beforeRevoke, "caller revocation spawns zero PTY processes");
+
+  // Case 2: Target plugin removed from the project while openWorkTerminal is awaiting beforeEffect.
+  const beforeDisable = await runs();
+  const pluginSettings = await json(await f.request("/api/settings/project-plugins"));
+  const currentProject = (pluginSettings.body.projects as Array<{ project_id: string; revision: string }>).find(row => row.project_id === project.project_id);
+  assert.ok(currentProject, "project plugin settings list includes test project");
+  let disableCalls = 0;
+  await assert.rejects(client.invoke({
+    ...person,
+    validate_authority: async () => {
+      if (++disableCalls === 3) {
+        const removed = await f.request(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, {
+          method: "DELETE",
+          body: { plugin_id: "goals", expected_revision: currentProject.revision },
+        });
+        assert.equal(removed.status, 200, await removed.clone().text());
+      }
+    },
+  }, workTerminalActions.open, { plugin_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: "LEAF" }, runtime: "codex", key: "disabled-open" }), (error: { code?: string }) => {
+    assert.ok(error.code === "actions.plugin_disabled" || error.code === "actions.forbidden", `unexpected code: ${error.code}`);
+    return true;
+  });
+  assert.equal(panelCount(), 0, "mid-flight plugin removal leaves zero panel rows");
+  assert.equal(await runs(), beforeDisable, "mid-flight plugin removal spawns zero PTY processes");
+
+  // Case 3: Third-party plugin instance stopped/revoked mid-flight while openWorkTerminal is awaiting beforeEffect.
+  const sample = (await import(SAMPLE_URL.href)).default as PluginDefinition;
+  const thirdParty = await served(t, { pluginFixtures: { project: [sample] } });
+  const tpPerson = await thirdParty.f.host.localPersonContext(thirdParty.reference);
+  const tpClient = thirdParty.f.host.actionClient(thirdParty.reference);
+  const tpCreate = (await tpClient.discover(tpPerson)).find(item => item.capability_id === `${SAMPLE_PLUGIN_ID}.notes.create`)!;
+  const tpCreated = await tpClient.invoke(tpPerson, {
+    capability_id: tpCreate.capability_id, version: tpCreate.version, provider_id: tpCreate.provider.provider_id,
+  }, {}) as { note: { id: string } };
+  const tpCatalogPath = await thirdParty.f.host.ensureWebCatalog(thirdParty.f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: thirdParty.f.home }, catalog => catalog.databasePath);
+  const tpPanels = () => {
+    const db = openTestSqlite(tpCatalogPath, { fileMustExist: true });
+    try { return (db.prepare("SELECT COUNT(*) AS n FROM plugin_terminal_panels").get() as { n: number }).n; }
+    finally { db.close(); }
+  };
+  const tpPlatform = await thirdParty.f.host.withProject(thirdParty.reference, runtime => runningProjectPlatform(runtime.store, thirdParty.project.project_id));
+  assert.ok(tpPlatform, "third-party project platform is running");
+  const beforeStop = await runs();
+  let stopCalls = 0;
+  await assert.rejects(tpClient.invoke({
+    ...tpPerson,
+    validate_authority: async () => {
+      if (++stopCalls === 3) {
+        tpPlatform.supervisor.revoke(SAMPLE_PLUGIN_ID);
+      }
+    },
+  }, workTerminalActions.open, { plugin_id: SAMPLE_PLUGIN_ID, subject: { kind: "sample_note", id: tpCreated.note.id }, runtime: "codex", key: "stopped-open" }), (error: { code?: string }) => {
+    assert.equal(error.code, "actions.forbidden");
+    return true;
+  });
+  assert.equal(tpPanels(), 0, "mid-flight plugin stop leaves zero panel rows");
+  assert.equal(await runs(), beforeStop, "mid-flight plugin stop spawns zero PTY processes");
 });

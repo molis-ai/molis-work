@@ -109,8 +109,10 @@ function readSectionSnapshot(
 }
 
 /** Export a plugin's declared business data sections read-only (works identically for built-in and installed plugins). */
-export async function exportPluginData(ports: PluginDataExportPorts, input: { plugin_id: string; project_id?: string }): Promise<PluginDataExportResult> {
+export async function exportPluginData(ports: PluginDataExportPorts, input: { plugin_id: string; project_id?: string }, signal?: AbortSignal): Promise<PluginDataExportResult> {
+  signal?.throwIfAborted();
   const projectRef = input.project_id ? await ports.resolveProject(input.project_id) : null;
+  signal?.throwIfAborted();
   if (input.project_id && !projectRef) throw exportErrors.plugin_data_not_found("项目不存在");
   const projectStore = projectRef ? new LocalProjectDatabase(projectRef.storage_key, { existingOnly: true }) : undefined;
   try {
@@ -133,8 +135,10 @@ export function pluginDataActionProvider(ports: PluginDataExportPorts): ActionPr
     definitions: [pluginDataActions.sections, pluginDataActions.export],
     handlers: [
       bindActionHandler(pluginDataActions.sections, async (input, caller) => {
+        caller.signal?.throwIfAborted();
         const projectId = input.project_id ?? caller.project_id;
         const projectRef = projectId ? await ports.resolveProject(projectId) : null;
+        caller.signal?.throwIfAborted();
         const projectStore = projectRef ? new LocalProjectDatabase(projectRef.storage_key, { existingOnly: true }) : undefined;
         try {
           const manifests = collectManifests(ports.homeDirectory, projectStore?.db);
@@ -150,7 +154,7 @@ export function pluginDataActionProvider(ports: PluginDataExportPorts): ActionPr
       }),
       bindActionHandler(pluginDataActions.export, async (input, caller) => {
         const projectId = input.project_id ?? caller.project_id ?? undefined;
-        return exportPluginData(ports, { plugin_id: input.plugin_id, ...(projectId ? { project_id: projectId } : {}) });
+        return exportPluginData(ports, { plugin_id: input.plugin_id, ...(projectId ? { project_id: projectId } : {}) }, caller.signal);
       }),
     ],
   };

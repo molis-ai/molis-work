@@ -144,7 +144,7 @@ test("PWA-144 APR-14 each requirement shows what was checked, on which version, 
 
 test("PWA-145 that the work ran, what was verified and what the person accepted are three separate readings; engineering evidence and trying the product stand apart; the person is asked only where it was agreed or where the check has a gap; only the person decides", async t => {
   const { service, readOne } = rig(t);
-  const world = platform({ "s-maker": ["run-1"] }, { build: {}, tried: {} });
+  const world = platform({ "s-maker": ["run-1"] }, { build: {}, tried: {} }, ["art-c@1"]);
   const subject = SUBJECT, ports = world.ports(agent());
   service.set(agent(), { subject, requirements: [{ id: "a", statement: "构建通过", requires_person: false }, { id: "b", statement: "新手引导走得通", requires_person: true }, { id: "c", statement: "文案无错字", requires_person: false }] });
   const before = readOne(me(), subject);
@@ -178,6 +178,15 @@ test("PWA-145 that the work ran, what was verified and what the person accepted 
   // A hands-on try that contradicts overrides a green build for that requirement only.
   const tried = await service.report(agent(), { subject, reports: [report("a", "build-12", { kind: "hands_on", verdict: "contradicts", method: "点了构建产物", observed: "白屏" })] }, ports);
   assert.deepEqual([item(tried, "a").verified, item(tried, "a").gap, item(tried, "a").satisfied, item(tried, "b").satisfied], [false, "contradicted", false, true]);
+
+  // Readable non-command evidence: the maker session and an unbound session stay self_reported; a different platform session yields peer_reviewed (contract-design §10.9 Q2).
+  const readableArtifact = { kind: "artifact_version" as const, artifact_id: "art-c", version: 1 };
+  const selfArtifact = await service.report(agent("s-maker"), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "自查文案" })] }, ports);
+  assert.deepEqual([item(selfArtifact, "c").check?.tier, item(selfArtifact, "c").verified], ["self_reported", false]);
+  const unbound = await service.report(agent(null), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "无会话复查" })] }, world.ports(agent(null)));
+  assert.deepEqual([item(unbound, "c").check?.tier, item(unbound, "c").verified], ["self_reported", false]);
+  const peer = await service.report(agent("s-other"), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "独立会话核对文案" })] }, world.ports(agent("s-other")));
+  assert.deepEqual([item(peer, "c").check?.tier, item(peer, "c").verified, item(peer, "c").satisfied], ["peer_reviewed", true, true]);
 });
 
 test("PWA-146 rework keeps every round: what was accepted and not touched stays accepted, only the returned and the changed are checked again, a gap is not closed by delivering again, a changed requirement is recorded apart from the fix, and a selection that moved is not applied", async t => {

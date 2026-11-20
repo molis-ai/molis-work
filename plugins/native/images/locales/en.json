@@ -113,6 +113,11 @@
     "images.status.retry-help": "Reuse this description and adjust service settings to generate again (starts a new request).",
     "images.status.running": "Generating",
     "images.status.succeeded": "Generated",
-    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later."
+    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later.",
+    "images.limit.cut": "{field} can be up to {max} characters. The extra text wasn’t added.",
+    "images.limit.over": "{field} can be up to {max} characters; it has {count}. Please shorten it.",
+    "images.limit.prompt": "The image description",
+    "images.limit.ratio": "The aspect ratio",
+    "images.limit.size": "The image size"
   }
 }

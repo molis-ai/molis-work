@@ -1,6 +1,7 @@
 import { installCommands } from "./commands.js";
 import { installCompose } from "./compose.js";
 import { installConnections, loadConnections, syncSaving } from "./connections.js";
+import { installLimits } from "./limits.js";
 import { ensureContext, loadJobs } from "./jobs.js";
 import { createPage } from "./page.js";
 import type { ImagesHost } from "./types.js";
@@ -16,6 +17,7 @@ export function mountImages(host: ImagesHost): void {
   const page = createPage(host, life, root);
   const { s } = page;
   installConnections(page);
+  installLimits(page);
   installCompose(page);
   installCommands(page);
   // The stage stays as the workbench set it (its list first); the composer opens from 新建图片 or a chosen record. Since the

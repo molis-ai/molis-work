@@ -1,5 +1,6 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button, text } from "./dom.js";
+import { checkLimits } from "./limits.js";
 import type { AuthConnection, ImageConnection, ImagesPage } from "./types.js";
 
 const uiText = globalThis.t;
@@ -154,7 +155,8 @@ export function syncSaving(page: ImagesPage): void {
 
 async function saveConnection(page: ImagesPage): Promise<void> {
   const { s, el } = page;
-  // A field left empty may sit in the folded 高级: open it first, so the browser can point at the field.
+  checkLimits(page);
+  // A field left empty or too long may sit in the folded 高级: open it first, so the browser can point at the field.
   if (!s.saving && !el.connectionForm.checkValidity()) page.field<HTMLDetailsElement>("advanced").open = true;
   if (s.saving || !el.connectionForm.reportValidity()) return;
   const input = {

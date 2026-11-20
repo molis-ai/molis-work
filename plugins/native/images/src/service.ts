@@ -11,6 +11,7 @@ import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, INTERRUPTED, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
 import { IMAGES_ASSETS } from "./owner-files.js";
+import { IMAGES_INPUT_LIMITS } from "./limits.js";
 
 export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 
@@ -76,8 +77,8 @@ export class ImagesService {
       if (previous?.change?.authId === null) throw imagesErrors.connection_pending(uiText.text("images.service.delete-pending"));
       if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
       const now = new Date().toISOString();
-      const connection: StoredConnection = { id, name: textField(input.name, "服务名称", 100), api_format: input.api_format,
-        base_url: normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048)), model: textField(input.model, "模型名称", 200),
+      const connection: StoredConnection = { id, name: textField(input.name, "服务名称", IMAGES_INPUT_LIMITS.connection_name), api_format: input.api_format,
+        base_url: normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048)), model: textField(input.model, "模型名称", IMAGES_INPUT_LIMITS.model),
         created_at: previous?.created_at ?? now, updated_at: now };
       const selected = input.auth_connection_id?.trim() || previous?.change?.authId;
       if (input.create_id && previous) {
@@ -170,8 +171,8 @@ export class ImagesService {
   async start(projectId: string, input: ImageGenerateInput, control: ImagesControl): Promise<ImageJob> {
     this.assertOpen();
     const projectIdValue = project(projectId), requestId = textField(input.request_id, "请求 ID", 128);
-    const normalized = { connection_id: textField(input.connection_id, "生图服务", 128), prompt: textField(input.prompt, "图片描述", 32_000),
-      size: optionalText(input.size, "尺寸", 64), aspect_ratio: optionalText(input.aspect_ratio, "宽高比", 32) };
+    const normalized = { connection_id: textField(input.connection_id, "生图服务", 128), prompt: textField(input.prompt, "图片描述", IMAGES_INPUT_LIMITS.prompt),
+      size: optionalText(input.size, "尺寸", IMAGES_INPUT_LIMITS.size), aspect_ratio: optionalText(input.aspect_ratio, "宽高比", IMAGES_INPUT_LIMITS.aspect_ratio) };
     const inputHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
     const existing = this.store.findRequest(projectIdValue, requestId, inputHash);
     if (existing) return this.executionState(existing);

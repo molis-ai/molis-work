@@ -582,7 +582,7 @@ test("a form collects on this computer and through answer files, honestly", asyn
   const submissions = forms.listSubmissions(form.id, "personal");
   assert.deepEqual(submissions.map(item => item.source).sort(), ["file", "fill"]);
   const csv = formResultsCsv(form, submissions);
-  assert.ok(csv.startsWith("﻿提交时间,来源,最常用的功能,最希望改进的地方"));
+  assert.ok(csv.startsWith("﻿request_id,提交时间,来源,最常用的功能,最希望改进的地方"));
   assert.match(csv, /答卷文件,移动端/);
   const page = formFillPageHtml(form);
   assert.ok(!page.includes("Beta </script> 满意度\","), "the title cannot end the data script");

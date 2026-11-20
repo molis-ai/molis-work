@@ -241,11 +241,11 @@ form.promote	1	io.molis.work.form	io.molis.work.form	command	operation	project	w
 form.publish	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	d1f3dac66b98	d43039f240f2	-
 form.questions.add	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	6d373c53dc8f	d43039f240f2	-
 form.questions.draft	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	concurrent	agent,mcp,user,workflow	form:read,form:write,model:invoke	form	-	-	9905e6de95ae	2cfb4358f4aa	613063238287
-form.results	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	0c4f0b7142bf	-
+form.results	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	d551e34c3a57	-
 form.results.csv	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	b98ba31d611c	-
 form.search.entries	1	io.molis.work.form	io.molis.work.form	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	form:read	form	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	8e8475e19e06
 form.subject.read	1	io.molis.work.form	io.molis.work.form	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	form:read	form	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	05376344fab6	3cfff55e5308
-form.submit	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:submit	form	-	-	a718c3687b91	8314c48f3182	-
+form.submit	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:submit	form	-	-	a718c3687b91	42f9532c11ac	-
 form.update	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	37c0823d2f40	d43039f240f2	-
 git.conflict	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	db236a4fd826	cbdfeb77ac0e	a7fd75581995
 git.operations	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	07f86a337608	476e9ece3ed2	-
@@ -301,8 +301,6 @@ goals.inputs.bind	1	io.molis.work.goals	io.molis.work.goals	command	operation	pr
 goals.inputs.confirm	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	context-ledger:write,goals:write	goal	molis.goal.promote.confirm.input.v1	molis.goal.promote.confirm.output.v1	3f9dc5d3fbad	a50779e05950	9a20bdba744a
 goals.inputs.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	1b72d3bb5995	88f3e0d5af3c	-
 goals.inputs.release	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	13352bb01dc1	946832ab5da4	9a20bdba744a
-goals.inputs.review_change	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:decide	goal-input	-	-	a6bf98af298f	a9d358a41c80	f4043a77667b
-goals.inputs.review_source	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	user	goals:read	goal-input	-	-	72f0db8bc372	a2c799262a3c	722862b3d60a
 goals.items.create	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user	goals:write	goal	-	-	2f6662cf612c	99b557e4a48f	-
 goals.items.next	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,user,workflow	goals:read	goal	-	-	e8e92080905f	74ce4211fd19	-
 goals.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	573ae9304527	45ca7222da7a	-

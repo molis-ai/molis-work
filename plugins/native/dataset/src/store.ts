@@ -136,13 +136,31 @@ export class DatasetStore {
     });
   }
 
-  /** A table made from CSV another plugin hands over (a form's responses); one delivery makes one table. */
-  receiveCsv(projectId: string, requestId: string, title: string, csv: string): DatasetRecord {
+  /** A CSV delivery with a stable source updates its bound table in the current project. */
+  receiveCsv(projectId: string, requestId: string, title: string, csv: string, sourceKey?: string): DatasetRecord {
     return this.once(projectId, "receive:" + requestId, () => {
       const parsed = parseCsv(csv);
       if (parsed.columns.length === 0) throw datasetErrors.invalid("收到的内容不是带表头的 CSV");
-      const created = this.create({ title: [...title].slice(0, 80).join("") || "未命名数据表", project_id: projectId });
-      return this.update(created.id, { columns: parsed.columns, rows: parsed.rows, expected_version: created.version }, projectId);
+      if (!sourceKey) {
+        const created = this.create({ title: [...title].slice(0, 80).join(""), project_id: projectId });
+        return this.update(created.id, { ...parsed, expected_version: created.version }, projectId);
+      }
+      const binding = this.db.get(`SELECT dataset_source_bindings.dataset_id FROM dataset_source_bindings
+        JOIN datasets ON datasets.id = dataset_source_bindings.dataset_id AND datasets.project_id = dataset_source_bindings.project_id
+        WHERE dataset_source_bindings.project_id = ? AND source_key = ?`, [projectId, sourceKey]);
+      const existing = binding
+        ? this.get(String(binding.dataset_id), projectId)
+        : this.create({ title: [...title].slice(0, 80).join(""), project_id: projectId });
+      const { columns, rows } = mergeAppendedCsvIntoDataset(existing, parsed);
+      const dataset = rows.length === existing.rows.length && columns.length === existing.columns.length
+        ? existing
+        : this.update(existing.id, { columns, rows, expected_version: existing.version }, projectId);
+      const now = new Date().toISOString();
+      this.db.run(`INSERT INTO dataset_source_bindings (project_id, source_key, dataset_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(project_id, source_key)
+        DO UPDATE SET dataset_id = excluded.dataset_id, updated_at = excluded.updated_at`,
+        [projectId, sourceKey, dataset.id, now, now]);
+      return dataset;
     });
   }
 
@@ -161,6 +179,7 @@ export class DatasetStore {
       const current = this.get(id, projectId); assertDatasetVersion(current, expectedVersion);
       if (current.publication_pending) throw datasetErrors.publication_pending("请先恢复上次发布，再删除数据表");
       this.db.run("DELETE FROM dataset_versions WHERE dataset_id = ?", [id]);
+      this.db.run("DELETE FROM dataset_source_bindings WHERE dataset_id = ?", [id]);
       this.db.run("DELETE FROM datasets WHERE id = ?", [id]);
     });
   }
@@ -245,6 +264,47 @@ export class DatasetStore {
   }
 }
 
+
+function mergeAppendedCsvIntoDataset(existing: DatasetRecord, parsed: { columns: DatasetColumn[]; rows: DatasetRow[] }) {
+  const columns = [...existing.columns];
+  const existingByName = new Map<string, DatasetColumn[]>();
+  for (const column of existing.columns) {
+    const name = column.name.trim();
+    const matches = existingByName.get(name);
+    if (matches) matches.push(column);
+    else existingByName.set(name, [column]);
+  }
+  const isRequestId = (column: DatasetColumn) => column.name.trim().toLowerCase() === "request_id";
+  const incomingKey = parsed.columns.find(isRequestId);
+  const existingKey = existing.columns.find(isRequestId);
+  const targetByIncomingId = new Map<string, string>();
+  for (const incoming of parsed.columns) {
+    const matches = existingByName.get(incoming.name.trim());
+    const match = incoming === incomingKey && existingKey ? existingKey : matches?.find(column => column !== existingKey);
+    if (match) {
+      const matchList = existingByName.get(match.name.trim());
+      if (matchList) matchList.splice(matchList.indexOf(match), 1);
+      targetByIncomingId.set(incoming.id, match.id);
+      continue;
+    }
+    const id = crypto.randomUUID();
+    targetByIncomingId.set(incoming.id, id);
+    columns.push({ ...incoming, id, order: columns.length + 1 });
+  }
+
+  const keys = new Set(existingKey ? existing.rows.map(row => (row.cells[existingKey.id] ?? "").trim()) : []);
+  const rows = [...existing.rows];
+  for (const row of parsed.rows) {
+    const key = incomingKey ? (row.cells[incomingKey.id] ?? "").trim() : "";
+    if (key && keys.has(key)) continue;
+    if (key) keys.add(key);
+    const cells = Object.fromEntries(columns.map(column => [column.id, ""]));
+    for (const [incomingId, targetId] of targetByIncomingId) cells[targetId] = row.cells[incomingId] ?? "";
+    rows.push({ id: row.id, cells });
+  }
+  if (rows.length > 2000) throw datasetErrors.invalid("追加后总行数超过 2000 行上限");
+  return { columns, rows };
+}
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
   // Spreadsheet exports (ours included) start with a byte-order mark; it is not part of the first column's name.

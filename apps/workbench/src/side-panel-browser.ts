@@ -259,7 +259,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const focusBrowserTab=()=>{
     const tab=document.querySelector('[data-side-tab=browser][aria-selected=true]');
-    if(visible()&&tab?.getClientRects().length)tab.focus({preventScroll:true});
+    const target=tab?.getClientRects().length?tab:document.querySelector('[data-side-ear=browser]');
+    if(visible()&&target?.getClientRects().length)target.focus({preventScroll:true});
   };
   const paintApprovalBusy=()=>{
     const busy=deciding.has(reviewing)?'true':null;

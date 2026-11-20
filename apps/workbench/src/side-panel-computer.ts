@@ -166,7 +166,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   };
   const renderApproval=(row)=>{
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
-    if(!row){if(focused)document.querySelector('[data-side-tab=computer][aria-selected=true]')?.focus({preventScroll:true});approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
+    if(!row){if(focused){const tab=document.querySelector('[data-side-tab=computer][aria-selected=true]');(tab?.getClientRects().length?tab:document.querySelector('[data-side-ear=computer]'))?.focus({preventScroll:true});}approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over'||state?.control?.mode==='paused';
     const mode=JSON.stringify([held,row.decisions,row.request.reference.version]);
     const same=reviewing===row.request.review_id;

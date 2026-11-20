@@ -41,7 +41,7 @@ for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refu
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
   const current=readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8');
-  const schema=version===1?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
+  const schema=version<=SYNC_STORE_BASELINE.version?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);
   const code=version<SYNC_STORE_BASELINE.version?'storage.upgrade_pending':

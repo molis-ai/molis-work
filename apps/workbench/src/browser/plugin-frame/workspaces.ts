@@ -30,6 +30,7 @@ export function childWorkspaces(port: MessagePort, scope: FrameScope): UiPageWor
 }
 
 interface DirectoryRow { workspace_id: string; display_name: string; roles: string[] }
+interface DirectoriesRead { directories: DirectoryRow[]; revision: string }
 
 /**
  * What the person is asked before a folder becomes the output, with what happens to the output now (specs/shared-sources-and-surfaces §3):
@@ -62,23 +63,33 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
       if (adding || !scope.visible || !navigator.userActivation.isActive) throw new Error(uiText.text("common.workspaces.click-drag-file-again"));
       adding = ownsAdd = true;
       stop = scope.whenVisible(() => () => visible.abort());
+      // What the person confirms is the folders as read for the dialog: their revision goes with the change, so one made elsewhere in
+      // between (another window, the project settings) refuses it as stale instead of applying to folders the person did not see.
+      let revision: string | undefined;
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: {}, headers: { "x-molis-plugin-page": pageId }, scope });
       if (message.operation === "set_output") {
-        const read = await molisWorkRequest<{ directories: DirectoryRow[] }>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
+        const read = await molisWorkRequest<DirectoriesRead>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
+        revision = read.revision;
         const folder = read.directories.find(item => item.workspace_id === message.value);
         if (!folder) throw new Error(uiText.text("common.workspaces.folder-no-longer-one-project-s-folders"));
         if (folder.roles.includes("output")) { port.postMessage({ type: "workspace-result", id: message.id, workspace: { workspace_id: folder.workspace_id } } satisfies FrameDown); return; }
         if (!await dialogs.confirm(outputQuestion(readText, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(uiText.text("common.workspaces.cancelled"));
       } else if (message.operation === "read_instructions") {
         if (message.value !== "on") throw new Error(uiText.text("common.workspaces.workspace-operation-failed"));
-        const read = await molisWorkRequest<{ directories: DirectoryRow[] }>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
+        const read = await molisWorkRequest<DirectoriesRead>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
+        revision = read.revision;
         const output = read.directories.find(item => item.roles.includes("output"));
         if (!output || !await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-read-instructions", { plugin, project, folder: output.display_name }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       } else if (!await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-link-folder-project-project-path", { plugin, project, path: message.value }))) throw new Error(uiText.text("common.workspaces.cancelled"));
       scope.assertCurrent(); if (!scope.visible) throw new Error(uiText.text("common.workspaces.cancelled"));
       const result = await molisWorkRequest<{ workspace?: { workspace_id: string }; instructions?: UiPageInstructionSettings }>(route("/api/host/plugin-page-workspaces"), {
-        body: { operation: message.operation, value: message.value }, headers: { "x-molis-context-page": pageId }, scope, signal: visible.signal,
-        fallback: uiText.text("common.workspaces.unable-link-workspace"),
+        // Adding a folder asks only about its path, so it carries no revision (JSON leaves the undefined field out).
+        body: { operation: message.operation, value: message.value, expected_revision: revision },
+        headers: { "x-molis-context-page": pageId }, scope, signal: visible.signal, fallback: uiText.text("common.workspaces.unable-link-workspace"),
+      // This route writes only `projects.directories.*`, whose one conflict is a revision changed since the read.
+      }).catch((error: { code?: string; message: string }) => {
+        if (error?.code === "actions.conflict") error.message = uiText.text("common.workspaces.folders-changed-elsewhere");
+        throw error;
       });
       scope.assertCurrent(); port.postMessage({ type: "workspace-result", id: message.id, workspace: result.workspace, instructions: result.instructions } satisfies FrameDown);
     } catch (error) {

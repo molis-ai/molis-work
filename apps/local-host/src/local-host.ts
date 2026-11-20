@@ -209,6 +209,7 @@ export class LocalHost<Runtime> {
     return {
       discover: async caller => this.availability.discover(contextFor(caller)),
       discoverMatching: async (caller, select) => this.availability.discover(contextFor(caller), select),
+      discoverOne: async (caller, reference) => this.availability.discoverOne(contextFor(caller), reference),
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
         try { context = contextFor(caller); }
@@ -247,6 +248,13 @@ export class LocalHost<Runtime> {
     return {
       discover: caller => discover(caller),
       discoverMatching: discover,
+      discoverOne: async (caller, reference) => {
+        if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
+        const bound = callerFor(caller);
+        await this.withRuntime(project, () => undefined);
+        caller.signal?.throwIfAborted();
+        return this.availability.discoverOne(bound, reference);
+      },
       discoverRetained: async caller => {
         if (!caller.retainAuthority) throw new ActionError("actions.host_context_missing", "组合需要原调用的授权");
         const bound = callerFor(caller);

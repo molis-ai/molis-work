@@ -189,18 +189,23 @@ export function createLocalWebAssets(ports: {
   return { servePtyClient, serveWorkbenchAsset };
 }
 
-function declaredPluginClientAsset(pathname: string): { body: Buffer; contentType: string } | null {
-  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
-    const specifier = entry.workbench.clientAssetSpecifiers?.[pathname];
-    const pkg = entry.project_runtime?.package_name ?? entry.runtime?.package_name;
-    if (!specifier || !pkg || !specifier.startsWith(pkg + "/")) continue;
-    try {
-      const filePath = requireAsset.resolve(specifier);
-      if (!fs.existsSync(filePath)) return null;
-      return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
-    } catch {
-      return null;
-    }
+const DECLARED_CLIENT_ASSET_SPECIFIERS = new Map<string, string>();
+for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+  const pkg = entry.project_runtime?.package_name ?? entry.runtime?.package_name;
+  if (!pkg || !entry.workbench.clientAssetSpecifiers) continue;
+  for (const [pathname, specifier] of Object.entries(entry.workbench.clientAssetSpecifiers)) {
+    if (specifier.startsWith(pkg + "/")) DECLARED_CLIENT_ASSET_SPECIFIERS.set(pathname, specifier);
   }
-  return null;
+}
+
+function declaredPluginClientAsset(pathname: string): { body: Buffer; contentType: string } | null {
+  const specifier = DECLARED_CLIENT_ASSET_SPECIFIERS.get(pathname);
+  if (!specifier) return null;
+  try {
+    const filePath = requireAsset.resolve(specifier);
+    if (!fs.existsSync(filePath)) return null;
+    return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
+  } catch {
+    return null;
+  }
 }

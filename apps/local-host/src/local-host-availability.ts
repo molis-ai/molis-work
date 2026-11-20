@@ -21,6 +21,13 @@ export class HostAvailability {
     return this.views(caller, views, select ? undefined : views);
   }
 
+  async discoverOne(caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
+    const view = this.actionService.discoverOne(caller, reference);
+    if (!view || (reference.provider_id && view.provider.provider_id !== reference.provider_id)) return undefined;
+    const [resolved] = await this.views(caller, [view]);
+    return resolved;
+  }
+
   async discoverRetained(caller: ActionCallContext, retain: NonNullable<ActionExecutionContext["retainAuthority"]>): Promise<RetainedActionDirectory> {
     const sample = sampleRetainedActionDirectory(observe => this.actionService.discover(caller, observe), retain);
     const views = await this.views(caller, sample.views, sample.views);

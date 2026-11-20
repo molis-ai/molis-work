@@ -258,35 +258,3 @@ export function createProjectGuidance(ports: ProjectGuidancePorts) {
 }
 
 export type ProjectGuidance = ReturnType<typeof createProjectGuidance>;
-
-const ENTRY_COLUMNS = ["guidance_id", "project_id", "position", "revision", "active", "kind", "content", "content_hash", "source_refs_json",
-  "created_by", "confirmation_summary", "reason", "created_at", "updated_by", "updated_at"];
-const REVISION_COLUMNS = ["revision_id", "guidance_id", "project_id", "revision", "kind", "content", "content_hash", "source_refs_json", "active",
-  "changed_by", "change_kind", "confirmation_summary", "reason", "created_at"];
-const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"';
-
-/**
- * The project library's 6→7 step for guidance, once the step's own SQL made the platform's tables (`PROJECT_GUIDANCE_SCHEMA_SQL`): when
- * Goals kept the project's guidance, move its rows across unchanged and drop Goals' former tables (named by the caller as Goals'
- * version-5 declaration has them). False, with nothing changed, when a row belongs to another project than the library's one.
- */
-export function adoptProjectGuidance(db: { exec(sql: string): unknown; prepare(sql: string): { get(...params: unknown[]): unknown; run(...params: unknown[]): unknown } },
-  projectId: string,
-  former: { readonly entries: string; readonly revisions: string } | null): boolean {
-  if (former) {
-    for (const table of [former.entries, former.revisions]) {
-      if (numeric((db.prepare(`SELECT COUNT(*) AS n FROM ${quote(table)} WHERE project_id <> ?`).get(projectId) as Row).n)) return false;
-    }
-  }
-  if (!former) return true;
-  const move = (columns: readonly string[], from: string, to: string) => {
-    const list = columns.join(", ");
-    db.prepare(`INSERT INTO ${quote(to)} (${list}) SELECT ${list} FROM ${quote(from)}`).run();
-    const count = (table: string) => numeric((db.prepare(`SELECT COUNT(*) AS n FROM ${quote(table)}`).get() as Row).n);
-    if (count(from) !== count(to)) throw errors.invalid("项目长期说明搬进平台时行数不符");
-  };
-  move(ENTRY_COLUMNS, former.entries, PROJECT_GUIDANCE_TABLES[0]);
-  move(REVISION_COLUMNS, former.revisions, PROJECT_GUIDANCE_TABLES[1]);
-  db.exec(`DROP TABLE ${quote(former.revisions)}; DROP TABLE ${quote(former.entries)};`);
-  return true;
-}

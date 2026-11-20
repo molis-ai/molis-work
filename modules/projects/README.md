@@ -23,7 +23,7 @@ ProjectsModule 用注入数据库在包内建立 repository 与 service，公开
 | [src/project-paths.ts](src/project-paths.ts) | 项目库/暂存目录的路径推导 |
 | [src/installation-inspection.ts](src/installation-inspection.ts) | 卸载只读检查 |
 | [src/project-root.ts](src/project-root.ts) | 项目库里的项目根行 `project_root` |
-| [src/project-guidance.ts](src/project-guidance.ts) | 项目长期说明：表、读写（`createProjectGuidance`）与 6→7 从 Goals 接过行（`adoptProjectGuidance`） |
+| [src/project-guidance.ts](src/project-guidance.ts) | 项目长期说明：表与读写（`createProjectGuidance`） |
 | [src/project-guidance-replica.ts](src/project-guidance-replica.ts) | 「项目长期说明」同步集合的副本与传输表 |
 
 可对照现有调用方 [apps/local-host/src/project-catalog.ts](../../apps/local-host/src/project-catalog.ts) 阅读装配方式。

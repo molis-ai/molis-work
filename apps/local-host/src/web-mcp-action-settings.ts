@@ -112,7 +112,7 @@ export async function changeMcpActionAccess(home: string, host: MolisWorkLocalHo
     }
   }
   const accepted = await service.discover(context);
-  for (const view of views) assertGrantAvailable(view, accepted, context);
+  for (const view of views) assertGrantAvailable(view, accepted, context, all);
   const saved = new Map(preference.action_grants.map(row => [actionGrantKey(row), row]));
   const read = new Map<string, McpActionGrantExpected>();
   for (const view of dependencies) {
@@ -134,12 +134,39 @@ export async function changeMcpActionAccess(home: string, host: MolisWorkLocalHo
   } }, read);
 }
 
-function assertGrantAvailable(view: ActionView, accepted: readonly ActionView[], context: ActionCallContext): void {
+function assertGrantAvailable(view: ActionView, accepted: readonly ActionView[], context: ActionCallContext, all: readonly ActionView[]): void {
   const state = accepted.find(row => row.capability_id === view.capability_id && row.version === view.version && row.provider.provider_id === view.provider.provider_id)?.availability;
   if (state?.available) return;
-  const missing = (view.action.required_actions ?? []).filter(need => !(context.allowed_actions ?? []).some(allowed => allowed.capability_id === need.capability_id
-    && allowed.version === need.version && (!need.provider_id || allowed.provider_id === need.provider_id)));
-  if (missing.length) throw mcpErrors.grant_requires(uiText.text("workbench.mcp-action-settings.action-also-needs-these-actions-granted-actions", { actions: listJoin(missing.map(need => need.capability_id)) }));
+  const isAllowed = (ref: { capability_id: string; version: number; provider_id?: string }) =>
+    (context.allowed_actions ?? []).some(allowed => allowed.capability_id === ref.capability_id
+      && allowed.version === ref.version && (!ref.provider_id || allowed.provider_id === ref.provider_id));
+  const missing: string[] = (view.action.required_actions ?? []).filter(need => !isAllowed(need)).map(need => need.capability_id);
+  if (view.action.required_roles?.length) {
+    const roles = view.action.required_roles;
+    const byProvider = new Map<string, Map<number, ActionView>>();
+    for (const candidate of all) {
+      roles.forEach((role, index) => {
+        if (candidate.action.input_type === role.input_type && candidate.action.output_type === role.output_type) {
+          const group = byProvider.get(candidate.provider.provider_id) ?? new Map();
+          if (!group.has(index)) group.set(index, candidate);
+          byProvider.set(candidate.provider.provider_id, group);
+        }
+      });
+    }
+    const complete = [...byProvider.entries()]
+      .filter(([, group]) => group.size === roles.length)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, group]) => roles.map((_, index) => group.get(index)!));
+    if (complete.length && !complete.some(group => group.every(dep => isAllowed({ capability_id: dep.capability_id, version: dep.version, provider_id: dep.provider.provider_id })))) {
+      let bestMissing: string[] | undefined;
+      for (const group of complete) {
+        const absent = group.filter(dep => !isAllowed({ capability_id: dep.capability_id, version: dep.version, provider_id: dep.provider.provider_id })).map(dep => dep.capability_id);
+        if (!bestMissing || absent.length < bestMissing.length) bestMissing = absent;
+      }
+      for (const id of bestMissing ?? []) if (!missing.includes(id)) missing.push(id);
+    }
+  }
+  if (missing.length) throw mcpErrors.grant_requires(uiText.text("workbench.mcp-action-settings.action-also-needs-these-actions-granted-actions", { actions: listJoin(missing) }));
   throw new ActionError(state && !state.available ? state.code : "mcp.grant_unavailable", state && !state.available ? state.reason : "能力尚不可用，请检查权限和方法开关",
     state && !state.available && state.kind ? { kind: state.kind } : undefined);
 }

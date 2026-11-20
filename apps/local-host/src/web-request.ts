@@ -36,7 +36,7 @@ import { handleSurfaceSlotHttp } from "./surface-slot-http.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinPluginByProjectKey } from "./plugin-registry.js";
-import { readRuntimeStageData, runtimeStageOwner, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
+import { readRuntimeStageData, runtimeStageOwner, setStageErrors, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
 import { handleSubjectContextHttp } from "./subject-context-http.js";
 import { declaredStageRequests } from "./project-stage-data.js";
@@ -221,12 +221,12 @@ function projectWebView({ options, webViewCache, localHost, hostReference, serve
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: ownerRead(owner) }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // A fragment consumes its matched owner's data, not the other stages or the Home shell.
-    if (scope === "page") return { ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) };
+    if (scope === "page") return setStageErrors({ ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
     const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, shown: view.shown_plugins, views: prepared?.views, page_owner: view.page_owner,
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
-    return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
+    return setStageErrors({ ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) };
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
   };
 }
 

@@ -206,7 +206,7 @@ export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.j
 export { projectDatabasePath, projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";
 export {
-  adoptProjectGuidance, createProjectGuidance, projectGuidanceContentHash, projectGuidancePromptPrefix, PROJECT_GUIDANCE_EVENT_PREFIX, PROJECT_GUIDANCE_OBJECT_TYPE,
+  createProjectGuidance, projectGuidanceContentHash, projectGuidancePromptPrefix, PROJECT_GUIDANCE_EVENT_PREFIX, PROJECT_GUIDANCE_OBJECT_TYPE,
   PROJECT_GUIDANCE_RECEIPTS, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_GUIDANCE_TABLES, type ProjectGuidanceJournal, type ProjectGuidancePorts, type ProjectGuidance,
 } from "./project-guidance.js";
 export { PROJECT_GUIDANCE_JOURNAL, projectGuidanceReplica } from "./project-guidance-replica.js";

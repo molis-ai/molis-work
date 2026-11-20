@@ -12,7 +12,7 @@ export interface GoalsStageInput {
   goal_id?: string;
   collection?: GoalDocumentCollection;
   view?: string;
-  projection?: string;
+  projection?: "collection";
   route_kind?: "refresh" | "momentum" | "document";
 }
 export interface GoalsStageArtifactContext {
@@ -38,7 +38,7 @@ const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read"
     goal_id: { type: "string" },
     collection: { type: "string", enum: ["current", "archive", "trash"] },
     view: { type: "string" },
-    projection: { type: "string" },
+    projection: enumeration(["collection"]),
     route_kind: enumeration(["refresh", "momentum", "document"]),
   }, []),
   object({
@@ -90,21 +90,16 @@ export function createGoalsStageActionHandler(ports: {
     let selection: GoalDocumentCollection;
     let goalId: string | undefined;
     let loadDocument = input.projection !== "collection";
+    let routeError: GoalsStageData["route_error"];
     if (input.route_kind === "momentum") {
       const requested = input.view ?? input.collection ?? "current";
       if (requested !== "current" && requested !== "archive") return stageError(projectId, { status: 400, error: "Goal 推进态势集合无效" });
       selection = requested;
       goalId = input.goal_id?.trim() || "";
-      if (!goalId || !visibleList(membership, selection).some(item => item.goal.goal_id === goalId)) {
-        return stageError(projectId, { status: 404, error: "Goal 推进态势不存在" }, selection);
-      }
       loadDocument = false;
     } else if (input.route_kind === "refresh" || input.route_kind === "document") {
       const requested = input.view ?? input.collection ?? "current";
       if (!isCollection(requested)) return stageError(projectId, { status: 400, error: "Goal 正文集合无效" });
-      if (input.route_kind === "refresh" && input.projection !== undefined && input.projection !== "collection") {
-        return stageError(projectId, { status: 400, error: "Goal 请求参数无效" }, requested);
-      }
       selection = requested;
       const visible = visibleList(membership, selection);
       if (input.route_kind === "document") {
@@ -118,10 +113,16 @@ export function createGoalsStageActionHandler(ports: {
     } else {
       const requested = input.collection ?? "current";
       const resolved = resolveGoalsPageCollection({ collection: requested, ...(input.goal_id ? { goal_id: input.goal_id } : {}) }, membership);
-      if ("error" in resolved) return stageError(projectId, { status: resolved.status, error: resolved.error }, requested);
-      selection = resolved.route.collection;
-      const visible = visibleList(membership, selection);
-      goalId = input.goal_id ?? (selection === "current" ? membership.active_goal_id ?? undefined : visible[0]?.goal.goal_id);
+      if ("error" in resolved) {
+        routeError = { status: resolved.status, error: resolved.error };
+        selection = requested;
+        goalId = undefined;
+        loadDocument = false;
+      } else {
+        selection = resolved.route.collection;
+        const visible = visibleList(membership, selection);
+        goalId = input.goal_id ?? (selection === "current" ? membership.active_goal_id ?? undefined : visible[0]?.goal.goal_id);
+      }
     }
     const visible = visibleList(membership, selection);
     const selected = loadDocument && goalId && visible.some(item => item.goal.goal_id === goalId)
@@ -135,6 +136,7 @@ export function createGoalsStageActionHandler(ports: {
       selected,
       artifact_subject_id: selection !== "trash" ? (selected?.goal_id ?? null) : null,
       body_attributes: { "data-board-view": selection },
+      ...(routeError ? { route_error: routeError } : {}),
     };
   } };
 }

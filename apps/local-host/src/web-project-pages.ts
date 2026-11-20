@@ -20,7 +20,7 @@ import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer }
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ensureProjectPlugins } from "./project-plugins.js";
-import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
+import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
 
@@ -182,6 +182,11 @@ export function createLocalProjectPagesHttp(ports: {
     const view = await readWebView();
     if (!owner || !view.shown_plugins?.includes(owner.project_plugin_id)) {
       sendJson(response, 404, { error: "页面内容不存在" });
+      return true;
+    }
+    const stageError = stageErrorsOf(view)?.[owner.project_plugin_id];
+    if (stageError) {
+      sendJson(response, actionHttpStatus(stageError), actionErrorBody(stageError));
       return true;
     }
     const rawStage = view.stage_data?.[owner.project_plugin_id];

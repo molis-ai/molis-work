@@ -152,6 +152,36 @@ test("beforeEffect decides the write: a transaction whose beforeEffect refuses w
     } finally { item.store.close(); }
   }));
 
+test("SQLD-02 BL-home-library-second-statement services.database takes one statement per call: two are refused in the project library's words and neither runs, not even the first; one, with or without a tail of white space and comments, runs as always",
+  withDirectory(async directory => {
+    const item = platformIn(directory), plugin = probe();
+    try {
+      await item.platform.start([{ definition: withLibrary(plugin.definition, DECLARATION), trust: { level: "host" } }]);
+      const database = plugin.database(), TWO = /more than one statement/u;
+      await noteInto(database, "kept");
+      for (const sql of ["INSERT INTO notes (text) VALUES ('first'); DELETE FROM notes", "INSERT INTO notes (text) VALUES ('first');\n-- then\nDELETE FROM notes",
+        "INSERT INTO notes (text) VALUES ('first'); /* then */ DELETE FROM notes", "INSERT INTO notes (text) VALUES (';'); DELETE FROM notes"]) {
+        await assert.rejects(database.transaction(async () => {}, tx => tx.run(sql)), TWO, sql);
+      }
+      await assert.rejects(database.transaction(async () => {}, tx => {
+        tx.run("INSERT INTO notes (text) VALUES ('earlier')");
+        tx.run("INSERT INTO notes (text) VALUES ('first'); DELETE FROM notes");
+      }), TWO, "and the transaction it is in writes nothing");
+      assert.throws(() => database.all("SELECT text FROM notes; DELETE FROM notes"), TWO);
+      assert.throws(() => database.get("SELECT text FROM notes; INSERT INTO notes (text) VALUES ('first')"), TWO);
+      await assert.rejects(database.transaction(async () => {}, tx => tx.all("SELECT text FROM notes; DELETE FROM notes")), TWO);
+      assert.deepEqual(rows(directory, LIBRARY), ["kept"], "the library holds what it held before");
+      const tails = ["", ";", "; ", ";\n-- 备注", " /* 不是; 两句 */;", "; /* 尾注 */\n", "-- 只有注释"];
+      for (const [index, tail] of tails.entries()) {
+        await database.transaction(async () => {}, tx => tx.run(`INSERT INTO notes (text) VALUES (?)${tail}`, [`one ${index}`]));
+      }
+      await database.transaction(async () => {}, tx => tx.run("INSERT INTO notes (text) VALUES ('a;b');"));
+      assert.deepEqual(plain(database.get("SELECT count(*) AS n FROM notes; -- 尾注")), { n: 9 });
+      assert.deepEqual(plain(database.all("SELECT text FROM notes WHERE text = 'a;b' ;\n")), [{ text: "a;b" }]);
+      assert.deepEqual(rows(directory, LIBRARY), ["kept", ...tails.map((_, index) => `one ${index}`), "a;b"]);
+    } finally { item.store.close(); }
+  }));
+
 test("RAC-304 only a definition the Host's start list holds is given a library: one listed whose Manifest declares none has none, and another definition that carries the same plugin id and asks for the library in its Manifest is refused and runs nothing, installed over the declared one: the registry's library is the shipped plugin's, and the ledger gives an installed plugin no store the Host's registry holds (plugin.home_database.object_taken)",
   withDirectory(async directory => {
     const first = platformIn(directory), declared = probe(), undeclared = probe({ name: "plainprobe" }), lookalike = probe({ version: "1.1.0" });

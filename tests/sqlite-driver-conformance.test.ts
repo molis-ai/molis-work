@@ -9,6 +9,7 @@ import test, { type TestContext } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { rollbackPreservingError, sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestSqlite as open } from "@molis-ai/molis-work-test-kit/sqlite";
+import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 
 const OFFICIAL_LOCKED_NODE = process.release.sourceUrl?.startsWith("https://nodejs.org/") && process.version === `v${readFileSync(".nvmrc", "utf8").trim()}`;
 
@@ -368,13 +369,23 @@ test("SQLD-04 no ExperimentalWarning: importing and using the driver on the lock
   assert.equal(child.stderr, "");
 });
 
-test("SQLD-02 a library in the Home is on node:sqlite without this layer, where a second statement is dropped: recorded for the backlog, not fixed here (§3.3)", t => {
-  const db = new DatabaseSync(":memory:");
-  t.after(() => db.close());
-  db.exec("CREATE TABLE t (v); INSERT INTO t VALUES ('kept')");
-  // pluginDatabaseClient calls prepare and then get, all or run on such a connection. The first statement runs; the second is never compiled.
-  db.prepare("INSERT INTO t VALUES ('first'); DELETE FROM t").run();
-  assert.deepEqual((db.prepare("SELECT v FROM t").all() as { v: string }[]).map(row => row.v), ["kept", "first"]);
+test("SQLD-02 BL-home-library-second-statement a plugin's library in the Home is a bare node:sqlite connection, which drops a second statement; its client refuses two in this layer's words and runs neither (§3.3)", async t => {
+  const raw = new DatabaseSync(":memory:");
+  t.after(() => raw.close());
+  raw.exec("CREATE TABLE t (v); INSERT INTO t VALUES ('kept')");
+  raw.prepare("INSERT INTO t VALUES ('first'); DELETE FROM t").run();
+  assert.deepEqual((raw.prepare("SELECT v FROM t").all() as { v: string }[]).map(row => row.v), ["kept", "first"], "the driver compiles only the first and says nothing");
+  const home = directory(t);
+  const library = openPluginDatabase(home, { store_name: "conformance-probe", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE t (v TEXT NOT NULL);" },
+    () => {}, { install_id: "conformance-probe", installation_generation: "1" });
+  t.after(() => library.close());
+  const { client } = library, TWO = /more than one statement/u;
+  await client.transaction(async () => {}, tx => tx.run("INSERT INTO t (v) VALUES ('kept')"));
+  await assert.rejects(client.transaction(async () => {}, tx => tx.run("INSERT INTO t (v) VALUES ('first'); DELETE FROM t")), TWO);
+  assert.throws(() => client.all("SELECT v FROM t; DELETE FROM t"), TWO);
+  await client.transaction(async () => {}, tx => tx.run("INSERT INTO t (v) VALUES ('one'); -- 尾注\n"));
+  const file = new DatabaseSync(join(home, "conformance-probe", "conformance-probe.db"), { readOnly: true });
+  try { assert.deepEqual(file.prepare("SELECT v FROM t ORDER BY rowid").all().map(row => row.v), ["kept", "one"]); } finally { file.close(); }
 });
 
 

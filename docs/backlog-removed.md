@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-project-membership-revision-read | 已完成并删除 | 2026-11-20：项目插件成员的版本化读取（`ProjectPluginMembershipService.readSnapshot`）改由项目库主人一条语句读出成员、隐藏项与最近一次成员增删事件（`modules/projects/src/project-records-repository.ts` 的 `pluginMembershipFacts`），不再另查 `project_events`；常开、个人插件的列表与隐藏规则和不带版本的读取共用同一套，revision 计算口径不变，加了又删回原样仍按事件检出。见 `tests/project-plugin-membership-revision.test.ts` 以这个编号开头的用例与 `tests/project-plugin-membership-http.test.ts` |
 | BL-015、BL-1048、BL-b16-capsule-native-verification | 随胶囊删除，并入 BL-capsule-redo | 第 44 批第 7 项（2026-11-17）删掉桌面工作胶囊（PEQ-13）；仍成立的要求由 [BL-capsule-redo](../specs/backlog/BL-capsule-redo.md) 承接 |
 | BL-report-rounds-auto-cap | 已完成并删除 | 第 97 批 97-1（2026-11-19）：宿主为没有对话来源的任务起的只汇报一轮在轮次上记 `report_only`，两处上限（接续起跑、委托交回）共用 `roundsOnItsOwn`，跳过汇报轮、不加也不清零；标记存在库里，重启后照样分得出。用户定不升助理库版本、不迁移：标记之前存下的汇报轮照旧计数。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-1) |
 | BL-work-line-report-batch | 已完成并删除 | 第 97 批 97-2（2026-11-19）：`AssistantTaskReports` 把一次读取里同一项目结束的行交成一批，`AssistantReportRounds.report` 起一轮列出全部结果（一件时措辞照旧），忙时整批等下一次空闲；每件任务仍各一条提醒、按任务去重。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-2) |

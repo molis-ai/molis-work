@@ -1,86 +1,95 @@
+import type { StageTerminalChoice, StageTerminalReadOnlyGuard } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
-import type { PanelRecord } from "./types.js";
-
-export type ChildGoalSummary = {
-  goal: { goal_id: string; title: string };
-  status_label: string;
-  status_meaning: string;
-  next_action: string;
-};
+import type { PanelRecord, WorkTerminalSubjectRef } from "./types.js";
 
 export interface TerminalGuardOptions {
   els: TerminalPaneElements;
   text: TerminalTranslate;
   route(path: string): string;
-  goalId(): string;
+  subject(): WorkTerminalSubjectRef;
   setStatus: TerminalStatus;
   closeMenu(): void;
 }
 
-/** Whether this page may drive a terminal: a parent Goal is read-only, and a panel answers only to its own Goal. */
+/** Whether this page may drive a terminal: a read-only item stays read-only, and a panel answers only to its own object. */
 export function createTerminalGuard(options: TerminalGuardOptions) {
-  const { els, route, goalId, setStatus } = options;
-  const { pane, emptyEl, parentGuardEl, childChoicesEl, addBtn, emptyAddBtn } = els;
-  let parentReadOnly = pane.dataset.tuiParentReadOnly === "true";
+  const { els, route, subject, setStatus } = options;
+  const { pane, emptyEl, readOnlyGuardEl, readOnlyHeadingEl, readOnlySummaryEl, readOnlyChoicesEl, addBtn, emptyAddBtn } = els;
+  let activeGuard: StageTerminalReadOnlyGuard | null = pane.getAttribute("data-tui-read-only") === "true"
+    ? {
+      reason: pane.dataset.tuiReadOnlyReason || uiText.text("workbench.client-guard.item-read-only-terminal"),
+      heading: pane.dataset.tuiReadOnlyHeading || uiText.text("workbench.pane.item-read-only-heading"),
+      summary: readOnlySummaryEl?.textContent || uiText.text("workbench.pane.item-read-only-summary"),
+      empty_summary: pane.dataset.tuiReadOnlyEmptySummary || uiText.text("workbench.pane.item-read-only-summary"),
+      add_disabled_title: pane.dataset.tuiReadOnlyAddTitle || uiText.text("workbench.pane.item-read-only-heading"),
+      empty_choices_text: "",
+      choices: [],
+    }
+    : null;
 
-  const parentReadOnlyMessage = () =>
-    uiText.text("workbench.client-guard.goal-completed-through-its-child-goals-so-its");
+  const readOnlyMessage = () => activeGuard?.reason || uiText.text("workbench.client-guard.item-read-only-terminal");
+  const readOnlyAddTitle = () => activeGuard?.add_disabled_title || readOnlyMessage();
 
-  const panelBelongsHere = (panel: PanelRecord | null | undefined) =>
-    Boolean(panel && panel.goal_id === goalId());
+  const panelBelongsHere = (panel: PanelRecord | null | undefined) => {
+    const current = subject();
+    return Boolean(panel && panel.plugin_id === current.plugin_id && panel.subject_kind === current.subject_kind && panel.subject_id === current.subject_id);
+  };
 
   const canControlPanel = (panel: PanelRecord | null | undefined): panel is PanelRecord => {
-    if (parentReadOnly) {
-      setStatus(parentReadOnlyMessage(), "error");
+    if (activeGuard) {
+      setStatus(readOnlyMessage(), "error");
       return false;
     }
     if (!panelBelongsHere(panel)) {
-      setStatus(
-        uiText.text("workbench.client-guard.page-has-switched-another-goal-terminal-stays-its"),
-        "error",
-      );
+      setStatus(uiText.text("workbench.client-guard.page-has-switched-another-item-terminal-stays-its"), "error");
       return false;
     }
     return true;
   };
 
-  const renderChildChoices = (children: ChildGoalSummary[]) => {
-    if (!childChoicesEl) return;
-    childChoicesEl.innerHTML = children.length
-      ? children.map((child) => `<a class="tui-child-choice" href="${escapeHtml(route(`/goals/${encodeURIComponent(child.goal.goal_id)}`))}">
-        <span><strong>${escapeHtml(child.goal.title)}</strong><small>${escapeHtml(child.status_label)} · ${escapeHtml(child.next_action)}</small></span>
-        <b>${escapeHtml(uiText.text("workbench.client-guard.open-child-goal"))}<svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></b>
+  const renderChoices = (choices: readonly StageTerminalChoice[], emptyText: string) => {
+    if (!readOnlyChoicesEl) return;
+    readOnlyChoicesEl.innerHTML = choices.length
+      ? choices.map((choice) => `<a class="tui-child-choice" href="${escapeHtml(route(choice.href))}">
+        <span><strong>${escapeHtml(choice.title)}</strong><small>${escapeHtml(choice.subtitle)}</small></span>
+        <b>${escapeHtml(choice.action_label)}<svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg></b>
       </a>`).join("")
-      : `<p>${escapeHtml(uiText.text("workbench.client-guard.there-no-child-goal-ready-work-check-how"))}</p>`;
+      : emptyText ? `<p>${escapeHtml(emptyText)}</p>` : "";
   };
 
-  const updateEmptyCopy = (readOnly: boolean) => {
+  const updateEmptyCopy = (guard: StageTerminalReadOnlyGuard | null) => {
     if (!emptyEl) return;
-    if (emptyAddBtn) emptyAddBtn.hidden = readOnly;
+    const isReadOnly = Boolean(guard);
+    if (emptyAddBtn) emptyAddBtn.hidden = isReadOnly;
     const paragraphs = emptyEl.querySelectorAll("p");
     const title = paragraphs[0]?.querySelector("strong");
-    if (title) title.textContent = readOnly ? uiText.text("workbench.client-guard.parent-goal-does-not-use-terminal-directly") : uiText.text("workbench.client-guard.no-terminal-yet");
+    if (title) title.textContent = guard ? (guard.heading || uiText.text("workbench.pane.item-read-only-heading")) : uiText.text("workbench.client-guard.no-terminal-yet");
     if (paragraphs[1]) {
-      paragraphs[1].textContent = readOnly
-        ? uiText.text("workbench.client-guard.open-specific-child-goal-above")
-        : uiText.text("workbench.client-guard.choose-runtime-custom-command-work-goal");
+      paragraphs[1].textContent = guard
+        ? (guard.empty_summary || guard.summary || guard.reason || uiText.text("workbench.pane.item-read-only-summary"))
+        : uiText.text("workbench.client-guard.choose-runtime-custom-command-work-item");
     }
   };
 
-  const setParentGuard = (readOnly: boolean, children: ChildGoalSummary[] = []) => {
-    parentReadOnly = readOnly;
-    pane.dataset.tuiParentReadOnly = String(readOnly);
-    pane.toggleAttribute("data-tui-read-only", readOnly);
-    if (parentGuardEl) parentGuardEl.hidden = !readOnly;
-    if (readOnly) renderChildChoices(children);
-    updateEmptyCopy(readOnly);
-    addBtn.disabled = readOnly;
-    addBtn.title = readOnly ? uiText.text("workbench.client-guard.open-specific-child-goal") : "";
-    if (readOnly) options.closeMenu();
+  const setReadOnlyGuard = (guard: StageTerminalReadOnlyGuard | null) => {
+    activeGuard = guard;
+    const isReadOnly = Boolean(guard);
+    if (isReadOnly) pane.setAttribute("data-tui-read-only", "true");
+    else pane.removeAttribute("data-tui-read-only");
+    if (readOnlyGuardEl) readOnlyGuardEl.hidden = !isReadOnly;
+    if (guard) {
+      if (readOnlyHeadingEl) readOnlyHeadingEl.textContent = guard.heading || uiText.text("workbench.pane.item-read-only-heading");
+      if (readOnlySummaryEl) readOnlySummaryEl.textContent = guard.summary || guard.reason || uiText.text("workbench.pane.item-read-only-summary");
+      renderChoices(guard.choices ?? [], guard.empty_choices_text ?? "");
+    }
+    updateEmptyCopy(guard);
+    addBtn.disabled = isReadOnly;
+    addBtn.title = isReadOnly ? readOnlyAddTitle() : "";
+    if (isReadOnly) options.closeMenu();
   };
 
-  return { readOnly: () => parentReadOnly, parentReadOnlyMessage, panelBelongsHere, canControlPanel, setParentGuard };
+  return { readOnly: () => Boolean(activeGuard), readOnlyMessage, readOnlyAddTitle, panelBelongsHere, canControlPanel, setReadOnlyGuard };
 }
 
 export type TerminalGuard = ReturnType<typeof createTerminalGuard>;

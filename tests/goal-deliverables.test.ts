@@ -15,7 +15,7 @@ const controlToken = "goal-deliverables-test-control-token-0123456789";
 test("a Goal records, lists and removes deliverables from the 成果库, and its page shows them as 交付物", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-deliverables-', actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: 'molis-work-goal-deliverables-', actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
@@ -66,7 +66,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
 test("a Goal pins a bound document on the spot through Pages and hands in the new version", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "goal-pin", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "goal-pin", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);

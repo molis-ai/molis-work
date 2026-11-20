@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors } from "./errors.js";
 
 /** The two statements the binding needs, synchronous like the transaction it runs in (a host connection today, the plugin's project database next). */
 export interface InboxSql {

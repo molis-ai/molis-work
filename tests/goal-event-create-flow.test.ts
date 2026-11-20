@@ -54,7 +54,9 @@ test("createIntent writes requirements and relations in one retryable operation"
     const state = data.app.goalEvents.readState("board", child.goal.goal_id);
     assert.equal(state.intent.source_kind, "web");
     assert.equal(state.agreement.outcome, "子结果");
-    assert.deepEqual(state.requirements.map((item) => item.statement), ["可核对"]);
+    // The requirement's words are on the platform; Goals keeps where it came from (contract-design §10).
+    assert.deepEqual(state.requirements.map((item) => item.origin?.kind), ["create_input"]);
+    assert.deepEqual(data.app.acceptanceView("board", child.goal.goal_id).requirements.map((item) => item.statement), ["可核对"]);
     assert.equal(state.can_record, true);
     const list = data.app.goalEvents.listGoals({ project_id: "board" });
     assert.ok(list.goals.some((item) => item.goal_id === child.goal.goal_id && item.can_record));
@@ -64,7 +66,7 @@ test("createIntent writes requirements and relations in one retryable operation"
   }
 });
 
-test("user can revise a createIntent requirement; runtime cannot relax it without a cited decision", () => {
+test("a createIntent requirement goes to the platform with its words; Goals keeps where it came from, and an agreement change cannot revise it", () => {
   const data = fixture();
   try {
     const created = data.app.goalEvents.createIntent({
@@ -75,33 +77,20 @@ test("user can revise a createIntent requirement; runtime cannot relax it withou
     const before = data.app.goalEvents.readState("board", created.goal.goal_id);
     const target = before.requirements[0];
     assert.ok(target);
-    assert.equal(target.origin.kind, "create_input");
-    assert.equal(target.statement, "真实付款成功");
-    const versions = {
-      expected_config_version: before.config.version,
-      expected_agreement_version: before.agreement.version,
-    };
+    assert.equal(target.origin?.kind, "create_input");
+    // What it says is the platform's (contract-design §10): the person changes it in the platform's requirement column.
+    const listed = data.app.acceptanceView("board", created.goal.goal_id).requirements;
+    assert.deepEqual(listed.map((item) => [item.id, item.statement]), [[target.requirement_id, "真实付款成功"]]);
     assert.throws(
       () => data.app.goalEvents.setAgreement({
-        project_id: "board", goal_id: created.goal.goal_id, actor_id: "runtime-1", actor_kind: "runtime",
-        idempotency_key: "runtime-revise-created", ...versions,
-        revise_requirements: [{ requirement_id: target.requirement_id, statement: "Runtime 自行放宽原文" }],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
+        project_id: "board", goal_id: created.goal.goal_id, actor_id: "web-user", actor_kind: "user",
+        idempotency_key: "user-revise-created", expected_config_version: before.config.version, expected_agreement_version: before.agreement.version,
+        revise_requirements: [{ requirement_id: target.requirement_id, statement: "用户核对真实付款后可以打开收据" }],
+      } as never),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.no_changes",
     );
-    const blocked = data.app.goalEvents.readState("board", created.goal.goal_id);
-    assert.equal(blocked.requirements[0]?.statement, "真实付款成功");
-    assert.equal(blocked.requirements[0]?.origin.kind, "create_input");
-    assert.equal(blocked.agreement.version, before.agreement.version);
-    data.app.goalEvents.setAgreement({
-      project_id: "board", goal_id: created.goal.goal_id, actor_id: "web-user", actor_kind: "user",
-      idempotency_key: "user-revise-created", ...versions,
-      revise_requirements: [{ requirement_id: target.requirement_id, statement: "用户核对真实付款后可以打开收据" }],
-    });
-    const revised = data.app.goalEvents.readState("board", created.goal.goal_id);
-    assert.equal(revised.requirements[0]?.requirement_id, target.requirement_id);
-    assert.equal(revised.requirements[0]?.statement, "用户核对真实付款后可以打开收据");
-    assert.equal(revised.requirements[0]?.origin.kind, "create_input");
+    assert.equal(data.app.goalEvents.readState("board", created.goal.goal_id).agreement.version, before.agreement.version);
+    assert.equal(data.app.acceptanceView("board", created.goal.goal_id).requirements[0]?.statement, "真实付款成功");
     assert.ok(data.app.goalEvents.listEvents("board", created.goal.goal_id, { limit: 20 }).events
       .some((event) => event.kind === "system" && event.payload.operation === "intent_created"));
   } finally {

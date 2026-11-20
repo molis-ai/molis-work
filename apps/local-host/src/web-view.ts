@@ -1,14 +1,10 @@
-import { emptyGoalsDocumentCollection, goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-import type { LocalProjectDatabase } from "./project-database.js";
+import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+export type { MolisWorkWebView };
 import { inLanguagePreview, currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
-import { shownProjectPlugins } from "./plugin-registry.js";
-
-/** The Host retains Goals' owner collection while the shell consumes only its platform view. */
-export type GoalsWebView = MolisWorkWebView & GoalsDocumentCollectionView;
+import { PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -17,9 +13,8 @@ export interface WebViewOptions {
 }
 
 interface MolisWorkWebViewCacheEntry {
-  cursor: number;
   optionsFingerprint: string;
-  view: GoalsWebView;
+  view: MolisWorkWebView;
 }
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
@@ -27,11 +22,8 @@ export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 type PluginProjection = Pick<MolisWorkWebView, "stage_data">;
 
 /**
- * A page looks for the areas of the plugins a project may not have (Feed, Inbox, declared stage reads, Artifacts) on every request. "Not enabled" or no registered action is
- * the answer it is looking for, so the Host keeps no row in the call log about that refusal (nor about the Feed timer's pull every 30
- * seconds in a project without Feed); any other refusal still leaves one.
- * The answer is wanted only while the call that looks is pending, so each call gets a scope of its own: in one scope around a
- * `Promise.all`, the first refusal ends it and the refusals of the others, arriving later, would be recorded.
+ * A page looks for the areas of the plugins a project may not have on every request. "Not enabled" or no registered action is
+ * the answer it is looking for, so the Host keeps no row in the call log about that refusal; any other refusal still leaves one.
  */
 export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectingRefusal(["actions.plugin_disabled", "actions.missing"], run);
 
@@ -50,64 +42,40 @@ export async function optionalPluginQuery<I, O>(actions: BoundActionClient, defi
   }
 }
 
-export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = {}): GoalsWebView {
+export function buildMolisWorkWebView(options: WebViewOptions, projection: PluginProjection = {}): MolisWorkWebView {
   return {
-    snapshot: options.project
-      ? { ...collection.snapshot, board: { ...collection.snapshot.board, project_id: "" } }
-      : collection.snapshot,
-    project: options.project ?? null, projects: options.projects ?? [],
-    route_prefix: options.routePrefix ?? "", demo: Boolean(options.demo),
-    active_goal_id: collection.active_goal_id, goals: collection.goals,
-    archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
-    counts: collection.counts, input_bindings: collection.input_bindings,
-    events: collection.events,
-    // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's selection: the shell's page default and the
-    // personal plugins. A project's view is given its Catalog's selection per request instead (`projectWebView`), never this.
-    ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PAGE_PLUGINS_WITHOUT_SELECTION) }),
+    project: options.project ?? null,
+    projects: options.projects ?? [],
+    route_prefix: options.routePrefix ?? "",
+    demo: Boolean(options.demo),
+    // Which plugins the page shows is the Host's fact (W5-02 PR-B). Without a project's Catalog selection (standalone single-DB fixture):
+    // all registered project-scoped plugins plus personal plugins. Real projects always receive their Catalog selection per request.
+    ...(options.project ? {} : { shown_plugins: shownProjectPlugins(PROJECT_SCOPED_PLUGIN_IDS) }),
     ...projection,
   };
 }
 
-export async function cachedMolisWorkWebView(
+/** Platform page shell view; plugin-owned data is read per request only for enabled plugins via `stage_data` (PEQ-01, PEQ-03). */
+export function cachedMolisWorkWebView(
   cache: MolisWorkWebViewCache,
-  store: LocalProjectDatabase,
   options: WebViewOptions,
-  actions: BoundActionClient,
-  goalsHere = true,
-): Promise<GoalsWebView> {
-  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
-  // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
-  const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
-  const cursor = collection.snapshot.cursor;
+): MolisWorkWebView {
+  const dev = developerMode();
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,
     locale: currentLocale(),
     demo: Boolean(options.demo),
+    developer_mode: dev,
     project_root: options.projectRoot ?? "",
     project: options.project ?? null,
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     home_directory: options.homeDirectory ?? "",
-    // A view drawn without Goals is not the one to reuse once Goals is added, even at the same cursor.
-    goals_here: goalsHere,
-    // Materials bound to a Goal are written without a journal event, so the cursor alone would keep an old list.
-    input_bindings: collection.input_bindings.map(binding => [binding.binding_id, binding.state]),
   });
   const cached = cache.get(options.databasePath);
-  const base = cached?.cursor === cursor && cached.optionsFingerprint === optionsFingerprint
-    ? cached.view : buildMolisWorkWebView(store, collection, options);
-  if (!inLanguagePreview()) cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
-  return { ...base, developer_mode: developerMode() };
-}
-
-export async function withSelectedEventDocument(
-  view: GoalsWebView,
-  goalId: string | undefined,
-  actions: BoundActionClient,
-): Promise<GoalsWebView> {
-  if (!goalId || ![...view.goals, ...view.archived_goals, ...view.trashed_goals].some(item => item.goal.goal_id === goalId)) return view;
-  const eventDocument = await actions.invoke(goalsActions.document, { goal_id: goalId });
-  const decorate = (item: GoalsWebView["goals"][number]) =>
-    item.goal.goal_id === goalId ? { ...item, event_document: eventDocument } : item;
-  return { ...view, goals: view.goals.map(decorate), archived_goals: view.archived_goals.map(decorate), trashed_goals: view.trashed_goals.map(decorate) };
+  const base = cached?.optionsFingerprint === optionsFingerprint
+    ? cached.view
+    : { ...buildMolisWorkWebView(options), developer_mode: dev };
+  if (!inLanguagePreview()) cache.set(options.databasePath, { optionsFingerprint, view: base });
+  return base;
 }

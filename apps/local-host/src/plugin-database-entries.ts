@@ -35,6 +35,8 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
     const database = rawDatabase && pluginSyncDatabaseDeclaration(definition.manifest, rawDatabase);
     if (!database) continue;
     const id = definition.manifest.plugin_id;
+    // A signed dual-instance sandbox package's Home library belongs exclusively to its Home half; the project half never opens it.
+    if (definition.execution === "sandbox" && scope === "project" && definition.manifest.runtime?.scope === "home" && definition.manifest.runtime.dual_instance === true) continue;
     if (definition.execution === "sandbox") throw new Error(`沙箱插件 ${id} 不能有 Home 库：库是宿主进程里的服务，沙箱里的代码拿不到`);
     // The Host has already recognized this project half; with no Home it receives only project services, never a Home handle.
     if (home === null && scope === "project" && dual_instance) continue;

@@ -80,21 +80,6 @@ test("RAC-1262: an unreadable Goal list column stops the snapshot and the Goal l
   } finally { criterionColumn.close(); }
 });
 
-test("RAC-1265: unreadable guidance source refs stop the snapshot and the guidance read", () => {
-  const data = fixture();
-  try {
-    data.app.goals.commands.addProjectGuidance({
-      kind: "constraint", content: "用户数据只保存在本机。", source_refs: ["project://requirements"],
-      reason: "长期数据边界", confirmation_summary: "用户已确认此原文", user_confirmed: true,
-      idempotency_key: "guidance-unreadable", project_id: BOARD, actor_id: "user-1",
-    });
-    data.store.db.prepare("UPDATE project_guidance_entries SET source_refs_json = ? WHERE project_id = ?")
-      .run('{"unreadable":', BOARD);
-    locatedAt(captured(() => data.goals.query.snapshot(BOARD)), data.store, "project_guidance_entries", "source_refs_json", "project_id = ?", BOARD);
-    locatedAt(captured(() => data.goals.query.readProjectGuidance(BOARD)), data.store, "project_guidance_entries", "source_refs_json", "project_id = ?", BOARD);
-  } finally { data.close(); }
-});
-
 test("RAC-1268: readable rows read the same values again, and null columns read as null", () => {
   const data = fixture();
   try {
@@ -149,7 +134,7 @@ test("BGE-05: every stored-JSON read in Goals names a real table and column of t
   // maintenance at nothing. A read that forgot `rowid AS stored_row` fails on its first read, so every Goals test reading that path catches it.
   const reads = sourceFiles(GOALS_SRC).flatMap(file => [...readFileSync(file, "utf8").matchAll(/storedJson(?:<[^(]*>)?\(row, "(\w+)", "(\w+)"/g)]
     .map(match => ({ file, table: match[1]!, column: match[2]! })));
-  assert.equal(reads.length, 36, "剩余读取均属于 Goals，项目审批规则和旧方法包已从此处撤下");
+  assert.equal(reads.length, 33, "剩余读取均属于 Goals，项目审批规则、旧方法包、项目说明与要求认可（第 44 批归平台）已从此处撤下；Goals 只读自己挂要求的出处");
   const project = new LocalProjectDatabase(":memory:");
   try {
     const columns = (db: SqliteDatabase, table: string) =>

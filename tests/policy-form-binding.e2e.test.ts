@@ -28,16 +28,18 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
   await waitFor("!!document.querySelector('[data-goal-event-document]')", 15_000);
   assert.equal(await evaluate("!!document.querySelector('[data-policy-form] [name=goal_id], [data-policy-form] [name=scope][value=goal]')"), false);
   await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
-  await click('[data-event-panel="requirements"] [data-event-form-open="requirement"]');
-  await evaluate(`(() => { const form = document.querySelector('[data-event-form="requirement"]');
-    form.querySelector('[name="statement"]').value = '由用户核对真实结果';
-    form.querySelector('[name="human_decision_required"]').checked = true;
-    form.querySelector('[name="statement"]').dispatchEvent(new Event('input', {bubbles:true})); })()`);
-  await click('[data-event-form="requirement"] button[type=submit]');
-  await waitFor("document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true' && document.querySelector('[data-event-panel=requirements]')?.textContent.includes('由用户核对真实结果')", 10_000);
-  assert.equal(app.goalEvents.readState(projectId, goal.goal_id).requirements[0]?.statement, "由用户核对真实结果");
+  assert.equal(await evaluate("!!document.querySelector('[data-event-form=\"requirement\"]')"), false,
+    "requirements live in the platform acceptance drawer rather than an inline Goal form");
+  assert.equal(await evaluate("!!document.querySelector('[data-event-panel=\"requirements\"] [data-acceptance-review]')"), true);
+  await click('[data-event-panel="requirements"] [data-event-form-open="agreement"]');
+  await evaluate(`(() => { const form = document.querySelector('[data-event-form="agreement"]');
+    form.querySelector('[name="outcome"]').value = '由用户核对真实结果';
+    form.querySelector('[name="outcome"]').dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  await click('[data-event-form="agreement"] button[type=submit]');
+  await waitFor("document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true' && document.querySelector('[data-goal-event-document]')?.textContent.includes('由用户核对真实结果')", 10_000);
+  assert.equal(app.goalEvents.readState(projectId, goal.goal_id).agreement.outcome, "由用户核对真实结果");
   assert.deepEqual(await posts(), []);
-  assert.equal(projectDefaults(), before, "a Goal requirement does not rewrite the project default");
+  assert.equal(projectDefaults(), before, "a Goal agreement change does not rewrite the project default");
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/authorizations?view=project-rules&project=" + projectId }, sessionId));
   await waitFor("!!document.querySelector('[data-authorization-rule-form]')", 15_000);

@@ -58,14 +58,13 @@ export const formManifest: PluginManifest = {
   artifacts: {
     produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷", title_text: { key: "form.artifacts.type-title" },
       preview: { capability_id: "form.artifacts.preview", version: /* @version action.form.artifacts.preview */ 1 }, pin: { capability_id: "form.artifacts.pin", version: /* @version action.form.artifacts.pin */ 1 },
-      compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 }, continue: { capability_id: "form.artifacts.continue", version: /* @version action.form.artifacts.continue */ 1 } }],
+      compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 } }],
     consumes: [],
   },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [FORM_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make",
-        creates: { station: "form", title: "问卷", title_text: { key: "form.create.kind-title" } } },
+      { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", hue: "orange", order: 57, group: "make" },
     ],
   },
 };

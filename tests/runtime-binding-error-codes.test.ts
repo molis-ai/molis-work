@@ -56,7 +56,7 @@ test("RAC-1520 a binding whose Ledger relation is gone or points outside project
       assert.throws(() => catalog.listRuntimeContextBindings(), refused("work.context.project_relation_missing"));
       // (d)(e) the edge now points into another module: still not a project relation.
       ledger.commands.put(access, { key, type: "work.binding_project", source,
-        target: { module: "goals", object_type: "goal", id: "goal-1", version: null, scope, project_id: project.project_id },
+        target: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "goal-1", version: null, scope, project_id: project.project_id },
         cause: "test.relation_retargeted", recorded_at: new Date().toISOString() });
       assert.throws(() => catalog.resolveRuntimeContext(session("relation-missing")), refused("work.context.project_relation_missing"));
       assert.throws(() => catalog.listRuntimeContextBindings(), refused("work.context.project_relation_missing"));

@@ -1,6 +1,6 @@
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { feedErrors } from "./contract/feed.js";
-import type { FeedItemRecord, FeedOutRuleRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
+import { feedErrors, type FeedAttentionReason } from "./contract/feed.js";
+import type { FeedItemRecord, FeedOutRuleRecord, InboxEntryRecord, InboxEntryStatus } from "./projection.js";
 import { callAttention } from "./application-errors.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { captureFeedRules, feedOutRuleMatches, throwIfCallRefused } from "./out-rules.js";
@@ -11,7 +11,7 @@ export interface FeedCaptureInbox {
   ensureInboxEntryForFeedItem(
     projectId: string,
     itemId: string,
-    reason: Extract<InboxEntryReason, "manual" | "source_rule">,
+    reason: FeedAttentionReason,
     detail?: Record<string, unknown>,
   ): { entry: InboxEntryRecord; created: boolean };
   setInboxEntryStatus(projectId: string, entryId: string, status: InboxEntryStatus): InboxEntryRecord;

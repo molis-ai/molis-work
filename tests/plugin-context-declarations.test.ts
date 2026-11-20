@@ -37,16 +37,19 @@ test("W1-04: a command may declare a creation entry and an append, and a plain a
 });
 
 test("W1-04: a creation entry is a stable id, a kind, words with limits and one to three examples", () => {
-  const wrong = `能力 ${KEY} 的创建入口声明无效：需要稳定的 id、对象种类、名称、动词、说明与一到三条示例，字段都有长度上限`;
+  // A person's intake may take no text (then it needs no example) and may name where it starts (contract-design §2.3, §2.4); its message says so.
+  const wrong = `能力 ${KEY} 的创建入口声明无效：需要稳定的 id、对象种类、名称、动词、说明与一到三条示例（不收文字时可以没有），起点要有名称与提示，字段都有长度上限`;
+  // The id holds 50 (contract-design §2.1: room for the platform's `<station>.receive` and `<station>.create`), so 51 is one too many.
+  const notShaped = `能力 ${KEY} 的创建入口声明无效：需要稳定的 id、对象种类、名称、动词、说明与一到三条示例，字段都有长度上限`;
   for (const over of [
-    { intake_id: "Item" }, { intake_id: "1item" }, { intake_id: "" }, { intake_id: "i".repeat(41) }, { item_kind: "" },
+    { intake_id: "Item" }, { intake_id: "1item" }, { intake_id: "" }, { intake_id: "i".repeat(51) }, { item_kind: "" },
     { title: " " }, { title: "t".repeat(41) }, { verb: "" }, { describe: "d".repeat(241) },
     { examples: [] }, { examples: ["a", "b", "c", "d"] }, { examples: ["x".repeat(121)] }, { examples: [""] },
     { effect: "removes" }, { multiple: "yes" }, { prepare: { capability_id: "example.prepare" } }, { prepare: { capability_id: "example.prepare", version: 1, provider_id: "other" } },
     { places: [] }, { places: ["main", "main"] }, { places: ["floating"] },
   ]) assert.deepEqual(problems(writing({ intake: intake(over) })), [wrong], JSON.stringify(over));
-  assert.deepEqual(problems(writing({ intake: "todo" })), [wrong]);
-  assert.deepEqual(problems(writing({ intake: null })), [wrong]);
+  assert.deepEqual(problems(writing({ intake: "todo" })), [notShaped]);
+  assert.deepEqual(problems(writing({ intake: null })), [notShaped]);
 });
 
 test("W1-04: an entry is declared on a command that can be taken back or confirmed; its material goes to a field the input has", () => {

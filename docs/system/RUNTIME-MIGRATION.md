@@ -99,7 +99,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 | 插件 | 为什么现在不能是 Runtime 插件（代码事实） | 例外期间仍要守的 |
 | --- | --- | --- |
-| Goals | 每个项目都带、工作台里不能移除（`PRODUCT.md`）；Goal 的表由 Goals 在自己的 Manifest 里声明（`databases.project`，`GOALS_PROJECT_DATABASE`；S8：项目库基线不再带这些表，宿主开库时由平台按这份声明建表、记账本，被拒只停 Goals；Goals 的 Host 组装仍是过渡特权，到 S9 删）；是被点名最多的插件，包外有 70 个源码或配置文件引用它（与 EXTENSION-POINTS.md 第 1 节同一条命令，换成 `@molis-ai/molis-work-plugin-goals|plugins/native/goals/|GOALS_(PROJECT_)?PLUGIN_ID`）；`apps/cli`、`apps/mcp` 直接依赖它的包（`scripts/workspace-packages.mjs` 里两处 `extraWorkspaceDependencies`）；工作台里它的界面由 `apps/workbench/src/shell-page-renderer.ts` 和一组 Goals 渲染器接口挂载（W5-06 要换成通用挂载器） | 不新增 `<插件>-native-plugin-http.ts`（`NATIVE_PLUGIN_HTTP_FILES` 的冻结继续有效）；动作仍在统一目录里；不得因为是例外就从插件包里 import 别的插件实现 |
+| Goals | 已于第 44 批完成插件同等地位收口（PEQ-01～17）：不再声明 `always_on`，新项目不默认装，可移除且移除后数据保留；Goal 的表由 Goals 在 Manifest `databases.project` 声明；项目指导、可信决定、要求与认可、对象工作终端均已迁回平台能力；CLI、MCP、工作台与宿主已清空对 Goals 包的直接依赖（仅留项目库 5→6/6→7 两处已登记的历史数据迁移例外），由 PEQ-03 门禁守住；样式随包按需加载（`goals.css`） | 不新增平台对原生插件包的直接 import（`scripts/gates/platform-plugin-imports.mjs`）；历史迁移例外待删除条件满足后连段清除；动作仍在统一目录里 |
 | Artifacts | `project-plugins.ts` 和 `installed-plugin-host.ts` 先构造 `ArtifactsModule`、`ProcessItemsModule`，再交给 `createPluginPlatform`，Runtime 给所有插件的 `services.artifacts`、`services.processItems` 就建在它上面；它自己再当 Runtime 插件，就要靠自己提供的服务启动自己（推断）。`artifact-native-plugin-http.ts` 208 行 | 同上；成果库规则不变（`artifacts.produces` 声明，宿主拒绝未声明的写入） |
 | Sessions | 宿主持有会话注册表（`project-host.ts` 的 `this.sessions`），传给 `workActionProvider` 和 `projectWorkspaceActionProvider` | 同上 |
 | 插件创作台 | 它创建并管理其他插件的安装：`installed-plugin-host.ts` 依赖 `AgentBuilderStore`；宿主侧 `apps/local-host/src/plugin-builder/` 有 16 个文件 2,181 行 | 同上；生成插件仍走统一目录与沙箱 |

@@ -25,7 +25,7 @@ struct TrayWords {
     disconnected_tip: String,
     syncing: String,
     syncing_tip: String,
-    open_goal: String,
+    open: String,
     quit: String,
     quit_keep_service: String,
     restore_appearance: String,
@@ -63,7 +63,7 @@ impl NativeLanguage {
             .iter()
             .all(|word| valid_word(word, 320))
             && [
-                &words.open_goal,
+                &words.open,
                 &words.quit,
                 &words.quit_keep_service,
                 &words.restore_appearance,
@@ -92,7 +92,7 @@ impl NativeLanguage {
     /// Only a service started by the desktop quits with it.
     pub(crate) fn tray_actions(&self, owns_host: bool) -> (&str, &str) {
         (
-            &self.words.open_goal,
+            &self.words.open,
             if owns_host {
                 &self.words.quit
             } else {
@@ -167,23 +167,6 @@ pub(crate) fn bootstrap_view_values(failure: Option<&str>) -> serde_json::Value 
     })
 }
 
-/// The popover's 「没在运行」 page words in this language (or the default one), with the design tokens.
-pub(crate) fn stopped_view_values(tag: &str) -> serde_json::Value {
-    let catalog =
-        serde_json::from_str::<serde_json::Value>(BOOTSTRAP_VIEW).expect("compiled startup words");
-    let locales = catalog["locales"].as_array().cloned().unwrap_or_default();
-    let pick = |wanted: &str| locales.iter().find(|row| row["tag"] == wanted).cloned();
-    let row = pick(tag)
-        .or_else(|| pick(catalog["default"].as_str().unwrap_or_default()))
-        .unwrap_or_default();
-    serde_json::json!({
-        "html_lang": row["html_lang"],
-        "stopped": row["stopped"],
-        "open": row["open"],
-        "tokens": BOOTSTRAP_TOKENS
-    })
-}
-
 #[derive(Default)]
 pub(crate) struct NativeLanguageState {
     pub displayed: NativeLanguage,
@@ -247,7 +230,7 @@ mod tests {
             .accept(current, 1, english.clone(), |next| {
                 assert_eq!(
                     next.tray_actions(true),
-                    ("Open current Goal", "Quit Molis Work")
+                    ("Open Molis Work", "Quit Molis Work")
                 );
                 Ok(())
             })
@@ -259,7 +242,7 @@ mod tests {
             .accept(current, 2, invalid, |_| panic!("bad tag"))
             .is_err());
         let mut invalid = english.clone();
-        invalid.words.open_goal = "a".repeat(101);
+        invalid.words.open = "a".repeat(101);
         assert!(state
             .accept(current, 2, invalid, |_| panic!("oversized label"))
             .is_err());
@@ -275,7 +258,7 @@ mod tests {
             .accept(current, 1, initial.clone(), |_| panic!("old sequence"))
             .is_err());
         let mut replacement = english;
-        replacement.words.open_goal = "Open Goal".into();
+        replacement.words.open = "Open window".into();
         state
             .accept(current, 2, replacement.clone(), |_| Ok(()))
             .unwrap();

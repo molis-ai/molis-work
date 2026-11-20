@@ -31,6 +31,8 @@ function withLocales(definition: PluginDefinition, half: string) {
 
 async function fixture(t: TestContext) {
   const dual = dualPlugin("surface-dual", true);
+  Object.assign(dual.actions.project.action, { intake: { intake_id: "surface-dual.project", item_kind: "surface-dual-item", title: "Item", verb: "Start",
+    describe: "Start a blank item", accepts: [], examples: [], start: { title: "Start an item", hint: "Begin with a blank one." } } });
   const overview = definePresentationOverviewAction("surface-dual.overview", 1, "Project overview", [dual.read]);
   const start = { capability_id: dual.actions.project.capability_id, version: dual.actions.project.version };
   dual.manifest.actions = [...dual.manifest.actions ?? [], overview];

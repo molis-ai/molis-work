@@ -4,7 +4,7 @@
  * `createWorkflowsActionHandlers` binds these to the actions; they hold no state of their own.
  */
 import { presentActionResult, type ActionExecutionContext, type ActionReference, type ActionResultPresentation, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { isActionStation, mapActionInput, type WorkflowActionStep, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
+import { isActionStation, mapActionInput, type WorkflowActionStep, type WorkflowInstance, type WorkflowStepItem, type WorkflowPayload, type WorkflowStation } from "./model.js";
 import type { WorkflowsStore } from "./store.js";
 import type { WorkflowContentPorts, WorkflowsActionPorts } from "./actions.js";
 import { withPending } from "./continuation.js";
@@ -130,7 +130,7 @@ export async function readStep(content: WorkflowContentPorts, current: WorkflowI
  * was never confirmed is not repeated unless the person says so; the attempt is recorded before the call.
  */
 export async function runActionStep(scope: RunScope, caller: ActionExecutionContext, reach: Reach, current: WorkflowInstance, from: number, pending: Pending, target: WorkflowStation & { action: WorkflowActionStep },
-  retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: { payload: WorkflowPayload; result: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } }> {
+  retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowStepItem; arrival: { payload: WorkflowPayload; result: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } }> {
   if (pending.attempted_at && !retry) {
     throw workflowsErrors.uncertain(`上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}确认是否已经生效，再决定是否重试`);
   }

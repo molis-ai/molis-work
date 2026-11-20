@@ -127,9 +127,9 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/immersive-navigation.ts"],
     state: "The application chrome around the work area, including the Goal work mode.",
   },
-  "goal-selection": {
-    files: ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"],
-    state: "The Goal selected in the Goals directory and the page's first selection on load.",
+  "acceptance-column": {
+    files: ["apps/workbench/src/browser/work-acceptance.ts"],
+    state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.",
   },
   preferences: {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
@@ -151,9 +151,9 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/characters/terminal.ts"],
     state: "The terminal that shows a Character run: which process it is attached to.",
   },
-  "goals-event-document": {
-    files: ["plugins/native/goals/src/event-document-client.ts"],
-    state: "The Goal event panel inside an open Goal document.",
+  "work-terminal": {
+    files: ["apps/workbench/src/terminal/client-subject-events.ts"],
+    state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.",
   },
   "pages-landing": {
     files: ["plugins/native/pages/src/landing-editor.ts"],
@@ -260,21 +260,6 @@ export const DOM_EVENTS = [
     summary: "Detach and hide the Character terminal, because another Character is shown.",
   },
   {
-    name: "molis-work:goal-changed", kind: "announcement", owner: "goal-selection", on: "document",
-    detail: "{ goalId, goalTitle, status, statusLabel, statusMeaning, statusIconMarkup, parentReadOnly, children }",
-    summary: "The selected Goal changed, or the first one was selected on load.",
-  },
-  {
-    name: "molis-work:goal-document-loaded", kind: "announcement", owner: "tab-workspace", on: "document",
-    detail: "{ goalId }",
-    summary: "A Goal document finished loading into the work area, from the tab workspace or from the Goals navigation client.",
-  },
-  {
-    name: "molis-work:goal-panel-presence", kind: "announcement", owner: "goals-event-document", on: "element", bubbles: true,
-    detail: "none",
-    summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
-  },
-  {
     name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "{ itemId }",
     summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone, or the plugin is refused the read (no permission, or the project turned the plugin off). The surface says which on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
@@ -345,9 +330,24 @@ export const DOM_EVENTS = [
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
   },
   {
+    name: "molis-work:record-document-loaded", kind: "request", owner: "immersive-navigation", on: "document",
+    detail: "{ recordId }",
+    summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.",
+  },
+  {
     name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ plugin, itemId }",
-    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).",
+    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404.",
+  },
+  {
+    name: "molis-work:record-panel-presence", kind: "request", owner: "immersive-navigation", on: "element", bubbles: true,
+    detail: "none",
+    summary: "An editing or detail panel inside an open record document changed presence; the shell re-reads panel layout.",
+  },
+  {
+    name: "molis-work:record-selected", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ plugin, itemId, title? }",
+    summary: "The selected record inside a shell-rendered plugin surface changed; the active item tab follows the selection.",
   },
   {
     name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",
@@ -411,6 +411,21 @@ export const DOM_EVENTS = [
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
     detail: "{ goalId, mode }",
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
+  },
+  {
+    name: "molis-work:work-terminal-subject-changed", kind: "request", owner: "work-terminal", on: "document",
+    detail: "{ pluginId, subjectKind, subjectId, title?, status?, statusLabel?, statusMeaning?, statusIconMarkup?, readOnly? }",
+    summary: "A plugin surface switched the object shown beside the platform work terminal pane: reset its panels and paint the new owner title, status and read-only guard.",
+  },
+  {
+    name: "molis-work:work-terminal-subject-ready", kind: "request", owner: "work-terminal", on: "document",
+    detail: "{ pluginId, subjectKind, subjectId }",
+    summary: "The object shown beside the platform work terminal pane finished loading: load its work terminals if it is still the pane's current object.",
+  },
+  {
+    name: "molis:acceptance-review-requested", kind: "request", owner: "acceptance-column", on: "document",
+    detail: "{ subject: { provider_id, subject: { kind, id } } }",
+    summary: "Open the requirement column on one object's requirements (a Goal page's 「逐项审阅」). The column reads them as the person and shows the platform's own card; the page that asks draws no control that accepts or returns a requirement.",
   },
   {
     name: "molis:assistant-card-target", kind: "request", owner: "assistant", on: "document",
@@ -499,8 +514,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:placement-convert", kind: "request", owner: "placement", on: "window",
-    detail: "{ source, station | goal, payload?, note? }",
-    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
+    detail: "{ source, station | attach_kind, payload?, note? }",
+    summary: "Hand content to another plugin (or make it a new target of a 「挂到…」 relation, by its subject kind) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",

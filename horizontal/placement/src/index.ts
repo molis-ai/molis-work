@@ -1,11 +1,12 @@
 import {
-  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelation, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
-  type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
+  type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationCandidates, type PlacementRelationResult,
+  type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type {
-  PlacedObject, PlacementAssociation, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription, PlacementGoalView,
+  PlacedObject, PlacementAssociation, PlacedObject as AttachedObject, PlacementAttachKindView, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription,
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 
@@ -38,20 +39,22 @@ export interface PlacementPorts {
   surfaceSource?: PlacedObject;
   /** Reads a Workbench key in the caller's language. */
   text?(key: string, vars?: Record<string, string | number>): string;
-  /** Which declared relation (`placement_relation`) the Goal-shaped parts of this service keep; `goal`, the name the wire vocabulary uses. */
-  relation?: string;
 }
 
 const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "personal", id: "placement" } };
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
-const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, goal: "placement.goal_in",
+const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, attached: "placement.attached_in",
   belonging: "placement.belonged_to", belongs: "placement.belongs_to" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });
 const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: projectId, version: null, scope: ACCESS.scope, project_id: null });
 const key = (...parts: string[]) => JSON.stringify(parts);
 const sameObject = (ref: ObjectRef, kind: string, id: string) => ref.module === "plugins" && ref.object_type === kind && ref.id === id;
+/** Placement's own record that it attached an object in a project, onto one plugin's kind (D2: the target's plugin and kind are on the edge). */
+const attachedInKey = (pluginId: string, targetKind: string, object: AttachedObject, projectId: string) => key("attached_in", pluginId, targetKind, object.kind, object.id, projectId);
+/** One relation of an object to a target, as the person removes it: the target's owner releases it. */
+const attachedKey = (projectId: string, target: ActionSubject, object: ActionSubject) => key("attached", projectId, target.kind, target.id, object.kind, object.id);
 
 type Read = PlacementRead;
 
@@ -115,12 +118,14 @@ export class PlacementService {
   async unlink(linkKey: string): Promise<{ removed: boolean }> {
     let parts: unknown;
     try { parts = JSON.parse(linkKey); } catch { parts = null; }
-    if (Array.isArray(parts) && parts[0] === "goal" && parts.length === 4 && parts.every(part => typeof part === "string")) {
-      const [, projectId, goalId, bindingId] = parts as string[];
+    if (Array.isArray(parts) && parts[0] === "attached" && parts.length === 6 && parts.every(part => typeof part === "string")) {
+      const [, projectId, targetKind, targetId, kind, id] = parts as string[];
       const scope = await this.ports.scope(projectId!);
-      const { release } = await placementRelationOf(this.ports, scope);
-      if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.goals-isn-t-enabled-here"));
-      return { removed: (await scope.client.invoke(scope.caller, release, { goal_id: goalId, binding_id: bindingId }) as { released: boolean }).released };
+      const release = (await attachRelationsOf(this.ports, scope)).of(targetKind!)?.release;
+      if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.attach-owner-unavailable"));
+      const subject = { kind: kind!, id: id! }, target = { kind: targetKind!, id: targetId! };
+      const after = await scope.client.invoke(scope.caller, release, { subject, target }) as PlacementRelationResult;
+      return { removed: !after.targets.some(one => one.kind === target.kind && one.id === target.id) };
     }
     if (!Array.isArray(parts) || parts[0] !== "used_in") throw new ActionError("placement.not_removable", placementText(this.ports, "workbench.index.link-managed-plugin-change-there"));
     await this.ports.beforeEffect?.();
@@ -128,39 +133,45 @@ export class PlacementService {
     return { removed: !!edge && edge.state === "removed" };
   }
 
-  /** Goals still open in one location, for choosing one to bind to. */
-  goals(projectId: string): Promise<PlacementGoalView[]> {
-    return placementGoals(this.ports, projectId);
+  /** What can be attached to in one location (Goals still open, any plugin's targets), by kind, for choosing one. */
+  attachTargets(projectId: string, input: PlacedObject): Promise<PlacementAttachKindView[]> {
+    return placementAttachTargets(this.ports, this.access(), projectId, this.locate(input).object);
   }
 
-  /** Goals records the binding; an object living elsewhere is also used in the Goal's project so the project lists it. */
-  async bindGoal(input: PlacedObject, projectId: string, goalId: string, readRevision?: string): Promise<{ key: string }> {
+  /**
+   * 「挂到…」: the target's owner records the binding; an object living elsewhere is also used in the target's project so the project
+   * lists it. Placement remembers in which project, and onto which plugin's kind, it attached the object (`placement.attached_in`).
+   */
+  async attach(input: PlacedObject, projectId: string, target: { kind: string; id: string }, readRevision?: string): Promise<{ key: string }> {
     const object = this.locate(input).object;
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
     const scope = await this.ports.scope(projectId);
-    const { bind } = await placementRelationOf(this.ports, scope);
-    if (!bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.goals-isn-t-enabled-here-so-can-t"));
-    // What the person saw when they took it goes with it: Goals keeps its digest so the Goal can say later whether the original changed.
-    const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "workbench.index.untitled"),
-      ...(readRevision ? { read_revision: readRevision } : {}) }) as { binding: { binding_id: string } };
+    const relation = (await attachRelationsOf(this.ports, scope)).of(target.kind);
+    if (!relation?.bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.attach-target-unavailable"));
+    // What the person saw when they took it goes with it: the owner may keep its revision so it can say later whether the original changed.
+    const title = (read.context!.title || placementText(this.ports, "workbench.index.untitled")).slice(0, PLACEMENT_RELATION_LIMITS.title);
+    const subject = { kind: object.kind, id: object.id };
+    const after = await scope.client.invoke(scope.caller, relation.bind, { subject, target: { kind: target.kind, id: target.id },
+      read: { title, ...(readRevision ? { revision: readRevision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}) } }) as PlacementRelationResult;
+    if (!after.targets.some(one => one.kind === target.kind && one.id === target.id)) throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
     await this.ports.beforeEffect?.();
     this.remember(object);
-    this.ports.ledger.commands.put(ACCESS, { key: key("goal_in", object.kind, object.id, projectId), type: TYPES.goal, source: identity(object.kind, object.id),
-      target: projectRef(projectId), cause: "placement.goal" });
+    this.ports.ledger.commands.put(ACCESS, { key: attachedInKey(relation.plugin_id, target.kind, object, projectId), type: TYPES.attached,
+      source: identity(object.kind, object.id), target: projectRef(projectId), cause: "placement.attach" });
     if (object.project_id !== projectId) {
       const spaces = await this.ports.spaces();
       if (spaces.some(space => space.project_id === projectId && space.kind === "project")) {
         await this.ports.beforeEffect?.();
         this.ports.ledger.commands.put(ACCESS, { key: key("used_in", object.kind, object.id, projectId), type: TYPES.used, source: identity(object.kind, object.id),
-          target: projectRef(projectId), cause: "placement.goal" });
+          target: projectRef(projectId), cause: "placement.attach" });
       }
     }
-    return { key: key("goal", projectId, goalId, result.binding.binding_id) };
+    return { key: attachedKey(projectId, target, subject) };
   }
 
-  /** Something new made in one place (from a Goal or the placement panel); bound to a Goal when asked. */
-  async create(request: PlacementCreateRequest): Promise<PlacementConvertResponse & { goal_key: string | null }> {
+  /** Something new made in one place (from a target's page or the placement panel); attached to that target when asked. */
+  async create(request: PlacementCreateRequest): Promise<PlacementConvertResponse & { attached_key: string | null }> {
     const spaces = await this.ports.spaces();
     if (!spaces.some(space => space.project_id === request.project_id)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.location-not-found"));
     const scope = await this.ports.scope(request.project_id);
@@ -169,13 +180,13 @@ export class PlacementService {
     if (!create) throw new ActionError("placement.target_unavailable", placementText(this.ports, "workbench.index.kind-item-can-t-be-created-here"));
     const title = (request.title ?? "").trim() || placementText(this.ports, "workbench.index.untitled");
     const item = await scope.client.invoke(scope.caller, ref(create), { title }) as WorkflowItemRef;
-    const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === create.provider.provider_id);
-    const created: PlacedObject = { kind: readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : request.station, id: item.item_id, project_id: request.project_id };
+    if (!create.action.subject_kinds.includes(item.subject.kind)) throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
+    const created: PlacedObject = { kind: item.subject.kind, id: item.subject.id, project_id: request.project_id };
     await this.ports.beforeEffect?.();
     this.remember(created);
-    const goalKey = request.goal_id ? (await this.bindGoal(created, request.project_id, request.goal_id)).key : null;
+    const attachedKey = request.attach_to ? (await this.attach(created, request.project_id, request.attach_to)).key : null;
     const createdRead = await this.read(created);
-    return { object: created, title: createdRead.context?.title ?? item.title, location: placementLocation(this.ports, created.project_id, spaces), open: await this.openOf(created), goal_key: goalKey };
+    return { object: created, title: createdRead.context?.title ?? item.title, location: placementLocation(this.ports, created.project_id, spaces), open: await this.openOf(created), attached_key: attachedKey };
   }
 
   async move(input: PlacedObject, to: string): Promise<PlacementMoveResponse> {
@@ -382,37 +393,43 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     associations.push({ key: edge.key, type: "used_in", label: project ? placementText(ports, "workbench.index.used-project-name", { name: project.title }) : placementText(ports, "workbench.index.used-deleted-project"),
       target: { kind: "project", project_id: edge.target.id, title: project?.title ?? placementText(ports, "workbench.index.deleted-project") }, since: edge.recorded_at, removable: true });
   }
-  // Goals keep the bindings in their own project: the one it lives in, and every project it was bound in from elsewhere or before a move.
-  const boundIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
-  for (const edge of self.edges(TYPES.goal)) if (sameObject(edge.source, object.kind, object.id)) boundIn.add(edge.target.id);
-  // The owner of the relation is whoever declares it in that project's directory (`placement_relation`), so the lookups below name no plugin.
-  const relations = new Map<string, Promise<PlacementRelation>>();
-  const relationIn = (projectId: string | null) => {
+  // A target's owner keeps the bindings in its own project: the one the object lives in, and every project it was attached in from
+  // elsewhere or before a move.
+  const attachedIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
+  for (const edge of self.edges(TYPES.attached)) if (sameObject(edge.source, object.kind, object.id)) attachedIn.add(edge.target.id);
+  // The owners are whoever declares a 「挂到…」 relation in that project's directory, so the lookups below name no plugin.
+  const relations = new Map<string, Promise<AttachRelations>>();
+  const relationsIn = (projectId: string | null) => {
     const cached = relations.get(projectId ?? HOME);
-    return cached ?? relations.set(projectId ?? HOME, placementRelation(ports, projectId)).get(projectId ?? HOME)!;
+    return cached ?? relations.set(projectId ?? HOME, attachRelations(ports, projectId)).get(projectId ?? HOME)!;
   };
-  const bound: { project_id: string; binding_id: string; goal_id: string; created_at: string; noun: string; target_kind: string }[] = [];
-  for (const projectId of boundIn) {
-    const relation = await relationIn(projectId);
-    for (const binding of await placementBindings(ports, projectId, relation, { kind: object.kind, id: object.id })) bound.push({ ...binding, project_id: projectId, noun: relation.noun, target_kind: relation.target_kind });
+  const bound: { project_id: string; target: ActionSubject; noun: string }[] = [];
+  const subject = { kind: object.kind, id: object.id };
+  for (const projectId of attachedIn) {
+    for (const relation of (await relationsIn(projectId)).all) {
+      if (!relation.relates(object.kind)) continue;
+      for (const target of await attachTargetsOf(ports, projectId, relation, subject)) bound.push({ project_id: projectId, target, noun: relation.noun });
+    }
   }
   for (const binding of bound) {
-    const goal = await self.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
-    const name = goal ?? placementText(ports, "workbench.index.title-unavailable");
-    associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-      label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.related-goal", { noun: binding.noun, name })
-        : placementText(ports, "workbench.placement.related-goal-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
-      target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
+    const target = await self.targetTitle(binding.project_id, binding.target.kind, binding.target.id);
+    const name = target ?? placementText(ports, "workbench.index.title-unavailable");
+    associations.push({ key: attachedKey(binding.project_id, binding.target, subject), type: "attached",
+      label: binding.project_id === object.project_id ? placementText(ports, "workbench.placement.attached-to", { noun: binding.noun, name })
+        : placementText(ports, "workbench.placement.attached-to-with-place", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
+      target: { kind: "attached", project_id: binding.project_id, object: { kind: binding.target.kind, id: binding.target.id }, noun: binding.noun, title: target ?? "" },
+      since: null, removable: true });
   }
-  const kept = read.context?.goal_ids ?? [];
-  const keptRelation = kept.length ? await relationIn(object.project_id) : null;
-  for (const goalId of kept) {
-    if (object.kind === keptRelation!.target_kind && goalId === object.id) continue;
-    if (bound.some(binding => binding.goal_id === goalId && binding.project_id === object.project_id)) continue;
-    const goal = object.project_id === null ? null : await self.targetTitle(object.project_id, keptRelation!.target_kind, goalId);
-    // Kept by the plugin itself (a document's “挂到 Goal”): changed there, not here.
-    associations.push({ key: null, type: "goal", label: placementText(ports, "workbench.index.noun-name-linked-plugin", { noun: keptRelation!.noun, name: goal ?? placementText(ports, "workbench.index.title-unavailable"), plugin: read.plugin?.title ?? "" }),
-      target: { kind: "goal", project_id: object.project_id, goal_id: goalId, title: goal ?? "" }, since: null, removable: false });
+  // Kept by the object's own plugin (a Feed item's Goal, a document's 「挂到…」 there): changed there, not here.
+  const kept = read.context?.attached_to ?? [];
+  const keptRelations = kept.length ? await relationsIn(object.project_id) : null;
+  for (const subject of kept) {
+    if (subject.kind === object.kind && subject.id === object.id) continue;
+    if (bound.some(binding => binding.target.kind === subject.kind && binding.target.id === subject.id && binding.project_id === object.project_id)) continue;
+    const noun = keptRelations!.noun(subject.kind) ?? placementText(ports, "workbench.index.attached-unknown-noun");
+    const target = object.project_id === null ? null : await self.targetTitle(object.project_id, subject.kind, subject.id);
+    associations.push({ key: null, type: "attached", label: placementText(ports, "workbench.index.noun-name-linked-plugin", { noun, name: target ?? placementText(ports, "workbench.index.title-unavailable"), plugin: read.plugin?.title ?? "" }),
+      target: { kind: "attached", project_id: object.project_id, object: { kind: subject.kind, id: subject.id }, noun, title: target ?? "" }, since: null, removable: false });
   }
   // A conversion names what the other end is (a Goal, or the plugin that keeps it), so a document and a Goal made from one spark read apart.
   const origin = (label: (title: string, noun: string | null) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
@@ -420,8 +437,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     const otherRead = await self.read(found);
     const otherTitle = otherRead.context?.title || ports.titles.get(found.kind, found.id) || placementText(ports, "workbench.index.untitled");
     const where = otherRead.state === "missing" ? placementText(ports, "workbench.index.original-was-deleted") : placementLocation(ports, found.project_id, spaces).title;
-    const foundRelation = await relationIn(found.project_id);
-    const noun = found.kind === foundRelation.target_kind ? foundRelation.noun : null;
+    const noun = (await relationsIn(found.project_id)).noun(found.kind);
     const what = kind.startsWith("derived") && !noun ? otherRead.plugin?.title ?? "" : "";
     associations.push({ key: null, type: kind, label: [label(otherTitle, noun), what, where].filter(Boolean).join(" · "),
       target: { kind: "object", object: found, title: otherTitle, state: otherRead.state, location: otherRead.state === "ok" ? placementLocation(ports, found.project_id, spaces) : null, plugin: otherRead.plugin },
@@ -501,65 +517,93 @@ async function placementTools(ports: PlacementPorts, object: PlacedObject, opera
     copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy") };
 }
 
-/** The wire vocabulary's name for the relation (association type `goal`), and what a person reads it as when its owner is not there to say. */
-const DEFAULT_RELATION = "goal";
-const DEFAULT_NOUN = "Goal";
-
 /**
- * The relation an owner keeps between an object and a target it owns (a document's Goal): the actions that play its parts in one
- * partition, found by their `placement_relation` declaration, never by capability id. A part the owner does not offer (not declared,
- * not enabled in this project) is null; with no owner at all the noun and target kind are the wire vocabulary's own.
+ * One owner's relation in one partition (「挂到…」, PG-032; specs/plugin-equal-standing/contract-design.md §2.2): the parts it declares
+ * with `placement_relation`, in the platform's shape for each (`definePlacementRelationAction`), found by that declaration, never by a
+ * capability id placement knows. A part the owner does not offer here (not declared, not registered, or unavailable now) is null. A
+ * relation whose parts are in another shape (a background task's `serves`, kept by the mainline service) is not placement's to offer.
  */
-interface PlacementRelation {
+interface AttachRelation {
+  /** The declared relation name. */
+  relation: string;
+  /** The owner: the plugin whose objects of `target_kind` others attach to. */
+  plugin_id: string;
   noun: string;
   target_kind: string;
+  /** Whether it relates objects of this kind (its `list` part's subject kinds; none: any object). */
+  relates(kind: string): boolean;
   list: ActionReference | null;
   bind: ActionReference | null;
   release: ActionReference | null;
   candidates: ActionReference | null;
   create: ActionReference | null;
 }
+interface AttachRelations {
+  readonly all: readonly AttachRelation[];
+  /** The relation whose targets are of this subject kind, if one is declared here. */
+  of(kind: string): AttachRelation | null;
+  /** The noun its owner gives a kind of target; null when no relation here has that kind. */
+  noun(kind: string): string | null;
+}
+const NO_RELATIONS: AttachRelations = { all: [], of: () => null, noun: () => null };
 
 /** Codes this package owns beyond the platform's `placement.same_location`; the rest are raised as plain `ActionError`s where they happen. */
 const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict" });
 
 /**
- * One relation has one owner in a partition: its five parts all come from the single provider that declares it. Two providers declaring the
- * same relation name would make "who keeps the person's Goal" a guess (the parts of different owners mixed, or whichever came first), so that
- * is refused, naming them, and none of their actions is called.
+ * Every relation in a partition. One relation has one owner, and one kind of target is one relation's: two providers declaring the same
+ * relation, or two relations ending on the same kind, would make "who keeps this binding" a guess, so that is refused, naming the
+ * providers, and none of their actions is called.
  */
-async function placementRelationOf(ports: PlacementPorts, scope: PlacementScope): Promise<PlacementRelation> {
-  const name = ports.relation ?? DEFAULT_RELATION;
-  const declared = (await scope.client.discover(scope.caller)).filter(view => view.availability.available && view.action.placement_relation?.relation === name);
-  const providers = [...new Set(declared.map(view => view.provider.provider_id))];
-  if (providers.length > 1) {
-    throw placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation: name, providers: providers.join("、") }), { relation: name, providers });
-  }
-  const views = declared.filter(view => view.provider.provider_id === providers[0]);
-  const play = (role: PlacementRelationRole) => {
-    const view = views.find(entry => isPlacementRelation(entry.action, name, role));
-    return view ? ref(view) : null;
+async function attachRelationsOf(ports: PlacementPorts, scope: PlacementScope): Promise<AttachRelations> {
+  const views = (await scope.client.discover(scope.caller)).filter(view => view.availability.available && view.action.placement_relation !== undefined
+    && isPlacementRelationPart(view.action, view.action.placement_relation.role));
+  const byName = new Map<string, ActionView[]>();
+  for (const view of views) byName.set(view.action.placement_relation!.relation, [...byName.get(view.action.placement_relation!.relation) ?? [], view]);
+  const ambiguous = (relation: string, same: readonly ActionView[]) => {
+    const providers = [...new Set(same.map(view => view.provider.provider_id))];
+    return placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation, providers: providers.join("、") }), { relation, providers });
   };
-  const target = views.find(entry => isPlacementRelation(entry.action, name, "list"))?.action.placement_relation?.target;
-  return { noun: target?.noun ?? DEFAULT_NOUN, target_kind: target?.kind ?? name,
-    list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") };
+  const all: AttachRelation[] = [];
+  for (const [name, parts] of byName) {
+    if (new Set(parts.map(view => view.provider.provider_id)).size > 1) throw ambiguous(name, parts);
+    const play = (role: PlacementRelationRole) => {
+      const found = parts.filter(view => view.action.placement_relation!.role === role);
+      if (found.length > 1) throw ambiguous(name, found);
+      return found[0] ? ref(found[0]) : null;
+    };
+    const list = parts.find(view => view.action.placement_relation!.role === "list"), target = list?.action.placement_relation!.target;
+    // Without its list part a relation says neither what it ends on nor what an object is attached to: there is nothing to offer.
+    if (!list || !target) continue;
+    const kinds = list.action.subject_kinds;
+    all.push({ relation: name, plugin_id: list.provider.plugin_id ?? list.provider.provider_id, noun: target.noun, target_kind: target.kind,
+      relates: kind => kinds.length === 0 || kinds.includes(kind),
+      list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") });
+  }
+  for (const relation of all) {
+    const same = all.filter(other => other.target_kind === relation.target_kind);
+    if (same.length > 1) throw ambiguous(relation.target_kind, views.filter(view => same.some(one => one.relation === view.action.placement_relation!.relation)));
+  }
+  const of = (kind: string) => all.find(relation => relation.target_kind === kind) ?? null;
+  return { all, of, noun: kind => of(kind)?.noun ?? null };
 }
 
-/** Like `placementRelationOf`, for a partition that may be gone: it has no relation parts and the wire vocabulary's own words. */
-async function placementRelation(ports: PlacementPorts, projectId: string | null): Promise<PlacementRelation> {
-  try { return await placementRelationOf(ports, await ports.scope(projectId)); } catch (error) {
+/** Like `attachRelationsOf`, for a partition that may be gone: it has no relations. */
+async function attachRelations(ports: PlacementPorts, projectId: string | null): Promise<AttachRelations> {
+  try { return await attachRelationsOf(ports, await ports.scope(projectId)); } catch (error) {
     // A partition that is gone has no relation; a relation with two owners is a refusal, not an absence.
     if (error instanceof ActionError && error.code === "placement.relation_ambiguous") throw error;
-    const name = ports.relation ?? DEFAULT_RELATION;
-    return { noun: DEFAULT_NOUN, target_kind: name, list: null, bind: null, release: null, candidates: null, create: null };
+    return NO_RELATIONS;
   }
 }
 
-async function placementBindings(ports: PlacementPorts, projectId: string, relation: PlacementRelation, subject: { kind: string; id: string }): Promise<{ binding_id: string; goal_id: string; created_at: string }[]> {
+/** What one object is attached to through one relation, as its owner says; nothing when the owner cannot answer now. */
+async function attachTargetsOf(ports: PlacementPorts, projectId: string, relation: AttachRelation, subject: ActionSubject): Promise<ActionSubject[]> {
   try {
     if (!relation.list) return [];
     const scope = await ports.scope(projectId);
-    return (await scope.client.invoke(scope.caller, relation.list, { subject }) as { bindings: { binding_id: string; goal_id: string; created_at: string }[] }).bindings;
+    const result = await scope.client.invoke(scope.caller, relation.list, { subject }) as PlacementRelationResult;
+    return result.targets.filter(target => target.kind === relation.target_kind);
   } catch { return []; }
 }
 
@@ -568,20 +612,21 @@ function placementOpenProject(object: PlacedObject, read: Read): string | null {
   return object.project_id ?? placementBelongsOf(read);
 }
 
-/** Goals still open in one location, for choosing one to bind to. */
-async function placementGoals(ports: PlacementPorts, projectId: string): Promise<PlacementGoalView[]> {
+/**
+ * What can be attached to in one location, by kind: each relation that offers its candidates. Its owner names them by reference only;
+ * their titles are read from them like any object's.
+ */
+async function placementAttachTargets(ports: PlacementPorts, access: PlacementInstanceAccess, projectId: string, object: PlacedObject): Promise<PlacementAttachKindView[]> {
   const scope = await ports.scope(projectId);
-  const { candidates: list } = await placementRelationOf(ports, scope);
-  if (!list) return [];
-  const goals: PlacementGoalView[] = [];
-  let after: string | undefined;
-  for (let page = 0; page < 10; page += 1) {
-    const result = await scope.client.invoke(scope.caller, list, { limit: 100, ...(after ? { after_cursor: after } : {}) }) as { goals: { goal_id: string; title: string }[]; next_cursor?: string | null };
-    goals.push(...result.goals.map(goal => ({ goal_id: goal.goal_id, title: goal.title })));
-    if (!result.next_cursor) break;
-    after = result.next_cursor;
+  const kinds: PlacementAttachKindView[] = [];
+  for (const relation of (await attachRelationsOf(ports, scope)).all) {
+    if (!relation.candidates || !relation.bind || !relation.relates(object.kind)) continue;
+    const result = await scope.client.invoke(scope.caller, relation.candidates, { subject: { kind: object.kind, id: object.id } }) as PlacementRelationCandidates;
+    const offered = result.targets.filter(target => target.subject.kind === relation.target_kind);
+    const titles = await Promise.all(offered.map(target => access.targetTitle(projectId, target.subject.kind, target.subject.id)));
+    kinds.push({ kind: relation.target_kind, noun: relation.noun, targets: offered.map((target, index) => ({ id: target.subject.id, title: titles[index] ?? "", current: target.current })) });
   }
-  return goals;
+  return kinds;
 }
 
 async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAccess, input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
@@ -618,23 +663,27 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   const from = read.plugin ? `${read.plugin.title} · ${sourceTitle}` : sourceTitle;
   const scope = await ports.scope(request.to_project_id);
   const views = await scope.client.discover(scope.caller);
-  let created: PlacedObject;
-  if ("goal" in request.to) {
-    const relation = await placementRelationOf(ports, scope);
-    if (!relation.create) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.goals-isn-t-enabled-here-so-can-t-2"));
-    const result = await scope.client.invoke(scope.caller, relation.create, { title: title.slice(0, 200), outcome: body.slice(0, 2000),
-      why: placementText(ports, "workbench.index.source", { source: from }), source_kind: "web", idempotency_key: `placement:${request.request_id}` }) as { goal: { goal_id: string } };
-    created = { kind: relation.target_kind, id: result.goal.goal_id, project_id: request.to_project_id };
+  let created: PlacedObject, noun: string | undefined;
+  if ("attach_kind" in request.to) {
+    const relation = (await attachRelationsOf(ports, scope)).of(request.to.attach_kind);
+    if (!relation?.create) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.attach-create-unavailable"));
+    // The owner makes a target named so and attaches the source to it; it returns what the source is attached to, the new one first.
+    const result = await scope.client.invoke(scope.caller, relation.create, { subject: { kind: source.kind, id: source.id }, name: [...title].slice(0, PLACEMENT_RELATION_LIMITS.name).join(""),
+      request_id: `placement:${request.request_id}`.slice(0, PLACEMENT_RELATION_LIMITS.request_id),
+      read: { title: [...sourceTitle].slice(0, PLACEMENT_RELATION_LIMITS.title).join(""), ...(read.context?.revision ? { revision: read.context.revision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}),
+        excerpt: [...body].slice(0, PLACEMENT_RELATION_LIMITS.excerpt).join("") } }) as PlacementRelationResult;
+    const made = result.targets[0];
+    if (!made || made.kind !== relation.target_kind) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
+    created = { kind: made.kind, id: made.id, project_id: request.to_project_id };
+    noun = relation.noun;
   } else {
     const station = request.to.station;
     const receive = views.find(view => view.action.workflow_content?.id === station && view.action.workflow_content.role === "receive" && view.availability.available);
     if (!receive) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.no-plugin-here-can-receive-content"));
     const item = await scope.client.invoke(scope.caller, ref(receive), { title, body, source: from, request_id: `placement:${request.request_id}` }) as WorkflowItemRef;
-    const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === receive.provider.provider_id);
-    // The station says what its content is when its provider reads several kinds (Jelly: calendar entries and notes).
-    const declared = readers.find(view => receive.action.subject_kinds.includes(view.action.subject_kinds[0]!));
-    const kind = declared ? declared.action.subject_kinds[0]! : readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : station;
-    created = { kind, id: item.item_id, project_id: request.to_project_id };
+    // The station's object is of the kind it declares (Jelly's is a note, not a calendar entry).
+    if (!receive.action.subject_kinds.includes(item.subject.kind)) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
+    created = { kind: item.subject.kind, id: item.subject.id, project_id: request.to_project_id };
   }
   const actual = ports.surfaceSource ? await access.read(created) : undefined;
   if (actual && actual.state !== "ok") throw new ActionError("actions.outcome_unknown", "新对象的读取结果需要到接收方核对");
@@ -643,8 +692,8 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   access.remember(source);
   access.remember(created);
   ports.ledger.commands.put(ACCESS, { key: key("derived_from", created.kind, created.id), type: TYPES.derived,
-    source: identity(created.kind, created.id), target: identity(source.kind, source.id), cause: `placement.convert:${"goal" in request.to ? "goal" : request.to.station}` });
+    source: identity(created.kind, created.id), target: identity(source.kind, source.id), cause: `placement.convert:${"attach_kind" in request.to ? request.to.attach_kind : request.to.station}` });
   const createdRead = actual ?? await access.read(created);
   const open = actual ? actual.context?.open && { ...actual.context.open, project_id: placementOpenProject(created, actual) } || null : await access.openOf(created);
-  return { object: created, title: createdRead.context?.title ?? title, location: placementLocation(ports, created.project_id, spaces), open };
+  return { object: created, title: createdRead.context?.title ?? title, location: placementLocation(ports, created.project_id, spaces), open, ...(noun ? { noun } : {}) };
 }

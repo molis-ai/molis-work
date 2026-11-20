@@ -1,10 +1,10 @@
 import type { IncomingMessage } from "node:http";
-import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /**
@@ -18,52 +18,41 @@ export function bindGoalsWebActions(host: MolisWorkLocalHost, reference: LocalHo
   return bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS, { user_action: () => entryUserAction("web", reference.project_id, message) });
 }
 
-/** What the Host reads of a project's guidance: whether there is any, which revision it is at, and the text a Run starts with. */
-export interface ProjectGuidanceFacts {
-  readonly entries: readonly unknown[];
-  readonly revisions: readonly unknown[];
-  readonly runtime_prompt_prefix: string;
+interface RegisteredActionEntry {
+  readonly provider_id: string;
+  readonly definition: ActionDefinition;
+}
+
+function findRegisteredAction(capabilityId: string, version?: number): RegisteredActionEntry | undefined {
+  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
+    for (const action of registration.manifest.actions ?? []) {
+      if (action.capability_id === capabilityId && (version === undefined || action.version === version)) {
+        return { provider_id: registration.manifest.plugin_id, definition: action };
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Look up an action definition from the generated built-in plugin registry without importing the plugin package. */
+export function registeredHostAction<I = unknown, O = unknown>(capabilityId: string, version?: number): ActionDefinition<I, O> | undefined {
+  return findRegisteredAction(capabilityId, version)?.definition as ActionDefinition<I, O> | undefined;
 }
 
 /**
- * The project's confirmed guidance, read by the Host for the project layer of a Run or an Assistant turn. It is a read of one Goals
- * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
- * read refuses it, and the caller starts without the layer.
+ * Calls `definition` as `caller` on the exact built-in provider from the generated registry (BL-501). A third-party installation
+ * registering the same capability id while the built-in plugin is absent must not receive management calls.
  */
-export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceFacts> {
-  const read = goalsActions.guidanceRead;
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
-  return await invokeGoals<ProjectGuidanceFacts>(client, caller, read, {});
-}
-
-/**
- * Calls `definition` as `caller` on the Goals that ships with the Host, pinned exactly (BL-501). These calls carry the person's decision
- * (management) or put what they read into prompts (guidance), and a capability id belongs to no publisher (R-45): a third-party
- * installation that registered `goals.*` while Goals is away must not receive them. The provider id `GOALS_PLUGIN_ID` is one only the Host
- * assigns (`plugin-entry-identity.ts`), so the dispatcher refuses any other provider before a handler runs, and records the call like any
- * other (a cancellation while it waits is settled there). Accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards).
- */
-async function invokeGoals<Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition, input: unknown): Promise<Output> {
-  const provider_id = GOALS_PLUGIN_ID;
+async function invokeRegistered<Output>(client: ActionClient, caller: ActionCallContext, entry: RegisteredActionEntry, input: unknown): Promise<Output> {
+  const { provider_id, definition } = entry;
   return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
     { ...definition, provider_id }, input) as Output;
 }
 
-/** A Goals action as a management entry names it: by id and version, as the action directory lists it. The Host finds the definition. */
+/** An action as a management entry names it: by id and version, as the action directory lists it. The Host finds the definition. */
 export type GoalsActionReference = Pick<ActionDefinition, "capability_id" | "version">;
 
-/**
- * Goals' actions as the Host's own callers hold them, with their input and output types. The Host reaches Goals here and in no other file
- * (PG-031); what a transport entry (the command line, the MCP) calls it names by id and version through `GoalsManagementActions`.
- */
-export const goalsHostActions = {
-  initialize: goalsActions.initialize, create: goalsActions.create, guidanceRead: goalsActions.guidanceRead,
-  directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
-} as const;
-export { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
-export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
-
-/** What a management entry can do: Goals' actions as the person on this machine, origin management. */
+/** What a management entry can do: registered actions as the person on this machine, origin management. */
 export interface GoalsManagementActions {
   readonly project_id: string;
   /** The protected project review service issues decision provenance. */
@@ -80,14 +69,22 @@ export function refusePayloadIdentity(input: object, more: readonly string[] = [
   }
 }
 
+const MANAGEMENT_ACTION_IDS: ReadonlySet<string> = new Set([
+  "goals.board.initialize",
+  "goals.active.set",
+  "goals.snapshot.read",
+  "goals.tree.submit",
+  "goals.tree.read",
+  "goals.tree.check",
+]);
+
 /**
  * Besides `actor_id` and `actor_kind`, the identity fields a management entry's arguments may not carry for each write that takes an
- * identity from the Host, refused in these words before the authority is built: the entry came through a typed capability that said
- * so, and the command line's wire keeps it. An action not listed here has no such rule (its contract refuses what it does not know).
+ * identity from the Host, refused in these words before the authority is built.
  */
 const MANAGEMENT_REFUSED_IDENTITY: Readonly<Record<string, readonly string[]>> = {
-  [goalsActions.treeSubmit.capability_id]: ["submitted_session_id"],
-  [goalsActions.treeCheck.capability_id]: [],
+  "goals.tree.submit": ["submitted_session_id"],
+  "goals.tree.check": [],
 };
 
 function managementUserAction(projectId: string, capabilityId: string, input: unknown, evidence: unknown): NonNullable<ActionCallContext["user_action"]> {
@@ -97,21 +94,23 @@ function managementUserAction(projectId: string, capabilityId: string, input: un
   return entryUserAction("management", projectId, { id });
 }
 
+function findManagementEntry(reference: GoalsActionReference): RegisteredActionEntry | undefined {
+  if (!MANAGEMENT_ACTION_IDS.has(reference.capability_id)) return undefined;
+  return findRegisteredAction(reference.capability_id, reference.version);
+}
+
 /**
- * The caller of a management entry (a `molis-work v1` command; the management-audience MCP), built by the Host after the entry's own
- * check and never by the entry: the person on this machine, origin management, one Goals action at a time with that action's own
- * permissions and nothing else pinned. The input names no one (an identity in the arguments of a write is refused first, in the words
- * the typed door used), and the entry cannot say who acts or through which entry it came. The
- * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the project's
- * client (`actionClient(reference)`): Goals is a plugin of the project, which that client starts.
+ * The caller of a management entry (the management-audience MCP), built by the Host after the entry's own check and never by the
+ * entry: the person on this machine, origin management, one action at a time with that action's own permissions and exact provider.
  */
 export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference, transport: { signal?: AbortSignal } = {}): GoalsManagementActions {
   const projectId = reference.project_id;
   return {
     project_id: projectId,
-    async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
-      return await invokeGoals<Output>(client, goalsManagementContext(projectId, reference, input, evidence, transport.signal),
-        requireManagementDefinition(reference), input);
+    async invoke<Output = unknown>(actionReference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
+      const entry = findManagementEntry(actionReference);
+      if (!entry) throw new ActionError("actions.dependency_missing", "这个管理动作或版本不可用");
+      return await invokeRegistered<Output>(client, goalsManagementContext(projectId, actionReference, input, evidence, transport.signal), entry, input);
     },
     fields: managementInputFields,
   };
@@ -128,11 +127,9 @@ export function goalsManagementContext(projectId: string, reference: GoalsAction
     user_action: managementUserAction(projectId, reference.capability_id, input, evidence) };
 }
 
-/** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */
+/** The existing MCP management action subset, resolved against the generated registry's definitions and exact version. */
 export function managementActionDefinition(reference: GoalsActionReference): ActionDefinition | undefined {
-  return [goalsActions.initialize, goalsActions.active, goalsActions.snapshot, goalsActions.treeSubmit,
-    goalsActions.treeRead, goalsActions.treeCheck]
-    .find(entry => entry.capability_id === reference.capability_id && entry.version === reference.version);
+  return findManagementEntry(reference)?.definition;
 }
 
 /** The business fields the management action's input declares, in the order its schema lists them. */

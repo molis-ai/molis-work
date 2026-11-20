@@ -116,11 +116,12 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   // The actual Host derives the person's authority; this registered ingestion uses no network or model.
   const collected = await localHost.actionClient(reference).invoke(await localHost.localPersonContext(reference), feedContentActions.receive,
     { request_id: "switch-off-content", title: "可选管理关闭后收到的消息", body: "关闭 Functions 管理不阻止这段原文进入 Feed。" });
-  assert.equal(feed.getFeedItem(projectId, collected.item_id).title, "可选管理关闭后收到的消息");
+  const collectedId = collected.subject.id;
+  assert.equal(feed.getFeedItem(projectId, collectedId).title, "可选管理关闭后收到的消息");
   await child.evaluate("t403Host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));t403Host.openView({surface:'workbench',id:'all',intent:'open'})");
-  await child.waitFor(`document.querySelector('button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]') && t403Reads.pending===0`);
-  await child.click(`button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]`);
-  await child.waitFor(`document.querySelector('[data-feed-detail="${collected.item_id}"][data-feed-detail-read=read]')?.textContent.includes('关闭 Functions 管理不阻止这段原文进入 Feed。') && t403Reads.pending===0`);
+  await child.waitFor(`document.querySelector('button[data-frame-asset=feed][data-frame-asset-id="${collectedId}"]') && t403Reads.pending===0`);
+  await child.click(`button[data-frame-asset=feed][data-frame-asset-id="${collectedId}"]`);
+  await child.waitFor(`document.querySelector('[data-feed-detail="${collectedId}"][data-feed-detail-read=read]')?.textContent.includes('关闭 Functions 管理不阻止这段原文进入 Feed。') && t403Reads.pending===0`);
   assert.equal(trials, 1, "required collection/reading does not invoke the optional authoring provider");
 
   await switchHome(true); await selectRules();

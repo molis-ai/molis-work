@@ -32,15 +32,16 @@ const ledgerOf = (path: string) => { const db = new DatabaseSync(path, { readOnl
 const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime?.scope !== "home" || entry.runtime?.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
 /** What a library is once the Host has opened it: the baseline, then each declaring plugin's own statements. */
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => pluginSyncDatabaseDeclaration(manifest, manifest.databases!.project!).schema)].join("\n"));
-/** The eleven tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09). */
-const ROOTED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources",
+/** The tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09); since batch 44 the project's guidance and acceptance subjects too. */
+const ROOTED = ["acceptance_subjects", "coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "guidance_entries", "guidance_revisions",
   "idempotency_records", "inbox_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-test("RAC-2360 APR-19 the project database baseline is version 1 and includes project approvals and runtime settings", () => {
+test("RAC-2360 APR-19 the project database baseline is version 1 and includes approvals, runtime settings, guidance and acceptance", () => {
   assert.equal(PROJECT_DATABASE_BASELINE.version, 1);
-  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql") + fixture("project-runtime-settings-schema.sql")));
+  assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")
+    + fixture("project-runtime-settings-schema.sql") + fixture("project-guidance-schema.sql") + fixture("project-acceptance-schema.sql")));
 });
 
 test("RAC-2360 an existing empty file initializes the complete current library at 1", () => {
@@ -53,7 +54,6 @@ test("RAC-2360 an existing empty file initializes the complete current library a
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
-
 test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped ids is refused without rewriting its schema or rows", () => {
   const home = mkdtempSync(join(tmpdir(), "attention-version-refusal-")), file = join(home, "project.db");
   try {

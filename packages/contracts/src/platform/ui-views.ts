@@ -3,25 +3,32 @@
 import type { TextRef } from "./ui-text.js";
 import type { UiSettingsAddressParamsDeclaration, UiSettingsDataDeclaration, UiStageDataDeclaration, UiViewGroup, UiViewHue, UiViewRail, UiViewSlot } from "./ui.js";
 
-/** A kind of thing a person can make new from a Goal: one of the Manifest's create stations, and the kind's name. */
+/**
+ * A kind of thing a person can make new from a Goal, as the Host places it on the plugin's first navigator or island view: read from a
+ * station's blank intake (`<station>.create`, contract-design §2.3), never declared on a view.
+ */
 export interface UiViewCreateEntry {
-  /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
+  /** The `id` of the `workflow_content` station whose `create` carries the intake; `placement.create` calls it. */
   readonly station: string;
-  /** The kind's name, also the original used if the supplying release no longer has the words. */
+  /** The kind's name, the intake's original. */
   readonly title: string;
-  /** Optional owned short text, resolved by the Host while projecting the supplying declaration. */
-  readonly title_text?: TextRef;
+  /** The name in the person's language. */
+  readonly label?: string;
 }
 
-/** One way to start something from the project home on an empty day; choosing it opens the view's plugin. */
+/** One way to start something from the project home, as the Host places it: read from an intake's `start` (contract-design §2.4). */
 export interface UiViewStartEntry {
   readonly title: string;
-  readonly title_text?: TextRef;
   /** One sentence, shown as the entry's hint. */
   readonly hint: string;
-  readonly hint_text?: TextRef;
-  /** Icon name from the Host's catalog, as for the view's own `icon`; omitted means the view's icon. */
+  /** Icon name from the Host's catalog; omitted means the view's icon. */
   readonly icon?: string;
+}
+
+/** What the Host adds to a placed view from the plugin's intakes. */
+export interface UiViewIntakeEntries {
+  readonly creates?: UiViewCreateEntry;
+  readonly start?: UiViewStartEntry;
 }
 
 /** Placement declaration. Rendering stays with `UiContribution.render`. */
@@ -80,8 +87,4 @@ export interface UiViewDeclaration {
   readonly stage_data?: UiStageDataDeclaration;
   /** The main surfaces mounted with the stage, in order. Defaults to `["workbench"]`; must include it exactly once. */
   readonly stage_surfaces?: readonly string[];
-  /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
-  readonly creates?: UiViewCreateEntry;
-  /** `navigator` and `island` views only: the project home's way to start with this plugin. */
-  readonly start?: UiViewStartEntry;
 }

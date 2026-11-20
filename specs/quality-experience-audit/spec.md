@@ -913,6 +913,8 @@ QEA-115 build3五样本通过（`quality-audit-collection-inbox-performance.log`
 
 - **QEA-117** 最新主干既存意向可恢复一次，已保存决定不重复；新认可成功不产生旧意向，最终 COMMIT 失败两边零写；项目清除失败仍保留原意向。原同 key 重试、SIGKILL/maintenance 恢复和本人权限拒绝继续通过。
 
+第 44 批（2026-11-19）：认可搬进各项目的项目库，逐项决定与平台决定同库一次提交，ATTACH 组合、跨库恢复与提交意向一起删掉。QEA-84、QEA-85 仍成立，用例改在 `tests/security-invariants-acceptance.test.ts` 的同库写法；QEA-86 与 QEA-117 验的是已删的跨库恢复与意向文件，不再适用，`tests/acceptance-atomic-recovery.test.ts` 随之删除（见第 44 批 PR）。
+
 第51批首轮：构建/合并快照生成通过；9文件63项定向全过（Skill浏览器恢复18、采用1、后台14，Acceptance真实SIGKILL2/拒绝与恢复6/要求4、审批11、能力板7）。只读复核无新增生产Blocker/P1，但指出重复恢复仅走空列表；补入“决定已落库、原意向再次存在”的完整内容不变/只写一行断言。健康门禁发现合并后Skill合同801行越过文件上限：将现有统一错误分类表独立为同目录 `skill-errors.ts`，原 `services/skills` 公开入口重导出；不改变取值/权限/schema，不加子路径或放宽阈值。需完整重建及生成确认公开API未发生意外变化。
 
 第51批最终构建3通过（第二次构建后只移除新文件多余尾空行，再重建保持指纹）；`api:update` 0变化。QEA-117补强后的6项验收安全回归通过，覆盖重新出现的旧意向及完整决定不变，日志 `quality-audit-main-integration-recovery-final.log`。主干整合本地保存后，以dbcf562a67为merge-base重验健康，并运行Contracts/Kernel/Observation/Workbench包要求与新增真实调用交集；此前其他模块有效证据保持，最终CI仍未完成。

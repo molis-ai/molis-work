@@ -1,31 +1,16 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalEventStateView } from "./contract/goals.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
-import type { GoalEventDocumentView } from "./event-document-model.js";
+import type { GoalRequirementRow } from "./event-document-model.js";
 import type { EventFormShared } from "./event-forms-shared.js";
 import { createDecisionForm } from "./event-forms-decision.js";
 
-/** 约定相关的表单：要求、关切、决定、收尾、约定与拟改变化；由 createEventDocumentForms 组合。 */
+/** 约定相关的表单：关切、决定、收尾、约定与拟改变化；要求在平台的要求栏里加、改、认可。由 createEventDocumentForms 组合。 */
 export function createAgreementForms(primitives: GoalsDocumentUiPrimitives, shared: EventFormShared) {
   const { escapeHtml } = primitives;
-  const { newToken } = shared;
+  void shared;
   const renderDecisionForm = createDecisionForm(primitives);
-  function renderRequirementForm(doc: GoalEventDocumentView): string {
-    return `<form class="event-form mw-form" data-event-form="requirement" data-config-version="${doc.state.config.version}" data-agreement-version="${doc.state.agreement.version}" hidden>
-      <header class="event-form-heading"><button type="button" class="mw-btn mw-btn--link" data-event-reader="planning">${uiText("goals.event-forms-agreement.back-record-templates")}</button><h3>${uiText("goals.event-forms-agreement.add-completion-requirement")}</h3>
-      <p class="form-lead">${uiText("goals.event-forms-agreement.enabling-completion-requirement-separate-action-registering-type")}</p></header>
-      <div class="event-form-body"><input type="hidden" name="requirement_id" value="${newToken("req")}">
-      <label><span>${uiText("goals.event-forms-agreement.concrete-result")}</span><textarea name="statement" rows="2" required></textarea></label>
-      <label><span>${uiText("goals.event-forms-agreement.bound-type-optional")}</span><select name="bound_type_id"><option value="">${uiText("goals.event-forms-agreement.not-bound")}</option>${
-        doc.types.map((type) => `<option value="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</option>`).join("")
-      }</select></label>
-      <label class="check-row"><input type="checkbox" name="human_decision_required"><span>${uiText("goals.event-forms-agreement.needs-user-acceptance")}</span></label>
-      <p class="form-note">${uiText("goals.event-forms-agreement.if-unchecked-runtime-report-can-count-toward-completion")}</p></div>
-      <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-event-back>${uiText("goals.event-forms-agreement.cancel")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${uiText("goals.event-forms-agreement.save-requirement")}</button></footer></div>
-    </form>`;
-  }
-
-  function renderConcernForm(state: GoalEventStateView): string {
+  function renderConcernForm(state: GoalEventStateView, rows: readonly GoalRequirementRow[]): string {
     const open = state.concerns.filter((item) => item.status === "open");
     const existing = open.length
       ? `<label><span>${uiText("goals.event-forms-agreement.existing-issues")}</span><select name="concern_id"><option value="">${uiText("goals.event-forms-agreement.record-new-concern")}</option>${
@@ -33,7 +18,7 @@ export function createAgreementForms(primitives: GoalsDocumentUiPrimitives, shar
       }</select></label>
         <label data-concern-existing hidden><span>${uiText("goals.event-forms-agreement.processed-result")}</span><select name="action"><option value="open">${uiText("goals.event-forms-agreement.open-new")}</option><option value="resolve">${uiText("goals.event-forms-agreement.resolved")}</option><option value="accept">${uiText("goals.event-forms-agreement.accept-risk")}</option><option value="overturn">${uiText("goals.event-forms-agreement.overturned-counterevidence")}</option></select></label>`
       : `<input type="hidden" name="action" value="open">`;
-    const requirements = state.requirements.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
+    const requirements = rows.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
     const decisions = state.current_decisions.length
       ? `<label data-concern-decision hidden><span>${uiText("goals.event-forms-agreement.referenced-user-decision-required-when-accepting-risk")}</span><select name="cited_decision_id"><option value="">${uiText("goals.event-forms-agreement.no-reference")}</option>${
         state.current_decisions.map((item) => `<option value="${escapeHtml(item.decision_id)}">${escapeHtml(item.conclusion)} · ${escapeHtml(item.actor_id)}</option>`).join("")
@@ -73,18 +58,10 @@ export function createAgreementForms(primitives: GoalsDocumentUiPrimitives, shar
   }
 
   function renderAgreementForm(state: GoalEventStateView): string {
-    const rows = state.requirements.map((item) => `<fieldset data-requirement-edit="${escapeHtml(item.requirement_id)}">
-      <legend>${escapeHtml(item.statement)}</legend>
-      <input type="hidden" name="requirement_id" value="${escapeHtml(item.requirement_id)}">
-      <label><span>${uiText("goals.event-forms-agreement.current-requirement")}</span><textarea name="requirement_statement" rows="2">${escapeHtml(item.statement)}</textarea></label>
-      <label class="check-row"><input type="checkbox" name="human_decision_required"${item.human_decision_required ? " checked" : ""}><span>${uiText("goals.event-forms-agreement.needs-user-acceptance")}</span></label>
-      <label class="check-row"><input type="checkbox" name="retire_requirement"><span>${uiText("goals.event-forms-agreement.retire-requirement-history-kept")}</span></label>
-      ${item.human_decision_required ? `<p class="form-note">${uiText("goals.event-forms-agreement.cancelling-human-acceptance-needs-confirmation-change")}</p>` : ""}
-    </fieldset>`).join("");
     return `<form class="event-form mw-form" data-event-form="agreement" hidden>
       <header class="event-form-heading"><h2>${uiText("goals.event-forms-agreement.change-current-agreement")}</h2></header>
       <div class="event-form-body"><label><span>${uiText("goals.event-forms-agreement.expected-result")}</span><textarea name="outcome" rows="3" required>${escapeHtml(state.agreement.outcome)}</textarea></label>
-      ${rows || `<p class="form-note">${uiText("goals.event-forms-agreement.there-no-current-requirement-revise")}</p>`}
+      <p class="form-note">${uiText("goals.event-forms-agreement.requirements-changed-in-requirement-column")}</p>
       <input type="hidden" name="expected_config_version" value="${state.config.version}">
       <input type="hidden" name="expected_agreement_version" value="${state.agreement.version}">
       <p class="form-note">${uiText("goals.event-forms-agreement.checks-both-agreement-version-configuration-version-changing-exi")}</p></div>
@@ -93,7 +70,6 @@ export function createAgreementForms(primitives: GoalsDocumentUiPrimitives, shar
   }
 
   return {
-    renderRequirementForm,
     renderConcernForm,
     renderDecisionForm,
     renderClosureForm,

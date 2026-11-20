@@ -20,7 +20,7 @@ async function setup() {
       list: { capability_id: `${station.plugin}.l`, version: 1 }, read: { capability_id: `${station.plugin}.r`, version: 1 }, receive: { capability_id: `${station.plugin}.v`, version: 1 } } } }),
     listStartItems: async () => [],
     createBlank: async () => { throw new Error("no blank starts here"); },
-    read: async (item: { item_id: string }) => ({ title: `T ${item.item_id}`, body: `body of ${item.item_id}`, source: null, url: null, feed_item_id: null }),
+    read: async (item: { item_id: string }) => ({ title: `T ${item.item_id}`, body: `body of ${item.item_id}`, source: null, url: null }),
     receive: async (plugin: string, payload: { title: string }, requestId: string) => {
       if (state.failReceive) throw new Error("target plugin temporarily unavailable");
       // W4-6-03: the request id of a handoff is `workflow:<instance>:<step>`; the step is the last part.

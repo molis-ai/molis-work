@@ -2,7 +2,7 @@ import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { sideItemOpenedTabs, sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
-import { pluginTabGlyphs } from "../../plugin-catalog.js";
+import { pluginNoReopenRecords, pluginSurfaceAliases, pluginTabGlyphs } from "../../plugin-catalog.js";
 import { readClientPluginDirectory, readClientPluginTitles } from "../../plugin-directory.js";
 import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withLayout, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
@@ -31,7 +31,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeOrder: () => [], homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
-  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())};
+  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
   // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
   const SIDE_OPENED = ${sideOpenedTabs()};
@@ -64,7 +64,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   refreshPluginTitles();
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
+  const ops = (${withLayout.toString()})((${withSidePane.toString()})((${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES, SURFACE_ALIASES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()})));
 ${TAB_WORKSPACE_PANES_PART}
 ${TAB_WORKSPACE_STRIP_PART}
   document.addEventListener("molis-work:language-changed", () => {
@@ -709,23 +709,21 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (tab?.plugin === "goals" && tab.kind === "item") { writeView(ops.focused(state).id, undefined, tab.id); if (embedded) notifyParent("workbench-pane-view", { view: undefined }); }
     }
   });
-  // Choosing another Goal inside a Goal tab (its workspace directory, a relation link) takes the tab with it, so its
-  // label and restore target match what it shows; a Goal that already has its own tab is opened there instead.
-  document.addEventListener("molis-work:goal-changed", (event) => {
-    const goalId = event.detail?.goalId;
-    if (embedded || applying || !goalId) return;
+  // Choosing another record inside an item tab (a directory or relation link) takes the tab with it, so its
+  // label and restore target match what it shows; a record that already has its own tab is opened there instead.
+  document.addEventListener("molis-work:record-selected", (event) => {
+    const plugin = event.detail?.plugin, itemId = event.detail?.itemId;
+    if (embedded || applying || !plugin || !itemId) return;
     const pane = ops.focused(state), tab = ops.activeTab(state);
-    if (!pane || tab?.plugin !== "goals" || tab.kind !== "item" || tab.itemId === goalId) return;
-    const existing = pane.tabs.find((item) => item.plugin === "goals" && item.kind === "item" && item.itemId === goalId);
+    if (!pane || tab?.plugin !== plugin || tab.kind !== "item" || tab.itemId === itemId) return;
+    const existing = pane.tabs.find((item) => item.plugin === plugin && item.kind === "item" && item.itemId === itemId);
     if (existing) { if (tab.view === "work") existing.view = "work"; activate(pane.id, existing.id); return; }
-    tab.itemId = goalId;
-    if (event.detail.goalTitle) tab.title = event.detail.goalTitle;
-    // The selection that fired this is already loading the Goal's document; redraw the tab without a second load,
-    // which would race the one whose late response must not win.
+    tab.itemId = itemId;
+    if (event.detail.title) tab.title = event.detail.title;
     const loading = loadingGoalId;
-    loadingGoalId = goalId;
+    if (plugin === "goals") loadingGoalId = itemId;
     apply(); persist();
-    if (loadingGoalId === goalId) loadingGoalId = loading;
+    if (plugin === "goals" && loadingGoalId === itemId) loadingGoalId = loading;
   });
   return { apply, readView, writeView, openView, homeOrder, homeNavigationFrom, adoptHomeLead, releaseHomeLead, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,

@@ -48,11 +48,11 @@ test("Jelly receives a handed-over spark as one note, once; it reads back as a J
   const input = { title: "发布会预热", body: "倒计时海报提前一周放出", source: "灵光 · 发布会预热", request_id: "placement:req-1" };
   const first = await jelly.invoke(jellyContentActions.receive, input);
   const again = await jelly.invoke(jellyContentActions.receive, input);
-  assert.equal(first.plugin, "jelly"); assert.equal(again.item_id, first.item_id, "a retried handoff finds the note it made");
-  const read = await jelly.invoke(jellyContentActions.read, { item_id: first.item_id });
+  assert.equal(first.subject.kind, jellyContentActions.receive.action.subject_kinds[0]); assert.equal(again.subject.id, first.subject.id, "a retried handoff finds the note it made");
+  const read = await jelly.invoke(jellyContentActions.read, { item_id: first.subject.id });
   assert.equal(read.title, "发布会预热"); assert.match(read.body, /倒计时海报提前一周放出/); assert.match(read.body, /来自：灵光 · 发布会预热/);
   assert.deepEqual(jellyContentActions.receive.action.subject_kinds, ["jelly_note"], "the station's content is Jelly notes");
-  assert.deepEqual((await jelly.invoke(jellyContentActions.list, {})).map(item => item.item_id), [first.item_id]);
+  assert.deepEqual((await jelly.invoke(jellyContentActions.list, {})).map(item => item.item_id), [first.subject.id]);
 });
 
 test("RAC-1685 a reading is kept to a spark's room in whole Unicode characters: exactly the room is whole and not said to be cut, one character more loses one whole character and says so, and a title keeps 200 whole characters", async () => {

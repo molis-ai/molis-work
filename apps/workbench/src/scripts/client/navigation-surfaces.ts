@@ -1,9 +1,11 @@
-import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
+import { OWN_DIRECTORY_SURFACES, pluginSurfaceAliases } from "../../plugin-catalog.js";
 
 /** AP3 Workbench client segment: navigation-surfaces. The shell owns directory and work-surface switching (07-1 口径 11: the name
  * no longer says Feed, which left with FI-6). Plugin business clients live in their registered bundles. */
 export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
+    const SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())};
+    const canonicalSurface = (surface) => (Object.hasOwn(SURFACE_ALIASES, surface) ? SURFACE_ALIASES[surface] : surface);
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
@@ -76,8 +78,8 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
         tabWorkspace.setExclusive(surface);
         return true;
       }
-      if (surface === "sources") {
-        tabWorkspace.openPlugin("feed", mode);
+      if (Object.hasOwn(SURFACE_ALIASES, surface)) {
+        tabWorkspace.openPlugin(SURFACE_ALIASES[surface], mode);
         return true;
       }
       if (itemId) tabWorkspace.openItem(surface, itemId, title, undefined, mode);
@@ -117,12 +119,12 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
       if (matchMedia("(max-width: 760px)").matches) setMobileView(nextDirectory === "root" || surface === "home" || surface === "market" ? "document" : "tree");
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => id !== "sources")];
+    const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => !Object.hasOwn(SURFACE_ALIASES, id))];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";
       workspace.classList.toggle("is-plugin-directory-empty", empty);
-      const currentSection = directory === "sources" ? "feed" : directory;
+      const currentSection = canonicalSurface(directory);
       document.querySelectorAll("[data-plugin-section]").forEach((section) => {
         const show = !empty && section.dataset.pluginSection === currentSection;
         section.hidden = !show;
@@ -134,7 +136,7 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
     };
 
     const setPluginSectionExpanded = (id) => {
-      const sectionId = id === "sources" ? "feed" : id;
+      const sectionId = canonicalSurface(id);
       if (!LIST_PLUGIN_SECTIONS.includes(sectionId)) return;
       setDirectoryCollapsed?.(false, false);
       setDesktopDirectory(sectionId, true, false);
@@ -150,10 +152,12 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
         desktopDirectoryOrigin = origin;
       }
       treePane.dataset.desktopDirectory = next;
-      const feedPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === "feed");
-      const sourcesPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === "sources");
-      if (feedPanel) feedPanel.hidden = next === "sources";
-      if (sourcesPanel) sourcesPanel.hidden = next !== "sources";
+      for (const [alias, owner] of Object.entries(SURFACE_ALIASES)) {
+        const ownerPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === owner);
+        const aliasPanel = desktopDirectoryPanels.find((panel) => panel.dataset.directoryPanel === alias);
+        if (ownerPanel) ownerPanel.hidden = next === alias;
+        if (aliasPanel) aliasPanel.hidden = next !== alias;
+      }
       syncPluginDirectory(next);
       if (next === "settings" || next === "project-settings" || (persist && origin?.closest?.("[data-plugin-strip]") && next !== "root")) {
         setDirectoryCollapsed?.(false, false);

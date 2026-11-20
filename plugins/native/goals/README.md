@@ -42,10 +42,10 @@ Host 注入各 Module 的公开端口，Goals 用 `createGoalsApplication` 在�
 - 结构提案使用 `goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.review` 和 `goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更。平台先读取提案当前是否可审批，再将本人确认的选择交给 Goals 执行。已决定的提案保持可读。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
 - MCP 可按授权调用 `goals.relations.list` 和 `goals.policy.resolve` 查询关系列表和生效规则。本人可用 `goals.relations.add` 和 `goals.relations.deactivate` 建立或解除关系，模型走结构提案。
-- 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
+- 项目长期说明不归 Goals：第 44 批移到平台（`projects.guidance.*`，`modules/projects`），没装 Goals 的项目照常有。Goals 的终端动作以调用者身份读 `projects.guidance.read` 拿提示词前缀。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.impact`、`goals.planning.graph.check`。只剩关系图检查与影响分析；规划方法是技能目录里的技能，不归 Goals（第 41 批）。
-- 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 的看板不带 `title`，S8）：`goals.snapshot.read` 返回项目快照（目标、关系、项目指导与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则、项目指导与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
+- 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 的看板不带 `title`，S8）：`goals.snapshot.read` 返回项目快照（目标、关系与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
 - 完整集合：`goals.collection.read` 返回当前/归档/回收站集合、历史、覆盖和输入/规则绑定；整页、Board JSON、fragment 和复用页面资料的消费者等待同一动作，缓存命中仍重新校验权限。
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、关注项与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
 - 当前状态与目录项：`goals.state.read`、`goals.directory.read`。
@@ -76,10 +76,6 @@ Goals 消费统一授权管理页的项目审批规则。「完成前必须你�
 
 项目规划的方法详情/编辑、规划页与设置规划页已随第 41 批删除；项目库升级段与 Home 库删除见下文。
 
-长期说明的 Web API、项目设置、动作、MCP、Work 提示词和 Agent 项目层共用动作。Agent 使用原修订数标识说明版本，编辑同一条也产生新的冻结版本。说明写入已成功而后续列表读取被拒绝时，HTTP 返回保存回执及独立刷新错误；不把已保存操作报成失败。长期说明变更的 user_confirmed 保留原业务确认前提，不产生用户决定权。
-
-`guidance.add/update` 的成功回执沿 `result_view` 提供原说明正文和本项目“项目说明”管理入口，由平台原结果卡保存并展示；后续步骤失败仍可查看、编辑或停用，不依赖模型再补回答。同文去重只说内容已保存，编辑/停用/恢复只说变更已保存，不声称新增或删除。输入输出、授权、动作版本及原幂等合同不变；直接回归为 `tests/goals-guidance-actions.test.ts` 和 `tests/assistant-process-info.e2e.test.ts`。
-
 生命周期的 Web API、CLI 当前目标与回收站组合动作已转入动作。删除/恢复固定操作方向，拒绝输入 trashed 覆盖；work_state 从本次原回执生成，后续排队写入不会改写它。`goals.active.set` 只收 goal_id、reason、idempotency_key，身份和项目由已授权连接绑定；删除与恢复共享同一授权；原领域数据和回执保留。
 
 Goals 的原动作处理目标树的提交、查询、检查和决定，保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate。part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。原提案的业务 schema 由插件维护。
@@ -108,7 +104,7 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：
   - 状态变化只经 `src/module/` 的公开入口，页面不另算完成。
-  - 逐项依据（第 24-3 批，用户 2026-11-11 定；安全不变量 S-goal-evidence-tier）：`goals.events.report` 的判断可附依据（核对的确切交付版本、检查方法、观察结果、至多 8 条证据引用：成果版本或某一轮里某条命令的回执）。可信层级（`self_reported`、`machine_verified`、`peer_reviewed`）与缺口只由 `src/evidence-check.ts` 的 `assessGoalReport` 在保存前核对得出，放在输入之外、由插件自己的包装作为第三个参数直接交给处理器，输入 schema 不收层级；同一个幂等键重发的报告先认出是重放，不再重新核对；依据里引用的成果版本读不到或不存在时按自述保存并记缺口；依据点名的版本不是目标已确认的交付物时整批拒绝，其余查不到的一律按自述保存并记缺口。会话只认宿主绑定给 Agent 轮次的：外部客户端经 MCP 自报的会话不算，它的报告只是自述；不是从某一轮固定出来的版本认不出做出者，不算复查；同一轮同一组命令只问平台一次。同步导入的判断行由 `src/module/replication-validation.ts` 的 `validateJudgmentTrust` 校验取值。为此这个动作声明并发调度，在写窗口之前以调用方身份委托 `artifacts.read` 与 `agent.evidence.check`，不替调用方加权限。满足规则在 `src/module/event-state-authorization.ts` 的 `requirementSatisfaction`：用户认可记下它针对的版本，之后的报告核对了另一版（或认可没记版本、之后的报告写明了版本），这一条回到待认可（`conclusion_superseded`），其余要求不受影响；不要求用户决定的要求可由有据的报告满足，前提是所核对的版本仍是已确认的交付物、用户没有不认可；要求用户决定的要求只认用户。每条判断的依据、层级、缺口随事件保存，后来的报告不改它。项目库为此升到第 2 版（判断表与结论表各加列，新列不带 CHECK：平台的升级段不放行带 CHECK 的加列）。改这里跑 `tests/goal-event-evidence.test.ts`、`tests/security-invariants-goal-evidence.test.ts`。
+  - 要求与认可归平台（第 44 批，用户 2026-11-18 定，`specs/plugin-equal-standing/contract-design.md` §10）：Goal 的要求挂在平台的认可上（`acceptance.requirements.set@1`，对象 `{ provider_id: "io.molis.work.goals", subject: { kind: "goal", id } }`），交付、核对报告与逐项认可都在平台的要求栏里做；可信层级只由平台核对得出（安全不变量 S-acceptance-evidence-tier、S-acceptance-person-decides）。Goals 只记它挂了哪几条、出处和绑定的事件类型（`goal_requirement_links`），`goals.events.report` 不再带判断。建 Goal 时挂的要求在写入提交之后才送平台（`src/plugin-acceptance.ts`），失败时页面列出「要求未挂上」；命令在写窗口之前以 Goals 自己的授权读平台的认可，读到的交给处理器作第三个参数，依据要求的命令没读到就拒绝（`goals.event_requirement.unread`）。完成要所有要求都满足，收尾记下它依据的交付轮次（`acceptance_round`）；之后要求有变不自动重开，页面显示「完成之后要求有变」。
   - CLI 与管理 MCP 使用同一 owner 动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
@@ -130,7 +126,7 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
     - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
     - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
     - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-workbench-registration.test.ts tests/goals-command-actions.test.ts tests/goals-library-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/goals-guidance-actions.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-storage-boundaries.test.mjs tests/goals-stored-json.test.ts tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/goals-terminal.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-workbench-registration.test.ts tests/goals-command-actions.test.ts tests/goals-library-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts tests/goal-progress-plugin-identity.test.ts tests/goal-management-identity.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/goals-query-boundaries.test.mjs tests/goals-input-confirm.test.ts tests/goal-artifact-inputs.test.ts tests/feed-goal-promotion.test.ts tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goal-events-state.test.ts tests/goals-query-facts.test.ts tests/goals-storage-boundaries.test.mjs tests/goals-stored-json.test.ts tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/goals-terminal.test.ts`
 
 - 改页面绘制（`src/page/`，T-116）必跑：`node scripts/run-tests.mjs tests/goals-page-golden.test.ts tests/goals-document-routes.test.ts tests/goals-context-ui.test.ts tests/goals-dialogs-ui.test.ts tests/goals-document-ui.test.ts tests/goals-kanban-ui.test.ts tests/goals-momentum-ui.test.ts tests/goals-policy-ui.test.ts tests/goals-relation-ui.test.ts tests/goals-status-ui.test.ts tests/goals-tree-ui.test.ts tests/status-ring.test.ts tests/workbench-ui-platform.test.ts tests/package-boundary-must-contain.test.mjs tests/workbench-registration-boundaries.test.mjs`。`goals-page-golden` 先全量 `pnpm build`（旧的 dist 画出来的页面没人用）；整页是否一个字节没变，用 `MOLIS_WORK_GOLDEN_DUMP=1` 写出整页，与改动之前干净检出上录的目录 `diff -rq`。
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[docs/modules/governance-collaboration.md](../../../docs/modules/governance-collaboration.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -139,4 +135,3 @@ Goals 的原动作处理目标树的提交、查询、检查和决定，保留�
 
 规划检查/影响与树检查/决定的输出携带现行 goals.planning.* issue，四个动作版本为1；其他动作版本保持。review_action指向goals.planning.impact@1，固定旧版本的调用方需重新发现/授予当前动作。当前错误码按goals.<原前缀>.<原因>，缺Goal为goals.not_found；业务事件goal.trashed/goal.archived等保持。
 
-菜单栏只读摘要：`goals.capsule.menu.read@1` 由 Goals 查询本包事实表，只返回当前一条摘要及同组数量，不展开事件正文。隐藏胶囊经此动作读取；显示胶囊仍读取原完整视图。

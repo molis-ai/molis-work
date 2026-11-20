@@ -17,7 +17,7 @@ const LOCAL_TOOL_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const LOCAL_BINARY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 /** `~/…` or an absolute path; characters that are not part of a plain path are refused. */
 const LOCAL_DIRECTORY = /^(?:~\/|\/)[A-Za-z0-9._\/ -]{1,300}$/u;
-const RUNTIME_FIELDS = new Set(["scope"]);
+const RUNTIME_FIELDS = new Set(["scope", "dual_instance"]);
 const IMAGE_FIELDS = new Set(["store_name", "read_permission", "write_permission", "generate_permission"]);
 
 export function modelConfigurationDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
@@ -100,13 +100,14 @@ export function localToolsDeclarationProblems(value: unknown, permissions: Reado
   return problems;
 }
 
-/** `runtime` says where a plugin runs; the only place other than the project is the Home. The dual-instance mark is the Host's to give, never a Manifest's (S-48). */
+/** `runtime` says where a plugin runs (PG-011, PEQ-06): `scope: "home"`, optionally with `dual_instance: true` for plugins with both Home and project halves (S-48, S-80). */
 export function runtimeDeclarationProblems(value: unknown): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return ["runtime 必须为对象"];
   const problems: string[] = [];
   const unknown = Object.keys(value).filter(field => !RUNTIME_FIELDS.has(field));
-  if (unknown.length > 0) problems.push(`runtime 不认这些字段：${unknown.join("、")}${unknown.includes("dual_instance") ? "（双实例的标记只来自宿主的登记，Manifest 说不了）" : ""}`);
+  if (unknown.length > 0) problems.push(`runtime 不认这些字段：${unknown.join("、")}`);
   if (value.scope !== "home") problems.push("runtime.scope 只能写 \"home\"（项目级插件不写 runtime）");
+  if (value.dual_instance !== undefined && value.dual_instance !== true) problems.push("runtime.dual_instance 只能写 true");
   return problems;
 }

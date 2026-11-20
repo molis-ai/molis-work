@@ -54,6 +54,7 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
+import { disposeWorkTerminalsForOwner, registerWorkTerminalOwner } from "./work-terminal-service.js";
 import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-ui-host";
 import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runWithPluginText } from "./web-locale.js";
@@ -95,7 +96,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
   const dispose = async () => {
     active = false; stopped = true;
     let sqlClosed: Promise<void> | undefined;
-    try { terminal?.dispose(); } finally {
+    try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally {
       try {
         withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.();
         disposeArtifacts(); library?.close(); sqlClosed = projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose();
@@ -148,9 +149,10 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
+    if (options.home) registerWorkTerminalOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id, assertActive });
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
-      revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
+      revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     await dispose();
     throw error;
@@ -199,6 +201,7 @@ export function pluginTextViews(contribution: PluginContribution, activation: Pl
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
   // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
+    if (options.dualInstance?.(definition)) return undefined;
     throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
   }
   if (!options.home && options.dualInstance?.(definition)) return undefined;

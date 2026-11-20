@@ -43,6 +43,7 @@
     "inbox.projection.inbox-workflow": "Inbox · 工作流程",
     "inbox.projection.matched-source-rule": "来源规则命中",
     "inbox.projection.molis-work-waiting-decision": "Molis Work 等待决定",
+    "inbox.projection.needs-you": "需要你处理",
     "inbox.projection.open": "待处理",
     "inbox.projection.open-handle-original-message-complete-ignore-attention-reference": "查看原消息并处理，或直接完成 / 忽略这条注意力引用。",
     "inbox.projection.rule-rule-needs-human-review": "规则「{rule}」需要人工复核",

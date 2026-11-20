@@ -106,16 +106,23 @@ export interface ArtifactLinkDeclaration {
   proposal?: boolean;
 }
 
-/** The dual-instance mark (docs/system/GLOSSARY.md) is not here: only the Host's registration can say it (S-48). */
+/**
+ * Where a plugin runs (PG-011, PEQ-06). `scope: "home"` runs a Home instance shared across projects; adding
+ * `dual_instance: true` runs both a Home half and a project half. Only Host-build plugins or signed pinned
+ * sandbox packages may run with `scope: "home"` or `dual_instance: true` (S-48, S-80).
+ */
 export interface PluginRuntimeDeclaration {
   readonly scope: "home";
+  readonly dual_instance?: true;
 }
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
-/** The kinds of object a plugin may give context text for in the person's page (GAS-01). */
-export const UI_SUBJECT_CONTEXT_KINDS = ["goal"] as const;
-export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
+/** The pattern of an object kind a plugin may give context text for in the person's page (GAS-01, PEQ-17). */
+export const UI_SUBJECT_CONTEXT_KIND_PATTERN = "^[a-z][a-z0-9_-]{0,63}$";
+export const isUiSubjectContextKind = (value: unknown): value is UiSubjectContextKind =>
+  typeof value === "string" && new RegExp(UI_SUBJECT_CONTEXT_KIND_PATTERN, "u").test(value);
+export type UiSubjectContextKind = string;
 /** The longest text one plugin gives for one object, in UTF-16 code units; the Host cuts a longer answer without splitting a character and marks the cut. */
 export const UI_SUBJECT_CONTEXT_LIMIT = 12_000;
 /** The most plugins whose text the person's page receives for one object, in the order the Host lists the project's plugins. */
@@ -187,14 +194,12 @@ export interface PluginManifest {
    * `title_text` may select a fixed line in this Plugin's language files for display. `title` stays the declaration's original.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
-   * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
-   * whether it produces it or only consumes it (「从这一版继续」, A4b).
-   * A consumed type that is an imported file says which files it can read (`file`), so the 成果库 lists the plugin for the files it can
-   * continue from and no others (ac-artifacts A3, PG-079).
+   * 「从这一版继续」 (A4b) and the files a plugin reads of an imported one (PG-079) are not here: they are an intake that accepts
+   * `[{ kind: "artifact", artifact_types, file? }]` on the plugin's `defineArtifactContinueAction` (contract-design §2.3).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];
   };
@@ -250,8 +255,6 @@ export interface PluginManifest {
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
-  /** 可承接上手材料 (decision 43②): what this plugin takes from onboarding and its own action that takes it; the platform calls takers by this, naming none. */
-  onboarding?: import("./plugin-onboarding.js").PluginOnboardingDeclaration;
   /** the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
@@ -264,8 +267,6 @@ export interface PluginManifest {
   source_presentations?: readonly string[];
   /** kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
-  /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
-  notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
   /** Stable setting entries and the declaring owner’s read and write actions. */
   settings_entries?: import("./settings.js").SettingsDeclaration;
   /** A content pack's Blueprint files. The default is blueprint.json; this lists the translated editions. */
@@ -285,4 +286,8 @@ export interface PluginManifest {
    * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
    */
   presentation?: import("./presentation.js").PresentationDeclaration;
+  /** Which of this plugin's object kinds support the platform's object work terminal (`platform/work-terminal`, PEQ-17). */
+  work_terminals?: readonly import("./work-terminal.js").WorkTerminalObjectDeclaration[];
+  /** Optional memory scene this plugin's sessions and runs belong to (`coding` or `common`, PEQ-09). */
+  memory_scene?: "coding" | "common";
 }

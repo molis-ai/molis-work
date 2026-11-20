@@ -47,6 +47,8 @@ export interface AcceptanceDecideRequest {
     }>;
 }
 
+export type AcceptanceDecisionOrigin = "trusted_decision";
+
 export interface AcceptanceDeliverRequest {
     subject: AcceptanceSubject;
     version: string;
@@ -91,6 +93,7 @@ export type AcceptanceHistoryEntry = {
 
 export interface AcceptancePersonDecision {
     decision_id: string;
+    origin: AcceptanceDecisionOrigin;
     decision: "accepted" | "returned";
     note: string | null;
     requirement_version: number;
@@ -149,6 +152,7 @@ export interface AcceptanceRequirementState {
     gap: AcceptanceGap | "self_only" | "contradicted" | null;
     person: "accepted" | "returned" | "pending" | "not_needed";
     decision: AcceptancePersonDecision | null;
+    awaiting_voucher: boolean;
     satisfied: boolean;
     history: AcceptanceHistoryEntry[];
 }

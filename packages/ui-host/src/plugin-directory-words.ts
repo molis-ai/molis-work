@@ -1,5 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { OwnedTextRef, TextRef, UiViewCreateEntry, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { isDeliveredIntake, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { OwnedTextRef, TextRef, UiViewDeclaration, UiViewIntakeEntries } from "@molis-ai/molis-work-contracts/platform/ui";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
@@ -31,15 +32,25 @@ export interface PluginDirectoryEntry {
   readonly ui: { readonly views: readonly DirectoryView[] };
 }
 
-export type DirectoryView = Omit<UiViewDeclaration, "creates" | "start" | "title_text"> & {
-  readonly creates?: Pick<UiViewCreateEntry, "station" | "title"> & { readonly label?: string };
-  readonly start?: Pick<NonNullable<UiViewDeclaration["start"]>, "title" | "hint" | "icon">;
-};
+export type DirectoryView = Omit<UiViewDeclaration, "title_text"> & UiViewIntakeEntries;
 export type PluginDirectory = readonly PluginDirectoryEntry[];
 
 export type DirectoryWordResolver = (reference: Extract<OwnedTextRef, { key: string }>, original: string) => string;
 export type DirectoryWordSource = Pick<PluginManifest, "plugin_id" | "name" | "name_text" | "summary" | "summary_text">
-  & { readonly ui: Pick<PluginManifest["ui"], "views"> };
+  & { readonly ui: Pick<PluginManifest["ui"], "views">; readonly actions?: PluginManifest["actions"] };
+
+/**
+ * A person's intakes in Manifest order, with the station whose `create` declares one (contract-design §2.3, §2.4): the blank ones a
+ * station makes are 「从目标新建…」's kinds, and the ones with a `start` are the home's starting points.
+ */
+function personIntakes(manifest: DirectoryWordSource): { readonly intake: PersonIntake; readonly station?: string }[] {
+  return (manifest.actions ?? []).flatMap(({ action }) => {
+    const intake = action.intake;
+    if (!intake || isDeliveredIntake(intake)) return [];
+    const station = action.workflow_content?.role === "create" ? action.workflow_content.id : undefined;
+    return [{ intake, ...(station ? { station } : {}) }];
+  });
+}
 
 /** Project only plain, selected words; a directory never carries a reference or a second language. */
 export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: DirectoryWordResolver): Pick<PluginDirectoryEntry, "name" | "summary" | "ui"> {
@@ -47,10 +58,14 @@ export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: D
     const word = tryOwnedTextRef(ref, manifest.plugin_id);
     return word === null ? original : "literal" in word ? word.literal : resolve?.(word, original) ?? original;
   };
-  const views = (manifest.ui.views ?? []).map(({ title_text, creates, start, ...view }) => {
-    const create = creates && { station: creates.station, title: creates.title, label: copy(creates.title, creates.title_text) };
-    const opening = start && { title: copy(start.title, start.title_text), hint: copy(start.hint, start.hint_text),
-      ...(start.icon ? { icon: start.icon } : {}) };
+  // A plugin's intakes are placed on its first navigator or island view: where the home and 「从目标新建…」 open it.
+  const intakes = personIntakes(manifest), launch = (manifest.ui.views ?? []).find(view => view.slot === "navigator" || view.slot === "island");
+  const blank = intakes.find(({ intake, station }) => station && intake.accepts?.length === 0), started = intakes.find(({ intake }) => intake.start);
+  const views = (manifest.ui.views ?? []).map(declared => {
+    const { title_text, ...view } = declared, own = declared === launch;
+    const create = own && blank && { station: blank.station!, title: blank.intake.title, label: copy(blank.intake.title, blank.intake.title_text) };
+    const start = own ? started?.intake.start : undefined;
+    const opening = start && { title: copy(start.title, start.title_text), hint: copy(start.hint, start.hint_text), ...(start.icon ? { icon: start.icon } : {}) };
     return { ...view, title: copy(view.title, title_text), ...(create ? { creates: create } : {}), ...(opening ? { start: opening } : {}) };
   });
   return { name: copy(manifest.name, manifest.name_text), ...(manifest.summary === undefined ? {} : { summary: copy(manifest.summary, manifest.summary_text) }), ui: { views } };

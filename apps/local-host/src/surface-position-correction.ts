@@ -4,6 +4,7 @@ import { SURFACES_PROVIDER_ID, surfaceCompositionActions, type SurfaceCorrection
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader, presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { attentionDeclarationsOf } from "./plugin-inbox-declarations.js";
 import { displayedFallback, homeChanged, homeOwnsView, type HomeReadSample } from "./surface-home-display.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
 import { withSlotCorrectionCatalog } from "./surface-read-sample.js";
@@ -41,7 +42,7 @@ export function attentionPositionGuard(sample: HomeReadSample, { runtime }: Pick
   const original = sample.attention?.find(entry => entry.owner_plugin_id === owner && same(entry.subject, subject));
   if (!original) throw homeChanged();
   return () => {
-    const [entry] = attention.listSurfaceEntries(projectId, original);
+    const [entry] = attention.listSurfaceEntries(projectId, attentionDeclarationsOf(store.db), original);
     if (!entry || entry.revision !== original.revision || entry.entered_at !== original.entered_at || entry.reason !== original.reason) throw homeChanged();
   };
 }

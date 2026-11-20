@@ -29,6 +29,7 @@ const withProject = async (plugins: string[], run: (fixture: Fixture) => Promise
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const created = await catalog.createProject({ display_name: "只有目标", actor_id: "test" });
+      catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
       // SYS-15-S7: new projects enable Schedule by default; this fixture explicitly tests the person's disabled state.
       catalog.removeProjectPlugin({ project_id: created.project_id, plugin_id: "schedule", actor_id: "test" });
       for (const plugin_id of plugins) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
@@ -136,7 +137,7 @@ test("OPTAREA-06 advancing a Goal in a project without Feed leaves no row about 
     assert.equal((await get(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/directory`)).status, 200);
     const before = rowsOf(host, projectId);
     assert.ok(before.some(row => row[0] === goalsActions.create.capability_id));
-    const advanced = await post(`${base}/projects/${projectId}/api/plugins/io.molis.work.goals/goals/G1/advance-prompt`, {});
+    const advanced = await post(`${base}/projects/${projectId}/api/work-terminals/io.molis.work.goals/goal/G1/prompt`, {});
     assert.equal(advanced.status, 200, advanced.text);
     assert.deepEqual(rowsOf(host, projectId), before);
   });

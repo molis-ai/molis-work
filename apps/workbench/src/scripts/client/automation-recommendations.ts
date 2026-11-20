@@ -9,7 +9,7 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   const save = part("save"), retry = part("retry");
   const saveLabel = key => { save.querySelector("[data-slot=button-label]").textContent = text(key); };
   const setStatus = key => { status.textContent = key ? text(key) : ""; };
-  let request, report, entry, sending = false, navigating = false, documentId;
+  let request, report, entry, sending = false, navigating = false, saved;
   const node = (tag, textContent, className) => Object.assign(document.createElement(tag), textContent ? { textContent } : {}, className ? { className } : {});
   const actionClass = variant => "mw-btn mw-btn--" + variant + " mw-btn--sm";
   const link = (label, path, fields) => Object.assign(node("a", text(label), actionClass("secondary")), {
@@ -126,19 +126,19 @@ globalThis.molisWorkOpenAutomation = (project, trigger) => {
   });
   retry.onclick = () => { void load(); };
   save.onclick = () => {
-    if (documentId) {
-      location.href = prefix(entry.project) + "/?" + new URLSearchParams({ openPlugin: "pages", openItem: documentId, openTitle: text("title") });
+    if (saved) {
+      location.href = prefix(entry.project) + "/?" + new URLSearchParams({ openPlugin: saved.surface, openItem: saved.id, openTitle: saved.title || text("title") });
       return;
     }
     void change("save", {}, value => {
-      documentId = value.document_id;
+      saved = value.open;
       setStatus("saved"); saveLabel("open-document");
     });
   };
   function open(project, trigger) {
     if (!project || project === "personal" || dialog.open) return;
     entry = { project, trigger };
-    documentId = undefined;
+    saved = undefined;
     saveLabel("save");
     dialog.showModal(); void load();
   }

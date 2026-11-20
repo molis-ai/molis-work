@@ -12,7 +12,8 @@ import { consentSubject } from "@molis-ai/molis-work-plugin-runtime";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const GOALS = "io.molis.work.goals";
+// Only Shelf declares `always_on` in the build (PEQ-12), so Shelf holds the startup `always_on` consent row.
+const SHELF = "io.molis.work.shelf";
 const SETTINGS = "/api/settings/plugin-consents/";
 type Host = Awaited<ReturnType<typeof serveHomeRuntime>>;
 const settings = (f: Host, action: "list" | "revoke", body: unknown) => f.request(SETTINGS + action, { method: "POST", body });
@@ -20,24 +21,24 @@ const settings = (f: Host, action: "list" | "revoke", body: unknown) => f.reques
 test("RAC-385-SETTINGS S-77 the real Host settings entry lists, revokes and preserves the first revocation timestamp", async t => {
   const f = await serveHomeRuntime(t);
   await f.host.homePlugins!.ready();
-  const ledger = new HomeConsentLedger(f.home), original = ledger.consents(GOALS);
+  const ledger = new HomeConsentLedger(f.home), original = ledger.consents(SHELF);
   const row = original.find(item => item.kind === "always_on")!;
   assert.ok(row);
-  const listed = await settings(f, "list", { plugin_id: GOALS });
+  const listed = await settings(f, "list", { plugin_id: SHELF });
   assert.equal(listed.status, 200); assert.deepEqual((await listed.json()).consents, original);
   const unauthorized = await f.request(SETTINGS + "revoke", { method: "POST", body: { consent_id: row.consent_id }, authorized: false });
-  assert.equal(unauthorized.status, 403); assert.deepEqual(ledger.consents(GOALS), original);
+  assert.equal(unauthorized.status, 403); assert.deepEqual(ledger.consents(SHELF), original);
   const first = await settings(f, "revoke", { consent_id: row.consent_id });
   assert.equal(first.status, 200);
   const revoked = (await first.json()).consent as PluginConsentRecord;
   assert.ok(revoked.revoked_at); assert.deepEqual(revoked, { ...row, revoked_at: revoked.revoked_at });
   const second = await settings(f, "revoke", { consent_id: row.consent_id });
   assert.equal(second.status, 200); assert.deepEqual((await second.json()).consent, revoked);
-  const again = await settings(f, "list", { plugin_id: GOALS });
-  assert.equal(again.status, 200); assert.deepEqual((await again.json()).consents, ledger.consents(GOALS));
+  const again = await settings(f, "list", { plugin_id: SHELF });
+  assert.equal(again.status, 200); assert.deepEqual((await again.json()).consents, ledger.consents(SHELF));
   const unknown = await settings(f, "revoke", { consent_id: "no-such-row" });
   assert.equal(unknown.status, 404); assert.equal((await unknown.json()).code, "plugin.consent_unknown");
-  assert.deepEqual(ledger.consents(GOALS), original.map(item => item.consent_id === row.consent_id ? revoked : item));
+  assert.deepEqual(ledger.consents(SHELF), original.map(item => item.consent_id === row.consent_id ? revoked : item));
 });
 
 interface Directive { mode: "own" | "invoke" | "query" | "delegate"; action: "list" | "revoke"; input: Record<string, string> }
@@ -77,21 +78,21 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-77 a real plugin page with user_action and
   const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
   assert.equal(opened.status, 200);
   const headers = { "x-molis-plugin-page": (await opened.json()).page_id as string };
-  const ledger = new HomeConsentLedger(f.home), before = ledger.consents(GOALS), row = before.find(item => item.kind === "always_on")!;
+  const ledger = new HomeConsentLedger(f.home), before = ledger.consents(SHELF), row = before.find(item => item.kind === "always_on")!;
   assert.ok(row);
   const own = await f.request(`/api/plugins/${probe.id}/run`, { method: "POST", headers, body: { mode: "own", action: "list", input: {} } });
   assert.equal(own.status, 200); assert.deepEqual(await own.json(), { working: true });
   for (const mode of ["invoke", "query", "delegate"] as const) for (const action of ["list", "revoke"] as const) {
-    const input = action === "list" ? { plugin_id: GOALS } : { consent_id: row.consent_id };
+    const input = action === "list" ? { plugin_id: SHELF } : { consent_id: row.consent_id };
     const response = await f.request(`/api/plugins/${probe.id}/run`, { method: "POST", headers, body: { mode, action, input } });
     const failure = await response.json();
     assert.equal(response.status, 403, `${mode} ${action}: ${JSON.stringify(failure)}`); assert.equal(failure.code, "actions.forbidden", `${mode} ${action}`);
     assert.ok(probe.seen.at(-1)!.user_action, "the real page route gave the plugin a user_action");
     assert.equal(probe.seen.at(-1)!.audience, "user");
-    assert.deepEqual(ledger.consents(GOALS), before, `${mode} ${action} leaves the entire ledger unchanged`);
+    assert.deepEqual(ledger.consents(SHELF), before, `${mode} ${action} leaves the entire ledger unchanged`);
     const settingsCall = await f.request(SETTINGS + action, { method: "POST", headers, body: input });
     assert.equal(settingsCall.status, 403); assert.equal((await settingsCall.json()).code, "actions.forbidden");
-    assert.deepEqual(ledger.consents(GOALS), before);
+    assert.deepEqual(ledger.consents(SHELF), before);
   }
   const legitimate = await settings(f, "revoke", { consent_id: row.consent_id });
   assert.equal(legitimate.status, 200, "the Host settings entry still succeeds after refusing the plugin");

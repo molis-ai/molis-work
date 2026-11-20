@@ -15,6 +15,7 @@ import { assistantThreadActions } from "./assistant/assistant-thread-actions.js"
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { projectRuntimeSettingOwner, runtimeSettingsActions } from "./project-runtime-setting-actions.js";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { PROJECT_GUIDANCE_PROVIDER_ID, PROJECT_GUIDANCE_READ_PERMISSION, PROJECT_GUIDANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
@@ -31,6 +32,8 @@ import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/a
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
 import { APPEARANCE_PROVIDER_ID, APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/ui";
+import { WORK_TERMINAL_PERMISSIONS, WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_DATA_EXPORT_PERMISSION, PLUGIN_DATA_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 /**
@@ -79,6 +82,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KIT_AGENT_MCP_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
+    [PROJECT_GUIDANCE_PROVIDER_ID, [PROJECT_GUIDANCE_READ_PERMISSION, PROJECT_GUIDANCE_WRITE_PERMISSION]],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [projectRuntimeSettingOwner.provider_id, asks(Object.values(runtimeSettingsActions))],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
@@ -95,6 +99,10 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
     // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).
     [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
+    // Platform object work terminals: user-only actions, working for any plugin that declares `work_terminals` (PEQ-17).
+    [WORK_TERMINAL_PROVIDER_ID, WORK_TERMINAL_PERMISSIONS],
+    // Unified plugin data sections and read-only business export (Audit #7, PEQ-09).
+    [PLUGIN_DATA_PROVIDER_ID, [PLUGIN_DATA_EXPORT_PERMISSION]],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

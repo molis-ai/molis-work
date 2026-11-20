@@ -16,8 +16,9 @@ function record(value:unknown,keys:readonly string[]):Record<string,unknown> {
 }
 function text(value:unknown):value is string{return typeof value==='string'&&value.trim().length>0&&value.length<=1000;}
 function reference(input:unknown,scope:ContextScope):ObjectRef {
-  const ref=record(input,['module','id','version','revision','scope','project_id','object_type']),s=record(ref.scope,['kind','id']);
-  if(!['goals','artifacts','feed','private-work-context','projects','assistant','plugins'].includes(String(ref.module))||!text(ref.id)
+  const ref=record(input,['module','id','version','revision','scope','project_id','object_type','plugin_id']),s=record(ref.scope,['kind','id']);
+  if(!['artifacts','private-work-context','projects','assistant','plugins'].includes(String(ref.module))||!text(ref.id)
+    ||(ref.plugin_id!==undefined&&(ref.module!=='plugins'||!text(ref.plugin_id)))
     ||s.kind!==scope.kind||s.id!==scope.id||(ref.version!==null&&(!Number.isSafeInteger(ref.version)||Number(ref.version)<1))
     ||(ref.module==='artifacts'&&ref.version===null)||(ref.revision!==undefined&&!text(ref.revision))
     ||(ref.project_id!==undefined&&ref.project_id!==null&&!text(ref.project_id))||(ref.object_type!==undefined&&!text(ref.object_type)))throw ledgerErrors.invalid_reference('同步引用的归属或版本无效');

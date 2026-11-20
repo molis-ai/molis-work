@@ -2,7 +2,7 @@
 
 独立客户端连接：更新到 D0071 修复后，已有 Runtime 须在设置中重新接入并重启 MCP。凭据由确认接入生成，保存在安装 Home 的私有配置目录，不填写在 Runtime 配置中；移除接入即撤销。仅持 Home 主令牌的动作网关请求不能选择客户端身份。Home 快照不携带该凭据，恢复后须重新接入。工具名与动作合同不变。
 
-Molis Work 通过统一 Skill 连接项目。Runtime 消费 `molis_work_v1_context_resolve` 返回的公开状态、项目身份和连接，不读取 catalog 或数据库路径，也不从仓库名推断项目。已绑定 Session 或唯一、已验证 workspace membership 可以只读恢复；候选本身不授权绑定。
+Runtime 经 MCP 连接 Molis Work 的项目。Runtime 消费 `molis_work_v1_context_resolve` 返回的公开状态、项目身份和连接，不读取 catalog 或数据库路径，也不从仓库名推断项目。已绑定 Session 或唯一、已验证 workspace membership 可以只读恢复；候选本身不授权绑定。
 
 ## Runtime 工作入口绑定（推荐）
 
@@ -20,20 +20,20 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 "$HOME/.molis-work/bin/molis-work-mcp"
 ```
 
-这个 MCP 进程启动时仍是“未连接项目”状态，不会打开某个 Board。统一 Skill 先调用 `molis_work_v1_context_resolve`：
+这个 MCP 进程启动时仍是“未连接项目”状态，不会打开某个 Board。Runtime 先调用 `molis_work_v1_context_resolve`：
 
 > **宿主身份**：Molis Work 优先读取单次调用 `_meta["molis-work/sessionId"]`、`_meta.threadId`、`_meta.sessionId`，再沿用宿主启动时提供的身份。是否提供这些字段由 Runtime host 决定；不能假设所有版本都会提供。没有 Session 信号时，唯一已验证 workspace membership 仍可只读恢复；其他情况按返回的候选/未绑定状态处理。
 
 - `bound`：返回唯一项目与固定连接。后续普通调用省略 `project_id` 和操作者字段，由Host从该连接与Session注入；记录某个Goal时仍明确传 `goal_id`。
-- `suggested`：新 Session 有 workspace 历史或其他宿主线索。结果只含候选项目和不泄露原始路径的通用原因，没有项目连接。若当前用户消息已经明确要求用 Molis Work 连接或推进一个已命名项目，且返回的现有项目中只有一个无歧义匹配，Skill 直接调用 `context_bind`；否则才展示候选并询问。
+- `suggested`：新 Session 有 workspace 历史或其他宿主线索。结果只含候选项目和不泄露原始路径的通用原因，没有项目连接。若当前用户消息已经明确要求用 Molis Work 连接或推进一个已命名项目，且返回的现有项目中只有一个无歧义匹配，Runtime 直接调用 `context_bind`；否则才展示候选并询问。
 - `unbound`：返回 `missing_stable_context` 或 `unknown_context`，不连接任何项目；同样先复用当前消息中对一个现有项目的明确选择，否则展示项目列表并询问选择或新建。
-- 用户明确拒绝某个 `suggested` 候选时，Skill 调用 `molis_work_v1_context_reject_suggestion` 并传入 `user_confirmed=true`。它只在这个 Session 不再提示该候选，随后可返回另一个候选或显式的项目列表／新建路径；不会解绑、删除或影响其他 Session。
-- 用户明确选定已有项目后，Skill 调用 `molis_work_v1_context_bind`，传入 `user_confirmed=true`。有稳定 Session 时可使用 `binding_scope=session`；workspace 只记录关联，不保存目录默认。切换已绑定项目还需明确的切换授权与 `rebind_confirmed=true`。不要发送已移除的 `workspace_default`。
-- 用户在当前对话明确要求新建一个命名项目后，Skill 调用 `molis_work_v1_context_create_and_bind` 并传入 `user_confirmed=true`、项目名称和幂等键。它只在 `~/.molis-work` 创建项目 DB 并绑定；失败不会留下孤儿项目。
-- 用户要求查看项目时，Skill 调用 `molis_work_v1_context_list_projects`；它不暴露数据库路径，也不改变当前连接。
-- 用户明确要求仅解绑当前工作入口时，Skill 调用 `molis_work_v1_context_unbind` 并传入 `user_confirmed=true`。它不删除项目、DB 或其他 Runtime 的绑定。
-- 用户要解除当前目录与某个项目的长期关联时，Skill 调用同一个工具，再传 `binding_scope=workspace` 和 `project_id`。工具只解除工具带进来的关联。用户本人建的目录关系不解除：返回 `changed=false`、`unbound_project=null` 和 `kept`（`work.context.person_relation_kept`），Skill 转告用户到项目设置里解除，不说成已解除。
-- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除。Molis Work 正在运行时，stdio MCP 把删除交给它执行（项目的终端和运行环境都在它那里）：项目里还有正在运行的终端时拒绝（`catalog.project_terminal_live`，请用户先关闭终端，再用同一个幂等键重试），否则它先释放项目的运行环境再删除，记忆一步也由它当场完成。Molis Work 没有运行时，MCP 进程自己删除（此时没有终端可检查）：记忆放在 Agent 执行服务里，MCP 进程不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由之后运行的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。MCP 入口不删默认输出目录里的文件：结果里的 `kept_output_directory` 指明留下的文件夹位置。
+- 用户明确拒绝某个 `suggested` 候选时，Runtime 调用 `molis_work_v1_context_reject_suggestion` 并传入 `user_confirmed=true`。它只在这个 Session 不再提示该候选，随后可返回另一个候选或显式的项目列表／新建路径；不会解绑、删除或影响其他 Session。
+- 用户明确选定已有项目后，Runtime 调用 `molis_work_v1_context_bind`，传入 `user_confirmed=true`。有稳定 Session 时可使用 `binding_scope=session`；workspace 只记录关联，不保存目录默认。切换已绑定项目还需明确的切换授权与 `rebind_confirmed=true`。不要发送已移除的 `workspace_default`。
+- 用户在当前对话明确要求新建一个命名项目后，Runtime 调用 `molis_work_v1_context_create_and_bind` 并传入 `user_confirmed=true`、项目名称和幂等键。它只在 `~/.molis-work` 创建项目 DB 并绑定；失败不会留下孤儿项目。
+- 用户要求查看项目时，Runtime 调用 `molis_work_v1_context_list_projects`；它不暴露数据库路径，也不改变当前连接。
+- 用户明确要求仅解绑当前工作入口时，Runtime 调用 `molis_work_v1_context_unbind` 并传入 `user_confirmed=true`。它不删除项目、DB 或其他 Runtime 的绑定。
+- 用户要解除当前目录与某个项目的长期关联时，Runtime 调用同一个工具，再传 `binding_scope=workspace` 和 `project_id`。工具只解除工具带进来的关联。用户本人建的目录关系不解除：返回 `changed=false`、`unbound_project=null` 和 `kept`（`work.context.person_relation_kept`），Runtime 转告用户到项目设置里解除，不说成已解除。
+- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Runtime 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除。Molis Work 正在运行时，stdio MCP 把删除交给它执行（项目的终端和运行环境都在它那里）：项目里还有正在运行的终端时拒绝（`catalog.project_terminal_live`，请用户先关闭终端，再用同一个幂等键重试），否则它先释放项目的运行环境再删除，记忆一步也由它当场完成。Molis Work 没有运行时，MCP 进程自己删除（此时没有终端可检查）：记忆放在 Agent 执行服务里，MCP 进程不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由之后运行的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。MCP 入口不删默认输出目录里的文件：结果里的 `kept_output_directory` 指明留下的文件夹位置。
 
 Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的前置条件。浏览页面不会绑定 Runtime；项目设置管理 Session 关联与 workspace membership，不保存目录默认项目。项目创建、Runtime 配置、解除关联与删除仍各有自己的授权。
 
@@ -58,8 +58,9 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 约定、决定与收尾 | `goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume` |
 | 结构提案 | `goals.tree.submit`、`goals.tree.read`、`goals.tree.check` |
 | 图检查与影响 | `goals.planning.impact`、`goals.planning.graph.check`（规划方法是技能目录里的技能，由 Molis Work 里的助理和 Coding 按任务选用；技能目录的动作不是 MCP 工具，外部 Runtime 读不到） |
-| 项目指导 | `goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update` |
 | 回收站 | `goals.trash.set`（`trashed` 为真移入、为假恢复）、`goals.trash.list` |
+
+项目指导是平台的，不随 Goals：`projects.guidance.read`、`projects.guidance.add`、`projects.guidance.update`（写入要本人看过原文并同意）。
 
 已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
 

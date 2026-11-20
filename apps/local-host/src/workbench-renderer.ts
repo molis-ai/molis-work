@@ -1,5 +1,5 @@
 import { installHostUiText, projectTextPacks, registeredBuiltinText } from "./ui-text-provider.js";
-import { createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage,
+import { createWorkbenchRenderer, hostSettingsSectionLabel, renderMolisWorkArrivalStylesheet, renderOwnerUnavailablePage, renderPluginFrameSurface, renderUpgradeOpeningPage, renderWorkbenchRefreshDocument,
   type OwnerUnavailableCard, type WorkbenchRenderer, type WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPluginBody } from "./installed-stage-section.js";
@@ -38,4 +38,5 @@ export function installedStageSection(input: { pluginId: string; surface: string
  */
 export const hostRecoveryPages = { ownerUnavailablePage: renderOwnerUnavailablePage, upgradeOpeningPage: renderUpgradeOpeningPage,
   arrivalStylesheet: renderMolisWorkArrivalStylesheet, settingsSectionLabel: hostSettingsSectionLabel };
+export { renderWorkbenchRefreshDocument };
 export type { OwnerUnavailableCard };

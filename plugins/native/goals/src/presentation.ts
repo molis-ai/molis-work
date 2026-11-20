@@ -8,6 +8,8 @@ import type { GoalRecord, GoalsQueryApi } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalEventStateView } from "./contract/goal-events.js";
 import { goalEventWorkStatuses } from "./contract/goal-event-state.js";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 
 const values = definePresentationValuesAction("goals.presentation.values", /* @version action.goals.presentation.values */ 1, ["goal"], "目标显示字段", ["goals:read"]);
 const overview = definePresentationOverviewAction("goals.presentation.overview", /* @version action.goals.presentation.overview */ 1, "目标首页概况", ["goals:read"]);
@@ -20,7 +22,7 @@ const start = { capability_id, version };
 const itemCreate = defineItemCreateAction("goals.items.create", /* @version action.goals.items.create */ 1, { kind: "goal", title: "建成目标",
   description: "按给出的名字新建一个目标，供主线把它设为事项；同一请求 id 只建一个。", permissions: ["goals:write"] });
 const itemNext = defineItemNextAction("goals.items.next", /* @version action.goals.items.next */ 1, { kind: "goal", title: "目标的下一步",
-  description: "一次读出多个目标各自的下一步：等你定的事、进展里写的下一步，或还没满足的要求；已完成或已取消的没有下一步。只读。", permissions: ["goals:read"] });
+  description: "一次读出多个目标各自的下一步：等你定的事或进展里写的下一步（要求在平台的要求栏里）；已完成或已取消的没有下一步。只读。", permissions: ["goals:read"] });
 export const goalsPresentationActions = [values, overview, itemCreate, itemNext];
 
 export const goalsPresentation = {
@@ -28,35 +30,47 @@ export const goalsPresentation = {
     kind: "goal",
     fields: [{ key: "title", role: "title" }, { key: "status", role: "status" }, { key: "updated_at", role: "updated_at" }, { key: "summary", role: "summary" }],
     status: { field: "status", map: { open: { ring: "running" }, completed: { ring: "done" }, cancelled: { ring: "cancelled" },
-      pending_decision: { ring: "answer", attention: "needs_decision" }, pending_acceptance: { ring: "answer", attention: "needs_acceptance" } } },
+      pending_decision: { ring: "answer", attention: "needs_decision" }, pending_acceptance: { ring: "answer", attention: "needs_acceptance" },
+      changed_after_completion: { ring: "done", attention: "needs_acceptance" } } },
     forms: { chip: { fields: ["title"] }, row: { fields: ["title", "status", "updated_at"] },
       card: { fields: ["title", "status", "updated_at", "summary"] }, peek: { fields: ["title", "status", "updated_at", "summary"] } },
     text: { lines: ["title", "status", "updated_at", "summary"] },
     item: { create: `${itemCreate.capability_id}@${itemCreate.version}`, next: `${itemNext.capability_id}@${itemNext.version}` },
   }],
-  overview: { capability_id: overview.capability_id, version: overview.version, start: [{ ...start, open: { view_id: "stage", panel: "create-dialog" } }] },
+  overview: { capability_id: overview.capability_id, version: overview.version, start: [start] },
 } as const satisfies PresentationDeclaration;
 
 const currentGoal = (goal: GoalRecord | null | undefined): goal is GoalRecord => !!goal && !goal.trashed_at && !goal.archived_at;
-export const goalPresentationStates = [...goalEventWorkStatuses, "pending_decision", "pending_acceptance"] as const;
+export const goalPresentationStates = [...goalEventWorkStatuses, "pending_decision", "pending_acceptance", "changed_after_completion"] as const;
 export type GoalPresentationStatus = typeof goalPresentationStates[number];
 export type CaptureGoalPresentationStatus = (goalId: string, status: GoalPresentationStatus) => void;
 export const goalPresentationStatus = (state: Pick<GoalEventStateView, "work_status" | "pending_decisions">): GoalPresentationStatus =>
-  state.pending_decisions.some(decision => decision.purpose === "requirement_acceptance") ? "pending_acceptance"
-    : state.pending_decisions.length ? "pending_decision" : state.work_status;
+  state.pending_decisions.length ? "pending_decision" : state.work_status;
+/**
+ * The status with the platform's acceptance of the Goal (contract-design §10.9 question 6): an open Goal with a requirement waiting
+ * for the person waits on their acceptance; a completed one whose requirements are no longer all met says so, and stays completed.
+ * Without a reading the status is Goals' own.
+ */
+export function goalAcceptanceStatus(status: GoalPresentationStatus, view: AcceptanceView | undefined): GoalPresentationStatus {
+  if (!view) return status;
+  if (status === "completed") return view.requirements.length && !view.complete ? "changed_after_completion" : status;
+  return status === "open" && view.counts.needs_person > 0 ? "pending_acceptance" : status;
+}
+export type ReadGoalAcceptance = (caller: ActionExecutionContext, goalIds: string[]) => Promise<ReadonlyMap<string, AcceptanceView> | undefined>;
 
 export function createGoalsPresentationHandlers(projectId: string, query: Pick<GoalsQueryApi, "getGoal" | "listGoals">,
-  events: Pick<GoalEventApplication, "readState">, read: <T>(body: () => T) => T, ready: Promise<void>) {
+  events: Pick<GoalEventApplication, "readState">, read: <T>(body: () => T) => T, ready: Promise<void>, acceptance: ReadGoalAcceptance) {
   return [
     bindPresentationValuesHandler(values, async (input, caller) => {
       await ready;
       caller.signal?.throwIfAborted();
+      const views = await acceptance(caller, input.subjects.filter(subject => subject.kind === "goal").map(subject => subject.id));
       return read(() => ({ items: input.subjects.filter(subject => subject.kind === "goal").map((subject): PresentationValueItem => {
         const goal = query.getGoal(projectId, subject.id);
         if (!currentGoal(goal)) return { subject, revision: "0", state: "deleted" };
         const state = events.readState(projectId, goal.goal_id);
         return { subject, revision: `${goal.updated_at}:${state.goal_event_cursor}`, state: "ok",
-          values: { title: goal.title, status: goalPresentationStatus(state), updated_at: goal.updated_at, summary: state.progress_summary?.summary || goal.outcome } };
+          values: { title: goal.title, status: goalAcceptanceStatus(goalPresentationStatus(state), views?.get(goal.goal_id)), updated_at: goal.updated_at, summary: state.progress_summary?.summary || goal.outcome } };
       }) }));
     }),
     bindActionHandler(overview, async (_input, caller) => {
@@ -72,16 +86,14 @@ export function createGoalsPresentationHandlers(projectId: string, query: Pick<G
   ];
 }
 
-/** The next step of a Goal: what it waits on the person to decide, else what its progress says comes next, else the first unmet requirement. */
-export function goalNextStep(state: Pick<GoalEventStateView, "work_status" | "pending_decisions" | "progress_summary" | "gaps">): WorkItemNextStep | null {
+/** The next step of a Goal: what it waits on the person to decide, else what its progress says comes next. Its requirements are the platform's. */
+export function goalNextStep(state: Pick<GoalEventStateView, "work_status" | "pending_decisions" | "progress_summary">): WorkItemNextStep | null {
   if (state.work_status === "completed" || state.work_status === "cancelled") return null;
   const clip = (value: string) => value.trim().slice(0, 200);
   const asked = state.pending_decisions[0];
   if (asked) return { text: clip(asked.question), waiting_on: uiText.text(asked.purpose === "requirement_acceptance" ? "goals.items.waiting-acceptance" : "goals.items.waiting-decision") };
   const next = state.progress_summary?.next_step?.trim();
-  if (next) return { text: clip(next), ...(state.progress_summary?.next_actor?.trim() ? { waiting_on: clip(state.progress_summary.next_actor) } : {}) };
-  const gap = state.gaps[0];
-  return gap ? { text: clip(uiText.text("goals.items.meet-requirement", { statement: gap.statement })) } : null;
+  return next ? { text: clip(next), ...(state.progress_summary?.next_actor?.trim() ? { waiting_on: clip(state.progress_summary.next_actor) } : {}) } : null;
 }
 
 /** The two item parts: 「建成目标」 through the create handler Goals already has, and the next step of many Goals in one read. */

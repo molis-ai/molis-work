@@ -73,28 +73,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "Detach and hide the Character terminal, because another Character is shown.";
 }, {
-    readonly name: "molis-work:goal-changed";
-    readonly kind: "announcement";
-    readonly owner: "goal-selection";
-    readonly on: "document";
-    readonly detail: "{ goalId, goalTitle, status, statusLabel, statusMeaning, statusIconMarkup, parentReadOnly, children }";
-    readonly summary: "The selected Goal changed, or the first one was selected on load.";
-}, {
-    readonly name: "molis-work:goal-document-loaded";
-    readonly kind: "announcement";
-    readonly owner: "tab-workspace";
-    readonly on: "document";
-    readonly detail: "{ goalId }";
-    readonly summary: "A Goal document finished loading into the work area, from the tab workspace or from the Goals navigation client.";
-}, {
-    readonly name: "molis-work:goal-panel-presence";
-    readonly kind: "announcement";
-    readonly owner: "goals-event-document";
-    readonly on: "element";
-    readonly bubbles: true;
-    readonly detail: "none";
-    readonly summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.";
-}, {
     readonly name: "molis-work:item-unreadable";
     readonly kind: "request";
     readonly owner: "context-actions";
@@ -194,12 +172,34 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
 }, {
+    readonly name: "molis-work:record-document-loaded";
+    readonly kind: "request";
+    readonly owner: "immersive-navigation";
+    readonly on: "document";
+    readonly detail: "{ recordId }";
+    readonly summary: "A plugin record document finished loading into the work area; the shell syncs its work mode chrome.";
+}, {
     readonly name: "molis-work:record-gone";
     readonly kind: "request";
     readonly owner: "tab-workspace";
     readonly on: "document";
     readonly detail: "{ plugin, itemId }";
-    readonly summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).";
+    readonly summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404.";
+}, {
+    readonly name: "molis-work:record-panel-presence";
+    readonly kind: "request";
+    readonly owner: "immersive-navigation";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "none";
+    readonly summary: "An editing or detail panel inside an open record document changed presence; the shell re-reads panel layout.";
+}, {
+    readonly name: "molis-work:record-selected";
+    readonly kind: "request";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly detail: "{ plugin, itemId, title? }";
+    readonly summary: "The selected record inside a shell-rendered plugin surface changed; the active item tab follows the selection.";
 }, {
     readonly name: "molis-work:return-claim";
     readonly kind: "request";
@@ -292,6 +292,27 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "{ goalId, mode }";
     readonly summary: "The Goal work mode changed. Nothing in the tree listens yet.";
+}, {
+    readonly name: "molis-work:work-terminal-subject-changed";
+    readonly kind: "request";
+    readonly owner: "work-terminal";
+    readonly on: "document";
+    readonly detail: "{ pluginId, subjectKind, subjectId, title?, status?, statusLabel?, statusMeaning?, statusIconMarkup?, readOnly? }";
+    readonly summary: "A plugin surface switched the object shown beside the platform work terminal pane: reset its panels and paint the new owner title, status and read-only guard.";
+}, {
+    readonly name: "molis-work:work-terminal-subject-ready";
+    readonly kind: "request";
+    readonly owner: "work-terminal";
+    readonly on: "document";
+    readonly detail: "{ pluginId, subjectKind, subjectId }";
+    readonly summary: "The object shown beside the platform work terminal pane finished loading: load its work terminals if it is still the pane's current object.";
+}, {
+    readonly name: "molis:acceptance-review-requested";
+    readonly kind: "request";
+    readonly owner: "acceptance-column";
+    readonly on: "document";
+    readonly detail: "{ subject: { provider_id, subject: { kind, id } } }";
+    readonly summary: "Open the requirement column on one object's requirements (a Goal page's 「逐项审阅」). The column reads them as the person and shows the platform's own card; the page that asks draws no control that accepts or returns a requirement.";
 }, {
     readonly name: "molis:assistant-card-target";
     readonly kind: "request";
@@ -422,8 +443,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
-    readonly detail: "{ source, station | goal, payload?, note? }";
-    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
+    readonly detail: "{ source, station | attach_kind, payload?, note? }";
+    readonly summary: "Hand content to another plugin (or make it a new target of a 「挂到…」 relation, by its subject kind) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-flush";
     readonly kind: "announcement";
@@ -616,9 +637,9 @@ export declare const PAGE_STATE_OWNERS: {
         readonly files: readonly ["apps/workbench/src/scripts/client/immersive-navigation.ts"];
         readonly state: "The application chrome around the work area, including the Goal work mode.";
     };
-    readonly "goal-selection": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"];
-        readonly state: "The Goal selected in the Goals directory and the page's first selection on load.";
+    readonly "acceptance-column": {
+        readonly files: readonly ["apps/workbench/src/browser/work-acceptance.ts"];
+        readonly state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.";
     };
     readonly preferences: {
         readonly files: readonly ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"];
@@ -640,9 +661,9 @@ export declare const PAGE_STATE_OWNERS: {
         readonly files: readonly ["apps/workbench/src/browser/characters/terminal.ts"];
         readonly state: "The terminal that shows a Character run: which process it is attached to.";
     };
-    readonly "goals-event-document": {
-        readonly files: readonly ["plugins/native/goals/src/event-document-client.ts"];
-        readonly state: "The Goal event panel inside an open Goal document.";
+    readonly "work-terminal": {
+        readonly files: readonly ["apps/workbench/src/terminal/client-subject-events.ts"];
+        readonly state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.";
     };
     readonly "pages-landing": {
         readonly files: readonly ["plugins/native/pages/src/landing-editor.ts"];

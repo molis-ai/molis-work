@@ -4,7 +4,7 @@ import { formErrors } from "./error.js";
 import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStores } from "./store.js";
 
 /** A form is a workflow content station: it hands its questions on as a list, and turns a list it receives into questions. */
-export const formContentActions = defineWorkflowContentActions({ id: "form", title: "问卷", icon: "clipboard", create: true, subject_kind: "form",
+export const formContentActions = defineWorkflowContentActions({ id: "form", title: "问卷", icon: "clipboard", create: { title: "问卷", title_text: { key: "form.create.kind-title" } }, subject_kind: "form",
   read_permissions: ["form:read"], write_permissions: ["form:read", "form:write"] });
 
 export function formMarkdown(record: FormRecord): string {
@@ -36,8 +36,8 @@ export function createFormContentHandlers({ read, write }: FormStores): ActionHa
     receive: ({ title, body, request_id }, caller) => write(caller, store => {
       // A hand-over is shaped to what a form holds (a long headline, a long list): refused, it could never be delivered.
       const form = store.receive(project(caller), request_id, [...title.trim()].slice(0, FORM_TITLE_LIMIT).join(""), questionsFromText(body));
-      return { plugin: "form", item_id: form.id, title: form.title };
+      return { subject: { kind: "form", id: form.id }, title: form.title };
     }),
-    create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { plugin: "form", item_id: form.id, title: form.title }; }),
+    create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { subject: { kind: "form", id: form.id }, title: form.title }; }),
   });
 }

@@ -14,6 +14,7 @@ import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventClosureResult, GoalEventDecisionResult, GoalEventStateView } from "@molis-ai/molis-work-plugin-goals/contract";
 import { mcpGoalReviews } from "./fixtures/project-review-entry.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 function localType() {
   return {
@@ -34,6 +35,7 @@ test("Runtime state tools record progress and close without applying user identi
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -63,17 +65,13 @@ test("Runtime state tools record progress and close without applying user identi
     await runtime.callTool("molis_work_v1_action_goals.events.configure__v1", { goal_id, expected_version: 0, idempotency_key: "cfg-state",
       types: [localType()],
     });
-    const configured = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
-    await runtime.callTool("molis_work_v1_action_goals.agreement.set__v1", { goal_id, idempotency_key: "agree-state",
-      expected_config_version: configured.config.version,
-      expected_agreement_version: configured.agreement.version,
-      new_requirements: [{ requirement_id: "playable", statement: "有一段能走完的开场" }],
-    });
+    // The requirement is the platform's (contract-design §10).
+    const projectRef = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    await host.withProject(projectRef, open => goalApplicationOf(open).setRequirements(project_id, goal_id, [{ requirement_id: "playable", statement: "有一段能走完的开场" }]));
     const reported = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.report__v1", { goal_id, idempotency_key: "report-state",
       events: [{
         type_id: "story-delivery", type_version: 1, title: "做出了开场",
         fields: { piece: "洞穴开场" },
-        judgments: [{ requirement_id: "playable", verdict: "supports" }],
       }],
     }));
     const progress = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.progress.record__v1", { goal_id, idempotency_key: "progress-1",
@@ -87,8 +85,8 @@ test("Runtime state tools record progress and close without applying user identi
         { option_id: "yes", label: "可以", impact: "进入收尾" },
         { option_id: "no", label: "还不行", impact: "继续补" },
       ],
-      purpose: "requirement_acceptance",
-      scope: { requirement_ids: ["playable"] },
+      purpose: "action",
+      scope: { action: "complete" },
     }));
     await assert.rejects(
       () => runtime!.callTool("molis_work_v1_review_decide", { request_key: "runtime-decide", choice_id: "apply" }),
@@ -106,12 +104,14 @@ test("Runtime state tools record progress and close without applying user identi
     const reviews = mcpGoalReviews(management, project_id, project.database_path);
     const original = await reviews.prepare(goalsActions.decide, { goal_id, idempotency_key: "mgmt-decide",
       request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "管理入口确认可以试用",
-      effects: [{ kind: "accept_requirements" }], scope: { requirement_ids: ["playable"] } });
+      effects: [{ kind: "authorize_action", action: "complete" }], scope: { action: "complete" } });
     // The management entry decides as the person on this machine; it takes no identity from its arguments (§9.5 #6).
     await assert.rejects(() => reviews.submit({ ...original, actor_id: "manager" } as typeof original), { code: "actions.input_invalid" });
     const decided = await reviews.submit<GoalEventDecisionResult>(original);
     assert.equal(decided.result?.decision.authority_source, "management");
     assert.equal(decided.result?.decision.actor_id, LOCAL_PERSON_ACTOR_ID);
+    // The person accepts the requirement on the platform (contract-design §10).
+    await host.withProject(projectRef, open => goalApplicationOf(open).decide(project_id, goal_id, ["playable"]));
 
     const ready = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     const closed = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.closure.submit__v1", { goal_id, idempotency_key: "close-1", kind: "complete",
@@ -164,6 +164,7 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -217,6 +218,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -241,37 +243,33 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     const goal_id = created.goal.goal_id as string;
     await runtime.callTool("molis_work_v1_action_goals.events.configure__v1", { goal_id, expected_version: 0, idempotency_key: "cfg-stale-mcp", types: [localType()],
     });
-    const configured = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
-    await runtime.callTool("molis_work_v1_action_goals.agreement.set__v1", { goal_id, idempotency_key: "agree-stale-mcp",
-      expected_config_version: configured.config.version,
-      expected_agreement_version: configured.agreement.version,
-      new_requirements: [{ requirement_id: "r-five", statement: "真实购买" }],
-    });
-    const asked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.decisions.request__v1", { goal_id, idempotency_key: "ask-retire-mcp",
-      question: "取消原来的真实购买要求",
+    // The requirement is the platform's (contract-design §10); the request below proposes a new outcome only.
+    const projectRef = molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path });
+    await host.withProject(projectRef, open => goalApplicationOf(open).setRequirements(project_id, goal_id, [{ requirement_id: "r-five", statement: "真实购买" }]));
+    const asked = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.decisions.request__v1", { goal_id, idempotency_key: "ask-change-mcp",
+      question: "把结果改成也能退货",
       options: [
         { option_id: "yes", label: "同意", impact: "按所展示内容应用" },
         { option_id: "no", label: "拒绝", impact: "保留当前约定" },
       ],
       purpose: "agreement_change",
-      proposed_change: { retire_requirement_ids: ["r-five"] },
+      proposed_change: { outcome: "用户能完成真实购买并能退货" },
     }));
-    assert.equal(asked.decision_request.commitment.outcome, "用户能完成真实购买");
-    assert.equal(asked.decision_request.commitment.requirements[0].statement, "真实购买");
-    const beforeRevise = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
+    // It commits to the outcome it would replace, and to nothing on the platform's requirement list (§10.9 question 3).
+    assert.deepEqual(asked.decision_request.commitment, { outcome: "用户能完成真实购买", requirements: [] });
+    const beforeChange = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     const reviews = mcpGoalReviews(management, project_id, project.database_path);
     const original = await reviews.prepare(goalsActions.decide, { goal_id, idempotency_key: "approve-stale-mcp",
-      request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "批准之前展示的取消要求",
+      request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "批准之前展示的结果变化",
       effects: [{ kind: "authorize_agreement_change" }] });
     // The management entry lists no Goals actions; it decides through its own tools only.
     await assert.rejects(management.callTool("molis_work_v1_action_goals.agreement.set__v1", { goal_id }), { code: "mcp.tool_unknown" });
-    // This trusted user change is fixture setup; the management MCP below still proves stale approval rejection.
-    await managementGoals(host.actionClient(molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path })), project_id)
-      .invoke(goalsActions.agree, {
-      goal_id, idempotency_key: "revise-stale-mcp",
-      expected_config_version: beforeRevise.config.version,
-      expected_agreement_version: beforeRevise.agreement.version,
-      revise_requirements: [{ requirement_id: "r-five", statement: "真实购买并处理退货" }],
+    // This trusted user change is fixture setup: the outcome the approval was shown replacing no longer stands.
+    await managementGoals(host.actionClient(projectRef), project_id).invoke(goalsActions.agree, {
+      goal_id, idempotency_key: "change-stale-mcp",
+      expected_config_version: beforeChange.config.version,
+      expected_agreement_version: beforeChange.agreement.version,
+      outcome: "用户能完成真实购买并看到收据",
     });
     const beforeApprove = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     await assert.rejects(
@@ -279,7 +277,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     );
     const afterApprove = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(afterApprove.goal_event_cursor, beforeApprove.goal_event_cursor);
-    assert.equal(afterApprove.requirements.find((item) => item.requirement_id === "r-five")?.statement, "真实购买并处理退货");
+    assert.equal(afterApprove.agreement.outcome, "用户能完成真实购买并看到收据");
     assert.equal(afterApprove.applied_decisions.length, beforeApprove.applied_decisions.length);
   } finally {
     await runtime?.close();

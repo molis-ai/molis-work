@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, desktopWorkbenchRendererPorts,
-  isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
+  isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
 import { createLocalWebCoreFactory } from "@molis-ai/molis-work-app-local-host";
 import { LocalHostHttpClient, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
@@ -116,7 +116,7 @@ test("RAC-2918: a Web factory without openCatalog reuses its actual Host owner f
   const create = createLocalWebCoreFactory({
     withCatalog: withMolisWorkProjectCatalog, desktopRenderer: desktopWorkbenchRendererPorts,
     cliAvailability: () => ({}), isDesktopShellRequest, nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
-    renderDesktopCapsuleShell, ptyClientFilePath: () => "unused.js",
+    ptyClientFilePath: () => "unused.js",
   });
   const server = create({ homeDirectory: home, controlToken: token });
   t.after(async () => {

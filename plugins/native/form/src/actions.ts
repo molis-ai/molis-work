@@ -2,7 +2,7 @@ import { objectSchema as object, arraySchema as array, createActionDefinition } 
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
 import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "./contract.js";
+import { FORM_ARTIFACT_TYPE_ID, FORM_ARTIFACT_SCHEMA_VERSION, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "./contract.js";
 import type { promoteForm } from "./promote.js";
 import { formErrors } from "./error.js";
 import type { FormStores } from "./store.js";
@@ -37,7 +37,7 @@ export const formActions = {
   /** Whether a pinned version still matches the form object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("form.artifacts.compare", /* @version action.form.artifacts.compare */ 1, "问卷", read),
   /** 「从这一版继续」 (A4b): a new 问卷 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("form.artifacts.continue", /* @version action.form.artifacts.continue */ 1, "问卷", write),
+  artifactContinue: defineArtifactContinueAction("form.artifacts.continue", /* @version action.form.artifacts.continue */ 1, "问卷", write, { item_kind: "form", artifact_types: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION }] }),
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.form.list */ 1, "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", /* @version action.form.get */ 1, "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", /* @version action.form.create */ 1, "新建问卷", "在当前项目新建一份草稿问卷（可带标题）并返回它；只创建草稿，不会固定成成果版本。添加题目用「编辑问卷」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),

@@ -27,7 +27,6 @@ async function fixtureSource(root: string, version: string): Promise<string> {
     mkdir(join(source, "dist", "cli"), { recursive: true }),
     mkdir(join(source, "dist", "mcp"), { recursive: true }),
     mkdir(join(source, "dist", "web"), { recursive: true }),
-    mkdir(join(source, "skills", "goal-advance"), { recursive: true }),
     mkdir(join(source, "skills", "molis-plugin-dev"), { recursive: true }),
     mkdir(dependencyDirectory, { recursive: true }),
   ]);
@@ -46,7 +45,6 @@ async function fixtureSource(root: string, version: string): Promise<string> {
     writeFile(join(source, "dist", "cli", "main.js"), fixtureEntry("cli")),
     writeFile(join(source, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
     writeFile(join(source, "dist", "web", "server.js"), fixtureEntry("web")),
-    writeFile(join(source, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
     writeFile(join(source, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
     writeFile(
       join(dependencyDirectory, "package.json"),
@@ -217,7 +215,6 @@ test("IMETA-01 home install is scoped, idempotent, and produces the complete cur
     await assert.rejects(stat(homeSqlitePath(home, MEMORY_LEDGER_STORE)), { code: "ENOENT" });
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
     assert.ok((await stat(join(first.release_directory, "dist", "mcp", "server.js"))).isFile());
-    assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
     assert.ok((await stat(first.launchers.mcp)).isFile());
     const manifestPaths = [join(home, "config", "installation.json"), join(first.release_directory, "release.json")];
@@ -636,7 +633,6 @@ test("home install resolves production dependencies from a standard ancestor nod
       mkdir(join(packageDirectory, "dist", "cli"), { recursive: true }),
       mkdir(join(packageDirectory, "dist", "mcp"), { recursive: true }),
       mkdir(join(packageDirectory, "dist", "web"), { recursive: true }),
-      mkdir(join(packageDirectory, "skills", "goal-advance"), { recursive: true }),
       mkdir(join(packageDirectory, "skills", "molis-plugin-dev"), { recursive: true }),
       mkdir(dependencyDirectory, { recursive: true }),
     ]);
@@ -655,7 +651,6 @@ test("home install resolves production dependencies from a standard ancestor nod
       writeFile(join(packageDirectory, "dist", "cli", "main.js"), fixtureEntry("cli")),
       writeFile(join(packageDirectory, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
       writeFile(join(packageDirectory, "dist", "web", "server.js"), fixtureEntry("web")),
-      writeFile(join(packageDirectory, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
       writeFile(join(packageDirectory, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
       writeFile(
         join(dependencyDirectory, "package.json"),

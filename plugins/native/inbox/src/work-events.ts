@@ -11,11 +11,12 @@ export function createInboxHomeEventsHandler(ports: InboxContentPorts, briefsOf:
       const relatedKind = entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source";
       let related;
       try { related = await ports.readSubject?.({ kind: relatedKind, id: entry.subject_id }, caller); } catch { /* Keep the attention reference, without unavailable content. */ }
-      const goalIds = related?.goal_ids ?? [];
-      let goalLabel = goalIds.length ? "目标 · " + goalIds.join("、") : "首页";
-      if (goalIds.length && ports.readSubject) {
-        const titles = await Promise.all(goalIds.map(async id => {
-          try { return (await ports.readSubject!({ kind: "goal", id }, caller)).title; } catch { return "目标 · " + id; }
+      // What the related object is attached to, by each owner's own title (any plugin's object, a Goal among them).
+      const attached = related?.attached_to ?? [];
+      let goalLabel = attached.length ? attached.map(subject => subject.id).join("、") : "首页";
+      if (attached.length && ports.readSubject) {
+        const titles = await Promise.all(attached.map(async subject => {
+          try { return (await ports.readSubject!(subject, caller)).title; } catch { return subject.id; }
         }));
         goalLabel = titles.join("、");
       }

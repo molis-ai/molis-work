@@ -39,6 +39,7 @@ export function publishContext(page: PagesPage) {
   bench.setAttribute("data-assistant-context", JSON.stringify(context)); page.landing.report(); closingBlank(page);
 }
 
+
 /** What the list (a listbox that picks several) says is selected: the picked documents, else the open one. */
 export const chosen = (page: PagesPage, id: string) => (page.picked.size ? page.picked.has(id) : page.sel?.id === id);
 
@@ -56,7 +57,8 @@ function surfaceFocus(page: PagesPage): SurfaceDetail | null {
     activity: focusNow.activity, granularity: focusNow.granularity,
     object: { kind: "pages_document", id: sel.id, version: sel.version, title: titleInput.value || sel.title },
     targets: focusNow.targets, surroundings: focusNow.surroundings,
-    ...(page.saveTimer || page.dirty ? { unsaved: true } : {}), ...(goal ? { goal: { id: goal.id, title: goal.title } } : {}) };
+    ...(page.saveTimer || page.dirty ? { unsaved: true } : {}),
+    ...(goal ? { belongs_to: { kind: "goal", id: goal.id, title: goal.title } } : {}) };
 }
 
 function pickedRect(page: PagesPage) {

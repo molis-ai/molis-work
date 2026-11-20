@@ -15,7 +15,6 @@ export function readMolisWorkSnapshot(ports: MolisWorkSnapshotPorts, projectId: 
       goals: goals.goals,
       relations: goals.relations,
       goal_tree_proposals: governance.goal_tree_proposals,
-      project_guidance: goals.project_guidance,
     };
 
 }

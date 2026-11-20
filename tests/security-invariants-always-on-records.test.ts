@@ -52,7 +52,7 @@ test("RAC-386 S-34 the Runtime refuses to uninstall a plugin while its 常开 ag
   assert.equal(runtime.list()[0]!.state, "uninstalled");
 });
 
-test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: Goals is not stored, cannot be removed, and is an ordinary plugin once the agreement is taken back", async t => {
+test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: Shelf is not stored, cannot be removed, and is an ordinary plugin once the agreement is taken back", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-always-on-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   t.after(async () => { catalog.close(); await rm(homeDirectory, { recursive: true, force: true }); });
@@ -62,12 +62,10 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
     try { return (db.prepare("SELECT plugin_id FROM project_plugins WHERE project_id = ? ORDER BY plugin_id").all(projectId) as Array<{ plugin_id: string }>).map(row => row.plugin_id); }
     finally { db.close(); }
   };
-  // Goals is in the project without a row of its own: creating a project no longer writes a name into it.
-  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
+  // Goals is an ordinary project plugin (PEQ-12), not always-on; only Shelf is 常开 in the build.
+  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["schedule"]);
   assert.deepEqual(stored(first.project_id), ["schedule"]);
-  for (const plugin_id of ["goals", "shelf"]) {
-    assert.throws(() => catalog.removeProjectPlugin({ project_id: first.project_id, plugin_id, actor_id: "test" }), refused("catalog.plugin_always_on"), plugin_id);
-  }
+  assert.throws(() => catalog.removeProjectPlugin({ project_id: first.project_id, plugin_id: "shelf", actor_id: "test" }), refused("catalog.plugin_always_on"), "shelf");
   assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
 
   // A project that hid Shelf before it was 常开 keeps the mark, but it changes nothing and is not listed.
@@ -76,22 +74,20 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   finally { written.close(); }
   assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
 
-  // The person takes the agreement back: at once Goals is an ordinary plugin, in no project's list, and a project can be made without it.
+  // The person takes the agreement back: at once Shelf is an ordinary plugin, the exclusion counts, and projects can hide it.
   const store = seedStore(homeDirectory);
   try {
-    const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
-    new SqlitePluginConsentLedger(store).record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature,
-      manifest_digest: pluginManifestDigest(goals), granted_by: "host_build", grants: [ALWAYS_ON], at: "2026-10-24T00:00:00.000Z" });
-    store.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE plugin_id = ? AND kind = 'always_on'").run("2026-10-25T00:00:00.000Z", manifestId("goals"));
-    assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["schedule"]);
-    const without = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
-    assert.deepEqual(catalog.listProjectPlugins(without.project_id), ["schedule"]);
-    assert.deepEqual(stored(without.project_id), ["schedule"]);
+    const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
+    new SqlitePluginConsentLedger(store).record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature,
+      manifest_digest: pluginManifestDigest(shelf), granted_by: "host_build", grants: [ALWAYS_ON], at: "2026-10-24T00:00:00.000Z" });
+    store.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE plugin_id = ? AND kind = 'always_on'").run("2026-10-25T00:00:00.000Z", manifestId("shelf"));
+    assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, ["shelf"]);
+    const without = await catalog.createProject({ display_name: "可隐藏 Shelf", actor_id: "test" });
+    assert.deepEqual(catalog.removeProjectPlugin({ project_id: without.project_id, plugin_id: "shelf", actor_id: "test" }).hidden, ["shelf"]);
     // The Host's own agreement does not come back by itself, however many times it is asked.
-    assert.deepEqual(catalog.listProjectPlugins(without.project_id), ["schedule"]);
-    assert.throws(() => catalog.removeProjectPlugin({ project_id: first.project_id, plugin_id: "shelf", actor_id: "test" }), refused("catalog.plugin_always_on"));
+    assert.deepEqual(catalog.projectPluginMembership(without.project_id).hidden, ["shelf"]);
 
-    // A project made before holds Goals as a stored row: it can be removed now, and the row goes.
+    // A project that holds Goals as a stored row can remove it freely, and the row goes.
     const old = await catalog.createProject({ display_name: "旧项目", actor_id: "test" });
     const writable = openTestSqlite(join(homeDirectory, "projects/catalog.db"));
     try { writable.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'goals', '2026-10-01T00:00:00.000Z')").run(old.project_id); }
@@ -101,9 +97,10 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
     assert.deepEqual(stored(old.project_id), ["schedule"]);
 
     // A person's own agreement later is a new row and counts at once.
-    new SqlitePluginConsentLedger(store).record({ plugin_id: manifestId("goals"), manifest_digest: "agreed-by-the-person", granted_by: "user", at: "2026-10-26T00:00:00.000Z",
-      publisher_signature: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest.publisher.signature, grants: [ALWAYS_ON] });
-    assert.deepEqual(catalog.listProjectPlugins(without.project_id), ["goals", "schedule"]);
+    new SqlitePluginConsentLedger(store).record({ plugin_id: manifestId("shelf"), manifest_digest: "agreed-by-the-person", granted_by: "user", at: "2026-10-26T00:00:00.000Z",
+      publisher_signature: shelf.publisher.signature, grants: [ALWAYS_ON] });
+    assert.deepEqual(catalog.projectPluginMembership(without.project_id).hidden, []);
+    assert.throws(() => catalog.removeProjectPlugin({ project_id: without.project_id, plugin_id: "shelf", actor_id: "test" }), refused("catalog.plugin_always_on"));
   } finally { store.close(); }
 });
 
@@ -147,12 +144,18 @@ async function catalogFixture(t: import("node:test").TestContext) {
   return { home, catalog, project };
 }
 
+function hideShelf(home: string, ...projectIds: readonly string[]) {
+  const db = openTestSqlite(join(home, "projects/catalog.db"));
+  try {
+    const insert = db.prepare("INSERT OR IGNORE INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')");
+    for (const projectId of projectIds) insert.run(projectId);
+  } finally { db.close(); }
+}
+
 function readMembership(f: Awaited<ReturnType<typeof catalogFixture>>) {
-  assert.deepEqual(f.catalog.listProjectPlugins(f.project.project_id), ["goals", "schedule"]);
+  assert.deepEqual(f.catalog.listProjectPlugins(f.project.project_id), ["schedule"]);
   assert.deepEqual(f.catalog.projectPluginMembership(f.project.project_id).hidden, []);
-  for (const plugin_id of ["goals", "shelf"]) {
-    assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id, actor_id: "test" }), refused("catalog.plugin_always_on"));
-  }
+  assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id: "shelf", actor_id: "test" }), refused("catalog.plugin_always_on"));
 }
 
 test("RAC-401 S-34 catalog queries and refused removals give the Host-build answer without creating a missing Runtime store", async t => {
@@ -231,7 +234,7 @@ test("MEM-42 one discovery reads and validates the current Home plugin library o
   const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
   try {
     const discovery = await policy.snapshotForDiscovery(caller);
-    for (const key of ["goals", "shelf"]) {
+    for (const key of ["schedule", "shelf"]) {
       const pluginId = manifestId(key);
       assert.equal(discovery(caller, { provider: { provider_id: pluginId, plugin_id: pluginId, title: key, kind: "plugin" } }).available, true);
     }
@@ -247,6 +250,7 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
   const f = await catalogFixture(t), db = seedStore(f.home);
   t.after(() => db.close());
   const second = await f.catalog.createProject({ display_name: "another project", actor_id: "test" });
+  hideShelf(f.home, f.project.project_id, second.project_id);
   // The public runner acquires its own Home owner; setup releases its independent owner before the aggregate begins.
   f.catalog.close();
   const cachedHost = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
@@ -261,28 +265,28 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
   });
   try {
     await withReadOnlyPluginDirectory(f.home, async () => {
-      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true);
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "shelf")!.always_on, true);
       runningPluginDirectory({ enabledPluginIds: () => [], state: () => null, manifest: () => undefined }, f.home);
       await access.withCatalog({ homeDirectory: f.home }, catalog => {
-        for (const project of [f.project, second]) assert.ok(catalog.projectPluginMembership(project.project_id, directory).plugins.includes("goals"));
+        for (const project of [f.project, second]) assert.equal(catalog.projectPluginMembership(project.project_id, directory).hidden.includes("shelf"), false);
       });
       await withReadOnlyPluginDirectory(f.home, async () => { await Promise.resolve(); builtinMarketDirectory(f.home); });
       assert.equal(reads, 1, "nested projections and extra projects do not discover the same directory again");
     });
     await withReadOnlyPluginDirectory(f.home, async () => { builtinMarketDirectory(f.home); });
     assert.equal(reads, 2, "a new aggregate always reads its own current directory");
-    const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+    const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
     const ledger = new SqlitePluginConsentLedger(db);
-    ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),
+    ledger.record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature, manifest_digest: pluginManifestDigest(shelf),
       granted_by: "user", grants: [ALWAYS_ON], at: "2026-11-07T01:00:00.000Z" });
     const policy = projectActionAvailability(access.withCatalog, f.home), caller = person([], f.project.project_id);
-    const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
+    const action = { provider: { provider_id: shelf.plugin_id, plugin_id: shelf.plugin_id, title: "Shelf", kind: "plugin" as const } };
     await withReadOnlyPluginDirectory(f.home, async () => {
       const before = reads;
-      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.ok(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals")));
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), false));
       assert.equal(reads, before + 1);
       await Promise.resolve();
-      for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
+      for (const row of ledger.consents(shelf.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
       await access.withCatalog({ homeDirectory: f.home }, catalog => {
         assert.throws(() => catalog.projectPluginMembership(f.project.project_id, () => { throw new Error("projection provider failed"); }), /projection provider failed/u);
       });
@@ -290,11 +294,11 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
       assert.equal((await policy(caller, action)).available, false, "the actual cached owner restores default live admission after the projection provider throws");
       assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, false, "post-await discovery is also current");
       assert.equal(reads, before + 3, "two protected current checks are counted separately from the one directory discovery");
-      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.ok(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals")));
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), false));
       assert.equal(reads, before + 3, "the presentation directory survives only in its own request");
     });
     await withReadOnlyPluginDirectory(f.home, async () => {
-      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).plugins.includes("goals"), false));
+      await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), true));
     });
   } finally { observation.mock.restore(); await cachedHost.close(); }
 });
@@ -305,6 +309,7 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
   let host: MolisWorkLocalHost | undefined;
   t.after(async () => { db.close(); await host?.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
   const f = { home, project: await catalog.createProject({ display_name: "first", actor_id: "test" }) };
+  hideShelf(f.home, f.project.project_id);
   catalog.close();
   host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   let gate: Promise<void> | undefined;
@@ -314,10 +319,10 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
     if (gate) await gate;
     return access.withCatalog(options, operation);
   });
-  const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+  const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
   const ledger = new SqlitePluginConsentLedger(db);
-  const grant = (at: string) => ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature,
-    manifest_digest: pluginManifestDigest(goals), granted_by: "user", grants: [ALWAYS_ON], at });
+  const grant = (at: string) => ledger.record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature,
+    manifest_digest: pluginManifestDigest(shelf), granted_by: "user", grants: [ALWAYS_ON], at });
   grant("2026-11-07T01:00:00.000Z");
   const reach = homeProjectReach(f.home, () => []), caller = person([]), expected = [f.project.project_id];
   let reads = 0;
@@ -328,7 +333,7 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
   });
   const read = async (ids: readonly string[]) => {
     reads = 0; connections.clear();
-    assert.deepEqual([...(await reach(goals, caller))!].sort(), [...ids].sort());
+    assert.deepEqual([...(await reach(shelf, caller))!].sort(), [...ids].sort());
     assert.equal(reads, 1, "one current directory read for this synchronous enumeration");
     assert.equal(connections.size, 1, "additional projects do not open additional Home plugin connections");
     for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u);
@@ -336,46 +341,50 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
   try {
     await read(expected);
     await withCatalog({ homeDirectory: f.home }, async catalog => {
-      for (let index = 0; index < 4; index++) expected.push((await catalog.createProject({ display_name: `project ${index}`, actor_id: "test" })).project_id);
+      for (let index = 0; index < 4; index++) {
+        const created = await catalog.createProject({ display_name: `project ${index}`, actor_id: "test" });
+        expected.push(created.project_id);
+        hideShelf(f.home, created.project_id);
+      }
     });
     await read(expected);
     await withReadOnlyPluginDirectory(f.home, async () => {
-      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true);
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "shelf")!.always_on, true);
       let release!: () => void;
       gate = new Promise<void>(resolve => { release = resolve; });
       const pending = read([]);
       await Promise.resolve();
-      for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
+      for (const row of ledger.consents(shelf.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
       release(); await pending; gate = undefined;
-      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "goals")!.always_on, true, "the surrounding projection remains old");
+      assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "shelf")!.always_on, true, "the surrounding projection remains old");
       await read([]);
     });
     grant("2026-11-07T03:00:00.000Z");
     await read(expected);
     db.exec("PRAGMA user_version=2");
-    await assert.rejects(reach(goals, caller), { code: "storage.store_too_new" }, "a later call still validates the actual store");
+    await assert.rejects(reach(shelf, caller), { code: "storage.store_too_new" }, "a later call still validates the actual store");
   } finally { observation.mock.restore(); }
 });
 
 test("ASR-12 a read-only directory never authorizes after await; new requests see revocation, consent and installation changes without crossing Homes", async t => {
   const a = await catalogFixture(t), b = await catalogFixture(t), db = seedStore(a.home), otherDb = seedStore(b.home);
   t.after(() => { db.close(); otherDb.close(); });
-  const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
+  hideShelf(a.home, a.project.project_id);
+  const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
   const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
-  // Goals declares presentations; a real Host checks them against its action directory, which is not what this test is about.
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger, assertPresentation: () => undefined });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
-    definition: { manifest: goals, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
+    definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
   const policy = projectActionAvailability(async (_options, work) => work(a.catalog), a.home), caller = person([], a.project.project_id);
-  const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
-  const mark = (home: string) => builtinMarketDirectory(home).find(entry => entry.id === "goals")!.always_on === true;
+  const action = { provider: { provider_id: shelf.plugin_id, plugin_id: shelf.plugin_id, title: "Shelf", kind: "plugin" as const } };
+  const mark = (home: string) => builtinMarketDirectory(home).find(entry => entry.id === "shelf")!.always_on === true;
   let release!: () => void, lateRead!: Promise<boolean>;
   const afterRequest = new Promise<void>(resolve => { release = resolve; });
   await withReadOnlyPluginDirectory(a.home, async () => {
     assert.equal(mark(a.home), true);
     assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, true);
     await Promise.resolve();
-    for (const row of ledger.consents(goals.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T01:00:00.000Z");
+    for (const row of ledger.consents(shelf.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T01:00:00.000Z");
     assert.equal((await policy(caller, action)).available, false, "live admission ignores the presentation memo after revocation");
     assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, false, "post-await aggregate discovery still rejects a withdrawn source");
     assert.equal(mark(a.home), true, "only the immutable presentation answer remains scoped to this request");
@@ -386,7 +395,7 @@ test("ASR-12 a read-only directory never authorizes after await; new requests se
   release();
   assert.equal(await lateRead, false, "detached work inheriting the request context cannot retain its memo");
   await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), false); assert.equal(mark(b.home), true); });
-  ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),
+  ledger.record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature, manifest_digest: pluginManifestDigest(shelf),
     granted_by: "user", grants: [ALWAYS_ON], at: "2026-11-07T02:00:00.000Z" });
   await withReadOnlyPluginDirectory(a.home, async () => { assert.equal(mark(a.home), true); });
   repository.save({ ...install, state: "disabled" });
@@ -398,17 +407,15 @@ test("ASR-12 a read-only directory never authorizes after await; new requests se
 for (const corruption of ["version", "structure"] as const) test(`MEM-42 later discovery and live reads see consent changes and refuse ${corruption} damage before missing-project fallback`, async t => {
   const f = await catalogFixture(t), db = seedStore(f.home);
   t.after(() => db.close());
-  const ledger = new SqlitePluginConsentLedger(db), entries = ["goals", "shelf"].map(key => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === key)!.manifest);
+  const ledger = new SqlitePluginConsentLedger(db), entries = ["shelf"].map(key => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === key)!.manifest);
   const record = (granted_by: "host_build" | "user", at: string) => entries.flatMap(manifest => ledger.record({
     plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
     granted_by, grants: [ALWAYS_ON], at,
   }));
   const consents = record("host_build", "2026-10-25T00:00:00.000Z");
-  assert.equal(consents.length, 2);
+  assert.equal(consents.length, 1);
   // A historical personal-plugin exclusion is ineffective while its current always-on agreement stands.
-  const writable = openTestSqlite(join(f.home, "projects/catalog.db"));
-  try { writable.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(f.project.project_id); }
-  finally { writable.close(); }
+  hideShelf(f.home, f.project.project_id);
   const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
   const actions: Array<Pick<ActionView, "provider">> = entries.map(manifest => ({ provider: {
     provider_id: manifest.plugin_id, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
@@ -424,7 +431,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
   await read(true);
   for (const consent of consents) ledger.revoke(consent.consent_id, "2026-10-25T01:00:00.000Z");
   await read(false);
-  assert.equal(record("user", "2026-10-25T02:00:00.000Z").length, 2);
+  assert.equal(record("user", "2026-10-25T02:00:00.000Z").length, 1);
   await read(true);
   if (corruption === "version") db.exec("PRAGMA user_version = 2");
   else db.exec("DROP TABLE plugin_private_values");
@@ -432,7 +439,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
   for (const project_id of [f.project.project_id, "absent-project"]) {
     const context = { ...caller, project_id };
     await assert.rejects(policy.snapshotForDiscovery(context), refusal);
-    await assert.rejects(Promise.resolve(policy(context, actions[1]!)), refusal, "an absent project must not bypass the Home refusal for a personal plugin");
+    await assert.rejects(Promise.resolve(policy(context, actions[0]!)), refusal, "an absent project must not bypass the Home refusal for a personal plugin");
   }
   assert.deepEqual(filesAt(f.home), before, "refusal neither repairs the library nor revives consent");
 });
@@ -572,10 +579,13 @@ for (const corruption of ["version", "structure"] as const) {
 for (const [error, status] of [[sqliteVersionRefusal("unrelated.db", 2, 1), 503], [new ActionError("actions.execution_failed", "Home 插件运行库结构与当前基线不一致，请保留故障库并检查其来源"), 500]] as const) {
   test(`RAC-403 a ${error.code} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
-      if (action.capability_id === goalsActions.collection.capability_id) throw error;
+      if (action.capability_id === goalsActions.stage.capability_id) throw error;
       return { available: true };
     } });
     const one = await f.project("Other errors stay visible");
+    await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => {
+      catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: "goals", actor_id: "test" });
+    });
     for (const path of ["/", "/api/board", "/api/board/refresh"]) {
       const page = await f.request(`/projects/${one.project_id}${path}`);
       assert.equal(page.status, status);

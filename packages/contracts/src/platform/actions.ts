@@ -14,6 +14,7 @@ import type { OwnedTextRef, UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./background-tasks.js";
+export * from "./resume-summary.js";
 export * from "./work-events.js";
 export * from "./object-link.js";
 export * from "./due-reminders.js";
@@ -40,6 +41,8 @@ export * from "./local-person.js";
 export * from "./placement.js";
 export * from "./work-items.js";
 export * from "./work-executors.js";
+export * from "./work-terminal.js";
+export * from "./plugin-role-protocols.js";
 
 export type { ActionSchema } from "./action-schema.js";
 export type ActionAudience = "user" | "agent" | "workflow" | "mcp" | "plugin";
@@ -196,6 +199,13 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
    * (`host_plugin`), so this is how a handler of one plugin's Home half knows the call came from that plugin's project instance. Never business input.
    */
   readonly calling_plugin_id?: string;
+  /**
+   * The object a call speaks for, when the Host itself acts for it (contract-design §10.3): set only where the Host issues a delegated
+   * Assistant work its own authority, naming that work, and never one a caller carried in (a plugin's, an MCP client's and a workflow's
+   * callers are built fresh by the Host). The platform's requirements and acceptance read it as the object's own side
+   * (`S-acceptance-subject-owner`). Never business input.
+   */
+  readonly acting_for?: { readonly provider_id: string; readonly kind: string; readonly id: string };
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */
@@ -337,7 +347,8 @@ export interface ActionMetadata {
   readonly project_reach?: "person";
   /**
    * The part this action plays in a relation placement keeps for the person (PG-032): it lists what an object is attached to, attaches,
-   * releases, lists what can be attached to, or makes a target from content. Placement finds the relation's actions by this, never by name.
+   * releases, lists what can be attached to, or makes a target and attaches to it. Placement finds the relation's actions by this, never by
+   * name; a background task's 「为哪个事件办」 (`serves`) is one such relation, written by `defineTaskServesAction`.
    */
   readonly placement_relation?: PlacementRelationDeclaration;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
@@ -353,6 +364,8 @@ export interface ActionMetadata {
   readonly result_scene?: ActionSceneReference;
   /** Mandatory nested calls use the same caller's authority; this never grants access. */
   readonly required_actions?: readonly ActionReference[];
+  /** Mandatory nested typed-role calls satisfied together by one available provider; never grants access. */
+  readonly required_roles?: readonly { readonly input_type: string; readonly output_type: string }[];
   /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
    * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be

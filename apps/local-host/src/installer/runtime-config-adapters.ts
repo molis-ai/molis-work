@@ -11,7 +11,6 @@ const CODEX_ADAPTER: RuntimeAdapter = {
   executableNames: ["codex"],
   detectionPaths: (userHome) => [path.join(userHome, ".codex")],
   configPath: (userHome) => path.join(userHome, ".codex", "config.toml"),
-  skillPath: (userHome) => path.join(userHome, ".codex", "skills", "goal-advance"),
   desiredConnection: (artifacts, molisWorkHome) => ({
     runtimeId: "codex",
     launcherPath: artifacts.launcherPath,
@@ -29,7 +28,6 @@ const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
   executableNames: ["claude"],
   detectionPaths: (userHome) => [path.join(userHome, ".claude"), path.join(userHome, ".claude.json")],
   configPath: (userHome) => path.join(userHome, ".claude.json"),
-  skillPath: (userHome) => path.join(userHome, ".claude", "skills", "goal-advance"),
   desiredConnection: (artifacts, molisWorkHome) => ({
     runtimeId: "claude-code",
     launcherPath: artifacts.launcherPath,
@@ -50,7 +48,6 @@ const OPENCODE_ADAPTER: RuntimeAdapter = {
     path.join(userHome, ".opencode"),
   ],
   configPath: (userHome) => path.join(userHome, ".config", "opencode", "opencode.json"),
-  skillPath: (userHome) => path.join(userHome, ".config", "opencode", "skills", "goal-advance"),
   desiredConnection: (artifacts, molisWorkHome) => ({
     runtimeId: "opencode",
     launcherPath: artifacts.launcherPath,
@@ -68,7 +65,6 @@ const PI_AGENT_ADAPTER: RuntimeAdapter = {
   executableNames: ["pi"],
   detectionPaths: (userHome) => [path.join(userHome, ".pi"), path.join(userHome, ".pi", "agent")],
   configPath: (userHome) => path.join(userHome, ".pi", "agent", "mcp.json"),
-  skillPath: (userHome) => path.join(userHome, ".pi", "agent", "skills", "goal-advance"),
   desiredConnection: (artifacts, molisWorkHome) => ({
     runtimeId: "pi-agent",
     launcherPath: artifacts.launcherPath,
@@ -79,7 +75,7 @@ const PI_AGENT_ADAPTER: RuntimeAdapter = {
   removeConfig: removePiConfig,
   restartInstructions: [
     ...restartInstructionsFor(RUNTIME_DISPLAY_NAMES["pi-agent"]),
-    "Pi 本体不内置 MCP。Molis Work 会写入 ~/.pi/agent/mcp.json，供 pi-mcp-adapter 读取。若新 Session 里看不到 Molis Work 工具，先运行 `pi install npm:pi-mcp-adapter` 再开新会话。Skill 不依赖 adapter，可用 /skill:goal-advance。",
+    "Pi 本体不内置 MCP。Molis Work 会写入 ~/.pi/agent/mcp.json，供 pi-mcp-adapter 读取。若新 Session 里看不到 Molis Work 工具，先运行 `pi install npm:pi-mcp-adapter` 再开新会话。",
   ],
 };
 
@@ -89,7 +85,6 @@ const GROK_BUILD_ADAPTER: RuntimeAdapter = {
   executableNames: ["grok"],
   detectionPaths: (userHome) => [path.join(userHome, ".grok")],
   configPath: (userHome) => path.join(userHome, ".grok", "config.toml"),
-  skillPath: (userHome) => path.join(userHome, ".grok", "skills", "goal-advance"),
   desiredConnection: (artifacts, molisWorkHome) => ({
     runtimeId: "grok-build",
     launcherPath: artifacts.launcherPath,
@@ -111,7 +106,7 @@ export const ADAPTERS: readonly RuntimeAdapter[] = [
 
 function restartInstructionsFor(displayName: string): readonly string[] {
   return [
-    `请新开一个 ${displayName} Session：${displayName} 只在 Session 启动时读取 MCP 与 Skill 清单，所以当前对话不会动态出现 Molis Work 工具。`,
+    `请新开一个 ${displayName} Session：${displayName} 只在 Session 启动时读取 MCP 清单，所以当前对话不会动态出现 Molis Work 工具。`,
     "新 Session 可直接复制这句继续：「继续用 Molis Work」。Molis Work 会列出当前目录以前用过的项目；每个 Session 都要由你确认关联哪个项目，不会保存目录默认项目。",
   ];
 }

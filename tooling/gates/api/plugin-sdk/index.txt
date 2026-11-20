@@ -155,6 +155,8 @@ export interface DeclaredPageRouteMatch extends PageRouteMatch {
     readonly plugin_id: string;
 }
 
+export type { DeliveredIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { DeliveredMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -241,7 +243,9 @@ export interface GitUpstream {
 export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export type { IntakeStart } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ItemMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export { KIT_KINDS } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export type { KitAvailability } from "@molis-ai/molis-work-contracts/platform/kit-report";
@@ -289,6 +293,8 @@ export declare const PLUGIN_ID: RegExp;
 
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     line_bytes: 65536;
@@ -313,6 +319,7 @@ export interface PackagedSkills {
 
 export interface PageRouteMatch {
     readonly route_id: string;
+    readonly kind: "page" | "fragment" | "refresh_document";
     readonly params: Readonly<Record<string, string>>;
     readonly rejected?: {
         readonly param: string;
@@ -320,6 +327,8 @@ export interface PageRouteMatch {
     };
 }
 
+export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCreateInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationOptions } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -362,7 +371,6 @@ export type { PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/
 export type { PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
-export type { PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -653,6 +661,8 @@ export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui
 export type { UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 export { WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
+export { WORK_TERMINAL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -669,6 +679,10 @@ export type { WorkItemNextResult } from "@molis-ai/molis-work-contracts/platform
 export type { WorkItemNextStep } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkItemRelatedInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkItemRelatedResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalObjectDeclaration } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPanelRow } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPromptInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkTerminalPromptView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function actionCardView(card: ActionCard & {
     readonly run_id?: string | null;
@@ -695,6 +709,17 @@ export declare function arraySchema<const I>(items: I): {
     type: "array";
     items: I;
 };
+
+export declare function assembleWorkTerminalPrompt(input: {
+    readonly subject: ActionSubject;
+    readonly title: string;
+    readonly instruction?: string;
+    readonly instruction_with_untrusted_source?: string;
+    readonly current_facts?: string;
+    readonly project_guidance_prefix?: string;
+    readonly source_contexts?: SubjectContextAnswer["contexts"];
+    readonly source_context?: string;
+}): string;
 
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -826,6 +851,7 @@ export declare function definePollingIntegrationPlugin(input: {
 
 export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineRunDecisionAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineRunsOverviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -838,6 +864,7 @@ export { defineTaskServesAction } from "@molis-ai/molis-work-contracts/platform/
 export { defineWorkEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkTerminalPromptAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
@@ -907,6 +934,8 @@ export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platf
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
 export declare function isTimeZone(value: string): boolean;
+
+export { isWorkTerminalPromptAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
@@ -1062,6 +1091,7 @@ export declare function sandboxOperationActions(input: {
     version: number;
     title: string;
     scope: 'home' | 'project';
+    dualInstance?: boolean;
     upgradeOperation?: string;
     hasProjectDatabase?: boolean;
 }): ActionDefinition[];
@@ -1086,6 +1116,8 @@ export declare function sandboxRoleIdentity(pluginId: string, name: string): {
     entry_id: string;
     prompt_id: string;
 };
+
+export declare function sandboxStartProblems(contract: SandboxPluginContract): string[];
 
 export declare const sandboxUiContribution: (pluginId: string) => string;
 
@@ -1164,6 +1196,14 @@ export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/action
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinRunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinWorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+export { workTerminalActions } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function workTerminalDeclarationFor(manifest: PluginManifest, kind: string): {
+    readonly declaration: WorkTerminalObjectDeclaration;
+    readonly action: ActionDefinition;
+} | undefined;
+
+export declare function workTerminalDeclarationProblems(parsed: PluginManifest): string[];
 
 export declare function zonedParts(timeZone: string | undefined, { seconds, shortOffset }?: {
     seconds?: boolean;

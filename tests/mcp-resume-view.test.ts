@@ -9,56 +9,58 @@ import {
   LocalProjectDatabase,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
+import { objectLink } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, goalsResumeSummary } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
-function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
-  return {
-    goals: entries.map(([id, work_status, can_record], index) => ({
-      goal_id: id,
-      title: `目标 ${id}`,
-      work_status,
-      completion_effect: work_status === "completed",
-      can_record,
-      next_hint: work_status === "completed" ? "已完成，明确继续后开启新一轮" : "可记录",
-      unmet_requirement_count: 0,
-      pending_decision_count: id === "attention" ? 1 : 0,
-      blocking_concern_count: 0,
-      updated_at: `2026-09-0${9 - (index % 8)}T00:00:00Z`,
-    })),
-  };
+type DirectoryItem = Parameters<typeof goalsResumeSummary>[0][number];
+function directoryFor(entries: Array<[string, DirectoryItem["work_status"], boolean]>): DirectoryItem[] {
+  return entries.map(([id, work_status, can_record], index) => ({
+    goal_id: id,
+    title: `目标 ${id}`,
+    work_status,
+    completion_effect: work_status === "completed",
+    can_record,
+    next_hint: work_status === "completed" ? "已完成，明确继续后开启新一轮" : "可记录",
+    pending_decision_count: id === "attention" ? 1 : 0,
+    blocking_concern_count: 0,
+    updated_at: `2026-09-0${9 - (index % 8)}T00:00:00Z`,
+  }));
 }
+const none = () => null;
 
-test("MCP resume preserves host focus and leaves the input facts unchanged", () => {
-  const facts = factsFor([
-    ["active", "open", true], ["other", "open", true], ["host", "open", true],
-  ]);
-  const before = structuredClone(facts);
-  const hostFocus = buildMcpResumeView(facts, "host");
-  assert.equal(hostFocus.focus?.goal_id, "host");
-  assert.equal(hostFocus.focus?.source, "host_focus");
-  const missingHost = buildMcpResumeView(facts, "missing-host-goal");
-  assert.equal(missingHost.focus?.source, "project_recovery_order");
-  assert.deepEqual(facts, before, "display construction must not change input facts");
+// Batch 44 C7: the ordering MCP's `buildMcpResumeView` did is Goals' own resume summary now (`goals.resume.summary@1`).
+test("C7 Goals' resume summary keeps the host's focus when it is a Goal, and leaves the directory it was given unchanged", () => {
+  const directory = directoryFor([["active", "open", true], ["other", "open", true], ["host", "open", true]]);
+  const before = structuredClone(directory);
+  const focused = goalsResumeSummary(directory, { kind: "goal", id: "host" }, none);
+  assert.deepEqual(focused.focus?.subject, { kind: "goal", id: "host" });
+  assert.deepEqual(focused.focus?.open, { surface: "goals", id: "host" });
+  const ownPick = goalsResumeSummary(directory, undefined, none).focus?.subject.id;
+  assert.equal(goalsResumeSummary(directory, { kind: "goal", id: "missing-host-goal" }, none).focus?.subject.id, ownPick, "a focus Goals cannot read falls back to its own pick");
+  assert.equal(goalsResumeSummary(directory, { kind: "note", id: "host" }, none).focus?.subject.id, ownPick, "a focus of another kind is not a Goal, whatever its id");
+  assert.deepEqual(directory, before, "building the summary does not change the directory");
 });
 
-test("MCP resume keeps recovery ordering and excludes completed suggestions", () => {
-  const facts = factsFor([
+test("C7 Goals' resume summary keeps the recovery order and leaves completed Goals out of what comes next", () => {
+  const directory = directoryFor([
     ["done", "completed", true], ["blocked", "open", true],
     ["waiting", "open", true], ["ready-b", "open", true],
     ["ready-a", "open", true], ["recorded", "open", true],
     ["attention", "open", true], ["active", "open", true],
   ]);
-  const view = buildMcpResumeView(facts, null);
-  assert.equal(view.focus?.goal_id, "attention");
-  assert.equal(view.focus?.source, "project_recovery_order");
-  assert.equal(view.next_goals.some((goal) => goal.goal_id === "done"), false);
-  assert.deepEqual(buildMcpResumeView({ goals: [] }, null), {
-    focus: null, next_goals: [],
-  });
+  const summary = goalsResumeSummary(directory, undefined, none);
+  assert.equal(summary.focus?.subject.id, "attention");
+  assert.equal(summary.focus?.status_label, "进行中");
+  assert.equal(summary.next.some(item => item.subject.id === "done"), false);
+  assert.ok(summary.next.length <= 5);
+  assert.deepEqual(goalsResumeSummary([], undefined, none), { title: "目标", focus: null, next: [] });
+  // A focused Goal the first page left out is read on its own.
+  const read = (id: string) => id === "beyond" ? directoryFor([["beyond", "open", true]])[0]! : null;
+  assert.equal(goalsResumeSummary(directory, { kind: "goal", id: "beyond" }, read).focus?.subject.id, "beyond");
 });
 
 test("context_resolve restores Host focus outside the discovery window and writes no Session", async () => {
@@ -70,6 +72,7 @@ test("context_resolve restores Host focus outside the discovery window and write
   let host: ReturnType<typeof createMolisWorkLocalHost> | undefined;
   try {
     const project = await catalog.createProject({ display_name: "Host 焦点恢复", actor_id: "focus-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));
@@ -88,11 +91,11 @@ test("context_resolve restores Host focus outside the discovery window and write
     const runtimeHost: {
       homeDirectory: string;
       runtimeContext: { runtime_id: string; stable_work_context_id: string; host_declares_stable: boolean };
-      focusId?: string;
+      focus?: { kind: string; id: string };
     } = {
       homeDirectory: directory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "focus-session", host_declares_stable: true },
-      focusId: "FOCUS-HOST",
+      focus: { kind: "goal", id: "FOCUS-HOST" },
     };
     catalog.bindRuntimeContext({
       context: runtimeHost.runtimeContext, project_id: project.project_id,
@@ -109,35 +112,38 @@ test("context_resolve restores Host focus outside the discovery window and write
     served = await serveTestHost(null, { home: directory, host });
     const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));
     const viewOf = (definition: { capability_id: string }) => views.find(view => view.capability_id === definition.capability_id)!;
-    await served.grant("runtime:codex", project.project_id, [goalsActions.guidanceRead, goalsActions.list].map(viewOf));
+    await served.grant("runtime:codex", project.project_id, [projectGuidanceActions.read, goalsActions.list].map(viewOf));
     const resolve = async () => JSON.parse(await runtime!.callTool("molis_work_v1_context_resolve", {}));
+    const goals = (value: { resume: { sections: Array<{ plugin_id: string; focus: { subject: { id: string }; source: string; url: string } }> } }) =>
+      value.resume.sections.find(section => section.plugin_id === "io.molis.work.goals")!;
     let result = await resolve();
-    assert.equal(result.resume, null, "focus outside the directory window requires its own exact query grant");
-    assert.ok(result.resume_error);
-    await served.grant("runtime:codex", project.project_id, [viewOf(goalsActions.directoryItem)]);
+    assert.deepEqual(result.resume, { sections: [] }, "C7: a resume summary the Runtime was not granted is not in its directory, so nothing is summarised");
+    assert.equal(Object.hasOwn(result.connection, "goal_url_template"), false, "C7: no Goal address template; each item carries its own address");
+    await served.grant("runtime:codex", project.project_id, [viewOf(goalsActions.resumeSummary)]);
     result = await resolve();
-    assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
-    assert.equal(result.resume.focus.source, "host_focus");
+    assert.equal(goals(result).focus.subject.id, "FOCUS-HOST", "the focus outside the directory window is read by Goals itself");
+    assert.equal(goals(result).focus.source, "host_focus");
+    assert.equal(goals(result).focus.url, new URL(objectLink(project.project_id, { surface: "goals", id: "FOCUS-HOST", title: "明确的 Host 目标" }), connection.webBaseUrl).toString());
     // Sessions are retired (BL-177): the context no longer reads or reports a Session.
     assert.equal(Object.hasOwn(result, "session_registry"), false);
-    runtimeHost.focusId = undefined;
-    assert.equal(runtime.runtimeContextHost?.focusId, "FOCUS-HOST", "mutating a constructor input cannot change live transport metadata");
+    runtimeHost.focus = undefined;
+    assert.deepEqual(runtime.runtimeContextHost?.focus, { kind: "goal", id: "FOCUS-HOST" }, "mutating a constructor input cannot change live transport metadata");
     runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
-    assert.equal(result.resume.focus.source, "project_recovery_order");
-    runtimeHost.focusId = "DOES-NOT-EXIST";
+    assert.equal(goals(result).focus.source, "owner_order");
+    runtimeHost.focus = { kind: "goal", id: "DOES-NOT-EXIST" };
     runtime.runtimeContextHost = { ...runtimeHost };
     result = await resolve();
-    assert.equal(result.resume.focus.source, "project_recovery_order");
+    assert.equal(goals(result).focus.source, "owner_order");
     await runtime.close();
     await served.close();
     await host?.close();
     host = createMolisWorkLocalHost({ homeDirectory: directory });
-    runtimeHost.focusId = "FOCUS-HOST";
+    runtimeHost.focus = { kind: "goal", id: "FOCUS-HOST" };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     result = await resolve();
-    assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
-    assert.equal(result.resume.focus.source, "host_focus");
+    assert.equal(goals(result).focus.subject.id, "FOCUS-HOST");
+    assert.equal(goals(result).focus.source, "host_focus");
     assert.equal(existsSync(join(directory, "sessions")), false, "resolving context records no Session: nothing opens the retired store");
   } finally {
     await runtime?.close();

@@ -326,7 +326,7 @@ test("BSH-08 the side panel's reader reaches the materials service as the person
 });
 
 test("BSH-08 a Goal takes a fixed version of a project-folder file by its exact reference: checked with the materials service, kept by id and version, read back as the reader", { timeout: 60_000 }, async t => {
-  const m = await materialsHome(t);
+  const m = await materialsHome(t, ["diff", "goals"]);
   const prefix = `/projects/${m.project.project_id}`, goalId = "goal-materials";
   await m.f.web.post(`${prefix}/api/plugins/io.molis.work.goals/goals`, { title: "资料目标", goal_id: goalId, idempotency_key: goalId });
   const fixed = await m.f.web.post<MaterialsCaptureResult>(`${prefix}/api/materials/capture`, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha("第一行\nsecond line 🙂\n") });

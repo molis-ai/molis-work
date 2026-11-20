@@ -10,10 +10,14 @@ import { DECLARATION_PLUGIN_ID } from "./fixtures/declaration-manifest.js";
 const search = defineSearchEntriesAction("notes.search.entries", 1, [{ kind: "note", title: "笔记", surface: "notes" }], "笔记", []);
 const values = definePresentationValuesAction("notes.presentation.values", 1, ["note"], "笔记的显示字段", []);
 const overview = definePresentationOverviewAction("notes.presentation.overview", 1, "笔记概况", []);
-const actions = [search, values, overview];
+// The start is a blank note with a starting point on its intake (contract-design §2.4).
+const create = { capability_id: "notes.create", version: 1, operation: "command", action: { title: "新建笔记", description: "新建一篇空白笔记", kind: "operation", scope: "project",
+  effect: "write", permissions: [], subject_kinds: [], audiences: ["user"], input_schema: { type: "object" },
+  intake: { intake_id: "notes.create", item_kind: "note", title: "笔记", verb: "新建", describe: "新建一篇空白笔记", accepts: [], examples: [], start: { title: "写一条笔记", hint: "先写下来。" } } } };
+const actions = [search, values, overview, create];
 const presentation = {
   objects: [{ kind: "note", fields: [{ key: "title", role: "title", label: { key: "declaration-rules.note.title" } }], forms: {} }],
-  overview: { capability_id: "notes.presentation.overview", version: 1, note: { key: "declaration-rules.overview.note" }, start: [{ capability_id: "notes.presentation.values", version: 1 }] },
+  overview: { capability_id: "notes.presentation.overview", version: 1, note: { key: "declaration-rules.overview.note" }, start: [{ capability_id: "notes.create", version: 1 }] },
 };
 
 test("SSC-06 (words): with its plugin_id the declaration is clean, and without one the words are refused rather than skipped", () => {

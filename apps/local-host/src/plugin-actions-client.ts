@@ -283,6 +283,12 @@ export function withPreparedActions(client: HostActionClient, prepare: (caller: 
   return {
     discover: async caller => { await ready(caller); return client.discover(caller); },
     discoverMatching: async (caller, select) => { await ready(caller); return matchingActions(client, caller, select); },
+    discoverOne: async (caller, reference) => {
+      await ready(caller);
+      if (client.discoverOne) return client.discoverOne(caller, reference);
+      return (await client.discover(caller)).find(view => view.capability_id === reference.capability_id && view.version === reference.version
+        && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+    },
     invoke: async (caller, capability, input) => {
       try { await ready(caller); }
       catch (error) { return refuse(caller, capability, error); }
@@ -292,12 +298,21 @@ export function withPreparedActions(client: HostActionClient, prepare: (caller: 
 }
 
 /** Use the raw Host clients: preparing Home plugins here would make discovery during start wait on its own startup. */
-export function homePluginActions(host: Pick<import("./local-host.js").LocalHost<unknown>, "projects" | "actionClient" | "homeActionClient">): ActionClient {
+export function homePluginActions(host: Pick<import("./local-host.js").LocalHost<unknown>, "projects" | "actionClient" | "homeActionClient">): HostActionClient {
   const client = (caller: ActionCallContext) => {
     if (!caller.project_id) return host.homeActionClient();
     const project = host.projects().find(row => row.project_id === caller.project_id && row.state !== "closing");
     if (!project) throw new ActionError("actions.scope_mismatch", "查询委托缺少已打开的项目运行环境");
     return host.actionClient(project);
   };
-  return { discover: caller => client(caller).discover(caller), invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input) };
+  return {
+    discover: caller => client(caller).discover(caller),
+    discoverOne: async (caller, reference) => {
+      const target = client(caller);
+      return target.discoverOne ? target.discoverOne(caller, reference)
+        : (await target.discover(caller)).find(view => view.capability_id === reference.capability_id && view.version === reference.version
+          && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+    },
+    invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input),
+  };
 }

@@ -34,6 +34,8 @@ function close(data: { directory: string; store: LocalProjectDatabase }) {
 }
 
 const runtime = { actor_id: "runtime-1", actor_kind: "runtime" as const };
+/** Replacing the outcome is the person's (a Runtime would cite their approval of this change). */
+const person = { actor_id: "user-1", actor_kind: "user" as const };
 
 function refused(code: string) {
   return (error: unknown) => error instanceof ActionError && error.code === code;
@@ -86,8 +88,8 @@ test("a cancelled goal takes notes and progress, and refuses a closure or an agr
     const eventsBefore = data.store.readEventsDescending(BOARD);
     assert.throws(
       () => data.app.goalEvents.setAgreement({
-        project_id: BOARD, goal_id: goalId, ...runtime, idempotency_key: "agree-cancelled", ...versions(data.app, goalId),
-        new_requirements: [{ requirement_id: "late-req", statement: "取消后新增" }],
+        project_id: BOARD, goal_id: goalId, ...person, idempotency_key: "agree-cancelled", ...versions(data.app, goalId),
+        outcome: "取消后改写的结果",
       }),
       refused("goals.event_closure.cancelled"),
     );
@@ -102,8 +104,8 @@ test("a cancelled goal takes notes and progress, and refuses a closure or an agr
     const resumed = data.app.goalEvents.resumeWork({ project_id: BOARD, goal_id: goalId, ...runtime, idempotency_key: "resume-1", reason: "明确继续" });
     assert.equal(resumed.work_status, "open");
     const agreed = data.app.goalEvents.setAgreement({
-      project_id: BOARD, goal_id: goalId, ...runtime, idempotency_key: "agree-open", ...versions(data.app, goalId),
-      new_requirements: [{ requirement_id: "late-req", statement: "恢复后新增" }],
+      project_id: BOARD, goal_id: goalId, ...person, idempotency_key: "agree-open", ...versions(data.app, goalId),
+      outcome: "恢复后改写的结果",
     });
     assert.equal(agreed.replayed, false);
   } finally {
@@ -175,8 +177,8 @@ test("an archived goal takes no event-state write: every kind is refused with go
     );
     assert.throws(
       () => data.app.goalEvents.setAgreement({
-        project_id: BOARD, goal_id: goalId, ...runtime, idempotency_key: "agree-archived", ...agreementVersions,
-        new_requirements: [{ requirement_id: "late-req", statement: "归档后新增" }],
+        project_id: BOARD, goal_id: goalId, ...person, idempotency_key: "agree-archived", ...agreementVersions,
+        outcome: "归档后改写的结果",
       }),
       refused("goals.goal.archived"),
     );

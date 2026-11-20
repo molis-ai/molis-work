@@ -48,6 +48,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
   /* Nothing waiting: one line with a settled mark. */
   .home-clear p { display: flex; align-items: center; gap: .45em; margin: 0; color: var(--muted); }
   .home-clear svg { flex: none; inline-size: 1.1em; block-size: 1.1em; color: var(--green); }
+  .home-start__actions { align-items: center; gap: .6rem 1rem; }
+  .home-start__hint { color: var(--muted); font-size: var(--type-note-size, 12px); line-height: var(--type-note-line-height, 1.6); }
   /* A group's rows are one list: a single edge around it and hairlines between rows, instead of a box for every row
      (and, in a plugin's card, a box inside a box). */
   .home-groups > section:is([data-home-group=attention], [data-home-group=continue]) .home-rows {

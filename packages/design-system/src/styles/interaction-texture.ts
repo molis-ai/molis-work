@@ -216,46 +216,8 @@ export const INTERACTION_TEXTURE_STYLES = `
     color: var(--status-tone, var(--ink-soft));
   }
 
-  /* An empty board column says so at a readable weight instead of a near-invisible dash. */
-  body.immersive-workbench .goal-kanban-empty {
-    border: 1px dashed var(--line-strong);
-    color: var(--ink-soft);
-    background: transparent;
-  }
-
-  /* Where status already reads as a dot plus a word, it keeps no second container. */
-  body :is(.goal-canvas-node > .goal-status, .goal-kanban-card .goal-status) {
-    background: transparent;
-    border-color: transparent;
-  }
-
-  /* Goal canvas: a quiet field, hairline nodes, and an accent halo that marks the current node. */
-  .goal-canvas-viewport, .goal-frame-canvas {
-    background-image:
-      radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--ink) 3.5%, transparent), transparent 62%),
-      radial-gradient(circle, color-mix(in srgb, var(--ink) 13%, transparent) .9px, transparent 1px);
-    background-size: 100% 100%, 22px 22px;
-  }
-  .goal-canvas-node {
-    border-color: var(--line);
-    box-shadow: inset 0 1px 0 var(--edge-highlight);
-    transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint);
-  }
-  .goal-canvas-node:hover {
-    border-color: var(--line-strong);
-    background: color-mix(in srgb, var(--ink) 1.6%, var(--paper));
-  }
-  .goal-canvas-node.is-selected {
-    border-color: var(--ink);
-    box-shadow: inset 0 1px 0 var(--edge-highlight);
-  }
-  .goal-canvas-edges g path { stroke: color-mix(in srgb, var(--ink) 24%, transparent); stroke-width: 1.4; }
-  .goal-canvas-edges marker path { fill: color-mix(in srgb, var(--ink) 32%, transparent); }
-  .goal-canvas-edges .is-selected-path path { stroke: color-mix(in srgb, var(--ink) 72%, transparent); }
-
-  /* One segmented control everywhere: a recessed track with a raised chip on the current choice.
-   * The board switch used to invert that polarity against the settings and locale switches. */
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) {
+  /* One segmented control everywhere: a recessed track with a raised chip on the current choice. */
+  body :is(.settings-segmented, .locale-switch, .mw-toggle-group) {
     display: inline-flex;
     gap: 4px;
     padding: 4px;
@@ -264,7 +226,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: var(--control-fill);
     box-shadow: none;
   }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a) {
+  body :is(.settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a) {
     min-height: 26px;
     padding: 0 12px;
     border: 0;
@@ -276,28 +238,12 @@ export const INTERACTION_TEXTURE_STYLES = `
     box-shadow: none;
     transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint);
   }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: transparent; }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
+  body :is(.settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: transparent; }
+  body :is(.settings-segmented, .locale-switch, .mw-toggle-group) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
     color: var(--ink);
     background: var(--paper);
     box-shadow: var(--shadow-soft), inset 0 1px 0 var(--edge-highlight);
   }
-  body .goal-board-switch {
-    height: var(--control-h, 28px);
-    min-height: var(--control-h, 28px);
-    padding: 4px;
-    box-sizing: border-box;
-  }
-  body .goal-board-switch > :is(button, a) {
-    width: calc(var(--control-h, 28px) - 6px);
-    min-width: calc(var(--control-h, 28px) - 6px);
-    height: calc(var(--control-h, 28px) - 6px);
-    min-height: calc(var(--control-h, 28px) - 6px);
-    padding: 0;
-    display: inline-grid;
-    place-items: center;
-  }
-  body .goal-board-switch svg { width: 14px; height: 14px; }
   /* The directory keeps its own compact metrics; only the track and chip tones are shared. */
   body.immersive-workbench .tree-pane .settings-segmented {
     border-color: var(--hairline);
@@ -341,6 +287,5 @@ export const INTERACTION_TEXTURE_STYLES = `
     :where(button, a, summary, [role="button"], .tree-entry, .tab-item, .desktop-module-item, .immersive-plugin-link) { transition: none; }
     body :is(button, [role="button"], summary):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) { filter: none; }
     body :is(input, select, textarea) { transition: none; }
-    .goal-canvas-node { transition: none; }
   }
 `;

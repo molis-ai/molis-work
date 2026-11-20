@@ -19,12 +19,7 @@ const settings = (section: string): MolisWorkSettingsView => ({ section, runtime
 });
 const project = { project_id: "project/a", display_name: "Session 路由检查" };
 const view: ReturnType<typeof buildMolisWorkWebView> = {
-  snapshot: { board: { project_id: project.project_id, active_goal_id: null, created_at: "2026-11-05T00:00:00Z", updated_at: "2026-11-05T00:00:00Z" },
-    cursor: 0, goals: [], relations: [], goal_tree_proposals: [], project_guidance: [] },
   project, projects: [project], route_prefix: "/projects/" + encodeURIComponent(project.project_id), demo: false,
-  active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
-  counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
-  input_bindings: [], policy_bindings: [], events: [],
 };
 
 // Actual public renderer, browser DOM, binder and request helper; HTTP stays pending at the first read.

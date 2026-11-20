@@ -48,7 +48,8 @@ import { AutomationRecommender } from "@molis-ai/molis-work-service-automation-r
 import { automationRecommendationProvider, type RecommendationEntry } from "./automation-recommendations.js";
 import { automationAdoptionProvider } from "./automation-adoption.js";
 import type { AutomationOfferHooks } from "./automation-proactive.js";
-import { assertAutomationProject, automationProjectSnapshot } from "./automation-project.js";
+import { assertAutomationProject, automationProjectSnapshot, projectDocumentTakers } from "./automation-project.js";
+import { projectGuidanceActionProvider } from "./project-guidance-actions.js";
 import { automationCandidates } from "./automation-candidates.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { createHostObservation, hostObservationPorts, type HostObservation } from "./observation-host.js";
@@ -80,6 +81,8 @@ import { openProjectVersionStores, type ProjectVersionStores } from "./project-v
 import { LocalProjectDatabase } from "./project-database.js";
 import { hostBlueprints } from "./blueprint-host.js";
 import { projectRuntimeSettingProvider } from "./project-runtime-setting-actions.js";
+import { workTerminalActionProvider } from "./work-terminal-service.js";
+import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
@@ -255,7 +258,7 @@ export class MolisWorkLocalHost {
               () => this.agents?.service.agentHost.descriptors() ?? [], () => this.agents?.service.ready));
             add(openProjectWorkspaceProvider(runtime, catalogOwner, this.actionClient(reference), clock, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference), options));
-            if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            add(projectGuidanceActionProvider(reference.project_id, store.db, clock)); if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
@@ -307,7 +310,7 @@ export class MolisWorkLocalHost {
       mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
-      ...(options.homeDirectory ? [acceptanceProvider(options.homeDirectory, callerClient, this, projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId)), appearanceForHome(options.homeDirectory).provider(), evaluationForHome(options.homeDirectory, callerClient).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory, options.completeText), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+      ...(options.homeDirectory ? [acceptanceProvider(callerClient, this, projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId)), workTerminalActionProvider({ homeDirectory: options.homeDirectory, clientFor: callerClient, localHost: this, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) }), pluginDataActionProvider({ homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) }), appearanceForHome(options.homeDirectory).provider(), evaluationForHome(options.homeDirectory, callerClient).provider(), skillCatalogProviderFor(options.homeDirectory, this.plugins, options.systemSkillsDirectory, options.completeText), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
@@ -455,7 +458,7 @@ export class MolisWorkLocalHost {
     };
     return { service, host: this, project: reference, incarnation: seen.incarnation, home: catalog.home, ...(assistant ? { assistant } : {}),
       source: { directories: seen.folders, assertCurrent }, files: this.projectCatalogActions.passiveClient(reference),
-      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows) };
+      candidates: caller => automationCandidates(catalog.home, this.plugins, reference, caller, allows), documentTakers: () => catalog.access.withCatalog({ homeDirectory: catalog.home }, current => projectDocumentTakers(current.projectPluginMembership(reference.project_id))) };
   }
 
   /** Keeps an original project incarnation and any current Runtime lease across a management write. */

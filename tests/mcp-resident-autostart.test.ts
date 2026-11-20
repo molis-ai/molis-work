@@ -3,6 +3,7 @@ import { readdir, readFile, stat, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { installedMcpHome, tool, waitUntil } from "./fixtures/mcp-autostart.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 
@@ -33,6 +34,9 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
   t.signal.throwIfAborted();
   await t.test("trusted management uses the same resident after preflight and never adopts a local writable fallback", async st => {
     st.after(f.cleanupCase); assert.ok(managed); assert.equal(typeof managed.database_path, "string");
+    await withMolisWorkProjectCatalog({ homeDirectory: f.accountHome }, catalog => {
+      catalog.addProjectPlugin({ project_id: managed!.project_id, plugin_id: "goals", actor_id: "test-user" });
+    });
     const preload = fileURLToPath(new URL("./fixtures/mcp-autostart-no-local-sql.mjs", import.meta.url));
     const peer = await f.connect("management-session", { MOLIS_WORK_RUNTIME_ID: "", MOLIS_WORK_MCP_AUDIENCE: "management",
       NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${JSON.stringify(preload)}` });
@@ -40,6 +44,10 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     const forged = await peer.request("tools/call", { name: "molis_work_v1_review_decide", arguments: { database_path: managed.database_path,
       project_id: managed.project_id, choice_id: "approve", request_key: "forged-decision", actor_id: "forged" } }).promise;
     assert.equal((forged.result as { isError: boolean }).isError, true); assert.equal((await readdir(f.attempts)).length, count);
+    // PEQ-02: Goals was enabled explicitly above; the first init adopts its board on the cold-started resident, and the second hits goals.board.exists.
+    const setup = await peer.request("tools/call", { name: "molis_work_v1_initialize", arguments: {
+      database_path: managed.database_path, project_id: managed.project_id, idempotency_key: "management-setup" } }).promise;
+    assert.equal((setup.result as { isError: boolean }).isError, false, JSON.stringify(setup.result));
     const initialized = await peer.request("tools/call", { name: "molis_work_v1_initialize", arguments: {
       database_path: managed.database_path, project_id: managed.project_id, idempotency_key: "management-cold" } }).promise;
     const result = initialized.result as { isError: boolean; content: Array<{ text: string }> };

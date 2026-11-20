@@ -19,16 +19,23 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (!item) return false;
       selected = goalId;
       rememberMomentumGoal(goalId);
-      document.querySelector("[data-tui-pane]")?.setAttribute("data-goal-id", goalId);
-      document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
-        goalId,
-        goalTitle: item.goal.title,
+      const tui = document.querySelector("[data-tui-pane]");
+      if (tui) { tui.setAttribute("data-tui-plugin-id", "io.molis.work.goals"); tui.setAttribute("data-tui-subject-kind", "goal"); tui.setAttribute("data-tui-subject-id", goalId); }
+      document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
+        pluginId: "io.molis.work.goals",
+        subjectKind: "goal",
+        subjectId: goalId,
+        title: item.goal.title,
         status: item.status,
         statusLabel: item.status_label,
         statusMeaning: item.status_meaning,
         statusIconMarkup: item.status_icon,
-        parentReadOnly: Boolean(item.is_compound_parent),
-        children: item.children || [],
+        readOnly: item.terminal_read_only || null,
+      } }));
+      document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
+        plugin: "goals",
+        itemId: goalId,
+        title: item.goal.title,
       } }));
       selectTreeGoal(goalId);
       if (navigatorView === "graph") updateGraphVisibility();

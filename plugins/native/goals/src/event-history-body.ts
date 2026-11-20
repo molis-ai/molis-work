@@ -48,13 +48,7 @@ export function renderWorkEventBody(
       const text = value == null || String(value).trim() === "" ? uiText.text("goals.event-history-body.not-filled") : String(value);
       return `<p><strong>${escapeHtml(field.name)}</strong><br>${escapeHtml(text)}</p>`;
     }).join("");
-    const judgments = event.judgments.length
-      ? `<div class="proof">${event.judgments.map((item) => {
-        const name = requirementNames[item.requirement_id] || item.requirement_id;
-        return `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(event.event_id)}">${escapeHtml(name)}</button>${uiText.text("common.punctuation.label-separator")}${escapeHtml(verdictLabel(item.verdict, readText))}</p>`;
-      }).join("")}</div>`
-      : "";
-    return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>${fields}${judgments}</article>`;
+    return `<article class="event"><h2>${escapeHtml(event.title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>${fields}</article>`;
   }
   if (event.kind === "configuration") {
     const types = event.payload.types.map((type) => `<li>${escapeHtml(type.name)} v${type.version}<small> · ${escapeHtml(type.type_id)}</small></li>`).join("");
@@ -66,12 +60,6 @@ export function renderWorkEventBody(
     </article>`;
   }
   return renderSystemPayload(event.title, meta, event.payload, readText, escapeHtml, requirementNames, { actorId: event.actor_id, acknowledgedActorKind });
-}
-
-function verdictLabel(verdict: string, _L: GoalsDocumentUiPrimitives["translate"]): string {
-  if (verdict === "supports") return uiText.text("goals.event-history-body.report-supports-not-independently-checked");
-  if (verdict === "contradicts") return uiText.text("goals.event-history-body.not-yet-met");
-  return uiText.text("goals.event-history-body.still-cannot-decide");
 }
 
 function renderSystemPayload(

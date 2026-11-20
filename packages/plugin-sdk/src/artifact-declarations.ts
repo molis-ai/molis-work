@@ -1,5 +1,5 @@
 import { isRecord } from "./json-value.js";
-import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { intakeMaterial, isArtifactCompareAction, isArtifactPinAction, isArtifactPreviewAction, type ActionIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 // 「成果库只收人要留存、引用的固定版本」(AGENTS.md; specs/artifact-positioning A1, A4b, A7): a type a plugin pins is named, can be
@@ -8,27 +8,43 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 // author-time check, the CLI, Runtime install and the development loader all apply the same one.
 
 type Part = Record<string, unknown>;
-type Role = "preview" | "pin" | "compare" | "continue";
+type Role = "preview" | "pin" | "compare";
 
 /** What each action a type names must be: the plugin's own, of the contract's shape, with the operation that kind of action has. */
 const ROLES: Readonly<Record<Role, { label: string; operation: "query" | "command"; matches(action: object): boolean }>> = {
   preview: { label: "预览", operation: "query", matches: isArtifactPreviewAction },
   pin: { label: "固定", operation: "command", matches: isArtifactPinAction },
   compare: { label: "比较", operation: "query", matches: isArtifactCompareAction },
-  continue: { label: "继续", operation: "command", matches: isArtifactContinueAction },
 };
 
 /**
  * What stops the 成果 types of a Manifest from being kept in the 成果库, in the order a reader goes through them: each produced
- * type (name, preview, pin, compare, continue), then each type only read (continue). `manifest` has passed the shape rules; what it does not
- * promise (a title that is not text, a reference that is not a pair, actions that are not a list) is answered, not thrown.
+ * type (name, preview, pin, compare), the fields a type no longer carries, then each 「从这一版继续」 intake's types. `manifest` has passed
+ * the shape rules; what it does not promise (a title that is not text, a reference that is not a pair, actions that are not a list) is
+ * answered, not thrown.
  */
 export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "artifacts" | "actions">): string[] {
   const produced = records(manifest.artifacts?.produces), consumed = records(manifest.artifacts?.consumes);
   const actions = declaredActions(manifest.actions);
-  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => [...roleProblems(type, "continue", actions), ...fileProblems(type)]),
-    ...linkProblems(manifest.artifacts?.links),
-    ...produced.filter(type => type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 是产出的类型，file 只能写在读取的类型（artifacts.consumes）上`)];
+  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...linkProblems(manifest.artifacts?.links),
+    ...[...produced, ...consumed].flatMap(type => (["continue", "file"] as const).filter(field => type[field] !== undefined)
+      .map(field => `成果类型 ${keyOf(type)} 不再声明 ${field}：「从这一版继续」写在继续动作的 intake 上（accepts: [{ kind: "artifact", artifact_types, file? }]，contract-design §2.3）`)),
+    ...continueIntakeProblems([...produced, ...consumed], actions)];
+}
+
+/** A continue intake names only types this Manifest produces or reads, each once, and the files it reads are a list without repeats. */
+function continueIntakeProblems(types: readonly Part[], actions: ReadonlyMap<string, Part>): string[] {
+  const declared = new Set(types.map(keyOf)), problems: string[] = [];
+  for (const [reference, definition] of actions) {
+    const material = intakeMaterial((definition.action as { intake?: ActionIntake }).intake, "artifact");
+    if (!material || !Array.isArray(material.artifact_types)) continue;
+    const keys = material.artifact_types.map(type => keyOf({ ...type }));
+    for (const key of keys) if (!declared.has(key)) problems.push(`能力 ${reference} 从成果 ${key} 继续，但本 Manifest 没有在 artifacts.produces 或 consumes 里声明这个类型`);
+    if (new Set(keys).size !== keys.length) problems.push(`能力 ${reference} 的继续入口把同一个成果类型列了不止一次`);
+    const extensions = material.file?.extensions;
+    if (Array.isArray(extensions) && (extensions.length === 0 || new Set(extensions).size !== extensions.length)) problems.push(`能力 ${reference} 的继续入口 file.extensions 必须是不重复的非空数组`);
+  }
+  return problems;
 }
 
 /** `links` names the kinds of ledger edge a plugin writes to a 成果 version: each kind once, with a role. */
@@ -50,22 +66,6 @@ function linkProblems(links: unknown): string[] {
   return problems;
 }
 
-/** `file` names the extensions a plugin reads from an imported file; a type that is not continued from has nothing to filter. */
-function fileProblems(type: Part): string[] {
-  if (type.file === undefined) return [];
-  const key = keyOf(type), file = type.file as Part | null;
-  if (typeof file !== "object" || file === null || Array.isArray(file)) return [`成果类型 ${key} 的 file 必须是对象`];
-  const problems: string[] = [];
-  const extensions = file.extensions;
-  if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every(item => typeof item === "string" && /^\.[a-z0-9]+$/u.test(item))) {
-    problems.push(`成果类型 ${key} 的 file.extensions 必须是非空数组，每项为带点的小写扩展名（如 ".md"）`);
-  } else if (new Set(extensions).size !== extensions.length) problems.push(`成果类型 ${key} 的 file.extensions 有重复`);
-  if (file.stored_text !== undefined && typeof file.stored_text !== "boolean") problems.push(`成果类型 ${key} 的 file.stored_text 必须是布尔值`);
-  for (const name of Object.keys(file)) if (name !== "extensions" && name !== "stored_text") problems.push(`成果类型 ${key} 的 file 没有 ${name} 这一项`);
-  if (type.continue === undefined) problems.push(`成果类型 ${key} 声明了 file，必须同时声明继续动作（continue）`);
-  return problems;
-}
-
 function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): string[] {
   const key = keyOf(type), problems: string[] = [];
   if (typeof type.title !== "string" || !type.title.trim()) problems.push(`成果类型 ${key} 缺少显示名（title）`);
@@ -75,7 +75,6 @@ function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): s
   // A version that can be pinned on the spot says whether it still matches its object (A4b), so the 成果库 can tell 「原文已改」.
   if (type.pin !== undefined && type.compare === undefined) problems.push(`成果类型 ${key} 可以当场固定，必须声明比较动作（compare）`);
   else problems.push(...roleProblems(type, "compare", actions));
-  problems.push(...roleProblems(type, "continue", actions));
   return problems;
 }
 

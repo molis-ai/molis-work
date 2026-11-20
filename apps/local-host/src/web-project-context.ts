@@ -3,9 +3,8 @@ import { requireSynchronous, type ActionCallContext, type ActionReference, type 
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workbench";
-import type { GoalsWebView } from "./web-view.js";
-import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
+import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { builtinPluginByManifestId, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
@@ -57,7 +56,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly goalActions: ReturnType<typeof bindGoalsWebActions>;
   readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: ProjectPluginSurfacePorts;
-  readonly readWebView: () => Promise<GoalsWebView>;
+  readonly readWebView: () => Promise<MolisWorkWebView>;
   readonly readArtifactDisplay: ReadArtifactDisplay;
 }
 
@@ -78,8 +77,8 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
         && !hidden.includes(entry.key)).map(entry => entry.key);
       return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
     };
-    // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
-    if (!options.project) return { shown: withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []) };
+    // An explicitly served single-database fixture has no Catalog record; expose all registered project-scoped plugins.
+    if (!options.project) return { shown: withExternal(PROJECT_SCOPED_PLUGIN_IDS, []) };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
     if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
       const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);

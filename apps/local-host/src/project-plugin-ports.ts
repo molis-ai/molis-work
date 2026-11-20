@@ -215,6 +215,12 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
       const owned = installed.records().find(row => row.install_id === installId);
       if (owned && installed.releaseFor(owned.plugin_id)) {
         assertPermissionSwitchTarget(owned, expected);
+        // A signed dual-instance package's project half cannot exceed its Home half's optional permission upper bound (PEQ-06, S-48).
+        if (granted && installed.platform.dualInstance(owned.plugin_id)) {
+          const home = source.homePlugins();
+          if (!home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+          home.capturePermission(owned, permission);
+        }
         await installed.platform.runtime.regrant(installId, permission, granted);
         return;
       }

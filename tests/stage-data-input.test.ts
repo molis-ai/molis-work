@@ -71,10 +71,10 @@ const url = (path: string) => new URL(path, "http://fixture.test");
 const match = (path: string) => { const { pathname, searchParams } = url(path); return matchPageRoute(ROUTES, pathname, searchParams); };
 
 test("RAC-2681 the matcher gives the route's declared parameters, decoded once, and nothing else of the request", () => {
-  assert.deepEqual(match("/"), { route_id: "home", params: {} });
-  assert.deepEqual(match("/notes/a%252Fb?tab=files&q="), { route_id: "note", params: { note_id: "a%2Fb", tab: "files", q: "" } });
-  assert.deepEqual(match("/notes/one/edit"), { route_id: "note-edit", params: { note_id: "one" } });
-  assert.deepEqual(match("/notes/one"), { route_id: "note", params: { note_id: "one" } }, "a query parameter the request does not carry is not in params");
+  assert.deepEqual(match("/"), { route_id: "home", kind: "page", params: {} });
+  assert.deepEqual(match("/notes/a%252Fb?tab=files&q="), { route_id: "note", kind: "page", params: { note_id: "a%2Fb", tab: "files", q: "" } });
+  assert.deepEqual(match("/notes/one/edit"), { route_id: "note-edit", kind: "page", params: { note_id: "one" } });
+  assert.deepEqual(match("/notes/one"), { route_id: "note", kind: "page", params: { note_id: "one" } }, "a query parameter the request does not carry is not in params");
   // The shape decides the route, the first declared one winning when two shapes fit (a parameter segment is one non-empty segment).
   assert.equal(match("/notes/new")?.route_id, "note", "the first declared route that fits is the one");
   for (const path of ["/notes", "/notes/", "/notes/a/b", "/notes/a/edit/more", "/other", "/api/notes/a", "/notes//edit"]) assert.equal(match(path), null, path);
@@ -83,22 +83,22 @@ test("RAC-2681 the matcher gives the route's declared parameters, decoded once, 
 
 test("RAC-2681 an undeclared query or path parameter, a one-time key and the raw request never reach the match", () => {
   const found = match("/notes/one?tab=files&secret=x&control_token=t&idempotency_key=k&project=p&__proto__=z&note_id=other");
-  assert.deepEqual(found, { route_id: "note", params: { note_id: "one", tab: "files" } });
+  assert.deepEqual(found, { route_id: "note", kind: "page", params: { note_id: "one", tab: "files" } });
   assert.deepEqual(Object.keys(found!.params).sort(), ["note_id", "tab"]);
-  assert.deepEqual(Object.keys(found!).sort(), ["params", "route_id"], "no path, query or search of the request is carried along");
+  assert.deepEqual(Object.keys(found!).sort(), ["kind", "params", "route_id"], "no path, query or search of the request is carried along");
 });
 
 test("RAC-2681 a declared parameter over the limit is refused with the route's rejection, never cut", () => {
   const atLimit = "n".repeat(UI_PAGE_ROUTE_PARAM_LIMIT), over = "n".repeat(UI_PAGE_ROUTE_PARAM_LIMIT + 1);
-  assert.deepEqual(match("/notes/" + atLimit), { route_id: "note", params: { note_id: atLimit } });
-  assert.deepEqual(match("/notes/" + over), { route_id: "note", params: {}, rejected: { param: "note_id", reason: "too_long" } });
-  assert.deepEqual(match("/notes/one?tab=" + over), { route_id: "note", params: { note_id: "one" }, rejected: { param: "tab", reason: "too_long" } });
+  assert.deepEqual(match("/notes/" + atLimit), { route_id: "note", kind: "page", params: { note_id: atLimit } });
+  assert.deepEqual(match("/notes/" + over), { route_id: "note", kind: "page", params: {}, rejected: { param: "note_id", reason: "too_long" } });
+  assert.deepEqual(match("/notes/one?tab=" + over), { route_id: "note", kind: "page", params: { note_id: "one" }, rejected: { param: "tab", reason: "too_long" } });
   // The limit counts characters, not UTF-16 units: a limit's worth of astral characters is accepted, one more is refused whole.
   const emoji = "😀".repeat(UI_PAGE_ROUTE_PARAM_LIMIT);
   assert.equal(match("/notes/" + encodeURIComponent(emoji))?.rejected, undefined);
   assert.equal(match("/notes/" + encodeURIComponent(emoji + "😀"))?.rejected?.reason, "too_long");
   // Not valid percent-encoding is a refusal too, not an exception.
-  assert.deepEqual(match("/notes/%zz"), { route_id: "note", params: {}, rejected: { param: "note_id", reason: "encoding" } });
+  assert.deepEqual(match("/notes/%zz"), { route_id: "note", kind: "page", params: {}, rejected: { param: "note_id", reason: "encoding" } });
 });
 
 test("RAC-2681 each plugin's declarations are matched by one matcher; the first plugin whose route fits answers", () => {
@@ -106,8 +106,8 @@ test("RAC-2681 each plugin's declarations are matched by one matcher; the first 
     { plugin_id: "io.example.two", ui: { contributions: [], page_routes: [{ route_id: "b", path: "/b/:id" }] } },
     { plugin_id: "io.example.none", ui: { contributions: [] } }];
   const ask = (path: string) => matchDeclaredPageRoute(manifests, path, new URLSearchParams());
-  assert.deepEqual(ask("/b/7"), { plugin_id: "io.example.two", route_id: "b", params: { id: "7" } });
-  assert.deepEqual(ask("/a/1"), { plugin_id: "io.example.one", route_id: "a", params: { id: "1" } });
+  assert.deepEqual(ask("/b/7"), { plugin_id: "io.example.two", route_id: "b", kind: "page", params: { id: "7" } });
+  assert.deepEqual(ask("/a/1"), { plugin_id: "io.example.one", route_id: "a", kind: "page", params: { id: "1" } });
   assert.equal(ask("/c/1"), null);
 });
 

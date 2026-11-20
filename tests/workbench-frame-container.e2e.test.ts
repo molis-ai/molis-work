@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -543,6 +543,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
   await waitFor("document.querySelector('[data-frame-block]')");
   const otherId = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Frame 隔离',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
+  await addProjectPlugin(browser.web, otherId, "goals");
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + otherId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');

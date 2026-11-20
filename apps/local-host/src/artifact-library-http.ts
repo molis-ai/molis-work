@@ -23,6 +23,8 @@ import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
+import { executorProviders, unavailableReason } from "./assistant/assistant-executor.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 
 export interface ArtifactHttpContext {
   readonly projectId: string;
@@ -263,10 +265,15 @@ export function createLocalArtifactHttp() {
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];
+      const handoffExecutors = route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
+        ? executorProviders(await context.actions.discover().catch(() => []))
+          .filter(provider => unavailableReason(provider) === null)
+          .map(provider => ({ id: builtinPluginByManifestId(provider.plugin_id)?.project_plugin_id ?? provider.plugin_id, plugin_id: provider.plugin_id, title: provider.title }))
+        : [];
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, pluginInputs,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, handoffExecutors, pluginInputs,
         languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));
       return true;
     } catch (error) {

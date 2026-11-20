@@ -1,5 +1,5 @@
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import { FRAGMENT_OFFERS_INPUT_TYPE, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_OFFERS_INPUT_TYPE, takesSelectedText, type ActionView, type FragmentActionOffer, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXTUAL_DRAFT_LIMITS, type ContextualCandidate, type ContextualDraft, type SurfaceFocus, type SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import type { DraftMaterial, DraftTarget } from "../drafting/draft-data.js";
 import { draftIntake, type DraftInput, type DraftPorts } from "../drafting/draft-service.js";
@@ -14,12 +14,18 @@ import { fragmentOffersInput, type ContextualDirectory } from "./contextual-serv
  * here, and nothing is written: the page shows the draft, and the person's confirmation runs the entry's own action.
  */
 
-type Intake = NonNullable<ActionView["action"]["intake"]>;
+type Intake = PersonIntake;
 
-/** The view that declares this entry, still in the caller's directory under the identity the candidate or page named. */
+/**
+ * The view that declares this entry, still in the caller's directory under the identity the candidate or page named. Only an entry that
+ * takes the selected text is drafted (contract-design §2.1): one the platform delivers to, or a blank one, has no words to draft from, and a
+ * page that names one by its id is refused (`actions.input_invalid`), not answered as if it were gone.
+ */
 function entryView(views: readonly ActionView[], reference: { capability_id: string; version: number; provider_id?: string }, intakeId: string): (ActionView & { action: { intake: Intake } }) | undefined {
-  return views.find((view): view is ActionView & { action: { intake: Intake } } => view.capability_id === reference.capability_id && view.version === reference.version
-    && (!reference.provider_id || view.provider.provider_id === reference.provider_id) && view.action.intake?.intake_id === intakeId);
+  const view = views.find(item => item.capability_id === reference.capability_id && item.version === reference.version
+    && (!reference.provider_id || item.provider.provider_id === reference.provider_id) && item.action.intake?.intake_id === intakeId);
+  if (view && !takesSelectedText(view.action.intake!)) throw new ActionError("actions.input_invalid", "这个创建入口不收文字，不能按它起草");
+  return view as (ActionView & { action: { intake: Intake } }) | undefined;
 }
 
 function targetOf(view: ActionView & { action: { intake: Intake } }): DraftTarget {
@@ -35,7 +41,7 @@ function sourceOf(focus: SurfaceFocus): NonNullable<DraftMaterial["source"]> {
   const around = focus.surroundings;
   return { kind: focus.object.kind, ...(focus.object.title ? { title: focus.object.title } : {}),
     ...(around?.heading_path.length ? { heading_path: around.heading_path } : {}), ...(around?.before ? { before: around.before } : {}),
-    ...(around?.after ? { after: around.after } : {}), ...(focus.goal ? { goal: focus.goal.title } : {}) };
+    ...(around?.after ? { after: around.after } : {}), ...(focus.belongs_to ? { belongs_to: focus.belongs_to.title } : {}) };
 }
 
 /** What the entry's provider computes from the passage without a model: the offer of its own `prepare` query that is named like the entry. */
@@ -84,14 +90,15 @@ async function draftForSentence(entry: ReturnType<typeof readEntry>, said: strin
  * `POST /api/contextual/draft`. With a `key`: the creation entry the person chose for what they have in hand, optionally with a sentence
  * of their own added (`said`). Without one: the entry a plugin's page names (`action`, `intake_id`) and the sentence written there.
  */
-export async function draftRequest(body: Record<string, unknown>, views: readonly ActionView[], context: DraftRequestContext): Promise<ContextualDraft> {
+export async function draftRequest(body: Record<string, unknown>, views: readonly ActionView[], context: DraftRequestContext,
+  ownerOf?: (kind: string) => string | undefined): Promise<ContextualDraft> {
   const requestId = readString(body.request_id, "request_id", 120);
   const said = body.said === undefined ? undefined : readString(body.said, "said", CONTEXTUAL_DRAFT_LIMITS.said);
   if (body.key === undefined) {
     if (said === undefined) throw invalid("said");
     return draftForSentence(readEntry(body), said, requestId, views, context);
   }
-  const { focus, landing } = readJudgeRequest(body);
+  const { focus, landing } = readJudgeRequest(body, ownerOf);
   return draftChosen(views, focus, landing, readString(body.key, "key", 80), said, requestId, context);
 }
 

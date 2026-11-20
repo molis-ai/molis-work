@@ -180,7 +180,7 @@ test("async home scopes and retained stores keep secrets and body keys in their 
  */
 const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const withRequestFixture = async (run: (fixture: { base: string; host: MolisWorkLocalHost; projectId: string; goals: BoundActionClient;
-  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>, plugins: readonly string[] = []) => {
+  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>, plugins: readonly string[] = ["goals"]) => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-call-id-web-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "编号", actor_id: "test" });

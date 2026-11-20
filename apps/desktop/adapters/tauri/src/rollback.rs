@@ -9,8 +9,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
 /// S-desktop-rollback-main-only: going back a version replaces the program and puts stores back, so only
-/// the main window's document on the exact local origin may ask for it (the S-14 rule); the capsule and
-/// any other page are refused before anything stops.
+/// the main window's document on the exact local origin may ask for it (the S-14 rule); any other
+/// window or page is refused before anything stops.
 pub(crate) fn rollback_source(label: &str, url: Option<&tauri::Url>) -> bool {
     crate::native_language_source(label, url)
 }

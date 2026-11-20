@@ -1,7 +1,8 @@
 import { syncBindings } from "./sync.js";
 import { randomUUID } from "node:crypto";
-import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { ActionError, DOCUMENT_GENERATION_ROLES, WORKFLOW_CONTENT_VERSIONS, documentGenerationRoleOf, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type DocumentGenerationRole, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors } from "./errors.js";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -26,10 +27,47 @@ const FEED = {
   admit: { capability_id: "feed.items.admit", version: /* @version action.feed.items.admit */ 1 },
   read: { capability_id: "feed.content.read", version: WORKFLOW_CONTENT_VERSIONS.read }, receive: { capability_id: "feed.content.receive", version: WORKFLOW_CONTENT_VERSIONS.receive },
 } as const satisfies Record<string, ActionReference>;
-const PAGES = {
-  generation: { capability_id: "pages.generations.get", version: /* @version action.pages.generations.get */ 1 }, generations: { capability_id: "pages.generations.list", version: /* @version action.pages.generations.list */ 1 },
-  get: { capability_id: "pages.get", version: /* @version action.pages.get */ 1 }, generate: { capability_id: "pages.generate", version: /* @version action.pages.generate */ 1 },
-} as const satisfies Record<string, ActionReference>;
+
+type DocumentGeneratorRefs = Record<DocumentGenerationRole, ActionReference>;
+
+/** Discover a single document-generation role (e.g. `generations.list`, which does not require write/model permissions). */
+async function discoverDocumentGeneratorRole(discover: () => Promise<readonly ActionView[]>, wanted: DocumentGenerationRole): Promise<ActionReference> {
+  let unavailable: ActionView | undefined;
+  for (const view of await discover()) {
+    if (documentGenerationRoleOf(view.action) !== wanted) continue;
+    if (view.availability.available) return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    unavailable ??= view;
+  }
+  if (unavailable && !unavailable.availability.available) throw new ActionError(unavailable.availability.code, unavailable.availability.reason);
+  throw new ActionError("actions.connection_required", "当前项目没有可用的文稿生成插件");
+}
+
+/** Discover the project's full document-generation provider by typed role protocol (Audit #10). */
+async function discoverDocumentGenerator(discover: () => Promise<readonly ActionView[]>, activeRole: DocumentGenerationRole): Promise<DocumentGeneratorRefs> {
+  const byProvider = new Map<string, Partial<Record<DocumentGenerationRole, ActionView>>>();
+  for (const view of await discover()) {
+    const role = documentGenerationRoleOf(view.action);
+    if (!role) continue;
+    const group = byProvider.get(view.provider.provider_id) ?? {};
+    group[role] = view;
+    byProvider.set(view.provider.provider_id, group);
+  }
+  let unavailable: ActionView | undefined;
+  for (const group of byProvider.values()) {
+    if (!DOCUMENT_GENERATION_ROLES.every(role => group[role])) continue;
+    const active = group[activeRole]!;
+    if (active.availability.available) {
+      return Object.fromEntries(DOCUMENT_GENERATION_ROLES.map(role => [role, {
+        capability_id: group[role]!.capability_id,
+        version: group[role]!.version,
+        provider_id: group[role]!.provider.provider_id,
+      }])) as DocumentGeneratorRefs;
+    }
+    unavailable ??= active;
+  }
+  if (unavailable && !unavailable.availability.available) throw new ActionError(unavailable.availability.code, unavailable.availability.reason);
+  throw new ActionError("actions.connection_required", "当前项目没有可用的文稿生成插件");
+}
 
 /** Feed answers at most this many ids at once. */
 const BRIEF_BATCH = 200;
@@ -91,11 +129,13 @@ export function createInboxPlugin(): PluginDefinition {
       }
       return { items, sources };
     };
+    const docGen = (role: DocumentGenerationRole) => discoverDocumentGenerator(() => directory.discover(), role);
     const pages = createInboxPagesHandlers({
-      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>(PAGES.generation, { request_id: requestId })).record,
-      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>(PAGES.generations, {})).records,
-      readDocument: async id => (await ask<{ document: InboxPagesDocument }>(PAGES.get, { id })).document,
-      generate: (input) => ask(PAGES.generate, { ...input, inputs: [...input.inputs] }),
+      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>((await docGen("generations.get"))["generations.get"], { request_id: requestId })).record,
+      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>(await discoverDocumentGeneratorRole(() => directory.discover(), "generations.list"), {})).records,
+      readDocument: async id => (await ask<{ document: InboxPagesDocument }>((await docGen("document.get"))["document.get"], { id })).document,
+      generate: async input => ask((await docGen("generate")).generate, { ...input, inputs: [...input.inputs] }),
+      generateReference: async () => (await docGen("generate")).generate,
       readMaterial: async (entryId, caller): Promise<InboxPagesInputSnapshot> => {
         await caller.validate_permissions?.(["inbox:read"]);
         caller.signal?.throwIfAborted();

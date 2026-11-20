@@ -15,6 +15,7 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     t.after(async () => { catalog.close(); await rm(home, { recursive: true, force: true }); });
     const project = await catalog.createProject({ display_name: "read cost", actor_id: "test" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test" });
     mkdirSync(join(home, "plugin-runtime"));
     const file = join(home, "plugin-runtime", "plugin-runtime.db");
     const db = new DatabaseSync(file);

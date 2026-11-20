@@ -26,6 +26,7 @@ export { convertedBlocks, convertedNodes } from "./convert.js";
 export { scrollChildIntoView } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
 export { blocksFromMarkdown, markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
+export { importOnboardingDocuments } from "./onboarding-documents.js";
 export { nodesToMarkdown } from "./to-markdown.js";
 export { blocksFromPaste, pasteHtml } from "./paste-html.js";
 export { acceptedImageFile, bookmarkLabel, imageAlt, safePagesBookmarkTitle, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";

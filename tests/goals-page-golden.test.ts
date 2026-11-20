@@ -263,6 +263,12 @@ const pages: Record<string, Draw> = {
 // Sixteen whole pages change by 19 characters each. The other 36 records are unchanged.
 // QEA-204 applies those four independently checked audit edits to the accepted P5 main drawings.
 // The settings appearance and project maintenance changes follow main, and the comparison covers every original record.
+// Batch 44 (PEQ-03/08/17, items 3–6, on main 9d25c9d1cd): 30 of the 52 records changed from four reviewed Batch 44 changes, while all
+// 22 momentum-*, document-trash/missing and settings-* records stayed byte-identical:
+// (1) Item 3 (event-document-ui.ts): Goals' private requirement/acceptance buttons moved to the platform acceptance review trigger (−129 en / −109 zh on document-current/decision/archive);
+// (2) Item 5 (tree-ui.ts): treeColumns() uses @molis-ai/molis-work-plugin-sdk/ui renderListColumns (−2 on refresh-trash; −131 en / −111 zh = −129/−109 − 2 on refresh-current/none/archive);
+// (3) Item 4 (terminal/pane.ts, documents.ts) & Item 6 (shell-page-renderer.ts, immersive-shell.ts): platform work-terminal attributes and clientData terminal_read_only, pluginShellStyleLinks goals.css, removal of data-feed-preset="feed", and platform-owned project settings (+792 en / +748 zh on page-archive-none/trash-none/trash; +663 en / +639 zh = +792/+748 − 129/−109 on page-archive; −340 en / −188 zh on page-current/none; −370 en / −218 zh on page-current-desktop; +424 en / +522 zh on page-current-decision).
+// The underlying frozen view.json and view-words-en.json stayed untouched.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
@@ -323,7 +329,7 @@ test("RAC-2680: recording writes the hashes", { skip: !record }, () => {
 
 // Root's 2026-11-01 RAC-2680/2686 ruling: fixed words/consumption come from independent B, never a candidate RECORD.
 const moved = JSON.parse(readFileSync(new URL("moved-words.json", GOLDEN), "utf8")) as {
-  owner: string; words: Record<string, string>; capsule_words: Record<string, string>;
+  owner: string; words: Record<string, string>;
   interpolation: Array<{ key: string; vars: Record<string, string | number>; en: string; zh: string }>;
 };
 
@@ -367,9 +373,9 @@ test("RAC-2680 exact dictionary comparison checks assignment boundaries and reta
   assert.throws(() => assertGoalsDictionaryMove(fragment, fragment.replace('"x":1', '"x":2'), moved.words, "en"));
 });
 
-// Pair the independently recorded B expectations with the exact new owners. Only typographic apostrophes and the two
-// Capsule labels in their present context change; the Chinese copy, argument values and complete sentences still come from B.
-const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "capsule_words" | "interpolation", string[]>;
+// Pair the independently recorded B expectations with the exact new owners. Only typographic apostrophes change; the Chinese
+// copy, argument values and complete sentences still come from B. (The capsule's words went with the capsule, batch 44.)
+const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "interpolation", string[]>;
 
 const reviewedChinese: Readonly<Record<string, string>> = {
   "goals.chrome.goal-view": "目标视图",
@@ -384,8 +390,6 @@ const reviewedChinese: Readonly<Record<string, string>> = {
 };
 
 const reviewedEnglish: Readonly<Record<string, string>> = {
-  "goals.capsule-items.current-project": "current project",
-  "goals.capsule-items.running": "Running",
   "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
   "goals.guidance-document.long-term-guidance-shared-all-work-project-assistant": "Long-term instructions shared across all work in this project — used by the assistant, plugin AI features and connected external AI tools. Edit anytime and view full revision history.",
   "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing",
@@ -397,24 +401,29 @@ const reviewedEnglish: Readonly<Record<string, string>> = {
   "goals.inputs.follow-original-goal-sees-now-fix-version-goal": "“Follow the original”: the goal sees it as it is now. “Fix this version”: the goal uses the version saved when it was added; later edits don’t change it.",
 };
 
+// Batch 44 (contract-design §9) gave the project guidance to the platform: its words keep their text under the workbench's own keys,
+// `workbench.project-guidance.*` with the same endings, and are read here from that owner.
+const GUIDANCE_WORDS = "goals.guidance-document.";
+const ownedKey = (key: string) => key.startsWith(GUIDANCE_WORDS) ? "workbench.project-guidance." + key.slice(GUIDANCE_WORDS.length) : key;
+
 function examples(locale: "zh" | "en") {
   const text = (key: string, zh: string, en: string) => {
     const expected = locale === "zh" ? (reviewedChinese[key] ?? zh) : (reviewedEnglish[key] ?? en);
-    return { key, expected, args: undefined };
+    return { key: ownedKey(key), expected, args: undefined };
   };
-  const result = (["words", "capsule_words"] as const).flatMap(section => {
+  const result = (["words"] as const).flatMap(section => {
     assert.equal(keys[section].length, Object.keys(moved[section]).length);
     return Object.entries(moved[section]).flatMap(([zh, en], index) =>
       zh.includes("{") ? [] : [text(keys[section][index]!, zh, en)]);
   });
   assert.equal(keys.interpolation.length, moved.interpolation.length);
-  return [...result, ...moved.interpolation.map((sample, index) => ({ key: keys.interpolation[index]!, expected: sample[locale], args: sample.vars })),
-    { key: "goals.guidance-document.count-count", expected: locale === "en" ? "1 change" : "共 1 次变更", args: { count: 1 } },
-    { key: "goals.guidance-document.count-count-2", expected: locale === "en" ? "1 item" : "共 1 条", args: { count: 1 } },
+  return [...result, ...moved.interpolation.map((sample, index) => ({ key: ownedKey(keys.interpolation[index]!), expected: sample[locale], args: sample.vars })),
+    { key: "workbench.project-guidance.count-count", expected: locale === "en" ? "1 change" : "共 1 次变更", args: { count: 1 } },
+    { key: "workbench.project-guidance.count-count-2", expected: locale === "en" ? "1 item" : "共 1 条", args: { count: 1 } },
     { key: "goals.inputs.fixed-version-version", expected: locale === "en" ? "Fixed version North's 原文" : "固定的第 North's 原文 版", args: { version: "North's 原文" } }];
 }
 
-test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and in Chrome, including Capsule and complete plurals", { timeout: 60_000 }, async t => {
+test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and in Chrome, including complete plurals", { timeout: 60_000 }, async t => {
   const executable = process.env.MOLIS_WORK_TEST_CHROME;
   assert.ok(executable, "an explicit dedicated test browser executable is required; no default browser fallback");
   const directory = await mkdtemp(join(tmpdir(), "goals-word-browser-"));
@@ -425,7 +434,8 @@ test("FSS-36 RAC-2686 moved words retain the actual Goals reader on the Host and
   assert.ok(owner);
   for (const locale of ["zh", "en"] as const) {
     const cases = examples(locale), expected = cases.map(sample => sample.expected);
-    const server = runWithLocale(locale, () => runWithRegisteredText(owner, () => cases.map(({ key, args }) => uiText.text(key, args))));
+    const server = runWithLocale(locale, () => cases.map(({ key, args }) => key.startsWith("workbench.") ? uiText.text(key, args)
+      : runWithRegisteredText(owner, () => uiText.text(key, args))));
     assert.deepEqual(server, expected, locale + " exact Host owners");
     const script = pageTextScript(locale, "goals");
     const actual = await page.evaluate<{ words: string[]; wrong: string }>(`(() => {

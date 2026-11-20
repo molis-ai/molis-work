@@ -3,7 +3,7 @@ import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
   goalEventClosureKinds,
   goalEventConcernActions,
-  goalEventDecisionEffectKinds,
+  goalEventNewDecisionEffectKinds,
   type GoalEventAgreementChange,
   type GoalEventAppliedDecisionView,
   type GoalEventClosureKind,
@@ -12,14 +12,10 @@ import {
   type GoalEventDecisionEffect,
   type GoalEventDecisionRequestView,
   type GoalEventRequirementCommitment,
-  type GoalEventRequirementStatus,
   type GoalEventScope,
   type RecordGoalUserDecisionInput,
 } from "../contract/goals.js";
-import {
-  affectedExistingRequirementIds,
-  type CanonicalAgreementChange,
-} from "./event-agreement-change.js";
+import type { GoalRequirementTerm } from "./event-facts-requirements.js";
 import { emptyScope, scopeIsSubset } from "./event-state-scope.js";
 
 function requiredEnum<T extends string>(
@@ -52,6 +48,11 @@ export function requiredClosureKind(value: unknown): GoalEventClosureKind {
   );
 }
 
+/**
+ * A decision's effects: the ones it states, or, without any, a yes or no to the concerns and the action its scope names. A requirement
+ * is accepted or returned on the platform's per-item review now (contract-design §10.3), so no decision recorded here has an effect on
+ * one, and a decision whose scope names requirements and nothing else decides nothing.
+ */
 function normalizeTrustedDecision(
   input: { accepts_requirements?: boolean; effects?: GoalEventDecisionEffect[] },
   scope: GoalEventScope,
@@ -59,24 +60,18 @@ function normalizeTrustedDecision(
   if (Array.isArray(input.effects) && input.effects.length > 0) {
     const effects = normalizeEffects(input.effects);
     assertEffectsMatchScope(effects, scope);
-    const derived = effects.some((effect) => effect.kind === "accept_requirements");
-    if (input.accepts_requirements === true && !derived) {
-      throw goalErrors["goals.event_decision.effect_conflict"]("显式效果与 accepts_requirements 互相矛盾，不能各写各的");
-    }
-    if (input.accepts_requirements === false && derived) {
-      throw goalErrors["goals.event_decision.effect_conflict"]("显式效果与 accepts_requirements 互相矛盾，不能各写各的");
-    }
-    return { effects, accepts_requirements: derived };
+    return { effects, accepts_requirements: input.accepts_requirements === true };
   }
   const effects: GoalEventDecisionEffect[] = [];
   if (input.accepts_requirements === true) {
-    if (scope.requirement_ids.length) effects.push({ kind: "accept_requirements" });
     if (scope.concern_ids.length) effects.push({ kind: "accept_concerns" });
     if (scope.action) effects.push({ kind: "authorize_action", action: scope.action });
   } else {
-    if (scope.requirement_ids.length) effects.push({ kind: "reject_requirements" });
     if (scope.concern_ids.length) effects.push({ kind: "reject_concerns" });
     if (scope.action) effects.push({ kind: "deny_action", action: scope.action });
+  }
+  if (!effects.length && scope.requirement_ids.length) {
+    throw goalErrors["goals.event_decision.effect_scope_mismatch"]("认可或退回要求在平台的逐项审阅里做，这里的决定只管问题、动作和结果说明");
   }
   return { effects, accepts_requirements: input.accepts_requirements === true };
 }
@@ -158,7 +153,7 @@ export function decisionCoversConcern(
 }
 
 export function snapshotCommitment(
-  requirements: GoalEventRequirementStatus[],
+  requirements: GoalRequirementTerm[],
   outcome: string,
   scope: GoalEventScope,
   effects: GoalEventDecisionEffect[],
@@ -175,48 +170,35 @@ export function snapshotCommitment(
 }
 
 /**
- * Completing, and accepting requirements, are the person's nod for the agreement as a whole: the project's approval rule counts
- * either one for the agreement it was given for, so a decision of either kind commits to every requirement the agreement has now,
+ * Completing (and, in a decision recorded before batch 44, accepting requirements) is the person's nod for the agreement as a whole: the
+ * project's approval rule counts it for the agreement it was given for, so such a decision commits to every requirement there is now,
  * not only to the ones its scope names.
  */
 function commitsToWholeAgreement(scope: GoalEventScope, effects: GoalEventDecisionEffect[]): boolean {
   return scopeAppliesToComplete(scope) || effects.some((effect) => effect.kind === "accept_requirements");
 }
 
-export function snapshotAgreementChangeCommitment(
-  change: CanonicalAgreementChange,
-  requirements: GoalEventRequirementStatus[],
-  currentOutcome: string,
-): GoalEventDecisionCommitment {
-  const ids = new Set(affectedExistingRequirementIds(change));
-  if (change.outcome != null && currentOutcome) {
-    for (const item of requirements) ids.add(item.requirement_id);
-  }
-  return currentCommitment(requirements, currentOutcome, [...ids]);
+/** What approving an agreement change commits to: the outcome it replaces (an agreement is its outcome, §10.9 question 3). */
+export function snapshotAgreementChangeCommitment(currentOutcome: string): GoalEventDecisionCommitment {
+  return { outcome: currentOutcome, requirements: [] };
 }
 
+/**
+ * Whether what an agreement-change decision committed to still stands: the outcome it replaced is the current one, and the requirements
+ * a decision recorded before batch 44 also named (when it changed requirements with the outcome) read now as they did then. `terms` is
+ * asked only for such a decision.
+ */
 export function agreementChangeCommitmentCurrent(
   recorded: GoalEventDecisionCommitment | null | undefined,
-  requirements: GoalEventRequirementStatus[],
+  terms: () => GoalRequirementTerm[],
   currentOutcome: string,
-  change: CanonicalAgreementChange,
 ): boolean {
-  if (!recorded) return false;
-  if (recorded.outcome !== currentOutcome) return false;
-  const affected = new Set(affectedExistingRequirementIds(change));
-  if (change.outcome != null && currentOutcome) {
-    for (const item of requirements) affected.add(item.requirement_id);
-  }
-  const recordedIds = new Set(recorded.requirements.map((item) => item.requirement_id));
-  if (![...affected].every((id) => recordedIds.has(id))) return false;
-  if (!recorded.requirements.length) return affected.size === 0;
-  return commitmentsMatch(
-    recorded,
-    currentCommitment(requirements, currentOutcome, recorded.requirements.map((item) => item.requirement_id)),
-  );
+  if (!recorded || recorded.outcome !== currentOutcome) return false;
+  if (!recorded.requirements.length) return true;
+  return commitmentsMatch(recorded, currentCommitment(terms(), currentOutcome, recorded.requirements.map((item) => item.requirement_id)));
 }
 
-function requirementCommitment(requirement: GoalEventRequirementStatus): GoalEventRequirementCommitment {
+function requirementCommitment(requirement: GoalRequirementTerm): GoalEventRequirementCommitment {
   return {
     requirement_id: requirement.requirement_id,
     statement: requirement.statement,
@@ -226,7 +208,7 @@ function requirementCommitment(requirement: GoalEventRequirementStatus): GoalEve
 }
 
 function currentCommitment(
-  requirements: GoalEventRequirementStatus[],
+  requirements: GoalRequirementTerm[],
   outcome: string,
   requirementIds: string[],
 ): GoalEventDecisionCommitment {
@@ -257,7 +239,7 @@ function commitmentsMatch(left: GoalEventDecisionCommitment, right: GoalEventDec
  */
 export function decisionCommitsToCurrentAgreement(
   decision: GoalEventAppliedDecisionView,
-  requirements: GoalEventRequirementStatus[],
+  requirements: GoalRequirementTerm[],
   outcome: string,
 ): boolean {
   return commitmentsMatch(
@@ -268,7 +250,7 @@ export function decisionCommitsToCurrentAgreement(
 
 export function scopedRequirementCommitmentsMatch(
   decision: GoalEventAppliedDecisionView,
-  requirements: GoalEventRequirementStatus[],
+  requirements: GoalRequirementTerm[],
 ): boolean {
   const ids = decision.scope.requirement_ids;
   if (!ids.length) return true;
@@ -283,71 +265,13 @@ export function scopedRequirementCommitmentsMatch(
   return commitmentsMatch({ outcome: "", requirements: recorded }, { outcome: "", requirements: current });
 }
 
-/**
- * Whether a requirement is met now. Only a trusted conclusion of the person meets it, whether or not the requirement asks for their
- * decision: a report is the reporter's own word (`tier: "self_reported"`), and a requirement backed by nothing but the
- * worker's own "supports" is not met (PWA-144; user decision 2026-11-04). Any report recorded after the conclusion that contradicts the
- * requirement, or says it is unknown, takes the conclusion back for good: a later "supports" from the worker does not bring it back,
- * and the person has to accept again (user decision 2026-11-05: withdrawn acceptance needs accepting again). The same holds for a
- * requirement that asks for the person's decision. `lastWithdrawingReportSeq` is the journal position of the latest such report, if
- * any.
- *
- * Two things were added with the evidence contract (user decisions 2026-11-11). An acceptance is about the version the report had
- * checked when the person decided: once a later report checks another version, the acceptance no longer counts for this requirement
- * (`conclusion_superseded`) and other requirements keep theirs. And a "supports" that Goals itself found backed — by a command the
- * platform ran on that very version, or by another worker's review — meets a requirement that does not ask for the person, as long as
- * the version it checked is still a confirmed deliverable of the Goal and the person has not turned the requirement down.
- * `deliverables` is the Goal's confirmed deliverables; null where the caller cannot read them, and then only the person's acceptance
- * counts.
- */
-export function requirementSatisfaction(
-  requirement: Pick<GoalEventRequirementStatus, "user_conclusion" | "current_report" | "human_decision_required">,
-  lastWithdrawingReportSeq: number | null,
-  deliverables: ReadonlyArray<{ artifact_id: string; version: number }> | null,
-): Pick<GoalEventRequirementStatus, "satisfied_by" | "conclusion_superseded"> {
-  const conclusion = requirement.user_conclusion;
-  const report = requirement.current_report;
-  const checked = report?.basis?.checked ?? null;
-  // A decision that recorded no version was about whatever stood then: a later report that names a version is about something
-  // the person has not seen, exactly as one naming another version is.
-  const superseded = Boolean(conclusion && checked && report && report.journal_seq > conclusion.journal_seq
-    && (!conclusion.checked || conclusion.checked.artifact_id !== checked.artifact_id || conclusion.checked.version !== checked.version));
-  if (conclusion?.verdict === "accepted" && !superseded
-    && (lastWithdrawingReportSeq === null || lastWithdrawingReportSeq < conclusion.journal_seq)) {
-    return { satisfied_by: "user_accepted", conclusion_superseded: false };
-  }
-  const verified = report?.verdict === "supports" && report.tier !== "self_reported" && checked !== null
-    && !requirement.human_decision_required && (conclusion?.verdict !== "rejected" || superseded)
-    && Boolean(deliverables?.some((item) => item.artifact_id === checked.artifact_id && item.version === checked.version));
-  return { satisfied_by: verified && report ? (report.tier as "machine_verified" | "peer_reviewed") : null, conclusion_superseded: superseded };
-}
-
-/** Whether the person's current conclusion on the requirement turns it down. */
-export function requirementRejected(requirement: GoalEventRequirementStatus): boolean {
-  return requirement.user_conclusion?.verdict === "rejected" && !requirement.conclusion_superseded;
-}
-
-/**
- * Whether what stands behind an unmet requirement is the reporter's own "supports": nobody has accepted it, or the acceptance was
- * withdrawn by a later report against it, and the person has not turned it down.
- */
-export function requirementOnlySelfReported(requirement: GoalEventRequirementStatus): boolean {
-  return requirement.current_report?.verdict === "supports" && !requirement.currently_satisfied && !requirementRejected(requirement);
-}
-
 function scopeAppliesToComplete(scope: GoalEventScope): boolean {
   return scope.action === "complete";
 }
 
-export function pendingBlocksCompletion(
-  pending: { purpose?: string; scope: GoalEventScope },
-  requirements: GoalEventRequirementStatus[],
-): boolean {
-  if (pending.purpose === "suggestion" || pending.purpose === "agreement_change") return false;
-  if (pending.purpose === "requirement_acceptance") {
-    const current = new Set(requirements.map((item) => item.requirement_id));
-    return pending.scope.requirement_ids.some((id) => current.has(id));
-  }
+/** Whether a waiting request holds completion back: one about completing does; whether the requirements are met is the platform's. */
+export function pendingBlocksCompletion(pending: { purpose?: string; scope: GoalEventScope }): boolean {
+  if (pending.purpose === "suggestion" || pending.purpose === "agreement_change" || pending.purpose === "requirement_acceptance") return false;
   return scopeAppliesToComplete(pending.scope);
 }
 
@@ -356,12 +280,6 @@ function assertEffectsMatchScope(
   scope: GoalEventScope,
 ): void {
   for (const effect of effects) {
-    if (effect.kind === "accept_requirements" || effect.kind === "reject_requirements") {
-      if (scope.requirement_ids.length === 0) {
-        throw goalErrors["goals.event_decision.effect_scope_mismatch"]("要求效果必须声明适用的 requirement_ids");
-      }
-      continue;
-    }
     if (effect.kind === "accept_concerns" || effect.kind === "reject_concerns") {
       if (scope.concern_ids.length === 0) {
         throw goalErrors["goals.event_decision.effect_scope_mismatch"]("Concern 效果必须声明适用的 concern_ids");
@@ -384,6 +302,10 @@ export function resolveRecordedDecision(
     const proposed = request.proposed_change;
     if (!proposed) {
       throw goalErrors["goals.event_decision.missing_proposed_change"]("约定变更请求必须带有可审阅的具体变化");
+    }
+    // A request made before batch 44 that also changed requirements cannot be approved: requirements are changed on the platform now.
+    if (proposed.new_requirements?.length || proposed.revise_requirements?.length || proposed.retire_requirement_ids?.length) {
+      throw goalErrors["goals.event_decision.stale_commitment"]("这份请求还改了要求；要求现在在平台的要求栏里改，请重新提出只改结果说明的请求");
     }
     const callerEffects = Array.isArray(input.effects) ? input.effects : [];
     const denyAction = request.scope.action || "set_agreement";
@@ -447,9 +369,9 @@ function normalizeEffects(effects: GoalEventDecisionEffect[]): GoalEventDecision
   for (const raw of effects) {
     const kind = requiredEnum(
       raw?.kind,
-      goalEventDecisionEffectKinds,
+      goalEventNewDecisionEffectKinds,
       "goals.event_decision.invalid_effect",
-      "决定效果必须是有限的明确授权，不能从结论或选项猜测",
+      "决定效果必须是有限的明确授权，不能从结论或选项猜测；认可或退回要求在平台的逐项审阅里做",
     );
     const action = raw.action?.trim() || null;
     if ((kind === "authorize_action" || kind === "deny_action") && !action) {

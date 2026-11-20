@@ -137,8 +137,7 @@ export const WORKSPACE_PACKAGES = [
   entry("apps/desktop", "@molis-ai/molis-work-contracts/platform/app-host", {
     maturity: "production",
     capabilities: [
-      "desktop.shell.v1",
-      "desktop.capsule-shell.v1"
+      "desktop.shell.v1"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-service-runtime-host",
@@ -328,6 +327,10 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("modules/projects", "@molis-ai/molis-work-contracts/modules/projects", {
     maturity: "production",
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ],
     capabilities: [
       "project-identity",
       "project-catalog",
@@ -347,6 +350,7 @@ export const WORKSPACE_PACKAGES = [
       "acceptance.requirements.v1"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]
   }),

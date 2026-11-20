@@ -1,10 +1,11 @@
 import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
+import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
+import { ACCEPTANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-acceptance";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
@@ -53,6 +54,8 @@ const PROJECT_DATABASE_SCHEMA = [
   SURFACE_CORRECTIONS_SCHEMA_SQL,
   PROJECT_APPROVALS_SCHEMA_SQL,
   PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL,
+  PROJECT_GUIDANCE_SCHEMA_SQL,
+  ACCEPTANCE_SCHEMA_SQL,
 ].join("\n");
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {

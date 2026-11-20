@@ -1,12 +1,16 @@
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "./goal-application.js";
 
-// A Goal's terminal is started by Goals over `services.terminal`; the `/pty` channel only attaches (S-103 ⑦, T-148). A test that needs a
-// real running terminal in a project links a folder to the project, makes a Goal and asks Goals' route to start the program.
+// Object work terminals are owned by the platform (`system.work-terminal`, PEQ-17); the `/pty` channel only attaches (S-103 ⑦, T-148).
+// A test that needs a real running terminal in a project links a folder to the project, makes an object and calls `/api/work-terminals`.
 
-/** Goals' terminals route for a Goal of a project (the Host's path; prefix the server's origin). */
+/** Platform work-terminals route for any plugin object of a project (prefix the server's origin). */
+export const workTerminalsPath = (projectId: string, pluginId: string, kind: string, id: string, suffix?: string) =>
+  `/projects/${encodeURIComponent(projectId)}/api/work-terminals/${encodeURIComponent(pluginId)}/${encodeURIComponent(kind)}/${encodeURIComponent(id)}${suffix === undefined ? "" : `/${encodeURIComponent(suffix)}`}`;
+
+/** Platform work-terminals route for a Goal of a project (prefix the server's origin). */
 export const goalTerminalsPath = (projectId: string, goalId: string, key?: string) =>
-  `/projects/${encodeURIComponent(projectId)}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/terminals${key === undefined ? "" : `/${encodeURIComponent(key)}`}`;
+  workTerminalsPath(projectId, "io.molis.work.goals", "goal", goalId, key);
 
 /** A leaf Goal Goals will start a terminal for, written to the project's library as Goals writes it. */
 export function addTerminalGoal(project: { database_path: string; project_id: string }, goalId: string): void {

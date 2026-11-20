@@ -72,7 +72,7 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。同步内容经 Runtime 的公共分区服务处理。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
-  - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在合同 `modules/attention-resumption`，因为 Feed 插件找不到 Inbox 事项时也用它）；状态只由 kind 推出，本插件没有错误类和状态表。
+  - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在本插件 `src/errors.ts`）；状态只由 kind 推出，本插件没有错误类和状态表。
   - 建议不会自动完成或忽略事项；停用、撤权或原文变化撤回当前建议，历史保留。
   - 场景判断（哪些建议仍成立、绑定哪条规则）在本包的 `createInboxSceneRuntime`；宿主没有 Inbox 的场景文件（`tests/feed-inbox-scene-runtime.test.ts` 钉住）。没有 `inbox.judgment.evaluate` 启动的场景回调，对指向 Feed 条目的事项不判断（`actions.subject_unavailable`）。
   - 工作流交接透传原调用者；等待期间撤权后不保存结果。

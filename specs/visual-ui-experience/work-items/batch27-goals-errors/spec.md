@@ -62,7 +62,7 @@
 
 | 现有出口 | 实际接收 |
 | --- | --- |
-| 进程内动作及通用 HTTP | `defineErrorCodes` 接受可选详情。SDK 的 `actionErrorResponse` 发送 `{ error, code, details? }`，由类别映射 500 或 503。SDK 的 `actionErrorFromResponse` 能按状态复原类别及详情。Goals 的 `goalsRoute` 失败出口及项目设置汇总也采用这个错误体。 [SDK](../../../../packages/plugin-sdk/src/errors.ts) · [Goals 路由](../../../../plugins/native/goals/src/http/failure.ts) · [项目设置汇总](../../../../apps/local-host/src/web-goals-read.ts) |
+| 进程内动作及通用 HTTP | `defineErrorCodes` 接受可选详情。SDK 的 `actionErrorResponse` 发送 `{ error, code, details? }`，由类别映射 500 或 503。SDK 的 `actionErrorFromResponse` 能按状态复原类别及详情。Goals 的 `goalsRoute` 失败出口及项目设置汇总也采用这个错误体。 [SDK](../../../../packages/plugin-sdk/src/errors.ts) · [Goals 路由](../../../../plugins/native/goals/src/http/failure.ts) · [项目设置汇总](../../../../apps/local-host/src/web-project-pages.ts) |
 | Home 与项目的专用规划设置页和 API | `web-planning.ts` 的读及相应保存或采用错误走 400 与 `{ error }`。原样透出后项目会收到记录读坏文案。已有 `method_not_found` 的 404 由专用路由处理。 规划设置出口（第 41 批已删） |
 | MCP 与助理 | MCP 的动作错误 JSON 会保留详情，只滤掉详情内伪装成 `code` 或 `call_id` 的键。助理的 HTTP 错误适配保留外部 owner 的详情。Agent 的通用工具网关把错误变成码与消息文本，工作流的步骤失败取错误消息。故详情要按技术调用方可读处理，普通提示及模型用语无需拼入位置。 [MCP](../../../../apps/mcp/src/tool-error.ts) · [助理](../../../../apps/local-host/src/assistant/assistant-error.ts) · [Agent](../../../../horizontal/agent-host/src/adapters/prologue-action-gateway.ts) · [工作流](../../../../plugins/native/workflows/src/step-runner.ts) |
 | 设置 › 诊断 | 调用结算只传码与消息，未执行与失败读的记录只留调用元数据和码，已执行的失败命令可留截断消息。现有诊断页按已有编号查这些行，无法从中取得 `details`。 [结算](../../../../packages/kernel/src/action-settlement.ts) · [调用记录](../../../../apps/local-host/src/action-call-log.ts) · [设置诊断](../../../../apps/local-host/src/web-call-diagnostics.ts) |

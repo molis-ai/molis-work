@@ -1,19 +1,10 @@
 import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors, type GoalErrorCode } from "./errors.js";
 import {
-  goalDecisionMethods,
   goalEventFieldFormats,
-  goalEventJudgmentVerdicts,
-  GOAL_EVENT_EVIDENCE_MAX,
   goalEventSemanticFamilies,
   goalEventTypeSourceKinds,
-  type GoalEventExtraRequirementInput,
   type GoalEventFieldDefinition,
-  type GoalEventRequirementSource,
-  type GoalEventJudgmentInput,
-  type GoalEventJudgmentBasis,
-  type GoalEventJudgmentBasisInput,
-  type GoalEventEvidenceRef,
   type GoalEventRequirementBinding,
   type GoalEventTypeDefinition,
   type GoalEventTypeDefinitionInput,
@@ -36,11 +27,6 @@ const RESERVED_FIELD_IDS = new Set([
 ]);
 const TYPE_KEYS = new Set(["type_id", "version", "name", "purpose", "semantic_family", "source", "fields"]);
 const FIELD_KEYS = new Set(["field_id", "name", "purpose", "format", "required", "source"]);
-const REQUIREMENT_KEYS = new Set(["requirement_id", "statement", "bound_type_id", "human_decision_required", "source"]);
-const REQUIREMENT_SOURCE_KEYS = new Set([
-  "kind", "decision_method", "pass_condition", "policy_binding_ids",
-]);
-
 const REPORT_PROGRESS_KEYS = new Set(["summary", "next_step", "next_actor"]);
 
 export function parseOptionalReportProgress(
@@ -206,87 +192,11 @@ export function sameTypeShape(
   return JSON.stringify(typeShape(left)) === JSON.stringify(typeShape(right));
 }
 
-export function normalizeNewRequirement(input: GoalEventExtraRequirementInput): GoalEventExtraRequirementInput {
-  if (input == null || typeof input !== "object" || Array.isArray(input)) {
-    throw goalErrors["goals.event_config.invalid_requirement"]("新增要求必须是对象");
-  }
-  assertAllowedKeys(input, REQUIREMENT_KEYS, "新增要求");
-  if (input.human_decision_required != null && typeof input.human_decision_required !== "boolean") {
-    throw goalErrors["goals.event_config.invalid_human_decision_required"]("human_decision_required 必须是布尔值");
-  }
-  return {
-    requirement_id: requiredText(input.requirement_id, "goals.event_config.requirement_id_required", "新增要求必须有稳定 ID").trim(),
-    statement: assertConfigText(requiredText(input.statement, "goals.event_config.requirement_statement_required", "新增要求必须说明具体结果").trim(), "新增要求"),
-    bound_type_id: input.bound_type_id?.trim() || undefined,
-    human_decision_required: input.human_decision_required === true,
-    source: input.source ? normalizeRequirementSource(input.source) : undefined,
-  };
-}
-
-function normalizeRequirementSource(source: GoalEventRequirementSource): GoalEventRequirementSource {
-  assertAllowedKeys(source, REQUIREMENT_SOURCE_KEYS, "局部要求来源");
-  if (source.kind === "create_input") return { kind: "create_input" };
-  if (source.kind === "imported_acceptance_criterion") {
-    if (!(goalDecisionMethods as readonly string[]).includes(String(source.decision_method))) {
-      throw goalErrors["goals.event_config.invalid_requirement_source"](`导入的验收条件判断方式只能是 ${goalDecisionMethods.join("、")} 之一`);
-    }
-    return {
-      kind: "imported_acceptance_criterion",
-      decision_method: source.decision_method,
-      pass_condition: String(source.pass_condition ?? ""),
-    };
-  }
-  if (source.kind === "imported_human_approval") {
-    return {
-      kind: "imported_human_approval",
-      policy_binding_ids: Array.isArray(source.policy_binding_ids) ? source.policy_binding_ids.map(String) : [],
-    };
-  }
-  throw goalErrors["goals.event_config.invalid_requirement_source"]("局部要求来源无效");
-}
-
 export function normalizeBinding(input: GoalEventRequirementBinding): GoalEventRequirementBinding {
   return {
     type_id: requiredText(input.type_id, "goals.event_config.binding_type_required", "要求绑定必须包含类型 ID").trim(),
     requirement_id: requiredText(input.requirement_id, "goals.event_config.binding_requirement_required", "要求绑定必须包含要求 ID").trim(),
   };
-}
-
-export function normalizeJudgments(judgments: GoalEventJudgmentInput[] | undefined): GoalEventJudgmentInput[] {
-  if (judgments == null) return [];
-  if (!Array.isArray(judgments)) throw goalErrors["goals.event_report.invalid_judgments"]("要求判断必须是列表");
-  const seen = new Set<string>();
-  return judgments.map((item) => {
-    const requirementId = requiredText(item.requirement_id, "goals.event_report.requirement_id_required", "要求判断缺少要求 ID").trim();
-    if (seen.has(requirementId)) {
-      throw goalErrors["goals.event_report.duplicate_requirement"](`同一事件不能对同一要求重复判断: ${requirementId}`);
-    }
-    seen.add(requirementId);
-    if (!goalEventJudgmentVerdicts.includes(item.verdict)) {
-      throw goalErrors["goals.event_report.invalid_verdict"](`要求判断无效: ${String(item.verdict)}`, { requirement_id: requirementId });
-    }
-    const basis = item.basis == null ? undefined : normalizeBasis(item.basis, requirementId);
-    return { requirement_id: requirementId, verdict: item.verdict, ...(basis ? { basis } : {}) };
-  });
-}
-
-/** A basis names an exact version and says in two short sentences how it was checked; its evidence is references only, at most eight. */
-export function normalizeBasis(basis: GoalEventJudgmentBasisInput, requirementId: string): GoalEventJudgmentBasis {
-  const refuse = (message: string) => goalErrors["goals.event_report.invalid_basis"](message, { requirement_id: requirementId });
-  const exact = (value: unknown): value is { artifact_id: string; version: number } => typeof value === "object" && value !== null
-    && typeof (value as { artifact_id?: unknown }).artifact_id === "string" && (value as { artifact_id: string }).artifact_id.trim() !== ""
-    && Number.isSafeInteger((value as { version?: unknown }).version) && (value as { version: number }).version >= 1;
-  const said = (value: unknown) => typeof value === "string" && value.trim() !== "" && value.length <= 500;
-  if (typeof basis !== "object" || basis === null || !exact(basis.checked)) throw refuse("依据必须写明所核的确切版本（成果编号和版本号），不接受「最新版」");
-  if (!said(basis.method) || !said(basis.observed)) throw refuse("依据必须写明检查方法和观察结果，各不超过 500 字");
-  const evidence = basis.evidence ?? [];
-  if (!Array.isArray(evidence) || evidence.length > GOAL_EVENT_EVIDENCE_MAX) throw refuse(`证据引用最多 ${GOAL_EVENT_EVIDENCE_MAX} 条`);
-  const refs = evidence.map((ref): GoalEventEvidenceRef => {
-    if (ref?.kind === "artifact_version" && exact(ref)) return { kind: ref.kind, artifact_id: ref.artifact_id.trim(), version: ref.version };
-    if (ref?.kind === "command_receipt" && said(ref.run_id) && said(ref.call_id)) return { kind: ref.kind, run_id: ref.run_id, call_id: ref.call_id };
-    throw refuse("证据引用只能是成果的确切版本，或某一轮里某条命令的回执");
-  });
-  return { checked: { artifact_id: basis.checked.artifact_id.trim(), version: basis.checked.version }, method: basis.method.trim(), observed: basis.observed.trim(), evidence: refs };
 }
 
 export function ownStringRecord(value: unknown): Record<string, string> {

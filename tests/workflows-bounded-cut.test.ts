@@ -104,7 +104,7 @@ async function setup(options: { properties?: Record<string, unknown>; rule?: boo
       list: { capability_id: `${station.plugin}.l`, version: 1 }, read: { capability_id: `${station.plugin}.r`, version: 1 }, receive: { capability_id: `${station.plugin}.v`, version: 1 } } } }),
     listStartItems: async () => [],
     createBlank: async () => { throw new Error("no blank starts here"); },
-    read: async (item: { item_id: string }) => ({ title: state.title || `T ${item.item_id}`, body: state.body || `body of ${item.item_id}`, source: null, url: null, feed_item_id: null }),
+    read: async (item: { item_id: string }) => ({ title: state.title || `T ${item.item_id}`, body: state.body || `body of ${item.item_id}`, source: null, url: null }),
     receive: async (plugin: string, payload: { title: string }) => ({ plugin, item_id: `${plugin}-1`, title: payload.title }),
   };
   const judgment = { capability_id: RULE.capability_id, version: RULE.version, provider: { provider_id: RULE.provider_id }, operation: "command", availability: { available: true }, action: {} };

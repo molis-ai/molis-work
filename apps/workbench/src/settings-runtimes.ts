@@ -7,12 +7,12 @@ import type { MolisWorkSettingsView } from "./settings-view.js";
 type RuntimePrimitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml" | "icon" | "settingsContextHref">;
 
 function runtimeStatePresentation(state: RuntimeIntegrationDetection["connection_state"]): { label: string; tone: Exclude<MwTone, "info">; description: string } {
-  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "success", description: uiText.text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install") };
+  if (state === "connected") return { label: uiText.text("workbench.settings-runtimes.connected"), tone: "success", description: uiText.text("workbench.settings-runtimes.mcp-points-at-install") };
   if (state === "needs_repair") return { label: uiText.text("workbench.settings-runtimes.needs-repair"), tone: "warning", description: uiText.text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found") };
-  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "danger", description: uiText.text("workbench.settings-runtimes.same-named-config-skill-not-owned-molis-work") };
+  if (state === "conflict") return { label: uiText.text("workbench.settings-runtimes.conflict"), tone: "danger", description: uiText.text("workbench.settings-runtimes.same-named-config-not-owned") };
   if (state === "molis_work_unavailable") return { label: uiText.text("workbench.settings-runtimes.install-incomplete"), tone: "danger", description: uiText.text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first") };
   if (state === "not_detected") return { label: uiText.text("workbench.settings-runtimes.not-found"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.that-runtime-was-not-found-machine") };
-  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.molis-work-mcp-skill-have-not-been-written") };
+  return { label: uiText.text("workbench.settings-runtimes.not-connected"), tone: "neutral", description: uiText.text("workbench.settings-runtimes.mcp-not-written") };
 }
 
 /**
@@ -46,7 +46,6 @@ export function renderRuntimeSettings(view: MolisWorkSettingsView, primitives: R
       body: renderQuestionList({ rows: [
         { question: uiText.text("workbench.settings-runtimes.where-installed"), answer: path(runtime.executable_path) },
         { question: uiText.text("workbench.settings-runtimes.where-config"), answer: path(runtime.config_path) },
-        { question: uiText.text("workbench.settings-runtimes.where-skill"), answer: path(runtime.skill_path) },
         { question: uiText.text("workbench.settings-runtimes.does-it-connect"), answer: escapeHtml(state.description),
           action: connected ? plan(runtime, "remove", uiText.text("workbench.settings-runtimes.preview-removal")) : undefined },
       ] }),

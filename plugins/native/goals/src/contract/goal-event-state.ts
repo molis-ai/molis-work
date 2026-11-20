@@ -1,6 +1,7 @@
 import type { AgentInputTreatment } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { GoalEventExtraRequirementInput } from "./goal-events.js";
+import type { AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 
 export const goalEventWorkStatuses = ["open", "completed", "cancelled"] as const;
 export type GoalEventWorkStatus = (typeof goalEventWorkStatuses)[number];
@@ -21,6 +22,11 @@ export type GoalEventClosureKind = (typeof goalEventClosureKinds)[number];
 export const goalEventTrustedAuthoritySources = ["web", "management"] as const;
 export type GoalEventTrustedAuthoritySource = (typeof goalEventTrustedAuthoritySources)[number];
 
+/**
+ * Every effect a recorded decision may hold. `accept_requirements` and `reject_requirements` are only in decisions recorded before
+ * batch 44: the person accepts or returns a requirement on the platform's acceptance now (contract-design §10.3), so no new decision
+ * has them (`goalEventNewDecisionEffectKinds`).
+ */
 export const goalEventDecisionEffectKinds = [
   "accept_requirements",
   "reject_requirements",
@@ -31,7 +37,10 @@ export const goalEventDecisionEffectKinds = [
   "authorize_agreement_change",
 ] as const;
 export type GoalEventDecisionEffectKind = (typeof goalEventDecisionEffectKinds)[number];
+/** The effects a decision recorded now may have. */
+export const goalEventNewDecisionEffectKinds = goalEventDecisionEffectKinds.filter(kind => kind !== "accept_requirements" && kind !== "reject_requirements");
 
+/** Every purpose a request may hold; `requirement_acceptance` only in requests made before batch 44 (`goalEventNewDecisionPurposes`). */
 export const goalEventDecisionPurposes = [
   "suggestion",
   "requirement_acceptance",
@@ -39,7 +48,14 @@ export const goalEventDecisionPurposes = [
   "agreement_change",
 ] as const;
 export type GoalEventDecisionPurpose = (typeof goalEventDecisionPurposes)[number];
+/** The purposes a request made now may have: accepting requirements is the platform's per-item review. */
+export const goalEventNewDecisionPurposes = ["suggestion", "action", "agreement_change"] as const satisfies readonly GoalEventDecisionPurpose[];
+export type GoalEventNewDecisionPurpose = (typeof goalEventNewDecisionPurposes)[number];
+/** A request's status: waiting for the person or already decided. */
+export const goalEventDecisionRequestStatuses = ["pending", "decided"] as const;
+export type GoalEventDecisionRequestStatus = (typeof goalEventDecisionRequestStatuses)[number];
 
+/** A requirement's status as a configuration event recorded it (`GoalEventExtraRequirement`). */
 export const goalEventRequirementCurrentStatuses = ["active", "retired"] as const;
 export type GoalEventRequirementCurrentStatus = (typeof goalEventRequirementCurrentStatuses)[number];
 
@@ -105,8 +121,16 @@ export interface GoalEventAcknowledgementReference {
   journal_seq: number;
 }
 
-export const goalEventUserConclusionVerdicts = ["accepted", "rejected"] as const;
-export type GoalEventUserConclusionVerdict = (typeof goalEventUserConclusionVerdicts)[number];
+/**
+ * A Goal's requirements as the platform's acceptance had them when Goals' own handler read them (`acceptance.read@1`, as Goals) just
+ * before a command: what each says, whether it needs the person, whether it is satisfied, and the delivery round. A command that commits
+ * to requirements or completes the Goal is given it; no caller supplies it (contract-design §10.3).
+ */
+export interface GoalAcceptanceReading {
+  round: AcceptanceView["round"];
+  complete: AcceptanceView["complete"];
+  requirements: Array<Pick<AcceptanceView["requirements"][number], "id" | "statement" | "requires_person" | "person" | "satisfied">>;
+}
 
 export interface GoalEventStateOwnerView {
   kind: "event_work";
@@ -183,12 +207,18 @@ export interface GoalEventDecisionCommitment {
   requirements: GoalEventRequirementCommitment[];
 }
 
+/** How an agreement change before batch 44 revised a requirement; only in recorded changes (`GoalEventAgreementChange`). */
 export interface GoalEventRequirementRevisionInput {
   requirement_id: string;
   statement?: string;
   human_decision_required?: boolean;
 }
 
+/**
+ * A change of a Goal's agreement as it was recorded (agreement events, requests and decisions). Since batch 44 an agreement is its
+ * outcome only: the requirements are the platform's, and only `outcome` is written (user 2026-11-18, contract-design §10.9 question 3).
+ * The requirement fields stay in what was recorded before.
+ */
 export interface GoalEventAgreementChange {
   outcome?: string;
   new_requirements?: GoalEventExtraRequirementInput[];
@@ -205,7 +235,7 @@ export interface GoalEventDecisionRequestView {
   purpose: GoalEventDecisionPurpose;
   proposed_change: GoalEventAgreementChange | null;
   commitment: GoalEventDecisionCommitment | null;
-  status: "pending" | "decided";
+  status: GoalEventDecisionRequestStatus;
   created_at: string;
 }
 
@@ -261,6 +291,8 @@ export interface GoalEventClosureView {
   superseded: boolean;
   superseded_reason: string | null;
   recorded_at: string;
+  /** The platform's delivery round a completion stood on (its every requirement satisfied there); null for a cancellation, a refused completion and a closure before batch 44. */
+  acceptance_round: number | null;
 }
 
 export interface GoalEventTrustedAuthority {
@@ -289,15 +321,6 @@ export interface GoalEventTrustedDecisionRecord {
   recorded_at: string;
 }
 
-export interface GoalEventUserConclusion {
-  decision_id: string;
-  actor_id: string;
-  verdict: GoalEventUserConclusionVerdict;
-  received_at: string;
-  journal_seq: number;
-  /** The version the requirement's report had checked when the person decided; null when that report named none. */
-  checked: { artifact_id: string; version: number } | null;
-}
 
 export interface RecordGoalProgressSummaryInput {
   source?: GoalProgressArtifactSource;
@@ -329,6 +352,8 @@ export interface ApplyGoalConcernInput {
   reason?: string;
   supporting_event_ids?: string[];
   cited_decision_id?: string;
+  /** Set by Goals' own handler (`GoalAcceptanceReading`), never by a caller: a cited decision's commitments are checked against it. */
+  acceptance?: GoalAcceptanceReading;
   /** Only when opening: the objects this concern is about. Citing one opens, accepts or resolves nothing (RISK-02, RISK-03). */
   cited_subjects?: GoalCitedSubject[];
 }
@@ -341,9 +366,12 @@ export interface RequestGoalDecisionInput {
   idempotency_key: string;
   question: string;
   options: GoalEventDecisionOption[];
-  purpose: GoalEventDecisionPurpose;
-  proposed_change?: GoalEventAgreementChange;
+  purpose: GoalEventNewDecisionPurpose;
+  /** Only `outcome`: an agreement is its outcome since batch 44. */
+  proposed_change?: Pick<GoalEventAgreementChange, "outcome">;
   scope?: Partial<GoalEventScope>;
+  /** Set by Goals' own handler, never by a caller: the requirements the request commits to, as the platform has them. */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface CiteGoalDecisionInput {
@@ -354,6 +382,8 @@ export interface CiteGoalDecisionInput {
   idempotency_key: string;
   decision_id: string;
   scope?: Partial<GoalEventScope>;
+  /** Set by Goals' own handler, never by a caller: what the cited decision committed to is checked against it. */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface RecordGoalUserDecisionInput {
@@ -364,10 +394,13 @@ export interface RecordGoalUserDecisionInput {
   request_id?: string;
   selected_option_id?: string;
   conclusion: string;
+  /** Whether the person said yes to what the request asked (its action, concerns or agreement change); the name is the record's. */
   accepts_requirements?: boolean;
   effects?: GoalEventDecisionEffect[];
-  authorized_change?: GoalEventAgreementChange;
+  authorized_change?: Pick<GoalEventAgreementChange, "outcome">;
   scope?: Partial<GoalEventScope>;
+  /** Set by Goals' own handler, never by a caller: the requirements the decision commits to, as the platform has them. */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface SetGoalEventAgreementInput {
@@ -379,10 +412,9 @@ export interface SetGoalEventAgreementInput {
   expected_config_version: number;
   expected_agreement_version: number;
   outcome?: string;
-  new_requirements?: GoalEventExtraRequirementInput[];
-  revise_requirements?: GoalEventRequirementRevisionInput[];
-  retire_requirement_ids?: string[];
   cited_decision_id?: string;
+  /** Set by Goals' own handler, never by a caller: what a cited decision committed to is checked against it. */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface SubmitGoalEventClosureInput {
@@ -396,6 +428,8 @@ export interface SubmitGoalEventClosureInput {
   reason: string;
   expected_config_version: number;
   expected_agreement_version: number;
+  /** Set by Goals' own handler, never by a caller: completion stands only where every requirement is satisfied in it (§10.3). */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface ResumeGoalEventWorkInput {

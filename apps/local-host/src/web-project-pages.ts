@@ -153,8 +153,10 @@ export function createLocalProjectPagesHttp(ports: {
       const embed = url.searchParams.get("embed") === "1";
       if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
       let guidance;
-      try { guidance = await actions.invoke(projectGuidanceActions.read, {}); }
-      catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+      if (open === "guidance") {
+        try { guidance = await actions.invoke(projectGuidanceActions.read, {}); }
+        catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+      }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } },
         guidance, controlToken, isDesktopShellRequest(request, url), open, embed ? open : null,

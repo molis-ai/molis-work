@@ -62,10 +62,10 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     };
   }
 
-  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView, section: ProjectSettingsFoldId, desktopShell: boolean): string {
+  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | undefined, section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return renderProjectDirectoriesSection(readText, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
-    if (section === "guidance") return renderGuidance(guidance);
+    if (section === "guidance") return renderGuidance(guidance ?? { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
     if (section === "memory") return renderMemorySettings({ scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ readText, projectId: escapeHtml(view.project!.project_id) });
     if (section === "kit") return renderKitSettings({ projectId: view.project!.project_id });
@@ -79,7 +79,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function renderMolisWorkProjectSettingsHub(
     view: MolisWorkWebView,
-    guidance: ProjectGuidanceView,
+    guidance?: ProjectGuidanceView,
     controlToken = "",
     desktopShell = false,
     open: ProjectSettingsFoldId = "general",

@@ -19,6 +19,14 @@ export interface PluginDataSectionDeclaration {
   readonly files: readonly string[];
 }
 
+/** Read-only snapshot of one file inside a plugin's declared `owner_files` tree. */
+export interface PluginDataFileSnapshot {
+  readonly path: string;
+  readonly byte_length: number;
+  readonly content_base64?: string;
+  readonly truncated?: boolean;
+}
+
 /** Portable read-only snapshot of one plugin data section (used by business export and work-asset bundles). */
 export interface PluginDataSectionSnapshot {
   readonly plugin_id: string;
@@ -26,6 +34,8 @@ export interface PluginDataSectionSnapshot {
   readonly schema_version: number;
   readonly title?: string;
   readonly items: readonly unknown[];
+  readonly files?: readonly PluginDataFileSnapshot[];
+  readonly truncated?: boolean;
 }
 
 export interface PluginDataExportResult {
@@ -62,10 +72,19 @@ export function pluginDataSectionsFromManifest(
     }));
   }
   const scopes = (["project", "home"] as const).flatMap(scope => manifest.databases?.[scope] ? [[scope, manifest.databases[scope]!] as const] : []);
-  return scopes.map(([scope, db]) => ({
-    plugin_id: manifest.plugin_id, section_id: db.store_name, title: manifest.name,
-    scope, schema_version: db.version, tables: [], files,
-  }));
+  if (scopes.length > 0) {
+    return scopes.map(([scope, db]) => ({
+      plugin_id: manifest.plugin_id, section_id: db.store_name, title: manifest.name,
+      scope, schema_version: db.version, tables: [], files,
+    }));
+  }
+  if (manifest.owner_files) {
+    return [{
+      plugin_id: manifest.plugin_id, section_id: manifest.owner_files.store_name, title: manifest.name,
+      scope: "home", schema_version: 1, tables: [], files,
+    }];
+  }
+  return [];
 }
 
 const sectionDeclarationSchema = {
@@ -78,12 +97,22 @@ const sectionDeclarationSchema = {
   },
 } as const;
 
+const fileSnapshotSchema = {
+  type: "object", additionalProperties: false,
+  required: ["path", "byte_length"],
+  properties: {
+    path: { type: "string" }, byte_length: { type: "integer", minimum: 0 },
+    content_base64: { type: "string" }, truncated: { type: "boolean" },
+  },
+} as const;
+
 const sectionSnapshotSchema = {
   type: "object", additionalProperties: false,
   required: ["plugin_id", "section_id", "schema_version", "items"],
   properties: {
     plugin_id: { type: "string" }, section_id: { type: "string" }, schema_version: { type: "integer", minimum: 1 },
     title: { type: "string" }, items: { type: "array" },
+    files: { type: "array", items: fileSnapshotSchema }, truncated: { type: "boolean" },
   },
 } as const;
 

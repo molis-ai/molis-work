@@ -31,6 +31,7 @@ export function draftSave(
     w.draft = latest;
     w.fields = edits.fields;
     w.replacements = { ...edits.replacements };
+    w.placeholderBase = undefined;
     w.save = { kind: dirty(w) ? "saving" : "saved" };
     w.confirm = false;
     w.adoptFailure = undefined;

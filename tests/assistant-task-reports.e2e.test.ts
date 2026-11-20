@@ -8,7 +8,7 @@ import { attentionChanged } from "@molis-ai/molis-work-app-local-host";
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 import { openWork, sendBrowser, waitWork, readWork, type SendBrowser } from "./fixtures/assistant-send-journey.js";
 
-// Batch 97 (specs/backlog/BL-work-line-report-batch.md, BL-report-rounds-auto-cap.md), as the person sees it: two Images generations
+// Batch 97 (specs/post-anticorruption-roadmap/reference/batches/97.md), as the person sees it: two Images generations
 // no conversation started end together in one project; its main conversation gets one round that only reports, listing both, and
 // the person is told of each once. Another project's end goes to that project's own main conversation.
 

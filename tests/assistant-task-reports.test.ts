@@ -160,7 +160,7 @@ test("PWA-156 the Assistant starts a report as the Host, with a round that only 
   } finally { service.continuations.close(); db.close(); }
 });
 
-// Batch 97-1 (specs/backlog/BL-report-rounds-auto-cap.md): a round that only reports is no step the work took by itself. It neither
+// Batch 97-1 (specs/post-anticorruption-roadmap/reference/batches/97.md): a round that only reports is no step the work took by itself. It neither
 // counts toward the rounds in a row a work may go on alone (DELEGATION_LIMITS.autoRounds, 8) nor starts that count again.
 const mainWork = (store: AssistantStore) => {
   const work = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
@@ -236,7 +236,7 @@ test("RRC-03 a store written before opens as it is, at the same version: rounds 
   } finally { db.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// Batch 97-2 (specs/backlog/BL-work-line-report-batch.md): what one read of a project's table finds ended goes to its main
+// Batch 97-2 (specs/post-anticorruption-roadmap/reference/batches/97.md): what one read of a project's table finds ended goes to its main
 // conversation in one round; a busy conversation has all of it wait; each task is still told once, by its own notice.
 const ENDED_AT = new Date(Date.now() + 60_000).toISOString(); // after the main conversations below exist
 const ended = (id: string, over: Record<string, unknown> = {}) => row({ subject: { kind: "demo_task", id }, title: `任务${id}`, updated_at: ENDED_AT, ...over });

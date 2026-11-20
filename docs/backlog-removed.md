@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-report-rounds-auto-cap | 已完成并删除 | 第 97 批 97-1（2026-11-19）：宿主为没有对话来源的任务起的只汇报一轮在轮次上记 `report_only`，两处上限（接续起跑、委托交回）共用 `roundsOnItsOwn`，跳过汇报轮、不加也不清零；标记存在库里，重启后照样分得出。用户定不升助理库版本、不迁移：标记之前存下的汇报轮照旧计数。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-1) |
+| BL-work-line-report-batch | 已完成并删除 | 第 97 批 97-2（2026-11-19）：`AssistantTaskReports` 把一次读取里同一项目结束的行交成一批，`AssistantReportRounds.report` 起一轮列出全部结果（一件时措辞照旧），忙时整批等下一次空闲；每件任务仍各一条提醒、按任务去重。见 [97.md](../specs/post-anticorruption-roadmap/reference/batches/97.md#batch-97-item-2) |
 | BL-feed-sql-driver-name、BL-feed-run-now-missed-again、BL-missed-runs-never-expire | 已完成并删除 | 第 95 批（2026-11-18）：Feed 连接工厂改名 `fromProjectConnection`；「现在做」把来源放回错过的那一刻并在错过记录上留决定，睡眠或重启后照做一次、不再问；Feed、定时任务、助理跟进错过的事都从 `due_at` 起留七天，到期没处理的自动跳过（一次性提醒与任务一并结束），运行面板与首页汇总一次，「知道了」记在 `run/expired-seen.json`；见 [95.md](../specs/post-anticorruption-roadmap/reference/batches/95.md) |
 | BL-schedule-update-task-lookup | 已完成并删除 | 第 96 批 96-1（2026-11-19）：`schedule.tasks.update@1` 按编号只读这一项（Schedule 端口 `getTask`），没写重复规则时保留原规则，别的项目、已归档的编号答「定时任务不存在」；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |
 | BL-schedule-detail-refresh-after-failed-round | 已完成并删除 | 第 96 批 96-2（2026-11-19）：一轮写回与后台停下任务、改下次时间时 Schedule 调 `services.ui.invalidate()`，开着的详情经 `scope.watchRevision` 就地显示刚没跑成的一轮和原因，重读期间保留用户的新选择；余项 BL-schedule-view-refresh-followups；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |

@@ -2,7 +2,7 @@
 
 两件后台工作同时完成时，主对话里一次报全。主对话正忙就一起等，用户仍能分别找到每个任务的结果。
 
-预计 **8–16 工时**。维护范围为助理线。正式交付项为 [97-2](../../batches/97.md#batch-97-item-2)。[原始待办](../../../../backlog/BL-work-line-report-batch.md) · [派工总表](../README.md)
+预计 **8–16 工时**。维护范围为助理线。正式交付项为 [97-2](../../batches/97.md#batch-97-item-2)。[原始待办](https://github.com/molis-ai/molis-work/blob/e985e19aec4fbe21c93f5ad73f3dd43925e02656/specs/backlog/BL-work-line-report-batch.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

@@ -1,0 +1,25 @@
+{
+  "reason": "BL-schedule-one-off-detail 与 BL-schedule-view-refresh-followups：编辑一次性任务时写出运行的日期和时间（复用表单里已有的读数据那一行的样式，不加 CSS）；页面重读按先后编号，晚回来的旧答复不再画，要画的任务已不在时收起；首次核对也重读。无新增资源，只进 Schedule 自己的客户端脚本。 首屏：工作台 HTML 里服务端画好的 Schedule 新建/编辑表单多了「只跑一次」那一行（标签、放时间的空行、说明各一，图标已去掉），另有两条中英文案。",
+  "review": "PR「Schedule 一次性任务编辑与页面刷新余项」描述的「页面资源增长」一节（评审子代理审本 PR 时一并审）",
+  "assets": {
+    "/assets/molis-work-plugins/schedule.js": 470
+  },
+  "pages": {
+    "workbench-default/zh": {
+      "cold": 378,
+      "warm": 378
+    },
+    "workbench-default/en": {
+      "cold": 387,
+      "warm": 387
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 378,
+      "warm": 378
+    },
+    "workbench-all-plugins/en": {
+      "cold": 387,
+      "warm": 387
+    }
+  }
+}

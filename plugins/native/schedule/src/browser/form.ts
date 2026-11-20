@@ -56,25 +56,30 @@ export function openEdit(page: SchedulePage, button: HTMLElement): void {
   const time = required<HTMLInputElement>(detail, "[data-schedule-task-time]");
   field(form, "time").value = time.value;
   // A one-off task has no daily time to change (its time is set where it was scheduled, e.g. a risk's review): the field is
-  // left out, so an edit cannot look like it moved the time and then keep the old one.
-  setOnce(form, time.hasAttribute("data-schedule-task-once"));
+  // left out, so an edit cannot look like it moved the time and then keep the old one; the day and time it runs are said instead.
+  setOnce(form, time.getAttribute("data-schedule-task-once"));
   required<HTMLInputElement>(form, "[name=notify_important]").checked = required<HTMLInputElement>(detail, "[data-schedule-task-notify]").value === "true";
   hint(page);
   open(page, button.dataset.scheduleTaskEdit ?? "");
   field(form, "title").focus();
 }
 
-/** The daily-time field, shown for a daily task and a new one, left out (hidden and not sent) for a one-off task. */
-function setOnce(form: HTMLFormElement, once: boolean): void {
-  const input = field(form, "time") as HTMLInputElement;
+/**
+ * The daily-time field, shown for a daily task and a new one, left out (hidden and not sent) for a one-off task, whose day and
+ * time (`when`, as its detail wrote it) are shown instead and cannot be changed here. `null`: not a one-off task.
+ */
+function setOnce(form: HTMLFormElement, when: string | null): void {
+  const once = when !== null, input = field(form, "time") as HTMLInputElement;
   input.disabled = once;
   required(form, ".schedule-time-field").hidden = once;
+  required(form, "[data-schedule-form-once]").hidden = !once;
+  required(form, "[data-schedule-form-once-at]").textContent = when ?? "";
 }
 
 function openNew(page: SchedulePage): void {
   if (page.creating) return;
   page.form.reset();
-  setOnce(page.form, false);
+  setOnce(page.form, null);
   open(page, "");
   void readHints(page, hint(page));
   field(page.form, "title").focus();

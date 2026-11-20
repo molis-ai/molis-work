@@ -22,11 +22,19 @@ export async function fixture(t: TestContext) {
   const space = personalStorageSpace('http://127.0.0.1:8787', 'work', 'alice');
   const homes = ['a', 'b'].map(id => join(root, id));
   homes.forEach(home => ensureStorageSpace(home, space));
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: homes[0] }, c => c.createProject({ display_name: '跨设备 Goals', actor_id: 'alice' }));
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: homes[0] }, async c => {
+    const created = await c.createProject({ display_name: '跨设备 Goals', actor_id: 'alice' });
+    c.addProjectPlugin({ project_id: created.project_id, plugin_id: 'goals', actor_id: 'alice' });
+    return created;
+  });
   const initialStore=new LocalProjectDatabase(project.database_path);try{new GoalProjectApplication(initialStore).initializeBoard({project_id:project.project_id,actor_id:'alice',idempotency_key:'fixture-board'});}finally{initialStore.close();}
   let active = true, online = true, drop = false, deferGoalsDelivery = false;
   const check = () => { if (!active) throw new Error('host.test_revoked'); };
-  const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
+  const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async c=>{
+    const synced = await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check);
+    c.addProjectPlugin({ project_id: synced.project_id, plugin_id: 'goals', actor_id: 'alice' });
+    return synced;
+  });
   const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',check));
   t.after(async()=>{try{await Promise.all(runtimes.map(runtime=>runtime.close()));}finally{rmSync(root,{recursive:true,force:true});}});
   const registrations=runtimes.map(runtime=>runtime.registration);

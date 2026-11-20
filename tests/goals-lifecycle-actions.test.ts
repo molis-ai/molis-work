@@ -33,7 +33,7 @@ for (const graph of [
   { types: ["part_of", "part_of", "depends_on"], code: "goals.planning.execution_cycle" },
 ] as const) test(`W2-18-GOALS-01/02 restore refuses ${graph.code} atomically and the same request recovers after a graph correction`, async t => {
   const home = await mkdtemp(join(tmpdir(), "goal-restore-cycle-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Restore graph", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Restore graph", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.closeProject(ref); await host.close(); await rm(home, { recursive: true, force: true }); });
@@ -79,7 +79,7 @@ for (const graph of [
 // R2-01/R2-03: owner refusal codes change; archived/trash event facts, receipts and recovery stay intact.
 test("lifecycle actions preserve old receipts, active Goal, relations, history, rollback and restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Lifecycle", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
@@ -168,7 +168,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
 
 test("Web lifecycle routes obey live policy and the user's confirmation", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-http-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle HTTP", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Lifecycle HTTP", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>

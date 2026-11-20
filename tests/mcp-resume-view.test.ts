@@ -25,7 +25,6 @@ function directoryFor(entries: Array<[string, DirectoryItem["work_status"], bool
     completion_effect: work_status === "completed",
     can_record,
     next_hint: work_status === "completed" ? "已完成，明确继续后开启新一轮" : "可记录",
-    unmet_requirement_count: 0,
     pending_decision_count: id === "attention" ? 1 : 0,
     blocking_concern_count: 0,
     updated_at: `2026-09-0${9 - (index % 8)}T00:00:00Z`,
@@ -73,6 +72,7 @@ test("context_resolve restores Host focus outside the discovery window and write
   let host: ReturnType<typeof createMolisWorkLocalHost> | undefined;
   try {
     const project = await catalog.createProject({ display_name: "Host 焦点恢复", actor_id: "focus-user" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));

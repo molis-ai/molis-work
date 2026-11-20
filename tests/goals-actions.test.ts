@@ -28,7 +28,7 @@ const LAUNCHER_TIMEOUT = 120_000;
 
 test("Goals actions keep the runtime author; the management caller and the first-run door record the local person and refuse a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false, creates = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_caller, view) => {
@@ -102,7 +102,7 @@ async function openGoalsMcp(t: TestContext) {
     active = `after ${name}`; activeStarted = Date.now(); return result;
   };
   const home = await mkdtemp(join(tmpdir(), "goals-actions-mcp-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "MCP Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "MCP Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "runtime:goals-actions", project_id: project.project_id, audience: "mcp", permissions: [] };

@@ -35,6 +35,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -241,6 +242,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -301,6 +303,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   let host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -410,6 +413,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;

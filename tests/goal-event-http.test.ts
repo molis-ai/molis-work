@@ -34,7 +34,7 @@ function listen(server: Server): Promise<string> {
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -160,7 +160,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
 test("HTTP event-close rejects unknown kind without recording an event", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -213,7 +213,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async t
 test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -271,7 +271,7 @@ test("PG094-09: the Host serves Goals' declared routes by method and path; a bad
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -394,7 +394,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
 test("HTTP progress uses the Goal cursor and legal field ids stay content", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -539,7 +539,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
 test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -609,7 +609,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
 test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -683,7 +683,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
 test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -735,7 +735,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
 test("HTTP outcome replacement leaves the person's acceptance and the completion standing; stale agreement_change approval has no write", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -857,7 +857,7 @@ test("HTTP outcome replacement leaves the person's acceptance and the completion
 test("HTTP create receipt has no retired state aliases and covers requirements and relations", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1031,7 +1031,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1152,7 +1152,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
 test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1280,7 +1280,7 @@ test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and inter
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const served = await serveTestHost(null, { home, host });
   t.after(async () => { await served.close(); await host.close(); rmSync(home, { recursive: true, force: true }); });
-  const project = await served.createProject("错误出口");
+  const project = await served.createProject("错误出口", ["goals"]);
   const path = "/projects/" + encodeURIComponent(project.project_id) + "/api/plugins/io.molis.work.goals/goals";
   const created = await served.web.post<{ goal: { goal_id: string } }>(path, { title: "保存原事实", idempotency_key: "create" });
   const goalId = created.goal.goal_id;

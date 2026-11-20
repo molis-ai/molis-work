@@ -164,11 +164,12 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/stage/feed" },
   { method: "GET", path: "/api/panels" },
   { method: "GET", path: "/api/panels/no-such-panel" },
-  // RAC-2561: a Goal's terminals are Goals' route; the Host's own panel routes are gone (T-148).
+  // RAC-2561 / PEQ-17: work terminals live at the platform route `/api/work-terminals/:pluginId/:kind/:id`; the old panel and Goals terminal routes are gone.
   { method: "GET", path: "/api/goals/no-such-goal/panels" },
   { method: "POST", path: "/api/goals/no-such-goal/panels", body: { runtime_kind: "generic", command: "/bin/sh" } },
   { method: "POST", path: "/api/panels/no-such-panel/reopen", body: {} },
   { method: "GET", path: "/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals" },
+  { method: "GET", path: "/api/work-terminals/io.molis.work.goals/goal/no-such-goal" },
   { method: "GET", path: "/api/home/events" },
   { method: "GET", path: "/api/project-references/no-such" },
   { method: "GET", path: "/api/plugins/io.molis.work.goals/goals" },
@@ -216,8 +217,8 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
   const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "路由表", actor_id: "test" });
-  // Inbox is a plugin of the project's Runtime: the pages and routes under test are the project's only when it has it.
-  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
+  // Inbox and Goals are plugins of the project's Runtime: the pages and routes under test are the project's only when it has them.
+  for (const plugin_id of ["goals", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   t.after(async () => {
@@ -259,12 +260,13 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   assert.deepEqual(actual, JSON.parse(readFileSync(SNAPSHOT, "utf8")));
 });
 
-test("RAC-2561 the Host answers no terminal panel route of its own: a Goal's terminals are Goals' plugin route", () => {
+test("RAC-2561 PEQ-17 retired panel and Goals terminal routes are gone; the platform work-terminals route answers for any object", () => {
   const routes = JSON.parse(readFileSync(SNAPSHOT, "utf8")) as Record<string, { status: number; error?: string }>;
   const gone = ["GET <project>/api/panels", "GET <project>/api/panels/no-such-panel", "GET <project>/api/goals/no-such-goal/panels",
-    "POST <project>/api/goals/no-such-goal/panels", "POST <project>/api/panels/no-such-panel/reopen"];
+    "POST <project>/api/goals/no-such-goal/panels", "POST <project>/api/panels/no-such-panel/reopen",
+    "GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals"];
   for (const key of gone) assert.deepEqual([key, routes[key]?.status, routes[key]?.error], [key, 404, "页面或接口不存在"]);
-  const goals = routes["GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals"];
-  assert.ok(goals, "the probe is pinned");
-  assert.notEqual(goals.error, "页面或接口不存在", "Goals' route answers, not the Host's missing-route fallback");
+  const terminals = routes["GET <project>/api/work-terminals/io.molis.work.goals/goal/no-such-goal"];
+  assert.ok(terminals, "the platform work-terminals probe is pinned");
+  assert.notEqual(terminals.error, "页面或接口不存在", "the platform work-terminals route answers, not the missing-route fallback");
 });

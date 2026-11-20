@@ -16,7 +16,7 @@ import { prepareGoalReview } from "./fixtures/project-review-entry.js";
 
 test("Web Goals use shared actions and store a result exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Web Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Web Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const seen: string[] = [];
   const deniedQueries = new Set<string>();

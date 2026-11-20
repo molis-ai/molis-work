@@ -29,6 +29,7 @@ const withProject = async (plugins: string[], run: (fixture: Fixture) => Promise
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const created = await catalog.createProject({ display_name: "只有目标", actor_id: "test" });
+      catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
       // SYS-15-S7: new projects enable Schedule by default; this fixture explicitly tests the person's disabled state.
       catalog.removeProjectPlugin({ project_id: created.project_id, plugin_id: "schedule", actor_id: "test" });
       for (const plugin_id of plugins) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });

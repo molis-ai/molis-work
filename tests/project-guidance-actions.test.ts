@@ -93,7 +93,11 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
 
 test("Web settings and Work prompt consume the same guidance and obey live read/write policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "project-guidance-http-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Guidance HTTP", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => {
+    const created = await c.createProject({ display_name: "Guidance HTTP", actor_id: "user" });
+    c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    return created;
+  });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>

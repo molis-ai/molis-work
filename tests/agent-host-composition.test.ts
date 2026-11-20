@@ -164,7 +164,7 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const composition = localHost.ensureAgentService(home, () => { throw new Error("the Host already owns its Home's Agent service"); });
   // The tool lives on this Host, whose real catalog and access settings serve the grant.
   served = await serveTestHost(null, { home, host: localHost });
-  const project = await served.createProject("Numbers");
+  const project = await served.createProject("Numbers", ["goals"]);
   const reference = project.reference;
   // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in, as its output (SSC-15).
   const withHostCatalog = localHost.configurePersonalPlanning(home, withCatalog);

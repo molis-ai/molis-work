@@ -34,7 +34,7 @@ test("RAC-2682 the declared Goals refresh surface returns content without docume
 
 test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation states as values without another collection read", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals stage");
+  const project = await served.createProject("Goals stage", ["goals"]);
   const response = await fetch(`${served.origin}/projects/${project.project_id}/api/plugins/io.molis.work.goals/goals`, {
     method: "POST", headers: { origin: served.origin, "content-type": "application/json", "x-molis-work-control-token": served.controlToken,
       "x-molis-work-idempotency-key": randomUUID() },
@@ -89,7 +89,7 @@ test("RAC-2682 SSC-14 IUI-03 the declared stage reads the same presentation stat
     "a Goal outside the requested collection is not selected; the page route supplies its original 404 body");
   const untrusted = { goal_id: goal.goal_id, project_id: "another-project", actor_id: "another-person" };
   await assert.rejects(actions.invoke(goalsActions.stage, untrusted), "request input cannot replace the trusted scope or actor");
-  const other = await served.createProject("Other Goals stage");
+  const other = await served.createProject("Other Goals stage", ["goals"]);
   const otherActions = bindActionClient(served.host.actionClient(other.reference), () => ({ ...caller, project_id: other.project_id }));
   const outside = await otherActions.invoke(goalsActions.stage, { goal_id: goal.goal_id });
   assert.equal(outside.selected, null);

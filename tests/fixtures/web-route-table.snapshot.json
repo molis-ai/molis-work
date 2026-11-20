@@ -461,14 +461,8 @@
     "status": 200,
     "type": "application/json",
     "keys": [
-      "active_goal_id",
-      "archived_goals",
-      "counts",
       "demo",
       "developer_mode",
-      "events",
-      "goals",
-      "input_bindings",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",
@@ -478,9 +472,7 @@
       "projects",
       "route_prefix",
       "shown_plugins",
-      "snapshot",
       "stage_data",
-      "trashed_goals",
       "unavailable_plugin_stages"
     ]
   },
@@ -897,6 +889,11 @@
   "GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals": {
     "status": 404,
     "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/work-terminals/io.molis.work.goals/goal/no-such-goal": {
+    "status": 404,
+    "type": "application/json",
     "code": "actions.missing",
     "error": "找不到这个 Goal"
   },
@@ -973,14 +970,8 @@
     "status": 200,
     "type": "application/json",
     "keys": [
-      "active_goal_id",
-      "archived_goals",
-      "counts",
       "demo",
       "developer_mode",
-      "events",
-      "goals",
-      "input_bindings",
       "plugin_directory",
       "plugin_overlays",
       "plugin_panels",
@@ -990,9 +981,7 @@
       "projects",
       "route_prefix",
       "shown_plugins",
-      "snapshot",
       "stage_data",
-      "trashed_goals",
       "unavailable_plugin_stages"
     ]
   },

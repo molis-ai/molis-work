@@ -21,6 +21,7 @@ test("management and MCP active Goal capabilities preserve rejection, canonical 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "原入口行为", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory, clock: () => new Date("2026-09-05T01:00:00Z") });

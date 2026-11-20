@@ -48,7 +48,7 @@ const formerDoors = (goal_id: string, cursor: number): FormerDoor[] => [
  */
 test("every management write records the person on this machine and refuses an identity in its arguments", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-identity-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Identity", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => { const created = await catalog.createProject({ display_name: "Identity", actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const typed = host.client(ref), actions = host.actionClient(ref), project_id = project.project_id, goal_id = "IDENTITY-GOAL";
@@ -125,7 +125,7 @@ const RETIRED_GOALS_ENTRIES = [
 
 test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host and SDK callers, including an unflagged descriptor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-plugin-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Plugin", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => { const created = await catalog.createProject({ display_name: "Plugin", actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const writer = callerPlugin("goalwriter", "project", { "goals:read": true, "goals:write": true });
   // A plugin whose Manifest still lists every retired literal: listing one does not bring it back.
@@ -196,7 +196,7 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
  */
 async function approvalProject(name: string) {
   const home = await mkdtemp(join(tmpdir(), `goal-management-${name}-`));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => { const created = await catalog.createProject({ display_name: name, actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
@@ -435,7 +435,7 @@ const proposalEntry = (key: string, name = "child") => ({ summary: "拆一个子
  */
 test("a structure proposal written through the management door records the person on this machine", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-entries-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Entries", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => { const created = await catalog.createProject({ display_name: "Entries", actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
@@ -466,7 +466,7 @@ test("a structure proposal written through the management door records the perso
 
 test("structure submit takes a plugin's own action identity and refuses an identity claimed in its input", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-entries-plugin-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => { const created = await catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   // A proposal opens the decision reminder through the platform's Attention service, which asks its caller for `attention:write` (PG-094 S11).
   const writer = callerPlugin("goalproposer", "project", { "goals:read": true, "goals:write": true, "attention:write": true });

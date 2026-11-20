@@ -115,7 +115,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   t.mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: startedAt });
   const { openTestHome } = await import("./fixtures/test-home.js");
   const home = await openTestHome(t, { host: { clock: () => new Date() } });
-  const project = await home.createProject("Call budget", ["pages"]);
+  const project = await home.createProject("Call budget", ["goals", "pages"]);
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const goalIds = ["BUDGET-ONE", "BUDGET-TWO"];
   for (const goalId of goalIds) {

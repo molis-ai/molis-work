@@ -23,6 +23,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
   const withCatalog = localHost.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
   try {
     const project = await fixture.createProject({ display_name: "Scoped connection", actor_id: "user" });
+    fixture.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
     const host: MolisWorkRuntimeContextHost = { homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "host-session", host_declares_stable: true } };
     fixture.bindRuntimeContext({ context: host.runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true });

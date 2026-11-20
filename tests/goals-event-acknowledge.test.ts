@@ -54,7 +54,7 @@ function goalsPlugin() {
 
 async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
   const home = await mkdtemp(join(tmpdir(), `goals-ack-${label}-`));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Ack", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Ack", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const gate: { availability: ActionAvailability } = { availability: { available: true } };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
@@ -101,7 +101,7 @@ async function mcpRig(runtimeId: string, stable: string | null) {
     ["Local Host", () => host?.close()], ["temporary directory", () => rm(directory, { recursive: true, force: true })]], first);
   try {
     // T405-OWNER-CI-01: finish the offline seed before the real Host takes the Home owner.
-    const project = await withCatalog({ homeDirectory }, catalog => catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }));
+    const project = await withCatalog({ homeDirectory }, async catalog => { const created = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
     host = createMolisWorkLocalHost({ homeDirectory });
     // The rig's Host is the Home's: the grants go through the access settings it serves.
     served = await serveTestHost(null, { home: homeDirectory, host });
@@ -215,7 +215,7 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
     for (const [index, event_id] of wrongKind.entries()) await refusal("goals.event_acknowledgement.reference_kind", () => say(goal_id, event_id, cursor, `kind-${index}`), `kind ${index}`);
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, "gevt-no-such-record", cursor, "missing"), "an unknown record");
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, foreign.event_id, cursor, "foreign-goal"), "a record of another Goal");
-    const project2 = await r.withCatalog({ homeDirectory: r.home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
+    const project2 = await r.withCatalog({ homeDirectory: r.home }, async c => { const created = await c.createProject({ display_name: "Other", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
     const ref2 = molisWorkHostProjectReference({ projectId: project2.project_id, databasePath: project2.database_path });
     const otherPerson = managementGoals(r.host.actionClient(ref2), project2.project_id);
     await otherPerson.invoke(goalsActions.create, { goal_id, title: "另一个项目里同名的目标", outcome: "x", idempotency_key: "create-2" });

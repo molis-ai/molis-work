@@ -42,6 +42,7 @@ export async function populatedSnapshotHome(t: TestContext) {
   const projects = [];
   try {
     for (const name of ["Retained project A", "Retained project B"]) projects.push(await catalog.createProject({ display_name: name, actor_id: "snapshot-person" }));
+    catalog.addProjectPlugin({ project_id: projects[0]!.project_id, plugin_id: "goals", actor_id: "snapshot-person" });
   } finally { catalog.close(); }
   const first = projects[0]!, host = createMolisWorkLocalHost({ instanceId: "snapshot-source", homeDirectory: home, completeText: null });
   try {

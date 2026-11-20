@@ -367,8 +367,8 @@ async function catalogFixture() {
       user_confirmed: true,
       binding_scope: "session",
     });
-    // Feed actions honor the project's enabled plugins; these journeys start from Feed, so the project has it.
-    if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test-user" });
+    // Goals and Feed actions honor the project's enabled plugins; these journeys use both, so the project has them.
+    for (const plugin_id of ["goals", "feed"]) if (!catalog.listProjectPlugins(created.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test-user" });
     const project = catalog.getProject(created.project_id);
     return { homeDirectory, project };
   } finally {
@@ -1468,6 +1468,8 @@ test("a new project's first terminal opens in its default output directory, made
   try {
     const created = await catalog.createProject({ display_name: "无目录项目", actor_id: "test-user" });
     const linked = await catalog.createProject({ display_name: "输出目录是链接", actor_id: "test-user" });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test-user" });
+    catalog.addProjectPlugin({ project_id: linked.project_id, plugin_id: "goals", actor_id: "test-user" });
     projectId = created.project_id;
     linkedId = linked.project_id;
     output = catalog.outputDirectory(projectId).canonical_path;

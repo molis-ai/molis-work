@@ -16,8 +16,8 @@ import { serveTestHost } from "./fixtures/test-home.js";
 
 test("official MCP connection summaries obey live action grants, preserve binding and never read offline local content", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "mcp-context-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection A", actor_id: "user" }));
-  const second = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection B", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Connection A", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
+  const second = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Connection B", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const seen = new Set<string>();
   let disabled = false;

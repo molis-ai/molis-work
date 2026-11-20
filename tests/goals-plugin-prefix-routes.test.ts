@@ -48,7 +48,7 @@ const proposalInput = (prefix: string) => ({ summary: "Create a parent and child
 /** RAC-1510: every Goals route is gone from its old `/api` address, and the Host keeps no dispatcher or mount of its own. */
 test("RAC-1510 Goals routes are not served at the old address and the Host no longer mounts them", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals prefix");
+  const project = await served.createProject("Goals prefix", ["goals"]);
   const base = page(served, project.project_id);
   const created = await request<CreatedGoal>(served, "POST", `${base}${GOALS_PREFIX}/goals`, { body: { title: "Old address target", idempotency_key: randomUUID() } });
   assert.equal(created.status, 201);
@@ -75,7 +75,7 @@ test("RAC-1510 Goals routes are not served at the old address and the Host no lo
 /** RAC-1511: the plugin prefix creates at the Goals prefix, replays by the body key, and needs the key in the body to retry. */
 test("RAC-1511 the plugin prefix creates a Goal and a relation retry is only replayable by its body key", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals prefix writes");
+  const project = await served.createProject("Goals prefix writes", ["goals"]);
   const base = page(served, project.project_id), prefix = `${base}${GOALS_PREFIX}`;
   // The page keeps its one-time key in the body; the Host's per-request key is fresh for each attempt.
   const create = (bodyKey: string) => request<CreatedGoal>(served, "POST", `${prefix}/goals`, {
@@ -122,7 +122,7 @@ test("RAC-1511 the plugin prefix creates a Goal and a relation retry is only rep
 /** RAC-1512: whole confirmation reaches the action policy through the Runtime route's own user_action. */
 test("RAC-1512 a whole proposal confirmation reaches the original action with the protected page's own message", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals prefix proposals");
+  const project = await served.createProject("Goals prefix proposals", ["goals"]);
   const base = page(served, project.project_id), prefix = `${base}${GOALS_PREFIX}`;
   const caller: ActionCallContext = { actor_id: "runtime:prefix-planner", audit_actor_id: "runtime:prefix-planner", runtime_session_id: "prefix-session",
     actor_kind: "runtime", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write", "attention:write"] };
@@ -157,7 +157,7 @@ test("RAC-1512 a whole proposal confirmation reaches the original action with th
 /** RAC-1513: a Goal written through the plugin prefix shows up on the project page's next read, cache included. */
 test("RAC-1513 a Goal written at the plugin prefix is visible to the project page's next read", async t => {
   const served = await openTestHome(t);
-  const project = await served.createProject("Goals prefix reads");
+  const project = await served.createProject("Goals prefix reads", ["goals"]);
   const base = page(served, project.project_id);
   // Warm the project page's cached view first (the project page is what the old rewrite invalidated through `changed()`): the Goal's
   // title is not on it yet. The Host keeps that view per project (`cachedMolisWorkWebView`) until the journal cursor or a fingerprint

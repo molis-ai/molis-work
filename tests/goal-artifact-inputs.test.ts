@@ -19,7 +19,7 @@ const controlToken = "goal-artifact-inputs-control-token-0123456789";
 test("a 成果 version becomes a Goal's input from its detail, shows on the Goal and under 「被谁引用」, and can be removed", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-', actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: 'molis-work-goal-inputs-', actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
@@ -74,7 +74,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
 test("a document taken as a Goal's input 「固定这一版」 is pinned by Pages and listed with the Goal's other inputs", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
@@ -132,7 +132,7 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
 test("a proposed Feed input shows on the Goal as pending with 认可 and 移除; the person's accept makes it confirmed, and removing takes it off", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "goal-inputs-accept", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "goal-inputs-accept", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);

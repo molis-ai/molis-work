@@ -17,7 +17,11 @@ installHostUiText();
 
 test("PEQ-04 C1 Goals' attach parts and placement's 「挂到…」 run through Goals' windows in the Host", () => runWithLocale("zh", async () => {
   const home = await mkdtemp(join(tmpdir(), "placement-attach-goals-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Attach", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "Attach", actor_id: "user" });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    return created;
+  });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   host.configurePersonalPlanning(home, withCatalog);

@@ -29,8 +29,8 @@ async function fixture() {
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "升格", actor_id: "user" });
-  // Feed and its companion Inbox are plugins of the project's Runtime (FI-7): the promotion is offered only where the project has them.
-  for (const plugin_id of ["feed", "inbox"]) if (!catalog.listProjectPlugins(project.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
+  // Goals, Feed and its companion Inbox are plugins of the project's Runtime: the promotion is offered only where the project has them.
+  for (const plugin_id of ["goals", "feed", "inbox"]) if (!catalog.listProjectPlugins(project.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
@@ -41,7 +41,12 @@ async function fixture() {
   seed.close();
   // The Host is bound to this Home, so it is the Host that serves the access settings the grants go through.
   const served = await serveTestHost(null, { home: homeDirectory, host });
-  await grantGoalsMcp(served, project, CLIENT, [feedItemActions.promote, feedItemActions.offers, { capability_id: "home.actions.prepare" }, { capability_id: "home.actions.execute" }]);
+  try {
+    await grantGoalsMcp(served, project, CLIENT, [feedItemActions.promote, feedItemActions.offers, { capability_id: "home.actions.prepare" }, { capability_id: "home.actions.execute" }]);
+  } catch (error) {
+    await served.close(); await host.close(); rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
   const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);

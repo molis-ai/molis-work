@@ -35,6 +35,7 @@ test("Runtime state tools record progress and close without applying user identi
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -163,6 +164,7 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
@@ -216,6 +218,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;

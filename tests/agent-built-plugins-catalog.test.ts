@@ -246,7 +246,7 @@ test('arbitrarily named providers drive sandbox limits, cost disclosure and rate
  */
 async function hostProject(t: import('node:test').TestContext, approve?: readonly string[]) {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const project = await home.createProject('Sandbox callers');
+  const project = await home.createProject('Sandbox callers', ["goals"]);
   await home.host.withProject(project.reference, () => undefined);
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id,
     inspect: (caller: ActionCallContext) => home.host.inspectActions(caller, project.reference) };

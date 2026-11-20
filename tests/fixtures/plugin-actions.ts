@@ -53,7 +53,7 @@ export function fakeGoalDirectory(actions: ReturnType<typeof pluginActions>, tit
       seen?.push(caller);
       const asked = input as { after_cursor?: string; limit?: number }, rows = Object.entries(titles()), start = asked.after_cursor ? Number(asked.after_cursor) : 0;
       const size = Math.min(asked.limit ?? pageSize, pageSize), page = rows.slice(start, start + size);
-      return { goals: page.map(([goal_id, title]) => ({ goal_id, title, work_status: "open", completion_effect: false, can_record: true, next_hint: "", unmet_requirement_count: 0,
+      return { goals: page.map(([goal_id, title]) => ({ goal_id, title, work_status: "open", completion_effect: false, can_record: true, next_hint: "",
         pending_decision_count: 0, blocking_concern_count: 0, updated_at: "2026-09-19T14:00:00Z" })), next_cursor: start + size < rows.length ? String(start + size) : null, observed_event_cursor: 0 };
     } }] });
   directories.add(actions.registry);

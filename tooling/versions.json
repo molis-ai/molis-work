@@ -855,6 +855,7 @@
     "action.pages.ai": 1,
     "action.pages.artifacts.compare": 1,
     "action.pages.artifacts.continue": 1,
+    "action.pages.artifacts.diff": 1,
     "action.pages.artifacts.pin": 1,
     "action.pages.artifacts.preview": 1,
     "action.pages.artifacts.referrers": 1,

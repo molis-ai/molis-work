@@ -5,9 +5,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { issuePluginCaller, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { addProjectInputFolder } from "./fixtures/project-directories-http.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -225,12 +226,17 @@ test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is dec
     request_id: binding.binding_id, draft: { goal_id: goalId, expected_old_digest: `sha256:${old}`, observed_new_digest: `sha256:${observed}`, ...(note ? { note } : {}) },
   });
   const decide = (offer: ReviewRequest, choice_id: "adopt_latest" | "remove", request_key = randomUUID()) =>
-    served.web.post(`${projectApprovals}/decide`, { reference: offer.reference, choice_id, request_key });
+    served.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${projectApprovals}/decide`, { reference: offer.reference, choice_id, request_key });
 
   const next = await write("Second version");
   const proposed = { goal_id: goalId, binding_id: binding.binding_id, decision: "adopt_latest", expected_old_digest: `sha256:${original}`, observed_new_digest: `sha256:${next}` } as const;
+  const plugin = { plugin_id: GOALS_PLUGIN_ID, install_id: "source-review-test", actor_id: person.actor_id, project_id: project.project_id,
+    declaration: { manifest: goalsManifest }, assertActive: () => undefined };
+  t.after(issuePluginCaller(plugin, permissions));
   for (const audience of ["agent", "workflow", "mcp", "plugin"] as const) {
-    const caller: ActionCallContext = { ...person, audience, actor_kind: "runtime" };
+    const caller: ActionCallContext = audience === "plugin"
+      ? { ...person, audience, actor_kind: "user", host_plugin: plugin, plugin_install_id: plugin.install_id }
+      : { ...person, audience, actor_kind: "runtime" };
     const visible = await actions.discover(caller);
     assert.ok(!visible.some(row => row.capability_id === goalsActions.inputsReviewChange.capability_id), audience);
     await assert.rejects(actions.invoke(caller, goalsActions.inputsReviewChange, proposed), { code: "actions.forbidden" }, audience);
@@ -245,8 +251,13 @@ test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is dec
   assert.equal((await stored()).snapshot_digest, `sha256:${original}`);
   const matching = await review(original, latest, "Checked the source file");
   const choiceKey = randomUUID();
-  await decide(matching, "adopt_latest", choiceKey);
-  await decide(matching, "adopt_latest", choiceKey);
+  const adoption = await decide(matching, "adopt_latest", choiceKey);
+  assert.equal(adoption.replayed, false);
+  const repeated = await decide(matching, "adopt_latest", choiceKey);
+  assert.equal(repeated.replayed, true);
+  assert.equal(repeated.record.decision_id, adoption.record.decision_id);
+  assert.deepEqual(adoption.record.review.requirements, []);
+  assert.match(adoption.record.outcome_digest ?? "", /^sha256:[0-9a-f]{64}$/);
   assert.equal((await stored()).snapshot_digest, `sha256:${latest}`);
   assert.match((await stored()).reason, /^人工已复核来源变更.*Checked the source file$/);
 
@@ -254,7 +265,19 @@ test("AC-T4-01 AC-T4-02 AC-T4-03 AC-T4-04 AC-T4-05 a Goal's source change is dec
   await assert.rejects(review(original, final), { code: "actions.conflict" });
   assert.equal((await stored()).snapshot_digest, `sha256:${latest}`);
   const removal = await review(latest, final);
-  await decide(removal, "remove");
+  const removed = await decide(removal, "remove");
+  assert.deepEqual(removed.record.review.requirements, []);
+  const history = await user.invoke(goalsActions.events, { goal_id: goalId });
+  const decisions = history.events.flatMap(event => event.kind === "system" && event.payload.operation === "user_decision" ? [event.payload] : []);
+  assert.deepEqual(decisions.map(event => event.governance_decision_id), [adoption.record.decision_id, removed.record.decision_id]);
+  for (const decision of decisions) {
+    assert.deepEqual(decision.effects, []);
+    assert.equal(decision.accepts_requirements, false);
+    assert.deepEqual(decision.scope.requirement_ids, []);
+    assert.equal(decision.scope.action, null);
+    assert.equal(decision.scope.event_ids.length, 1);
+    assert.match(decision.conclusion, new RegExp(binding.binding_id));
+  }
   assert.equal((await stored()).state, "inactive");
   assert.equal(await readFile(file, "utf8"), "Fourth version");
 });

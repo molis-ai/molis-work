@@ -23,6 +23,7 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { eventDecisionVersion, goalsDecisionOfferHandlers, treeDecisionVersion } from "./decision-offers.js";
 import { goalForDecisionRequest } from "./module/event-state-decision-records.js";
 import { attentionOver, journalOver, ledgerOver } from "./runtime-ports.js";
+import { acceptanceReading } from "./acceptance-summary.js";
 import { goalsAcceptanceWiring, type GoalsProjectWindow } from "./plugin-acceptance.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
@@ -158,7 +159,14 @@ export function createGoalsPlugin(): PluginDefinition {
             whole_confirmation_prompted: entry?.whole_confirmation_prompted, prompted_proposal_id: entry?.prompted_subject_id } });
         } } });
     handlers.push(...createGoalSourceReviewHandlers(projectId, inputs, goalId => Boolean(application.goalEvents.readDirectoryItem(projectId, goalId)),
-      { ...window, readMaterial: materials.readMaterial }, () => sqlite.currentDecision()));
+      { ...window, readMaterial: materials.readMaterial }, () => sqlite.currentDecision(), {
+        async readAcceptance(caller, goalId) {
+          const view = (await acceptance.read(caller, [goalId]))?.get(goalId);
+          return view && acceptanceReading(view);
+        },
+        recordNote: input => application.goalEvents.recordNote(input),
+        recordTrustedDecision: input => application.goalEvents.recordTrustedDecision(input),
+      }));
     handlers.push(...goalsDecisionOfferHandlers(id => application.goalEvents.readState(projectId, id),
       id => application.goalTree.readNative(projectId, id), id => goalForDecisionRequest(sqlite, projectId, id),
       { kind: "plugin", scope: "project", project_id: projectId, plugin_id: context.plugin_id,

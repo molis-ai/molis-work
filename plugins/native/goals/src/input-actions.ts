@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { ActionError, bindActionHandler, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalSourceReviewOffer } from "./contract/goal-entry-actions.js";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MATERIAL_REF_SCHEMA, type MaterialRef, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { GOAL_MATERIAL_SNAPSHOT_SOURCE, GOAL_PLUGIN_OBJECT_SOURCE, goalMaterialSnapshotRef, goalPluginObjectRef, parseGoalMaterialSnapshotRef, parseGoalPluginObjectRef,
-  type GoalInputBindingRecord, type GoalInputBindingsApi } from "./contract/goals.js";
+  type GoalAcceptanceReading, type GoalInputBindingRecord, type GoalInputBindingsApi } from "./contract/goals.js";
 import { CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, personAsked, usingServices } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, type GoalConfirmedInput } from "./contract/goal-actions.js";
 export type { GoalConfirmedInput } from "./contract/goal-actions.js";
@@ -218,8 +219,12 @@ function sourceReviewVersion(binding: GoalInputBindingRecord, latest: string): s
     binding.snapshot_digest, binding.reason, latest])).digest("hex");
 }
 
+interface GoalSourceReviewAudit extends Pick<GoalEventApplication, "recordNote" | "recordTrustedDecision"> {
+  readAcceptance(caller: ActionExecutionContext, goalId: string): Promise<GoalAcceptanceReading | undefined>;
+}
+
 export function createGoalSourceReviewHandlers(projectId: string, inputs: GoalInputBindingsApi, goalExists: (goalId: string) => boolean,
-  ports: Pick<GoalsInputPorts, "read" | "write" | "readMaterial">, currentDecision: () => ProjectTrustedDecision | undefined): ActionHandlerBinding[] {
+  ports: Pick<GoalsInputPorts, "read" | "write" | "readMaterial">, currentDecision: () => ProjectTrustedDecision | undefined, audit: GoalSourceReviewAudit): ActionHandlerBinding[] {
   const stale = () => new ActionError("actions.conflict", "原文或这条引用已变化，请重新查看后再复核");
   const find = (goalId: string, bindingId: string, expectedOldDigest: string) => {
     const binding = inputs.list(projectId).find(row => row.binding_id === bindingId && row.goal_id === goalId && row.state === "confirmed");
@@ -241,26 +246,37 @@ export function createGoalSourceReviewHandlers(projectId: string, inputs: GoalIn
       if (!read.comparable || read.state !== "changed" || digestOf(read.read_revision) !== observed_new_digest) throw stale();
       const base = { goal_id, binding_id: binding.binding_id, expected_old_digest, observed_new_digest, ...(note ? { note } : {}) };
       const version = sourceReviewVersion(binding, observed_new_digest);
-      return { target: { subject: { kind: "goal-input", id: binding.binding_id }, version }, round_id: version,
+      return { target: { subject: { kind: "goal", id: goal_id }, version }, round_id: version,
         request: { summary: binding.input_name, requirements: [], approver: { kind: "person" }, expires_at: null, choices: [
           { id: "adopt_latest", label: { key: "common.source-review.adopt" }, accepts: [], returns: [], availability: { available: true } },
           { id: "remove", label: { key: "common.source-review.remove" }, accepts: [], returns: [], availability: { available: true } },
         ] }, commands: { adopt_latest: { ...base, decision: "adopt_latest" }, remove: { ...base, decision: "remove" } } };
     }),
-    bindActionHandler(goalEntryActions.inputsReviewChange, (input, caller) => ports.write(caller, () => {
-      const proof = currentDecision();
-      if (proof?.source.entry.source !== "web") throw new ActionError("actions.forbidden", "请在目标页面复核这条来源");
-      const { goal_id, binding_id, expected_old_digest, observed_new_digest, decision, note } = input;
-      const { binding } = find(goal_id, binding_id, expected_old_digest);
-      const target = proof.review.target;
-      if (!observed_new_digest || target.subject.kind !== "goal-input" || target.subject.id !== binding_id
-        || target.version !== sourceReviewVersion(binding, observed_new_digest)) throw stale();
-      if (!inputs.acknowledgeSourceChange) throw new ActionError("actions.unavailable", "当前无法保存来源复核结果");
-      const nextDigest = decision === "adopt_latest" ? observed_new_digest : null;
-      const outcome = nextDigest ? "人工已复核来源变更" : "人工已移除来源引用";
-      const reason = `${outcome}（${proof.decided_at}）${note ? "：" + note : ""}`;
-      if (!inputs.acknowledgeSourceChange(projectId, binding_id, expected_old_digest, nextDigest, reason)) throw stale();
-      return nextDigest ? { decision: "adopt_latest" as const, binding_id, snapshot_digest: nextDigest } : { decision: "remove" as const, binding_id };
-    })),
+    bindActionHandler(goalEntryActions.inputsReviewChange, async (input, caller) => {
+      const acceptance = await audit.readAcceptance(caller, input.goal_id);
+      return ports.write(caller, () => {
+        const proof = currentDecision();
+        if (proof?.source.entry.source !== "web") throw new ActionError("actions.forbidden", "请在目标页面复核这条来源");
+        const { goal_id, binding_id, expected_old_digest, observed_new_digest, decision, note } = input;
+        const { binding } = find(goal_id, binding_id, expected_old_digest);
+        const target = proof.review.target;
+        if (!observed_new_digest || target.subject.kind !== "goal" || target.subject.id !== goal_id
+          || target.version !== sourceReviewVersion(binding, observed_new_digest)) throw stale();
+        if (!inputs.acknowledgeSourceChange) throw new ActionError("actions.unavailable", "当前无法保存来源复核结果");
+        const nextDigest = decision === "adopt_latest" ? observed_new_digest : null;
+        const outcome = nextDigest ? "人工已复核来源变更" : "人工已移除来源引用";
+        const reason = `${outcome}（${proof.decided_at}）${note ? "：" + note : ""}`;
+        if (!inputs.acknowledgeSourceChange(projectId, binding_id, expected_old_digest, nextDigest, reason)) throw stale();
+        // The approval is paired with immutable Goal history in this transaction. Its event scope grants no further action.
+        const actor_id = proof.actor_id, actor_kind = "user" as const;
+        const { conversation_ref, message_ref } = proof.source.entry;
+        const { event_id } = audit.recordNote({ project_id: projectId, goal_id, actor_id, actor_kind, idempotency_key: proof.decision_id,
+          body: binding.input_name });
+        audit.recordTrustedDecision({ project_id: projectId, goal_id, idempotency_key: proof.decision_id, scope: { event_ids: [event_id] }, acceptance,
+          authority: { actor_id, actor_kind, authority_source: "web", conversation_ref, message_ref },
+          conclusion: `${reason}\n${binding.input_name} (${binding_id})\n${expected_old_digest} → ${observed_new_digest}` });
+        return nextDigest ? { decision: "adopt_latest" as const, binding_id, snapshot_digest: nextDigest } : { decision: "remove" as const, binding_id };
+      });
+    }),
   ];
 }

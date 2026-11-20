@@ -92,7 +92,7 @@ const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goal
 export type GoalSourceReviewOffer = Omit<TrustedReviewOffer, "request"> & { request: Omit<TrustedReviewOffer["request"], "choices"> & {
   choices: readonly (Omit<TrustedReviewOffer["request"]["choices"][number], "label"> & { label: { key: string } })[];
 } };
-const inputSourceReview = reviewReader<GoalSourceReviewOffer>("goals.inputs.review_source", /* @version action.goals.inputs.review_source */ 1, "goal-input", "查看待复核的来源版本");
+const inputSourceReview = reviewReader<GoalSourceReviewOffer>("goals.inputs.review_source", /* @version action.goals.inputs.review_source */ 1, "goal", "查看待复核的来源版本");
 const inputReviewFields = {
   goal_id: { ...identifier, type: "string" }, binding_id: { ...identifier, type: "string" },
   expected_old_digest: { ...snapshotDigest, type: "string" }, observed_new_digest: { ...snapshotDigest, type: "string" },
@@ -110,6 +110,7 @@ const inputReviewChange = goalAction<InferActionInput<typeof inputReviewSchema>,
   { oneOf: [object({ decision: { const: "adopt_latest" }, binding_id: identifier, snapshot_digest: snapshotDigest }),
     object({ decision: { const: "remove" }, binding_id: identifier })] });
 
+const protectedInputReview = protectedDecision(inputReviewChange, inputSourceReview);
 const eventReview = reviewReader("goals.decisions.review", /* @version action.goals.decisions.review */ 1, "goal", "查看目标事件决定");
 const treeReview = reviewReader("goals.tree.review", /* @version action.goals.tree.review */ 1, "goal-tree-proposal", "查看目标树决定");
 
@@ -158,7 +159,7 @@ export const goalEntryActions = {
     object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)), "directory.read"),
   inputsReviewSource: { ...inputSourceReview, action: { ...inputSourceReview.action, scheduling: "concurrent" as const,
     required_actions: [{ capability_id: materialsActions.read.capability_id, version: materialsActions.read.version, provider_id: MATERIALS_PROVIDER_ID }] } },
-  inputsReviewChange: protectedDecision(inputReviewChange, inputSourceReview),
+  inputsReviewChange: { ...protectedInputReview, action: { ...protectedInputReview.action, scheduling: "concurrent" as const } },
   inputsConfirm: withPromotionRole(goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,
     "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
     object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: { ...identifier, maxLength: 300 } }),

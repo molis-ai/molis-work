@@ -33,10 +33,9 @@ export class ProjectPluginMembershipService {
   }
 
   private readSnapshot(projectId: string, alwaysOn: readonly ProjectPluginId[]): VersionedProjectPluginMembership {
-    const membership = this.records.pluginMembership(projectId, alwaysOn);
-    // One extra read per membership read, and the reason the revision detects an add-then-remove that left the set as it was: merged
-    // into the owner's read when BL-project-membership-revision-read is taken, not by dropping the event from the revision.
-    const lastEvent = this.repository.projects.latestPluginMembershipEventId(projectId);
+    // Members, hidden marks and the latest member event come from one read; the event is why the revision detects an
+    // add-then-remove that left the set as it was.
+    const { membership, latest_event_id: lastEvent } = this.records.pluginMembershipWithLatestEvent(projectId, alwaysOn);
     const facts = [projectId, [...membership.plugins].sort(), [...membership.hidden].sort(), lastEvent];
     const revision = createHash("sha256").update(JSON.stringify(facts)).digest("hex");
     return { ...membership, revision };

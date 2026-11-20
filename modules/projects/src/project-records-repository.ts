@@ -3,6 +3,12 @@ import type { ProjectPluginId, ProjectRecord } from "@molis-ai/molis-work-contra
 import { projectDatabasePath } from "./project-paths.js";
 import { text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
 
+export interface StoredPluginMembershipFacts {
+  plugins: ProjectPluginId[];
+  hidden: ProjectPluginId[];
+  latest_event_id: string | null;
+}
+
 /** The rows that are the project itself: `projects`, the plugins it has and hides, and its events. */
 export class ProjectRecordsRepository {
   constructor(private readonly db: ProjectsSqliteDatabase, private readonly projectsDirectory: string, readonly spaceId?: string) {}
@@ -73,14 +79,27 @@ export class ProjectRecordsRepository {
       .run(projectId, pluginId).changes) > 0;
   }
 
-  latestPluginMembershipEventId(projectId: string): string | null {
-    // The append order is independent of the supplied clock and event id.
-    const row = this.db.prepare(`
-      SELECT event_id FROM project_events
-      WHERE project_id = ? AND type IN ('project.plugin_added', 'project.plugin_removed')
-      ORDER BY rowid DESC LIMIT 1
-    `).get(projectId) as { event_id: string } | undefined;
-    return row?.event_id ?? null;
+  /**
+   * A live project's stored members, hidden marks and latest member add or remove, in one statement; null when there is no such
+   * project. The latest event is what lets a revision tell an add-then-remove from no change. Both lists keep `ORDER BY plugin_id`.
+   */
+  pluginMembershipFacts(projectId: string): StoredPluginMembershipFacts | null {
+    // The append order (rowid) is independent of the supplied clock and event id.
+    const rows = this.db.prepare(`
+      SELECT 'project' AS kind, (
+        SELECT event_id FROM project_events
+        WHERE project_id = ?1 AND type IN ('project.plugin_added', 'project.plugin_removed')
+        ORDER BY rowid DESC LIMIT 1
+      ) AS value
+      FROM projects WHERE project_id = ?1 AND project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
+      UNION ALL SELECT 'plugin', plugin_id FROM project_plugins WHERE project_id = ?1
+      UNION ALL SELECT 'hidden', plugin_id FROM project_plugin_exclusions WHERE project_id = ?1
+      ORDER BY kind, value
+    `).all(projectId) as { kind: "project" | "plugin" | "hidden"; value: string | null }[];
+    const project = rows.find(row => row.kind === "project");
+    if (!project) return null;
+    const values = (kind: "plugin" | "hidden") => rows.filter(row => row.kind === kind).map(row => text(row.value));
+    return { plugins: values("plugin"), hidden: values("hidden"), latest_event_id: project.value == null ? null : text(project.value) };
   }
 
   renameProject(projectId: string, displayName: string, updatedAt: string): void {

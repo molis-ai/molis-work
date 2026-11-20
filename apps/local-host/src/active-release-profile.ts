@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { parseAccountEnvironment } from "@molis-ai/molis-work-service-account";
 import { accountEnvironment, releaseProfile } from "./release-profile.js";
 
 function packagedReleaseProfile(): string | undefined {
@@ -28,11 +29,9 @@ export function describeAccountConfigState(env: NodeJS.ProcessEnv = process.env)
   { configured: true; reason: "ok" } | { configured: false; reason: "missing_env" | "invalid_json" } {
   try {
     const raw = configuredAccountEnvironment(env);
-    if (!raw?.trim()) return { configured: false, reason: "missing_env" };
-    const config: unknown = JSON.parse(raw);
-    if (config && typeof config === "object" && !Array.isArray(config) && Object.keys(config).length > 0) {
-      return { configured: true, reason: "ok" };
-    }
+    if (!raw) return { configured: false, reason: "missing_env" };
+    parseAccountEnvironment(raw);
+    return { configured: true, reason: "ok" };
   } catch {
     // A diagnosis must never expose the configuration or a parser error that includes it.
   }

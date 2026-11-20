@@ -241,11 +241,11 @@ form.promote	1	io.molis.work.form	io.molis.work.form	command	operation	project	w
 form.publish	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	d1f3dac66b98	d43039f240f2	-
 form.questions.add	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	6d373c53dc8f	d43039f240f2	-
 form.questions.draft	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	concurrent	agent,mcp,user,workflow	form:read,form:write,model:invoke	form	-	-	9905e6de95ae	2cfb4358f4aa	613063238287
-form.results	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	0c4f0b7142bf	-
+form.results	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	d551e34c3a57	-
 form.results.csv	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	b98ba31d611c	-
 form.search.entries	1	io.molis.work.form	io.molis.work.form	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	form:read	form	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	8e8475e19e06
 form.subject.read	1	io.molis.work.form	io.molis.work.form	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	form:read	form	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	05376344fab6	3cfff55e5308
-form.submit	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:submit	form	-	-	a718c3687b91	8314c48f3182	-
+form.submit	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:submit	form	-	-	a718c3687b91	42f9532c11ac	-
 form.update	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	37c0823d2f40	d43039f240f2	-
 git.conflict	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	db236a4fd826	cbdfeb77ac0e	a7fd75581995
 git.operations	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	07f86a337608	476e9ece3ed2	-
@@ -458,6 +458,7 @@ memory.learning.run	1	io.molis.work.coding	io.molis.work.coding	command	operatio
 pages.ai	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	read	concurrent	agent,mcp,user,workflow	model:invoke,pages:read	pages_document	-	-	a09dfbc42319	06e756ed5469	613063238287
 pages.artifacts.compare	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	concurrent	user	pages:read	-	molis.artifacts.compare.request.v1	molis.artifacts.compare.v1	b5dd5a809ad7	3347f6b0970c	5e0374458cf9
 pages.artifacts.continue	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	concurrent	user	materials:read,pages:read,pages:write	-	molis.artifacts.continue.request.v1	molis.artifacts.continue.v1	b5dd5a809ad7	f38691804ac7	a774b0037fc4
+pages.artifacts.diff	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	agent,mcp,user,workflow	artifact:read,pages:read	pages_document	-	-	5e784aedf3f8	87ab2200e3f3	-
 pages.artifacts.pin	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	concurrent	agent,mcp,user,workflow	artifact:write,pages:read,pages:write	pages_document	molis.artifacts.pin.request.v1	molis.artifacts.pin.v1	56056e2eba4c	4637898b30c2	382039db68b0
 pages.artifacts.preview	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	concurrent	user,workflow	pages:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 pages.artifacts.referrers	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	agent,user	pages:read	-	molis.artifacts.referrers.request.v1	molis.artifacts.referrers.v1	6aa6a79cf3a5	c42898cc4ecf	-

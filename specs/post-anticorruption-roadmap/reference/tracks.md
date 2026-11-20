@@ -48,6 +48,8 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 2026-11-18 的 92～99 共新增 15 个交付项，逐项轨道接在下方明细表末尾。原有 7 条并入 6 个现有交付项，沿用 BL 上的维护人；73-3 的知识卡和权限夹具分文件执行。[排期与执行依赖](dependencies.md#deps-backlog-92-99)
 
+2026-11-20 按[决定 58](decisions.md#decision-58) 新增 `100`～`105` 共 6 批、12 个交付项（均不等 `38～89`），逐项轨道接在下方明细表末尾，见[11-20 依赖表](dependencies.md#deps-2026-11-20)。
+
 怎样算占用：
 
 - **只有写实现的项占用。** 定样、只读核查、验收、文档治理不占，依据是[执行规则](execution-rules.md)的可并行项。
@@ -199,6 +201,18 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [97-2](batches/97.md#batch-97-item-2) | 同一项目同时办完几件事，助理合起来报一次 | A | 是 | 助理汇报 |
 | [98-1](batches/98.md#batch-98-item-1) | 让两家插件都能提供同一种材料，还能按来源挑 | C1 | 是 | 成果与过程项模块 |
 | [99-1](batches/99.md#batch-99-item-1) | 在 Coding 的本轮变更里列出确实删掉的文件 | B | 是 | Coding |
+| [100-1](batches/100.md#batch-100-item-1) | 路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列 | 不属于任何轨道 | 否 | — |
+| [100-2](batches/100.md#batch-100-item-2) | 反效果门禁精准松绑与 CI 碎作业合并 | 不归轨道 | 否 | 门禁与 CI |
+| [101-1](batches/101.md#batch-101-item-1) | 现役 P0 功能故障、英文模式断链与安全异常修复 | D | 是 | A、C1、E |
+| [101-2](batches/101.md#batch-101-item-2) | 零误报死文件清理与热路径/生命周期泄漏止血 | C2 | 是 | A、C1、F |
+| [102-1](batches/102.md#batch-102-item-1) | 工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径 | D | 是 | C1 |
+| [102-2](batches/102.md#batch-102-item-2) | 沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化 | F | 是 | C1 |
+| [103-1](batches/103.md#batch-103-item-1) | 休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发 | C1 | 是 | C3、F |
+| [103-2](batches/103.md#batch-103-item-2) | Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理 | C1 | 是 | C3、D |
+| [104-1](batches/104.md#batch-104-item-1) | 15+ 插件非 Agent 单次 AI 调用纳管 | C2 | 是 | E |
+| [104-2](batches/104.md#batch-104-item-2) | 面向非技术用户的全站统一报错翻译与安全重试 | A | 是 | B、C2、D |
+| [105-1](batches/105.md#batch-105-item-1) | 防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批 | C2 | 是 | A、B、C1、D |
+| [105-2](batches/105.md#batch-105-item-2) | 双子代理终态缓存、Mainline 增量校验与日常高频交互润色 | A | 是 | C2、C3、D |
 | [SRV-3-1](batches/srv-3.md#srv-3-item-1) | 团队关键协作实现 | G | 是 | C、D、E |
 | [SRV-3-2](batches/srv-3.md#srv-3-item-2) | 双身份真实协作验证 | C | 否 | D、E、G |
 | [SRV-8-1](batches/srv-8.md#srv-8-item-1) | 自动更新与回退 | F | 是 | G |

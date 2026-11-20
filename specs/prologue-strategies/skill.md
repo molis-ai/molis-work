@@ -2,7 +2,7 @@
 
 > 2026-11-13 从 `specs/prologue-skill-strategy/spec.md` 并入本目录；正文保留，只改相对链接。
 
-状态：需求已整理（2026-10-21；2026-10-27 用户确定启用后默认自动选用、点名优先及仅手动选项，以及多 Skill 的部分失败与恢复规则）。第 41 批已实施 Molis 侧的选用（点名优先、自动／仅手动、依据、基础恢复，SKL-01/11 的 Molis 部分与 SKL-02 的替代口径）；SKL-15/16 的完整策略与其余策略仍待逐项评审，按第 62 批收口。独立需求；包装、安装、信任与文件形状沿用 [skill-packs](../skill-packs/spec.md)，本 spec 只补“选哪份、怎么唤起、怎么组合、怎么证明有用”。
+状态：需求已整理（2026-10-21；2026-10-27 用户确定启用后默认自动选用、点名优先及仅手动选项，以及多 Skill 的部分失败与恢复规则）。第 41 批已实施 Molis 侧的选用（点名优先、自动／仅手动、依据、基础恢复，SKL-01/11 的 Molis 部分与 SKL-02 的替代口径）；**2026-11-19 [决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) 已拍板助理自动技能 20 条硬截断与短别名映射修复（排入 91A）、上游 `SKILL.md` YAML Frontmatter 解析器与内联上下文通道（排入 62）、助理 `agent.skill` 完整阶段观测（排入 63 Piece 0）以及三段式目录触发与工具隔离回放评测（排入 89-3），当前尚未写码**；SKL-15/16 的完整策略与其余策略仍待逐项评审，按第 62 批收口。独立需求；包装、安装、信任与文件形状沿用 [skill-packs](../skill-packs/spec.md)，本 spec 只补“选哪份、怎么唤起、怎么组合、怎么证明有用”。
 
 同系列：[Tool](tool.md) · [MCP](mcp.md) · [Context](context.md)。
 
@@ -262,6 +262,11 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
   - **在设置里写自己的技能**：定样选 B——先说一句想要什么，助理起草成同一张表单，人改完再保存；「我自己写」直接进空表单。已实现（第 41 批）：自己写的技能是每个范围一个内容包（项目里 `io.molis.work.my-skills.project`，个人空间 `io.molis.work.my-skills.home`），用这个 Home 的发布身份签名、走同一条安装路径，待遇与从本机导入的相同；动作 `skills.authored.read@1`／`save@1`／`remove@1`／`draft@1` 只收本人（S-skill-authoring）；新建的技能在本人选择之前是关着的；这一版只写正文，不带附带文件。
   - **Goals 旧的个人方法库**（`goals/goals.db`）：「直接删，现在是开发阶段，软件没有用户，也清理相关代码」。不搬成技能，不留只读；升级轮里连目录删除。
   - **门禁改动四处**：同意（包边界必含项、金样回放认插件升级段的删表并核对已删的库、金样覆盖登记、补中间金样），明细见[第 41 批](../post-anticorruption-roadmap/reference/batches/41.md)。
+- **2026-11-19 用户定（Harness 与 RSI 审阅，[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57)，仅更新排期、尚未实施）**：
+  - **91A 止血**：修复助理自动技能 `.slice(0, 20)` 静默截断（37+ 内置技能尾部不可见）与短别名映射，上游同步修复 `surfaces.ts` 凭据技能边界问题；
+  - **第 62 批窗口二**：上游补 `SKILL.md` YAML Frontmatter 解析器与内联 Skill 正文独立上下文通道，补 `skill-invoked` 可观测事件；
+  - **第 63 批 Piece 0**：补齐助理 `agent.skill` 完整阶段观测（`offered`／`selected`／`rejected_over_limit`／`effective`），便于归因未触发与超限；
+  - **第 89 批 89-3**：Skill 效果比较升级为三段式评测（全目录正／负向触发准确率与召回率 × Trace 派生工具 Mock 隔离回放 × 真实任务产出对比），统一收口进第 63 批 `horizontal/evaluation` 与 SIM 账本。
 
 ## 11. 开工前检查（第 41 批第 1 项，主会话 2026-11-14）
 

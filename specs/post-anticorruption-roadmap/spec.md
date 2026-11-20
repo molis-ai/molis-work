@@ -12,11 +12,13 @@
 
 <a id="execution-batches"></a>
 
-## 01～99
+## 01～105
 
 2026-11-18 按未开工批次复查调整（[决定 52](reference/decisions.md#decision-52)）：新增 36A 逐屏打磨（排在 37 前）与 63A 记忆 P2（从 64 拆出），72 并入 77，各批的前提、范围与前置按代码更正，见各批次文件「11-18 复查」一节。同日新增 [91](reference/batches/91.md)（决定 54）并随后合并全产品界面／布局／行为反馈打磨与开发指引收口，拆成紧邻双段 [91（91A）](reference/batches/91.md) 与 [91B](reference/batches/91b.md)（按最大批号编在 90 后，实际前置为 35-2、36A、37-2，不等 38～89；[90](reference/batches/90.md) 仍为整条路线最终交付对账，[决定 55](reference/decisions.md#decision-55)）。
 
 2026-11-18 确认 22 条独立待办的归属。7 条并入 6 个原交付项，另外 15 条编为 92～99。各项按实际前置开工，第 90 批仍负责最终对账。见[正式排期与开工 Prompt](reference/backlog-dispatch-2026-11-18/README.md)。
+
+2026-11-20 按全仓体检与决定 57 两轮红队终校调整（[决定 58](reference/decisions.md#decision-58)）：不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness 与 RSI 工程优化；按最大批号追加 6 个横向修复与硬化正式批次 [100](reference/batches/100.md)～[105](reference/batches/105.md)（按各自真实前置开工，**不等 38～89**），同步校准 [91](reference/batches/91.md)、[91B](reference/batches/91b.md)、[62](reference/batches/62.md) 等批次的红队护栏，第 90 批仍为整条路线最终交付对账。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -257,12 +259,24 @@
 |  | [同一项目同时办完几件事，助理合起来报一次](reference/batches/97.md#batch-97-item-2) |
 | [98](reference/batches/98.md) | [让两家插件都能提供同一种材料，还能按来源挑](reference/batches/98.md#batch-98-item-1) |
 | [99](reference/batches/99.md) | [在 Coding 的本轮变更里列出确实删掉的文件](reference/batches/99.md#batch-99-item-1) |
+| [100](reference/batches/100.md) | [路线书勘误、决定 57/58 落盘与 `100`～`105` 正式入列](reference/batches/100.md#batch-100-item-1)（2026-11-20 加，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [反效果门禁精准松绑与 CI 碎作业合并](reference/batches/100.md#batch-100-item-2) |
+| [101](reference/batches/101.md) | [现役 P0 功能故障、英文模式断链与安全异常修复](reference/batches/101.md#batch-101-item-1)（2026-11-20 加，前置 100-2，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [零误报死文件清理与热路径/生命周期泄漏止血](reference/batches/101.md#batch-101-item-2) |
+| [102](reference/batches/102.md) | [工作台去 Layer 1 双套 iframe、拆插件基础 CSS 与清理前端热路径](reference/batches/102.md#batch-102-item-1)（2026-11-20 加，前置 100-2、36A，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [沙箱批量 RSS/CPU 监控与 Tauri 桌面壳/端口/CLI 维护硬化](reference/batches/102.md#batch-102-item-2) |
+| [103](reference/batches/103.md) | [休眠项目唤醒索引、热点库长连接复用与 `ProjectLine` 纯读并发](reference/batches/103.md#batch-103-item-1)（2026-11-20 加，前置 101，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [Host/MCP/Sessions 热路径去全量扫描、异步化与高收益冗余清理](reference/batches/103.md#batch-103-item-2) |
+| [104](reference/batches/104.md) | [15+ 插件非 Agent 单次 AI 调用纳管](reference/batches/104.md#batch-104-item-1)（2026-11-20 加，前置 91、101-1，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [面向非技术用户的全站统一报错翻译与安全重试](reference/batches/104.md#batch-104-item-2) |
+| [105](reference/batches/105.md) | [防链式 RCE 免批护栏、分类跨重启审批续接与并行波原子审批](reference/batches/105.md#batch-105-item-1)（2026-11-20 加，前置 39、100-2，仅波次审批等 62，不等 38～89，[决定 58](reference/decisions.md#decision-58)） |
+|  | [双子代理终态缓存、Mainline 增量校验与日常高频交互润色](reference/batches/105.md#batch-105-item-2) |
 
 <a id="server-batch"></a>
 
 ## 服务端批
 
-排在 01～99 之后，开工时间由用户定；01～99 不等它。后续服务端需求继续加在这一批。
+排在 01～105 之后，开工时间由用户定；01～105 不等它。后续服务端需求继续加在这一批。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -295,7 +309,7 @@
 
 ## 发行批
 
-只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～99 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～105 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
 
 | 批次 | 批次内内容 |
 | --- | --- |

@@ -43,10 +43,10 @@ test("S-12 N36: missing, invalid or wrong evidence keys and damaged ciphertext r
       if (fault === "damaged-ciphertext") writeFileSync(file, "damaged original ciphertext");
       const before = homeStorageTree(home);
       const reopened = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "feed", "evidence") });
-      const failure = fault === "missing-key" || fault === "invalid-key" ? /key unavailable/u : /integrity validation/u;
+      const failure = fault === "missing-key" || fault === "invalid-key" ? { code: "storage.evidence_content.key_unavailable" } : /integrity validation/u;
       assert.throws(() => reopened.read(written.contentRef), failure);
       assert.throws(() => reopened.write(markdown), failure);
-      if (fault === "missing-key" || fault === "invalid-key") assert.throws(() => reopened.write("A different body"), /key unavailable/u);
+      if (fault === "missing-key" || fault === "invalid-key") assert.throws(() => reopened.write("A different body"), { code: "storage.evidence_content.key_unavailable" });
       assert.equal(reopened.has(written.contentRef), false);
       assert.deepEqual(reopened.inspect([written.contentRef]), { referenced: 1, available: 0, missing: 1, keyAvailable: fault === "wrong-key" || fault === "damaged-ciphertext" });
       assert.deepEqual(homeStorageTree(home), before, "the refused read and write change no directory, ciphertext or key");

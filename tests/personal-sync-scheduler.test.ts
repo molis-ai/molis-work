@@ -3,7 +3,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, molisWorkHostProjectReference, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { feedManifest, FeedOutRuleStore } from "@molis-ai/molis-work-plugin-feed";
-import { SourcesModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SourcesModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { personalSyncFixture } from "./fixtures/personal-sync-coordinator.js";
 import { runtimePersonalSync } from "./fixtures/runtime-personal-sync.js";
@@ -33,7 +33,7 @@ test("D0347: received Feed and Schedule content stays disabled after Runtime res
   try {
     sourceStore.db.prepare(`INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run("sync-task", "跨设备提醒", "检查进展", 9, 0, 1, 1, 0, 0, "origin-job", null, null, "2026-11-08T00:00:00.000Z", "2026-11-08T00:00:00.000Z");
-    const db = fromBetterSqlite(sourceStore.db);
+    const db = fromProjectConnection(sourceStore.db);
     ruleId = new FeedOutRuleStore(db).create(project.project_id, { name: "跨设备捕捉", match: { contains: "发布" }, enabled: true }).rule_id;
     new SourcesModule(db).commands.save({ project_id: project.project_id, source_id: "portable-source", kind: "github", definition_id: "github.notifications", sync_kind: "github", name: "跨设备来源", description: "只同步描述与历史", status: "active", enabled: true, origin: "molis_work", config: { connection_id: "this-device-only-connection" }, schedule: { mode: "interval", enabled: true, interval_minutes: 30, next_pull_at: null }, connection_ref: "this-device-only-reference", account_label: "This device", last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: "2026-11-08T00:00:00.000Z", updated_at: "2026-11-08T00:00:00.000Z" });
   } finally { sourceStore.close(); }
@@ -46,7 +46,7 @@ test("D0347: received Feed and Schedule content stays disabled after Runtime res
   const assertDisabled = (store: Pick<LocalProjectDatabase, "db">) => {
     const task = store.db.prepare("SELECT title,enabled,job_id FROM schedule_conversation_tasks WHERE task_id=?").get("sync-task") as { title: string; enabled: number; job_id: string | null };
     assert.equal(task.title, "跨设备提醒"); assert.equal(task.enabled, 0); assert.equal(task.job_id, null);
-    const db = fromBetterSqlite(store.db);
+    const db = fromProjectConnection(store.db);
     const rule = new FeedOutRuleStore(db).get(project.project_id, ruleId);
     assert.equal(rule.name, "跨设备捕捉"); assert.equal(rule.enabled, false);
     const imported = new SourcesModule(db).query.get(project.project_id, "portable-source");

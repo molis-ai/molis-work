@@ -1,0 +1,63 @@
+{
+  "reason": "第 95 批 95-3「错过的事留七天」：运行面板与首页提示多一行到期汇总（「有 N 件错过的事 7 天没处理，已自动跳过」、按来源分开数、「知道了」），项目选择页内联的错过提示脚本随之增长（冷、热各约 +1.5 KB）；工作台中英文词包加了汇总三条与助理定时来源名一条，换了内容定址文件名，门禁把它算作新路径（各页冷 +75～+101 字节）。没有别的新资源，每页净增都低于 10,000 字节。",
+  "review": "PR #2151（第 95 批）全 PR 评审。本机对照 merge-base ffd077b2d 的隔离构建实测（node scripts/gates/first-screen.mjs --base origin/main）：chooser zh 冷 +1599／热 +1524、en 冷 +1625／热 +1524；arrival-empty、workbench-default、workbench-all-plugins 冷 zh +75、en +101，热不变；page-assets 门禁通过。",
+  "userApproval": "用户于 2026-11-19 弹窗批准（「批准，照现在推」）：工作台中英文词包换名，以及上列各页的首屏增长。",
+  "entryApprovals": [
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "zh",
+      "entry": "/assets/locale/workbench.zh.<digest>.js",
+      "change": "new"
+    },
+    {
+      "pages": [
+        "arrival-empty",
+        "chooser",
+        "workbench-default",
+        "workbench-all-plugins"
+      ],
+      "locale": "en",
+      "entry": "/assets/locale/workbench.en.<digest>.js",
+      "change": "new"
+    }
+  ],
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 150,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 150,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 1700,
+      "warm": 1600
+    },
+    "chooser/en": {
+      "cold": 1700,
+      "warm": 1600
+    },
+    "workbench-default/zh": {
+      "cold": 150,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 150,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 150,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 150,
+      "warm": 0
+    }
+  }
+}

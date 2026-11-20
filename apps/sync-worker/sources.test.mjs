@@ -6,7 +6,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {SourcesModule,sourceDeletedAt,fromBetterSqlite} from '@molis-ai/molis-work-plugin-feed/store';
+import {SourcesModule,sourceDeletedAt,fromProjectConnection} from '@molis-ai/molis-work-plugin-feed/store';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {cloudFixture} from './testing.mjs';
@@ -17,7 +17,7 @@ test('PCSYNC-01/11/17/22 Source descriptions use actual Host registry and Rust/D
  const previous={origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL};process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';delete process.env.MOLIS_WORK_SYNC_LOCAL;
  t.after(()=>{for(const [name,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[name];else process.env[name]=value;});t.mock.method(globalThis,'fetch',cloud.transport);
  const p=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async c=>{const project=await c.createProject({display_name:'Portable source project',actor_id:'alice'});c.addProjectPlugin({project_id:project.project_id,plugin_id:'feed',actor_id:'alice'});return project;});
- const source=new LocalProjectDatabase(p.database_path);t.after(()=>source.close());const owner=new SourcesModule(fromBetterSqlite(source.db)),now='2026-10-18T00:00:00.000Z';
+ const source=new LocalProjectDatabase(p.database_path);t.after(()=>source.close());const owner=new SourcesModule(fromProjectConnection(source.db)),now='2026-10-18T00:00:00.000Z';
  const record={project_id:p.project_id,source_id:'saved-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'Saved source',description:'Business description',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'never-share-device-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'never-share-device-reference',account_label:'Never share account label',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:now,updated_at:now};
  // A realistic retained status history makes the selected owner graph use common JSON/R2 content chunks.
  for(let n=0;n<600;n++)owner.commands.save({...record,description:'Saved description '+n});
@@ -29,7 +29,7 @@ test('PCSYNC-01/11/17/22 Source descriptions use actual Host registry and Rust/D
  const selected={selection:select('source_descriptions')};
  await clients[0].save({...clients[0].policy(),selections:[selected.selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
  const restoredProject=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restoredProject);
- const target=new LocalProjectDatabase(restoredProject.database_path);t.after(()=>target.close());const received=new SourcesModule(fromBetterSqlite(target.db)),value=received.query.get(p.project_id,record.source_id);
+ const target=new LocalProjectDatabase(restoredProject.database_path);t.after(()=>target.close());const received=new SourcesModule(fromProjectConnection(target.db)),value=received.query.get(p.project_id,record.source_id);
  assert.equal(value.description,'Saved description 599');assert.equal(value.enabled,false);assert.equal(value.status,'paused');assert.equal(value.connection_ref,null);assert.deepEqual(value.config,{});assert.deepEqual(value.schedule,{mode:'manual'});assert.equal(received.events.list(p.project_id).length,600);
  assert.equal(owner.query.get(p.project_id,record.source_id).connection_ref,record.connection_ref);
  const objects=await cloud.bucket.list();assert.ok(objects.objects.length>0);for(const object of objects.objects){const content=Buffer.from(await(await cloud.bucket.get(object.key)).arrayBuffer()).toString('utf8');assert.doesNotMatch(content,/never-share-device-connection|never-share-device-reference|Never share account label/);}

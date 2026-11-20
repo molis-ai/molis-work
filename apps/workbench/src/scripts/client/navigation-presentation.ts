@@ -255,7 +255,8 @@ ${TOP_CORNER_PART}
   });
   document.addEventListener('click', (event) => {
     const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
-    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
+    const opensPicker = event.target?.nodeType === 1 && event.target.closest('[data-home-control="picker"]');
+    if (pickerPopover && !pickerPopover.hidden && !inSearch && !opensPicker && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
   });
   // ⌥↵ on a tile opens its plugin beside what is showing (PFG-23).
   pickerPopover?.addEventListener('keydown', (event) => {

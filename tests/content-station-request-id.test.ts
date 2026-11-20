@@ -56,13 +56,13 @@ test("W4-6-02 every station makes one object per request id, whatever the id loo
       const made = new Map<string, string>();
       for (const request_id of requests) {
         const first = await person.invoke(actions.receive, { ...payload, request_id });
-        assert.equal(first.plugin, plugin);
-        assert.ok(!before.has(first.item_id), `${request_id} makes a new object`);
-        made.set(request_id, first.item_id);
+        assert.equal(first.subject.kind, actions.receive.action.subject_kinds[0], `${plugin} answers with an object of its station's kind`);
+        assert.ok(!before.has(first.subject.id), `${request_id} makes a new object`);
+        made.set(request_id, first.subject.id);
       }
       assert.equal(new Set(made.values()).size, requests.length, "a different request id makes a different object");
       for (const request_id of requests) {
-        assert.equal((await person.invoke(actions.receive, { ...payload, request_id })).item_id, made.get(request_id), `a resend of ${request_id} returns the object it made`);
+        assert.equal((await person.invoke(actions.receive, { ...payload, request_id })).subject.id, made.get(request_id), `a resend of ${request_id} returns the object it made`);
       }
       const listed = new Set((await person.invoke(actions.list, {})).map(item => item.item_id));
       assert.equal(listed.size - before.size, requests.length, "the resends made nothing more");
@@ -87,7 +87,7 @@ test("W4-6-01 every station refuses the old input shape, a missing or out-of-ran
       await assert.rejects(workflow.invoke(actions.receive, { ...payload, request_id: "workflow:run:1", added_by: "workflow" } as never), invalid);
       await assert.rejects(workflow.invoke(actions.receive, { ...payload, request_id: "workflow:run:1", audience: "workflow" } as never), invalid);
       const longest = await workflow.invoke(actions.receive, { ...payload, request_id: "r".repeat(160) });
-      assert.equal(longest.plugin, plugin);
+      assert.equal(longest.subject.kind, actions.receive.action.subject_kinds[0], plugin);
     });
   }
 });
@@ -98,7 +98,7 @@ test("W4-6-05 Feed files a delivery by the call's audience, and the input cannot
     const bound = f.as(audience);
     // The input's own `source` is only a label of where the text came from; it does not decide where Feed files it.
     const ref = await bound.invoke(feedContentActions.receive, { title: "一条交来的消息", body: "正文", source: audience === "workflow" ? "放进来的内容" : "工作流程", request_id });
-    return (await bound.invoke(feedContentActions.read, { item_id: ref.item_id })).source;
+    return (await bound.invoke(feedContentActions.read, { item_id: ref.subject.id })).source;
   };
   assert.equal(await filed("workflow", "workflow:run-1:1"), "工作流程");
   assert.equal(await filed("user", "placement:req-1"), "放进来的内容");
@@ -117,7 +117,7 @@ test("W4-6-05 Inbox records who handed a delivery in from the call's audience, a
   for (const [audience, addedBy, source] of expected) {
     const entry = await f.as(audience).invoke(inboxContentActions.receive, { title: `${audience} 交来的事项`, body: "正文", source: "工作流程", request_id: `${audience}:call-1` });
     const recorded = await f.feed(feed => {
-      const stored = feed.getInboxEntry(f.project, entry.item_id);
+      const stored = feed.getInboxEntry(f.project, entry.subject.id);
       return { added_by: stored.detail?.added_by, source: feed.getFeedItem(f.project, stored.subject_id).source_label };
     });
     assert.deepEqual(recorded, { added_by: addedBy, source }, `${audience}`);

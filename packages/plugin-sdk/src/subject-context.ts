@@ -2,13 +2,12 @@ import { isRecord } from "./json-value.js";
 import { cutHead } from "./whole-units.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { UI_SUBJECT_CONTEXT_KINDS, UI_SUBJECT_CONTEXT_LIMIT, type UiSubjectContextKind } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { isUiSubjectContextKind, UI_SUBJECT_CONTEXT_LIMIT, type UiSubjectContextKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { settingsReadActions } from "./view-placement-declarations.js";
 
-// Text a plugin gives about another owner's object, for the person's own page (`ui.subject_context`, BL-911): the Manifest check, the
-// read the Host calls for one kind, and the answer the page receives. Shared by the Manifest parser and the Host, so the two agree.
+// Text a plugin gives about another owner's object, for the person's own page (`ui.subject_context`, BL-911, PEQ-17): the Manifest check,
+// the read the Host calls for one kind, and the answer the page receives. Shared by the Manifest parser and the Host, so the two agree.
 
-const KINDS: ReadonlySet<string> = new Set(UI_SUBJECT_CONTEXT_KINDS);
 const READ_RULE = "本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作";
 
 /** The refusals for `ui.subject_context`. Never throws. */
@@ -23,8 +22,8 @@ export function subjectContextProblems(parsed: PluginManifest): string[] {
       continue;
     }
     const { subject_kind: kind, action } = entry;
-    if (typeof kind !== "string" || !KINDS.has(kind)) {
-      problems.push(`ui.subject_context 的 subject_kind 只能是 ${[...KINDS].join("、")}`);
+    if (!isUiSubjectContextKind(kind)) {
+      problems.push(`ui.subject_context 的 subject_kind 必须是合法的小写标识（如 goal），不能是 ${String(kind)}`);
       continue;
     }
     if (seen.has(kind)) problems.push(`ui.subject_context 重复声明了 ${kind}`);

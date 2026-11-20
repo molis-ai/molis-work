@@ -158,6 +158,7 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
   await addProjectPlugin(browser.web, projectId!, "pages");
   const target = await createProject(browser.web, "PR2 destination");
+  await addProjectPlugin(browser.web, target.project_id, "goals");
 
   await seedDemoGoals(target.database_path, target.project_id);
   const pages = openPagesStore(homeDirectory);
@@ -174,10 +175,10 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
     await molisPlacement.paintBar(slot);
   })()`);
   await click('#pr2-placement-slot .placement-bar');
-  await waitFor("Boolean(document.querySelector('.placement-panel [data-placement-action=goal]'))");
-  await click('.placement-panel [data-placement-action=goal]');
-  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]'))`);
-  await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]`);
+  await waitFor("Boolean(document.querySelector('.placement-panel [data-placement-action=attach]'))");
+  await click('.placement-panel [data-placement-action=attach]');
+  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]'))`);
+  await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]`);
   await click('dialog.placement-dialog [data-placement-confirm]');
   await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开目标')");
   await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开目标').click()"));

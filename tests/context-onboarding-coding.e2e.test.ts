@@ -75,7 +75,7 @@ test("ONB-44 ONB-46 a code folder ticked at review becomes Coding's working fold
   // BCD-17: the folder and the round's materials were handed over by Coding's declared take action, which opened its own session.
   assert.ok(adopted.take_result?.open?.item_id, "Coding answered the take with the session it opened");
   assert.equal(adopted.take_result?.materials, 3, "the README, the pasted note and the accepted summary");
-  assert.deepEqual(adopted.summary!.references.map(ref => [ref.path, Boolean(ref.artifact), Boolean(ref.documents?.length)]), [["README.md", true, true], ["网页内容.md", true, true]]);
+  assert.deepEqual(adopted.summary!.references.map(ref => [ref.path, Boolean(ref.artifact), Boolean(ref.parts?.length)]), [["README.md", true, true], ["网页内容.md", true, true]]);
 });
 
 test("BCD-17: if the take did not happen, the completion page says the project and materials are kept and why nothing was handed over", { timeout: 120_000 }, async t => {

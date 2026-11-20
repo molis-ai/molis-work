@@ -25,7 +25,7 @@ export function runtimeHostMetadata(host: MolisWorkRuntimeContextHost): RuntimeH
 }
 
 export function readContextMetadata(value: unknown, homeDirectory: string): MolisWorkRuntimeContextHost {
-  const host = closedRecord(value, ["runtimeContext", "webBaseUrl", "molisWorkSessionId", "nativeRuntimeSessionId", "hostWorkContextId", "focusId", "projectSuggestionClues", "panelId"]);
+  const host = closedRecord(value, ["runtimeContext", "webBaseUrl", "molisWorkSessionId", "nativeRuntimeSessionId", "hostWorkContextId", "focus", "projectSuggestionClues", "panelId"]);
   const context = closedRecord(host.runtimeContext, ["runtime_id", "stable_work_context_id", "host_declares_stable", "workspace"]);
   if (!text(context.runtime_id) || !(context.stable_work_context_id === null || text(context.stable_work_context_id))
     || typeof context.host_declares_stable !== "boolean") throw invalid();
@@ -39,7 +39,13 @@ export function readContextMetadata(value: unknown, homeDirectory: string): Moli
     }
     workspace = { canonical_path: supplied.canonical_path, realpath_verified: supplied.realpath_verified };
   }
-  for (const key of ["webBaseUrl", "molisWorkSessionId", "nativeRuntimeSessionId", "hostWorkContextId", "focusId", "panelId"]) if (!optionalText(host[key])) throw invalid();
+  for (const key of ["webBaseUrl", "molisWorkSessionId", "nativeRuntimeSessionId", "hostWorkContextId", "panelId"]) if (!optionalText(host[key])) throw invalid();
+  let focus: MolisWorkRuntimeContextHost["focus"];
+  if (host.focus !== undefined && host.focus !== null) {
+    const supplied = closedRecord(host.focus, ["kind", "id"]);
+    if (!text(supplied.kind) || !text(supplied.id)) throw invalid();
+    focus = { kind: supplied.kind, id: supplied.id };
+  } else focus = host.focus as null | undefined;
   let clues: RuntimeProjectSuggestionClue[] | undefined;
   if (host.projectSuggestionClues !== undefined) {
     if (!Array.isArray(host.projectSuggestionClues) || host.projectSuggestionClues.length > 64) throw invalid();
@@ -51,7 +57,7 @@ export function readContextMetadata(value: unknown, homeDirectory: string): Moli
     molisWorkSessionId: host.molisWorkSessionId as string | null | undefined,
     nativeRuntimeSessionId: host.nativeRuntimeSessionId as string | null | undefined,
     hostWorkContextId: host.hostWorkContextId as string | null | undefined,
-    focusId: host.focusId as string | null | undefined, panelId: host.panelId as string | null | undefined,
+    focus, panelId: host.panelId as string | null | undefined,
     ...(clues ? { projectSuggestionClues: clues } : {}),
   };
 }

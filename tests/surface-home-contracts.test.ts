@@ -11,13 +11,17 @@ import { SurfaceCompositionService, type SurfacePlugin } from "@molis-ai/molis-w
 const owner = "io.molis.work.notes";
 const release = { scope: "project", install_id: "notes-project", installation_generation: "gen-2", version: "1.2.0", manifest_digest: "notes-digest" } satisfies SurfaceInstallationRef;
 const overview = definePresentationOverviewAction("notes.overview", 1, "Overview", []);
-const formAction = { capability_id: "notes.create", version: 1, operation: "command", action: {
+const open = { view_id: "stage", panel: "create-dialog" };
+// The start form is the start action's own (contract-design §2.4): its intake's `start.open`, and the overview names only the action.
+const formWith = (route: Record<string, unknown>) => ({ capability_id: "notes.create", version: 1, operation: "command", action: {
   scope: "project", kind: "operation", audiences: ["user"], permissions: [], subject_kinds: [], title: "Create", description: "Create a note",
   input_schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"], additionalProperties: false },
-} } satisfies ActionDefinition;
-const open = { view_id: "stage", panel: "create-dialog" };
+  intake: { intake_id: "notes.create", item_kind: "note", title: "Note", verb: "Create", describe: "Create a blank note", accepts: [], examples: [],
+    start: { title: "Write a note", hint: "Write it down first.", open: route } },
+} }) as ActionDefinition;
+const formAction = formWith(open);
 const declaration = { capability_id: "notes.overview", version: 1,
-  start: [{ capability_id: "notes.create", version: 1, open }] } satisfies PresentationOverviewDeclaration;
+  start: [{ capability_id: "notes.create", version: 1 }] } satisfies PresentationOverviewDeclaration;
 
 test("SSC-18 overview declarations require the common free read protocol and an own Manifest stage for the start form", () => {
   const manifest = { plugin_id: owner, actions: [overview, formAction], ui: { views: [{ view_id: "stage", slot: "stage" }] },
@@ -37,9 +41,8 @@ test("SSC-18 overview declarations require the common free read protocol and an 
     assert.match(validatePresentationDeclaration({ ...manifest, actions: [bad, formAction] }).join("\n"), /definePresentationOverviewAction/);
   }
   for (const route of [{ ...open, view_id: "another-owner" }, { ...open, panel: "x".repeat(101) }, { ...open, url: "/external" }]) {
-    const start = [{ ...declaration.start[0], open: route }];
-    assert.match(validatePresentationDeclaration({ ...manifest, presentation: { objects: [], overview: { ...declaration, start } } }).join("\n"),
-      /presentation\.overview\.start\[0\]\.open/);
+    assert.match(validatePresentationDeclaration({ ...manifest, actions: [overview, formWith(route)] }).join("\n"),
+      /presentation\.overview\.start\[0\] 的 intake\.start\.open/);
   }
   assert.match(validatePresentationDeclaration({ ...manifest, ui: { views: [{ view_id: "stage", slot: "settings" }] } }).join("\n"), /stage/);
 });
@@ -146,7 +149,9 @@ function registerComposer(actions: ActionService, plugin: SurfacePlugin, afterSa
 }
 
 test("SCS-09 SCS-17 the Kernel binds the original directory row across a same-ref replacement immediately after discovery", { timeout: 10_000 }, async () => {
-  const start = { ...formAction, action: { ...formAction.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } } satisfies ActionDefinition;
+  // A start with no form is called as it is (`invoke`): its intake's start opens nothing.
+  const start = { ...formAction, action: { ...formAction.action, input_schema: { type: "object", properties: {}, additionalProperties: false },
+    intake: { ...formAction.action.intake!, start: { title: "Write a note", hint: "Write it down first." } } } } as ActionDefinition;
   const capability = { capability_id: start.capability_id, version: start.version };
   const startProvider = "notes-start", overviewProvider = "notes-overview";
   const plugin: SurfacePlugin = { plugin_id: owner, install_id: release.install_id, scope: release.scope, revision: "release-r1", state: "running", slots: [],

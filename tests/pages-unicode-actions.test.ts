@@ -54,7 +54,7 @@ test("RAC-1627: a workflow hand-off's long title is cut at whole Unicode charact
   await fixture(async ({ bound }) => {
     const wide = (count: number) => "🟢".repeat(count);
     const received = await bound.invoke(content.receive, { title: "收" + wide(80), body: "正文", request_id: "workflow:unicode-title:1" });
-    assert.equal((await bound.invoke(actions.get, { id: received.item_id })).document.title, "收" + wide(79), "the stored title keeps 80 whole characters");
+    assert.equal((await bound.invoke(actions.get, { id: received.subject.id })).document.title, "收" + wide(79), "the stored title keeps 80 whole characters");
   });
 });
 

@@ -8,26 +8,19 @@ import type { EventFormShared } from "./event-forms-shared.js";
 export function createRecordForms(primitives: GoalsDocumentUiPrimitives, shared: EventFormShared) {
   const { escapeHtml } = primitives;
   const { fieldError } = shared;
-  function renderReportForm(doc: GoalEventDocumentView, type: GoalEventTypeDefinition): string {
+  function renderReportForm(_doc: GoalEventDocumentView, type: GoalEventTypeDefinition): string {
     const fields = type.fields.map((field) => {
       const input = field.format === "longtext"
         ? `<textarea id="report-field-${escapeHtml(field.field_id)}" data-report-field name="${escapeHtml(field.field_id)}" rows="4"${field.required ? " required" : ""}></textarea>`
         : `<input id="report-field-${escapeHtml(field.field_id)}" data-report-field name="${escapeHtml(field.field_id)}" type="text"${field.required ? " required" : ""}>`;
       return `<label><span>${escapeHtml(field.name)}${field.required ? uiText("goals.event-forms-record.required") : uiText("goals.event-forms-record.optional")}</span><small>${escapeHtml(field.purpose)}</small>${input}${fieldError(field.field_id)}</label>`;
     }).join("");
-    const bound = doc.state.requirements.filter((item) => item.bound_type_ids.includes(type.type_id));
-    const judgments = bound.length
-      ? `<label><span>${uiText("goals.event-forms-record.linked-completion-requirement")}</span><select data-judgment-requirement name="judgment_requirement_id"><option value="">${uiText("goals.event-forms-record.record-only-do-not-judge-completion")}</option>${
-        bound.map((item) => `<option value="${escapeHtml(item.requirement_id)}">${escapeHtml(item.statement)}</option>`).join("")
-      }</select></label>
-        <label data-judgment-row hidden><span>${uiText("goals.event-forms-record.judgment-requirement")}</span><select data-judgment-verdict name="judgment_verdict" disabled><option value="">${uiText("goals.event-forms-record.record-only-default")}</option><option value="supports">${uiText("goals.event-forms-record.report-supports")}</option><option value="unknown">${uiText("goals.event-forms-record.still-cannot-decide")}</option><option value="contradicts">${uiText("goals.event-forms-record.not-yet-met")}</option></select><small>${uiText("goals.event-forms-record.support-only-means-reporter-s-judgment-not-independent")}</small></label>`
-      : `<p class="form-note">${uiText("goals.event-forms-record.type-not-bound-completion-requirement-saving-only-records")}</p>`;
     return `<form class="event-form mw-form" data-event-form="report" data-type-id="${escapeHtml(type.type_id)}" data-type-version="${type.version}" hidden>
       <header class="event-form-heading"><button type="button" class="mw-btn mw-btn--link" data-event-reader="planning">${uiText("goals.event-forms-record.back-record-templates")}</button><h2>${escapeHtml(type.name)}</h2>
       <p class="form-lead">${escapeHtml(type.purpose)}</p></header>
       <div class="event-form-body"><label><span>${uiText("goals.event-forms-record.one-line-title")}</span><input data-event-title name="event_title" required maxlength="200">${fieldError("event_title")}</label>
       ${fields}
-      ${judgments}
+      <p class="form-note">${uiText("goals.event-forms-record.report-checks-on-platform")}</p>
 
       <p class="event-form-help">${uiText("goals.event-forms-record.failure-what-just-entered-kept-so-can-retry")}</p></div>
       <div class="event-form-bottom"><p class="event-form-status" data-form-status role="status" hidden></p><footer class="event-form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-event-back>${uiText("goals.event-forms-record.cancel")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${uiText("goals.event-forms-record.save-record")}</button></footer></div>

@@ -48,7 +48,7 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
 ## 开发要求
 
 - 负责：MCP 工具 schema、受众划分与能力适配。
-- 不负责：业务规则、直接访问 Store、Runtime Skill 政策。
+- 不负责：业务规则、直接访问 Store。
 - 公开入口：`@molis-ai/molis-work-app-mcp`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
@@ -77,6 +77,6 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-连接工具的附带内容与公开动作共享精确授权：`context_resolve/bind/create_and_bind` 接受 Catalog 连接后，以同一客户端调用 `goals.guidance.read`、`goals.list`，必要时调用 `goals.directory.read` 恢复目录窗口外的焦点。生产 launcher 使用常驻服务通道，不能回退到本地 typed Host 读取。说明或恢复目录不可读时仍返回真实连接，对应内容为 null 并附 `project_guidance_error`/`resume_error`；不伪报空项目、不自动重新绑定。客户端或项目在等待期间改变则拒绝旧摘要。
+连接工具的附带内容与公开动作共享精确授权：`context_resolve/bind/create_and_bind` 接受 Catalog 连接后，以同一客户端调用 `projects.guidance.read`、`goals.list`，必要时调用 `goals.directory.read` 恢复目录窗口外的焦点。生产 launcher 使用常驻服务通道，不能回退到本地 typed Host 读取。说明或恢复目录不可读时仍返回真实连接，对应内容为 null 并附 `project_guidance_error`/`resume_error`；不伪报空项目、不自动重新绑定。客户端或项目在等待期间改变则拒绝旧摘要。
 
 错误由 `formatMcpToolError` 统一为 JSON `{ error, code, details?, call_id? }`，标准动作、上下文及管理工具共用 SDK 错误体。details 保留 owner 数据但不能覆盖 code 或伪造编号；只有 Host 确实记下的操作才给 call_id。旧的「错误文本加末行 JSON」和 message 字段已退役，调用方改读现行字段。

@@ -1,4 +1,4 @@
-import { ActionError, platformErrorKind, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, intakeMaterial, platformErrorKind, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginManifest, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginNotificationQueue, type PluginNotificationRow, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -30,13 +30,12 @@ export interface NotificationDeliveryPorts {
 const UNAVAILABLE = new Set(["actions.missing", "actions.plugin_disabled", "actions.dependency_missing", "actions.unavailable"]);
 const ERROR_CODE_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 
-/** The receivers a set of Manifests declares: each plugin with `notifications.receive` whose action is one of its own commands. */
+/** The receivers a set of Manifests declares: each plugin's action whose intake accepts `notification` (contract-design §2.3). */
 export function declaredNotificationReceivers(manifests: Iterable<PluginManifest>): NotificationReceiver[] {
   const receivers: NotificationReceiver[] = [];
   for (const manifest of manifests) {
-    const reference = manifest.notifications?.receive;
-    const definition = reference && manifest.actions?.find(item => item.capability_id === reference.capability_id && item.version === reference.version);
-    if (reference && definition) receivers.push({ plugin_id: manifest.plugin_id, reference: { capability_id: reference.capability_id, version: reference.version }, permissions: definition.action.permissions });
+    const definition = manifest.actions?.find(item => intakeMaterial(item.action.intake, "notification"));
+    if (definition) receivers.push({ plugin_id: manifest.plugin_id, reference: { capability_id: definition.capability_id, version: definition.version }, permissions: definition.action.permissions });
   }
   return receivers;
 }

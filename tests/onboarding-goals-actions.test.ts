@@ -7,6 +7,7 @@ import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, ensureSystemAgentService, LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities, type AgentSessionOwner, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -17,8 +18,8 @@ import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
 import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
-// N-12: Host-internal callers of Goals (the first-run Goal, the project guidance read of a Run) call the
-// Goals actions, through the client that starts the project's Runtime plugins (Goals is one of them).
+// N-12: Host-internal callers of Goals (the first-run Goal) call the Goals actions, through the client that starts the project's
+// Runtime plugins (Goals is one of them). The project guidance a Run starts with is the platform's since batch 44 (contract-design §9).
 
 const CONTROL_TOKEN = "onboarding-goals-actions-control-token-0123456789";
 const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf", "io.molis.work.text-stats"];
@@ -79,7 +80,7 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("a Run reads the project guidance through the Goals action, once, whether or not Goals is there", async () => {
+test("PEQ-01: a Run reads the project guidance through the platform's action, once, and keeps it without Goals", async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "guidance-read-action-")));
   let removed = false;
   const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null,
@@ -115,7 +116,7 @@ test("a Run reads the project guidance through the Goals action, once, whether o
   try {
     const management = managementGoals(host.actionClient(reference), "guided");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
-    await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
+    await management.invoke(projectGuidanceActions.add, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const probe = registerProbe(host.actionRegistry(reference), "project");
     await startPlugin(host, reference, store, starter);
     const issued = await issuedCaller(probe, starter, "guided"), rounds = starter.actions("guided");
@@ -124,13 +125,12 @@ test("a Run reads the project guidance through the Goals action, once, whether o
 
     await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.match(captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!.body, /保留源文件/, "the project layer is delivered");
-    assert.deepEqual(guidanceRows(settled), [{ capability_id: "goals.guidance.read", operation: "query", actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", ok: true, code: undefined }],
-      "one settlement, the Goals action as the person; no typed guidance capability");
+    assert.deepEqual(guidanceRows(settled), [{ capability_id: "projects.guidance.read", operation: "query", actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", ok: true, code: undefined }],
+      "one settlement, the platform's action as the person; no typed guidance capability");
 
     settled.length = 0; removed = true;
     await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
-    assert.equal(captured[1]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false, "without Goals the Run starts with no project layer");
-    assert.deepEqual(guidanceRows(settled).map(row => [row.capability_id, row.ok, row.code]), [["goals.guidance.read", false, "actions.plugin_disabled"]],
-      "the refusal is the Goals action's own, told once");
+    assert.match(captured[1]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!.body, /保留源文件/, "without Goals the Run keeps the project layer");
+    assert.deepEqual(guidanceRows(settled).map(row => [row.capability_id, row.ok]), [["projects.guidance.read", true]], "read once, from the platform");
   } finally { await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
 });

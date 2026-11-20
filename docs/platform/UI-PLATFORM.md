@@ -76,13 +76,12 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 工作台客户端的片段文件共用一个函数作用域，片段之间可以直接读变量、直接调函数，绕过事件。把登记和代码对照后，已知没有守住「别的模块不碰主人的状态」的有两处（文件都在 `apps/workbench/src/scripts/client/`）。它们不是批准的例外，是待清的差距，清的时候把状态收进主人的文件、改成发 request 或听 announcement：
 
 - `navigation-surfaces`（原 `navigation-feed`，07-1 改名）：选中的 Feed 任务 `selectedFeedTask` 声明在 `bootstrap.ts`，读它的有 `documents-state.ts`；`setFeedTask` 定义在 `navigation-surfaces.ts`，却被 `events-primary.ts`、`events-secondary.ts` 直接调用，`events-primary.ts` 还直接给 `selectedFeedTask` 赋值，`tab-workspace.ts` 拿到的也是这个函数。
-- `goal-selection`：选中的 Goal `selected` 声明在 `bootstrap.ts`（不在主人的文件里），`documents-state.ts`、`editing-graph.ts` 直接读它，`immersive-navigation.ts` 经 `getSelected` 回调读它。
+- 选中记录 `selected` 声明在 `bootstrap.ts`，`documents-state.ts`、`editing-graph.ts` 直接读它，`immersive-navigation.ts` 经 `getSelected` 回调读它。
 
 其余的主人没有逐一核对过：登记写的是谁应该持有，不是已经证明只有它碰。
 
-门禁对公告也只查「主人的文件里有人发」，不查「只有主人发」，所以下面两条登记为公告、却有主人以外的文件在发的事件它拦不住（`--report` 会列出）。它们同样是待清的差距，不是批准的例外；清的时候改成经主人发，或者改登记的种类：
+门禁对公告也只查「主人的文件里有人发」，不查「只有主人发」，所以下面一条登记为公告、却有主人以外的文件在发的事件它拦不住（`--report` 会列出）。它同样是待清的差距，不是批准的例外；清的时候改成经主人发，或者改登记的种类：
 
-- `molis-work:goal-document-loaded`（主人 `tab-workspace`）：`plugins/native/goals/src/navigation-client.ts` 在自己装完 Goal 文档后也直接发它，不经 `tab-workspace`。
 - `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/judgment-rules/client-events.ts`（判断规则页，`client.ts` 的一部分）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
@@ -105,7 +104,7 @@ Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native 
 
 - `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side` 五个命名 Slot；插件视图按 Manifest 的 `navigator`、`stage`、`settings`、`island`、`side` 声明位置。`settings-page` contribution 只能挂到 `workbench.settings`，由全局设置目录列出；插件工作台仍走 directory/main/overlay。
   - 设置分类只有一张表（`apps/workbench/src/settings-sections.ts`）：宿主分类有固定 order（10–90），插件设置页按 Manifest 里 `settings` view 的 `order` 插入，并跟随它前面那个宿主分类的分组；不写 order（默认 100）的进「插件」组。宿主不按插件名排位置。
-  - 一个插件在插件切换列表里归哪一组、在目标材料里能新建什么、在项目首页给什么起点、设置页用什么图标，都由它的视图声明（W5-06 第 2b 片，2026-10-23）：`navigator`/`island` 视图的 `group`、`creates`、`start`，`settings` 视图的 `icon`，都可选。宿主只管组名与组的顺序（`immersive-shell.ts` 的 `RAIL_GROUP_LABELS`，顺序是合同的 `UI_VIEW_GROUPS`）；没写分组的在「更多」，没写图标的设置页用 `settings`，没写 `creates`、`start` 的插件不出现在新建和首页起点里。工作台经 `plugin-catalog.ts` 的 `creatableKinds`、`homeStarts` 读，校验与拒绝在插件 SDK（`view-placement-declarations.ts`）。写法见 `skills/molis-plugin-dev/ui.md`。
+  - 一个插件在插件切换列表里归哪一组、在目标材料里能新建什么、在项目首页给什么起点、设置页用什么图标，由它的声明决定（W5-06 第 2b 片，2026-10-23；第 44 批起新建与起点改读动作的创建入口）：`navigator`/`island` 视图的 `group`，`settings` 视图的 `icon`，动作上 `accepts: []` 的内容站空白入口与带 `start` 的创建入口，都可选。宿主只管组名与组的顺序（`immersive-shell.ts` 的 `RAIL_GROUP_LABELS`，顺序是合同的 `UI_VIEW_GROUPS`）；没写分组的在「更多」，没写图标的设置页用 `settings`，没有空白入口或起点的插件不出现在新建和首页起点里。工作台经 `plugin-catalog.ts` 的 `creatableKinds`、`homeStarts` 读，校验与拒绝在插件 SDK（`view-placement-declarations.ts`）。写法见 `skills/molis-plugin-dev/ui.md`。
   - 页面由项目里运行的插件渲染、又要作为设置页出现时，插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。目前没有插件这样用：「角色」原来是这个例子，现在是宿主自己的一节设置（`settings-sections.ts` 的 `HOST_SECTIONS`，`order: 35`），页面由 `apps/workbench/src/characters/ui.ts` 渲染，根元素同样标 `data-settings-page="characters"`；Characters 不再是插件（CHR-1，2026-10-22）。
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。

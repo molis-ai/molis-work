@@ -16,7 +16,7 @@ import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Decisions", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Decisions", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false;
   // A plugin that holds every Goals permission, started by the Host (S-15).

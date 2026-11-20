@@ -57,7 +57,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const title = goalId ? titleForItem("goals", goalId, fallback) : "";
     document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
       if (goalId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.goals", surface_title: "Goals",
-        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) }, goal: { id: goalId, title: title || "" } }));
+        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) },
+        belongs_to: { plugin_id: "io.molis.work.goals", kind: "goal", id: goalId, title: title || "" } }));
       else node.removeAttribute("data-assistant-context");
     });
   };
@@ -141,7 +142,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // After a reload the plugin's page reopens the record that was open in it, quietly: a record that is gone is forgotten.
   const reopenRecord = (plugin) => {
     const itemId = openRecords[plugin];
-    if (!itemId || embedded || plugin === "feed" || state.panes.length > 1) return;
+    if (!itemId || embedded || NO_REOPEN_RECORDS.includes(plugin) || state.panes.length > 1) return;
     if (topLevelSurface(plugin)?.dataset.expanded === "true") return;
     setTimeout(() => jumpToRecord(plugin, itemId, true), 0);
   };

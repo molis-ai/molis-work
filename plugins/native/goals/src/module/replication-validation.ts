@@ -1,6 +1,5 @@
 import type { ProjectReplicaRows, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { goalEventBasisGaps, goalEventBasisTiers, goalRelationTypes, type GoalEventJudgmentBasisInput, type GoalRelationRecord } from '../contract/goals.js';
-import { normalizeBasis } from './event-facts-validation.js';
+import { goalRelationTypes, type GoalRelationRecord } from '../contract/goals.js';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { validatePlanningGraph } from './planning/goal-graph.js';
 import { GOAL_CONCERN_CITED_SUBJECT_LIMIT } from '../contract/goal-event-state.js';
@@ -13,18 +12,15 @@ export function validateGoalReplication(rows: ProjectReplicaRows, projectId: str
   const goals = new Map(rows.goals!.map(row => [row.goal_id, row]));
   if (roots[0]!.active_goal_id !== null && !goals.has(roots[0]!.active_goal_id)) invalid();
   const events = new Map(rows.goal_work_events!.map(row => [row.event_id, row]));
-  const requirements = new Map(rows.goal_event_requirements!.map(row => [row.requirement_id, row]));
-  const decisions = new Map(rows.goal_event_applied_decisions!.map(row => [row.decision_id, row]));
+  // The requirements Goals hung on the platform for each Goal (their statements and state are the platform's, in its own collection).
+  const requirements = new Map(rows.goal_requirement_links!.map(row => [row.requirement_id, row]));
   for (const [table, list] of Object.entries(rows)) for (const row of list) {
     if (table !== 'goals' && row.goal_id !== undefined && row.goal_id !== null && !goals.has(row.goal_id)) invalid();
     if (row.requirement_id !== undefined && !requirements.has(row.requirement_id)) invalid();
     if (table.startsWith('goal_event_') && row.event_id && !events.has(row.event_id)) invalid();
     if (row.resolution_event_id && !events.has(row.resolution_event_id)) invalid();
-    if (table === 'goal_work_event_judgments' && (!events.has(row.event_id) || events.get(row.event_id)!.goal_id !== requirements.get(row.requirement_id)!.goal_id)) invalid();
-    if (table === 'goal_work_event_judgments') validateJudgmentTrust(row);
-    if (table === 'goal_event_requirement_conclusions' && ((row.checked_artifact_id == null) !== (row.checked_version == null)
-      || (row.checked_version != null && !(Number.isSafeInteger(row.checked_version) && Number(row.checked_version) >= 1)))) invalid();
-    if (table === 'goal_event_requirement_conclusions' && (!decisions.has(row.decision_id) || decisions.get(row.decision_id)!.goal_id !== row.goal_id)) invalid();
+    if (row.requirement_id !== undefined && requirements.get(row.requirement_id)!.goal_id !== row.goal_id) invalid();
+    if (table === 'goal_event_closures' && row.acceptance_round != null && !(Number.isSafeInteger(row.acceptance_round) && Number(row.acceptance_round) >= 0)) invalid();
     if (row.scope_json) validateScope(row, JSON.parse(String(row.scope_json)), requirements, events);
     if (table === 'goal_event_concerns') validateCitedSubjects(row.cited_subjects_json);
   }
@@ -73,15 +69,3 @@ function validateCitedSubjects(value: ProjectReplicaRow[string]): void {
 
 function invalid(): never { throw errors.replica_invalid('Goal 同步记录的关联无效'); }
 
-/** A judgment's tier, gap and basis (its whole shape) as Goals itself writes them: nothing else may arrive as a replicated row (the columns carry no CHECK). */
-function validateJudgmentTrust(row: ProjectReplicaRow): void {
-  if (!(goalEventBasisTiers as readonly unknown[]).includes(row.tier)) invalid();
-  if (row.gap != null && !(goalEventBasisGaps as readonly unknown[]).includes(row.gap)) invalid();
-  if (row.gap != null && row.tier !== 'self_reported') invalid();
-  if (row.reporter_session != null && typeof row.reporter_session !== 'string') invalid();
-  if (row.basis_json == null) { if (row.tier !== 'self_reported') invalid(); return; }
-  let basis: unknown;
-  try { basis = JSON.parse(String(row.basis_json)); } catch { invalid(); }
-  // The same shape a report is held to when Goals saves it: an exact version, how it was checked, and references only, at most eight.
-  try { normalizeBasis(basis as GoalEventJudgmentBasisInput, String(row.requirement_id)); } catch { invalid(); }
-}

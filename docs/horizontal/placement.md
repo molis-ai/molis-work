@@ -6,14 +6,14 @@
 
 **提供：**
 
-- 系统动作（提供方 `system.placement`，Host 装配在 `apps/local-host/src/placement-actions.ts`）：`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.link`、`placement.unlink`、`placement.move`、`placement.copy`、`placement.convert`、`placement.create`、`placement.goals`、`placement.goal.bind`。
+- 系统动作（提供方 `system.placement`，Host 装配在 `apps/local-host/src/placement-actions.ts`）：`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.link`、`placement.unlink`、`placement.move`、`placement.copy`、`placement.convert`、`placement.create`、`placement.attach.targets`、`placement.attach`。
 - 位置与访问范围的描述、用于项目的关联、Goal 资料的绑定、来自与复制自的来源记录。
 - 移动、复制、转成：经插件声明的放置协议动作（输入输出类型 `PLACEMENT_MOVE_INPUT_TYPE`、`PLACEMENT_COPY_INPUT_TYPE` 等，定义在 `packages/contracts/src/platform/placement.ts`）和工作流内容站的 `receive`，不在 Host 或服务里认识任何具体插件。
 - 移动后的位置索引：旧引用经它找到新位置。
 
 **技术状态：** `{home}/placement/placement.db`（版本 1，建库代码在 `apps/local-host/src/placement-actions.ts` 的 `PLACEMENT_BASELINE`）：Context Ledger Module 的表（`modules/context-ledger`，关联以 `ObjectRef` 记录）加一张 `placement_titles` 缓存，只存最近见过的标题，用于对象被删或读不到时仍能说出它叫什么。
 
-**不拥有：** 对象的正文、存在与否和业务规则（所有者）；Goal 事实（Goals）；权限的授予和可信身份（动作服务与各入口的授权）。改变位置与访问范围的动作只对本机用户（`user` 受众）开放；读取描述的动作（`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.goals`）对 `user` 和 `agent`（助理、Agent）开放，创作台生成的插件也看得到（受众规则 `actionReachesAudience`，在 `packages/contracts/src/platform/actions.ts`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），工作流不在其内。
+**不拥有：** 对象的正文、存在与否和业务规则（所有者）；挂接的事实（声明「挂到…」关系的主人插件）；权限的授予和可信身份（动作服务与各入口的授权）。改变位置与访问范围的动作只对本机用户（`user` 受众）开放；读取描述的动作（`placement.describe`、`placement.spaces`、`placement.related`、`placement.locate`、`placement.attach.targets`）对 `user` 和 `agent`（助理、Agent）开放，创作台生成的插件也看得到（受众规则 `actionReachesAudience`，在 `packages/contracts/src/platform/actions.ts`：声明了 `plugin` 受众，或对 `agent` 开放且没有 `plugin: false`，撤不回的除外），工作流不在其内。
 
 **当前来源与 Goal：** `horizontal/placement`（`PlacementService`），Host 装配 `apps/local-host/src/placement-actions.ts`，页面传输 `apps/local-host/src/placement-http.ts`，浏览器端 `apps/workbench/src/scripts/client/placement.ts`。需求与语义见 `specs/archive/work-placement/spec.md`；写放置协议见 [`skills/molis-plugin-dev/placement.md`](../../skills/molis-plugin-dev/placement.md)；搜索结果与放置怎样配合，见 [CALL-CHAINS §7](../system/CALL-CHAINS.md)。
 

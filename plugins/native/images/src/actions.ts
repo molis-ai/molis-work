@@ -1,5 +1,6 @@
-import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
-import { bindActionHandler as bind, ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { objectSchema as object, arraySchema as array, createActionDefinition, type InferActionInput } from "@molis-ai/molis-work-plugin-sdk";
+import { bindActionHandler as bind, ActionError, isFileCopyIntakeAction, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import type { ImagesService } from "./service.js";
@@ -21,6 +22,8 @@ function define<I,O>(name:string, version: number,title:string,description:strin
   return createActionDefinition<I, O>(`images.${name}`, operation, {title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
     status:{capability_id:"images.jobs.get",version:/* @version action.images.jobs.get */ 1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}, version);
 }
+const saveCopyInput = { type: "object", properties: { id: { type: "string", minLength: 1, pattern: "\\S" }, image_id: { type: "string", minLength: 1, pattern: "\\S" }, filename: { type: "string" } }, required: ["id", "image_id"], additionalProperties: false } as const;
+const saveCopyDef = createActionDefinition<InferActionInput<typeof saveCopyInput>, { item: Record<string, unknown> }>("images.images.save_copy", "command", { title: "保存图片副本", description: "按文件收纳角色发现目标插件并将生成的图片副本保存进去", scope: "project", audiences: ["user"], scheduling: "concurrent", subject_kinds: ["image"], input_schema: saveCopyInput, output_schema: { type: "object", properties: { item: { type: "object" } }, required: ["item"] }, permissions: ["images:read"] }, /* @version action.images.images.save_copy */ 1);
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages", /* @version action.images.connection.usages */ 1,"生图配置使用的连接",["images:connections:read"],"home"),
   connections:define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list", /* @version action.images.connections.list */ 1,"生图服务列表","读取 Home 生图配置及当前服务连接状态，不返回凭据","query","home",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),
@@ -32,6 +35,7 @@ export const imagesActions={
   cancel:define<{id:string},{job:ImageJob}>("jobs.cancel", /* @version action.images.jobs.cancel */ 1,"停止本机等待","停止当前项目任务等待；厂商可能仍在生成或计费，不会自动重新生成","command","project",object({id}),changed,["images:generate"]),
   delete:define<{id:string},{deleted:true}>("jobs.delete", /* @version action.images.jobs.delete */ 1,"删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete","images:read",IMAGES_FILES_WRITE]),
   image:define<{id:string;image_id:string},{base64:string;mime_type:string;filename:string}>("images.read", /* @version action.images.images.read */ 1,"读取生成图片","返回任务中实际图片字节的 Base64、MIME 和文件名；不是厂商 URL","query","project",object({id,image_id:id}),object({base64:text,mime_type:mime,filename:text}),["images:read"]),
+  saveCopy:saveCopyDef,
   backgroundTasks:imagesBackgroundTasks,
   searchEntries:imagesSearchActions.entries,
   subject:imagesSearchActions.subject,
@@ -39,7 +43,7 @@ export const imagesActions={
   fileContent:imagesSearchActions.fileContent,
 };
 export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).flatMap(d=>d.action.permissions))];
-export interface ImagesActionPorts { service(): ImagesService }
+export interface ImagesActionPorts { service(): ImagesService; directory?: PluginActionDirectory }
 export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandlerBinding[]{
   const project=(caller:ActionCallContext)=>{if(!caller.project_id)throw new ActionError("actions.project_required","请选择项目");return caller.project_id;};
   return [
@@ -60,6 +64,15 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     }},
     bind(imagesActions.cancel,async (input,caller)=>({job:await ports.service().cancel(project(caller),input.id,caller)})),
     bind(imagesActions.delete,async (input,caller)=>{await ports.service().deleteJob(project(caller),input.id,caller);return {deleted:true as const};}),
-    bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),    ...createImagesSearchHandlers(ports.service),
+    bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),
+    bind(imagesActions.saveCopy,async (input,caller)=>{
+      const image=ports.service().readImage(project(caller),input.id,input.image_id);
+      if(!ports.directory)throw new ActionError("actions.unavailable","当前没有可用的文件收纳插件");
+      const target=(await ports.directory.discover()).find(view=>view.availability.available&&isFileCopyIntakeAction(view.action));
+      if(!target)throw new ActionError("actions.unavailable","当前没有可用的文件收纳插件");
+      const filename=input.filename?.trim()?input.filename.trim():image.filename;
+      return ports.directory.invoke<{item:Record<string,unknown>}>({capability_id:target.capability_id,version:target.version,provider_id:target.provider.provider_id},{filename,mime:image.mime,bytes_base64:image.bytes.toString("base64")});
+    }),
+    ...createImagesSearchHandlers(ports.service),
   ];
 }

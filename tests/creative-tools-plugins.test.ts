@@ -114,9 +114,9 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards({}, builtinMarketDirectory());
-  // Every personal plugin is in the market except the 常开插件 (Shelf), which nobody adds or removes.
+  // PEQ-12: only Shelf remains an always-on plugin; Goals is optional and removable like any other plugin.
   const alwaysOn = BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.always_on === true).map((entry) => entry.project_plugin_id);
-  assert.deepEqual(alwaysOn, ["goals", "shelf"]);
+  assert.deepEqual(alwaysOn, ["shelf"]);
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
     PERSONAL_PLUGIN_IDS.filter((id) => !alwaysOn.includes(id)));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");

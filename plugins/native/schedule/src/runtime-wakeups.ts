@@ -26,6 +26,16 @@ function notificationTitle(title: string): string {
 }
 
 /**
+ * Tells Schedule's open pages that what they show may have changed (PG-061): they read again, without marking a task read. A call
+ * cancelled or stripped of its authority meanwhile tells nothing; after the activation stops the platform drops the hint.
+ */
+export function tellOpenPages(ui: Pick<PluginHostServices["ui"], "invalidate">, caller: Pick<ActionExecutionContext, "signal" | "assert_authority_current">): void {
+  if (caller.signal?.aborted) return;
+  try { caller.assert_authority_current?.(); } catch { return; }
+  ui.invalidate();
+}
+
+/**
  * A due conversation task's round. One read of the platform's grants per round decides what it reads: the person's categories under
  * the task's own subject (`brief`), or project files (`reader`). A failed read fails the round, and the task says so: guessing either
  * way would read what the person did not choose.
@@ -56,17 +66,13 @@ export async function scheduleRuntimeWakeup(services: PluginHostServices, runtim
   if (input.capability_id === SCHEDULE_TASK_WAKEUP_CAPABILITY) {
     return handleScheduleTaskWakeup(runtime.db, input.object_ref, scheduledTaskRunner(services.agents, grants), undefined, control, write, async turn => {
       const delivered = turn.kind === "assistant";
-      try {
-        await services.actions?.invoke(observationActions.report, { facts: [{
-          fact: "io.molis.work.schedule.task_turn", stage: delivered ? "completed" : "executed", outcome: delivered ? "succeeded" : "failed",
-          occurred_at: turn.created_at, work: { work_ref: turn.turn_id }, subjects: [{ kind: "schedule_task", id: turn.task_id }],
-          conditions: { plugin: { id: SCHEDULE_PLUGIN_ID, version: scheduleManifest.version } },
-        }] });
-      } finally {
-        // The round's answer, or the sentence that it did not run and why, is written: an open page shows it (96-2). A plugin
-        // stopped meanwhile is refused here and has no open page to tell; the round is reported first either way.
-        services.ui.invalidate();
-      }
+      // The round's answer, or the sentence that it did not run and why, is written; the open pages are told once this wakeup
+      // ends, after the round is reported (createSchedulePlugin, 96-2).
+      await services.actions?.invoke(observationActions.report, { facts: [{
+        fact: "io.molis.work.schedule.task_turn", stage: delivered ? "completed" : "executed", outcome: delivered ? "succeeded" : "failed",
+        occurred_at: turn.created_at, work: { work_ref: turn.turn_id }, subjects: [{ kind: "schedule_task", id: turn.task_id }],
+        conditions: { plugin: { id: SCHEDULE_PLUGIN_ID, version: scheduleManifest.version } },
+      }] });
     });
   }
   const observed = services.installations!.list();

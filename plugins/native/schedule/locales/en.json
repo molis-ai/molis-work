@@ -31,6 +31,8 @@
     "schedule.form.instructions-hint": "Read-only by default. Writes still go through the existing review queue.",
     "schedule.form.instructions-placeholder": "Write what AI should check and report when this task is due…",
     "schedule.form.notify": "Mark the list when an update is important",
+    "schedule.form.once": "Runs once",
+    "schedule.form.once-hint": "The time was set where this task was scheduled and can’t be changed here.",
     "schedule.form.reads": "Once it’s created, choose here what it may read. Without a choice it reads project files only.",
     "schedule.form.save": "Save",
     "schedule.form.saving": "Saving…",

@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsPolicyItem, GoalsPolicyUiPrimitives } from "./policy-ui-model.js";
+import { goalRequirementRows } from "./event-document-model.js";
 
 export const GOALS_POLICY_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.policy.v1";
 
@@ -12,7 +13,7 @@ function renderPolicyEditor(
   options: { editGoal?: boolean } = { editGoal: true },
 ): string {
   const policy = item.resolved_policy;
-  const requirements = item.event_document?.state.requirements ?? [];
+  const requirements = goalRequirementRows(item.event_document);
   return `<div class="policy-workbench">
     <section class="policy-effective"><header><span class="policy-effective-icon">${icon("shield")}</span><div><h3>${uiText("goals.policy-ui.effective-rules-now")}</h3><p>${uiText("goals.policy-ui.project-rules-checked-closure-goal-s-completion-requirements")}</p></div></header><dl><div><dt>${uiText("goals.policy-ui.confirmation")}</dt><dd><strong>${policy.human_approval ? uiText("goals.policy-ui.required") : uiText("goals.policy-ui.not-required")}</strong><small>${policy.human_approval ? uiText("goals.policy-ui.have-final-confirmation") : uiText("goals.policy-ui.no-final-user-approval-required")}</small></dd></div></dl></section>
     <section class="rule-summary" data-goal-policy-requirements><h3>${uiText("goals.policy-ui.goal-s-completion-requirements")}</h3>${requirements.length ? `<ul>${requirements.map(requirement => `<li>${escapeHtml(requirement.statement)}</li>`).join("")}</ul>` : `<p>${uiText("goals.policy-ui.completion-requirements-have-not-been-defined-yet")}</p>`}${options.editGoal ? `<button type="button" class="mw-btn mw-btn--link" data-event-reader="requirements">${uiText("goals.policy-ui.view-completion-requirements")}</button>` : ""}</section>

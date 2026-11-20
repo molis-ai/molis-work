@@ -112,6 +112,11 @@
     "images.status.retry-help": "可复用这段画面描述，调整服务设置后重新生成（重新生成会发起一次新请求）。",
     "images.status.running": "生成中",
     "images.status.succeeded": "已生成",
-    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。"
+    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。",
+    "images.limit.cut": "{field}最多 {max} 个字符，多出的部分没有放进来。",
+    "images.limit.over": "{field}最多 {max} 个字符，现在有 {count} 个，请删短一些。",
+    "images.limit.prompt": "图片描述",
+    "images.limit.ratio": "宽高比",
+    "images.limit.size": "图片尺寸"
   }
 }

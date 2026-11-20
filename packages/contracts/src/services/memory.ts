@@ -47,16 +47,16 @@ export const MEMORY_KINDS: readonly MemoryKind[] = ["preference", "convention", 
 export const MEMORY_SOURCES: readonly MemorySource[] = ["said", "accepted", "auto", "imported", "manual", "plugin"];
 export const MEMORY_CONSUMERS: readonly MemoryConsumer[] = ["assistant", "agent", "ui", "plugin", "mcp"];
 export const MEMORY_SCENES = ["coding", "assistant", "common"] as const;
+export type MemoryScene = (typeof MEMORY_SCENES)[number];
 export const MEMORY_LIFECYCLES = ["session", "short-term", "long-term"] as const;
-
+/** Memory scene classification and session-binding role protocol helpers (PEQ-09). */
+export * from "./memory-scene.js";
 /** Restrictions only: matching never grants access beyond existing permissions. */
 export interface MemoryClassRestriction {
-  selector: { consumer: MemoryConsumer; current_scene: typeof MEMORY_SCENES[number];
-    scene?: typeof MEMORY_SCENES[number]; kind?: MemoryFormalKind; lifecycle?: typeof MEMORY_LIFECYCLES[number] };
+  selector: { consumer: MemoryConsumer; current_scene: typeof MEMORY_SCENES[number]; scene?: typeof MEMORY_SCENES[number]; kind?: MemoryFormalKind; lifecycle?: typeof MEMORY_LIFECYCLES[number] };
   read: "inherit" | "explicit-only" | "off";
   form: "inherit" | "off";
 }
-
 export interface MemoryAssociatedObject { plugin_id: string; kind: string; id: string }
 
 /**

@@ -7,7 +7,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@moli
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, refuseUnusableDevelopmentLanguage, runPluginDevelopment } from "./plugin-development.js";
-import { bindGoalsManagementActions, goalsHostActions, refusePayloadIdentity } from "./goal-callers.js";
+import { bindGoalsManagementActions, refusePayloadIdentity, registeredHostAction } from "./goal-callers.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { installHostUiText } from "./ui-text-provider.js";
@@ -83,10 +83,12 @@ export async function runLocalPluginDevelopment(input: {
 
 /** The development project's board through the Goals action, as the management entry; a board Goals already made at its start is left as it is. */
 async function ensureBoard(host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<void> {
+  const initialize = registeredHostAction("goals.board.initialize");
+  if (!initialize) return;
   try {
-    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(goalsHostActions.initialize, { idempotency_key: "plugin-development-board" });
+    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(initialize, { idempotency_key: "plugin-development-board" });
   } catch (error) {
-    if (!(error instanceof ActionError && error.code === "goals.board.exists")) throw error;
+    if (!(error instanceof ActionError && ["goals.board.exists", "actions.missing", "actions.plugin_disabled"].includes(error.code))) throw error;
   }
 }
 

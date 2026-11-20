@@ -1,4 +1,3 @@
-import type { GoalWorkEventJudgment } from "../contract/goals.js";
 import { storedJson } from "../stored-json.js";
 import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
@@ -20,7 +19,7 @@ export interface StoredWorkEvent {
   config_version: number | null;
 }
 
-/** `goal_work_events` and `goal_work_event_judgments`: the events reported on a Goal and the requirement verdicts they carry. */
+/** `goal_work_events`: the events reported on a Goal. */
 export class GoalWorkEventRecords {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
@@ -45,25 +44,6 @@ export class GoalWorkEventRecords {
       event.journal_seq,
       event.config_version,
     );
-  }
-
-  /** `reporterSession`: the session the Host bound the reporting round to, kept so a later report can tell the same worker from another. */
-  insertJudgments(eventId: string, judgments: GoalWorkEventJudgment[], reporterSession: string | null): void {
-    const insert = this.db.prepare(`
-      INSERT INTO goal_work_event_judgments (event_id, requirement_id, verdict, basis_json, tier, gap, reporter_session) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const judgment of judgments) {
-      insert.run(eventId, judgment.requirement_id, judgment.verdict, judgment.basis ? JSON.stringify(judgment.basis) : null, judgment.tier, judgment.gap, reporterSession);
-    }
-  }
-
-  /** The sessions that said "supports" of a requirement on their own word alone: the workers, whose saying it again is no review. */
-  selfSupportingSessions(projectId: string, goalId: string, requirementId: string): Set<string> {
-    return new Set((this.db.prepare(`
-      SELECT DISTINCT j.reporter_session FROM goal_work_event_judgments j
-      JOIN goal_work_events e ON e.event_id = j.event_id
-      WHERE e.project_id = ? AND e.goal_id = ? AND j.requirement_id = ? AND j.verdict = 'supports' AND j.tier = 'self_reported' AND j.reporter_session IS NOT NULL
-    `).all(projectId, goalId, requirementId) as Row[]).map((row) => rowText(row.reporter_session)));
   }
 
   getWorkEvent(projectId: string, goalId: string, eventId: string): StoredWorkEvent | null {
@@ -121,13 +101,6 @@ export class GoalWorkEventRecords {
     `).all(projectId, goalId, limit) as Row[]).map(mapWorkEvent);
   }
 
-  listJudgments(eventId: string): GoalWorkEventJudgment[] {
-    return (this.db.prepare(`
-      SELECT requirement_id, verdict, basis_json, tier, gap, rowid AS stored_row FROM goal_work_event_judgments
-      WHERE event_id = ? ORDER BY requirement_id
-    `).all(eventId) as Row[]).map(mapJudgment);
-  }
-
   maxGoalCursor(projectId: string, goalId: string, exceptEventId?: string): number {
     const row = exceptEventId
       ? this.db.prepare(`
@@ -154,28 +127,6 @@ export class GoalWorkEventRecords {
     return row ? mapWorkEvent(row) : null;
   }
 
-  listLatestJudgments(projectId: string, goalId: string): Array<GoalWorkEventJudgment & {
-    event_id: string;
-    actor_id: string;
-    actor_kind: "user" | "runtime" | null;
-    received_at: string;
-    journal_seq: number;
-  }> {
-    return (this.db.prepare(`
-      SELECT j.requirement_id, j.verdict, j.basis_json, j.tier, j.gap, j.rowid AS stored_row, e.event_id, e.actor_id, e.actor_kind, e.received_at, e.journal_seq
-      FROM goal_work_event_judgments j
-      JOIN goal_work_events e ON e.event_id = j.event_id
-      WHERE e.project_id = ? AND e.goal_id = ? AND e.kind = 'report'
-      ORDER BY e.journal_seq DESC, e.event_id DESC
-    `).all(projectId, goalId) as Row[]).map((row) => ({
-      ...mapJudgment(row),
-      event_id: rowText(row.event_id),
-      actor_id: rowText(row.actor_id),
-      actor_kind: nullableActorKind(row.actor_kind),
-      received_at: rowText(row.received_at),
-      journal_seq: Number(row.journal_seq),
-    }));
-  }
 }
 
 function mapWorkEvent(row: Row): StoredWorkEvent {
@@ -198,15 +149,4 @@ function mapWorkEvent(row: Row): StoredWorkEvent {
 
 function nullableActorKind(value: unknown): "user" | "runtime" | null {
   return value == null ? null : rowText(value) as "user" | "runtime";
-}
-
-/** One judgment as kept: its verdict, what the reporter said it checked, and how far Goals found that backed when it arrived. */
-function mapJudgment(row: Row): GoalWorkEventJudgment {
-  return {
-    requirement_id: rowText(row.requirement_id),
-    verdict: rowText(row.verdict) as GoalWorkEventJudgment["verdict"],
-    basis: storedJson<GoalWorkEventJudgment["basis"]>(row, "goal_work_event_judgments", "basis_json", null),
-    tier: rowText(row.tier) as GoalWorkEventJudgment["tier"],
-    gap: typeof row.gap === "string" ? row.gap as GoalWorkEventJudgment["gap"] : null,
-  };
 }

@@ -51,9 +51,6 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
   const cases: Array<[string, string, string, Record<string, string>]> = [
     ["POST", "/goals", "goals.create", {}],
     ["GET", "/goals/directory", "goals.directory", {}],
-    ["GET", "/project-guidance", "goals.guidance-read", {}],
-    ["POST", "/project-guidance", "goals.guidance-add", {}],
-    ["PATCH", "/project-guidance/g-1", "goals.guidance-update", { guidanceId: "g-1" }],
     ["POST", "/goals/goal%201/relations", "goals.relation-add", goal],
     ["POST", "/relations/r-1/deactivate", "goals.relation-deactivate", { relationId: "r-1" }],
     ["POST", "/goals/goal%201/active", "goals.active", goal],
@@ -70,10 +67,6 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
     ["GET", "/goals/goal%201/artifact-inputs", "goals.artifact-inputs-read", goal],
     ["POST", "/goals/goal%201/artifact-inputs", "goals.artifact-inputs-write", goal],
     ["POST", "/goals/goal%201/inputs", "goals.inputs", goal],
-    ["GET", "/goals/goal%201/terminals", "goals.terminal-list", goal],
-    ["POST", "/goals/goal%201/terminals", "goals.terminal-open", goal],
-    ["DELETE", "/goals/goal%201/terminals/k-1", "goals.terminal-close", { ...goal, key: "k-1" }],
-    ["POST", "/goals/goal%201/advance-prompt", "goals.advance-prompt", goal],
   ];
   assert.equal(cases.length, goalsManifest.routes?.length);
   for (const [method, rest, route_id, params] of cases) {
@@ -84,6 +77,12 @@ test("PG094-09: each plugin-prefix path reaches the route the Manifest declares 
   // Expected change: a read is only a GET now, so a POST to it is no route at all (it used to be refused with 400).
   assert.equal(at("POST", "/goals/goal-1/event-state"), null);
   assert.equal(at("POST", "/goals/goal-1/event-timeline"), null);
+  for (const [method, path] of [
+    ["GET", "/goals/goal%201/terminals"], ["POST", "/goals/goal%201/terminals"],
+    ["DELETE", "/goals/goal%201/terminals/k-1"], ["POST", "/goals/goal%201/advance-prompt"],
+  ] as const) {
+    assert.equal(at(method, path), null, `${method} ${path} retired by PEQ-17 in favor of /api/work-terminals`);
+  }
   for (const path of ["/policy-bindings", "/goal-tree-proposals/p-1/decision", "/goals/goal%201/event-decision"]) {
     assert.equal(at("POST", path), null, `${path} was retired in APR-17/19`);
   }

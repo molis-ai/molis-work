@@ -9,6 +9,7 @@ export const TODO_REACHING_ACTIONS: ReadonlySet<string> = new Set([
   "todo.items.list", "todo.items.get", "todo.items.update", "todo.items.status", "todo.items.archive", "todo.items.delete", "todo.items.batch",
   "todo.changes.revert", "todo.items.link", "todo.reminders.due", "todo.reminders.acknowledge", "todo.reminders.window", "todo.placement.move",
   "todo.item.subject.read", "todo.organize.list", "todo.organize.get", "todo.organize.apply", "todo.organize.close",
+  "todo.onboarding.get", "todo.onboarding.keep",
 ]);
 
 /** The definition with `project_reach` declared when it is one of those actions. */

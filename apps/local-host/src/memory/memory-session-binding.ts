@@ -4,10 +4,12 @@ import { LOCAL_PERSON_ACTOR_ID, requireSynchronous } from "@molis-ai/molis-work-
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentSessionWriteObservation } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { MemorySessionBinding, MemorySessionTarget } from "@molis-ai/molis-work-contracts/services/memory";
+import { isMemorySessionBindingAction, type MemorySessionBinding, type MemorySessionTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "@molis-ai/molis-work-service-memory";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
+import { installedPluginManifest } from "../plugin-installation-directory.js";
+import { pluginMemoryScene } from "./memory-plugin-scene.js";
 
 export interface AssistantMemoryBindingProjection {
   session_id: string | null; project_ref: LocalHostProjectReference | null; archived: boolean;
@@ -48,12 +50,21 @@ export async function bindMemorySession(input: {
   };
   const business = async () => {
     assertCurrent();
-    if (kind === "coding") {
-      if (!input.projectRef) throw memoryErrors.scope("编码会话需要原项目");
+    if (kind !== "assistant") {
+      if (!input.projectRef) throw memoryErrors.scope("业务会话需要原项目");
       if (!pinned) {
-        const choices = (await client.discover(caller)).filter(view => view.capability_id === "coding.sessions.binding.read" && view.version === /* @version action.coding.sessions.binding.read */ 1
-          && view.provider.plugin_id === "io.molis.work.coding" && view.provider.project_id === project_id && view.availability.available);
-        if (choices.length !== 1 || !choices[0]!.provider.plugin_install_id) throw memoryErrors.unavailable("当前编码会话主人不可用");
+        const candidates = (await client.discover(caller)).filter(view => isMemorySessionBindingAction(view)
+          && view.provider.plugin_id && view.provider.project_id === project_id && view.availability.available);
+        const choices: ActionView[] = [];
+        for (const view of candidates) {
+          const pluginId = view.provider.plugin_id!;
+          const declaredScene = view.provider.plugin_install_id
+            ? await input.localHost.withProject(input.projectRef, runtime => installedPluginManifest(runtime.store.db, view.provider.plugin_install_id!)?.manifest.memory_scene)
+            : undefined;
+          if (pluginMemoryScene(pluginId, declaredScene) === kind) choices.push(view);
+        }
+        if (choices.length !== 1 || !choices[0]!.provider.plugin_install_id || !choices[0]!.provider.plugin_id)
+          throw memoryErrors.unavailable("当前业务会话主人不可用");
         pinned = choices[0]!;
       }
       const value = await client.invoke(caller, { capability_id: pinned.capability_id, version: pinned.version, provider_id: pinned.provider.provider_id }, { session_id: input.id }) as {
@@ -61,7 +72,7 @@ export async function bindMemorySession(input: {
       };
       assertCurrent();
       if (value.session_id !== input.id || value.project_id !== project_id) throw memoryErrors.scope("业务会话绑定不属于当前项目");
-      return { session: value.runtime, archived: value.archived, plugin_id: "io.molis.work.coding", install_id: pinned.provider.plugin_install_id!, owner_project: project_id! };
+      return { session: value.runtime, archived: value.archived, plugin_id: pinned.provider.plugin_id!, install_id: pinned.provider.plugin_install_id!, owner_project: project_id! };
     }
     if (!input.assistantBinding) throw memoryErrors.unavailable("原助理会话主人不可用");
     const value = input.assistantBinding(input.id);

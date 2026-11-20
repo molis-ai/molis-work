@@ -34,12 +34,12 @@ function objectRows(): string {
   return renderSettingsSection({ body: renderObjectRow({ name: text("workbench.settings-runtimes.install-incomplete"), hint: text("workbench.settings-runtimes.check-diagnostics-repair-molis-work-install-first"),
     icon: "circle-alert", className: "mw-object-row--alert", action: renderButton({ label: text("workbench.settings-runtimes.open-diagnostics"), variant: "secondary", size: "sm" }) }) })
   + renderSettingsSection({ title: text("workbench.settings-runtimes.connected"), body:
-    renderObjectRow({ name: first ?? "", hint: text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install"), icon: "terminal", open: true,
+    renderObjectRow({ name: first ?? "", hint: text("workbench.settings-runtimes.mcp-points-at-install"), icon: "terminal", open: true,
       state: { label: text("workbench.settings-runtimes.connected"), tone: "success" },
       body: renderQuestionList({ rows: [
         { question: text("workbench.settings-runtimes.where-installed"), answer: code("~/.local/bin/codex") },
         { question: text("workbench.settings-runtimes.where-config"), answer: code("~/.codex/config.toml") },
-        { question: text("workbench.settings-runtimes.does-it-connect"), answer: escapeHtml(text("workbench.settings-runtimes.mcp-molis-work-skill-both-point-install")),
+        { question: text("workbench.settings-runtimes.does-it-connect"), answer: escapeHtml(text("workbench.settings-runtimes.mcp-points-at-install")),
           action: renderButton({ label: text("workbench.settings-runtimes.preview-removal"), variant: "secondary", size: "sm" }) },
       ] }) })
     + renderObjectRow({ name: second ?? "", hint: text("workbench.settings-runtimes.older-incomplete-molis-work-connection-was-found"), icon: "terminal",

@@ -171,12 +171,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const parts = classification?.lifecycle === "session" ? [globalThis.t.text("workbench.settings-memory.within-session")] : [];
       if (applies?.plugin_ids?.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(sep) }));
       if (applies?.object_kinds?.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(sep) }));
-      // Associated objects: Goals by name when their plugin can still read them; other objects by plugin/kind:id.
-      const goals = applies?.objects?.filter(o => o.plugin_id === "io.molis.work.goals" && o.kind === "goal") || [];
-      const others = applies?.objects?.filter(o => !(o.plugin_id === "io.molis.work.goals" && o.kind === "goal")) || [];
-      if (goals.length) parts.push("Goal " + goals.map(o => {
-        const title = data?.labels?.goals?.[o.id]; return title ? globalThis.t.text("workbench.settings-memory.goal-title", { title }) : globalThis.t.text("workbench.settings-memory.goal-that-can-no-longer-be-read"); }).join(sep));
-      if (others.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: others.map(o => o.plugin_id + "/" + o.kind + ":" + o.id).join(sep) }));
+      // Associated objects: by name where their owner can still read them (labelled with the owner); the rest by plugin/kind:id.
+      const objects = applies?.objects || [];
+      if (objects.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: objects.map(o => {
+        const key = o.plugin_id + "/" + o.kind + ":" + o.id, label = data?.labels?.objects?.[key];
+        return label ? globalThis.t.text("workbench.settings-memory.object-title", { owner: label.owner, title: label.title }) : globalThis.t.text("workbench.settings-memory.object-unreadable", { object: key }); }).join(sep) }));
       if (applies?.task) parts.push(applies.task);
       if (applies?.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
       return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");

@@ -1,4 +1,3 @@
-import { ACCEPTANCE_HOME_STORE } from "@molis-ai/molis-work-module-acceptance";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,7 +22,7 @@ export function recoverHomeLibraryTransactions(home: string, owner: StorageOwner
   const root = realpathSync(home), lock = { home: root, lockDirectory: agentRuntimeDirectory(root), owner };
   assertStorageOwner(lock.lockDirectory, owner);
   const catalogProjects = projectDatabases(root);
-  const sidecars = homeLibraryRollbackSidecars(root, [ACCEPTANCE_HOME_STORE.path, ...declarations.map(({ library }) => library.store_name)], catalogProjects);
+  const sidecars = homeLibraryRollbackSidecars(root, declarations.map(({ library }) => library.store_name), catalogProjects);
   if (sidecars.length === 0) { recoverSqliteRollbackJournals(lock, [], []); return; }
   const space = readStorageSpace(root);
   if (!space || expected && JSON.stringify(space) !== JSON.stringify(expected)) throw wrongArtifactSpace();
@@ -37,16 +36,11 @@ export function recoverHomeLibraryTransactions(home: string, owner: StorageOwner
     if (!baseline || registered?.owner !== manifest.plugin_id || baseline.version !== library.version) throw pendingSqliteRecovery();
     return { path: homeSqlitePath(root, library.store_name), kind: "home", version: baseline.version, baseline, initialSpace: space, inspect: inspectSpace };
   });
-  const acceptance = registry.get(ACCEPTANCE_HOME_STORE.path);
-  if (acceptance?.owner !== "modules/acceptance" || acceptance.library?.baseline !== ACCEPTANCE_HOME_STORE.library!.baseline) throw pendingSqliteRecovery();
-  const acceptancePath = homeSqlitePath(root, acceptance.path);
-  libraries.push({ path: acceptancePath, kind: "home", version: acceptance.library.baseline.version,
-    baseline: acceptance.library.baseline, initialSpace: space, inspect: inspectSpace });
   const projects: RollbackLibrary[] = projectDatabases(root, space).map(relative => {
     const path = join(root, relative), id = basename(dirname(path));
     return { path, kind: "project", version: PROJECT_DATABASE_BASELINE.version, baseline: PROJECT_DATABASE_BASELINE, inspect(db: SqliteDatabase, peer?: RollbackLibrary) {
       assertArtifactProjectIdentity(db, space, id);
-      if (!peer || peer.path === acceptancePath) return;
+      if (!peer) return;
       const manifest = owners.get(peer.path);
       if (!manifest || !readPluginRuntimeRecords(db).some(record => record.execution === "host" && record.state !== "uninstalled"
         && record.plugin_id === manifest.plugin_id && record.publisher_id === manifest.publisher.publisher_id
@@ -61,7 +55,7 @@ export function assertHomeLibrarySnapshotReady(home: string, owner: StorageOwner
   const declarations = artifactRowLibraryDeclarations();
   const root = realpathSync(home);
   assertStorageOwner(agentRuntimeDirectory(root), owner);
-  if (homeLibraryRollbackSidecars(root, [ACCEPTANCE_HOME_STORE.path, ...declarations.map(({ library }) => library.store_name)]).length > 0) throw pendingSqliteRecovery();
+  if (homeLibraryRollbackSidecars(root, declarations.map(({ library }) => library.store_name)).length > 0) throw pendingSqliteRecovery();
 }
 
 /** Before accepting any new pins, allow the old build's original author to finish outstanding pins under its own authority. */

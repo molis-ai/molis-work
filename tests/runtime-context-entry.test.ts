@@ -1,4 +1,5 @@
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -7,7 +8,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { RuntimeProjectConnection } from "@molis-ai/molis-work-app-local-host";
 import { createMcpContextPresenter, createMcpRuntimeContextHandlers } from "@molis-ai/molis-work-app-mcp";
-import { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -23,6 +23,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
   const withCatalog = localHost.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
   try {
     const project = await fixture.createProject({ display_name: "Scoped connection", actor_id: "user" });
+    fixture.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
     const host: MolisWorkRuntimeContextHost = { homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "host-session", host_declares_stable: true } };
     fixture.bindRuntimeContext({ context: host.runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true });
@@ -82,7 +83,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
     const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,
-      project_id: project.project_id, permissions: ["goals:read"] }));
+      project_id: project.project_id, permissions: ["goals:read", "projects:guidance-read"] }));
     let failGuidance = true;
     const calls: string[] = [];
     const presentResolution = createMcpContextPresenter({
@@ -90,14 +91,15 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       createError: (code, message, details) => new ActionError(code, message, { details }),
       readGuidance: async () => {
         calls.push("guidance");
-        const guidance = await actions.invoke(goalsActions.guidanceRead, {});
+        const guidance = await actions.invoke(projectGuidanceActions.read, {});
         if (failGuidance) throw new Error("guidance unavailable");
         return guidance;
       },
-      readResumeFacts: () => {
+      // Each plugin's own resume summary (batch 44 C7); Goals is the one in this project that declares one.
+      readResumeSections: async (_connection, focus) => {
         calls.push("resume");
         assert.equal(connection.connection?.projectId, project.project_id, "the resolved connection is accepted before its optional content reads");
-        return readGoalResumeFacts(actions);
+        return [{ plugin_id: goalsManifest.plugin_id, plugin: goalsManifest.name, summary: await actions.invoke(goalsActions.resumeSummary, focus ? { focus } : {}) }];
       },
     });
     const actual = createMcpRuntimeContextHandlers({
@@ -113,10 +115,11 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.deepEqual(calls, ["guidance", "resume"]);
     assert.equal(presented.connection.project_id, project.project_id);
     assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);
-    assert.equal(presented.connection.goal_url_template, `http://127.0.0.1:4173/projects/${project.project_id}/goals/{goal_id}`);
+    // PEQ-04: the connection names no plugin's address; each resume item carries its own.
+    assert.equal(Object.hasOwn(presented.connection, "goal_url_template"), false);
     // Sessions are retired (BL-177): the connection summary no longer reads or reports one.
     assert.equal(Object.hasOwn(presented, "session_registry"), false);
-    assert.deepEqual(presented.resume, { focus: null, next_goals: [] });
+    assert.deepEqual(presented.resume, { sections: [{ plugin_id: goalsManifest.plugin_id, plugin: goalsManifest.name, title: "目标", focus: null, next: [] }] });
     assert.equal(presented.runtime_prompt_prefix, presented.project_guidance.runtime_prompt_prefix);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before);
   } finally {

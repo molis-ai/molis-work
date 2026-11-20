@@ -27,20 +27,23 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   options: Omit<WebViewOptions, "databasePath"> & { databasePath?: string }) {
   const snapshot = createLocalFeedApplication(store.db).snapshot(options.projectId);
   const schedule = createScheduleActionPorts({ db: store.db, schedule: scheduleServiceFor(store.db) });
-  return composeWebView(store, readTestGoalCollection(store, app, options.projectId), { databasePath: ":memory:", ...options }, {
-    feed: { ...snapshot, inbox_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) },
-    feed_source_catalog: listTestFeedSourceCatalog(), feed_connector_auth: feedConnectorAuthStatus(options.homeDirectory),
-    // What the page's stage read (`schedule.tasks.list`, its declared `stage_data`) answers; the Host reads it per request (T-133).
-    stage_data: { schedule: { jobs: schedule.listJobs(), tasks: schedule.listTasks(), operations: [] } },
-  });
+  const goals = readTestGoalCollection(store, app, options.projectId);
+  const feed = { ...snapshot, inbox_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) };
+  const feed_source_catalog = listTestFeedSourceCatalog();
+  const feed_connector_auth = feedConnectorAuthStatus(options.homeDirectory);
+  return {
+    ...composeWebView({ databasePath: ":memory:", ...options }, {
+      stage_data: {
+        goals: { selection: "current", collection: goals, selected: null, presentation_states: [] },
+        schedule: { jobs: schedule.listJobs(), tasks: schedule.listTasks(), operations: [] },
+      },
+    }),
+    ...goals,
+    feed,
+    feed_source_catalog,
+    feed_connector_auth,
+  };
 }
-export function cachedMolisWorkWebView(cache: MolisWorkWebViewCache, store: LocalProjectDatabase, app: GoalProjectApplication, options: WebViewOptions) {
-  const actions: BoundActionClient = { discover: async () => [], invoke: async definition => {
-    const view = buildMolisWorkWebView(store, app, options);
-    if (definition.capability_id === feedQueryActions.snapshot.capability_id) { const { inbox_entries, ...snapshot } = view.feed; return snapshot as never; }
-    if (definition.capability_id === feedQueryActions.connections.capability_id) return view.feed_connector_auth as never;
-    if (definition.capability_id === inboxActions.list.capability_id) return { entries: view.feed.inbox_entries } as never;
-    return readTestGoalCollection(store, app, options.projectId) as never;
-  } };
-  return readCachedWebView(cache, store, options, actions);
+export function cachedMolisWorkWebView(cache: MolisWorkWebViewCache, _store: LocalProjectDatabase, _app: GoalProjectApplication, options: WebViewOptions) {
+  return readCachedWebView(cache, options);
 }

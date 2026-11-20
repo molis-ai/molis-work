@@ -76,12 +76,13 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = p
 const splits = new WeakMap<BuiltinPluginWorkbenchPack, SplitStylesheet | null>();
 
 /**
- * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespaces as a sheet of its own, which the
- * frames that need it link (PG-070) — a settings page the shell draws links it too (`pluginSettingsStyleLinks`). One whose
- * surface the shell draws itself (no client) keeps its whole sheet in the shared one, where that surface finds it.
+ * A plugin that carries a client (`clientFactory` in a frame, or `pageClients` drawn in the shell) sends the rules of its
+ * own namespaces as a sheet of its own (PG-070, PEQ-08): framed plugins link it inside their frame, shell-drawn plugins
+ * link it in the workbench head only when enabled in the project (`pluginShellStyleLinks`), and standalone settings pages
+ * link it via `pluginSettingsStyleLinks`.
  */
 function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
-  if (!pack.stylesheet || !pack.clientFactory) return null;
+  if (!pack.stylesheet || (!pack.clientFactory && !pack.pageClients)) return null;
   let split = splits.get(pack);
   if (split === undefined) splits.set(pack, split = splitPluginStylesheet(pack.stylesheet, pack.project_plugin_id, pack.stylesheetShared, pack.stylesheetPrefixes));
   return split;
@@ -129,6 +130,19 @@ export function pluginSettingsStyleLinks(contributionId: string, packs: readonly
   if (!pack) return "";
   return framedStyles(pack, packs).map(id => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");
 }
+
+/** The on-demand sheets that enabled shell-drawn plugins (`pageClients`, no iframe) need in the workbench head (PEQ-08). */
+export function pluginShellStyleLinks(enabled: readonly string[], packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  const active = new Set(enabled);
+  const ids = new Set<string>();
+  for (const pack of packs) {
+    if (!pack.pageClients || pack.clientFactory || !active.has(pack.project_plugin_id)) continue;
+    for (const id of framedStyles(pack, packs)) ids.add(id);
+  }
+  return [...ids].map(id => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css" data-plugin-shell-style="${escapeAttr(id)}">`).join("");
+}
+
+const escapeAttr = (value: string): string => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
 export function pluginSearchRows(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Array<[string, string, string]> {
   return packs.flatMap((pack) => pack.searchRow

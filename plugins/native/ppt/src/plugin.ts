@@ -1,7 +1,8 @@
 import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute, projectRouteFields } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, type ActionAvailability, type ActionDefinition, type ActionView, type WorkflowPayload, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginActionDirectory, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PPT_PLUGIN_ID } from "./contract.js";
 import { pptManifest } from "./manifest.js";
 import { createPptActionHandlers, pptActions, type PptActionPorts } from "./actions.js";
 import { createPptContentHandlers } from "./content-actions.js";
@@ -25,26 +26,41 @@ export function createPptPlugin(): PluginDefinition {
         run: () => { throw new ActionError("actions.execution_failed", "演示稿的读取不写入"); } })),
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PptStore(transaction))),
     };
-    const model = context.services?.model, pages = context.services?.actions;
+    const model = context.services?.model, directory = context.services?.actions?.directory;
     const ports: PptActionPorts = { ...stores,
       ...(database.transactionProjectRow && artifacts.join ? {
         promote: (id: string, expectedVersion?: number) => promotePpt(database, artifacts, id, expectedVersion),
       } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch?.(); return model.complete(prompt, { signal: options.signal }); } } : {}),
-      ...(pages ? {
-        listPages: async () => (await pages.invokeQuery<Record<string, never>, Array<{ item_id: string; title: string; at: string }>>(
-          { capability_id: "pages.content.list", version: /* @version action.pages.content.list */ 1 }, {})).map(item => ({ id: item.item_id, title: item.title, updated_at: item.at })),
-        readPage: async pageId => {
-          try {
-            const page = await pages.invokeQuery<{ item_id: string }, { title: string; body: string }>({ capability_id: "pages.content.read", version: /* @version action.pages.content.read */ 1 }, { item_id: pageId });
-            return { title: page.title, body: page.body };
-          } catch (error) {
-            // The delegated query says a missing target and a missing grant the same way; PPT says the person's refusal.
-            if (error instanceof ActionError && error.code === "actions.dependency_missing")
-              throw new ActionError("actions.forbidden", "没有读取这篇 Pages 文档的权限，或 Pages 不在这个项目里");
-            throw error;
+      ...(directory ? {
+        listPages: async () => {
+          const stations = await discoverContentStations(directory);
+          if (!stations.length) throw new ActionError("actions.forbidden", "没有可读取的文档内容站权限");
+          const documents: Array<{ id: string; title: string; updated_at: string | null }> = [];
+          for (const station of stations) {
+            const listed = await directory.invoke<readonly WorkflowStartItem[]>(refOf(station.list), {});
+            for (const item of listed) documents.push({ id: item.item_id, title: item.title, updated_at: item.at });
           }
+          return documents;
+        },
+        readPage: async pageId => {
+          const stations = await discoverContentStations(directory);
+          if (!stations.length) throw new ActionError("actions.forbidden", "没有读取这篇文档的权限，或文档插件不在这个项目里");
+          let lastError: unknown;
+          for (const station of stations) {
+            try {
+              const page = await directory.invoke<WorkflowPayload>(refOf(station.read), { item_id: pageId });
+              return { title: page.title, body: page.body };
+            } catch (error) {
+              if (error instanceof ActionError && error.code === "actions.forbidden") throw error;
+              lastError = error;
+            }
+          }
+          if (lastError instanceof ActionError && lastError.code === "actions.dependency_missing") {
+            throw new ActionError("actions.forbidden", "没有读取这篇文档的权限，或文档插件不在这个项目里");
+          }
+          throw lastError instanceof Error ? lastError : new ActionError("actions.missing", "找不到这篇文档");
         },
       } : {}),
     };
@@ -76,4 +92,23 @@ function pptRoutes(context: PluginStartContext) {
     route(pptActions.outline, "ppt.outline", identified),
     route(pptActions.outlineAi, "ppt.outline_ai", identified),
   ];
+}
+
+const refOf = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+
+/** Discover readable project content stations implementing the workflow-content `list` + `read` roles (Audit #10). */
+async function discoverContentStations(directory: PluginActionDirectory): Promise<Array<{ id: string; list: ActionView; read: ActionView }>> {
+  const views = await directory.discover();
+  const byProvider = new Map<string, { id: string; list?: ActionView; read?: ActionView }>();
+  for (const view of views) {
+    const station = view.action.workflow_content;
+    if (!station || !view.availability.available || view.provider.plugin_id === PPT_PLUGIN_ID) continue;
+    if (station.role !== "list" && station.role !== "read") continue;
+    const entry = byProvider.get(view.provider.provider_id) ?? { id: station.id };
+    entry[station.role] = view;
+    byProvider.set(view.provider.provider_id, entry);
+  }
+  return [...byProvider.values()]
+    .filter((entry): entry is { id: string; list: ActionView; read: ActionView } => Boolean(entry.list && entry.read))
+    .sort((left, right) => left.id.localeCompare(right.id));
 }

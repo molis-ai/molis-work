@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import nodeTest from "node:test";
+import type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
@@ -23,6 +24,17 @@ import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+
+/**
+ * A station whose blank `create` is one of 「从目标新建…」's kinds and, with `start`, the home's starting point too: what a view's `creates`
+ * and `start` were before batch 44 (specs/plugin-equal-standing/contract-design.md §2.3, §2.4). Its handlers refuse: reading the directory runs none.
+ */
+function startingStation(id: string, title: string, start?: { title: string; hint: string }) {
+  const station = defineWorkflowContentActions({ id, title, icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [], create: { title } });
+  const create = station.create!, intake = create.action.intake as PersonIntake;
+  const definitions = [station.list, station.read, station.receive, start ? { ...create, action: { ...create.action, intake: { ...intake, start } } } : create];
+  return { definitions, bound: definitions.map(action => ({ ...action, handle: () => assert.fail("Reading the directory must not invoke business actions") })) };
+}
 
 const test = (name: string, check: () => void | Promise<void>) => nodeTest(name, () => runWithLocale("zh", check));
 
@@ -148,15 +160,13 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "pages")!;
   const pluginId = builtin.manifest.plugin_id;
-  const station = defineWorkflowContentActions({ id: "publisher-notes", title: "Other notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [], create: true });
-  const stationActions = [station.list, station.read, station.receive, station.create];
+  const station = startingStation("publisher-notes", "Other note", { title: "Start other publisher", hint: "Keep this publisher's surface" });
   const definition: PluginDefinition = {
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "Other publisher", kind: "app",
       publisher: { publisher_id: "directory-fixture", signature: "different-publisher-signature" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: stationActions,
-      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: "Other publisher", icon: "note", group: "make",
-        creates: { station: "publisher-notes", title: "Other note" }, start: { title: "Start other publisher", hint: "Keep this publisher's surface" } }] } },
-    async start() { return { kind: "app", actions: stationActions.map(action => ({ ...action, handle: () => assert.fail("Reading the directory must not invoke business actions") })),
+      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: station.definitions,
+      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: "Other publisher", icon: "note", group: "make" }] } },
+    async start() { return { kind: "app", actions: station.bound,
       views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page", label: "Other publisher", slots: [] }, render: () => "<section>Other publisher</section>" }] }; },
   };
   try {
@@ -261,14 +271,14 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: pluginActions(store, DEMO_PROJECT_ID),
     escapeHtml: String, translate: (value: string) => value, installedByHand };
   const pluginId = "io.molis.work.example.directory-fixture";
+  const station = startingStation("directory-notes", "笔记", { title: "写一条笔记", hint: "先写下来。" });
   const definition = (name: string): PluginDefinition => admit({
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: "plugin-directory" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: name, icon: "note", group: "make", accepts_objects: true,
-        start: { title: "写一条笔记", hint: "先写下来。" } }] } },
+      permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: station.definitions,
+      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: name, icon: "note", group: "make", accepts_objects: true }] } },
     async start() {
-      return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page" as const, label: "Directory fixture", slots: [] },
+      return { kind: "app", actions: station.bound, views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page" as const, label: "Directory fixture", slots: [] },
         render: () => "<section data-work-surface=\"directory-fixture\"></section>" }] };
     },
   });
@@ -285,7 +295,10 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
     assert.deepEqual([fixture.id, fixture.chosen, fixture.name], [pluginId, false, "Directory fixture"], "an installed plugin has the same shape, keyed by its Manifest id");
     // The directory the shell is given keeps every built-in's rail declarations whole once taken in.
     const taken = pluginDirectoryFor(running);
-    assert.deepEqual(creatableKinds(EVERYTHING, taken), creatableKinds(EVERYTHING), "creates survive being taken in");
+    // The installed fixture's start is its station's blank create, so it is also one of the kinds; every built-in's stays as it was.
+    assert.deepEqual(creatableKinds(EVERYTHING, taken).filter(kind => kind.id !== pluginId), creatableKinds(EVERYTHING), "creates survive being taken in");
+    assert.deepEqual(creatableKinds(EVERYTHING, taken).filter(kind => kind.id === pluginId).map(kind => [kind.station, kind.title]), [["directory-notes", "笔记"]]);
+    assert.deepEqual(homeStarts(EVERYTHING, taken).filter(start => start.id === pluginId).map(start => [start.title, start.hint]), [["写一条笔记", "先写下来。"]], "the installed plugin's start is read from its intake");
     assert.deepEqual(homeStarts(EVERYTHING, taken).filter(start => start.id !== pluginId), homeStarts(EVERYTHING), "starts survive being taken in");
     // RAC-609: a plugin turned off leaves the directory at the next read.
     platform.supervisor.revoke(pluginId);
@@ -306,14 +319,15 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const blockedId = "io.molis.work.example.directory-blocked", siblingId = "io.molis.work.example.directory-sibling", starts: string[] = [];
+  const stations = new Map([blockedId, siblingId].map(id => [id, startingStation(id.split(".").pop()!, "Note", { title: `Start ${id}`, hint: "An actual Runtime entry" })]));
   const definition = (pluginId: string, missing = false): PluginDefinition => ({
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
       publisher: { publisher_id: "directory-fixture", signature: pluginId }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: missing ? ["directory.missing.v1"] : [] }, artifacts: { produces: [], consumes: [] },
       ...(missing ? { requires: [{ capability_id: "directory.missing.v1", version: 1, reason: "Directory regression" }] } : {}),
-      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: pluginId,
-        start: { title: `Start ${pluginId}`, hint: "An actual Runtime entry" } }] } },
-    async start() { starts.push(pluginId); return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page", label: pluginId, slots: [] },
+      actions: stations.get(pluginId)!.definitions,
+      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: pluginId }] } },
+    async start() { starts.push(pluginId); return { kind: "app", actions: stations.get(pluginId)!.bound, views: [{ descriptor: { contribution_id: `${pluginId}.main`, kind: "primary-page", label: pluginId, slots: [] },
       render: () => "<section>Directory fixture</section>" }] }; },
   });
   try {

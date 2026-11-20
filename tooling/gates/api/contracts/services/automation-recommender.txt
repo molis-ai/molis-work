@@ -123,6 +123,15 @@ export interface AutomationReport {
     readonly save_token: string;
 }
 
+export interface AutomationSavedReport {
+    readonly document_id: string;
+    readonly open: {
+        readonly surface: string;
+        readonly id: string;
+        readonly title: string;
+    };
+}
+
 export type AutomationSignal = "javascript" | "python" | "rust" | "go" | "frontend" | "tests" | "format" | "ci" | "configured";
 
 export interface AutomationSuggestion {
@@ -160,9 +169,7 @@ export declare const automationRecommendationActions: {
     preference: ActionDefinition<AutomationPreferenceInput, AutomationPreferences>;
     save: ActionDefinition<{
         save_token: string;
-    }, {
-        document_id: string;
-    }>;
+    }, AutomationSavedReport>;
     offer: ActionDefinition<Record<string, never>, AutomationOfferResult>;
     offers: ActionDefinition<Record<string, never>, AutomationOffersSetting>;
     setOffers: ActionDefinition<AutomationOffersSetting, AutomationOffersSetting>;

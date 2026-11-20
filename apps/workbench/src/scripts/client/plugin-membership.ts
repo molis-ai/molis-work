@@ -21,6 +21,42 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   let rendered = owned(), revision = document.body.dataset.projectPluginRevision;
   const nameOf = (id) => tileOf(id)?.querySelector('.plugin-rail-item > span')?.textContent || id;
   const reload = () => { try { saveUiState?.(); } catch {} location.reload(); };
+  const RETAINED_KEY = projectId ? 'molis-work:plugin-retained:' + projectId : '';
+  const TOAST_KEY = projectId ? 'molis-work:plugin-toast:' + projectId : '';
+  const readRetained = () => {
+    if (!RETAINED_KEY) return new Set();
+    try { const raw = JSON.parse(sessionStorage.getItem(RETAINED_KEY) || '[]'); return new Set(Array.isArray(raw) ? raw.filter((id) => typeof id === 'string') : []); } catch { /* best-effort storage */ return new Set(); }
+  };
+  const writeRetained = (set) => {
+    if (!RETAINED_KEY) return;
+    try { if (set.size) sessionStorage.setItem(RETAINED_KEY, JSON.stringify([...set])); else sessionStorage.removeItem(RETAINED_KEY); } catch { /* best-effort storage */ }
+  };
+  const paintRetained = () => {
+    const retained = readRetained();
+    const label = readText("workbench.plugin-membership.data-kept");
+    for (const tile of tiles()) {
+      const keep = tile.classList.contains('is-available') && retained.has(tile.dataset.pluginTile);
+      tile.classList.toggle('is-retained', keep);
+      const item = tile.querySelector(':scope > .plugin-rail-item');
+      let badge = item?.querySelector(':scope > .plugin-rail-retained') || null;
+      if (!keep) { badge?.remove(); continue; }
+      if (item && !badge) { badge = document.createElement('span'); badge.className = 'mw-badge plugin-rail-retained'; badge.dataset.pluginRetained = ''; item.append(badge); }
+      if (badge && badge.textContent !== label) badge.textContent = label;
+    }
+  };
+  const showReceipt = (r) => {
+    if (!r) return;
+    const list = (r.also || []).join(readText("common.list.separator")), k = r.kind;
+    if (k === 'removed') {
+      const base = readText("workbench.plugin-membership.removed-data-stays", { name: r.name });
+      showToast?.(list ? base + ' ' + readText("workbench.plugin-membership.also-removed-list", { list }) : base, false, { label: readText("workbench.plugin-membership.undo"), onClick: () => void change(r.id, 'add') });
+    } else if (k === 'readded') {
+      const base = readText("workbench.plugin-membership.readded-data-back", { name: r.name });
+      showToast?.(list ? base + ' ' + readText("workbench.plugin-membership.also-added-list", { list }) : base, false);
+    } else if (list) {
+      showToast?.(readText(k === 'ar' ? "workbench.plugin-membership.also-removed-list" : "workbench.plugin-membership.also-added-list", { list }));
+    }
+  };
   const keys = (nodes, key) => [...nodes].map(key).join(',');
   // The settings lists (global, and the project's) and their rows: what is loaded into the pages beside them is not theirs.
   const LISTS = ['settings', 'project-settings'];
@@ -45,8 +81,8 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     for (const attr of [...live.attributes]) if (!keep.includes(attr.name) && !next.hasAttribute(attr.name)) live.removeAttribute(attr.name);
     for (const attr of [...next.attributes]) if (!keep.includes(attr.name) && live.getAttribute(attr.name) !== attr.value) live.setAttribute(attr.name, attr.value);
   };
-  // What the client owns on a tile (being asked, busy) is left alone; everything else follows the server.
-  const OWN = ['is-confirming', 'is-busy'];
+  // What the client owns on a tile (being asked, busy, retained-data badge) is left alone; everything else follows the server.
+  const OWN = ['is-confirming', 'is-busy', 'is-retained'];
   const patchTile = (live, next) => {
     const classes = new Set([...live.classList].filter((name) => OWN.includes(name)));
     next.classList.forEach((name) => { if (!OWN.includes(name)) classes.add(name); });
@@ -123,38 +159,69 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       if (mine.length === theirs.length) mine.forEach((option, at) => { if (option.value === theirs[at].value) attrs(option, theirs[at], ['selected']); });
     });
   };
+  // Shell-drawn plugin styles live in their own link tags so a plugin arriving or leaving brings or takes its sheet in place.
+  const patchShellStyles = async (next) => {
+    const wanted = new Map([...next.querySelectorAll('link[data-plugin-shell-style]')].map((link) => [link.dataset.pluginShellStyle, link]));
+    document.querySelectorAll('link[data-plugin-shell-style]').forEach((link) => {
+      if (!wanted.has(link.dataset.pluginShellStyle)) link.remove();
+    });
+    const pending = [];
+    for (const [id, link] of wanted) {
+      if (document.querySelector('link[data-plugin-shell-style="' + CSS.escape(id) + '"]')) continue;
+      const node = document.importNode(link, true);
+      pending.push(new Promise((done) => { node.addEventListener('load', done, { once: true }); node.addEventListener('error', done, { once: true }); }));
+      document.head.append(node);
+    }
+    if (pending.length) await Promise.all(pending);
+  };
   const fetchPage = async () => {
     const html=await molisWorkRequest(route('/')+(document.body.dataset.desktopShell==='true'?'?desktop=1':''),{as:'text',headers:{accept:'text/html'}});
     return new DOMParser().parseFromString(html,'text/html');
   };
 
-  const follow = async (pluginId, adding) => {
+  const follow = async (pluginId, adding, quiet) => {
     let next;
     try { next = await fetchPage(); } catch { reload(); return; }
     const ownerBoundaryChanged = Boolean(document.getElementById('molis-work-data')) !== Boolean(next.getElementById('molis-work-data'));
     const after = owned(next);
     const came = [...after].filter((id) => !rendered.has(id)), gone = [...rendered].filter((id) => !after.has(id));
+    const name = nameOf(pluginId);
+    const retained = readRetained();
+    const wasRetained = retained.has(pluginId);
+    gone.forEach((id) => retained.add(id));
+    came.forEach((id) => retained.delete(id));
+    writeRetained(retained);
+    const also = [...came, ...gone].filter((id) => id !== pluginId).map(nameOf);
+    const kind = quiet ? (also.length ? (adding ? 'aa' : 'ar') : '')
+      : adding ? (wasRetained ? 'readded' : also.length ? 'aa' : '')
+      : (gone.includes(pluginId) ? 'removed' : also.length ? 'ar' : '');
+    const receipt = kind ? { kind, id: pluginId, name, also } : null;
+    const reloadAfter = () => {
+      if (receipt && TOAST_KEY) try { sessionStorage.setItem(TOAST_KEY, JSON.stringify(receipt)); } catch { /* best-effort storage */ }
+      reload();
+    };
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
-    if ([...came, ...gone].some((id) => wired.includes(id))) { reload(); return; }
+    if ([...came, ...gone].some((id) => wired.includes(id))) { reloadAfter(); return; }
     // What leaves is left first: a pane showing it goes back to where it was.
     gone.forEach((id) => host.leavePlugin?.(id));
-    if (ownerBoundaryChanged) { reload(); return; }
+    if (ownerBoundaryChanged) { reloadAfter(); return; }
+    await patchShellStyles(next);
     const nextTiles = tiles(next);
     tiles().forEach((tile) => { const mate = nextTiles.find((other) => other.dataset.pluginTile === tile.dataset.pluginTile); if (mate) patchTile(tile, mate); });
+    paintRetained();
     patchStages(next, came, gone); patchSections(next); patchRows(next); patchChoices(next);
     host.directoryChanged?.();
     // The plugins whose pages fill when the project has them fill them now (they are given the page the server renders, and
     // say so if they could not).
     const detail = { came, gone, next, failed: false };
     document.dispatchEvent(new CustomEvent('molis-work:plugins-changed', { detail }));
-    if (detail.failed) { reload(); return; }
+    if (detail.failed) { reloadAfter(); return; }
     const same = (a, b) => [...a].sort().join() === [...b].sort().join();
     // What the page has must now be what the server renders; if it is not, no half-way: load it again.
-    if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reload(); return; }
+    if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reloadAfter(); return; }
     rendered = after; revision = next.body.dataset.projectPluginRevision;
     try { saveUiState?.(); } catch {}
-    const also = [...came, ...gone].filter((id) => id !== pluginId);
-    if (also.length) showToast?.(globalThis.t.text(adding ? "workbench.plugin-membership.also-added-list" : "workbench.plugin-membership.also-removed-list", { list: also.map(nameOf).join(globalThis.t.text("common.list.separator")) }));
+    showReceipt(receipt);
   };
 
   const save = async (target, pluginId, adding, expectedRevision) => {
@@ -202,7 +269,7 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
         revision = outcome.readbackRequired ? undefined : outcome.result.revision;
         if (outcome.error) showSaved(outcome.result);
         else {
-          try { await follow(pluginId, adding); }
+          try { await follow(pluginId, adding, quiet); }
           catch { reload(); }
         }
       } else {
@@ -220,5 +287,13 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     chain = operation.catch(() => undefined);
     return operation;
   };
+  paintRetained();
+  document.addEventListener('molis-work:language-changed', paintRetained);
+  if (TOAST_KEY) {
+    try {
+      const pending = sessionStorage.getItem(TOAST_KEY);
+      if (pending) { sessionStorage.removeItem(TOAST_KEY); const parsed = JSON.parse(pending); queueMicrotask(() => showReceipt(parsed)); }
+    } catch { /* best-effort storage */ }
+  }
   return { change, save };
 }`;

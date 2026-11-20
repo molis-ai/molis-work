@@ -54,6 +54,10 @@
       "types": "./dist/modules/private-work-context.d.ts",
       "import": "./dist/modules/private-work-context.js"
     },
+    "./modules/project-guidance": {
+      "types": "./dist/modules/project-guidance.d.ts",
+      "import": "./dist/modules/project-guidance.js"
+    },
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"

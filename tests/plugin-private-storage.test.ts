@@ -298,11 +298,11 @@ test("persisted running state rehydrates a plugin contribution after process res
   // Coding declares presentations (batch 15); a real Host checks them against its action directory, which is not what this test is about.
   const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" }, assertPresentation: () => undefined });
   const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
-  const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","materials:read","review:git-worktree","review:git-integration"]});
+  const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["acceptance:read","artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","materials:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
   const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
-  const replayedInstall = reopened.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","materials:read","review:git-worktree","review:git-integration"]});
+  const replayedInstall = reopened.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["acceptance:read","artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","materials:read","review:git-worktree","review:git-integration"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);
   const started = await reopened.start(installed.install.install_id);

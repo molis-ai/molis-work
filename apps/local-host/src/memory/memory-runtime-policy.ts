@@ -5,6 +5,7 @@ import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } f
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope, type MemorySessionPurgeTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { characterOwner, consumerAccess, formationAllowed, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
 import type { MemoryForgettingPhase } from "@molis-ai/molis-work-service-memory";
+import { pluginMemoryScene } from "./memory-plugin-scene.js";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 type Request = Parameters<Options["authorize"]>[1][number];
@@ -37,7 +38,6 @@ function forgettingBatch(owner: MemoryRuntimePolicyOwner) {
     close: () => { if (uses > 1) phase!.assertCurrent(); } };
 }
 
-const CODING = "io.molis.work.coding";
 const SCENES = ["coding", "assistant", "common"] as const;
 const ACTIONS = ["save", "propose", "accept", "promote", "read", "manage-read", "delete"] as const;
 
@@ -118,7 +118,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
   const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
     && MEMORY_CONSUMERS.some(value => value === caller.consumer) && SCENES.some(scene => scene === caller.current_scene)
     && (caller.consumer !== "plugin" || !!caller.plugin_id)
-    && (caller.current_scene !== "coding" || caller.plugin_id === CODING || caller.person === true)
+    && (caller.current_scene !== "coding" || pluginMemoryScene(caller.plugin_id) === "coding" || caller.person === true)
     && (caller.current_scene !== "assistant" || caller.consumer === "assistant" || caller.person === true);
 
   const currentFacts = (caller: AgentMemoryCaller) => {
@@ -231,7 +231,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     async authorizePurgeInspection(caller, request, owner) {
       const state = await current(caller), binding = caller.memory_session;
       if (!state || !binding || owner.actor_id !== caller.actor_id || owner.project_id !== (caller.project_id ?? ASSISTANT_PERSONAL_OWNER)
-        || owner.plugin_id !== (binding.target.kind === "coding" ? CODING : ASSISTANT_PLUGIN_ID)
+        || (binding.target.kind === "assistant" ? owner.plugin_id !== ASSISTANT_PLUGIN_ID : pluginMemoryScene(owner.plugin_id) !== binding.target.kind)
         || !owner.install_id || binding.target.kind === "assistant" && owner.install_id !== ASSISTANT_INSTALL_ID) return false;
       return inspection(caller, request, state);
     },
@@ -249,7 +249,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
         return await current(caller) ? caller : undefined;
       }
       const caller: AgentMemoryCaller = { actor_id: owner.actor_id, project_id: owner.project_id, plugin_id: owner.plugin_id,
-        consumer: "agent", current_scene: owner.plugin_id === CODING ? "coding" : "common", purpose: "task", session_id: sessionId };
+        consumer: "agent", current_scene: pluginMemoryScene(owner.plugin_id), purpose: "task", session_id: sessionId };
       return await current(caller) ? caller : undefined;
     },
   };

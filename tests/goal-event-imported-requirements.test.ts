@@ -23,14 +23,14 @@ function close(data: { directory: string; store: LocalProjectDatabase }) {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
-/** The person accepts MIXED-C1 alone through the protected entry; the decision authorizes no action. */
-function acceptMixedCriterion(app: GoalProjectApplication, key: string) {
-  return app.goalEvents.recordTrustedDecision({
-    project_id: BOARD, goal_id: "MIXED-OWNER", idempotency_key: key,
-    authority: hostEventDecisionAuthority("web", BOARD, "web-user", key),
-    conclusion: "结果我打开看过，确实可读", accepts_requirements: true, scope: { requirement_ids: ["MIXED-C1"] },
-  });
+/** The person accepts MIXED-C1 alone, on the platform (contract-design §10); it authorizes no action. */
+function acceptMixedCriterion(app: GoalProjectApplication) {
+  app.decide(BOARD, "MIXED-OWNER", ["MIXED-C1"]);
 }
+
+/** A requirement as the platform has it in the v1 baseline. */
+const onPlatform = (app: GoalProjectApplication, goalId: string, requirementId: string) =>
+  app.acceptanceView(BOARD, goalId).requirements.find((item) => item.id === requirementId);
 
 test("a fresh project's createIntent is immediately writable", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-fresh-"));
@@ -59,72 +59,28 @@ test("a fresh project's createIntent is immediately writable", () => {
   }
 });
 
-test("imported criterion and policy requirements follow the same user revise and retire rules", () => {
+test("imported criterion and policy requirements arrive on the platform with their words and person flag; Goals keeps where each came from", () => {
   const data = openHistory("imported");
   try {
-    const { app, store } = data;
+    const { app } = data;
     const human = app.goalEvents.readState(BOARD, "OLD-HUMAN");
-    const criterion = human.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1");
-    assert.equal(criterion?.origin.kind, "imported_acceptance_criterion");
-    assert.equal(criterion?.human_decision_required, true);
-    const originalStatement = criterion!.statement;
-    const humanVersions = {
-      expected_config_version: human.config.version,
-      expected_agreement_version: human.agreement.version,
-    };
-    assert.throws(
-      () => app.goalEvents.setAgreement({
-        project_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "runtime-1", actor_kind: "runtime",
-        idempotency_key: "runtime-revise-imported-criterion", ...humanVersions,
-        revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", human_decision_required: false }],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
-    );
-    const blockedHuman = app.goalEvents.readState(BOARD, "OLD-HUMAN");
-    assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.statement, originalStatement);
-    assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
-    assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.origin.kind, "imported_acceptance_criterion");
-    app.goalEvents.setAgreement({
-      project_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "user-1", actor_kind: "user",
-      idempotency_key: "user-revise-imported-criterion", ...humanVersions,
-      revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", statement: "用户核对后仍要亲自验收迁入要求" }],
-    });
-    const revised = app.goalEvents.readState(BOARD, "OLD-HUMAN");
-    const revisedCriterion = revised.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1");
-    assert.equal(revisedCriterion?.statement, "用户核对后仍要亲自验收迁入要求");
-    assert.equal(revisedCriterion?.origin.kind, "imported_acceptance_criterion");
-    assert.equal(revisedCriterion?.human_decision_required, true);
+    assert.equal(human.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.origin?.kind, "imported_acceptance_criterion");
+    const criterion = onPlatform(app, "OLD-HUMAN", "OLD-HUMAN-C1");
+    assert.equal(criterion?.requires_person, true);
+    assert.ok(criterion?.statement.trim());
 
     const policy = app.goalEvents.readState(BOARD, "OLD-POLICY");
-    const policyReq = policy.requirements.find((item) => item.requirement_id === "imported-policy:OLD-POLICY");
-    assert.equal(policyReq?.origin.kind, "imported_human_approval");
-    const policyVersions = {
-      expected_config_version: policy.config.version,
-      expected_agreement_version: policy.agreement.version,
-    };
+    assert.equal(policy.requirements.find((item) => item.requirement_id === "imported-policy:OLD-POLICY")?.origin?.kind, "imported_human_approval");
+    assert.ok(onPlatform(app, "OLD-POLICY", "imported-policy:OLD-POLICY"));
+    // Changing them is the person's, in the platform's requirement column: an agreement change cannot name one (contract-design §10.3).
     assert.throws(
       () => app.goalEvents.setAgreement({
-        project_id: BOARD, goal_id: "OLD-POLICY", actor_id: "runtime-1", actor_kind: "runtime",
-        idempotency_key: "runtime-retire-imported-policy", ...policyVersions,
+        project_id: BOARD, goal_id: "OLD-POLICY", actor_id: "user-1", actor_kind: "user", idempotency_key: "user-retire-imported-policy",
+        expected_config_version: policy.config.version, expected_agreement_version: policy.agreement.version,
         retire_requirement_ids: ["imported-policy:OLD-POLICY"],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.unauthorized_change",
+      } as never),
+      (error: unknown) => error instanceof ActionError && error.code === "goals.event_agreement.no_changes",
     );
-    assert.ok(app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"));
-    app.goalEvents.setAgreement({
-      project_id: BOARD, goal_id: "OLD-POLICY", actor_id: "user-1", actor_kind: "user",
-      idempotency_key: "user-retire-imported-policy", ...policyVersions,
-      retire_requirement_ids: ["imported-policy:OLD-POLICY"],
-    });
-    assert.equal(
-      app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"),
-      false,
-    );
-    const retired = store.db.prepare(
-      "SELECT current_status, source_json FROM goal_event_requirements WHERE requirement_id = ?",
-    ).get("imported-policy:OLD-POLICY") as { current_status: string; source_json: string };
-    assert.equal(retired.current_status, "retired");
-    assert.match(retired.source_json, /imported_human_approval/);
   } finally {
     close(data);
   }
@@ -136,26 +92,20 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     const { app, store, path } = data;
     // MIXED-C1 has only the worker's own "supports" behind it, which meets nothing (PWA-144): the person accepts it first. The acceptance
     // authorizes nothing, so the complete approval that meets the imported policy is still the original one.
-    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-approved");
+    acceptMixedCriterion(app);
     const mixed = app.goalEvents.readState(BOARD, "MIXED-OWNER");
     const policy = mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER");
     const original = mixed.current_decisions.find((item) =>
       item.effects.some((effect) => effect.kind === "authorize_action" && effect.action === "complete"),
     );
     assert.ok(original);
-    assert.equal(policy?.origin.kind, "imported_human_approval");
-    assert.equal(policy?.currently_satisfied, true);
-    assert.equal(policy?.user_conclusion?.verdict, "accepted");
-    assert.equal(policy?.user_conclusion?.decision_id, original.decision_id);
-    assert.equal(policy?.user_conclusion?.actor_id, original.actor_id);
-    assert.equal(policy?.user_conclusion?.received_at, original.recorded_at);
-    assert.equal(mixed.requirements.find((item) => item.requirement_id === "MIXED-C1")?.currently_satisfied, true);
-    assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
+    assert.equal(policy?.origin?.kind, "imported_human_approval");
+    // The fixture carries the policy's acceptance on the platform as a vouched trusted decision.
+    assert.deepEqual([onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.person, onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.satisfied], ["accepted", true]);
+    assert.equal(onPlatform(app, "MIXED-OWNER", "MIXED-C1")?.satisfied, true);
+    assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id]);
     const trustedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM project_review_decisions").get() as { n: number }).n;
     const appliedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n;
-    const conclusionsBefore = store.db.prepare(
-      "SELECT decision_id, actor_id, received_at, verdict FROM goal_event_requirement_conclusions WHERE requirement_id = ?",
-    ).all("imported-policy:MIXED-OWNER");
 
     const versions = () => {
       const state = app.goalEvents.readState(BOARD, "MIXED-OWNER");
@@ -189,21 +139,15 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     });
     assert.equal(closed.completion_applied, true);
     const after = app.goalEvents.readState(BOARD, "MIXED-OWNER");
-    assert.deepEqual(after.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
+    assert.deepEqual(after.current_decisions.map((item) => item.decision_id), [original.decision_id]);
     assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM project_review_decisions").get() as { n: number }).n, trustedBefore);
     assert.equal((store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n, appliedBefore);
 
     store.close();
     const restarted = new LocalProjectDatabase(path);
     const again = new GoalProjectApplication(restarted);
-    const restored = again.goalEvents.readState(BOARD, "MIXED-OWNER");
-    assert.equal(restored.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.user_conclusion?.decision_id, original.decision_id);
-    assert.deepEqual(
-      restarted.db.prepare(
-        "SELECT decision_id, actor_id, received_at, verdict FROM goal_event_requirement_conclusions WHERE requirement_id = ?",
-      ).all("imported-policy:MIXED-OWNER"),
-      conclusionsBefore,
-    );
+    assert.equal(again.goalEvents.readState(BOARD, "MIXED-OWNER").work_status, "completed");
+    assert.equal(onPlatform(again, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.person, "accepted");
     restarted.close();
   } finally {
     close(data);
@@ -222,10 +166,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
       item.effects.some((effect) => effect.kind === "authorize_action" && effect.action === "complete"),
     );
     assert.ok(original);
-    assert.equal(
-      mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.user_conclusion?.decision_id,
-      original.decision_id,
-    );
+    assert.equal(onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.person, "accepted");
     app.goalEvents.resumeWork({
       project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "continue-approved-current-scope",
@@ -250,7 +191,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
     };
     // MIXED-C1 has only the worker's own "supports" behind it (PWA-144): the person accepts it in the new round. Accepting a
     // requirement is not the approval to complete (user decision 2026-11-05), so it does not stand in for a fresh nod.
-    const accepted = acceptMixedCriterion(app, "accept-mixed-c1-completed");
+    acceptMixedCriterion(app);
     // The project asks for the person's nod before completing. The nod given before the Goal was continued belongs to the round
     // that ended, so the close is held for that alone; the imported policy requirement keeps its conclusion.
     const held = app.goalEvents.submitClosure({
@@ -261,8 +202,8 @@ test("real event closure stays distinct; after an explicit continue the old appr
     assert.equal(held.completion_applied, false);
     assert.deepEqual(held.unmet_reasons.map((reason) => reason.code), ["goals.event_closure.human_approval_required"]);
     const heldState = app.goalEvents.readState(BOARD, "MIXED-OWNER");
-    assert.equal(heldState.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER")?.currently_satisfied, true);
-    assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id, accepted.decision.decision_id]);
+    assert.equal(onPlatform(app, "MIXED-OWNER", "imported-policy:MIXED-OWNER")?.satisfied, true);
+    assert.deepEqual(heldState.current_decisions.map((item) => item.decision_id), [original.decision_id]);
 
     const fresh = app.goalEvents.recordTrustedDecision({
       project_id: BOARD, goal_id: "MIXED-OWNER", idempotency_key: "fresh-nod-after-continue",
@@ -279,7 +220,7 @@ test("real event closure stays distinct; after an explicit continue the old appr
     assert.equal(closed.completion_applied, true);
     assert.deepEqual(
       app.goalEvents.readState(BOARD, "MIXED-OWNER").current_decisions.map((item) => item.decision_id),
-      [accepted.decision.decision_id, fresh.decision.decision_id],
+      [fresh.decision.decision_id],
     );
   } finally {
     close(data);

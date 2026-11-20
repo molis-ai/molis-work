@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { acceptanceActions, acceptanceRequestId, type AcceptanceDecideRequest, type AcceptanceSubject } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { LocalProjectDatabase } from "./project-database.js";
 import { decideProjectReview, readProjectReview } from "./project-review-commands.js";
@@ -27,9 +28,18 @@ const DELIVERY_TYPE = {
 /** One Goals action, asked as the demo's author: its capability id and the business input (the caller says who acts). */
 type DemoAct = <Result = unknown>(capability: string, version: number, input: object) => Promise<Result>;
 
-/** What the sample asks of the actions it calls: reading and writing Goals, the Context Ledger write and the artifact read a deliverable needs. */
-const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"];
+/**
+ * What the sample asks of the actions it calls: reading and writing Goals, the Context Ledger write and the artifact read a deliverable
+ * needs, and the platform's requirements and acceptance a finished Goal stands on (contract-design §10.3).
+ */
+const DEMO_PERMISSIONS = ["goals:read", "goals:write", "context-ledger:write", "artifacts:read", "acceptance:read", "acceptance:report", "acceptance:decide"];
 const DEMO_DECIDE = "goals.decisions.record";
+/** The acts that are the person's trusted decisions, each with the request its review reads (the Goal decision's key, the accepted object). */
+const DEMO_TRUSTED: Readonly<Record<string, (input: object) => string>> = {
+  [DEMO_DECIDE]: input => String((input as { idempotency_key: string }).idempotency_key),
+  [acceptanceActions.decide.capability_id]: input => acceptanceRequestId((input as AcceptanceDecideRequest).subject),
+};
+const goalSubject = (goalId: string): AcceptanceSubject => ({ provider_id: "io.molis.work.goals", subject: { kind: "goal", id: goalId } });
 async function versions(act: DemoAct, goalId: string) {
   const state = await act<{ config: { version: number }; agreement: { version: number } }>("goals.state.read", /* @version action.goals.state.read */ 1, { goal_id: goalId });
   return {
@@ -57,7 +67,6 @@ async function reportProgress(
   title: string,
   result: string,
   nextStep: string,
-  requirementId?: string,
 ) {
   await act("goals.events.report", /* @version action.goals.events.report */ 1, {
     ...writeContext(goalId, `${key}-report`),
@@ -66,7 +75,6 @@ async function reportProgress(
       type_version: 1,
       title,
       fields: { result },
-      judgments: requirementId ? [{ requirement_id: requirementId, verdict: "supports" as const }] : [],
     }],
     progress: {
       summary: result,
@@ -76,14 +84,16 @@ async function reportProgress(
   });
 }
 
-/** The demonstration records a sample decision on its own reported facts before completing them. */
+/**
+ * The demonstration delivers a version and the person accepts its requirements on the platform's own card (their trusted decision)
+ * before completing the Goal: a Goal's requirements are the platform's (contract-design §10.3).
+ */
 async function closeComplete(act: DemoAct, goalId: string, key: string, result: string, reason: string, requirementIds: string[]) {
-  await act(DEMO_DECIDE, /* @version action.goals.decisions.record */ 1, {
-    ...writeContext(goalId, `${key}-accept`),
-    conclusion: "示例决定：认可报告中的要求已经满足",
-    effects: [{ kind: "accept_requirements" }],
-    scope: { requirement_ids: requirementIds },
-  });
+  const subject = goalSubject(goalId), version = `${key}-delivery`;
+  await act(acceptanceActions.deliver.capability_id, acceptanceActions.deliver.version, { subject, version, summary: result });
+  await act(acceptanceActions.decide.capability_id, acceptanceActions.decide.version, {
+    subject, version, accepts: requirementIds.map(id => ({ id, version: 1 })), returns: [],
+  } satisfies AcceptanceDecideRequest);
   await act("goals.closure.submit", /* @version action.goals.closure.submit */ 1, {
     ...writeContext(goalId, `${key}-close`),
     kind: "complete",
@@ -125,9 +135,10 @@ async function withDemoGoals(databasePath: string, projectId: string, body: (act
     const assertCurrent = () => { if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "示例项目的宿主已关闭"); };
     let reviewPerson: ReturnType<typeof projectReviewPerson> | undefined;
     await body(async (capability_id, version, input) => {
-      if (capability_id !== DEMO_DECIDE) return await client.invoke(caller, { capability_id, version }, input) as never;
+      const trusted = DEMO_TRUSTED[capability_id];
+      if (!trusted) return await client.invoke(caller, { capability_id, version }, input) as never;
       // These fixed sample acts run in the seed's own Host and library with an explicitly named demo author.
-      const request_id = String((input as { idempotency_key: string }).idempotency_key);
+      const request_id = trusted(input);
       const entry = { caller: { ...await (reviewPerson ??= projectReviewPerson({ host, project }, undefined, assertCurrent)), actor_id: DEMO_ACTOR },
         action: Object.freeze({ source: "management" as const, conversation_ref: "demo:goals", message_ref: `demo:${request_id}` }),
         assertCurrent,
@@ -522,7 +533,7 @@ async function createDemoGoals(act: DemoAct): Promise<void> {
       ...DEMO_PARENTS[goal.goal_id] ? { parent_goal_id: DEMO_PARENTS[goal.goal_id] } : {},
       dependency_goal_ids: DEMO_DEPENDENCIES[goal.goal_id] ?? [],
       requirements: goal.goal_id === "CORE"
-        ? []
+        ? [{ requirement_id: "CORE-C1", statement: "工作从约定、报告到收尾形成完整记录" }]
         : goal.acceptance_criteria.map((item) => ({
             requirement_id: item.criterion_id,
             statement: item.statement,
@@ -553,17 +564,9 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
     ...writeContext("CORE", "demo-core-configure"),
     expected_version: 0,
     types: [DELIVERY_TYPE],
+    requirement_bindings: [{ type_id: "lifecycle", requirement_id: "CORE-C1" }],
   });
-  await act("goals.agreement.set", /* @version action.goals.agreement.set */ 1, {
-    ...writeContext("CORE", "demo-core-agree"),
-    ...await versions(act, "CORE"),
-    outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
-    new_requirements: [{
-      requirement_id: "CORE-C1",
-      statement: "工作从约定、报告到收尾形成完整记录",
-      bound_type_id: "lifecycle",
-    }],
-  });
+  // CORE's agreement is the outcome it was created with; its requirement went to the platform when it was created (contract-design §10.3).
   await act("goals.events.report", /* @version action.goals.events.report */ 1, {
     ...writeContext("CORE", "demo-core-report"),
     events: [{
@@ -571,7 +574,6 @@ async function seedDemoLifecycle(act: DemoAct): Promise<void> {
       type_version: 1,
       title: "生命周期记录已接通",
       fields: { result: "从约定、报告到收尾形成完整记录" },
-      judgments: [{ requirement_id: "CORE-C1", verdict: "supports" }],
     }],
     progress: {
       summary: "完成依据已经写进当前事件记录。",
@@ -604,7 +606,6 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
     "目标树已经能看出下一步",
     "列表、画布和看板都有真实内容可扫。",
     "先处理需要决定和受阻的 Goal",
-    "V1-C1",
   );
 
   await ensureConfigured(act, "DESKTOP", "demo-desktop");
@@ -615,7 +616,6 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
     "工作台主栏已经对齐",
     "目录、舞台和标签已经能在同一窗口里切换。",
     "核对分屏后 Goal 绑定仍保持",
-    "DESKTOP-C1",
   );
 
   await ensureConfigured(act, "DECIDE", "demo-decide");
@@ -648,7 +648,6 @@ async function seedDemoOpenWork(act: DemoAct): Promise<void> {
     "画布已能读出依赖方向",
     "父子和前置关系都来自真实记录。",
     "退出日常列表，需要时再打开归档",
-    "GRAPH-C1",
   );
   await closeComplete(act, "GRAPH", "demo-graph", "画布关系已经可扫", "演示收尾，把已完成关系图移出日常列表", ["GRAPH-C1"]);
   await act("goals.archive.set", /* @version action.goals.archive.set */ 1, {

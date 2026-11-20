@@ -16,7 +16,7 @@ import { prepareGoalReview } from "./fixtures/project-review-entry.js";
 
 test("Web Goals use shared actions and store a result exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Web Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Web Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const seen: string[] = [];
   const deniedQueries = new Set<string>();
@@ -71,11 +71,8 @@ test("Web Goals use shared actions and store a result exactly once across async 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ...recorded, replayed: true });
     assert.equal(await storedCount(payload => payload.operation === "observation_note"), 1, "a replay stores nothing again");
-    response = await request("/api/capsule");
-    assert.equal(response.status, 200, await response.clone().text());
-    const capsule = await response.json() as { tabs: Array<{ items: Array<{ goal_id: string; goal_title: string }> }> };
-    assert.ok(capsule.tabs.flatMap(tab => tab.items).some(goal => goal.goal_id === input.goal_id && goal.goal_title === input.title));
-    assert.ok(seen.includes("goals.create") && seen.includes("goals.note") && seen.includes("goals.list"), "all three Web consumers must reach the shared action policy");
+    // The capsule's read of goals.list went with the capsule (batch 44, PEQ-13).
+    assert.ok(seen.includes("goals.create") && seen.includes("goals.note"), "both Web consumers must reach the shared action policy");
     const queries = [
       ["goals.state.read", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/event-state`],
       ["goals.events.read", `/api/plugins/io.molis.work.goals/goals/${input.goal_id}/events/${recorded.event_id}`],

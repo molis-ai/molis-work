@@ -4,7 +4,7 @@ import { pptErrors } from "./error.js";
 import type { PptStores } from "./store.js";
 
 /** A deck is a workflow content station: it hands its outline on as Markdown and turns Markdown it receives into slides. */
-export const pptContentActions = defineWorkflowContentActions({ id: "ppt", title: "演示稿", icon: "image", create: true, subject_kind: PPT_SUBJECT_KIND,
+export const pptContentActions = defineWorkflowContentActions({ id: "ppt", title: "演示稿", icon: "image", create: { title: "演示稿", title_text: { key: "ppt.create.kind-title" } }, subject_kind: PPT_SUBJECT_KIND,
   read_permissions: ["ppt:read"], write_permissions: ["ppt:read", "ppt:write"] });
 
 /** The deck as an outline: one `##` per slide, its bullets, notes as a quote. */
@@ -61,8 +61,8 @@ export function createPptContentHandlers(stores: PptStores): ActionHandlerBindin
     receive: ({ title, body, request_id }, caller) => stores.write(caller, store => {
       const outline = slidesFromMarkdown(body, title);
       const deck = store.receive(project(caller), request_id, outline.title, outline.slides);
-      return { plugin: "ppt", item_id: deck.id, title: deck.title };
+      return { subject: { kind: PPT_SUBJECT_KIND, id: deck.id }, title: deck.title };
     }),
-    create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title, project_id: project(caller) }); return { plugin: "ppt", item_id: deck.id, title: deck.title }; }),
+    create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title, project_id: project(caller) }); return { subject: { kind: PPT_SUBJECT_KIND, id: deck.id }, title: deck.title }; }),
   });
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { actionEffect, isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, isSubjectReader, takesSelectedText, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus, SurfaceLanding, SurfacePlace } from "@molis-ai/molis-work-contracts/services/contextual";
 
 /**
@@ -44,7 +44,7 @@ export function destinationCandidates(directory: readonly ActionView[], focus: S
     const { intake, attach } = view.action;
     const found: ContextualCandidate[] = [];
     const own = ownerOf(view) === focus.plugin_id;
-    if (intake && here(intake.places)) found.push(candidateOf("intake", view, intake, intake.intake_id, own));
+    if (intake && takesSelectedText(intake) && here(intake.places)) found.push(candidateOf("intake", view, intake, intake.intake_id, own));
     if (attach && place !== "main" && landing && landing.object.kind === attach.item_kind && landing.plugin_id === ownerOf(view) && here(attach.places)
       && (attach.positions ? landing.position !== "object" && attach.positions.includes(landing.position) : landing.position === "object")) {
       found.push(candidateOf("attach", view, attach, attach.attach_id, false, landing.position));

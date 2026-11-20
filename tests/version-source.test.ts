@@ -78,7 +78,7 @@ test("N34-VS-02 an action entry moves exactly the files that consume it, and onl
   const { files, outputs } = move("action.goals.create", 7);
   const consumers = [...files].filter(([, text]) => text.includes("@version action.goals.create ")).map(([file]) => file).sort();
   assert.ok(consumers.includes("plugins/native/goals/src/contract/goal-entry-actions.ts"), consumers.join());
-  assert.ok(consumers.includes("plugins/native/feed/src/item-actions.ts"), "Feed's reference to Goals follows the entry");
+  assert.ok(consumers.includes("apps/local-host/src/demo-seed.ts"), "demo seed's reference to Goals follows the entry");
   assert.deepEqual([...outputs.keys()].sort(), consumers);
   for (const [file, output] of outputs) {
     assert.ok(output.includes("/* @version action.goals.create */ 7"), file);

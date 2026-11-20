@@ -2,6 +2,7 @@ import { goalErrors } from "./errors.js";
 import type { GoalInputBindingRecord, GoalInputBindingsApi } from "../contract/goals.js";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
+import { feedItemRef, goalRef, isFeedItemRef, isGoalRef } from "../ledger-refs.js";
 
 type BindingRow = GoalInputBindingRecord & { source_edge_key: string | null };
 
@@ -56,8 +57,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     const access = this.access(input.project_id, input.created_by);
     const key = `goal.input:${input.binding_id}`;
     this.ledger.commands.put(access, {
-      key, type: "goal.input", source: { module: "goals", id: input.goal_id, version: null, scope: access.scope },
-      target: { module: "feed", id, version: null, scope: access.scope },
+      key, type: "goal.input", source: goalRef(input.goal_id, access.scope), target: feedItemRef(id, access.scope),
       cause: "goals.input_source", recorded_at: input.created_at,
     });
     return key;
@@ -66,8 +66,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
   private sourceLocator(input: BindingRow): string {
     if (!input.source_edge_key) return input.source_ref;
     const edge = this.ledger.query.get(this.access(input.project_id), input.source_edge_key);
-    if (!edge || edge.type !== "goal.input" || edge.source.module !== "goals" || edge.source.id !== input.goal_id
-      || edge.target.module !== "feed") {
+    if (!edge || edge.type !== "goal.input" || !isGoalRef(edge.source, input.goal_id) || !isFeedItemRef(edge.target)) {
       throw goalErrors["goals.goal.input_source_missing"]("输入确认记录的来源关系缺失或不匹配");
     }
     return `feed-item:${edge.target.id}`;

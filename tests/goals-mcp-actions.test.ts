@@ -25,7 +25,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Legacy Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let gate: Promise<void> | undefined, entered: (() => void) | undefined, release: (() => void) | undefined;
   const policies: string[] = [];

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { defineDueRemindersAction, defineWorkEventsAction, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineDueRemindersAction, defineSubjectContextAction, defineWorkEventsAction, subjectContext, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { AssistantService, AssistantStore, ComputerDesk, ComputerRecords, ComputerSettings, LocalHost, PluginInstallService, SandboxPackageStore, assistantAuthority, captureHostLog,
@@ -187,6 +187,11 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
   const events = defineWorkEventsAction("fixture.material.events", 1, ["note"], "事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.material", kind: "plugin", title: "Material" }, definitions: [events],
     handlers: [{ ...events, handle: () => { if (eventsBroken) throw failure("fixture.events_down"); return { source: { surface: "notes", title: "Notes", icon: "note" }, events: [] }; } }] });
+  // What the work is about is no longer a Goal by name (contract-design §2.2): its note says what the note is attached to, so the look asks the source each time.
+  const notes = defineSubjectContextAction("fixture.material.read", 1, "note", "读取笔记", []);
+  local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [notes],
+    handlers: [{ ...notes, handle: (_caller: unknown, input: unknown) => subjectContext({ subject: { kind: "note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "笔记", content: "笔记",
+      attached_to: [{ kind: "goal", id: "g1" }] }) }] });
   const reminders = defineDueRemindersAction("fixture.material.reminders", 1, ["note"], "提醒", []);
   local.actionRegistry().registerProvider({ provider: { provider_id: "fixture.reminders", kind: "plugin", title: "Reminders" }, definitions: [reminders],
     handlers: [{ ...reminders, handle: () => { if (remindersBroken) throw failure("fixture.reminders_down"); return { source: { surface: "notes", title: "Notes" }, reminders: [] }; } }] });
@@ -197,7 +202,7 @@ test("RAC-1114 W5-13-16 a background look that keeps failing (a source of new ma
     homeActions: async () => ({ discover: () => local.homeActionClient().discover(inHome), invoke: (action, input) => local.homeActionClient().invoke(inHome, action, input) }) }, "web-user");
   t.after(() => service.continuations.close());
   const work = store.create({ actor_id: "web-user", title: "整理", scope: { kind: "project", project_id: "project" }, origin: null, project_ref: project });
-  store.relations.link({ work_id: work.work_id, project_id: "project" }, "material", { kind: "goal", id: "g1", revision: "1" }, "测试");
+  store.relations.link({ work_id: work.work_id, project_id: "project" }, "material", { kind: "note", id: "n1", revision: "1" }, "测试");
 
   // New material: each look asks the source, which fails; it is written once, then again only after it answered.
   const looks = await captured(async () => { await service.notices.scanNewMaterial(); await service.notices.scanNewMaterial(); eventsBroken = false;

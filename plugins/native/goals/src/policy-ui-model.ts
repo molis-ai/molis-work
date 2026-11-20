@@ -1,9 +1,9 @@
-import type { GoalEventStateView, GoalPolicy } from "./contract/goals.js";
+import type { GoalPolicy } from "./contract/goals.js";
 
 export interface GoalsPolicyItem {
   goal: { goal_id: string };
   resolved_policy: GoalPolicy;
-  event_document?: { state: Pick<GoalEventStateView, "requirements"> } | null;
+  event_document?: Pick<import("./event-document-model.js").GoalEventDocumentView, "state" | "acceptance"> | null;
 }
 
 export interface GoalsPolicyUiPrimitives {

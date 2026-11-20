@@ -3,7 +3,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTION_PERMISSIONS, handleScheduleTaskWakeup, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { molisWorkHostProjectReference, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 
 test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and archives persisted tasks", { timeout: 90_000 }, async t => {
@@ -34,18 +34,11 @@ test("SYS-15 Schedule isolated page creates, edits, pauses, reopens, resumes and
   await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value='Updated daily task'");
   await child.click('[data-schedule-create-form] button[type=submit]');
   await child.waitFor("document.querySelector('[data-schedule-detail] h1')?.textContent==='Updated daily task' && document.querySelector('[data-schedule-create-pane]').hidden");
-  // A daily task's edit offers its time; a one-off task's (marked by its detail, as a risk's review is) leaves the field out, so
-  // an edit cannot look like it moved the time and keep the old one (PR #2058 评审台小修).
+  // A daily task's edit offers its time (a one-off task's: BL-schedule-one-off-detail below).
   const timeField = "(()=>{const input=document.querySelector('[data-schedule-create-form]').elements.time;return {disabled:input.disabled,shown:input.closest('.schedule-time-field').getClientRects().length>0};})()";
   await child.click('[data-schedule-task-edit]');
   await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
   assert.deepEqual(await child.evaluate(timeField), { disabled: false, shown: true }, "a daily task's edit shows its time");
-  await child.click('[data-schedule-create-close]');
-  await child.waitFor("document.querySelector('[data-schedule-create-pane]').hidden");
-  await child.evaluate("document.querySelector('[data-schedule-task-time]').setAttribute('data-schedule-task-once','')");
-  await child.click('[data-schedule-task-edit]');
-  await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
-  assert.deepEqual(await child.evaluate(timeField), { disabled: true, shown: false }, "a one-off task's edit leaves the daily time out");
   await child.click('[data-schedule-create-close]');
   await child.waitFor("document.querySelector('[data-schedule-create-pane]').hidden");
   await child.click('[data-schedule-new]');
@@ -122,7 +115,9 @@ test("96-2 an open task's detail shows the round that just failed and why withou
     if (session !== browser.sessionId) return;
     const paused = event as { requestId: string; request: { url: string } };
     if (!held && !new URL(paused.request.url).pathname.includes("/api/")) held = paused;
-    else void browser.command("Fetch.continueRequest", { requestId: paused.requestId }, browser.sessionId);
+    // The page also reads on its own now (every change through Schedule's actions tells it): a request paused as interception is
+    // switched off below is let go by the switch itself, and continuing it then is refused.
+    else browser.command("Fetch.continueRequest", { requestId: paused.requestId }, browser.sessionId).catch(() => undefined);
   });
   t.after(off);
   // The shell reads the page document again for the frame (readDocument): that fetch of the workbench page is held, not the
@@ -145,4 +140,135 @@ test("96-2 an open task's detail shows the round that just failed and why withou
   // Opening the second task again shows its failed round.
   await child.click(row(second.task_id));
   await child.waitFor(`!document.querySelector('${detail(second.task_id)}').hidden && document.querySelector('${detail(second.task_id)} .schedule-turn--system')`);
+});
+
+test("BL-schedule-one-off-detail editing a real one-off task says the day and time it runs instead of a daily time; a daily task keeps its time", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  await browser.setViewport(1440, 900);
+  const child = await pluginFrameBrowser(t, browser, "schedule");
+  const ref = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: browser.projectId! });
+  const caller: ActionCallContext = { actor_id: "browser-test", project_id: browser.projectId!, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
+  const actions = browser.localHost!.actionClient(ref);
+  // Made the way a risk's review makes one: by Schedule's action, with a day and a time. Nothing on the page is marked by hand.
+  const at = new Date(); at.setDate(at.getDate() + 2); at.setHours(14, 35, 0, 0);
+  const once = (await actions.invoke(caller, scheduleActions.createTask, { title: "Review the risk", instructions: "Read the risk", repeat: "none", at: at.toISOString() })).task;
+  const daily = (await actions.invoke(caller, scheduleActions.createTask, { title: "Morning summary", instructions: "Read the project", time: "10:30" })).task;
+  const row = (id: string) => `[data-schedule-row][data-schedule-task-id="${id}"]`, detail = (id: string) => `[data-schedule-detail="${id}"]`;
+  const form = `(() => { const form = document.querySelector('[data-schedule-create-form]'), once = form.querySelector('[data-schedule-form-once]');
+    return { time: { disabled: form.elements.time.disabled, shown: form.querySelector('.schedule-time-field').getClientRects().length > 0 },
+      once: { shown: once.getClientRects().length > 0, when: once.querySelector('[data-schedule-form-once-at]').textContent } }; })()`;
+  type Form = { time: { disabled: boolean; shown: boolean }; once: { shown: boolean; when: string } };
+  const edit = async (id: string) => {
+    await child.click(row(id));
+    await child.waitFor(`!document.querySelector('${detail(id)}').hidden`);
+    await child.click(`${detail(id)} [data-schedule-task-edit]`);
+    await child.waitFor("!document.querySelector('[data-schedule-create-pane]').hidden");
+    return child.evaluate<Form>(form);
+  };
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=schedule` }, browser.sessionId));
+  await browser.surfaceReady("schedule");
+  await child.waitFor(`document.querySelector('${row(once.task_id)}')?.getClientRects().length > 0`, 20_000);
+
+  const oneOff = await edit(once.task_id);
+  assert.deepEqual(oneOff.time, { disabled: true, shown: false }, "the daily time is left out of a one-off task's edit");
+  assert.equal(oneOff.once.shown, true, "the edit says when the one-off task runs");
+  assert.match(oneOff.once.when, /14:35/u, "with its time");
+  assert.ok(oneOff.once.when.includes(String(at.getDate())), `and its day (${oneOff.once.when})`);
+  // Saving the edit keeps the task one-off at its time.
+  await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value='Review the risk again'");
+  await child.click('[data-schedule-create-form] button[type=submit]');
+  await child.waitFor(`document.querySelector('${detail(once.task_id)} h1')?.textContent === 'Review the risk again' && document.querySelector('[data-schedule-create-pane]').hidden`);
+  const saved = (await actions.invoke(caller, scheduleActions.list, {})).tasks.find(task => task.task_id === once.task_id)!;
+  assert.deepEqual({ repeat: saved.repeat, run_at: saved.run_at }, { repeat: "none", run_at: at.toISOString() });
+
+  const repeating = await edit(daily.task_id);
+  assert.deepEqual(repeating, { time: { disabled: false, shown: true }, once: { shown: false, when: "" } }, "a daily task's edit keeps its own time");
+  assert.equal(await child.evaluate<string>("document.querySelector('[data-schedule-create-form]').elements.time.value"), "10:30");
+});
+
+test("BL-schedule-view-refresh-followups the open page follows changes made through actions and one made before its first check; a read that answers late draws nothing; reads of its own leave an unread task unread", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  await browser.setViewport(1440, 900);
+  const child = await pluginFrameBrowser(t, browser, "schedule");
+  const ref = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: browser.projectId! });
+  // The changes below come through Schedule's actions as the Assistant's or an MCP client's would, not through the page.
+  const caller: ActionCallContext = { actor_id: "browser-test", project_id: browser.projectId!, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
+  const actions = browser.localHost!.actionClient(ref);
+  const daily = async (title: string, time: string) => (await actions.invoke(caller, scheduleActions.createTask, { title, instructions: "Read the project", time, notify_important: true })).task;
+  const alpha = await daily("Alpha", "06:00"), beta = await daily("Beta", "07:00");
+  const rename = (task: typeof alpha, title: string) => actions.invoke(caller, scheduleActions.updateTask, { task_id: task.task_id, title, instructions: "Read the project", time: task.clock_label, notify_important: true });
+  const row = (id: string) => `[data-schedule-row][data-schedule-task-id="${id}"]`, detail = (id: string) => `[data-schedule-detail="${id}"]`;
+  const titled = (id: string, title: string) => `document.querySelector('${row(id)} strong')?.textContent === ${JSON.stringify(title)}`;
+  const within = <T>(value: Promise<T>, what: string) => Promise.race([value, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(what)), 20_000))]);
+
+  // Requests are held by the test where it says so; every other one goes on. A request paused as interception is switched off is
+  // let go by the switch itself, and continuing it then is refused.
+  let hold: ((requestId: string) => void) | null = null, holds: (url: URL) => boolean = () => false;
+  const holding = (which: (url: URL) => boolean) => new Promise<string>(resolve => { holds = which; hold = resolve; });
+  const release = (requestId: string) => browser.command("Fetch.continueRequest", { requestId }, browser.sessionId);
+  t.after(browser.on("Fetch.requestPaused", (event, session) => {
+    if (session !== browser.sessionId) return;
+    const paused = event as { requestId: string; request: { url: string } };
+    const take = hold;
+    if (take && holds(new URL(paused.request.url))) { hold = null; take(paused.requestId); }
+    else release(paused.requestId).catch(() => undefined);
+  }));
+  t.after(() => browser.command("Fetch.disable", {}, browser.sessionId).then(() => undefined, () => undefined));
+
+  // ② The page is drawn; its first check of Schedule's version is held before it reaches the Host, and Alpha is renamed meanwhile.
+  // The check then answers the version after the rename: the page was drawn before it, so it reads the page again.
+  await browser.command("Fetch.enable", { patterns: [{ urlPattern: "*/plugins/io.molis.work.schedule/view-revision*", requestStage: "Request" }] }, browser.sessionId);
+  const checked = holding(url => url.pathname.endsWith("/view-revision"));
+  const loading = browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=schedule` }, browser.sessionId));
+  await loading;
+  await browser.surfaceReady("schedule");
+  await child.waitFor(`document.querySelector('${row(alpha.task_id)}')?.getClientRects().length > 0`, 20_000);
+  await child.evaluate("window.__scheduleStayed = true");
+  const first = await within(checked, "the page did not check Schedule's version");
+  assert.equal(await child.evaluate<string>(`document.querySelector('${row(alpha.task_id)} strong').textContent`), "Alpha", "the page was drawn before the rename");
+  await rename(alpha, "Alpha renamed");
+  await release(first);
+  await child.waitFor(titled(alpha.task_id, "Alpha renamed"), 20_000);
+
+  // From here the page document the shell reads for the frame (readDocument) is held after the Host answered it, before it reaches
+  // the page: the answer is the page as it was when the Host drew it.
+  await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*/projects/${browser.projectId}/*`, resourceType: "Fetch", requestStage: "Response" }] }, browser.sessionId);
+  const pageDocument = (url: URL) => !url.pathname.includes("/api/");
+
+  // ③ A read of its own starts (Beta renamed through an action, ①) and its answer, with Alpha still on, is held. Meanwhile the
+  // person pauses Alpha and the page reads again for it. The held answer then arrives late and must not draw Alpha on again.
+  await child.click(row(alpha.task_id));
+  await child.waitFor(`!document.querySelector('${detail(alpha.task_id)}').hidden`);
+  const background = holding(pageDocument);
+  await rename(beta, "Beta v1");
+  const late = await within(background, "a change made through an action did not read the open page again");
+  await child.click(`${detail(alpha.task_id)} [data-schedule-task-enabled-action=false]`);
+  await child.waitFor(`document.querySelector('${detail(alpha.task_id)} [data-schedule-task-enabled-action=true]')`);
+  await child.evaluate(`window.__staleDrawn = 0; window.__watching = setInterval(() => {
+    if (!document.querySelector('${detail(alpha.task_id)} [data-schedule-task-enabled-action=true]')) window.__staleDrawn++; }, 5)`);
+  await release(late);
+  await new Promise(resolve => setTimeout(resolve, 1_500));
+  assert.equal(await child.evaluate<number>("(clearInterval(window.__watching), window.__staleDrawn)"), 0, "the late answer drew nothing: Alpha stayed paused");
+  await child.waitFor(titled(beta.task_id, "Beta v1"), 20_000);
+  assert.equal(await child.evaluate<boolean>(`!document.querySelector('${detail(alpha.task_id)}').hidden && Boolean(document.querySelector('${detail(alpha.task_id)} [data-schedule-task-enabled-action=true]'))`), true,
+    "the page shows the newest state, Alpha still open");
+  assert.equal((await actions.invoke(caller, scheduleActions.list, {})).tasks.find(task => task.task_id === alpha.task_id)!.enabled, false);
+
+  // ① Alpha turned on again through an action shows on the open page.
+  await actions.invoke(caller, scheduleActions.setTaskEnabled, { task_id: alpha.task_id, enabled: true });
+  await child.waitFor(`document.querySelector('${detail(alpha.task_id)} [data-schedule-task-enabled-action=false]')`, 20_000);
+
+  // ④ A round of Alpha's says something important while its detail is open: Alpha is unread. The page reads again on its own (a
+  // change through an action) and shows the round, but the person has not opened it since: it stays unread.
+  await browser.localHost!.withProject(ref, runtime => handleScheduleTaskWakeup(runtime.store.db, alpha.task_id,
+    { run: async () => ({ text: "Something needs a look", important: true }) }));
+  await rename(beta, "Beta v2");
+  await child.waitFor(`document.querySelector('${detail(alpha.task_id)} .schedule-turn--assistant') && ${titled(beta.task_id, "Beta v2")}`, 20_000);
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.deepEqual(await child.evaluate(`({ open: !document.querySelector('${detail(alpha.task_id)}').hidden,
+    detail: document.querySelector('${detail(alpha.task_id)} [data-schedule-detail-status]').dataset.mwState,
+    row: document.querySelector('${row(alpha.task_id)} [data-schedule-row-status]').dataset.mwState })`), { open: true, detail: "unread", row: "unread" },
+    "the page shows Alpha unread");
+  assert.equal((await actions.invoke(caller, scheduleActions.list, {})).tasks.find(task => task.task_id === alpha.task_id)!.unread, true, "and Alpha is still unread");
+  assert.equal(await child.evaluate("window.__scheduleStayed"), true, "every change showed in place: the page was not loaded again");
 });

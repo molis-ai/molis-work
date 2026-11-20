@@ -103,7 +103,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(goal().accepted_at, null);
   const app = new GoalProjectApplication(store);
   assert.deepEqual(
-    app.goalEvents.readState(DEMO_PROJECT_ID, goalId).requirements.map((item) => item.statement).sort(),
+    app.acceptanceView(DEMO_PROJECT_ID, goalId).requirements.map((item) => item.statement).sort(),
     ["Can be created", "Can be restored"],
   );
   assert.equal(current().goals.length, before.goals.length + 1);

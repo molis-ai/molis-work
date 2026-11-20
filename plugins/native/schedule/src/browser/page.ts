@@ -31,6 +31,10 @@ export interface SchedulePage {
   hinting: number;
   /** Counts the reads of what the tasks may read, so a late answer does not overwrite a later one. */
   reading: number;
+  /** Counts the reads of the page (refreshStage), so an answer that comes back after a later read's does not draw over it. */
+  refreshing: number;
+  /** The latest read of the page: an earlier one that answers late takes its outcome instead of drawing. */
+  latestRefresh: Promise<boolean> | null;
   /** The task just created: its detail says once that what it reads is chosen there. */
   created: string;
   /** Whether the project has a workspace, once read: a task that reads files only needs one. */
@@ -55,7 +59,7 @@ export function createPage(host: ScheduleHost): SchedulePage | null {
     recoveryError: required(workbench, "[data-schedule-recovery-error]"),
     operationDialog: required<HTMLDialogElement>(workbench, "[data-schedule-operation-dialog]"),
     operationForm: required<HTMLFormElement>(workbench, "[data-schedule-operation-form]"),
-    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, created: "",
+    editingTaskId: "", creating: false, recovery: null, recovering: false, operationReview: null, operationBusy: false, hinting: 0, reading: 0, refreshing: 0, latestRefresh: null, created: "",
     area: null, changes: new Map(),
   };
 }

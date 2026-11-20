@@ -32,7 +32,7 @@ export function createImagesPlugin(): PluginDefinition {
     }
     catch (error) { current.close(); throw error; }
     finally { recovering = false; }
-    return { kind: "app", sync: syncBindings(context), views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current }),
+    return { kind: "app", sync: syncBindings(context), views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current, directory: context.services?.actions?.directory }),
       routes: imagesRoutes(context) };
   }, async stop() { service?.close(); service = undefined; } };
 }

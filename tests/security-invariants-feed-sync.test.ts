@@ -7,7 +7,7 @@ import {AttentionModule} from '@molis-ai/molis-work-module-attention-resumption'
 import {createContextLedger} from '@molis-ai/molis-work-module-context-ledger';
 import {personalStorageSpace,createEvidenceContentStore,createLazyFileSecretStore} from '@molis-ai/molis-work-storage';
 import {projectPluginSyncFixture} from './fixtures/project-plugin-sync.js';
-import {feedLedgerPort} from './fixtures/feed-ledger.js';
+import {feedLedgerPort, unassignedFeedAttention} from './fixtures/feed-ledger.js';
 
 function fixture(){
  let effects=0,authorized=true;
@@ -15,7 +15,7 @@ function fixture(){
  const owner=projectPluginSyncFixture({space:personalStorageSpace('https://auth.example','work','user'),projectId:'project',manifest:feedManifest,bindings:createFeedSyncBindings,collectionId:'messages',authorize});
  const {db,home}=owner,sql=fromProjectConnection(db);
  const attention=new AttentionModule(db,{exists:()=>true}),signals=new SignalsModule(sql);
- const feed=new FeedModule(sql,attention,{ledger:feedLedgerPort(createContextLedger(db,{authorize:()=>true})),eventSink(){effects++;}});
+ const feed=new FeedModule(sql,unassignedFeedAttention(attention),{ledger:feedLedgerPort(createContextLedger(db,{authorize:()=>true})),eventSink(){effects++;}});
  const content=createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')});
  return {...owner,feed,attention,signals,content,codec:owner.content!,deny(){authorized=false;},effects:()=>effects};
 }

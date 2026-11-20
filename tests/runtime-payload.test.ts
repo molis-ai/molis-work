@@ -115,7 +115,6 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     mkdir(join(source, "dist", "cli"), { recursive: true }),
     mkdir(join(source, "dist", "mcp"), { recursive: true }),
     mkdir(join(source, "dist", "web"), { recursive: true }),
-    mkdir(join(source, "skills", "goal-advance"), { recursive: true }),
     mkdir(join(source, "skills", "molis-plugin-dev"), { recursive: true }),
     mkdir(dependencyDirectory, { recursive: true }),
     mkdir(join(workspacePackage, "dist"), { recursive: true }),
@@ -145,7 +144,6 @@ async function fixtureScopedRuntimeSource(root: string, version: string): Promis
     writeFile(join(source, "dist", "cli", "main.js"), fixtureEntry("cli")),
     writeFile(join(source, "dist", "mcp", "server.js"), fixtureEntry("mcp")),
     writeFile(join(source, "dist", "web", "server.js"), fixtureEntry("web")),
-    writeFile(join(source, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n"),
     writeFile(join(source, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n"),
     writeFile(
       join(dependencyDirectory, "package.json"),

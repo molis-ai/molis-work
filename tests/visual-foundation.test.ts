@@ -146,17 +146,18 @@ test("visual foundation keeps Standard and Compact as local presentation choices
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /localStorage\.setItem\(densityKey/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(min-width: 761px\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-density="compact"/);
-  // The compact rules are scoped to the Goals page body; the Goal-era decision page (`data-board-view="decisions"`) is gone, so no guard names it.
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-row \{/);
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /data-board-view="decisions"/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-row \{\s*min-height: 27px;/);
+  // The compact rules are scoped to the Goals page body (PEQ-08: delivered in Goals' on-demand sheet).
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /html\[data-density="compact"\] body\[data-board-view\] \.tree-row \{/);
+  assert.doesNotMatch(withPlugins, /data-board-view="decisions"/);
+  assert.match(withPlugins, /\.tree-row \{\s*min-height: 27px;/);
   // BL-121 3 (T-337): the compact child indent stays, as an intentional behaviour. `:not(:empty)` is the explicit
   // specificity that still beats goal-canvas.ts's flat stage list (0,4,2 against 0,4,1); if the indent is dropped on purpose, change both.
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children:not\(:empty\) \{\s*margin-left: 8px;\s*padding-left: 4px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node \{\s*min-height: 25px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{\s*width: min\(100%, 1120px\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-desktop-shell="true"[^}]+\.goal-document \{\s*padding: 12px 16px 32px;/); // spec → 第三轮 · 视觉精修: spacing scale
-  const compactSelectorHeaders = [...VISUAL_FOUNDATION_STYLES.matchAll(/([^{}]+)\{/g)]
+  assert.match(withPlugins, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children:not\(:empty\) \{\s*margin-left: 8px;\s*padding-left: 4px;/);
+  assert.match(withPlugins, /\.tree-node \{\s*min-height: 25px;/);
+  assert.match(withPlugins, /\.goal-document \{\s*width: min\(100%, 1120px\);/);
+  assert.match(withPlugins, /data-desktop-shell="true"[^}]+\.goal-document \{\s*padding: 12px 16px 32px;/); // spec → 第三轮 · 视觉精修: spacing scale
+  const compactSelectorHeaders = [...withPlugins.matchAll(/([^{}]+)\{/g)]
     .map((match) => match[1] ?? "")
     .filter((selector) => selector.includes('data-density="compact"'))
     .join("\n");
@@ -193,12 +194,13 @@ test("live xterm sessions receive the selected terminal palette", () => {
 });
 
 test("visual foundation defines one wide workbench and one narrow companion", () => {
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\.is-desktop-tui/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(max-width: 760px\)/);
   // The narrow surface switch has no markup since bc79f8a49; its last styles went with W3-A3b and #662.
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mobile-switch/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.companion-runtime/);
+  assert.match(withPlugins, /\.companion-runtime/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.app \{ grid-template-rows: 44px 44px minmax\(0, 1fr\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.topbar \{[\s\S]*padding-left: 88px/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.brand svg \{[^}]*display: block/);
@@ -228,9 +230,10 @@ test("collapsed desktop directory becomes a titlebar overlay above a full-width 
 });
 
 test("Light desktop navigation and directory selections stay flat", () => {
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
+  assert.match(withPlugins, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
   // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
 });
@@ -292,14 +295,14 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   // The Goal-era Inbox/decision page has no producer any more; its skin rules are gone with it.
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.inbox-workspace|\.inbox-item\b|\.decision-(?:empty|summary|groups|owner|stack)\b|\.feed-decision-work\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.desktop-titlebar-drag \{ -webkit-app-region: drag; user-select: none; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\[data-desktop-surface\]:not\(\[data-desktop-surface="goals"\]\) :is\(\.tui-resizer, \.tui-pane\) \{ display: none !important; \}/);
-  // The Goal document left the old skin; the trash page keeps its desktop workspace height in its own sheet.
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.trash-goal-document \.trash-goal-workspace \{ min-height: max\(420px, calc\(100dvh - 340px\)\); \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-kicker \.goal-status \{[\s\S]*min-height: 26px;[\s\S]*padding: 4px 8px;[\s\S]*gap: 8px;[\s\S]*border-radius: 8px;/); // padding and glyph gap on the 4/8 scale
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status \{[\s\S]*min-height: 0;[\s\S]*padding: 0;[\s\S]*border: 0;[\s\S]*background: transparent;/);
+  // PEQ-08/PEQ-17: work terminals are platform-owned (not gated to data-desktop-surface="goals"), and Goals' own sheet loads on demand.
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /\.trash-goal-document \.trash-goal-workspace \{ min-height: max\(420px, calc\(100dvh - 340px\)\); \}/);
+  assert.match(withPlugins, /\.goal-title-kicker \.goal-status \{[\s\S]*min-height: 26px;[\s\S]*padding: 4px 8px;[\s\S]*gap: 8px;[\s\S]*border-radius: 8px;/); // padding and glyph gap on the 4/8 scale
+  assert.match(withPlugins, /\.goal-title-status--narrow \.goal-status \{[\s\S]*min-height: 0;[\s\S]*padding: 0;[\s\S]*border: 0;[\s\S]*background: transparent;/);
   // RING-05: narrow titles keep the shared ring; no second dot or rule hides its SVG.
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status::before/);
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-title-status--narrow \.goal-status svg \{[^}]*display: none/);
+  assert.doesNotMatch(withPlugins, /\.goal-title-status--narrow \.goal-status::before/);
+  assert.doesNotMatch(withPlugins, /\.goal-title-status--narrow \.goal-status svg \{[^}]*display: none/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-panel(?:[^\w-]|$)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\[data-goal-panel\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-pane\[data-tui-read-only\] \.tui-tabs,[\s\S]*\.tui-menu \{[\s\S]*display: none !important;/);
@@ -325,13 +328,14 @@ test("runtime workbench becomes a two-column layout with a dock at standard widt
 });
 
 test("visual foundation keeps the Goal navigator dense and relationships progressive", () => {
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-progress/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations > summary/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations\[open\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-dep-copy small \{[^}]*text-overflow: ellipsis/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-status \{[^}]*--goal-status-tone: var\(--tone-idle\)/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-status--execution_blocked,[^{]*\{[^}]*--goal-status-tone: var\(--tone-blocked\)/);
+  assert.match(withPlugins, /\.goal-status \{[^}]*--goal-status-tone: var\(--tone-idle\)/);
+  assert.match(withPlugins, /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
+  assert.match(withPlugins, /\.goal-status--execution_blocked,[^{]*\{[^}]*--goal-status-tone: var\(--tone-blocked\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-settings \{[\s\S]*width: 28px;[\s\S]*place-items: center/);
   assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-rows: auto auto minmax\(0, 1fr\) 42px/);
 });
@@ -383,27 +387,29 @@ test("runtime separates app chrome from a configurable terminal canvas", () => {
 });
 
 test("visual foundation makes the default Goal view an action-led Focus", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-outcome/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-criteria/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-now-blockers--clear/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.goal-factor-nav/);
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /\.goal-focus-outcome/);
+  assert.match(withPlugins, /\.goal-focus-criteria/);
+  assert.match(withPlugins, /\.goal-now-blockers--clear/);
+  assert.match(withPlugins, /data-resolved-theme="dark"\] \.goal-factor-nav/);
   // calm-desktop's .goal-focus-layout, .goal-focus-aside and compact .goal-now padding went with it in W5-05 slice 5: no template draws those elements.
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-mark/);
+  assert.doesNotMatch(withPlugins, /\.goal-now-mark/);
 });
 
 test("visual foundation gives every Focus detail one responsive section deck", () => {
   // calm-desktop's --focus-canvas-inset clamp went in W5-05 slice 5: later layers set the inset (0px, 8px), so it decided no value; so did its 700px two-column row and the relations comment.
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{[\s\S]*background: transparent;[\s\S]*display: grid;[\s\S]*gap: 16px;/); // spacing scale
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-hero,[\s\S]*\.goal-workspace-panels \{[\s\S]*border-radius: 14px;[\s\S]*background: var\(--paper\)/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-row \{[\s\S]*display: grid;[\s\S]*repeat\(auto-fit, minmax\(136px, 1fr\)\)/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-copy > small \{[\s\S]*max-height: none;[\s\S]*overflow: visible;/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-trigger,[\s\S]*height: 100%;[\s\S]*align-items: start;/);
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES.slice(VISUAL_FOUNDATION_STYLES.lastIndexOf("/* Focus is an inset reading surface")), /\.focus-section-card\.is-active \{[^}]*flex:/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-stage \{[\s\S]*margin-top: 12px;[\s\S]*display: grid;/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-reveal \{[\s\S]*clip-path: inset\(0 0 10% 0 round 12px\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.focus-section-card[\s\S]*transition: none;/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /\.goal-document \{[\s\S]*background: transparent;[\s\S]*display: grid;[\s\S]*gap: 16px;/); // spacing scale
+  assert.match(withPlugins, /\.goal-hero,[\s\S]*\.goal-workspace-panels \{[\s\S]*border-radius: 14px;[\s\S]*background: var\(--paper\)/);
+  assert.match(withPlugins, /\.focus-section-card-row \{[\s\S]*display: grid;[\s\S]*repeat\(auto-fit, minmax\(136px, 1fr\)\)/);
+  assert.match(withPlugins, /\.focus-section-card-copy > small \{[\s\S]*max-height: none;[\s\S]*overflow: visible;/);
+  assert.match(withPlugins, /\.focus-section-card-trigger,[\s\S]*height: 100%;[\s\S]*align-items: start;/);
+  assert.doesNotMatch(withPlugins.slice(withPlugins.lastIndexOf("/* Focus is an inset reading surface")), /\.focus-section-card\.is-active \{[^}]*flex:/);
+  assert.match(withPlugins, /\.focus-section-stage \{[\s\S]*margin-top: 12px;[\s\S]*display: grid;/);
+  assert.match(withPlugins, /\.focus-section-card-reveal \{[\s\S]*clip-path: inset\(0 0 10% 0 round 12px\);/);
+  assert.match(withPlugins, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.focus-section-card[\s\S]*transition: none;/);
+  assert.match(withPlugins, /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);
+  assert.match(withPlugins, /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
 });
 
 // Soft Workbench (DESIGN.md → Colors, Focus): mist-blue focus replaces the inset ink stroke, `--blue` now
@@ -425,7 +431,8 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.doesNotMatch(baseline, /--focus-stroke: 1px solid var\(--ink\)/);
   assert.match(light, /--content-accent: var\(--action\)/);
   assert.match(light, /--mark-slate: #647DB5;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();
   assert.match(TYPEFACE_STYLES, /font-family: "Inter Variable"/);
@@ -453,17 +460,18 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
 
 test("plugin list titles yield at the squeeze edge", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /\.mw-dir-row \{[\s\S]*background-color 130ms var\(--ease-quint/); // four durations, two curves
   // Within the title rule itself; an unrelated later rule must not decide these.
   assert.match(workbench, /\.mw-dir-row__copy strong \{[^}]*text-overflow: ellipsis/);
   assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[^}]*mask-image:/);
-  assert.doesNotMatch(workbench, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
+  assert.doesNotMatch(withPlugins, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
-  assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
-  assert.match(workbench, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
+  assert.match(withPlugins, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(withPlugins, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);
-  assert.match(workbench, /\.feed-stage-entry:has\(\.plugin-stage-kind\) \.feed-entry-status \{[\s\S]*background: transparent/);
-  assert.match(workbench, /\.plugin-stage-list[\s\S]*\.feed-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
+  assert.match(withPlugins, /\.feed-stage-entry:has\(\.plugin-stage-kind\) \.feed-entry-status \{[\s\S]*background: transparent/);
+  assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.feed-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
   // Project home (DESIGN.md → Home): one centred column that scrolls in its own box, plugin cards in an auto-fit grid.
   assert.match(workbench, /\.immersive-home \.home-scroll \{[^}]*overflow: auto;[^}]*max-width: 1280px/);
   assert.match(workbench, /\.home-plugin-cards \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 27rem\), 1fr\)\)/);
@@ -472,9 +480,9 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
   // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
   assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
-  assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
-  assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
-  assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
+  assert.match(withPlugins, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
+  assert.match(withPlugins, /\.feed-stage-leading strong \{ flex: 1;/);
+  assert.match(withPlugins, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,
     /body\.immersive-workbench :is\(\.tree-entry, \.feed-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
@@ -498,16 +506,17 @@ test("global search glide is a single pill aligned to the selected hit", () => {
 });
 
 test("visual foundation gives Goal momentum a left-to-right topology and action workbench", () => {
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
   // The momentum-* rules of the retired skin went with A1+H2: no markup draws those classes (the view is goal-canvas-*).
-  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.momentum-[a-z]/);
+  assert.doesNotMatch(withPlugins, /\.momentum-[a-z]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\.is-desktop-tui\.is-graph-view/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.workspace\.is-desktop-tui\.is-graph-view/);
   assert.match(VISUAL_FOUNDATION_STYLES, /:has\(> \.tree-pane\[data-navigator-view="graph"\]\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace\.is-desktop-tui\[data-navigator-view="graph"\]/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-momentum/);
+  assert.match(withPlugins, /\.goal-momentum/);
   assert.match(VISUAL_FOUNDATION_STYLES, /tree-pane > \.tree-scroll \{ grid-row: 4; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.graph-zoom/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /#momentum-arrow-selected path \{ fill: var\(--blue\); \}/);
+  assert.match(withPlugins, /\.graph-zoom/);
+  assert.match(withPlugins, /#momentum-arrow-selected path \{ fill: var\(--blue\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\[data-workspace-mode="graph"\] > \.workbench-header \{[\s\S]*display: block;/);
 });
 

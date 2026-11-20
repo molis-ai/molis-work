@@ -12,7 +12,6 @@ export const UPGRADES: readonly VersionedFileStep[] = [];
 
 /** Skills that must exist in the install source and every owned release. */
 export const REQUIRED_RELEASE_SKILL_FILES = [
-  "skills/goal-advance/SKILL.md",
   "skills/molis-plugin-dev/SKILL.md",
 ] as const;
 

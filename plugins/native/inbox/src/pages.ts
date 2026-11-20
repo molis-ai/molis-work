@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
-import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { ActionError, type ActionCallContext, type ActionExecutionContext, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration, type InboxPagesInputSnapshot } from "./pages-shapes.js";
+import { inboxErrors } from "./errors.js";
+import { ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { InboxPagesDocument, InboxPagesGeneration, InboxPagesInputSnapshot } from "./pages-shapes.js";
 import type { InboxPagesInput, InboxPagesMaterialRef } from "./actions.js";
 
 interface InboxPagesPorts {
@@ -10,6 +10,7 @@ interface InboxPagesPorts {
   generations(caller: ActionCallContext): Promise<InboxPagesGeneration[]>;
   readDocument(id: string, caller: ActionCallContext): Promise<InboxPagesDocument>;
   generate(input: Pick<InboxPagesGeneration, "request_id" | "request_hash" | "inputs" | "title" | "instructions">, caller: ActionCallContext): Promise<{ document: InboxPagesDocument; replayed: boolean }>;
+  generateReference?(caller: ActionCallContext): Promise<ActionReference>;
   readMaterial(entryId: string, caller: ActionCallContext): InboxPagesInputSnapshot | Promise<InboxPagesInputSnapshot>;
 }
 
@@ -68,7 +69,7 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
         if (expected) matches(await currentMaterials());
         await caller.beforeEffect();
       } };
-      await guarded.validate_authority!({ capability_id: "pages.generate", version: /* @version action.pages.generate */ 1, provider_id: PAGES_PROVIDER_ID });
+      if (ports.generateReference) await guarded.validate_authority!(await ports.generateReference(caller));
       const result = await ports.generate({ request_id: input.request_id, request_hash, inputs, instructions, title }, guarded);
       return { ...result, request_id: input.request_id, entry_ids: entryIds };
     },

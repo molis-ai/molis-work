@@ -138,8 +138,6 @@ function renderProjectSettingsNavigation(
   project: WebProjectNavigation,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
-  /** Goals owns the project description page; a project without Goals does not list it (RAC-400). */
-  options: { goals: boolean } = { goals: true },
 ): string {
   const routePrefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
@@ -150,7 +148,7 @@ function renderProjectSettingsNavigation(
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${uiText("workbench.settings-navigation.general")}</a>
       <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${uiText("workbench.settings-navigation.inputs-output")}</a>
-      ${options.goals ? `<a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${uiText("workbench.settings-navigation.project-guidance")}</a>` : ""}
+      <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${uiText("workbench.settings-navigation.project-guidance")}</a>
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${uiText("workbench.settings-navigation.project-memory")}</a>
       <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${uiText("workbench.settings-navigation.project-knowledge")}</a>
       <a href="${href(`${routePrefix}/settings/plugins`)}"${current("plugins")}>${icon("package")}${uiText("workbench.settings-navigation.plugin")}</a>

@@ -16,6 +16,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const feedView = await pluginFrameBrowser(t, browser, "feed");
   for (const plugin_id of ["feed"] as const) await addProjectPlugin(browser.web, projectId!, plugin_id);
   const other = await createProject(browser.web, "另一项目");
+  await addProjectPlugin(browser.web, other.project_id, "goals");
 
   new GoalProjectApplication(store).goalEvents.createIntent({ project_id: projectId!, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
   const before = boardSnapshot(store, projectId!);

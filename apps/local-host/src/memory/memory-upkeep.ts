@@ -1,5 +1,5 @@
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { isSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { findSubjectReader, isSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { MEMORY_TIDY } from "../agent-definitions/system-prompts.js";
@@ -61,24 +61,28 @@ function upkeepContexts(host: MolisWorkLocalHost): (reference: LocalHostProjectR
   };
 }
 
+/** The key of a memory's associated object in `objectTitles`' answer: its plugin, kind and id. */
+export const memoryObjectKey = (object: { plugin_id: string; kind: string; id: string }) => `${object.plugin_id}/${object.kind}:${object.id}`;
+
 /**
- * The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are
- * left out. A caller that already holds this request's person context passes it, so one request prepares one (N42).
+ * The names of the objects memories are limited to, read through their owners' readers: each object's kind's one reader in this
+ * directory, and only when that reader's plugin is the plugin the memory names (batch 44 C3; no plugin is named here). Unreadable
+ * ones are left out. A caller that already holds this request's person context passes it, so one request prepares one (N42).
  */
-export async function subjectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, kind: string, ids: readonly string[],
-  existing?: ActionCallContext): Promise<Record<string, string>> {
-  const unique = [...new Set(ids)].slice(0, 40);
+export async function objectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
+  objects: readonly { plugin_id: string; kind: string; id: string }[], existing?: ActionCallContext): Promise<Record<string, { title: string; owner: string }>> {
+  const unique = [...new Map(objects.map(object => [memoryObjectKey(object), object])).values()].slice(0, 40);
   if (!unique.length) return {};
   const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
   const context = existing ?? await memoryContext(localHost, reference);
   const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
-  const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(kind));
-  if (!reader) return {};
-  const out: Record<string, string> = {};
-  for (const id of unique) {
-    const read = await Promise.resolve(client.invoke(context, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: id }))
-      .catch(() => null) as { title?: unknown } | null;
-    if (read && typeof read.title === "string" && read.title.trim()) out[id] = read.title.trim().slice(0, 80);
+  const out: Record<string, { title: string; owner: string }> = {};
+  for (const object of unique) {
+    const reader = findSubjectReader(views, object.kind);
+    if (reader.found !== "one" || (reader.view.provider.plugin_id ?? reader.view.provider.provider_id) !== object.plugin_id) continue;
+    const read = await Promise.resolve(client.invoke(context, { capability_id: reader.view.capability_id, version: reader.view.version, provider_id: reader.view.provider.provider_id },
+      { subject_id: object.id })).catch(() => null) as { title?: unknown } | null;
+    if (read && typeof read.title === "string" && read.title.trim()) out[memoryObjectKey(object)] = { title: read.title.trim().slice(0, 80), owner: reader.view.provider.title };
   }
   return out;
 }

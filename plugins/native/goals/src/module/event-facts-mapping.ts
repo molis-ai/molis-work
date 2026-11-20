@@ -41,27 +41,24 @@ export function mapReportEvent(records: GoalEventFactsRepository, row: StoredWor
     kind: "report",
     type,
     payload: ownStringRecord(row.payload),
-    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 
-function mapSystemEvent(records: GoalEventFactsRepository, row: StoredWorkEvent): Extract<GoalWorkEventRecord, { kind: "system" }> {
+function mapSystemEvent(_records: GoalEventFactsRepository, row: StoredWorkEvent): Extract<GoalWorkEventRecord, { kind: "system" }> {
   return {
     ...workEventBase(row),
     kind: "system",
     type: null,
     payload: parseGoalEventSystemPayload(row.payload),
-    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 
-function mapConfigurationEvent(records: GoalEventFactsRepository, row: StoredWorkEvent): GoalWorkEventRecord {
+function mapConfigurationEvent(_records: GoalEventFactsRepository, row: StoredWorkEvent): GoalWorkEventRecord {
   return {
     ...workEventBase(row),
     kind: "configuration",
     type: null,
     payload: configurationPayload(row.payload),
-    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 

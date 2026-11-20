@@ -20,7 +20,7 @@ import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js
 
 async function fixture(plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "goals-configuration-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Configuration", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Configuration", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   // A plugin among the Host's fixtures when a test needs one; a restart of the same Home is given it again.
@@ -222,29 +222,34 @@ test("Web relations and rules use live action policy for writes and selected pag
     };
     await selectedParent();
     const beforeReads = await snapshot();
-    // PR1c: the complete page consumes the independent owner stage read, not these three direct-read actions.
-    for (const definition of [goalsActions.relations, goalsActions.policyResolve, goalsActions.document]) {
+    // PEQ-03/08: the platform serves pages and fragments through the plugin's declared stage read, never direct Goals collection/document reads.
+    for (const definition of [goalsActions.relations, goalsActions.policyResolve, goalsActions.document, goalsActions.collection]) {
       denied.add(definition.capability_id);
-      await assert.rejects(actions.invoke(definition, { goal_id: "parent" }), { code: "actions.plugin_disabled", message: "Configuration disabled" });
+      await assert.rejects(actions.invoke(definition, definition === goalsActions.collection ? {} : { goal_id: "parent" }),
+        { code: "actions.plugin_disabled", message: "Configuration disabled" });
       await selectedParent();
       denied.clear();
     }
-    for (const [definition, path] of [[goalsActions.document, "/api/goals/parent/document"],
-      ...["/goals/parent", "/api/board", "/api/board/refresh", "/api/goals/parent/document", "/api/capsule"].map(path => [goalsActions.collection, path] as const)] as const) {
-      denied.add(definition.capability_id);
-      const response = await fetch(prefix + path);
-      assert.ok(response.status >= 400, `${definition.capability_id} ${path}: expected rejection, received ${response.status}`); assert.match(await response.text(), /Configuration disabled/);
-      denied.clear();
-      assert.equal((await fetch(prefix + path)).status, 200);
-    }
     denied.add(goalsActions.stage.capability_id);
     await assert.rejects(actions.invoke(goalsActions.stage, { goal_id: "parent" }), { code: "actions.plugin_disabled", message: "Configuration disabled" });
+    for (const path of ["/api/board/refresh", "/api/goals/parent/document"]) {
+      const response = await fetch(prefix + path);
+      assert.ok(response.status >= 400, `${goalsActions.stage.capability_id} ${path}: expected rejection, received ${response.status}`);
+      assert.match(await response.text(), /Configuration disabled/);
+    }
     const unavailable = await fetch(prefix + "/goals/parent");
     assert.equal(unavailable.status, 200, "the current whole-page contract keeps the shell when an optional stage is disabled");
     const shell = await unavailable.text();
     assert.doesNotMatch(shell, /data-goal-canvas-shell|data-goal-view="parent"/);
     assert.ok(!shell.includes(documentProof), "the denied stage does not supply the selected document body");
+    const board = await fetch(prefix + "/api/board");
+    assert.equal(board.status, 200);
+    const boardPayload = await board.text();
+    assert.ok(!boardPayload.includes(documentProof), "the board view omits a denied stage");
     denied.clear();
+    for (const path of ["/api/board/refresh", "/api/goals/parent/document"]) {
+      assert.equal((await fetch(prefix + path)).status, 200, `recovery ${path}`);
+    }
     await selectedParent();
     assert.deepEqual(await snapshot(), beforeReads, "read denials and recovery do not change the Goal facts");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await f.close(); }

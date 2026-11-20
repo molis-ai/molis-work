@@ -47,7 +47,7 @@ export const pagesCollection: PluginSyncCollectionDefinition = {
         db.prepare('INSERT INTO folders(id,project_id,title,created_at,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_at=excluded.created_at,updated_at=excluded.updated_at').run(id,projectId,row.title,row.created_at,row.updated_at);
       }else{
         const row=parsed.documents[0]!;
-        if(row.goal_id&&!caller.hasReference?.(projectId,{owner:'goals',assetId:row.goal_id}))throw syncError('dependencies','关联目标尚未到达');
+        if(row.goal_id&&!caller.hasReference?.(projectId,{owner:'io.molis.work.goals',collectionId:'project_goals',assetId:row.goal_id}))throw syncError('dependencies','关联目标尚未到达');
         if(row.artifact_id&&!caller.hasReference?.(projectId,{owner:'artifacts',assetId:row.artifact_id,version:row.artifact_version}))throw syncError('dependencies','关联成果版本尚未到达');
         const high=Number(db.prepare('SELECT version FROM pages_editor_versions WHERE id=?').get(id)?.version??0);
         db.prepare(`INSERT INTO pages(id,project_id,title,body_json,folder_id,starred,goal_id,artifact_id,artifact_version,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)

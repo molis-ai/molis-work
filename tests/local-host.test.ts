@@ -1,3 +1,4 @@
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./fixtures/cli-entry-probe.js";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -68,18 +69,6 @@ test("Local Host discovers one runtime and serializes the actions called through
   await host.close();
   assert.equal(closeCount, 1);
 });
-
-async function captureCli(operation: () => Promise<number>): Promise<Record<string, unknown>> {
-  const lines: string[] = [];
-  const previous = console.log;
-  console.log = (...values: unknown[]) => { lines.push(values.map(String).join(" ")); };
-  try {
-    assert.equal(await operation(), 0);
-  } finally {
-    console.log = previous;
-  }
-  return JSON.parse(lines.at(-1) ?? "{}") as Record<string, unknown>;
-}
 
 test("RAC-186 no capability is a wait: the registry refuses one, and a caller cannot claim a wait for a command", async () => {
   // Following a live round is a query declared concurrent (R8 batch 4), which runs beside the queue as the next tests show.
@@ -210,6 +199,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "Shared Host", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
   let openCount = 0;
   catalog.close();
@@ -254,12 +244,9 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     assert.equal(workbenchCreated.replayed, false);
     assert.equal(workbenchCreated.goal.goal_id, "workbench-entry-goal");
     assert.equal(openCount, 1, "the access settings, MCP and the Workbench client must share one Store/Coordinator runtime");
-    const snapshot = await captureCli(() => runV1Cli([
-      "snapshot", "--db", databasePath, "--json", JSON.stringify({ project_id: projectId }),
-    ], { localHost: host }));
+    await assert.rejects(runV1Cli(cliEntryProbe(databasePath, projectId), { localHost: host }), REACHED_THE_PLATFORM);
     // The CLI no longer opens the project first (the catalog made it), so the CLI is checked on its own: it joins the runtime the others opened.
-    assert.equal(openCount, 1, "the CLI snapshot must join the same Store/Coordinator runtime, not open a second one");
-    assert.deepEqual((snapshot.goals as { goal_id: string }[]).map((goal) => goal.goal_id).sort(), ["shared-entry-goal", "workbench-entry-goal"]);
+    assert.equal(openCount, 1, "a CLI command must join the same Store/Coordinator runtime, not open a second one");
 
     await host.close();
     const restarted = createMolisWorkLocalHost({ instanceId: "restarted-entry-host", homeDirectory: directory });

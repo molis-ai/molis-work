@@ -1,5 +1,5 @@
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, homeAgentDefinitions, installedArtifacts, molisWorkHostProjectReference, onboardingTakers } from "@molis-ai/molis-work-app-local-host";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -15,7 +15,6 @@ import { createServer } from "node:http";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
-import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { asOAuthAnswer, oauthNetwork } from "./fixtures/oauth-network.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
@@ -43,15 +42,19 @@ function pagesPorts(dir: string) {
   let host = hosts.get(dir);
   let runCatalog = host ? host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog : withMolisWorkProjectCatalog;
   const withCatalog: typeof withMolisWorkProjectCatalog = (options, operation) => runCatalog(options, operation);
-  return { withCatalog, actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
+  const client = async (projectId: string, permissions: readonly string[], original_file?: { path: string; install_id: string }) => {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     if (!host) {
       host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host);
       runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
     }
-    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
-  } };
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: [...permissions], ...original_file ? { original_file } : {} }));
+  };
+  // The materials and the summary go to the plugin that declares it keeps `documents` (contract-design §2.5): of what this build ships, Pages.
+  return { withCatalog, takers: onboardingTakers,
+    actions: (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => client(projectId, ["artifacts:read", "artifacts:write"], original_file),
+    take: (_home: string, projectId: string, definition: ActionDefinition) => client(projectId, definition.action.permissions) };
 }
 
 /** One chosen file, uploaded into the journey's staging the way the page does it; the selection names it by digest. */
@@ -71,8 +74,9 @@ test('adoption resumes after the summary action fails without replacing imported
   const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review');
   const failed = await adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, {
     ...ports,
-    actions: async (home, projectId, original_file): Promise<BoundActionClient> => {
-      const client = await base.actions(home, projectId, original_file);
+    // The summary is kept by the plugin that keeps documents, through a client bound to its declared action (contract-design §2.5).
+    take: async (home: string, projectId: string, definition: ActionDefinition): Promise<BoundActionClient> => {
+      const client = await base.take(home, projectId, definition);
       return { discover: () => client.discover(), invoke: async (definition, input) => {
         if ((input as { request_id?: string }).request_id === id + ':summary') throw new Error('Summary storage temporarily unavailable');
         return client.invoke(definition, input);
@@ -90,15 +94,15 @@ test('adoption resumes after the summary action fails without replacing imported
     // person importing their own materials, kept apart from work they do there later.
     const records = hosts.get(dir)!.observation!; records.layer.flush();
     const calls = readRecords(records.layer.writer.database()!.db, { fact: 'action.call', project_id: resumed.project_id });
-    const imports = calls.filter(record => String(record.detail.action).startsWith('pages.documents.import@'));
+    const imports = calls.filter(record => String(record.detail.action).startsWith('pages.onboarding.documents@'));
     assert.ok(imports.length >= 2, calls.map(record => record.detail.action).join(' '));
     assert.deepEqual([...new Set(calls.map(record => record.source_class))], ['imported']);
     assert.equal(store.list(resumed.project_id).length, 2);
     assert.equal(store.get(source.id, resumed.project_id).title, 'User edited source');
-    const summary = store.get(resumed.document_id!, resumed.project_id);
+    const summary = store.get(resumed.summary_open!.id, resumed.project_id);
     assert.match(JSON.stringify(summary.body), /Adopted source body/); assert.match(JSON.stringify(summary.body), new RegExp(source.id));
     assert.doesNotMatch(JSON.stringify(summary), /Ignored new/);
-    const replay = await adoptContextJourney(dir, id, {}, ports); assert.equal(replay.document_id, summary.id);
+    const replay = await adoptContextJourney(dir, id, {}, ports); assert.equal(replay.summary_open!.id, summary.id);
   } finally { store.close(); }
 });
 
@@ -210,9 +214,9 @@ test('local scope → grounded summary → one real project and editable source 
   // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
   const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.document_id!,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
+  const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.summary_open!.id,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
-  const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.document_id!).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
+  const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.summary_open!.id).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
   assert.equal(a.artifact_references!.length,2);
   const actions=await ports.actions(dir,a.project_id);
   const stored=await actions.invoke(artifactsActions.read,{reference:a.artifact_references![0]!});
@@ -233,9 +237,9 @@ test('long source and project titles fit Pages while full titles, original bodie
   const saved=await adoptContextJourney(dir,id,{title:projectTitle,body:ready.summary!.body},ports);assert.equal(saved.phase,'complete',saved.error??'');
   const pages=openPagesStore(dir);try{
     const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>[...d.title].length<=80&&d.title.isWellFormed()));
-    const source=docs.find(d=>d.id!==saved.document_id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'🙂…');
+    const source=docs.find(d=>d.id!==saved.summary_open!.id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'🙂…');
     const sourceBody=JSON.stringify(pages.get(source.id).body);assert.ok(sourceBody.includes(sourceTitle));assert.match(sourceBody,/Original mail body/);
-    assert.ok(JSON.stringify(pages.get(saved.document_id!).body).includes(projectTitle));
+    assert.ok(JSON.stringify(pages.get(saved.summary_open!.id).body).includes(projectTitle));
     await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list(saved.project_id).length,2);
   }finally{pages.close();}
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
@@ -260,7 +264,7 @@ async function adoptedTitles(t: Parameters<Parameters<typeof test>[1]>[0], headi
   assert.equal(saved.phase, "complete", saved.error ?? "");
   const pages = openPagesStore(dir);
   try {
-    const documents = pages.list(saved.project_id), summary = documents.find(document => document.id === saved.document_id)!;
+    const documents = pages.list(saved.project_id), summary = documents.find(document => document.id === saved.summary_open!.id)!;
     return { sources: headings.map((_, index) => documents.find(document => document.title.startsWith(`[S${index + 1}] `))?.title),
       summary: summary.title, body: JSON.stringify(pages.get(summary.id).body) };
   } finally { pages.close(); }
@@ -461,7 +465,7 @@ test("QEA-130 a finished onboarding summary cannot become reviewable after its m
     await served.web.post(route, { id });
     await served.web.post(`${journey}/selection`, { sources: [{ kind: "browser", selected: true, text: materials }] });
     await served.web.post(`${journey}/start`, {});
-    const pending = await waitForContext(read, round => todoSent && round.synthesis?.completed === 1 && round.todo?.status === "pending");
+    const pending = await waitForContext(read, round => todoSent && round.synthesis?.completed === 1 && round.drafts?.status === "pending");
     assert.equal(pending.summary, null, "the completed model response is waiting for the side result before publishing");
     assert.equal(summaries, 1);
     await served.web.post("/api/settings/models/local-only", {
@@ -593,9 +597,9 @@ test('creation failure after project registration resumes exactly that project, 
   const pages=openPagesStore(dir);try{assert.equal(pages.list(second.project_id).length,2);assert.match(JSON.stringify(pages.list(second.project_id)),/Fixture preserved body/);}finally{pages.close();}
 });
 
-// RAC-661 (PG-031): the Host saves materials into the Pages that ships with it, found in the directory, never into a same-named
-// capability of another plugin; without it nothing is written and adoption says why.
-test('RAC-661 adoption writes no document when the shipped Pages is not in the directory, even if another provider has its actions', async t => {
+// RAC-661 (PG-031), now contract-design §2.5: the Host keeps materials only by the action a plugin declares it keeps `documents` with,
+// never by a same-named capability another plugin offers; with no such plugin nothing is made, the project included, and adoption says why.
+test('RAC-661 adoption writes no document and makes no project when no plugin declares it keeps documents, even if another provider has Pages actions', async t => {
   const dir = await home(t), id = randomUUID();
   await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
   withContextJourneys(dir, store => store.create(id));
@@ -605,18 +609,18 @@ test('RAC-661 adoption writes no document when the shipped Pages is not in the d
   startContextJourney(dir, id, ports);
   const ready = await waitContextJourney(dir, id); assert.equal(ready.phase, 'review');
   const invoked: string[] = [];
-  const adopted = await adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, { ...ports,
-    actions: async (home, projectId, original_file): Promise<BoundActionClient> => {
+  const noKeeper = { ...ports, takers: (kind: Parameters<typeof onboardingTakers>[0]) => kind === 'documents' ? [] : onboardingTakers(kind),
+    actions: async (home: string, projectId: string, original_file?: { path: string; install_id: string }): Promise<BoundActionClient> => {
       const client = await base.actions(home, projectId, original_file);
       // The directory shows Pages' actions only under another provider's id.
       return { discover: async () => (await client.discover()).map(view => view.capability_id.startsWith('pages.') ? { ...view, provider: { ...view.provider, provider_id: 'com.example.pages' } } : view),
         invoke: async (definition, input, control) => { invoked.push(definition.capability_id); return client.invoke(definition, input, control); } };
     },
-  });
-  assert.equal(adopted.phase, 'failed'); assert.match(adopted.error!, /pages\.documents\.body_from_markdown@1 未在当前项目登记或未获授权/);
-  assert.ok(!invoked.some(capability => capability.startsWith('pages.')), invoked.join(', '));
-  const store = openPagesStore(dir);
-  try { assert.equal(store.list(adopted.project_id).length, 0); } finally { store.close(); }
+    take: async (home: string, projectId: string, definition: ActionDefinition) => { invoked.push(definition.capability_id); return base.take(home, projectId, definition); } };
+  await assert.rejects(adoptContextJourney(dir, id, { title: ready.summary!.title, body: ready.summary!.body }, noKeeper), /没有能保存文档的插件，项目没有建/);
+  assert.deepEqual(invoked, []);
+  assert.equal(readContextJourney(dir, id).phase, 'review', 'the person stays where they were');
+  await base.withCatalog({ homeDirectory: dir }, catalog => assert.equal(catalog.listProjects().length, 0));
 });
 
 test('ordinary entry can discover unfinished work without empty or completed attempts hiding it',async t=>{
@@ -651,7 +655,7 @@ test('interrupted blank adoption resumes persisted acceptance without requiring 
   assert.throws(()=>reopenContextJourney(dir,id),/不能更改来源/);assert.throws(()=>startContextJourney(dir,id,{...pagesPorts(dir)}),/继续保存/);
   const saved=await adoptContextJourney(dir,id,{}, {...pagesPorts(dir)});assert.equal(saved.phase,'complete');assert.equal(saved.project_id,accepted.project_id);
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().length,1));
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(saved.project_id).length,1);assert.equal(pages.get(saved.document_id!).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
+  const pages=openPagesStore(dir);try{assert.equal(pages.list(saved.project_id).length,1);assert.equal(pages.get(saved.summary_open!.id).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
 });
 
 
@@ -663,7 +667,7 @@ test('blank start after a prior summary never adopts old sources, including a fa
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw Error('Response lost');};
   const failed=await adoptContextJourney(dir,id,{title:'Blank after summary',blank:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.equal(failed.phase,'failed');
   const result=await adoptContextJourney(dir,id,{},pagesPorts(dir));assert.equal(result.phase,'complete');assert.deepEqual(result.artifact_references,[]);
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(result.project_id).length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.document_id!).body),/Old facts|Alpha/);}finally{pages.close();}
+  const pages=openPagesStore(dir);try{assert.equal(pages.list(result.project_id).length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.summary_open!.id).body),/Old facts|Alpha/);}finally{pages.close();}
 });
 
 // No limits on a round (user 2026-10-22, replaces slice 90's 200 files / 50 MB / 20 MB): the selection names staged files by digest,
@@ -711,7 +715,7 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   assert.equal(read.sources[0]!.references![0]!.text.chars,big.trim().length,'the whole text is read, not its first 2 MB');
   const adopted=await adoptContextJourney(dir,id,{title:'Big',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
   const pages=openPagesStore(dir);try{
-    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
     assert.ok(parts.length>1);assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / ${parts.length} 部分`)),parts.map(d=>d.title).join(', '));
     const text=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
     assert.match(text,/原标题：Big notes/);assert.match(text,/Line 119999 of the long record/);assert.match(text,/END OF BIG FILE/);
@@ -722,7 +726,7 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
 });
 
-test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding and all source text is saved in order',{timeout:240_000},async t=>{
+test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by the plugin that keeps documents and all source text is saved in order',{timeout:240_000},async t=>{
   const dir=await home(t),id=randomUUID();
   await new MolisWorkLocalHost({homeDirectory:dir,completeText:null}).close();
   withContextJourneys(dir,s=>s.create(id));
@@ -731,21 +735,8 @@ test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding
   const facts=Array.from({length:25_000},(_,i)=>'fact-'+String(i).padStart(5,'0'));
   const markdown=facts.map(fact=>'# '+fact).join('\n\n')+'\n';
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'dense.md',markdown)]}]});
-  const base=pagesPorts(dir),conversions:{markdown:string;result:'ok'|'too_large'}[]=[];
-  const ports={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
-    const client=await base.actions(h,p,o);
-    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
-      if(definition.capability_id!==pagesActions.bodyFromMarkdown.capability_id)return client.invoke(definition,input);
-      const markdown=(input as {markdown:string}).markdown;
-      try{
-        const result=await client.invoke(definition,input);
-        conversions.push({markdown,result:'ok'});return result;
-      }catch(error){
-        assert.equal((error as {code?:string}).code,'pages.body_too_large');
-        conversions.push({markdown,result:'too_large'});throw error;
-      }
-    }};
-  }};
+  // Pages halves the refused part itself now (contract-design §2.5); the order of its conversions is in tests/pages-onboarding-documents.test.ts.
+  const ports={...pagesPorts(dir),model:async()=>({})};
   startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);
   const ref=read.sources[0]!.references![0]!;
   const source=await contextReferenceText(dir,id,ref.text.sha256);
@@ -754,19 +745,12 @@ test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding
   assert.ok(whole.length<400_000,'one original part reaches the real converter');
   const adopted=await adoptContextJourney(dir,id,{title:'Real conversion recovery',materials_only:true},ports);
   assert.equal(adopted.phase,'complete',adopted.error??'');
-  const half=Math.ceil(whole.length/2);
-  assert.deepEqual(conversions.slice(0,3),[
-    {markdown:whole,result:'too_large'},
-    {markdown:whole.slice(0,half),result:'ok'},
-    {markdown:whole.slice(half),result:'ok'},
-  ],'the real rejected input is retried as its two original halves');
-  assert.equal(conversions.filter(call=>call.result==='too_large').length,1);
   const textOf=(value:unknown):string=>{
     const node=value as {text?:string;content?:unknown[]};
     return node.text??(node.content??[]).map(textOf).join('');
   };
   const pages=openPagesStore(dir);try{
-    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
     assert.equal(parts.length,2);
     assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 2 部分`)),parts.map(d=>d.title).join(', '));
     const restored=parts.map(part=>{
@@ -780,41 +764,6 @@ test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding
     const expected=metadata+facts.join('');
     assert.equal(restored.replace(/[#\s]/gu,''),expected.replace(/\s/gu,''),'the entire visible text survives, including source metadata');
   }finally{pages.close();}
-});
-
-// W5-06 remainder slice 4 (PG-088, RAC-617): Pages converts the text through its public action; a part it refuses as too large is halved.
-test('RAC-617 PG-088 a part Pages refuses with pages.body_too_large is halved until each part fits; when a part of one character is refused the error is thrown',{timeout:240_000},async t=>{
-  const dir=await home(t),id=randomUUID();
-  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
-  withContextJourneys(dir,s=>s.create(id));
-  const text='# Long record\n\n'+Array.from({length:7_000},(_,i)=>'Line '+i+' of the record, with ordinary work context.').join('\n')+'\nEND OF RECORD\n';
-  assert.ok(text.length>300_000&&text.length<400_000);
-  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md',text)]}]});
-  const base=pagesPorts(dir),limit={chars:100_000};
-  const refusing={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
-    const client=await base.actions(h,p,o);
-    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
-      if(definition.capability_id==='pages.documents.body_from_markdown'&&(input as {markdown:string}).markdown.length>limit.chars)
-        throw Object.assign(new Error('too large'),{code:'pages.body_too_large'});
-      return client.invoke(definition,input);
-    }};
-  }};
-  startContextJourney(dir,id,refusing);await waitContextJourney(dir,id);
-  const adopted=await adoptContextJourney(dir,id,{title:'Halved',materials_only:true},refusing);assert.equal(adopted.phase,'complete',adopted.error??'');
-  const pages=openPagesStore(dir);try{
-    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
-    assert.equal(parts.length,4,'a 330,000-character text refused above 100,000 halves to four parts');
-    assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 4 部分`)),parts.map(d=>d.title).join(', '));
-    const joined=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
-    assert.match(joined,/原标题：Long record/);assert.match(joined,/Line 6999 of the record/);assert.match(joined,/END OF RECORD/);
-  }finally{pages.close();}
-  // Refused whatever its size, a part is halved down to one character and then the error comes out (no endless halving).
-  const id2=randomUUID();withContextJourneys(dir,s=>s.create(id2));
-  selectContextSources(dir,id2,{sources:[{kind:'files',selected:true,files:[await staged(dir,id2,'short.md','A short note, refused all the same.\n')]}]});
-  limit.chars=0;
-  startContextJourney(dir,id2,refusing);await waitContextJourney(dir,id2);
-  const failed=await adoptContextJourney(dir,id2,{title:'Refused',materials_only:true},refusing);
-  assert.equal(failed.phase,'failed');assert.match(failed.error!,/too large/);
 });
 
 // A full disk is the machine's failure, not a file's (review 2026-10-22): the round stops at that file with a plain reason instead of
@@ -999,11 +948,15 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   // A taker as onboarding sees one: its declared action, called through a client bound to that action alone (§7.7 C1).
   const declared = onboardingTakers('code_root')[0]!, calls: { project: string; input: Record<string, unknown> }[] = [];
   const taker = { ...declared, plugin_id: 'test.taker', name: 'Test taker' };
-  const take = async (_home: string, project: string, definition: { capability_id: string }): Promise<BoundActionClient> => {
+  // The materials are kept first by the plugin that keeps documents (contract-design §2.5); every other call is the code-root taker's.
+  const keeper = onboardingTakers('documents')[0]!, base = pagesPorts(dir);
+  const take = async (home: string, project: string, definition: ActionDefinition): Promise<BoundActionClient> => {
+    if (definition.capability_id === keeper.take.capability_id) return base.take(home, project, definition);
     assert.equal(definition.capability_id, 'coding.onboarding.take');
     return { discover: () => [], invoke: async (_definition, input) => { calls.push({ project, input: input as Record<string, unknown> }); return { open: { item_id: 'session-1', title: 'From getting started' } } as never; } };
   };
-  const ports = { ...pagesPorts(dir), model: async () => ({ completeText: async () => '# My app\nShip the login page. [S1]' }), takers: () => [taker], take };
+  const ports = { ...base, model: async () => ({ completeText: async () => '# My app\nShip the login page. [S1]' }),
+    takers: (kind: Parameters<typeof onboardingTakers>[0]) => kind === 'code_root' ? [taker] : onboardingTakers(kind), take };
   const journeyOf = async (pick: string | undefined) => {
     const id = randomUUID(); withContextJourneys(dir, s => s.create(id));
     selectContextSources(dir, id, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json', 'README.md']),
@@ -1030,14 +983,16 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   // BCD-17: a repeat does not call the taker again; a plugin that declares nothing, or a round with no such folder, is refused.
   assert.equal((await adoptContextJourney(dir, ticked.id, { take: 'test.taker' }, ports)).phase, 'complete'); assert.equal(calls.length, 1);
   // A taker that refuses does not hold the round: the project and materials are made, it completes, and says nothing was handed.
-  const refusing = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new ActionError('actions.conflict', 'not now', { kind: 'conflict' }); } }) };
+  const refusing = { ...ports, take: async (home: string, project: string, definition: ActionDefinition): Promise<BoundActionClient> => definition.capability_id === keeper.take.capability_id
+    ? base.take(home, project, definition) : ({ discover: () => [], invoke: async () => { throw new ActionError('actions.conflict', 'not now', { kind: 'conflict' }); } }) };
   const refusedId = randomUUID(); withContextJourneys(dir, s => s.create(refusedId));
   selectContextSources(dir, refusedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, refusedId, 'package.json', '{"name":"my-app"}')] }] });
   startContextJourney(dir, refusedId, refusing); const refusedReady = await waitContextJourney(dir, refusedId);
   const refused = await adoptContextJourney(dir, refusedId, { title: 'Refused', body: refusedReady.summary!.body, take: 'test.taker' }, refusing);
   assert.equal(refused.phase, 'complete', refused.error ?? ''); assert.deepEqual(refused.take_result, { open: null, materials: 0, of: refused.take_result!.of, not_taken: 'refused' });
   // A transient failure is not a refusal: the round completes, but says it could not hand over rather than that the plugin said no.
-  const transient = { ...ports, take: async (): Promise<BoundActionClient> => ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
+  const transient = { ...ports, take: async (home: string, project: string, definition: ActionDefinition): Promise<BoundActionClient> => definition.capability_id === keeper.take.capability_id
+    ? base.take(home, project, definition) : ({ discover: () => [], invoke: async () => { throw new Error('not now'); } }) };
   const transientId = randomUUID(); withContextJourneys(dir, s => s.create(transientId));
   selectContextSources(dir, transientId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, transientId, 'package.json', '{"name":"my-app"}')] }] });
   startContextJourney(dir, transientId, transient); const transientReady = await waitContextJourney(dir, transientId);
@@ -1048,8 +1003,8 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
   const movedId = randomUUID(), elsewhere = join(dir, 'elsewhere'); await mkdir(elsewhere); withContextJourneys(dir, s => s.create(movedId));
   selectContextSources(dir, movedId, { sources: [{ kind: 'custom', selected: true, path: folder, metadata: meta(['package.json']), files: [await staged(dir, movedId, 'package.json', '{"name":"my-app"}')] }] });
   startContextJourney(dir, movedId, ports); const movedReady = await waitContextJourney(dir, movedId);
-  const failing = { ...ports, actions: async (home: string, project: string, original?: { path: string; install_id: string }): Promise<BoundActionClient> => {
-    const client = await ports.actions(home, project, original);
+  const failing = { ...ports, take: async (home: string, project: string, definition: ActionDefinition): Promise<BoundActionClient> => {
+    const client = await ports.take(home, project, definition);
     return { discover: context => client.discover(context), invoke: async (definition, input) => {
       if ((input as { request_id?: string }).request_id === movedId + ':summary') throw new Error('Summary storage temporarily unavailable');
       return client.invoke(definition, input);
@@ -1073,13 +1028,12 @@ test('ONB-44, BCD-16, BCD-17: the person\'s own code folder goes only to a plugi
 
 
 test("BCD-16-onboarding-takers: a test plugin that declares a code root is found by its Manifest, and one that does not declare takes nothing", () => {
+  // The declaration is the action's intake accepting `code_root` (contract-design §2.5); the Manifest's `onboarding.takes` is gone.
   const take = codingManifest.actions!.find(action => action.capability_id === "coding.onboarding.take")!;
-  const declaring = {
-    ...codingManifest, plugin_id: "test.onboarding.taker", name: "Test taker",
-    actions: [...(codingManifest.actions ?? []), { ...take, capability_id: "test.onboarding.take" }],
-    onboarding: { takes: [{ kind: "code_root" as const, capability_id: "test.onboarding.take", version: 1 }] },
-  };
-  const notDeclaring = { ...declaring, plugin_id: "test.onboarding.other", name: "Other", onboarding: undefined };
+  const others = (codingManifest.actions ?? []).filter(action => action !== take);
+  const declaring = { ...codingManifest, plugin_id: "test.onboarding.taker", name: "Test taker", actions: [...others, { ...take, capability_id: "test.onboarding.take" }] };
+  const notDeclaring = { ...codingManifest, plugin_id: "test.onboarding.other", name: "Other",
+    actions: [...others, { ...take, capability_id: "test.onboarding.other", action: { ...take.action, intake: undefined } }] };
   const stop = installedArtifacts.watch({ effectiveManifests: () => [declaring, notDeclaring], knownPluginIds: () => [], alive: () => true });
   try {
     const ids = onboardingTakers("code_root").map(taker => taker.plugin_id);

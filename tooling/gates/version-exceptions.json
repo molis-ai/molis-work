@@ -110,8 +110,8 @@
   {
     "file": "apps/local-host/src/demo-seed.ts",
     "name": "version",
-    "values": { "1": 1, "2": 1 },
-    "reason": "演示项目的种子数据：记录修订号和事件类型的样例值，换值不改变任何合同。"
+    "values": { "1": 2, "2": 1 },
+    "reason": "演示项目的种子数据：记录修订号、要求版本与事件类型的样例值，换值不改变任何合同。"
   },
   {
     "file": "apps/local-host/src/demo-seed.ts",
@@ -731,12 +731,6 @@
     "file": "plugins/native/goals/src/relation-ui.ts",
     "name": "io.molis.work.native.goals.relations.v1",
     "values": { "io.molis.work.native.goals.relations.v1": 1 },
-    "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
-  },
-  {
-    "file": "plugins/native/goals/src/settings-ui.ts",
-    "name": "io.molis.work.goals.settings.v1",
-    "values": { "io.molis.work.goals.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {

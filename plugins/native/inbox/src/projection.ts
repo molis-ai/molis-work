@@ -50,13 +50,15 @@ export function inboxReasonLabel(
   reason: AttentionReason,
   text: (value: string, values?: Record<string, string | number>) => string,
 ): string {
-  return ({
+  const known: Readonly<Record<string, string>> = {
     manual: text("inbox.projection.added-manually"),
     source_rule: text("inbox.projection.matched-source-rule"),
     goal_decision: text("inbox.projection.molis-work-waiting-decision"),
     source_fault: text("inbox.projection.source-needs-manual-recovery"),
     artifact_out_failed: text("inbox.projection.artifact-capture-failed"),
-  } as const)[reason];
+  };
+  // A reason is its owner's own word (`attention.subjects[].reasons`); one this list does not know still needs the person.
+  return known[reason] ?? text("inbox.projection.needs-you");
 }
 
 export function inboxStatusLabel(

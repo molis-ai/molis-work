@@ -2,15 +2,16 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalEventStateView } from "./contract/goals.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { eventDecisionVersion } from "./decision-offers.js";
+import type { GoalRequirementRow } from "./event-document-model.js";
 
 /** The user decision and its exact agreement-change comparison; the agreement form factory keeps the same public return. */
 export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
   const { escapeHtml } = primitives;
-  function renderDecisionForm(state: GoalEventStateView): string {
+  function renderDecisionForm(state: GoalEventStateView, rows: readonly GoalRequirementRow[]): string {
     const pending = state.pending_decisions[0];
     const agreementChange = pending?.purpose === "agreement_change";
-    const expired = Boolean(agreementChange && pending && agreementChangeRequestExpired(pending, state));
-    const requirements = state.requirements.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
+    const expired = Boolean(agreementChange && pending && agreementChangeRequestExpired(pending, state, rows));
+    const requirements = rows.map((item) => `<label class="check-row"><input type="checkbox" name="requirement_ids" value="${escapeHtml(item.requirement_id)}"><span>${escapeHtml(item.statement)}</span></label>`).join("");
     const concerns = state.concerns.filter((item) => item.status === "open").map((item) => `<label class="check-row"><input type="checkbox" name="concern_ids" value="${escapeHtml(item.concern_id)}"><span>${escapeHtml(item.title)}</span></label>`).join("");
     const options = pending && !agreementChange
       ? `<fieldset><legend>${uiText("goals.event-forms-decision.option")}</legend>${pending.options.map((option) => `<label class="check-row"><input type="radio" name="selected_option_id" value="${escapeHtml(option.option_id)}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.impact)}</small></span></label>`).join("")}</fieldset>`
@@ -25,8 +26,6 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
         <label class="check-row"><input type="radio" name="agreement_change_decision" value="deny" required><span>${uiText("goals.event-forms-decision.reject-agreement-change")}</span></label>
       </fieldset>`
       : `<fieldset><legend>${uiText("goals.event-forms-decision.effect")}</legend>
-        <label class="check-row"><input type="checkbox" name="effect" value="accept_requirements"><span>${uiText("goals.event-forms-decision.accept-these-requirements")}</span></label>
-        <label class="check-row"><input type="checkbox" name="effect" value="reject_requirements"><span>${uiText("goals.event-forms-decision.reject-these-requirements")}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="accept_concerns"><span>${uiText("goals.event-forms-decision.accept-these-risks")}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="reject_concerns"><span>${uiText("goals.event-forms-decision.reject-these-issues")}</span></label>
         <label class="check-row"><input type="checkbox" name="effect" value="authorize_action"><span>${uiText("goals.event-forms-decision.authorize-action")}${pendingAction ? uiText.text("common.punctuation.in-parens", { value: escapeHtml(pendingAction) }) : ""}</span></label>
@@ -53,18 +52,19 @@ export function createDecisionForm(primitives: GoalsDocumentUiPrimitives) {
   function agreementChangeRequestExpired(
     pending: GoalEventStateView["pending_decisions"][number],
     state: GoalEventStateView,
+    rows: readonly GoalRequirementRow[],
   ): boolean {
     if (!pending.commitment) return true;
     if (pending.commitment.outcome !== state.agreement.outcome) return true;
     const recordedIds = new Set(pending.commitment.requirements.map((item) => item.requirement_id));
     for (const item of pending.commitment.requirements) {
-      const current = state.requirements.find((row) => row.requirement_id === item.requirement_id);
+      const current = rows.find((row) => row.requirement_id === item.requirement_id);
       if (!current) return true;
       if (current.statement !== item.statement) return true;
       if (current.human_decision_required !== item.human_decision_required) return true;
       if ([...current.bound_type_ids].sort().join("\0") !== [...item.bound_type_ids].sort().join("\0")) return true;
     }
-    if (pending.proposed_change?.outcome && state.requirements.some((item) => !recordedIds.has(item.requirement_id))) {
+    if (pending.proposed_change?.outcome && rows.some((item) => !recordedIds.has(item.requirement_id))) {
       return true;
     }
     return false;

@@ -100,7 +100,7 @@ test("RAC-2504 any other failure of a stage read is the page's to show, not an e
 async function servedHome(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}) {
   const home = await mkdtemp(join(tmpdir(), "stage-data-"));
   const { scheduled, bare } = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
-    const make = async (name: string) => { const { project_id } = await catalog.createProject({ display_name: name, actor_id: "test" }); return project_id; };
+    const make = async (name: string) => { const { project_id } = await catalog.createProject({ display_name: name, actor_id: "test" }); catalog.addProjectPlugin({ project_id, plugin_id: "goals", actor_id: "test" }); return project_id; };
     const scheduledId = await make("有 Schedule"), bareId = await make("没有 Schedule");
     if (!catalog.listProjectPlugins(scheduledId).includes("schedule")) catalog.addProjectPlugin({ project_id: scheduledId, plugin_id: "schedule", actor_id: "test" });
     if (catalog.listProjectPlugins(bareId).includes("schedule")) catalog.removeProjectPlugin({ project_id: bareId, plugin_id: "schedule", actor_id: "test" });
@@ -252,10 +252,12 @@ test("QEA-112 the Goal collection projection keeps navigation without reading or
     return { discover: (...args: Parameters<typeof current.discover>) => current.discover(...args),
       invoke(context: ActionCallContext, action: ActionReference, data: unknown) { reads.push(action.capability_id); return current.invoke(context, action, data); } };
   });
+  timelines = 0;
   const visible = await fetch(base(scheduled.project_id) + "/api/board/refresh?view=current&goal_id=COLLECTION");
   assert.equal(visible.status, 200);
   assert.match(await visible.text(), /data-goal-event-document/);
-  assert.ok(reads.includes(goalsActions.document.capability_id), "the normal fragment actually calls its document owner");
+  assert.ok(reads.includes(goalsActions.stage.capability_id), "the normal fragment reads through the declared stage owner");
+  assert.ok(timelines > 0, "the normal fragment reads the selected document timeline");
   assert.ok(reads.includes("artifacts.goals.embeds"), "the normal fragment reads current artifact ownership too");
   reads.length = 0;
   timelines = 0;
@@ -267,6 +269,7 @@ test("QEA-112 the Goal collection projection keeps navigation without reading or
   assert.match(html, /data-create-dialog/);
   assert.match(html, /id="molis-work-data"/);
   assert.doesNotMatch(html, /data-document-pane|data-goal-event-document/);
+  assert.ok(reads.includes(goalsActions.stage.capability_id), "the collection fragment still reads through the declared stage owner");
   assert.equal(reads.filter(id => id === goalsActions.document.capability_id).length, 0, "the collection fragment never calls the document owner");
   assert.equal(timelines, 0, "neither the stage nor the Host reads the document internally");
   assert.equal(reads.filter(id => id === "artifacts.goals.embeds").length, 0, "a collection fragment does not decorate a hidden document's artifacts");

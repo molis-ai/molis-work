@@ -118,7 +118,8 @@ function startsFor(overview: OverviewAnswer, read: ComposeRead, home: SurfaceHom
     if (!declared) continue;
     const view = authorizedView(scopedViews(read.views, plugin, ref), considered);
     if (!view) continue;
-    const form = declared.open;
+    // The form to open is the start intake's own (contract-design §2.4), on the action as the catalog lists it.
+    const intake = view.action.intake, form = intake && "start" in intake ? intake.start?.open : undefined;
     const base = { action: directoryAction(view, starts.length === 0), installation: installation(plugin) };
     if (form) {
       if (!plugin.home.forms?.some(actual => matchesReference(actual.action, view) && actual.view_id === form.view_id && actual.panel === form.panel)) continue;

@@ -56,7 +56,7 @@ test("RAC-1317 market relationships format the actual plugin names", () => runWi
   for (const [key, expected] of words) assert.equal(t.text(key!, { list: "Author’s plugin" }), expected);
   assert.equal(t.text(SETTINGS), "Settings");
   assert.equal(t.text("workbench.account-menu.not-signed"), "Not signed in");
-  assert.equal(t.text("workbench.pane.bound-goal"), "Bound to Goal");
+  assert.equal(t.text("workbench.pane.bound-item"), "Bound to item");
 }));
 
 test("every translator call in the product source has a registered English word", () => {

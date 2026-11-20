@@ -38,6 +38,7 @@
 - [Pages 与个人助理：可交互切片](pages-assistant-surfaces/README.md)
 - [创作台主路径定样](plugin-studio-main-path/README.md)
 - [打开 Molis Work：项目选择、Welcome 与新建项目（高保真）](project-arrival-flow/README.md)
+- [没有 Goals 的项目：新项目首屏与移除、加回（第 44 批，已定首屏 A、移除 A）](project-without-goals/README.md)
 - [风险插件：可点的定样（路线书第 17 批）](risk-plugin/README.md)
 - [角色作用范围：可点的定样（路线书第 36 批第 1 项）](role-scope/README.md)
 - [「这条规则在别处改过」定样（第 05 批 N14）](rule-stale-reload/README.md)

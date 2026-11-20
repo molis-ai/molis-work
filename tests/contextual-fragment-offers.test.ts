@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { bindActionClient, type ActionCallContext, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { bindActionClient, type ActionCallContext, type FragmentActionOffer, type FragmentOffersInput, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { planSteps, prepareGoalsFragmentOffers } from "../plugins/native/goals/dist/fragment-offers.js";
@@ -31,7 +31,8 @@ test("a plan becomes steps by clause; several selected parts become one step eac
 
 test("W4-2-07: 拆成目标步骤 is declared by goals.tree.submit as a proposal; the fragment choices keep only progress, and the same query still prepares the proposal", () => {
   const { intake, undo, result_view } = goalsActions.treeSubmit.action;
-  assert.deepEqual([intake?.intake_id, intake?.verb, intake?.effect, intake?.multiple, intake?.prepare, undo],
+  const person = intake as PersonIntake | undefined;
+  assert.deepEqual([person?.intake_id, person?.verb, person?.effect, person?.multiple, person?.prepare, undo],
     ["breakdown", "拆成目标步骤", "proposes", undefined, { capability_id: "goals.fragment.offers", version: 1 }, undefined], "a proposal has no undo: withdrawing it is the approval decision");
   assert.deepEqual(result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals#{/proposal/proposal_id}" });
   assert.match(result_view!.summary, /要在 Goals 里确认才生效/u);
@@ -58,17 +59,17 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     await bound.invoke(goalsActions.create, { goal_id: parent, title: "提升新用户留存", idempotency_key: "create-parent" });
     const directory = await client.discover(caller);
     const focus: SurfaceFocus = { context_id: "c1", plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "range",
-      object: { kind: "pages_document", id: "doc-1", version: 3, title: "留存计划" }, goal: { id: parent, title: "提升新用户留存" },
+      object: { kind: "pages_document", id: "doc-1", version: 3, title: "留存计划" }, belongs_to: { plugin_id: GOALS_PLUGIN_ID, kind: "goal", id: parent, title: "提升新用户留存" },
       targets: [{ kind: "text_range", role: "paragraph", text: "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈。" }] };
     const candidates = fragmentCandidates(directory, focus);
     const titles = candidates.filter(item => item.available).map(item => item.title);
     // 记下灵光, 记成待办 (W4-1) and 拆成目标步骤 (W4-2-07) are creation entries: their offers queries only prepare, and tests/contextual-create.test.ts runs them.
     assert.ok(!titles.includes("拆成目标步骤") && !titles.includes("记录进展"), "the proposal is a creation entry, progress needs a ticked task: " + titles.join(" / "));
-    assert.deepEqual(directory.find(item => item.capability_id === "goals.tree.submit")?.action.intake?.prepare, { capability_id: "goals.fragment.offers", version: 1 });
+    assert.deepEqual((directory.find(item => item.capability_id === "goals.tree.submit")?.action.intake as PersonIntake | undefined)?.prepare, { capability_id: "goals.fragment.offers", version: 1 });
 
     // 拆成目标步骤: a proposal under the document's Goal; nothing is created until the person approves it in Goals.
     const breakdown = { source: { capability_id: "goals.fragment.offers", version: 1 } };
-    const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown"));
+    const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ belongs_to: { plugin_id: GOALS_PLUGIN_ID, kind: "goal", id: parent, title: "提升新用户留存" } }, "req-breakdown"));
     const plan = offered.offers.find(offer => offer.offer_id === "breakdown")!;
     assert.match(plan.summary!, /新建 2 个步骤，放在「提升新用户留存」下/);
     const before = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
@@ -78,7 +79,7 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const again = await invoke<{ replayed: boolean }>(plan.action, plan.input);
     assert.equal(again.replayed, true, "the same request submits once");
     // Another plan in the same project is its own proposal: its items are named by its own request, not step-1 again.
-    const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
+    const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ belongs_to: { plugin_id: GOALS_PLUGIN_ID, kind: "goal", id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
     const second = await invoke<{ proposal: { proposal_id: string }; replayed: boolean }>(other.action, other.input);
     assert.notEqual(second.proposal.proposal_id, submitted.proposal.proposal_id);
     const after = await host.withProject(ref, runtime => boardSnapshot(runtime.store, project.project_id));
@@ -88,8 +89,8 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     const task: SurfaceFocus = { ...focus, context_id: "c2", activity: "completed", granularity: "block", targets: [{ kind: "block", role: "task", text: "上线新手引导" }] };
     const progress = fragmentCandidates(directory, task).find(item => item.offer_id === "progress")!;
     assert.ok(progress?.available);
-    assert.equal(fragmentCandidates(directory, { ...task, goal: undefined }).some(item => item.offer_id === "progress"), false, "no Goal known, not offered");
-    const ready = await invoke<{ offers: FragmentActionOffer[] }>(progress.source, fragment({ granularity: "block", goal: { id: parent, title: "提升新用户留存" },
+    assert.equal(fragmentCandidates(directory, { ...task, belongs_to: undefined }).some(item => item.offer_id === "progress"), false, "no Goal known, not offered");
+    const ready = await invoke<{ offers: FragmentActionOffer[] }>(progress.source, fragment({ granularity: "block", belongs_to: { plugin_id: GOALS_PLUGIN_ID, kind: "goal", id: parent, title: "提升新用户留存" },
       targets: [{ kind: "block", role: "task", text: "上线新手引导" }] }, "req-progress"));
     const record = ready.offers.find(offer => offer.offer_id === "progress")!;
     await invoke(record.action, record.input);
@@ -126,7 +127,7 @@ test("RAC-1891 the card line, the proposal's summary and the progress summary ar
     assert.equal((proposal.input as { summary: string }).summary, `把「${"😀".repeat(197)}…`);
   });
   await t.test("the progress summary is cut at 199 characters and an ellipsis (the limit is 200)", () => {
-    const progress = offer({ granularity: "block", goal: { id: "G-1", title: "提升留存" }, targets: [{ kind: "block", role: "task", text: "a" + "😀".repeat(200) }] }, "progress");
+    const progress = offer({ granularity: "block", belongs_to: { plugin_id: GOALS_PLUGIN_ID, kind: "goal", id: "G-1", title: "提升留存" }, targets: [{ kind: "block", role: "task", text: "a" + "😀".repeat(200) }] }, "progress");
     assert.equal((progress.input as { summary: string }).summary, `完成：a${"😀".repeat(195)}…`);
   });
 });

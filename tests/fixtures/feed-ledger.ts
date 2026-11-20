@@ -1,6 +1,6 @@
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
-import type { FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
+import type { FeedAttentionPort, FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
 
 /** The key Feed's edge for one key is kept under in the project's ledger: the platform names a plugin's keys `<plugin_id>:<key>` (FI-6, v11). */
 export const feedLedgerKey = (key: string): string => `${FEED_PLUGIN_ID}:${key}`;
@@ -20,4 +20,17 @@ export function feedLedgerPort(ledger: ContextLedgerApi): FeedLedgerPort {
     put: (projectId, input) => bare(ledger.commands.put(access(projectId), { ...input, key: feedLedgerKey(input.key) })),
     remove: (projectId, key, cause, recordedAt) => bareOrNull(ledger.commands.remove(access(projectId), feedLedgerKey(key), cause, recordedAt)),
   };
+}
+
+/**
+ * Feed's Attention port straight over the host's Attention Module, as the old shared path wrote: an entry about an item has no owner.
+ * The Module named Feed's items itself until batch 44 (D3: the platform names no plugin's subject); this keeps that path for the tests
+ * that drive Feed over the Module without the platform's `services.attention`.
+ */
+export function unassignedFeedAttention(attention: Pick<FeedAttentionPort, "query"> & { commands: Omit<FeedAttentionPort["commands"], "ensureFeedItem"> }): FeedAttentionPort {
+  return { query: attention.query, commands: {
+    create: input => attention.commands.create(input), setStatus: (...args) => attention.commands.setStatus(...args),
+    deleteSubject: (...args) => attention.commands.deleteSubject(...args),
+    ensureFeedItem: (projectId, itemId, reason, detail) => attention.commands.create({ project_id: projectId, subject_type: "feed_item", subject_id: itemId, reason, detail }),
+  } };
 }

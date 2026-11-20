@@ -4,6 +4,7 @@ import { openAuditBrowser } from "./fixtures/workbench-audit-browser.js";
 import { join } from "node:path";
 import { rm } from "node:fs/promises";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -92,6 +93,10 @@ test("personal Home uses the bottom navigation while Goals retains its current p
   await browser.setViewport(1440, 1000);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/personal/" }, browser.sessionId));
   await browser.waitFor("document.body.dataset.projectId === 'personal' && document.body.dataset.desktopSurface === 'home'", 15_000);
+  const web = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
+  await web.post("/api/settings/projects/personal/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevision(web, "personal") });
+  await browser.reloadPage();
+  await browser.waitFor("document.body.dataset.projectId === 'personal' && document.body.dataset.desktopSurface === 'home'", 15_000);
 
   const duplicatePrimaryEntry = "[data-titlebar-tabs] :is([data-plugin=home], .tab-view-chip)";
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(duplicatePrimaryEntry)})`), null);
@@ -117,7 +122,7 @@ test("personal Home uses the bottom navigation while Goals retains its current p
 test("RAC-2687 old layout and UI caches reset once; a real browser restart restores new pane views without changing owner facts", { timeout: 150_000 }, async t => {
   const executable = locateTestChrome();
   assert.ok(executable, "RAC-2687 requires the dedicated test browser");
-  const served = await openTestHome(t), project = await served.createProject("PR2 saved views", ["feed", "pages"]);
+  const served = await openTestHome(t), project = await served.createProject("PR2 saved views", ["goals", "feed", "pages"]);
   await seedDemoGoals(project.database_path, project.project_id);
   const feedReads = new Set([feedSourceActions.register.capability_id, feedQueryActions.snapshot.capability_id]);
   const actions = bindActionClient(served.host.actionClient(project.reference), () => ({

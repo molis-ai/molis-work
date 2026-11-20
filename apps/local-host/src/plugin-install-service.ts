@@ -93,6 +93,7 @@ export interface BundledPluginView {
   name: string;
   summary: string | null;
   runtime_scope: 'home' | 'project';
+  dual_instance?: true;
   publisher: { publisher_id: string; key_id: string; pinned_label: string | null; revoked: boolean };
   /** `true`: the release ships it unsigned and this Home signs it with its own publisher identity when the person installs it; `key_id` is that identity's, empty before the Home has one. */
   signed_here?: true;
@@ -112,6 +113,8 @@ export interface PluginInstallPreviewResult {
   name: string;
   /** Where confirming installs it: the Home (one instance for every project, which reads no project's content) or the project the person is in. */
   runtime_scope: 'home' | 'project';
+  /** True when confirming installs both a Home half and a project half (PEQ-06). */
+  dual_instance?: true;
   preview: PluginInstallPreview;
   /** What the plugin's operations ask for in all: confirming approves exactly this. */
   effects: SandboxEffects;
@@ -158,6 +161,8 @@ function requireHeldPreview(held: Held | undefined, who: PreviewOwner): Held {
 }
 
 const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
+const isDualPackage = (manifest: KeptSandboxPackage['manifest']): boolean => manifest.runtime?.scope === 'home' && manifest.runtime.dual_instance === true;
+const rangeOf = (manifest: KeptSandboxPackage['manifest']): 'dual' | 'home' | 'project' => isDualPackage(manifest) ? 'dual' : scopeOf(manifest);
 
 /** Two different ids on one dotted path (`io.a.b` and `io.a.b.c`), one below the other: the Runtime's test for ids that may not share a path (S-75). */
 const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
@@ -194,6 +199,19 @@ function rolePreviews(bodies: readonly SandboxAgentBody[], installed?: readonly 
   return previews;
 }
 
+function checkExistingInstall(entries: readonly InstalledPluginEntry[], manifest: KeptSandboxPackage['manifest'], keyId: string, inHome: boolean, allowSameVersion = false): InstalledPluginEntry | undefined {
+  const present = entries.find(item => item.record.plugin_id === manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
+  if (present && isPendingUninstall(present.record)) throw pluginErrors.uninstall_cleanup_pending('上次卸载还没有清理完：请先在设置里重试卸载，再安装');
+  if (present && present.record.publisher_signature !== keyId) {
+    throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
+  }
+  assertIdPathFree(manifest.plugin_id, keyId, entries);
+  if (present && !(allowSameVersion && present.record.version === manifest.version)) {
+    assertUpgradeOf(manifest, present.record.version);
+  }
+  return present;
+}
+
 export class PluginInstallService {
   private readonly held = new Map<string, Held>();
   constructor(private readonly ports: PluginInstallPorts) {}
@@ -211,7 +229,7 @@ export class PluginInstallService {
       const pin = pins.find(item => item.key_id === key_id);
       const { name, summary } = projectDirectoryWords(manifest, localePacks && locale ? directoryWordResolver(localePacks, locale) : undefined);
       return { plugin_id: manifest.plugin_id, version: manifest.version, name, summary: summary ?? null,
-        runtime_scope: scopeOf(manifest), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
+        runtime_scope: scopeOf(manifest), ...(isDualPackage(manifest) ? { dual_instance: true as const } : {}), publisher: { publisher_id: manifest.publisher.publisher_id, key_id, pinned_label: pin?.label ?? null, revoked: Boolean(pin?.revoked_at) } };
     };
     // A draft is this Home's to sign: it is listed only where this Host can sign one, under the identity it would be signed with.
     const here = this.ports.localSigner ? this.ports.localSigner.keyId() ?? '' : null;
@@ -244,7 +262,7 @@ export class PluginInstallService {
     const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature('bundled' in input ? await this.bundledBundle(input.bundled, caller) : input.bundle);
     const pkg = readKeptPackage(bundle.payload);
     this.assertPublisherStanding(key_id);
-    const { manifest } = pkg, runtime_scope = scopeOf(manifest);
+    const { manifest } = pkg, runtime_scope = scopeOf(manifest), dual = isDualPackage(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
@@ -271,7 +289,7 @@ export class PluginInstallService {
     const preview_id = randomUUID();
     const locale = activeLocale();
     const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
-    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
+    const view: PluginInstallPreviewResult = { preview_id, name, runtime_scope, ...(dual ? { dual_instance: true as const } : {}), ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
         permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
@@ -306,11 +324,12 @@ export class PluginInstallService {
     await this.ports.assertIntegrationsFree(manifest);
   }
 
-  /** A plugin id keeps the range its first kept package gave it: a package of another range is refused rather than run where its Manifest never asked (BL-628). */
+  /** A plugin id keeps the range its first kept package gave it: a package of another range is refused rather than run where its Manifest never asked (BL-628, PEQ-06). */
   private assertScopeKept(manifest: KeptSandboxPackage['manifest'], refuse: (message: string) => Error): void {
-    const kept = this.ports.packages.scopeOf(manifest.plugin_id), scope = scopeOf(manifest);
-    if (kept !== undefined && kept !== scope) {
-      throw refuse(`插件 ${manifest.plugin_id} 已经以「${kept === 'home' ? 'Home' : '项目'}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);
+    const kept = this.ports.packages.scopeOf(manifest.plugin_id), range = rangeOf(manifest);
+    if (kept !== undefined && kept !== range) {
+      const label = kept === 'dual' ? '双实例' : kept === 'home' ? 'Home' : '项目';
+      throw refuse(`插件 ${manifest.plugin_id} 已经以「${label}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);
     }
   }
 
@@ -339,9 +358,10 @@ export class PluginInstallService {
   }
 
   private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, caller?: ActionExecutionContext, assertOpen?: () => void, complete?: () => void) {
-    const { runtime_scope, publisher: { key_id } } = held.view;
+    const { runtime_scope, dual_instance, publisher: { key_id } } = held.view;
+    const dual = isDualPackage(held.pkg.manifest);
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
-    if (scopeOf(held.pkg.manifest) !== runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
+    if (scopeOf(held.pkg.manifest) !== runtime_scope || (dual_instance === true) !== dual) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
     this.assertScopeKept(held.pkg.manifest, message => pluginErrors.preview_unknown(message + '；请重新预览'));
     // Another package may have taken one of its ids since the preview.
     await this.assertIntegrationsFree(held.pkg.manifest);
@@ -349,20 +369,14 @@ export class PluginInstallService {
     // Each scope checks its own installations. Only the installed publisher can upgrade a signed package; another publisher is refused
     // before it can be pinned or kept. An id belonging to the Host's own plugins was already refused at preview.
     const inHome = runtime_scope === 'home';
-    const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
-    const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
-    // An uninstall whose clean-up has not finished is listed until the person retries it; nothing is installed over it meanwhile (BL-915).
-    if (present && isPendingUninstall(present.record)) throw pluginErrors.uninstall_cleanup_pending('上次卸载还没有清理完：请先在设置里重试卸载，再安装');
-    if (present && present.record.publisher_signature !== key_id) {
-      throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
-    }
-    // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
-    // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
-    assertIdPathFree(held.pkg.manifest.plugin_id, key_id, entries);
-    if (present) {
-      assertUpgradeOf(held.pkg.manifest, present.record.version);
+    const homeEntries = inHome ? await (this.ports.homeInstalled?.() ?? []) : [];
+    const projectEntries = (!inHome || dual) ? await this.ports.installed(held.project_id) : [];
+    const homePresent = inHome ? checkExistingInstall(homeEntries, held.pkg.manifest, key_id, true, dual) : undefined;
+    const projectPresent = (!inHome || dual) ? checkExistingInstall(projectEntries, held.pkg.manifest, key_id, false, false) : undefined;
+    const upgraded = homePresent && homePresent.record.version !== held.pkg.manifest.version ? homePresent : projectPresent;
+    if (upgraded) {
       // The installed package may have moved since the preview: its Skills' versions are asked again against the one installed now (SKC-04).
-      skillInstallPreviews(held.pkg, this.ports.packages.load(present.record.plugin_id, present.record.publisher_signature, present.record.version).packaged);
+      skillInstallPreviews(held.pkg, this.ports.packages.load(upgraded.record.plugin_id, upgraded.record.publisher_signature, upgraded.record.version).packaged);
     }
     const catalog = held.pkg.manifest.presentation === undefined ? undefined : await this.presentationCatalog(inHome ? null : held.project_id);
     await caller?.beforeEffect();
@@ -383,7 +397,17 @@ export class PluginInstallService {
       const directory = this.ports.packages.save(held.bundle, held.pkg);
       const release = packagedRelease(held.pkg, directory, this.now());
       // The installation owner checks authority and commits the dependent owner's state inside its compensation window.
-      if (inHome) await this.ports.installInHome(release, assertCurrent, complete);
+      if (dual) {
+        const homeAlreadySame = homePresent?.record.version === held.pkg.manifest.version;
+        if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent);
+        try { await this.ports.installInProject(held.project_id, release, assertCurrent, complete); }
+        catch (error) {
+          if (!homePresent && this.ports.homeControl) {
+            await this.ports.homeControl(held.pkg.manifest.plugin_id, 'uninstall', { keep_data: false }).catch(() => undefined);
+          }
+          throw error;
+        }
+      } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete);
       else await this.ports.installInProject(held.project_id, release, assertCurrent, complete);
       return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
     };

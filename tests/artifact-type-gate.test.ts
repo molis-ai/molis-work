@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction, intakeMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes } from "@molis-ai/molis-work-app-local-host";
 
@@ -66,11 +66,16 @@ const NO_CONTINUE: Record<string, string> = {
 };
 test("every visible 成果 type can be continued from, by a plugin that declares a continue action, or is a named exception", () => {
   const continued = new Set<string>(), problems: string[] = [];
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
-    if (!type.continue) continue;
-    const action = entry.manifest.actions?.find(item => item.capability_id === type.continue!.capability_id && item.version === type.continue!.version);
-    if (!action || !isArtifactContinueAction(action.action)) problems.push(`${entry.manifest.plugin_id} ${type.artifact_type_id}: ${type.continue.capability_id} is not a continue action`);
-    else continued.add(type.artifact_type_id);
+  // Batch 44 (contract-design §2.3): 「从这一版继续」 is the continue action's own intake, which names the types it continues from.
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const action of entry.manifest.actions ?? []) {
+    const material = intakeMaterial(action.action.intake, "artifact");
+    if (!material) continue;
+    const declared = new Set([...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes].map(type => type.artifact_type_id));
+    for (const type of material.artifact_types) {
+      if (!isArtifactContinueAction(action.action)) problems.push(`${entry.manifest.plugin_id} ${type.artifact_type_id}: ${action.capability_id} is not a continue action`);
+      else if (!declared.has(type.artifact_type_id)) problems.push(`${entry.manifest.plugin_id} ${type.artifact_type_id}: ${action.capability_id} continues a type its Manifest does not declare`);
+      else continued.add(type.artifact_type_id);
+    }
   }
   for (const type of artifactTypeDeclarations().keys()) if (!continued.has(type) && !NO_CONTINUE[type]) problems.push(`${type}: nothing continues from it`);
   for (const type of Object.keys(NO_CONTINUE)) if (continued.has(type) || !artifactTypeDeclarations().has(type)) problems.push(`${type}: stale exception`);

@@ -1,5 +1,5 @@
 import type { AgentRecalledMemory } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { MemoryRecallRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import { memorySceneOfCaller, type MemoryRecallRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryClassReadPossible } from "./class-restrictions.js";
 import { consumerAccess } from "./prefs.js";
 import type { MemoryPreferences } from "./preferences.js";
@@ -22,7 +22,7 @@ interface MemoryRunRecipeSources {
 export function memoryRunRecipe(caller: MemoryCaller, request: MemoryRecallRequest,
   options: { skip?: boolean; budgetTokens?: number }, sources: MemoryRunRecipeSources): MemoryRunRecipe {
   const places = sources.scopes.scopesFor(caller, request.scopes);
-  const current_scene = caller.current_scene ?? (caller.plugin_id === "io.molis.work.coding" ? "coding" : caller.consumer === "assistant" ? "assistant" : "common");
+  const current_scene = memorySceneOfCaller(caller);
   const automatic = !options.skip && places.some(where => { const prefs = sources.scopes.prefsAt(caller.actor_id, where);
     return consumerAccess(prefs, caller.consumer, caller.plugin_id, "task").allowed && memoryClassReadPossible(prefs.class_restrictions, { consumer: caller.consumer, current_scene }, "task"); });
   const plugin = caller.plugin_id ?? request.situation?.plugin_id;

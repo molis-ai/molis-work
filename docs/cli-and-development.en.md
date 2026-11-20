@@ -64,7 +64,7 @@ packages/plugin-sdk/         FD3 Manifest and Integration Plugin definition API
 plugins/official-integrations/
                              Official Manifests, Provider adapters, and install packages
 apps/workbench/              Workbench shell: bottom bar, plugin picker, Manifest-derived navigation, and plugin page wiring
-apps/desktop/                AP4 Desktop shell, panels, Capsule, and Tauri native adapter
+apps/desktop/                AP4 Desktop shell, panels, menu bar, and Tauri native adapter
 apps/cli/                    Current management command parsing, Host invocation, and output
 apps/mcp/                    Platform MCP schemas, protocol and project tool dispatch; plugin contributions are composed by the Host from Manifests
 packages/ui-host/            UI Contribution registry, surface rendering, and Slot mount validation
@@ -86,7 +86,6 @@ apps/desktop/launchers/cli/main.ts              CLI launcher; commands in apps/c
 apps/desktop/src-tauri/      macOS Cargo/Tauri config; the Rust entry lives under apps/desktop/adapters/tauri
 examples/seed-demo.mts       Dev script calling the product demo lifecycle
 docs/screenshots/            README product screenshots
-skills/goal-advance/         Runtime working protocol
 skills/molis-plugin-dev/     Plugin authoring skill (ships with install; not auto-linked to Runtimes)
 tests/goal-events-state.test.ts
                              Current requirements, decisions, completion, and resume transitions

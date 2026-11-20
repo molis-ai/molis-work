@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { actionResultSubject, type ActionReference, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionResultSubject, isDeliveredIntake, type ActionReference, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualDraft, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { declaredUndo } from "../action-undo.js";
 import { directEligible } from "../assistant/assistant-authority.js";
@@ -45,7 +45,7 @@ const installOf = (views: readonly ActionView[], reference: ActionReference & { 
  */
 function direct(view: ActionView, views: readonly ActionView[], draft: ContextualDraft): boolean {
   const intake = view.action.intake;
-  return !!intake && intake.effect !== "proposes" && !intake.multiple && draft.missing.length === 0 && directEligible(view, views, new Set());
+  return !!intake && !isDeliveredIntake(intake) && intake.effect !== "proposes" && !intake.multiple && draft.missing.length === 0 && directEligible(view, views, new Set());
 }
 
 export async function createChosen(owner: UndoOwner, views: readonly ActionView[], focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, requestId: string,

@@ -1,27 +1,21 @@
-import { objectSchema as closed } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedApplication } from "./application.js";
 
 /**
  * Feed takes the platform's notifications (D6-2, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §4): a plugin that
- * sends one writes it to the platform's queue, and the platform hands it to the receiver a Manifest declares in `notifications.receive`.
+ * sends one writes it to the platform's queue, and the platform hands it to the receiver: an intake that accepts `notification`.
  * This action is that receiver. It is not a person's or a workflow's action: only the platform's notification service calls it (the
  * workflow audience with `PLUGIN_NOTIFICATION_DELIVERY_ACTOR`), and any other caller is refused.
  */
-const text = (maxLength: number) => ({ type: "string", maxLength });
-
 export const feedNotificationActions = {
   receive: { capability_id: "feed.notifications.receive", version: /* @version action.feed.notifications.receive */ 1, operation: "command", action: {
     title: "接收平台通知", description: "把插件发给平台的通知收进 Feed 的「插件发送的通知」来源，并按当前规则判断；判断失败时消息照样留下，回执只带失败的码；只由平台的通知服务调用",
     kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: [],
     // The capture rules and the Inbox's next-step judgment of what it keeps may ask a model.
     execution: { cost: "metered" },
-    input_schema: closed({
-      notification_id: text(100), sender_plugin_id: text(200), sender_name: text(200), sender_install_id: text(200), sender_generation: text(200),
-      key: text(300), title: text(200), summary: text(1000), body: text(100000), open_plugin_id: text(200), created_at: text(40),
-    }, ["notification_id", "sender_plugin_id", "sender_name", "sender_install_id", "sender_generation", "key", "title", "summary", "body", "open_plugin_id", "created_at"]),
-    output_schema: closed({ item_id: { type: "string" }, created: { type: "boolean" }, judgment_error_code: text(200) }, ["item_id", "created"]),
+    input_schema: PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA, output_schema: PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA,
+    intake: { intake_id: "notification", item_kind: "feed_item", accepts: [{ kind: "notification" }] },
   } } satisfies ActionDefinition<PluginNotificationDelivery, PluginNotificationDeliveryReceipt>,
 } as const;
 export const FEED_NOTIFICATION_ACTIONS: readonly ActionDefinition[] = Object.values(feedNotificationActions);

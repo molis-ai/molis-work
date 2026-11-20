@@ -4,6 +4,7 @@ import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-ru
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 import type { ProjectReviewCommit } from "./project-review-effect.js";
 import type { TrustedReviewRow } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { readSqlStatementShape } from "@molis-ai/molis-work-storage";
 
 // What the Host and the process that runs a sandboxed plugin's statements say to each other (specs/archive/repository-anti-corruption/
 // slices/sandbox-project-database-limits.md §2). Every value is JSON; a row holds text, finite numbers and null, nothing else.
@@ -79,10 +80,16 @@ export function statementFailure(id: number, error: unknown): StatementReply {
   return { id, ok: false, kind: "error", message };
 }
 
-/** The client's own keyword filters (`pluginDatabaseClient`): the Host asks before it sends a statement, and the process asks again. */
+/**
+ * The client's own keyword filters (`pluginDatabaseClient`): the Host asks before it sends a statement, and the process asks again.
+ * Both also take one statement only, with the project connection's own scan (`readSqlStatementShape`) and its words: a library in the
+ * Home is a bare `node:sqlite` connection, which compiles the first of two statements, runs it and drops the second without a word.
+ */
 export function assertReadStatement(sql: string): void {
   if (!/^\s*(SELECT|WITH)\b/iu.test(sql)) throw new Error("读取仅接受 SELECT 或 WITH 查询，不提供连接管理或跨库指令");
+  readSqlStatementShape(sql);
 }
 export function assertWriteStatement(sql: string): void {
   if (!/^\s*(INSERT|UPDATE|DELETE)\b/iu.test(sql)) throw new Error("事务写入仅接受 INSERT、UPDATE 或 DELETE");
+  readSqlStatementShape(sql);
 }

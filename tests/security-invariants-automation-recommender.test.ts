@@ -136,12 +136,20 @@ test("AUT-02–07: only actual Skill matches, setting state stays with the Skill
   assert.ok(suggestion.evidence.some(row => row.path === "package.json"));
   assert.ok(suggestion.effect && suggestion.requirements.length && suggestion.risk);
   assert.equal(first.preferences?.revision, "absent");
-  const save = (at: TestProject) => fixture.web.post<{ document_id: string }>(pathFor(at) + "/save", { save_token: first.save_token });
+  const save = (at: TestProject) => fixture.web.post<{ document_id: string; open: { surface: string; id: string; title: string } }>(pathFor(at) + "/save", { save_token: first.save_token });
   await assert.rejects(save(other), { status: 409, code: "actions.conflict" });
   const saved = await save(project);
   assert.equal((await save(project)).document_id, saved.document_id);
   const persisted = await fixture.web.get<{ documents: Array<{ id: string }> }>(base + "/api/plugins/io.molis.work.pages/pages");
   assert.deepEqual(persisted.documents.map(row => row.id), [saved.document_id]);
+  // The report went to the project's `documents` keeper by its declaration, and opens where that keeper says (here Pages).
+  assert.deepEqual([saved.open.surface, saved.open.id], ["pages", saved.document_id]);
+  const bare = await fixture.createProject("No document keeper", []);
+  await fixture.host.ensureWebCatalog(fixture.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: fixture.home },
+    owner => owner.removeProjectPlugin({ project_id: bare.project_id, plugin_id: "pages", actor_id: LOCAL_PERSON_ACTOR_ID }));
+  const bareReport = await scan(fixture, bare);
+  await assert.rejects(fixture.web.post(pathFor(bare) + "/save", { save_token: bareReport.save_token }), { code: "actions.service_unavailable" },
+    "with no plugin in the project that keeps a handed-over text, nothing names one to save to");
   const set = (choice: "ignored" | "show", expected_revision: string) => fixture.web.post<AutomationPreferences>(pathFor(project) + "/preference",
     { save_token: first.save_token, suggestion_id: suggestion.id, choice, expected_revision });
   const hidden = await set("ignored", "absent");

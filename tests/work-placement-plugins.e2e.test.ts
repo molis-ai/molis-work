@@ -157,7 +157,7 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await openPlugin("lingguang", projectId!);
   await press(`[data-lingguang-id="${spark!.id}"]`);
   await press("[data-lingguang-to-goal]");
-  await card("已转为目标《展台改成开放式》");
+  await card("已建成 Goal《展台改成开放式》");
   const kept = await describe({ kind: "lingguang_spark", id: spark!.id, project_id: projectId });
   assert.equal(kept.state, "ok", "the spark stays");
   const labels = kept.associations.map(link => link.label).join(" | ");

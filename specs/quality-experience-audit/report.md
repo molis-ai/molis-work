@@ -472,7 +472,7 @@ Full #1035在24片通过后暴露Goals整页的预期文案未同步，第33片�
 
 #2094的账号入口采用现行Auth合同：`apps/local-host/src/account-auth-http.ts:10-35` 三条固定可信HTTP入口，`horizontal/account/src/authentication.ts:37-65` 负责登录世代、权限/取消复核及Host句柄映射，`authentication-protocol.ts:70-77` 负责一次性授权换取，工作台只消费公共结果；中央账号与验证码事实仍在Auth。保留主干实现和原批资源许可，不将其计作本轮改造。唯一冲突在几何失败诊断，采用主干完整测试文件，QEA-10独立回归保留。新基线的构建、相关账号/正常入口回归及最终CI结果见PR。
 
-#2102补入[后台提供方缺口](../backlog/BL-work-line-background-provider-gaps.md)、[同拍汇报合并](../backlog/BL-work-line-report-batch.md)、[本人认可入口待决定](../backlog/BL-b32-acceptance-entry.md)。分别接PF-04采用缺口、助理汇报连续性及既有可信决定依赖；不新建平行BL、不替用户作出认可入口决定。初始527条统计保持历史快照，同步累计新增的5条不混进原分类数字。
+#2102补入[后台提供方缺口](../backlog/BL-work-line-background-provider-gaps.md)、[同拍汇报合并](https://github.com/molis-ai/molis-work/blob/e985e19aec4fbe21c93f5ad73f3dd43925e02656/specs/backlog/BL-work-line-report-batch.md)、[本人认可入口待决定](../backlog/BL-b32-acceptance-entry.md)。分别接PF-04采用缺口、助理汇报连续性及既有可信决定依赖；不新建平行BL、不替用户作出认可入口决定。初始527条统计保持历史快照，同步累计新增的5条不混进原分类数字。
 
 新基线完整构建、包边界和健康门禁通过（输入断言248→245）。整合6文件中5文件通过：账号client15、session23、Host安全18、几何1、Goals快照56（另2个原录制开关用例跳过）。到达页18项中16通过，方向键切换及快速切换两个场景在简介aria-busy结束前超时；保持原断言和超时单独复核，2/2通过（72.5秒）。首次超时保留为未确认根因的运行失败，不声称已修复；最终CI仍须覆盖完整到达页文件。
 

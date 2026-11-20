@@ -174,12 +174,13 @@ test("DOCK-06 the question is dropped when nothing follows: Escape, a press else
   assert.equal((await state("ppt")).grey, false, "left alone it stays");
 });
 
-test("Goals cannot be removed", async t => {
+test("PEQ-12 Goals is an ordinary removable plugin, while always-on Shelf is not removable in the picker", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, state } = b;
-  assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').disabled"), true);
-  assert.equal((await state("goals")).grey, false);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').disabled"), false, "Goals is not locked as always_on");
+  assert.equal((await state("goals")).grey, true, "new project starts without Goals");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"shelf\"]')"), null, "always-on Shelf is not a removable picker tile");
 });
 
 test("a plugin that brings a stage page gets it in place, and takes it away again", async t => {

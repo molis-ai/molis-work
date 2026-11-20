@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -20,6 +20,7 @@ test("IUI-21 IUI-26 SCS-11 WBR-21: the project home opens Goals’ original form
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const project = await createProject(b.web, "Home journey"), prefix = "/projects/" + project.project_id;
+  await addProjectPlugin(b.web, project.project_id, "goals");
   const go = (query = "") => b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" + query }, b.sessionId));
   const painted = () => b.waitFor(`document.querySelector(${JSON.stringify(goals)}) && !document.querySelector(${JSON.stringify(home)}).hidden`, 15_000);
   const rows = async () => (await b.web.post<SurfaceHomeDisplay>(prefix + endpoint, {})).display.rows.filter(item => item.owner === "io.molis.work.goals");
@@ -97,6 +98,7 @@ test("SCS-12 FSS-34 the project home changes its owners' words in place when the
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const project = await createProject(b.web, "Home words"), prefix = "/projects/" + project.project_id;
+  await addProjectPlugin(b.web, project.project_id, "goals");
   await b.web.post(prefix + "/api/plugins/io.molis.work.goals/goals", { title: "Home words goal", idempotency_key: "home-words-goal" });
   await b.command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: b.origin }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/" }, b.sessionId));

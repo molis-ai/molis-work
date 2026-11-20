@@ -23,12 +23,11 @@ export function scheduleClient(host: ScheduleHost): void {
   wireOperation(page);
   wireForm(page);
   wireReads(page);
-  // Schedule says when what its page shows has changed behind it (a round ended, a task stopped or was set for its next time): while
-  // the page is on screen it reads the page again and keeps open what is open, without marking a task read (PG-061, 96-2). The first
-  // answer is the page as just drawn. With the form open it waits; the next check reads again.
-  let drawn = true;
+  // Schedule says when what its page shows has changed behind it (a round, reminder or operation ended, a task stopped or was set for
+  // its next time, or anyone changed a task through its actions): while the page is on screen it reads the page again and keeps open
+  // what is open, without marking a task read (PG-061, 96-2). The first check reads too: the page was drawn before it, and a change
+  // in between has no later version to show it by. With the form open it waits; the next check reads again.
   host.scope.watchRevision(() => read(host, "/view-revision"), async () => {
-    if (drawn) { drawn = false; return; }
     const open = openNow(page);
     if (open.kind === "form" || page.creating || page.recovering || page.operationBusy) return false;
     // A page that could not be read this time keeps the change for the next check.

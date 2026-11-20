@@ -43,11 +43,11 @@ test("missing native helper and unsupported host return explicit unavailable err
 test("a symlinked model cache cannot redirect the Home's writes outside the private directory", async () => {
   const directory = home(); const outside = home();
   try {
-    mkdirSync(path.join(directory, "lingguang")); symlinkSync(outside, path.join(directory, "lingguang", "models"));
+    mkdirSync(path.join(directory, "materials")); symlinkSync(outside, path.join(directory, "materials", "models"));
     await assert.rejects(extractUploadedMaterial(directory, upload("sample.wav", Buffer.from("RIFF"))), (error: unknown) => isMaterialFailure(error) && error.code === "material.unsafe_storage");
     assert.deepEqual(readdirSync(outside), []);
     // A symlink where an upload copy used to go is simply never touched: the text is read from memory.
-    symlinkSync(outside, path.join(directory, "lingguang", "imports"));
+    symlinkSync(outside, path.join(directory, "materials", "imports"));
     assert.equal((await extractUploadedMaterial(directory, upload("test.txt", "data"))).text, "data"); assert.deepEqual(readdirSync(outside), []);
   } finally { rmSync(directory, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });
@@ -98,7 +98,7 @@ process.stdout.write(${JSON.stringify(JSON.stringify({ ...answer, text: "retired
     const calls = readFileSync(invoked, "utf8"), [call] = calls.trim().split("\n").map(line => JSON.parse(line));
     assert.equal(calls.trim().split("\n").length, 1);
     assert.equal(call.command, "extract"); assert.equal(call.bytes, input.toString("base64")); assert.deepEqual(call.flags, []);
-    assert.equal(call.models, path.join(realpathSync(materialHome), "lingguang", "models"));
+    assert.equal(call.models, path.join(realpathSync(materialHome), "materials", "models"));
     assert.equal(path.dirname(call.input), call.work);
     assert.equal(readFileSync(path.join(call.models, "helper-effect"), "utf8"), "configured helper ran");
     assert.equal(existsSync(call.input), false); assert.equal(existsSync(call.work), false);
@@ -129,8 +129,8 @@ test("real Whisper helper requires an explicit model download choice and leaves 
   const directory = home();
   try {
     await assert.rejects(extractUploadedMaterial(directory, upload("sample.wav", silentWav()), { whisperHelperPath: whisperHelper }), (error: unknown) => isMaterialFailure(error) && error.code === "material.model_required" && actionHttpStatus(error) === 409 && error.details?.approximate_bytes === 626000000);
-    assert.deepEqual(readdirSync(path.join(directory, "lingguang", "models")), []);
-    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
+    assert.deepEqual(readdirSync(path.join(directory, "materials", "models")), []);
+    assert.ok(!readdirSync(path.join(directory, "materials")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("cancelling media extraction terminates the helper and removes its run directory", async () => {
@@ -140,7 +140,7 @@ test("cancelling media extraction terminates the helper and removes its run dire
     writeFileSync(fake, `#!${process.execPath}\nprocess.stderr.write(JSON.stringify({stage:'transcribing',progress:0})+'\\n');setInterval(()=>{},1000);\n`, { mode: 0o700 });
     const controller = new AbortController();
     await assert.rejects(extractUploadedMaterial(directory, upload("sample.wav", silentWav()), { platform: "darwin", whisperHelperPath: fake, signal: controller.signal, onProgress() { controller.abort(); } }), (error: unknown) => isMaterialFailure(error) && error.code === "material.cancelled");
-    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
+    assert.ok(!readdirSync(path.join(directory, "materials")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("real silent video extracts timestamped frame OCR without downloading a speech model", { skip: process.platform !== "darwin" || !existsSync(whisperHelper) }, async () => {
@@ -151,7 +151,7 @@ test("real silent video extracts timestamped frame OCR without downloading a spe
     execFileSync("swift", [fixture, directory], { timeout: 60_000 });
     const result = await extractUploadedMaterial(directory, upload("sample.mov", readFileSync(path.join(directory, "sample.mov"))), { whisperHelperPath: whisperHelper });
     assert.match(result.text, /JELLY VIDEO FRAME 2026/); assert.equal(result.frames?.length, 5); assert.equal(result.segments?.length, 0); assert.equal(result.coverage.status, "partial");
-    assert.ok(result.frames!.every(frame => Number.isFinite(frame.seconds))); assert.deepEqual(readdirSync(path.join(directory, "lingguang", "models")), []);
-    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
+    assert.ok(result.frames!.every(frame => Number.isFinite(frame.seconds))); assert.deepEqual(readdirSync(path.join(directory, "materials", "models")), []);
+    assert.ok(!readdirSync(path.join(directory, "materials")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

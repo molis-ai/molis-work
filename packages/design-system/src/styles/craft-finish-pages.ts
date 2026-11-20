@@ -155,11 +155,10 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${PAGES} .mw-btn--primary { background-image: none; }
   ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: none; border-color: transparent; }
   ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: none; border-color: transparent; background-color: var(--nav-hover); }
-  ${WORKBENCH} .plugin-stage-chrome .tree-create,
-  ${WORKBENCH} .goal-stage-chrome .tree-create {
+  ${WORKBENCH} .plugin-stage-chrome .tree-create {
     border-color: transparent; background: var(--control-fill); box-shadow: none;
   }
-  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { border-color: transparent; background: var(--nav-hover); box-shadow: none; }
+  ${WORKBENCH} .plugin-stage-chrome .tree-create:hover { border-color: transparent; background: var(--nav-hover); box-shadow: none; }
   /* The Goals directory's create action is that page's one graphite button, like every other list page's first create. */
   ${WORKBENCH} .tree-chrome .tree-create { border-color: transparent; box-shadow: none; background: var(--action); color: var(--action-ink); }
   ${WORKBENCH} .tree-chrome .tree-create svg { color: currentColor; }
@@ -285,16 +284,13 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
-  /* A selected Goal row is one wash on its entry, not a second fill on the button inside it. */
-  ${WORKBENCH} :is(.goal-canvas-shell, .plugin-stage-list) .tree-entry.is-selected :is(.tree-node, .tree-row) { background: transparent; }
+  /* A selected row is one wash on its entry, not a second fill on the button inside it. */
+  ${WORKBENCH} .plugin-stage-list .tree-entry.is-selected :is(.tree-node, .tree-row) { background: transparent; }
 
   /* Progress bars fill instead of appearing full. */
   ${WORKBENCH} :is(.tree-progress, .mw-progress) > :is(i, span) { transition: transform 420ms var(--ease-quint); }
 
-  /* ─── Goal canvas ─── */
-  /* The canvas is plain paper: nodes and their links are the only marks on it. */
-  ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
-  ${WORKBENCH} .goal-canvas-viewport.is-panning { cursor: grabbing; }
+  /* ─── Graph nodes and edges ─── */
   ${WORKBENCH} [data-graph-node] {
     border-radius: var(--r-card); box-shadow: none; border-color: var(--line);
     transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-quint);
@@ -306,9 +302,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${WORKBENCH} [data-graph-edge] path { transition: stroke var(--dur-move) var(--ease-quint), stroke-width var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} [data-graph-edge].is-selected-path path { stroke-dasharray: 6 5; animation: none; }
   @keyframes craft-flow { to { stroke-dashoffset: -11; } }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) > div { border-radius: 11px; background: var(--paper); box-shadow: var(--lift-2); }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button:hover { background: var(--nav-hover); }
 
   /* A short window leaves the timeline a sliver; the record menu then opens as a sheet above the bar instead of
      being cut off inside it. */
@@ -319,7 +312,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     }
   }
 
-  /* Writing gets the whole height of a short window: while a Goal record form is open the bar steps aside, and it
+  /* Writing gets the whole height of a short window: while a record form is open the bar steps aside, and it
      returns when the form closes. Phones held sideways or with the keyboard up are short windows too. */
   @media (max-height: 560px) {
     ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; --dock-min: 0px; }
@@ -334,10 +327,6 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${WORKBENCH} [data-kanban-card]:hover { border-color: var(--line-strong); }
   ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
-  /* ─── Goal work area ─── */
-  ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
-  ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} .tui-empty { border-radius: var(--r-card); }
 
   /* ─── Arrival ─── */

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeService, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { knowledgeActions, type KnowledgeOutline, type KnowledgeSection } from "@molis-ai/molis-work-contracts/services/knowledge";
 import * as modelPrompts from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import { ActionError, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
+import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
 // T-132: the section trees `knowledge.locate` shows the model go after the instruction as data, and the Host's text model port takes
 // at most 180,000 characters (code points) of data (`MODEL_DATA_MAX_CHARS`, apps/local-host/src/host-complete-text.ts). At their
@@ -100,4 +103,43 @@ test("RAC-2445: the tree title and the section title shown to the locator are cu
     assert.equal([...shownTitle].length, 119, "119 characters");
     assert.equal(LONE_HALF.test(shownTitle), false, "no half of a character");
   }
+});
+
+// BL-981: a reason keeps its budget of 200 UTF-16 units, and the cut falls between whole characters. 199 x's plus 🙂 is 201 units;
+// a plain cut at 200 kept the high half of 🙂 (\ud83d) at the end. Now the reason is the 199 x's.
+const REASON_UNITS = 200;
+const OVER_BY_HALF = `${"x".repeat(199)}🙂`;
+const assertWholeReason = (reason: string, what: string) => {
+  assert.equal(reason, "x".repeat(199), `${what}: the 199 whole characters, without the half of 🙂`);
+  assert.ok(reason.length <= REASON_UNITS, `${what}: within the 200-unit budget`);
+  assert.equal(LONE_HALF.test(reason), false, `${what}: no half of a character`);
+};
+
+test("BL-981: why a piece could not be read and why the model chose a section are cut between whole characters", async () => {
+  const fine = tree("p1", 1, () => "节", () => "摘要");
+  const found = await locateSections({ question: "库房着火第一步做什么？", subjects: [{ kind: "page", id: "gone" }, fine.subject] },
+    async subject => { if (subject.id === "gone") throw new Error(OVER_BY_HALF); return fine; },
+    async () => ({ sections: [{ piece: 1, anchor: "h1", reason: OVER_BY_HALF }] }));
+  assertWholeReason(found.unread[0]!.reason, "the unread reason");
+  assertWholeReason(found.sections[0]!.reason, "the model's reason");
+  // A reason within the budget comes back as it was: 198 x's plus 🙂 is exactly 200 units.
+  const exact = `${"x".repeat(198)}🙂`;
+  const within = await locateSections({ question: "q", subjects: [{ kind: "page", id: "gone" }, fine.subject] },
+    async subject => { if (subject.id === "gone") throw new Error(exact); return fine; }, async () => ({ sections: [{ piece: 1, anchor: "h1", reason: exact }] }));
+  assert.deepEqual([within.unread[0]!.reason, within.sections[0]!.reason], [exact, exact]);
+});
+
+test("BL-981: knowledge.grep names a piece its owner refused with the owner's reason cut between whole characters", async t => {
+  const f = await referenceOwners(t);
+  const cards = openKnowledgeCards({ homeDirectory: f.home });
+  t.after(() => cards.close());
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards });
+  // An owner whose reader refuses with a long reason: 199 x's plus 🙂.
+  const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["pages:read"]);
+  f.actions.registerProvider({ provider: { provider_id: "notes", plugin_id: "notes", title: "Notes", kind: "plugin", project_id: "a" }, definitions: [reader],
+    handlers: [{ ...reader, handle: () => { throw new ActionError("notes.locked", OVER_BY_HALF); } }] });
+  const caller = { ...person("a"), audience: "agent" as const, actor_id: "agent:assistant" };
+  const found = await knowledge.grep(f.access(caller), { pattern: "试用", subjects: [{ kind: "note", id: "n1" }] });
+  assert.deepEqual(found.unread.map(item => item.subject.id), ["n1"]);
+  assertWholeReason(found.unread[0]!.reason, "the grep unread reason");
 });

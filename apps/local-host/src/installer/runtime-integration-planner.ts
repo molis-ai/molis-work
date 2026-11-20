@@ -1,6 +1,5 @@
-import path from "node:path";
 import { INTEGRATION_OWNER } from "./runtime-integration-contract.js";
-import type { RuntimeAdapter, SupportedRuntimeId, RuntimeSnapshot, IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationChange, RuntimeIntegrationAction, SkillSnapshot } from "./runtime-integration-contract.js";
+import type { RuntimeAdapter, SupportedRuntimeId, RuntimeSnapshot, IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationChange, RuntimeIntegrationAction } from "./runtime-integration-contract.js";
 import { digest } from "./runtime-config-text.js";
 import { mcpClientCredentialPath } from "../mcp-client-credentials.js";
 
@@ -24,19 +23,13 @@ export class RuntimeIntegrationPlanner {
     if (!snapshot.artifacts) {
       return preparedWithStatus(common, snapshot, receipt, "unavailable", "Molis Work 本体安装不完整，请先修复安装。" );
     }
-    if (snapshot.configInspection.state === "conflict" || snapshot.skill.state === "conflict") {
-      return preparedWithStatus(
-        common,
-        snapshot,
-        receipt,
-        "conflict",
-        "发现同名但不属于 Molis Work 的配置或 Skill。为避免覆盖用户内容，本次不会写入。",
-      );
+    if (snapshot.configInspection.state === "conflict") {
+      return preparedWithStatus(common, snapshot, receipt, "conflict", "发现同名但不属于 Molis Work 的配置。为避免覆盖用户内容，本次不会写入。");
     }
 
     const desired = adapter.desiredConnection(snapshot.artifacts, this.paths.homeDirectory);
     const nextConfig = adapter.connectConfig(snapshot.configText, desired);
-    const alreadyConnected = snapshot.configInspection.state === "current" && snapshot.skill.state === "current";
+    const alreadyConnected = snapshot.configInspection.state === "current";
     const backupPath = snapshot.configText !== null && nextConfig !== snapshot.configText
       ? this.paths.backupPath(adapter.id, common.planId)
       : null;
@@ -50,22 +43,13 @@ export class RuntimeIntegrationPlanner {
         after: `Molis Work MCP（命令 ${snapshot.artifacts.launcherPath}；环境仅含 MOLIS_WORK_HOME、MOLIS_WORK_MCP_AUDIENCE、MOLIS_WORK_RUNTIME_ID、MOLIS_WORK_CLIENT_AUTH，不含密钥）`,
       });
     }
-    if (snapshot.skill.state !== "current") {
-      changes.push({
-        kind: "skill_link",
-        target_path: adapter.skillPath(this.paths.userHomeDirectory),
-        operation: snapshot.skill.state === "absent" ? "add" : "replace",
-        before: skillSummary(snapshot.skill),
-        after: `链接到 ${snapshot.artifacts.skillSourcePath}`,
-      });
-    }
     if (!alreadyConnected || !receipt) {
       changes.push({
         kind: "ownership_receipt",
         target_path: this.paths.receiptPath(adapter.id),
         operation: receipt ? "replace" : "add",
         before: receipt ? "已有 Molis Work 所有权收据" : "无",
-        after: "记录 Molis Work 写入的字段指纹和 Skill 链接，不保存用户配置内容",
+        after: "记录 Molis Work 写入的字段指纹，不保存用户配置内容",
       });
     }
     if (!snapshot.credentialPresent) changes.push({ kind: "client_credential", target_path: mcpClientCredentialPath(this.paths.homeDirectory, `runtime:${adapter.id}`),
@@ -78,7 +62,6 @@ export class RuntimeIntegrationPlanner {
       adapter,
       beforeConfigText: snapshot.configText,
       beforeConfigHash: snapshot.configHash,
-      beforeSkill: snapshot.skill,
       nextConfigText: nextConfig,
       artifacts: snapshot.artifacts,
       receipt,
@@ -88,7 +71,7 @@ export class RuntimeIntegrationPlanner {
   prepareRemove(snapshot: RuntimeSnapshot, receipt: IntegrationReceipt | null): PreparedPlan {
     const { adapter } = snapshot;
     const common = this.planCommon(snapshot, "remove");
-    const hasMolisWorkState = snapshot.configInspection.state !== "absent" || snapshot.skill.state !== "absent";
+    const hasMolisWorkState = snapshot.configInspection.state !== "absent";
     if (!receipt) {
       const status = hasMolisWorkState ? "conflict" : "no_change";
       const message = hasMolisWorkState
@@ -98,17 +81,9 @@ export class RuntimeIntegrationPlanner {
     }
     if (
       receipt.config_path !== adapter.configPath(this.paths.userHomeDirectory)
-      || receipt.skill_path !== adapter.skillPath(this.paths.userHomeDirectory)
       || snapshot.configInspection.entryFingerprint !== receipt.config_entry_fingerprint
-      || snapshot.skill.resolvedLinkTarget !== path.resolve(receipt.skill_target)
     ) {
-      return preparedWithStatus(
-        common,
-        snapshot,
-        receipt,
-        "conflict",
-        "Molis Work 接入后相关配置或 Skill 已被改动。为避免删除用户修改，本次不会移除。",
-      );
+      return preparedWithStatus(common, snapshot, receipt, "conflict", "Molis Work 接入后相关配置已被改动。为避免删除用户修改，本次不会移除。");
     }
 
     const nextConfig = adapter.removeConfig(snapshot.configText);
@@ -125,13 +100,6 @@ export class RuntimeIntegrationPlanner {
         after: "只移除 Molis Work MCP entry，保留其他 Runtime 配置",
       },
       {
-        kind: "skill_link",
-        target_path: adapter.skillPath(this.paths.userHomeDirectory),
-        operation: "remove",
-        before: skillSummary(snapshot.skill),
-        after: "移除 Molis Work 创建的 Skill 链接",
-      },
-      {
         kind: "ownership_receipt",
         target_path: this.paths.receiptPath(adapter.id),
         operation: "remove",
@@ -144,7 +112,6 @@ export class RuntimeIntegrationPlanner {
       adapter,
       beforeConfigText: snapshot.configText,
       beforeConfigHash: snapshot.configHash,
-      beforeSkill: snapshot.skill,
       nextConfigText: nextConfig,
       artifacts: snapshot.artifacts,
       receipt,
@@ -163,10 +130,7 @@ export class RuntimeIntegrationPlanner {
       action,
       config_path: snapshot.adapter.configPath(this.paths.userHomeDirectory),
       config_hash: snapshot.configHash,
-      skill_path: snapshot.adapter.skillPath(this.paths.userHomeDirectory),
-      skill_signature: snapshot.skill.signature,
       launcher_path: snapshot.artifacts?.launcherPath ?? null,
-      skill_source_path: snapshot.artifacts?.skillSourcePath ?? null,
     };
     const planHash = digest(JSON.stringify(payload));
     return {
@@ -230,17 +194,9 @@ function preparedWithStatus(
     adapter: common.adapter,
     beforeConfigText: snapshot.configText,
     beforeConfigHash: snapshot.configHash,
-    beforeSkill: snapshot.skill,
     nextConfigText: snapshot.configText,
     artifacts: snapshot.artifacts,
     receipt,
   };
-}
-
-function skillSummary(skill: SkillSnapshot): string {
-  if (skill.state === "absent") return "未安装 Molis Work Skill";
-  if (skill.state === "current") return "当前 Molis Work Skill 链接";
-  if (skill.state === "managed") return "旧版 Molis Work Skill 链接";
-  return "同名但不属于 Molis Work 的 Skill";
 }
 

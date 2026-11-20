@@ -99,12 +99,17 @@ test("SCS-17 Attention projects an active Goal decision as the owner's Goal refe
   try {
     const proposal = propose(data.app, "child-a", "propose-a");
     const attention = new AttentionModule(data.store.db, { exists: () => true });
+    // What Goals' Manifest declares (batch 44 C8): the waiting entry's object kind and what its reason asks of the person.
+    const subjects = goalsManifest.attention!.subjects!, of = (owner: string) => owner === GOALS_PLUGIN_ID ? subjects : [];
+    const declared = { objectKind: (owner: string, type: string) => of(owner).find(subject => subject.type === type)?.object_kind,
+      subjectType: (owner: string, kind: string) => of(owner).find(subject => subject.object_kind === kind)?.type,
+      category: (owner: string, type: string, reason: string) => of(owner).find(subject => subject.type === type)?.reasons.find(item => item.id === reason)?.attention };
     const [entry] = attention.query.list(BOARD);
-    assert.deepEqual(attention.listSurfaceEntries(BOARD), [{ owner_plugin_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: data.rootId },
-      reason: "goal_decision", revision: entry!.revision, entered_at: entry!.created_at }]);
-    assert.deepEqual(attention.listSurfaceEntries("other-project"), []);
+    assert.deepEqual(attention.listSurfaceEntries(BOARD, declared), [{ owner_plugin_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: data.rootId },
+      reason: "goal_decision", attention: "needs_decision", revision: entry!.revision, entered_at: entry!.created_at }]);
+    assert.deepEqual(attention.listSurfaceEntries("other-project", declared), []);
     decide(data.app, proposal.proposal_id, "decide-a");
-    assert.deepEqual(attention.listSurfaceEntries(BOARD), []);
+    assert.deepEqual(attention.listSurfaceEntries(BOARD, declared), []);
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });

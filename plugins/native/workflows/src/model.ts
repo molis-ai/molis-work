@@ -1,9 +1,14 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
-import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workflowsErrors } from "./error.js";
 import { cutCharacters, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+/**
+ * What a step holds: the station it is at (`plugin`, the station id) and that station's object there. Saved in the run's steps, so it
+ * keeps this shape; the content protocol's answer (`WorkflowItemRef`, a subject of the station's kind) is turned into it on arrival.
+ */
+export interface WorkflowStepItem { readonly plugin: string; readonly item_id: string; readonly title: string }
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
 
 export const WORKFLOWS_PLUGIN_ID = "io.molis.work.native.workflows";
@@ -113,7 +118,7 @@ export interface WorkflowStep {
   readonly station_id: string;
   readonly plugin: string;
   readonly status: WorkflowStepStatus;
-  readonly item: WorkflowItemRef | null;
+  readonly item: WorkflowStepItem | null;
   readonly arrived_at: string | null;
   /** Filled once this step has been handed to the next one. */
   readonly handoff: WorkflowHandoff | null;
@@ -352,7 +357,7 @@ export function applyFunctionRule(link: WorkflowLink, input: WorkflowPayload, no
     return names.length && names.every((name) => !values[name]!.trim()) ? [] : [fill(line)];
   }).join("\n").replace(/\n{3,}/g, "\n\n");
   const title = cutCharacters((link.title_template.trim() ? fill(link.title_template) : input.title).trim(), 200) || input.title;
-  return { title, body: fillLines(link.body_template).trim(), url: input.url ?? null, source: input.source ?? null, feed_item_id: null };
+  return { title, body: fillLines(link.body_template).trim(), url: input.url ?? null, source: input.source ?? null };
 }
 
 export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from: string, to: string): InstructedPrompt {
@@ -378,11 +383,10 @@ export function parseAiHandoff(text: string, input: WorkflowPayload): WorkflowPa
     body: body || text.trim(),
     url: input.url ?? null,
     source: input.source ?? null,
-    feed_item_id: null,
   };
 }
 
-export function startInstanceSteps(chain: WorkflowChain, first: WorkflowItemRef, at: string): WorkflowStep[] {
+export function startInstanceSteps(chain: WorkflowChain, first: WorkflowStepItem, at: string): WorkflowStep[] {
   return chain.stations.map((station, index) => ({
     station_id: station.station_id,
     plugin: station.plugin,
@@ -418,7 +422,7 @@ export function advanceInstance(
   instance: WorkflowInstance,
   from: number,
   handoff: WorkflowHandoff,
-  arrived: WorkflowItemRef,
+  arrived: WorkflowStepItem,
   at: string,
   arrival: { readonly payload?: WorkflowPayload; readonly result?: unknown; readonly result_presentation?: ActionResultPresentation; readonly result_truncated?: true } = {},
 ): WorkflowInstance {

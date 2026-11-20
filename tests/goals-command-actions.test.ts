@@ -48,7 +48,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     assert.deepEqual(await actions.invoke(goalsActions.configure, configure), { ...JSON.parse(JSON.stringify(oldConfig)), replayed: true });
     await assert.rejects(actions.invoke(goalsActions.configure, { ...configure, idempotency_key: "stale-config" }), /版本/);
     const report = { goal_id, idempotency_key: "report", events: [{ type_id: "work", type_version: 1, title: "实际正文",
-      fields: { body: "旧回执和原文保留" }, judgments: [{ requirement_id: "human", verdict: "supports" as const }] }] };
+      fields: { body: "旧回执和原文保留" } }] };
     const before = (await state()).goal_event_cursor;
     await assert.rejects(actions.invoke(goalsActions.report, { ...report, idempotency_key: "bad-batch",
       events: [...report.events, { ...report.events[0]!, type_id: "missing" }] }));
@@ -86,20 +86,23 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.progress, { ...progress, idempotency_key: "stale-progress", expected_goal_cursor: before }));
     const opened = await actions.invoke(goalsActions.concern, { goal_id, idempotency_key: "open", action: "open", title: "补齐说明",
       statement: "交付还需复查", blocks_closure: true, scope: { requirement_ids: ["human"] } });
-    const asked = await actions.invoke(goalsActions.requestDecision, { goal_id, idempotency_key: "ask", purpose: "requirement_acceptance",
-      question: "用户是否接受？", options: [{ option_id: "yes", label: "接受", impact: "允许收尾" }, { option_id: "no", label: "补充", impact: "继续工作" }], scope: { requirement_ids: ["human"] } });
+    const asked = await actions.invoke(goalsActions.requestDecision, { goal_id, idempotency_key: "ask", purpose: "action",
+      question: "可以发布吗？", options: [{ option_id: "yes", label: "发布", impact: "对外可见" }, { option_id: "no", label: "再等等", impact: "继续工作" }], scope: { action: "publish" } });
     const versions = { expected_config_version: (await state()).config.version, expected_agreement_version: (await state()).agreement.version };
+    // The requirements are the platform's (contract-design §10): an agreement change cannot name one, let alone weaken it.
     await assert.rejects(actions.invoke(goalsActions.agree, { goal_id, idempotency_key: "weaken", ...versions,
-      revise_requirements: [{ requirement_id: "human", human_decision_required: false }] }), /授权|用户/);
+      revise_requirements: [{ requirement_id: "human", human_decision_required: false }] } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(goalsActions.report, { ...report, actor_kind: "user", idempotency_key: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(goalsActions.citeDecision, { goal_id, decision_id: "fabricated", idempotency_key: "fake" }));
     const incomplete = await actions.invoke(goalsActions.close, { goal_id, kind: "complete", reason: "申请收尾", idempotency_key: "blocked", ...versions });
     assert.equal(incomplete.completion_applied, false); assert.ok(incomplete.unmet_reasons.length > 0);
     const decision = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({ project_id, goal_id,
       authority: hostEventDecisionAuthority("web", project_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
-      selected_option_id: "yes", conclusion: "接受交付", effects: [{ kind: "accept_requirements" }], scope: { requirement_ids: ["human"] } }));
-    const cited = await actions.invoke(goalsActions.citeDecision, { goal_id, idempotency_key: "cite", decision_id: decision.decision.decision_id, scope: { requirement_ids: ["human"] } });
+      selected_option_id: "yes", conclusion: "可以发布", effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } }));
+    const cited = await actions.invoke(goalsActions.citeDecision, { goal_id, idempotency_key: "cite", decision_id: decision.decision.decision_id, scope: { action: "publish" } });
     assert.equal(cited.decision.actor_id, "real-user", "citing preserves the original decision maker");
+    // The person accepts the requirement on the platform (contract-design §10); Goals only reads it.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).decide(project_id, goal_id, ["human"]));
     const followup = await actions.invoke(goalsActions.report, { ...report, idempotency_key: "followup-report" });
     await actions.invoke(goalsActions.concern, { goal_id, idempotency_key: "resolve", action: "resolve", concern_id: opened.concern.concern_id,
       reason: "工作事实已复查", supporting_event_ids: [followup.events[0]!.event_id] });
@@ -107,9 +110,10 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     assert.equal(closed.completion_applied, true); assert.equal(closed.work_status, "completed");
     assert.equal((await actions.invoke(goalsActions.resume, { goal_id, idempotency_key: "resume", reason: "继续下一轮" })).work_status, "open");
     const now = await state();
-    const agreed = await actions.invoke(goalsActions.agree, { goal_id, idempotency_key: "add-requirement",
+    // Replacing the outcome is the person's to do (a Runtime would cite their approval of this change): the management door is the person.
+    const agreed = await management.invoke(goalsActions.agree, { goal_id, idempotency_key: "change-outcome",
       expected_config_version: now.config.version, expected_agreement_version: now.agreement.version,
-      new_requirements: [{ requirement_id: "extra", statement: "补充说明" }] });
+      outcome: "保留用户验收，并补充说明" });
     assert.equal(agreed.agreement.version, now.agreement.version + 1);
     const beforeDenied = (await state()).goal_event_cursor;
     await assert.rejects(host.actionClient(ref).invoke(managementCaller("foreign", configure.idempotency_key), goalsActions.configure, configure), { code: "actions.scope_mismatch" });

@@ -160,8 +160,9 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
       const state = coordinator.goalEvents.readState(DEMO_PROJECT_ID, "original");
       coordinator.goalEvents.setAgreement({ project_id: DEMO_PROJECT_ID, goal_id: "original", actor_id: "web-user", actor_kind: "user",
         idempotency_key: "changed-agreement", expected_config_version: state.config.version, expected_agreement_version: state.agreement.version,
-        outcome: "只评审更新后的安装说明，不评审旧购物车逻辑",
-        revise_requirements: [{ requirement_id: "human-original", statement: "用户确认新安装说明清楚", human_decision_required: true }] });
+        outcome: "只评审更新后的安装说明，不评审旧购物车逻辑" });
+      // The requirement's words are the platform's: the person rewrites it in the requirement column (contract-design §10).
+      coordinator.setRequirements(DEMO_PROJECT_ID, "original", [{ requirement_id: "human-original", statement: "用户确认新安装说明清楚", human_decision_required: true }], true);
     });
     const changed = (await request("/goals/original")).body;
     assert.equal(changed.snapshot.state.agreement.version, 2);

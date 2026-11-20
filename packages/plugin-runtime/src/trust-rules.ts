@@ -93,7 +93,8 @@ export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTr
 export function assertScopeFitsRuntime(manifest: PluginManifest, trust: PluginTrust, runtimeScope: "home" | "project" | undefined): void {
   if (runtimeScope === undefined || isHostTrust(trust)) return;
   const declaredHome = manifest.runtime?.scope === "home";
-  if (runtimeScope === "project" && declaredHome) {
+  const declaredDual = declaredHome && manifest.runtime?.dual_instance === true;
+  if (runtimeScope === "project" && declaredHome && !(declaredDual && trust.level === "pinned")) {
     throw pluginErrors.home_scope_unavailable("这个插件的 Manifest 声明了 runtime.scope: home，只能装进 Home，不能装进项目");
   }
   if (runtimeScope === "home" && trust.level === "pinned" && !declaredHome) {

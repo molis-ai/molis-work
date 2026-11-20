@@ -75,7 +75,7 @@ async function world(t: TestContext) {
     workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }),
     directoriesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.projectDirectories(projectId)) }));
   served = await serveTestHost(null, { home, host: localHost });
-  const project = await served.createProject("Round sessions");
+  const project = await served.createProject("Round sessions", ["goals"]);
   // The directory a round may write in is the project's output, as a person sets it in the project's settings; the Host holds no other.
   await setProjectOutputFolder(served.web, project.project_id, home);
   const handled: Array<{ actor_id: string; runtime_session_id: string | undefined; audit_actor_id: string | undefined }> = [];

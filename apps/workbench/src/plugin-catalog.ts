@@ -76,6 +76,35 @@ function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefi
   return BUILTIN_PLUGIN_CATALOG.find((entry) => entry.project_plugin_id === projectPluginId);
 }
 
+/** Surface aliases declared by built-in plugins (`alias -> canonical project_plugin_id`). */
+export function pluginSurfaceAliases(): Readonly<Record<string, string>> {
+  const aliases: Record<string, string> = {};
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    for (const alias of entry.workbench.surfaceAliases ?? []) aliases[alias] = entry.project_plugin_id;
+  }
+  return aliases;
+}
+
+export function resolveSurfaceAlias(surface: string): string {
+  return SURFACE_ALIAS_MAP[surface] ?? surface;
+}
+
+/** Search hit kinds per plugin that jump to `searchRow` instead of opening an item tab. */
+export function pluginSearchRecordKinds(): Readonly<Record<string, readonly string[]>> {
+  const kinds: Record<string, readonly string[]> = {};
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    if (entry.workbench.searchRecordKinds?.length) kinds[entry.project_plugin_id] = entry.workbench.searchRecordKinds;
+  }
+  return kinds;
+}
+
+/** Plugins that opt out of auto-reopening their last record on reload. */
+export function pluginNoReopenRecords(): readonly string[] {
+  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.workbench.reopenRecord === false).map(entry => entry.project_plugin_id);
+}
+
+const SURFACE_ALIAS_MAP = pluginSurfaceAliases();
+
 function shippedDirectoryIds(): string[] {
   const shipped = BUILTIN_PLUGIN_CATALOG
     .filter((entry) => entry.personal === true || Boolean(entry.manifest.summary))
@@ -83,7 +112,9 @@ function shippedDirectoryIds(): string[] {
   const market = builtinPlacementDirectory();
   const ids = navigationEntries(shipped, market, ARTIFACT_NAVIGATION.label, SESSIONS_NAVIGATION.label).map(entry => entry.id);
   const unique = [...new Set(ids)];
-  if (unique.includes("feed") && !unique.includes("sources")) unique.push("sources");
+  for (const [alias, owner] of Object.entries(SURFACE_ALIAS_MAP)) {
+    if (unique.includes(owner) && !unique.includes(alias)) unique.push(alias);
+  }
   return unique;
 }
 
@@ -96,10 +127,10 @@ const shippedSurfaces = shippedDirectoryIds();
 export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
   "home",
   "market",
-  ...shippedSurfaces.filter(id => id !== "sources"),
+  ...shippedSurfaces.filter(id => !Object.hasOwn(SURFACE_ALIAS_MAP, id)),
 ]);
 
-/** Directory panels owned by a Plugin stage, including Feed's sources alias. */
+/** Directory panels owned by a Plugin stage, including any declared surface aliases. */
 export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedSurfaces;
 
 function buildDirectory(words: (manifest: PluginManifest) => Pick<PluginDirectoryEntry, "name" | "summary" | "ui">): PluginDirectory {

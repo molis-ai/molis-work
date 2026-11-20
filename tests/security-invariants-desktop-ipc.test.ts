@@ -31,14 +31,13 @@ const capabilities: Capability[] = templateFiles.map(name => JSON.parse(readFile
 /** The web host the shell loads, by its two loopback names, on the proved port. A fixed or other port, a scheme other than http, another host or a wildcard host is a different promise. */
 const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):\{port\}\/(?:[A-Za-z0-9_\-/]*\*)?$/;
 const PERMISSIONS = new Map<string, string[]>([
-  ["default", ["allow-capsule-window", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
+  ["default", ["allow-native-language", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
   ["context-directories", ["allow-context-directories"]],
   // Personal login was added by this branch: fixed loopback account routes only, not a general HTTP bridge.
   ["main-external-links", ["allow-open-external-url", "allow-personal-account-request"]],
   // Going back a version (U3 §5.4): one command, from 设置 › 更新 in the main window only (S-desktop-rollback-main-only).
   ["main-rollback", ["allow-rollback-to-previous"]],
-  // RES-08: the popover's 「运行」 section (its own page only) and 设置 › 运行 (the main window's page only).
-  ["capsule-runtime", ["allow-runtime-capsule"]],
+  // RES-08: 设置 › 运行 (the main window's page only).
   ["main-running", ["allow-runtime-settings"]],
 ]);
 
@@ -60,7 +59,7 @@ test("S-14 every capability reaches only the local web host's own origin, on nam
   for (const capability of capabilities) {
     assert.ok(capability.remote?.urls?.length, `${capability.identifier}: a capability without remote.urls would apply to the shell's own files, not to this host`);
     for (const url of capability.remote!.urls) assert.match(url, ORIGIN_PATTERN, `${capability.identifier}: ${url}`);
-    assert.ok(capability.windows.length > 0 && capability.windows.every(window => ["main", "capsule"].includes(window)), `${capability.identifier}: windows ${capability.windows}`);
+    assert.ok(capability.windows.length > 0 && capability.windows.every(window => window === "main"), `${capability.identifier}: windows ${capability.windows}`);
     assert.ok(!capability.windows.some(window => window.includes("*")), `${capability.identifier}: a wildcard window`);
     assert.equal(capability.webviews, undefined, `${capability.identifier}: webview scoping is not used; windows are the unit`);
     const granted = capability.permissions.map(permission => { assert.equal(typeof permission, "string", `${capability.identifier}: a permission with a scope object`); return permission as string; }).sort();
@@ -87,7 +86,7 @@ test("S-14 each permission is defined in the shell, allows only commands the she
     }
   }
   const registered = new Set([...(/generate_handler!\[([\s\S]*?)\]/.exec(readFileSync(MAIN_RS, "utf8"))?.[1] ?? "").matchAll(/(?:[A-Za-z_]+::)?([a-z_][a-z0-9_]*)\s*,?/g)].map(match => match[1]!));
-  assert.ok(registered.has("capsule_hide") && registered.has("files_open"), "the command list was read");
+  assert.ok(registered.has("native_set_locale") && registered.has("files_open"), "the command list was read");
   for (const [identifier, commands] of definitions) for (const command of commands) assert.ok(registered.has(command), `${identifier} allows ${command}, which the shell does not register`);
   for (const capability of capabilities) for (const permission of capability.permissions as string[]) {
     if (permission.startsWith("core:")) continue;
@@ -129,23 +128,12 @@ test("S-14 the shell's file commands take a page's relative paths and ask the Ho
 
 test("S-14 the shell's own configuration does not turn on remote IPC for every domain or load anything but the local placeholder first", () => {
   const configuration = JSON.parse(readFileSync(join(SHELL, "tauri.conf.json"), "utf8")) as { app: { windows: Array<{ label: string; url: string }>; security?: Record<string, unknown> }; build: { frontendDist: string } };
-  assert.deepEqual(configuration.app.windows.map(window => window.label).sort(), ["capsule", "main"]);
+  assert.deepEqual(configuration.app.windows.map(window => window.label).sort(), ["main"]);
   for (const window of configuration.app.windows) assert.equal(window.url, "index.html", `${window.label} starts from the local placeholder, not from a web address`);
   for (const key of Object.keys(configuration.app.security ?? {})) assert.ok(["csp"].includes(key), `app.security.${key}: a security setting was added; decide what it means for remote pages and update this test`);
   assert.equal(JSON.stringify(configuration).includes("dangerousRemoteDomainIpcAccess"), false);
   assert.equal(JSON.stringify(configuration).includes("dangerousDisableAssetCspModification"), false);
   assert.equal(configuration.build.frontendDist, "../webview-placeholder");
-});
-
-// W2-18-CAPSULE-01, W2-18-CAPSULE-02: configuration coverage; actual window geometry and remote IPC still need the native probe.
-test("W2-18-CAPSULE: every command the capsule calls has its existing explicit permission", () => {
-  const client = readFileSync(new URL("../apps/desktop/src/capsule-shell.ts", import.meta.url), "utf8");
-  const invoked = [...new Set([...client.matchAll(/invoke\?\.\("(capsule_[a-z_]+)"/g)].map(match => match[1]!))].sort();
-  const permission = readFileSync(join(SHELL, "permissions", "capsule.toml"), "utf8");
-  const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!).sort();
-  assert.ok(invoked.includes("capsule_resize"), "the production resize call was read");
-  assert.deepEqual(allowed, ["capsule_hide", "capsule_open_main", "capsule_resize", "capsule_set_locale", "capsule_update_menu_bar"]);
-  for (const command of invoked) assert.ok(allowed.includes(command), `${command}: capsule invocation has no permission`);
 });
 
 // W2'-3 (specs/context-program §21.6): the page tells the shell where Shelf's side tab is, and the drop wheel treats that box
@@ -167,35 +155,25 @@ test("S-14 the Shelf box a page reports reaches the drop wheel only through its 
   for (const name of ["s14_a_reported_shelf_box_that_is_not_a_box_is_refused", "s14_the_wheel_takes_the_shelf_tab_only_where_it_is_on_screen"]) assert.match(pure, new RegExp(`fn ${name}\\(`), `${name}: the refusal is tested`);
 });
 
-test("RES-08 RES-11 S-14 the runtime commands: the popover's own page reads, decides, marks the tray and quits; 设置 › 运行 alone changes the two switches", () => {
+test("RES-08 RES-11 S-14 the runtime commands: 设置 › 运行 alone changes the two switches", () => {
   const byId = new Map(capabilities.map(capability => [capability.identifier, capability]));
-  assert.deepEqual(byId.get("capsule-runtime")!.windows, ["capsule"]);
-  assert.deepEqual(byId.get("capsule-runtime")!.remote!.urls, ["http://127.0.0.1:{port}/desktop/capsule*"]);
   assert.deepEqual(byId.get("main-running")!.windows, ["main"]);
   assert.deepEqual(byId.get("main-running")!.remote!.urls, ["http://127.0.0.1:{port}/settings/running*"]);
   for (const capability of capabilities) {
-    if (!["capsule-runtime", "main-running"].includes(capability.identifier)) {
+    if (capability.identifier !== "main-running") {
       for (const permission of capability.permissions as string[]) assert.doesNotMatch(permission, /^allow-runtime-/, `${capability.identifier} carries ${permission}`);
     }
   }
   const permission = readFileSync(join(SHELL, "permissions", "runtime.toml"), "utf8");
   const blocks = Object.fromEntries(permission.split("[[permission]]").slice(1).map(block => [/identifier\s*=\s*"([^"]+)"/.exec(block)![1]!,
     [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(block)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!).sort()]));
-  assert.deepEqual(blocks, { "allow-runtime-capsule": ["runtime_decide", "runtime_expired_seen", "runtime_missed_dot", "runtime_open", "runtime_overview", "runtime_quit_confirmed"],
-    "allow-runtime-settings": ["runtime_settings_get", "runtime_settings_set"] });
+  assert.deepEqual(blocks, { "allow-runtime-settings": ["runtime_settings_get", "runtime_settings_set"] });
   // Each command checks its caller before it does anything, and the Rust tests pin the refusals.
   const source = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/runtime.rs", import.meta.url)), "utf8");
-  for (const command of ["runtime_overview", "runtime_decide", "runtime_expired_seen", "runtime_missed_dot", "runtime_quit_confirmed"]) {
-    const body = source.slice(source.indexOf(`fn ${command}(`));
-    assert.ok(body.indexOf("from_capsule(&window)?") > 0 && body.indexOf("from_capsule(&window)?") < body.indexOf("\n}\n"), `${command} checks the popover's page first`);
-  }
   for (const command of ["runtime_settings_get", "runtime_settings_set"]) {
     const body = source.slice(source.indexOf(`fn ${command}(`));
     assert.ok(body.indexOf("from_running_settings(&window)?") > 0 && body.indexOf("from_running_settings(&window)?") < body.indexOf("\n}\n"), `${command} checks 设置 › 运行 first`);
   }
-  // 「打开」 is the one command of the popover's local 「没在运行」 page (the capability applies to the popover's local page too), and only there.
-  const open = source.slice(source.indexOf("fn runtime_open("));
-  assert.ok(open.indexOf("capsule_stopped_source(window.label()") > 0 && open.indexOf("capsule_stopped_source(window.label()") < open.indexOf("reopen_host("), "runtime_open checks the local page first");
   assert.match(source, /fn res08_s14_runtime_commands_refuse_every_other_window_and_origin\(/u);
   // The login item is changed by the shell itself; no page is granted the plugin's own commands (the forbidden list above).
   assert.match(readFileSync(MAIN_RS, "utf8"), /tauri_plugin_autostart::init\(/u);
@@ -204,7 +182,7 @@ test("RES-08 RES-11 S-14 the runtime commands: the popover's own page reads, dec
 test("S-desktop-rollback-main-only going back a version is granted to the main window's update page alone, and the command checks the caller before it stops anything", () => {
   const grant = capabilities.filter(capability => (capability.permissions as string[]).includes("allow-rollback-to-previous"));
   assert.deepEqual(grant.map(capability => capability.identifier), ["main-rollback"], "no other capability carries it");
-  assert.deepEqual(grant[0]!.windows, ["main"], "not the capsule, not any other window");
+  assert.deepEqual(grant[0]!.windows, ["main"], "not any other window");
   assert.deepEqual(grant[0]!.remote!.urls, ["http://127.0.0.1:{port}/settings/update*"], "only the page with the confirm dialog");
   const permission = readFileSync(join(SHELL, "permissions", "rollback.toml"), "utf8");
   assert.match(permission, /commands\.allow = \["rollback_to_previous"\]/u, "the permission allows that one command");

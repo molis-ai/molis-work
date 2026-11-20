@@ -1,16 +1,15 @@
+import { WORK_TERMINAL_PATH } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SUBJECT_CONTEXT_PATH, type SubjectContextAnswer } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TerminalTranslate } from "./client-dom.js";
 import type { TerminalGuard } from "./client-guard.js";
-import type { PanelRecord, TerminalRequest } from "./types.js";
+import type { PanelRecord, TerminalRequest, WorkTerminalSubjectRef } from "./types.js";
 
 export interface AdvancePromptOptions {
   text: TerminalTranslate;
   route(path: string): string;
   request: TerminalRequest;
-  goalId(): string;
-  /** The prompt's route with `:goalId` for the Goal's id, as the pane was given it: this client names no plugin. */
-  promptRoute(): string;
+  subject(): WorkTerminalSubjectRef;
   guard: TerminalGuard;
   current(): PanelRecord | null;
   sendPty(message: Record<string, unknown>): Promise<void>;
@@ -18,41 +17,50 @@ export interface AdvancePromptOptions {
   showToast(message: string, error?: boolean): void;
 }
 
+const subjectKey = (ref: WorkTerminalSubjectRef) => JSON.stringify([ref.plugin_id, ref.subject_kind, ref.subject_id]);
+const promptUrl = (route: (path: string) => string, ref: WorkTerminalSubjectRef) =>
+  route(`${WORK_TERMINAL_PATH}/${encodeURIComponent(ref.plugin_id)}/${encodeURIComponent(ref.subject_kind)}/${encodeURIComponent(ref.subject_id)}/prompt`);
+
 /**
- * The "advance this Goal" prompt: read from the route the pane names, typed into the live panel (never sent unless asked), or copied.
- * Before it, the text the project's plugins keep about this Goal is read as the person (GAS-01) and handed to the prompt, which binds it
- * as untrusted data; without that text the prompt is the Goal's own. Each read names the one Goal, so another Goal's text never comes.
+ * The "advance this work" prompt: read from the platform work-terminal route, typed into the live panel (never sent unless asked),
+ * or copied. Before it, the text the project's plugins keep about this object is read as the person (GAS-01) and handed to the
+ * platform prompt, which binds it as untrusted data. Each read names the one object, so another object's text never arrives.
  */
 export function createAdvancePrompt(options: AdvancePromptOptions) {
-  const { route, goalId, promptRoute, guard } = options;
-  let promptCache: { goalId: string; text: string } | null = null;
+  const { route, subject, guard } = options;
+  let promptCache: { key: string; text: string } | null = null;
 
-  const sourceContexts = (id: string) => options.request<SubjectContextAnswer | null>(
-    route(`${SUBJECT_CONTEXT_PATH}?kind=goal&id=${encodeURIComponent(id)}`), { fallback: uiText.text("workbench.client-prompt.could-not-open") },
+  const sourceContexts = (ref: WorkTerminalSubjectRef) => options.request<SubjectContextAnswer | null>(
+    route(`${SUBJECT_CONTEXT_PATH}?kind=${encodeURIComponent(ref.subject_kind)}&id=${encodeURIComponent(ref.subject_id)}`),
+    { fallback: uiText.text("workbench.client-prompt.could-not-open") },
   ).then(answer => answer?.contexts ?? [], () => []);
 
-  const loadAdvancePrompt = async (requestedGoalId?: string) => {
-    const id = requestedGoalId || goalId(), path = promptRoute();
-    if (!id || !path) throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
-    if (guard.readOnly()) throw new Error(guard.parentReadOnlyMessage());
-    if (requestedGoalId && requestedGoalId !== goalId()) {
-      throw new Error(uiText.text("workbench.client-prompt.page-has-switched-another-goal-return-goal-that"));
+  const loadAdvancePrompt = async (requested?: WorkTerminalSubjectRef) => {
+    const current = subject();
+    const target = requested ?? current;
+    if (!target.plugin_id || !target.subject_kind || !target.subject_id) {
+      throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
     }
-    const contexts = await sourceContexts(id);
+    if (guard.readOnly()) throw new Error(guard.readOnlyMessage());
+    const key = subjectKey(target);
+    if (requested && key !== subjectKey(current)) {
+      throw new Error(uiText.text("workbench.client-prompt.page-has-switched-another-item-return-item-that"));
+    }
+    const contexts = await sourceContexts(target);
     const payload = await options.request<{ prompt?: string } | null>(
-      route(path.replace(":goalId", encodeURIComponent(id))),
+      promptUrl(route, target),
       { method: "POST", body: contexts.length ? { source_contexts: contexts } : {}, fallback: uiText.text("workbench.client-prompt.could-not-open") },
     );
-    const text = payload?.prompt || (promptCache?.goalId === id ? promptCache.text : "");
+    const text = payload?.prompt || (promptCache?.key === key ? promptCache.text : "");
     if (!text) throw new Error(uiText.text("workbench.client-prompt.could-not-open"));
-    promptCache = { goalId: id, text };
+    promptCache = { key, text };
     return text;
   };
 
   const writePrompt = async (send: boolean) => {
     const panel = options.current();
     if (!guard.canControlPanel(panel)) return;
-    const text = await loadAdvancePrompt(panel.goal_id);
+    const text = await loadAdvancePrompt({ plugin_id: panel.plugin_id, subject_kind: panel.subject_kind, subject_id: panel.subject_id });
     const fillText = text
       .replace(/[\r\n]+/g, " ⏎ ")
       .replace(/[\u0000-\u001f\u007f]/g, " ");

@@ -452,6 +452,9 @@ export const CRAFT_BAR_STYLES = `
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-hint { opacity: 0; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-confirm { opacity: 1; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-toggle:not(:disabled) { border-color: var(--danger-action); background: var(--danger-action); color: var(--danger-action-ink); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-retained > .plugin-rail-item { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-retained .plugin-rail-item > span.plugin-rail-retained { grid-column: 3; grid-row: 1 / -1; align-self: center; overflow: visible; color: var(--muted); transition: opacity var(--dur-hover) var(--ease-quint); }
+  html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-retained:is(:hover, :has(:focus-visible)) .plugin-rail-retained { opacity: 0; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops { pointer-events: none; }
   html ${SHELL} .workbench-header .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops > .mw-btn { --ops-opacity: .55; }
   /* Without a pointer to look with, the buttons stay and the row keeps their room. */

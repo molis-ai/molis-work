@@ -26,27 +26,27 @@ export function checkGoalsManagementWiring(source, mode) {
   const errors = [], reject = message => errors.push(`${path}: ${message}`);
   if (production?.error) reject(production.error);
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
-  const factory = namedCalls("bindStandaloneManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
+  // The management MCP's fallback keeps the Goals port; the command line's has only the platform's review operations (batch 44, H6).
+  const factoryName = mcp ? "bindStandaloneManagementActions" : "bindStandaloneReviewActions";
+  const factory = namedCalls(factoryName), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
   const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
   const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
-  const external = creates.find(node => node.pos < fallback?.pos);
-  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 4
+  // The CLI no longer creates a project database (batch 44 removed `init` with the Goals commands): it opens only an existing one.
+  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
     && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
     && imports.has("./memory/memory-initialization.js:preflightMemoryHome")
-    && imports.has("./project-storage.js:prepareLocalProjectStorage")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
-    && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && creates.length === 0
     && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");'
     && text(body.statements[1]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
-    && text(body.statements[2]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
-    && ts.isReturnStatement(body.statements[3]) && body.statements[3].expression === call;
+    && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedHost = mcp ? "caller.localHost" : "localHost??=createMolisWorkLocalHost()";
-  if (!imports.has("./management-action-client.js:bindStandaloneManagementActions") || !call || call.arguments.length !== 3
+  if (!imports.has(`./management-action-client.js:${factoryName}`) || !call || call.arguments.length !== 3
     || text(opened) !== expectedHost || text(call.arguments[1]) !== "reference"
     || text(call.arguments[2]) !== (mcp ? "caller.resident?.signal" : "options.signal")
     || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
-    reject("bindStandaloneManagementActions must build the single lazy fallback with the original Host, retaining Home ownership before creation, bound reference and original signal");
+    reject(`${factoryName} must build the single lazy fallback with the original Host, retaining Home ownership before creation, bound reference and original signal`);
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
   const residentInput = residentCall?.arguments[0];
@@ -76,11 +76,14 @@ export function checkGoalsManagementWiring(source, mode) {
     }
   }
   const actions = declarations.get("actions"), dispatch = namedCalls(mcp ? "dispatchMcpProjectTool" : "dispatchCliProjectCommand");
-  const expectedActions = mcp ? 'audience!=="management"?null:owned&&caller.resident?residentManagementActions' : "project?residentManagementActions";
+  const expectedActions = mcp ? 'audience!=="management"?null:owned&&caller.resident?residentManagementActions' : "project?reviewOnly(residentManagementActions";
   const expression = actions?.initializer;
   const inner = mcp && expression && ts.isConditionalExpression(expression) ? expression.whenFalse : expression;
+  // The command line's resident port is narrowed to the review operations before anything is sent.
+  const narrowed = !mcp && inner && ts.isConditionalExpression(inner) && ts.isCallExpression(inner.whenTrue) && text(inner.whenTrue.expression) === "reviewOnly"
+    && inner.whenTrue.arguments.length === 1 && imports.has("./management-action-client.js:reviewOnly") ? inner.whenTrue.arguments[0] : undefined;
   if (!expression || !text(expression).startsWith(expectedActions) || !inner || !ts.isConditionalExpression(inner)
-    || inner.whenTrue !== residentCall || text(inner.whenFalse) !== "fallback()" || (mcp && (!ts.isConditionalExpression(expression)
+    || (mcp ? inner.whenTrue : narrowed) !== residentCall || text(inner.whenFalse) !== "fallback()" || (mcp && (!ts.isConditionalExpression(expression)
       || text(expression.condition) !== 'audience!=="management"' || expression.whenTrue.kind !== ts.SyntaxKind.NullKeyword))
     || dispatch.length !== 1 || text(dispatch[0].arguments[0]) !== "actions" || namedCalls("fallback").length !== 1) {
     reject("the dispatcher must receive the actual resident/fallback port; Runtime gets null and cannot acquire management actions");

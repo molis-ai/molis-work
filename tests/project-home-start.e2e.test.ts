@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { CODING_OPEN } from "./fixtures/coding-composer.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -148,6 +148,9 @@ test("WBR-21 QHR-01 QEA-164: a real background Home refresh keeps the current ro
   const b = await openGoalBrowser(t, "empty", undefined, null);
   if (!b) return;
   const first = await createProject(b.web, "Refresh source"), second = await createProject(b.web, "Another Home view");
+  for (const id of [first.project_id, second.project_id]) {
+    await b.web.post(`/api/settings/projects/${id}/plugins`, { plugin_id: "goals", expected_revision: await projectPluginRevision(b.web, id) });
+  }
   const project = (id: string) => "/projects/" + id;
   const go = (id: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + project(id) + "/" }, b.sessionId));
   const add = (id: string, title: string) => b.web.post<{ goal: { goal_id: string } }>(project(id) + "/api/plugins/io.molis.work.goals/goals",

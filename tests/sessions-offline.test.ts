@@ -121,8 +121,7 @@ test("RAC-217 SRB-08 design-system and builtin plugin lists carry no retired ses
     .filter(path => path.startsWith("apps/workbench/src/") && !EXTERNAL_SESSIONS_WORKBENCH_FILES.has(path) && listed.test(text(path)));
   assert.deepEqual(workbenchOffenders, []);
   assert.doesNotMatch(text("apps/workbench/src/builtin-plugins.ts"), listed);
-  assert.doesNotMatch(text("apps/workbench/src/styles/goal-canvas.ts"), listed);
-  assert.doesNotMatch(text("apps/local-host/src/web-goals-read.ts"), listed);
+  assert.doesNotMatch(text("plugins/native/goals/src/canvas-styles.ts"), listed);
 });
 
 test("RAC-219 the product documents say Sessions is offline and the redo is BL-177", () => {

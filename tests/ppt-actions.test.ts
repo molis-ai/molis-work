@@ -124,9 +124,11 @@ test("PPT outline from a Pages document reads it through Pages' own actions with
   assert.deepEqual(outlined.presentation.slides[0]!.bullets, ["上线灰度"]);
   await assert.rejects(both.invoke(actions.outline, { id: presentation.id }), { code: "ppt.invalid" });
   await assert.rejects(both.invoke(actions.outline, { id: presentation.id, text: "## a", page_id: page.id }), { code: "ppt.invalid" });
-  // Without Pages permission the caller cannot read the document through PPT either.
+  // Without Pages permission the caller sees no Pages documents and cannot read the document through PPT either.
   const pptOnly = bindActionClient(f.client, () => ({ ...f.caller, permissions: PPT_ACTION_PERMISSIONS.filter(permission => permission !== "pages:read") }));
-  await assert.rejects(pptOnly.invoke(actions.outlinePages, {}), { code: "actions.forbidden" });
+  const unreadable = await pptOnly.invoke(actions.outlinePages, {});
+  assert.deepEqual(unreadable.documents, []);
+  assert.ok(unreadable.unavailable_reason);
   await assert.rejects(pptOnly.invoke(actions.outline, { id: presentation.id, page_id: page.id }), { code: "actions.forbidden" });
 });
 test("RAC-1617: PPT counts a deck's title and description in Unicode characters, as its action schemas do", async t => {

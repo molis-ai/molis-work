@@ -2,7 +2,7 @@
 
 多件后台工作接连交结果后，助理还应能继续原任务。汇报本身既不消耗次数，也不把已用次数清零。
 
-预计 **8–16 工时**。维护范围为助理线。正式交付项为 [97-1](../../batches/97.md#batch-97-item-1)。[原始待办](../../../../backlog/BL-report-rounds-auto-cap.md) · [派工总表](../README.md)
+预计 **8–16 工时**。维护范围为助理线。正式交付项为 [97-1](../../batches/97.md#batch-97-item-1)。[原始待办](https://github.com/molis-ai/molis-work/blob/e985e19aec4fbe21c93f5ad73f3dd43925e02656/specs/backlog/BL-report-rounds-auto-cap.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

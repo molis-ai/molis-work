@@ -321,6 +321,7 @@ export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { AssistantReportRounds, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
+export { reportTurn } from "./assistant/assistant-dispatch.js";
 export { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "./assistant/assistant-agent.js";
 export { roundStartInput } from "./assistant/assistant-round-start.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.

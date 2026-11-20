@@ -3,15 +3,17 @@ import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
  * The bundle's entry (dist/runtime-panel-client.js): what runs on its own here (specs/proactive-assistant/resident-runtime-design.md §4),
- * read from `/api/runtime/overview`. On the Home it is the notice of what was missed, with 「现在做」 and 「跳过」, drawn with the
- * catalog's parts. Their markup is written out here rather than taken from the SDK's renderers, whose alert brings the state ring
- * (about 5 KB) into a bundle that is inlined into the page.
+ * read from `/api/runtime/overview`. On the Home it is the notice of what was missed, with 「现在做」 and 「跳过」, and once how many
+ * missed runs went seven days without a decision and were skipped on their own until 「知道了」, drawn with the catalog's parts. Their
+ * markup is written out here rather than taken from the SDK's renderers, whose alert brings the state ring (about 5 KB) into a bundle
+ * that is inlined into the page.
  */
 
 interface Run { run_id: string; title: string; due_at: string; project_id: string | null; needs: string[]; waiting?: boolean;
   missed_at?: string; source: { scope_project_id: string | null; provider_id: string; surface: string; title: string } }
 interface Gap { from: string; to: string; cause: "quit" | "crash" | "sleep" }
-interface Overview { state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[];
+interface Expired { count: number; through: string; sources: Array<{ title: string; count: number }> }
+interface Overview { state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[]; expired: Expired;
   unavailable_sources: Array<{ project_id: string | null; provider_id: string | null; code: string }> }
 
 const page = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
@@ -34,6 +36,9 @@ function missedTitle(view: Overview): string {
   return text("missed", { count });
 }
 
+/** Which owners skipped how many, in the person's words: 「定时任务 2 件 · Feed 来源 1 件」. */
+const expiredSources = (expired: Expired) => expired.sources.map(source => text("expired-source", { title: source.title, count: source.count })).join(" · ");
+const seenAttrs = (expired: Expired) => ({ "data-runtime-expired-seen": expired.through });
 const decideAttrs = (run: Run, decision: "run_now" | "skip") => ({ "data-runtime-decide": decision, "data-run": run.run_id, "data-provider": run.source.provider_id,
   "data-scope": run.source.scope_project_id ?? "" });
 
@@ -42,10 +47,16 @@ const attributes = (attrs: Record<string, string>) => Object.entries(attrs).map(
 const mwButton = (label: string, attrs: Record<string, string>, primary = false) =>
   `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "secondary"} mw-btn--sm" data-slot="button"${attributes(attrs)}><span data-slot="button-label">${escape(label)}</span></button>`;
 
+function renderHomeExpired(expired: Expired): string {
+  if (!expired.count) return "";
+  return `<div class="mw-alert" data-slot="alert" role="status" data-runtime-expired><strong>${escape(text("expired", { count: expired.count }))}</strong><div class="runtime-rows"><div class="mw-dir-row mw-dir-row--meta runtime-row" data-runtime-row="expired"><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">${escape(expiredSources(expired))}</span></span><span class="runtime-row__actions">${mwButton(text("expired-seen"), seenAttrs(expired))}</span></div></div></div>`;
+}
+
 function renderHome(view: Overview, handled: boolean): string {
-  if (!view.missed.length) return handled ? `<div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${escape(text("all-handled"))}</strong></div>` : "";
+  const expired = renderHomeExpired(view.expired);
+  if (!view.missed.length) return (handled ? `<div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${escape(text("all-handled"))}</strong></div>` : "") + expired;
   const rows = view.missed.map(run => `<div class="mw-dir-row mw-dir-row--meta runtime-row" data-runtime-row="${escape(run.run_id)}"><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>${escape(run.title)}</strong></span><small>${escape(run.source.title)} · ${escape(when(run.due_at))}</small></span><span class="runtime-row__actions">${mwButton(text("run-now"), decideAttrs(run, "run_now"), true)}${mwButton(text("skip"), decideAttrs(run, "skip"))}</span></div>`).join("");
-  return `<div class="mw-alert mw-alert--warning" data-slot="alert"><strong>${escape(missedTitle(view))}</strong><div class="runtime-rows">${rows}</div></div>`;
+  return `<div class="mw-alert mw-alert--warning" data-slot="alert"><strong>${escape(missedTitle(view))}</strong><div class="runtime-rows">${rows}</div></div>${expired}`;
 }
 
 const root = document.querySelector<HTMLElement>("[data-runtime-panel]"), request = page.molisWorkRequest;
@@ -62,18 +73,34 @@ if (root && request) {
     try { view = await request("/api/runtime/overview") as Overview; hadMissed ||= view.missed.length > 0; paint(); } catch { /* nothing to say */ }
   };
   body.addEventListener("click", async event => {
-    const choice = (event.target as Element | null)?.closest<HTMLButtonElement>("[data-runtime-decide]");
-    if (!choice) return;
-    const line = choice.closest<HTMLElement>("[data-runtime-row]"), controls = line?.querySelectorAll("button") ?? [];
-    controls.forEach(control => { control.disabled = true; });
-    line?.querySelector("[data-runtime-failed]")?.remove();
-    try {
-      await request("/api/runtime/runs/decide", { method: "POST", body: { scope_project_id: choice.dataset.scope || null, provider_id: choice.dataset.provider,
-        run_id: choice.dataset.run, decision: choice.dataset.runtimeDecide }, fallback: text("decide-failed") });
-      if (view) { view = { ...view, missed: view.missed.filter(run => run.run_id !== choice.dataset.run) }; paint(); }
-    } catch {
-      controls.forEach(control => { control.disabled = false; });
-      line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
+    const target = event.target as Element | null;
+    const choice = target?.closest<HTMLButtonElement>("[data-runtime-decide]");
+    if (choice) {
+      const line = choice.closest<HTMLElement>("[data-runtime-row]"), controls = line?.querySelectorAll("button") ?? [];
+      controls.forEach(control => { control.disabled = true; });
+      line?.querySelector("[data-runtime-failed]")?.remove();
+      try {
+        await request("/api/runtime/runs/decide", { method: "POST", body: { scope_project_id: choice.dataset.scope || null, provider_id: choice.dataset.provider,
+          run_id: choice.dataset.run, decision: choice.dataset.runtimeDecide }, fallback: text("decide-failed") });
+        if (view) { view = { ...view, missed: view.missed.filter(run => run.run_id !== choice.dataset.run) }; paint(); }
+      } catch {
+        controls.forEach(control => { control.disabled = false; });
+        line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
+      }
+      return;
+    }
+    const seen = target?.closest<HTMLButtonElement>("[data-runtime-expired-seen]");
+    if (seen) {
+      const line = seen.closest<HTMLElement>("[data-runtime-row]");
+      seen.disabled = true;
+      line?.querySelector("[data-runtime-failed]")?.remove();
+      try {
+        await request("/api/runtime/expired/seen", { method: "POST", body: { through: seen.dataset.runtimeExpiredSeen! }, fallback: text("decide-failed") });
+        if (view) { view = { ...view, expired: { ...view.expired, count: 0, sources: [] } }; paint(); }
+      } catch {
+        seen.disabled = false;
+        line?.insertAdjacentHTML("beforeend", `<small class="runtime-failed" role="alert" data-runtime-failed>${escape(text("decide-failed"))}</small>`);
+      }
     }
   });
   void load();

@@ -3,14 +3,14 @@ import test from 'node:test';
 import { projectPluginSyncFixture } from './fixtures/project-plugin-sync.js';
 import {feedManifest,createFeedSyncBindings} from '@molis-ai/molis-work-plugin-feed';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {SourcesModule,sourceContentReplicationDefinition,sourceDeletedAt,fromBetterSqlite} from '@molis-ai/molis-work-plugin-feed/store';
+import {SourcesModule,sourceContentReplicationDefinition,sourceDeletedAt,fromProjectConnection} from '@molis-ai/molis-work-plugin-feed/store';
 import {createProjectReplicaSection,replicaTransaction,type ReplicaDatabase,type ReplicaInputValue,type ReplicaOutputValue} from '@molis-ai/molis-work-storage';
 import type {SourceRecord} from '@molis-ai/molis-work-plugin-feed/contract';
 
 const source=(label:string):SourceRecord=>({project_id:'project',source_id:'source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:label,description:label+' description',status:'active',enabled:true,origin:'molis_work',config:{connection_id:label+'-connection',repository:'owner/repository'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:'2026-10-19T00:00:00.000Z'},connection_ref:label+'-reference',account_label:label,last_sync_at:'2026-10-18T00:00:00.000Z',last_outcome:'saved',last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
 function fixture(){
  const library=projectPluginSyncFixture({space:personalStorageSpace('https://auth.example','work','user'),projectId:'project',manifest:feedManifest,bindings:createFeedSyncBindings,collectionId:'source_descriptions'}),db=library.db;
- const owner=new SourcesModule(fromBetterSqlite(db));
+ const owner=new SourcesModule(fromProjectConnection(db));
  const port:ReplicaDatabase={exec:sql=>db.exec(sql),prepare:sql=>db.prepare<ReplicaInputValue[],Record<string,ReplicaOutputValue>>(sql)};
  return {...library,owner,port,section:createProjectReplicaSection(port,sourceContentReplicationDefinition(),'project')};
 }

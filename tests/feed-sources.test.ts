@@ -1,4 +1,4 @@
-import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -393,7 +393,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
         interval_minutes: 15,
         next_pull_at: "2026-08-30T09:15:00.000Z",
       });
-      const overview = feedRunsOverview(service.feed, DEMO_PROJECT_ID, { now: now.toISOString(), upcoming_until: "2026-08-30T10:00:00.000Z" });
+      const overview = feedRunsOverview(service.feed, DEMO_PROJECT_ID, { now: now.toISOString(), upcoming_until: "2026-08-30T10:00:00.000Z", expired_after: null });
       assert.deepEqual(overview.upcoming.map(run => [run.open?.id, run.due_at, run.needs]), [[source.source_id, "2026-08-30T09:15:00.000Z", ["network"]]], "RES-03 the next pull, needing the network");
 
       let dispatches = 0;
@@ -425,7 +425,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       assert.equal(catchup.due, 1);
       assert.equal(catchup.skipped, 1);
       assert.equal(dispatches, 1, "sleep recovery makes no pull of its own, for none of the missed slots");
-      const missed = service.feed.sources.missed.list(DEMO_PROJECT_ID, 50);
+      const missed = service.feed.sources.missed.list(DEMO_PROJECT_ID, 50, "1970-01-01T00:00:00.000Z");
       assert.deepEqual(missed.map(entry => [entry.source_id, entry.due_at, entry.decision]), [[source.source_id, "2026-08-30T09:30:00.000Z", null]]);
       const afterCatchup = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
@@ -434,7 +434,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       await scheduler.tick(now);
       assert.equal(dispatches, 2, "现在做 pulls it once, on the usual path");
       assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
-      assert.deepEqual(service.feed.sources.missed.list(DEMO_PROJECT_ID, 50), []);
+      assert.deepEqual(service.feed.sources.missed.list(DEMO_PROJECT_ID, 50, "1970-01-01T00:00:00.000Z"), []);
     } finally {
       store.close();
     }
@@ -756,7 +756,7 @@ test("D0117 source history removes signals, revisions and events atomically and 
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
     const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     const other = service.register({ kind: "custom_rss", feed_url: "https://example.com/retained-signals.xml" }).source;
-    const signals = new SignalsModule(fromBetterSqlite(store.db));
+    const signals = new SignalsModule(fromProjectConnection(store.db));
     const draft = { project_id: DEMO_PROJECT_ID, source_id: source.source_id, provider_dedupe_id: "history", kind: "update", occurred_at: "2026-11-08T00:00:00.000Z", observed_at: "2026-11-08T00:00:00.000Z", payload: { title: "first" }, raw_event_id: "raw-history", adapter: { plugin_id: "io.example.history", version: "1.0.0" }, provenance: {} };
     const first = signals.commands.submitDraft(draft).signal;
     signals.commands.submitDraft({ ...draft, payload: { title: "second" } });

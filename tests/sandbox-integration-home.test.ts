@@ -2,7 +2,7 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { feedManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
-import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -232,7 +232,7 @@ test("RAC-2615-QUEUE an old source response cannot write Listener, Signal or Fee
   const feed = createLocalFeedApplication(store.db);
   const source = feed.sources.upsert(accountSourceRecord("github", { source_id: "t141-old-response", status: "active", config: {} }));
   const snapshot = () => ({ feed: feed.snapshot(DEMO_PROJECT_ID),
-    signals: new SignalsModule(fromBetterSqlite(store.db)).query.list(DEMO_PROJECT_ID, source.source_id),
+    signals: new SignalsModule(fromProjectConnection(store.db)).query.list(DEMO_PROJECT_ID, source.source_id),
     deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE project_id = ? AND source_id = ?").all(DEMO_PROJECT_ID, source.source_id),
     checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id),
     events: store.db.prepare("SELECT * FROM events WHERE project_id = ? AND object_id = ? ORDER BY event_id").all(DEMO_PROJECT_ID, source.source_id) });

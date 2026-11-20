@@ -294,8 +294,8 @@ export { defineResumeSummaryAction } from "@molis-ai/molis-work-contracts/platfo
  */
 export { defineDueRemindersAction, assertDueReminderWindow, withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow, DueReminder, DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineRunsOverviewAction, defineRunDecisionAction, assertRunsWindow, withinRunsWindow, runIsMissed, RUN_MISSED_GRACE_MS } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { RunsWindow, ScheduledRun, MissedRun, RunsOverview, RunDecision, RunDecided, RunDecisionChoice, RunNeed, RunsOwnerScope } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineRunsOverviewAction, defineRunDecisionAction, assertRunsWindow, withinRunsWindow, runIsMissed, runHasExpired, runsExpiryBounds, runExpiredUntold, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { RunsWindow, RunsExpiryBounds, ScheduledRun, MissedRun, RunsOverview, RunDecision, RunDecided, RunDecisionChoice, RunNeed, RunsOwnerScope } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * Fragment offers: what your plugin can do with a selected word, range or blocks. Declare the finite choices statically and

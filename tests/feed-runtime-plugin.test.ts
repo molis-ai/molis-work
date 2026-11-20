@@ -1,4 +1,4 @@
-import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { scriptAnysearchNetwork, scriptRssNetwork } from "./fixtures/source-network.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
@@ -445,7 +445,7 @@ test("D0117 RAC-518 deleting a source with its local history gives its bodies an
   assert.equal(refs.length, 2);
   assert.ok(pullRecords(f) > 0, "the pull left its search record");
   // D0117: seed both payload revisions and a different source, then exercise the real delete action.
-  const signals = new SignalsModule(fromBetterSqlite(f.store.db));
+  const signals = new SignalsModule(fromProjectConnection(f.store.db));
   const draft = { project_id: DEMO_PROJECT_ID, source_id: f.sourceId, provider_dedupe_id: "history-probe", kind: "update", occurred_at: "2026-11-08T00:00:00.000Z", observed_at: "2026-11-08T00:00:00.000Z", payload: { title: "first" }, raw_event_id: "raw-history-probe", adapter: { plugin_id: "io.example.history", version: "1.0.0" }, provenance: {} };
   const signal = signals.commands.submitDraft(draft).signal;
   signals.commands.submitDraft({ ...draft, payload: { title: "second" } });

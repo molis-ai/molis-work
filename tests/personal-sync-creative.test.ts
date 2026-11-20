@@ -14,7 +14,7 @@ import {jellyManifest} from '@molis-ai/molis-work-plugin-jelly';
 import {todoManifest} from '@molis-ai/molis-work-plugin-todo';
 import {scheduleManifest} from '@molis-ai/molis-work-plugin-schedule';
 import {feedManifest,FeedOutRuleStore} from '@molis-ai/molis-work-plugin-feed';
-import {SourcesModule,fromBetterSqlite} from '@molis-ai/molis-work-plugin-feed/store';
+import {SourcesModule,fromProjectConnection} from '@molis-ai/molis-work-plugin-feed/store';
 import {openCharacters} from '@molis-ai/molis-work-module-characters';
 import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 import {CHARACTER_PLUGIN_ID,CHARACTER_PUBLISHER_SIGNATURE} from '@molis-ai/molis-work-contracts/modules/characters';
@@ -42,8 +42,8 @@ test('Host exposes and transfers all registered creative collections through the
   let feedRuleId='';
   try{
     scheduleStore.db.prepare(`INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('sync-task','跨设备提醒','检查进展',9,0,1,1,0,0,'origin-job',null,null,'2026-10-14T00:00:00.000Z','2026-10-14T00:00:00.000Z');
-    feedRuleId=new FeedOutRuleStore(fromBetterSqlite(scheduleStore.db)).create(project.project_id,{name:'跨设备捕捉',match:{contains:'发布'},enabled:true}).rule_id;
-    new SourcesModule(fromBetterSqlite(scheduleStore.db)).commands.save({project_id:project.project_id,source_id:'portable-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'跨设备来源',description:'只同步描述与历史',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'this-device-only-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'this-device-only-reference',account_label:'This device',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
+    feedRuleId=new FeedOutRuleStore(fromProjectConnection(scheduleStore.db)).create(project.project_id,{name:'跨设备捕捉',match:{contains:'发布'},enabled:true}).rule_id;
+    new SourcesModule(fromProjectConnection(scheduleStore.db)).commands.save({project_id:project.project_id,source_id:'portable-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'跨设备来源',description:'只同步描述与历史',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'this-device-only-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'this-device-only-reference',account_label:'This device',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
   }finally{scheduleStore.close();}
   await a.run();await b.run();
   const selections=[formManifest,datasetManifest,pptManifest,lingguangManifest,workflowsManifest,jellyManifest,todoManifest,scheduleManifest,feedManifest].flatMap(m=>m.sync!.collections.map(c=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:c.id,schema_version:c.schema_version})));
@@ -69,9 +69,9 @@ test('Host exposes and transfers all registered creative collections through the
   const receivedSchedule=new LocalProjectDatabase(target.database_path);try{
     const task=receivedSchedule.db.prepare('SELECT enabled,job_id,title FROM schedule_conversation_tasks WHERE task_id=?').get('sync-task') as {enabled:number;job_id:string|null;title:string};
     assert.equal(task.title,'跨设备提醒');assert.equal(task.enabled,0);assert.equal(task.job_id,null);
-    const rule=new FeedOutRuleStore(fromBetterSqlite(receivedSchedule.db)).get(project.project_id,feedRuleId);
+    const rule=new FeedOutRuleStore(fromProjectConnection(receivedSchedule.db)).get(project.project_id,feedRuleId);
     assert.equal(rule.name,'跨设备捕捉');assert.equal(rule.enabled,false,'received capture rules cannot run before local opt-in');
-    const source=new SourcesModule(fromBetterSqlite(receivedSchedule.db)).query.get(project.project_id,'portable-source');assert.equal(source.name,'跨设备来源');assert.equal(source.enabled,false);assert.equal(source.connection_ref,null);assert.deepEqual(source.config,{});assert.deepEqual(source.schedule,{mode:'manual'});
+    const source=new SourcesModule(fromProjectConnection(receivedSchedule.db)).query.get(project.project_id,'portable-source');assert.equal(source.name,'跨设备来源');assert.equal(source.enabled,false);assert.equal(source.connection_ref,null);assert.deepEqual(source.config,{});assert.deepEqual(source.schedule,{mode:'manual'});
   }finally{receivedSchedule.close();}
   for(const client of [a,b])for(const collection of client.status().collections)assert.deepEqual(collection.conflicts,[],collection.selection.plugin_id+' '+collection.selection.collection_id);
   const before=f.events.length;await a.run();await b.run();assert.equal(f.events.length,before,'no replication echo');

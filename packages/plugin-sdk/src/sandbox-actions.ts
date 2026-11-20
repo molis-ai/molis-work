@@ -5,7 +5,7 @@ import type { SandboxOperationContract, SandboxPluginContract, SandboxSchema, Sa
 import { TRUSTED_REVIEW_OWNER_INPUT_SCHEMA } from '@molis-ai/molis-work-contracts/services/project-approvals';
 import { canonicalJsonText, isRecord } from './json-value.js';
 import { sandboxOperationPermissions } from './sandbox-manifest.js';
-import { sandboxReadProtocolAction } from './sandbox-read-protocol.js';
+import { sandboxActionProtocolAction, sandboxReadProtocolAction } from './sandbox-read-protocol.js';
 import { validTrustedReviewRow } from './action-declarations.js';
 
 /** The package identity already used for installed signed releases. It never depends on the running directory. */
@@ -25,7 +25,7 @@ function reviewDeclarationProblems(contract: SandboxPluginContract, scope: 'home
       || !review.subject_kinds.length || review.subject_kinds.length > 30 || new Set(review.subject_kinds).size !== review.subject_kinds.length
       || !review.subject_kinds.every(kind => typeof kind === 'string' && /^[a-z][a-z0-9_.:-]{0,127}$/.test(kind))) return problem('declare a reader, bounded subject kinds, and the reviewed row');
     const reader = contract.operations.find(item => item.id === review.reader);
-    if (reader?.kind !== 'query' || reader.read_protocol !== undefined || reader.external !== undefined
+    if (reader?.kind !== 'query' || reader.read_protocol !== undefined || reader.action_protocol !== undefined || reader.external !== undefined
       || Object.keys(reader.effects).some(key => key !== 'projectDatabase') || reader.effects.projectDatabase?.includes('write')
       || canonicalJsonText(reader.input) !== canonicalJsonText(TRUSTED_REVIEW_OWNER_INPUT_SCHEMA)) return problem('the original package must supply a local query by request_id');
     return [];
@@ -61,8 +61,8 @@ export function sandboxBackgroundProblems(contract: SandboxPluginContract): stri
     const job = raw as Record<string, unknown>;
     if (Object.keys(job).some(key => !['status', 'id', 'input', 'state', 'done', 'failed'].includes(key))) fail('unsupported metadata field');
     const status = typeof job.status === 'string' ? contract.operations.find(item => item.id === job.status) : undefined;
-    if (!status || status.kind !== 'query' || status.read_protocol !== undefined) { fail('status must name a query of this contract'); continue; }
-    if (operation.read_protocol !== undefined) continue;
+    if (!status || status.kind !== 'query' || status.read_protocol !== undefined || status.action_protocol !== undefined) { fail('status must name a query of this contract'); continue; }
+    if (operation.read_protocol !== undefined || operation.action_protocol !== undefined) continue;
     const id = requiredPath(operation.output, job.id), input = requiredPath(status.input, job.input);
     const state = requiredPath(status.output, job.state), returnedState = requiredPath(operation.output, job.state);
     if (id?.type !== 'string' || input?.type !== 'string') fail('job id and status input must resolve to required string fields');
@@ -89,7 +89,7 @@ export function sandboxStartProblems(contract: SandboxPluginContract): string[] 
     const start: unknown = operation.start;
     if (start === undefined) return [];
     const problem = 'The start of ' + operation.id + ': ';
-    if (operation.kind !== 'command' || operation.read_protocol !== undefined) return [problem + 'only a command makes one from nothing'];
+    if (operation.kind !== 'command' || operation.read_protocol !== undefined || operation.action_protocol !== undefined) return [problem + 'only a command makes one from nothing'];
     if (!/^[a-z0-9][a-z0-9_.-]{0,49}$/.test(operation.id)) return [problem + 'the operation id becomes the intake id: lowercase letters, digits, _ . - and at most 50'];
     if (!isRecord(start) || typeof start.item_kind !== 'string' || typeof start.title !== 'string' || typeof start.hint !== 'string'
       || Object.keys(start).some(key => !['item_kind', 'title', 'title_text', 'hint', 'hint_text', 'icon', 'open'].includes(key))) {
@@ -129,7 +129,7 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
   const id = sandboxUpgradeOperation(manifest);
   if (!id) return;
   const operation = contract?.operations.find(item => item.id === id);
-  if (!operation || operation.kind !== "query" || operation.read_protocol || operation.external || operation.background_job
+  if (!operation || operation.kind !== "query" || operation.read_protocol || operation.action_protocol || operation.external || operation.background_job
     || operation.input.type !== "string" || operation.output.type !== "boolean"
     || Object.keys(operation.effects).some(effect => effect !== "storage") || operation.effects.storage?.some(value => value !== "read")
     || contract?.operations.some(item => item.effects.background?.includes(SANDBOX_VALIDATE_UPGRADE))
@@ -142,12 +142,21 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; dualInstance?: boolean; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
   const problems = [...sandboxBackgroundProblems(input.contract), ...sandboxStartProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope, input.dualInstance)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
-  const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' =>
-    input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
+  const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' => {
+    if (operation.read_protocol?.kind === 'work_terminal_prompt' || operation.read_protocol?.kind === 'resume_summary'
+      || operation.action_protocol?.kind === 'placement_relation') return 'project';
+    return input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
+  };
   return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
     const actionScope = scopeOf(operation);
     if (operation.read_protocol !== undefined) {
       const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
+        title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
+        permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
+      return { ...definition, action: { ...definition.action, local_id: operation.id } };
+    }
+    if (operation.action_protocol !== undefined) {
+      const definition = sandboxActionProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, local_id: operation.id } };

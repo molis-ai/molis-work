@@ -196,7 +196,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
           const body = response.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
           if (response.status !== 200) {
             if (body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error));
-            if (action.action.requires_trusted_decision === true) throw actionErrorFromResponse(response.status, body);
+            if (action.action.requires_trusted_decision === true || action.action.placement_relation !== undefined || action.action.input_type !== undefined) {
+              throw actionErrorFromResponse(response.status, body);
+            }
             throw new Error(String(body?.error ?? '插件操作未完成'));
           }
           return body?.value;
@@ -286,6 +288,9 @@ function sandboxedPluginCall({ release, context, host, identity, lanes, open, up
     } catch (error) { // Only a switched-off effect (BL-701), refused before its code ran, is answered as the refusal itself.
       if (error === refused) throw error;
       if (error instanceof ActionError && !outcomeUnknown) return actionErrorResponse(error);
+      if (error instanceof SandboxError && !outcomeUnknown && (error.code === 'actions.missing' || error.code === 'actions.conflict' || error.code === 'actions.input_invalid')) {
+        return actionErrorResponse(new ActionError(error.code, error.message));
+      }
       return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } };
     }
   } };

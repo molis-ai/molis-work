@@ -58,7 +58,7 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
       validateCaller(caller);
       if (!candidate.install_id) return;
       const current = installation(candidate);
-      if (!current || current.execution !== "host" || current.state !== "running" || current.installation_generation !== candidate.generation)
+      if (!current || current.state !== "running" || current.installation_generation !== candidate.generation)
         throw blueprintsErrors.dependency_unmet("原设置主人已停用、更换或不支持采用");
     };
     const discovered: DiscoveredSetting[] = [];
@@ -84,7 +84,7 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
         const declaredRead = declaration?.read;
         const readScope = declaredRead && manifest?.actions?.find(action => action.capability_id === declaredRead.capability_id && action.version === declaredRead.version)?.action.scope;
         if (declaration && readScope !== (projectScoped ? "project" : "home")) continue;
-        if (install?.execution === "host" && install.state === "running" && install.plugin_id === provider.plugin_id && declaration)
+        if (install?.state === "running" && install.plugin_id === provider.plugin_id && declaration)
           owner = binding(id, projectScoped, declaration, install);
       }
       if (!declaration || !owner) continue;
@@ -100,15 +100,15 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
     if (preview) {
       const inactive = (records: ReturnType<NonNullable<typeof state>["list"]>, projectScoped: boolean) => {
         for (const install of records) {
-          if (install.state === "uninstalled" || install.state === "running" && install.execution === "host") continue;
+          if (install.state === "uninstalled" || install.state === "running") continue;
           const manifest = projectScoped ? state?.manifest(install.install_id) : host.homePlugins?.manifest(install.plugin_id);
           const declaration = manifest?.settings_entries;
           if (!declaration) continue;
           const { capability_id, version } = declaration.read;
           const read = manifest?.actions?.find(action => action.capability_id === capability_id && action.version === version);
           if (read?.action.scope !== (projectScoped ? "project" : "home")) continue;
-          const provider = install.publisher_trust === "host" ? install.plugin_id : install.install_id;
-          const reason = install.execution !== "host" ? "sandbox_unsupported" : "owner_disabled";
+          const provider = install.publisher_trust === "host" ? install.plugin_id : install.execution === "sandbox" ? "plugin:" + install.plugin_id : install.install_id;
+          const reason = "owner_disabled";
           add(binding(provider, projectScoped, declaration, install), declaration, install.plugin_id, reason, reason);
         }
       };

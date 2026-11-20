@@ -156,7 +156,7 @@ test("Inbox fragment and Schedule isolated view refresh retain their presentatio
   // Schedule's page is TypeScript bundled and minified into its client pack: what its code does is read in the sources.
   const stage = scheduleSource("stage.ts"), actions = scheduleSource("actions.ts"), form = scheduleSource("form.ts");
   assert.match(stage, /await host\.view\.readDocument\(\)/);
-  assert.match(stage, /export async function refreshStage/);
+  assert.match(stage, /export function refreshStage/);
   assert.match(actions + form, /await refreshStage\(|refreshStage\(page/);
   assert.doesNotMatch(stage + actions + form, /location\.reload\(/);
   assert.ok(SCHEDULE_CLIENT_FACTORY_SCRIPT.includes("readDocument"), "and the bundle carries it");

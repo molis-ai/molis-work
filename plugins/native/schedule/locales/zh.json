@@ -31,6 +31,8 @@
     "schedule.form.instructions-hint": "默认只读。要改文件会进现有审核队列。",
     "schedule.form.instructions-placeholder": "写下到时间要让 AI 帮你查看什么、汇报什么…",
     "schedule.form.notify": "重要更新时在列表标出来",
+    "schedule.form.once": "只跑一次",
+    "schedule.form.once-hint": "时间在安排这项任务的地方设定，这里不能改。",
     "schedule.form.reads": "建好之后在这条任务里选它能读的数据；不选就只读项目文件。",
     "schedule.form.save": "保存",
     "schedule.form.saving": "正在保存…",

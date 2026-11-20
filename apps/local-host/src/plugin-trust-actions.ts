@@ -10,7 +10,9 @@ import { pluginKitHeaders, pluginsKitReport } from "./kit-actions.js";
 import { pluginPackageExport, pluginPackageExportHandler } from "./plugin-package-export.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
+import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { controlHomePackage, controlPackageInProject, installationPresentationCatalog, installPackageInHome, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
+import { disposeWorkTerminalsForPublisher } from "./work-terminal-service.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallDefinitions, pluginInstallHandlers, pluginInstallPerson } from "./plugin-install-actions.js";
@@ -156,6 +158,15 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: () => installedHomePlugins(source.homePlugins()), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected, source),
     homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller, source),
+    onPublisherRevoked: keyId => {
+      disposeWorkTerminalsForPublisher(home, keyId);
+      void source.homePlugins()?.reconcilePublishers().catch(() => undefined);
+      for (const project of source.host.projects()) {
+        void source.host.withExistingRuntime(project, async runtime => {
+          await currentInstalledPluginHost(runtime.store, runtime.project_id)?.reconcilePublishers();
+        }).catch(() => undefined);
+      }
+    },
     bundledDirectory: source.options.bundledPluginsDirectory ?? bundledPackagesDirectory(),
     // The official packs ship unsigned until batch 26's publisher key: this Home signs one as it signs an import from this machine.
     localSigner: { keyId: () => localPublisherKeyId(home), sign: async (draft, caller) => {

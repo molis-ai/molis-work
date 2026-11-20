@@ -21,6 +21,13 @@ export class HostAvailability {
     return this.views(caller, views, select ? undefined : views);
   }
 
+  async discoverOne(caller: ActionCallContext, reference: ActionReference): Promise<ActionView | undefined> {
+    const view = this.actionService.discoverOne(caller, reference);
+    if (!view || (reference.provider_id && view.provider.provider_id !== reference.provider_id)) return undefined;
+    const [resolved] = await this.views(caller, [view]);
+    return resolved;
+  }
+
   async discoverRetained(caller: ActionCallContext, retain: NonNullable<ActionExecutionContext["retainAuthority"]>): Promise<RetainedActionDirectory> {
     const sample = sampleRetainedActionDirectory(observe => this.actionService.discover(caller, observe), retain);
     const views = await this.views(caller, sample.views, sample.views);
@@ -53,7 +60,7 @@ export class HostAvailability {
     const path = new Set(ancestors).add(key);
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
-    if (!view.action.required_actions?.length && !view.action.required_scene) return state;
+    if (!view.action.required_actions?.length && !view.action.required_roles?.length && !view.action.required_scene) return state;
     const dependencies = pass ?? dependencyDirectory(this.actionService, caller);
     const firstAction = dependencies.actions();
     for (const reference of view.action.required_actions ?? []) {
@@ -64,6 +71,32 @@ export class HostAvailability {
       }
       const dependencyState = await this.resolve(caller, dependency, path, policy, dependencies);
       if (!dependencyState.available) return dependencyState;
+    }
+    if (view.action.required_roles?.length) {
+      const roles = view.action.required_roles;
+      const byProvider = new Map<string, Map<number, ActionView>>();
+      for (const candidate of dependencies.all()) {
+        roles.forEach((role, index) => {
+          if (candidate.action.input_type === role.input_type && candidate.action.output_type === role.output_type) {
+            const group = byProvider.get(candidate.provider.provider_id) ?? new Map();
+            if (!group.has(index)) group.set(index, candidate);
+            byProvider.set(candidate.provider.provider_id, group);
+          }
+        });
+      }
+      let firstFailure: ActionAvailability | null = null;
+      let satisfied = false;
+      for (const group of byProvider.values()) {
+        if (group.size < roles.length) continue;
+        let providerFailure: ActionAvailability | null = null;
+        for (const dep of group.values()) {
+          const depState = await this.resolve(caller, dep, path, policy, dependencies);
+          if (!depState.available) { providerFailure = depState; break; }
+        }
+        if (!providerFailure) { satisfied = true; break; }
+        firstFailure ??= providerFailure;
+      }
+      if (!satisfied) return firstFailure ?? { available: false, code: "actions.dependency_missing", reason: "所需能力协议不存在或不可访问" };
     }
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
@@ -120,6 +153,7 @@ function dependencyDirectory(service: ActionService, caller: ActionCallContext, 
   return {
     actions: () => first ??= ((index = projected?.()) => index ? (reference: ActionReference) => index.get(actionKey(reference))
       : snapshot ? actionDirectoryLookup(snapshot) : (reference: ActionReference) => service.discoverOne(caller, reference))(),
+    all: () => directory(),
     scene: reference => {
       const key = sceneKey(reference.scene_id, reference.version);
       if (!sceneMatches.has(key)) {

@@ -24,7 +24,7 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
   let returnTarget = addBtn;
 
   const resumeId = () => String(new FormData(menu).get("resume_session_id") || "").trim() || undefined;
-  /** What Goals' `open` takes: a recipe of the platform (with the session to continue, if one was typed) or a command, never both. */
+  /** What `work_terminals.open` takes: a recipe of the platform (with the session to continue, if one was typed) or a command, never both. */
   const openBody = (kind: string, command?: string) => {
     const resume = resumeId();
     return kind === "generic" ? { command } : { runtime: kind, ...(resume ? { resume_session_id: resume } : {}) };
@@ -41,7 +41,7 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
 
   const setMenuOpen = (open: boolean) => {
     if (open && guard.readOnly()) {
-      setStatus(uiText.text("workbench.client-menu.open-specific-child-goal"), "error");
+      setStatus(guard.readOnlyAddTitle(), "error");
       return;
     }
     menu.classList.toggle("is-open", open);
@@ -95,7 +95,7 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
     addBtn.addEventListener("click", () => {
       returnTarget = addBtn;
       if (guard.readOnly()) {
-        setStatus(guard.parentReadOnlyMessage(), "error");
+        setStatus(guard.readOnlyMessage(), "error");
         return;
       }
       setMenuOpen(!menu.classList.contains("is-open"));
@@ -126,7 +126,7 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
     menu.addEventListener("submit", (event) => {
       event.preventDefault();
       const command = String(new FormData(menu).get("command") || "").trim();
-      void options.openPanel(openBody(selectedKind, command));
+      void options.openPanel(openBody(selectedKind, selectedKind === "generic" ? command : undefined));
     });
   };
 

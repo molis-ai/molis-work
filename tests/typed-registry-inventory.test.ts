@@ -30,6 +30,7 @@ test("W3-07-9-01: the assembled Host registers no typed entry and exposes Goals 
   const home = await mkdtemp(join(tmpdir(), "typed-registry-inventory-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Inventory", actor_id: LOCAL_PERSON_ACTOR_ID });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID });
   catalog.close();
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host: MolisWorkLocalHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,

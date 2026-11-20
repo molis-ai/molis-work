@@ -83,13 +83,13 @@ export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrim
   </section>`;
 }
 
-/** `goals` is false for a project without Goals: the project description page is Goals', so it is not listed (RAC-400). */
-export function renderProjectSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, goals = true): string {
+/** Project settings directory: all platform project settings sections are always listed, regardless of installed plugins (H3, PEQ-01). */
+export function renderProjectSettingsDirectorySection(primitives: SettingsDirectoryPrimitives): string {
   const { icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="project-settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${uiText("workbench.settings-directory.project-settings")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.filter(section => goals || section.id !== "guidance").map(section => ({ ...section, label: uiText.text(section.label) })) }], "general", "workbench.settings-directory.project-settings", "project-settings")}
+      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.map(section => ({ ...section, label: uiText.text(section.label) })) }], "general", "workbench.settings-directory.project-settings", "project-settings")}
     </div>
   </section>`;
 }

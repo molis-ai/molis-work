@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AcceptanceReportInput, AcceptanceRequirementState, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { openAcceptance, purgeAcceptanceProject, type AcceptanceCaller, type AcceptanceEvidencePorts } from "@molis-ai/molis-work-module-acceptance";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 /*
  * Requirements, evidence and acceptance as a platform capability (specs/proactive-assistant §7.3.1, PWA-144～146; the shared review
@@ -35,13 +37,41 @@ function platform(sessions: Record<string, string[]>, commands: Record<string, P
   return { ports, asked };
 }
 
+/**
+ * Each project's library with the platform's acceptance in it (contract-design §10.2). `service` answers each call from the library of
+ * the caller's project, as the Host does; `library` is one project's own service, `drop` deletes a project's library.
+ */
 function rig(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "acceptance-"));
   let tick = 0;
-  const { service, close } = openAcceptance(home, () => new Date(Date.UTC(2026, 10, 15, 8, 0, tick++)).toISOString());
-  t.after(() => { close(); rmSync(home, { recursive: true, force: true }); });
+  const now = () => new Date(Date.UTC(2026, 10, 15, 8, 0, tick++)).toISOString();
+  const libraries = new Map<string, { store: LocalProjectDatabase; service: AcceptanceService }>();
+  const library = (projectId: string) => {
+    let opened = libraries.get(projectId);
+    if (!opened) {
+      const store = new LocalProjectDatabase(join(home, `${projectId}.db`));
+      writeProjectRoot(store.db, projectId, now());
+      libraries.set(projectId, opened = { store, service: openAcceptance(store.db, projectId, { now }) });
+    }
+    return opened.service;
+  };
+  const drop = (projectId: string) => {
+    const opened = libraries.get(projectId);
+    if (!opened) return;
+    opened.store.close();
+    libraries.delete(projectId);
+    rmSync(join(home, `${projectId}.db`), { force: true });
+  };
+  t.after(() => { for (const projectId of [...libraries.keys()]) drop(projectId); rmSync(home, { recursive: true, force: true }); });
+  const service = {
+    read: (caller, input) => library(caller.project_id).read(caller, input),
+    set: (caller, input) => library(caller.project_id).set(caller, input),
+    deliver: (caller, input, ports) => library(caller.project_id).deliver(caller, input, ports),
+    report: (caller, input, ports) => library(caller.project_id).report(caller, input, ports),
+    decide: (caller, input) => library(caller.project_id).decide(caller, input),
+  } satisfies Pick<AcceptanceService, "read" | "set" | "deliver" | "report" | "decide">;
   const readOne = (caller: AcceptanceCaller, subject: typeof SUBJECT) => service.read(caller, { subjects: [subject] }).views[0]!;
-  return { home, service, readOne };
+  return { home, service, readOne, library, drop };
 }
 const item = (view: AcceptanceView, id: string): AcceptanceRequirementState => view.requirements.find(one => one.id === id)!;
 const report = (requirement_id: string, version: string, extra: Partial<AcceptanceReportInput> = {}): AcceptanceReportInput =>
@@ -114,7 +144,7 @@ test("PWA-144 APR-14 each requirement shows what was checked, on which version, 
 
 test("PWA-145 that the work ran, what was verified and what the person accepted are three separate readings; engineering evidence and trying the product stand apart; the person is asked only where it was agreed or where the check has a gap; only the person decides", async t => {
   const { service, readOne } = rig(t);
-  const world = platform({ "s-maker": ["run-1"] }, { build: {}, tried: {} });
+  const world = platform({ "s-maker": ["run-1"] }, { build: {}, tried: {} }, ["art-c@1"]);
   const subject = SUBJECT, ports = world.ports(agent());
   service.set(agent(), { subject, requirements: [{ id: "a", statement: "构建通过", requires_person: false }, { id: "b", statement: "新手引导走得通", requires_person: true }, { id: "c", statement: "文案无错字", requires_person: false }] });
   const before = readOne(me(), subject);
@@ -148,6 +178,15 @@ test("PWA-145 that the work ran, what was verified and what the person accepted 
   // A hands-on try that contradicts overrides a green build for that requirement only.
   const tried = await service.report(agent(), { subject, reports: [report("a", "build-12", { kind: "hands_on", verdict: "contradicts", method: "点了构建产物", observed: "白屏" })] }, ports);
   assert.deepEqual([item(tried, "a").verified, item(tried, "a").gap, item(tried, "a").satisfied, item(tried, "b").satisfied], [false, "contradicted", false, true]);
+
+  // Readable non-command evidence: the maker session and an unbound session stay self_reported; a different platform session yields peer_reviewed (contract-design §10.9 Q2).
+  const readableArtifact = { kind: "artifact_version" as const, artifact_id: "art-c", version: 1 };
+  const selfArtifact = await service.report(agent("s-maker"), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "自查文案" })] }, ports);
+  assert.deepEqual([item(selfArtifact, "c").check?.tier, item(selfArtifact, "c").verified], ["self_reported", false]);
+  const unbound = await service.report(agent(null), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "无会话复查" })] }, world.ports(agent(null)));
+  assert.deepEqual([item(unbound, "c").check?.tier, item(unbound, "c").verified], ["self_reported", false]);
+  const peer = await service.report(agent("s-other"), { subject, reports: [report("c", "build-12", { evidence: [readableArtifact], observed: "独立会话核对文案" })] }, world.ports(agent("s-other")));
+  assert.deepEqual([item(peer, "c").check?.tier, item(peer, "c").verified, item(peer, "c").satisfied], ["peer_reviewed", true, true]);
 });
 
 test("PWA-146 rework keeps every round: what was accepted and not touched stays accepted, only the returned and the changed are checked again, a gap is not closed by delivering again, a changed requirement is recorded apart from the fix, and a selection that moved is not applied", async t => {
@@ -199,7 +238,7 @@ test("PWA-146 rework keeps every round: what was accepted and not touched stays 
 });
 
 test("PWA-144 APR-15 the record is the project's and goes with it: the same object in another project has nothing, a withdrawn requirement leaves the list and keeps its record, and deleting the project clears only that project", async t => {
-  const { home, service, readOne } = rig(t);
+  const { service, readOne, library, drop } = rig(t);
   const world = platform({ "s-maker": ["run-1"] });
   service.set(agent(), { subject: SUBJECT, requirements: SIX.slice(0, 2) });
   service.set(agent("s-maker", "p2"), { subject: SUBJECT, requirements: SIX.slice(0, 3) });
@@ -214,7 +253,10 @@ test("PWA-144 APR-15 the record is the project's and goes with it: the same obje
   await assert.rejects(service.deliver(agent(), { subject: SUBJECT, version: "v1", touches: [] }, world.ports(agent())), code("acceptance.invalid"), "a version is delivered once");
   await assert.rejects(service.report(agent("s-maker", "p2"), { subject: SUBJECT, reports: [report("r1", "v1")] }, world.ports(agent())), code("acceptance.version_unknown"), "nothing delivered in the other project");
 
-  purgeAcceptanceProject(home, "p1");
+  // A project's library answers for that project alone.
+  assert.throws(() => library("p1").read(me("p2"), { subjects: [SUBJECT] }), code("acceptance.scope"));
+
+  // Deleting the project deletes its library, and the record with it; the other project keeps its own.
+  drop("p1");
   assert.deepEqual([readOne(me(), SUBJECT).requirements.length, readOne(me("p2"), SUBJECT).requirements.length], [0, 3]);
-  purgeAcceptanceProject(home, "p1");
 });

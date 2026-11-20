@@ -1,10 +1,12 @@
 import { GOALS_PLUGIN_ID } from "./identity.js";
 import type { ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isGoalRef } from "./ledger-refs.js";
+import { RELATION_EDGES_REPLICA_ID } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 const errors = defineErrorCodes("goals", { replica_links_invalid: "invalid" });
 const replicaError = (code: string) => errors.replica_links_invalid(code);
 export function validateGoalSections(facts: Readonly<Record<string, ProjectReplicaRows>>): void {
-  const goals = facts.goals!, governance = facts.governance!, context = facts.goal_context!;
+  const goals = facts.goals!, governance = facts.governance!, context = facts[RELATION_EDGES_REPLICA_ID]!;
   const ids = new Set(goals.goals!.map(r => r.goal_id));
   for (const row of governance.goal_tree_proposals!) if (row.root_goal_id && !ids.has(row.root_goal_id)) throw replicaError('replica_references_invalid');
   for (const row of goals.goal_event_applied_decisions!) {
@@ -17,6 +19,6 @@ export function validateGoalSections(facts: Readonly<Record<string, ProjectRepli
   }
   for (const row of context.context_edges!) for (const json of [row.source_json, row.target_json]) {
     const ref = JSON.parse(String(json));
-    if (ref.module === 'goals' && !ids.has(ref.id)) throw replicaError('replica_context_invalid');
+    if (isGoalRef(ref) && !ids.has(ref.id)) throw replicaError('replica_context_invalid');
   }
 }

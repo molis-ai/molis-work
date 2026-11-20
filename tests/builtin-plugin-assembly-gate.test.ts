@@ -181,7 +181,7 @@ const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>(["goals"]);
  * (`goals-actions.ts` became `goal-callers.ts` in S12, and the name rule alone no longer saw it). A new entry needs the same ruling.
  */
 const HOST_FILES_NAMED_FOR: ReadonlyMap<string, readonly string[]> = new Map([
-  ["goals", ["goal-callers.ts", "web-goals-read.ts"]],
+  ["goals", ["goal-callers.ts"]],
 ]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
@@ -294,4 +294,22 @@ test("RAC-571 a project's Runtime installs every registration's project_runtime,
       assert.equal(installed[0]!.publisher_trust, "host", `${id} ships with the Host`);
     }
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("PEQ-03 platform directories never import native plugin packages outside generated registries, §3 whitelist and explicit migration exceptions", async () => {
+  const { WORKSPACE_PACKAGES } = await import("../scripts/workspace-packages.mjs");
+  const { checkPlatformNoPluginPackageImports, MIGRATION_PLUGIN_IMPORT_EXCEPTIONS } = await import("../scripts/gates/platform-plugin-imports.mjs");
+  assert.deepEqual(checkPlatformNoPluginPackageImports(repoRoot, WORKSPACE_PACKAGES), [], "PEQ-03: real tree has zero disallowed platform imports of native plugins");
+  assert.deepEqual(MIGRATION_PLUGIN_IMPORT_EXCEPTIONS, [], "PEQ-03: migration exception list is empty after pre-release v1 reset");
+  const disallowed = checkPlatformNoPluginPackageImports(repoRoot, WORKSPACE_PACKAGES, {
+    files: [
+      { file: "apps/local-host/src/web-project-pages.ts", source: 'import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\n' },
+      { file: "packages/design-system/src/index.ts", source: 'import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";\n' },
+      { file: "apps/local-host/src/plugin-registry.generated.ts", source: 'import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\n' },
+    ],
+  });
+  assert.equal(disallowed.length, 3, disallowed.join("\n"));
+  assert.match(disallowed[0]!, /web-project-pages\.ts.*PEQ-03/);
+  assert.match(disallowed[1]!, /design-system\/src\/index\.ts.*PEQ-03/);
+  assert.match(disallowed[2]!, /generated registry may only import.*\/registration/);
 });

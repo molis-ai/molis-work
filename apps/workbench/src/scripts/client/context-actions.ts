@@ -98,6 +98,9 @@ const PANE_PART = String.raw`  const readText = host.translate;
       return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], .mw-ctx'))
         || el.matches('[data-assistant-island] :not([data-assistant-context], [data-assistant-context] *)');
     };
+    // What the named object belongs to, as its page says (any plugin's object); the Host reads it again and treats it as material.
+    const belongsTo = (owner) => owner && typeof owner === "object" && typeof owner.plugin_id === "string" && typeof owner.kind === "string"
+      && typeof owner.id === "string" && owner.id ? { belongs_to: { plugin_id: owner.plugin_id, kind: owner.kind, id: owner.id, title: String(owner.title || "") } } : {};
     const read = () => {
       const sel = getSelection();
       if (!sel || sel.isCollapsed || !sel.rangeCount || own(sel.anchorNode) || own(sel.focusNode)) return null;
@@ -118,7 +121,7 @@ const PANE_PART = String.raw`  const readText = host.translate;
       return { root, focus: { context_id: "dom:" + context.plugin_id + ":" + object.id + ":" + hash(parts.join("\n")), plugin_id: context.plugin_id,
         activity: "selecting", granularity:scale, object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
         targets, surroundings: { heading_path }, ...(context.unsaved ? { unsaved: true } : {}),
-        ...(context.goal && typeof context.goal.id === "string" && context.goal.id ? { goal: { id: context.goal.id, title: String(context.goal.title || "") } } : {}) } };
+        ...belongsTo(context.belongs_to) } };
     };
     const flush = () => {
       const next = read();

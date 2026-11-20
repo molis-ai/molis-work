@@ -1,4 +1,5 @@
 import type { ProjectRecord, DeleteProjectInput, ProjectDeletionResult } from "../modules/projects.js";
+import type { ActionSubject } from "./action-subjects.js";
 import type {
   RuntimeWorkContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution,
   BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
@@ -15,7 +16,8 @@ export interface MolisWorkRuntimeContextHost {
   nativeRuntimeSessionId?: string | null;
   /** The work entry the host declared (`MOLIS_WORK_WORK_CONTEXT_ID`: a desktop panel, an integration check); the Session is routed by it. */
   hostWorkContextId?: string | null;
-  focusId?: string | null;
+  /** What the host's terminal works on (`MOLIS_WORK_FOCUS_KIND` and `MOLIS_WORK_FOCUS_ID`): a hint each plugin's resume summary may take as its focus. */
+  focus?: ActionSubject | null;
   /**
    * Host-only non-authoritative hints for a fresh Session. They may rank
    * projects, but never establish a binding and are never supplied by a

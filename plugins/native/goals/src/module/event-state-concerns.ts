@@ -2,6 +2,7 @@ import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { GOAL_CONCERN_CITED_SUBJECT_LIMIT } from "../contract/goals.js";
 import type {
+  GoalAcceptanceReading,
   ApplyGoalConcernInput,
   GoalCitedSubject,
   GoalEventAppliedDecisionView,
@@ -27,7 +28,7 @@ export class GoalEventConcerns {
     private readonly facts: GoalEventFactsRepository,
     private readonly records: GoalEventStateRepository,
     private readonly core: GoalEventStateCore,
-    private readonly reuseDecision: (goal: GoalRecord, decision: GoalEventAppliedDecisionView) => void,
+    private readonly reuseDecision: (goal: GoalRecord, decision: GoalEventAppliedDecisionView, reading: GoalAcceptanceReading | undefined) => void,
   ) {}
 
   applyConcern(input: ApplyGoalConcernInput): GoalEventConcernResult {
@@ -59,7 +60,7 @@ export class GoalEventConcerns {
   ): Omit<GoalEventConcernResult, "replayed"> {
     const title = requiredText(input.title, "goals.event_concern.title_required", "Concern 需要标题");
     const statement = requiredText(input.statement, "goals.event_concern.statement_required", "Concern 需要说明");
-    const scope = this.core.requireLocalScope(goal, input.scope);
+    const scope = this.core.requireLocalScope(goal, input.scope, input.acceptance);
     if (emptyScope(scope)) {
       throw goalErrors["goals.event_concern.scope_required"]("Concern 必须明确影响的要求、事件或动作，不能变成全局阻塞");
     }
@@ -110,7 +111,7 @@ export class GoalEventConcerns {
         : "overturned";
     const citedDecisionId = input.cited_decision_id?.trim() || null;
     const supporting = unique(input.supporting_event_ids ?? []);
-    this.assertCitedSources(goal, concern, status, supporting, citedDecisionId);
+    this.assertCitedSources(goal, concern, status, supporting, citedDecisionId, input.acceptance);
     const operation = status === "resolved" ? "concern_resolved" : status === "accepted" ? "concern_accepted" : "concern_overturned";
     const event = this.core.insertSystem(goal, input.actor_id, actorKind, `Concern ${status}`, {
       operation,
@@ -144,6 +145,7 @@ export class GoalEventConcerns {
     status: GoalEventConcernStatus,
     supporting: string[],
     citedDecisionId: string | null,
+    reading: GoalAcceptanceReading | undefined,
   ): void {
     const cited = citedDecisionId
       ? this.records.decisions.getAppliedDecision(goal.project_id, goal.goal_id, citedDecisionId)
@@ -162,7 +164,7 @@ export class GoalEventConcerns {
       if (!decisionHasEffect(cited, "accept_concerns") || !decisionCoversConcern(cited, concern)) {
         throw goalErrors["goals.event_concern.accept_requires_user_decision"]("接受风险必须引用明确接受该 Concern 的可信决定，拒绝不是授权");
       }
-      this.reuseDecision(goal, cited);
+      this.reuseDecision(goal, cited, reading);
       return;
     }
     if (cited) {

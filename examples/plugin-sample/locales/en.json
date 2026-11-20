@@ -3,9 +3,16 @@
   "owner": "io.molis.work.example.notes",
   "locale": "en",
   "messages": {
+    "notes.attach.noun": "Sample note",
+    "notes.clear.choice": "Clear them",
     "notes.main.saved": "Saved results: {count}",
     "notes.main.saved-count": { "plural_arg": "count", "forms": { "one": "{count} result saved", "other": "{count} results saved" } },
     "notes.main.source": "Source: {name}",
-    "notes.main.title": "Local Plugin Sample"
+    "notes.main.title": "Local Plugin Sample",
+    "notes.settings.greeting": "Greeting",
+    "notes.settings.greeting-summary": "The word the sample shows on its page",
+    "notes.start.hint": "Start a blank note in the sample",
+    "notes.start.noun": "Sample note",
+    "notes.start.title": "New sample note"
   }
 }

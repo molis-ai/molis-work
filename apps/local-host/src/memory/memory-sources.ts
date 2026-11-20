@@ -10,7 +10,6 @@ import type { MemoryRuntimePolicyOwner } from "./memory-runtime-policy.js";
 import { personalInputText, readMemoryInputSource } from "./memory-source-identity.js";
 
 type SourcePort = NonNullable<NonNullable<PrologueNodeAdapterOptions["memory"]>["sources"]>;
-const CODING = "io.molis.work.coding";
 
 /** All owners are resolved at use time; creating the Runtime does not capture an unregistered Memory service. */
 export interface MemorySourceOwner {
@@ -32,9 +31,9 @@ function sourceScope(caller: AgentMemoryCaller, target: AgentMemorySourceRequest
 
 const personDecision = (caller: AgentMemoryCaller) => caller.person === true && caller.purpose === "management" && caller.source_use === undefined;
 
-function formationAllowed(owner: MemorySourceOwner, caller: AgentMemoryCaller, scope: MemoryScope, projectId: string | null, assistant: boolean, ref: AgentMemorySourceRef, targetOwner: string): boolean {
+function formationAllowed(owner: MemorySourceOwner, caller: AgentMemoryCaller, scope: MemoryScope, projectId: string | null, sourcePluginId: string | undefined, ref: AgentMemorySourceRef, targetOwner: string): boolean {
   const prefs = owner.policy.prefsFor(scope === "personal" ? "personal" : "project", scope === "personal" ? null : projectId);
-  const consumer = assistant ? "assistant" : "agent", plugin = assistant ? undefined : CODING;
+  const consumer = sourcePluginId ? "agent" : "assistant", plugin = sourcePluginId;
   // Accepting an existing candidate is the person's decision; automatic formation switches do not authorize or veto it.
   const permitted = (value: typeof prefs) => value.enabled && (personDecision(caller) || memoryFormationAllowed(owner.policy.prefsFor("personal", null), value) && (caller.source_use === "explicit" || value.learn_from_work)
     && consumerAccess(value, consumer, plugin, "explicit").allowed
@@ -55,8 +54,9 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   const session = await owner.adapter.readSessionStatus?.(sessionRef);
   if (!session || !isDeepStrictEqual(session.owner, lifecycle.owner) || session.status.recovery || session.owner.actor_id !== identity.actor_id) return undefined;
   const assistant = session.owner.plugin_id === ASSISTANT_PLUGIN_ID;
+  const sourcePluginId = assistant ? undefined : session.owner.plugin_id;
   if (assistant ? session.owner.install_id !== ASSISTANT_INSTALL_ID || caller.consumer !== "assistant" && !caller.person
-    : session.owner.plugin_id !== CODING || caller.plugin_id !== CODING && !caller.person) return undefined;
+    : !sourcePluginId || caller.plugin_id !== sourcePluginId && !caller.person) return undefined;
   const projectId = assistant && session.owner.project_id === ASSISTANT_PERSONAL_OWNER ? null : session.owner.project_id;
   if (!assistant && !caller.person) {
     if (!caller.session_id || caller.project_id !== projectId) return undefined;
@@ -70,7 +70,7 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   if (!scope || projectId && await owner.policy.projectExists(projectId) !== true || !await owner.sessionAllowed(session.owner)) return undefined;
   const work = () => !assistant || assistantMemorySourceWork(home, identity.actor_id, identity.session_id,
     caller.source_use === "explicit" && caller.session_id === identity.session_id)?.project_id === projectId;
-  if (!work() || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
+  if (!work() || !formationAllowed(owner, caller, scope, projectId, sourcePluginId, ref, request.target.owner)) return undefined;
 
   let text: string, at: number, runRef;
   if (identity.kind === "original") {
@@ -90,7 +90,7 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
   if (!usablePhase(run.phase)) return undefined;
   if (request.signal?.aborted || !work() || !await owner.sessionAllowed(session.owner)
     || projectId && await owner.policy.projectExists(projectId) !== true
-    || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
+    || !formationAllowed(owner, caller, scope, projectId, sourcePluginId, ref, request.target.owner)) return undefined;
   if (!usablePhase((await owner.adapter.read(runRef)).phase)) return undefined;
   // This is the last asynchronous source read. A withdrawn/queued input wins over an earlier readable receipt.
   if (identity.kind === "supplement") {
@@ -99,10 +99,10 @@ async function readSource(home: string, owner: MemorySourceOwner, caller: AgentM
       || !["applied", "read"].includes(current.receipt.state)
       || current.receipt.accepted_at_ms !== at) return undefined;
   }
-  if (request.signal?.aborted || !work() || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
+  if (request.signal?.aborted || !work() || !formationAllowed(owner, caller, scope, projectId, sourcePluginId, ref, request.target.owner)) return undefined;
   const final = await owner.adapter.sessionLifecycle?.read(sessionRef);
   if (final?.view.state !== "active" || !isDeepStrictEqual(final.owner, session.owner) || request.signal?.aborted || !work()
-    || !formationAllowed(owner, caller, scope, projectId, assistant, ref, request.target.owner)) return undefined;
+    || !formationAllowed(owner, caller, scope, projectId, sourcePluginId, ref, request.target.owner)) return undefined;
   return { ...ref, speaker: { kind: "person", id: identity.actor_id }, derivation: "original", occurred_at_ms: at, text };
 }
 

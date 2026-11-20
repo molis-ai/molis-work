@@ -8,6 +8,7 @@ import type {
   GoalEventProgressResult,
   GoalProgressArtifactSource,
   GoalEventScope,
+  GoalAcceptanceReading,
   GoalEventSystemPayload,
   GoalEventTrustedDecisionRecord,
   GoalEventWorkStateView,
@@ -59,8 +60,8 @@ export class GoalEventState implements GoalEventStateApi {
       assertAgreementVersion: this.assertAgreementVersion.bind(this),
     };
     this.effects = new GoalEventStateEffects(context, records, host, core);
-    this.concerns = new GoalEventConcerns(facts, records, core, (goal, cited) => {
-      this.effects.assertReusable(goal, cited, cited.scope);
+    this.concerns = new GoalEventConcerns(facts, records, core, (goal, cited, reading) => {
+      this.effects.assertReusable(goal, cited, cited.scope, reading);
     });
     this.agreement = new GoalEventStateAgreement(context, records, host, core);
   }
@@ -71,7 +72,6 @@ export class GoalEventState implements GoalEventStateApi {
 
   readWorkState(projectId: string, goalId: string): GoalEventWorkStateView {
     const goal = this.context.requireGoal(projectId, goalId);
-    const requirements = this.host.readCurrentRequirements(projectId, goalId);
     const progress = this.records.outcomes.latestProgress(projectId, goalId);
     const progressEvent = progress ? this.facts.workEvents.getWorkEvent(projectId, goalId, progress.event_id) : null;
     const progressPayload = progressEvent?.payload as GoalEventSystemPayload | undefined;
@@ -83,7 +83,7 @@ export class GoalEventState implements GoalEventStateApi {
     return {
       owner: this.records.owner.readOwner(projectId, goalId),
       work_status: this.records.owner.workStatus(projectId, goalId),
-      agreement: agreementView(this.records.owner.latestAgreement(projectId, goalId), requirements.length, goal.outcome),
+      agreement: agreementView(this.records.owner.latestAgreement(projectId, goalId), this.host.requirementLinks(projectId, goalId).length, goal.outcome),
       progress_summary: progress
         ? {
             ...progress,
@@ -275,19 +275,16 @@ export class GoalEventState implements GoalEventStateApi {
     });
   }
 
-  reassessAfterReports(goal: GoalRecord, actorId: string, actorKind: "user" | "runtime" | null, contradictedIds: string[]): void {
-    this.effects.reassessAfterReports(goal, actorId, actorKind, contradictedIds);
-  }
-
-  private requireLocalScope(goal: GoalRecord, raw?: Partial<GoalEventScope>): GoalEventScope {
+  private requireLocalScope(goal: GoalRecord, raw: Partial<GoalEventScope> | undefined, reading: GoalAcceptanceReading | undefined): GoalEventScope {
     const scope = normalizeScope(raw);
     for (const eventId of scope.event_ids) {
       if (!this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, eventId)) {
         throw goalErrors["goals.event_concern.cross_goal_reference"](`事件 ${eventId} 不属于当前 Goal`);
       }
     }
-    const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
-    const known = new Set(requirements.map((item) => item.requirement_id));
+    // A scope names the Goal's requirements as the platform lists them (the ones Goals hung and the ones the person added in the
+    // requirement column); naming one with no reading is refused, as nothing could tell it is this Goal's.
+    const known = new Set(scope.requirement_ids.length ? this.host.requirementTerms(goal.project_id, goal.goal_id, reading).map((item) => item.requirement_id) : []);
     for (const requirementId of scope.requirement_ids) {
       if (!known.has(requirementId)) {
         throw goalErrors["goals.event_report.cross_goal_reference"](`要求 ${requirementId} 不属于当前 Goal`);

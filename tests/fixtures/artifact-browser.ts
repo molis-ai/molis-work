@@ -42,7 +42,7 @@ const ledger = createContextLedger(store.db, { authorize: () => true });
 const scope = { kind: 'personal' as const, id: DEMO_PROJECT_ID };
 for (const [key, type, version] of [['input', 'goal.input', 1], ['output', 'goal.output', 2]] as const) {
   ledger.commands.put({ actor_id: 'fixture-user', scope }, { key, type, cause: 'Explicit fixture relation',
-    source: { module: 'goals', id: 'AR3-REFERENCE', version: null, scope },
+    source: { module: 'plugins', plugin_id: 'io.molis.work.goals', object_type: 'goal', id: 'AR3-REFERENCE', version: null, scope },
     target: { module: 'artifacts', id: '架构迁移核对报告（测试数据）', version, scope } });
 }
 store.close();

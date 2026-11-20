@@ -8,6 +8,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { surfaceCompositionActions, SURFACES_PROVIDER_ID, type SurfaceSlot } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { attentionDeclarationsOf } from "./plugin-inbox-declarations.js";
 import { createSurfaceCorrections, SurfaceCompositionService, type SurfaceComposePorts, type SurfaceCorrectPorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import type { HomePluginHost } from "./home-plugins.js";
 import { hostLog } from "./host-log.js";
@@ -99,7 +100,7 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       subject: read<SubjectContextRequest, ActionSubjectContext>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
       attention: () => {
-        const entries = attention.listSurfaceEntries(projectId);
+        const entries = attention.listSurfaceEntries(projectId, attentionDeclarationsOf(store.db));
         if (sample) sample.attention = entries;
         return entries;
       },

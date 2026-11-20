@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { ActionError, WORK_GOAL_PROMOTION_ROLES, workGoalPromotionRoleOf, type ActionReference, type ActionView, type WorkGoalPromotionRole } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
 import { feedErrors } from "./contract/feed.js";
@@ -7,12 +8,23 @@ import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platf
 /** At most `max` whole characters; only the first 2×max units are spread, since a title has no upper bound. */
 const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
 
-/** The three Goals actions a promotion calls, by id and version as the action directory lists them (PG-111). */
-const GOALS = {
-  directoryItem: { capability_id: "goals.directory.read", version: /* @version action.goals.directory.read */ 1 },
-  create: { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
-  inputsConfirm: { capability_id: "goals.inputs.confirm", version: /* @version action.goals.inputs.confirm */ 1 },
-} as const;
+type GoalPromotionRefs = Record<WorkGoalPromotionRole, ActionReference>;
+
+/** Find the available provider implementing the 3 work-goal promotion roles (Audit #10, PEQ-01). */
+export function findGoalPromotionProvider(views: readonly ActionView[]): GoalPromotionRefs | null {
+  const byProvider = new Map<string, Partial<GoalPromotionRefs>>();
+  for (const view of views) {
+    const role = workGoalPromotionRoleOf(view.action);
+    if (!role || !view.availability.available) continue;
+    const group = byProvider.get(view.provider.provider_id) ?? {};
+    group[role] = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    byProvider.set(view.provider.provider_id, group);
+  }
+  for (const group of byProvider.values()) {
+    if (WORK_GOAL_PROMOTION_ROLES.every(role => group[role])) return group as GoalPromotionRefs;
+  }
+  return null;
+}
 
 /**
  * What Feed asks of Goals when a person promotes an item. The Host answers by calling Goals' own actions with the caller's
@@ -121,17 +133,22 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
  * the person's own promotion is confirmed and names Feed as the channel, and anyone else's is a proposal the person accepts in Goals.
  */
 export function feedGoalsThroughDirectory(directory: PluginActionDirectory): FeedGoalPromotionGoals {
+  const refs = async (): Promise<GoalPromotionRefs> => {
+    const found = findGoalPromotionProvider(await directory.discover());
+    if (!found) throw new ActionError("actions.connection_required", "此项目尚未接通目标服务");
+    return found;
+  };
   return {
     active: async goalId => {
-      const item = await directory.invoke<{ goal_id: string } | null>(GOALS.directoryItem, { goal_id: goalId });
+      const item = await directory.invoke<{ goal_id: string } | null>((await refs())["directory.read"], { goal_id: goalId });
       return item ? { goal_id: item.goal_id } : null;
     },
     create: async input => {
-      const { goal, replayed } = await directory.invoke<{ goal: { goal_id: string }; replayed: boolean }>(GOALS.create, input);
+      const { goal, replayed } = await directory.invoke<{ goal: { goal_id: string }; replayed: boolean }>((await refs()).create, input);
       return { goal_id: goal.goal_id, replayed };
     },
     confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
-      await directory.invoke(GOALS.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
+      await directory.invoke((await refs())["inputs.confirm"], { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
     },
   };
 }

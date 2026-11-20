@@ -4,7 +4,10 @@ import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { OnboardingDraftBatch, OnboardingDraftInput } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
+import { onboardingTakers } from "@molis-ai/molis-work-app-local-host";
+import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -28,10 +31,14 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   if (!browser) return;
   const child=await pluginFrameBrowser(t,browser,"todo");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, homeDirectory, localHost } = browser;
-  // A journey that has already read its material and organized it: the drafts are a real Todo batch.
-  const { batch } = await localHost.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "model:invoke"] },
-    todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", materials: [{ title: "张总：新版方案", text: MAIL }] });
+  // A journey that has already read its material and drafted from it: the drafts are a real batch of the plugin that declares it drafts (Todo),
+  // made by its own declared action (contract-design §2.5).
   const id = randomUUID();
+  const drafter = onboardingTakers("drafts")[0]!;
+  assert.equal(drafter.plugin_id, TODO_PLUGIN_ID);
+  const { batch } = await localHost.homeActionClient().invoke({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...drafter.take.action.permissions] },
+    drafter.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
+    { title: "开始使用时整理的待办", origin: "onboarding", request_id: `onboarding:${id}:e2e:1`, materials: [{ title: "张总：新版方案", text: MAIL }] });
   // The journey's staging holds the mail as its file and its text, under its digest (docs/system/HOME-DATA.md).
   const sha256 = createHash("sha256").update(MAIL).digest("hex"), bytes = Buffer.byteLength(MAIL);
   const reference = { source_id: "m1", version: 1 as const, label: "S1", title: "张总：新版方案", path: "mail.md", text: { sha256, bytes, chars: MAIL.length },
@@ -45,7 +52,8 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
     journey.sources = [{ kind: "browser", selected: true, references: [reference] }];
     journey.phase = "review";
     journey.summary = { title: "新版方案", body: "张总要求周五前发新版方案，预算等小李确认。[S1]", references: [reference] };
-    journey.todo = { status: "ready", batches: [batch], total: 1, error: null };
+    journey.drafts = { plugin_id: drafter.plugin_id, surface: drafter.project_plugin_id, status: "ready", key: "e2e", batches: [{ batch_id: batch.batch_id, snapshot: batch }],
+      total: 1, error: null, timing: { ms: 0, calls: 0 } };
     return store.save(journey);
   });
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);

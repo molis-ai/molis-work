@@ -89,8 +89,10 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
     const defaults = { ...view };
     delete defaults.enabled_plugins;
     delete defaults.hidden_plugins;
+    // PEQ-02: a default project does not enable Goals, so without enabled_plugins no Goal surface is drawn.
     const defaultHtml = draw(defaults, goalId);
-    assert.deepEqual(creates(defaultHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(creates(defaultHtml), []);
+    assert.doesNotMatch(defaultHtml, /<[^>]+\b(?:data-work-surface="goals"|data-goal-inputs\b)/u);
 
     const emptyHtml = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(emptyHtml), [], "an unshown Goals owner draws no Goal input buttons");
@@ -101,7 +103,7 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
       ["pages", "文档", "文档"], ["form", "问卷", "问卷"], ["dataset", "数据表", "数据表"], ["ppt", "演示稿", "演示稿"],
     ], "a shown Goal keeps every visible personal plugin's declared create");
 
-    const hiddenHtml = draw({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
+    const hiddenHtml = draw({ ...defaults, enabled_plugins: ["goals"], hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
     assert.deepEqual(creates(hiddenHtml), []);
 
     const explicitHtml = draw(only(view, ["ppt"]), goalId);
@@ -109,8 +111,8 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
   });
 });
 
-test("RAC-600 RAC-602 a default project's declared create reaches the real page, remains absent from an explicit empty selection, and stays escaped", t => {
-  // Today's creates all belong to personal plugins. Give an already-default project plugin a legal create declaration so that
+test("RAC-600 RAC-602 a shown project plugin's declared create reaches the real page, remains absent when unshown, and stays escaped", t => {
+  // Today's creates all belong to personal plugins. Give a project plugin a legal create declaration so that
   // the page's wrong empty fallback cannot pass just because the current personal declarations hide the difference.
   const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals");
   assert.ok(goals);
@@ -126,15 +128,13 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     const defaults = { ...view };
     delete defaults.enabled_plugins;
     delete defaults.hidden_plugins;
-    const html = draw(defaults, goalId);
-    assert.deepEqual(creates(html).map(kind => kind.station), ["default-goal", "pages", "form", "dataset", "ppt"]);
-    assert.deepEqual(creates(html)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
-    assert.doesNotMatch(html, /默认 "<\/button><script>&/u);
-    assert.doesNotMatch(html, /data-home-starts|起点 "<\/script>&/u);
+    assert.deepEqual(creates(draw(defaults, goalId)), [], "PEQ-02: Goals is off by default");
 
     const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
-    assert.deepEqual(creates(goalHtml), creates(html), "an explicitly shown Goal keeps the same declared titles and escaping");
-    assert.doesNotMatch(goalHtml, /默认 "<\/button><script>&|起点 "<\/script>&/u);
+    assert.deepEqual(creates(goalHtml).map(kind => kind.station), ["default-goal", "pages", "form", "dataset", "ppt"]);
+    assert.deepEqual(creates(goalHtml)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
+    assert.doesNotMatch(goalHtml, /默认 "<\/button><script>&/u);
+    assert.doesNotMatch(goalHtml, /data-home-starts|起点 "<\/script>&/u);
 
     const empty = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(empty), []);

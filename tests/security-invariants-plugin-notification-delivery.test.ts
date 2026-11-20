@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, intakeMaterial, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginManifest, type PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createNotificationDelivery, declaredNotificationReceivers } from "@molis-ai/molis-work-app-local-host";
 import { feedManifest, feedNotificationActions } from "@molis-ai/molis-work-plugin-feed";
@@ -13,24 +13,42 @@ import { scheduleRuntimeFixture } from "./fixtures/schedule-runtime.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 /**
- * D6-2 (FI-6 step 4a): a plugin's notification is the platform's queue row; the platform hands it to the receiver a Manifest declares in
- * `notifications.receive`, and keeps it queued while none can take it. Acceptance RAC-1010 to RAC-1013.
+ * D6-2 (FI-6 step 4a): a plugin's notification is the platform's queue row; the platform hands it to the receiver a Manifest declares
+ * on a receiving action's intake (`accepts: [{ kind: "notification" }]`, batch 44), and keeps it queued while none can take it. Acceptance RAC-1010 to RAC-1013.
  */
 const row = (key: string) => ({ project_id: "p", sender_plugin_id: "io.molis.work.example.sender", sender_install_id: "install-1", sender_generation: "g1", key,
   title: "Title " + key, summary: "Summary", body: "Body " + key, open_plugin_id: "io.molis.work.example.sender", created_at: "2026-10-26T00:00:00.000Z" });
 const asRecord = (value: unknown): Record<string, unknown> => value as Record<string, unknown>;
 
-test("RAC-1010: a Manifest's notifications.receive names one of its own workflow-only commands, and nothing else", () => {
-  const parse = (notifications: unknown) => { try { parsePluginManifest({ ...structuredClone(feedManifest), notifications }); return null; } catch (error) { return (error as ActionError).message; } };
-  assert.equal(parse(feedManifest.notifications), null);
-  assert.match(parse({ receive: { capability_id: "feed.nothing", version: 1 } })!, /没有在 actions 里声明/);
-  assert.match(parse({ receive: { capability_id: "feed.items.admission", version: 1 } })!, /必须是 command/);
-  assert.match(parse({ receive: { capability_id: "feed.items.admit", version: 1 } })!, /受众只能是 workflow/);
-  assert.match(parse({ receive: { ...feedManifest.notifications!.receive, extra: true } })!, /不认这些字段/);
-  assert.match(parse({ receive: feedManifest.notifications!.receive, other: 1 })!, /不认这些字段/);
-  assert.match(parse("feed.notifications.receive")!, /必须为对象/);
+test("RAC-1010: a notification receiver is one action's intake { accepts: [notification] }, a project command only the workflow calls, with the platform's shapes", () => {
+  // Batch 44 (contract-design §2.1): the Manifest's `notifications.receive` became an intake on the receiving action; the Manifest field is refused.
+  const parse = (change: (manifest: PluginManifest) => void) => {
+    const manifest = structuredClone(feedManifest) as PluginManifest;
+    change(manifest);
+    try { parsePluginManifest(manifest); return null; } catch (error) { return (error as ActionError).message; }
+  };
+  const receiving = (manifest: PluginManifest) => manifest.actions!.find(action => action.capability_id === "feed.notifications.receive")!;
+  const intake = (manifest: PluginManifest) => receiving(manifest).action.intake as Record<string, unknown>;
+  assert.equal(parse(() => {}), null);
+  assert.deepEqual(intakeMaterial(receiving(feedManifest).action.intake, "notification"), { kind: "notification" });
+  assert.match(parse(manifest => Object.assign(manifest, { notifications: { receive: { capability_id: "feed.notifications.receive", version: 1 } } }))!, /notifications 不再在 Manifest 声明/u);
+  const onto = (id: string) => (manifest: PluginManifest) => {
+    const declared = intake(manifest);
+    delete receiving(manifest).action.intake;
+    Object.assign(manifest.actions!.find(action => action.capability_id === id)!.action, { intake: declared });
+  };
+  assert.match(parse(onto("feed.items.admission"))!, /收 notification：需要项目里的写动作，受众只有 workflow/u, "a query");
+  assert.match(parse(onto("feed.items.admit"))!, /收 notification：需要项目里的写动作，受众只有 workflow/u, "a command people call too");
+  assert.match(parse(manifest => { intake(manifest).extra = true; })!, /的创建入口有不认识的字段/u);
+  assert.match(parse(manifest => { intake(manifest).verb = "收下"; })!, /收平台送来的 notification，不写给人看的入口：verb/u);
+  assert.match(parse(manifest => { intake(manifest).accepts = [{ kind: "notification", extra: 1 }]; })!, /材料 notification 形状无效/u);
+  assert.match(parse(manifest => { receiving(manifest).action.input_schema = { type: "object", properties: {}, additionalProperties: false }; })!, /输入输出必须正好是平台给这种材料的形状/u);
+  assert.match(parse(manifest => {
+    const second = structuredClone(receiving(manifest));
+    manifest.actions!.push({ ...second, capability_id: "feed.notifications.again", action: { ...second.action, intake: { ...second.action.intake!, intake_id: "notifications.again" } } });
+  })!, /一个插件只能声明一个/u);
   // The Manifest declares the action as the Runtime runs it: Feed's own permissions, then what the platform asks of it for writing the Inbox and judging.
-  const declaredReceive = feedManifest.actions!.find(action => action.capability_id === "feed.notifications.receive")!.action.permissions;
+  const declaredReceive = receiving(feedManifest).action.permissions;
   assert.deepEqual(declaredReceive.slice(0, feedNotificationActions.receive.action.permissions.length), feedNotificationActions.receive.action.permissions);
   assert.deepEqual(declaredNotificationReceivers([feedManifest]).map(item => [item.plugin_id, item.reference.capability_id, item.permissions]),
     [[feedManifest.plugin_id, "feed.notifications.receive", declaredReceive]]);

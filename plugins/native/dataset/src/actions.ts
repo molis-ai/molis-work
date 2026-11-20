@@ -2,7 +2,7 @@ import { objectSchema as object, arraySchema as array, createActionDefinition } 
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
 import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
+import { DATASET_ARTIFACT_TYPE_ID, DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
 import type { promoteDataset } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
@@ -33,7 +33,7 @@ export const datasetActions = {
   /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", /* @version action.dataset.artifacts.compare */ 1, "数据表", read),
   /** 「从这一版继续」 (A4b): a new 数据表 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", /* @version action.dataset.artifacts.continue */ 1, "数据表", write),
+  artifactContinue: defineArtifactContinueAction("dataset.artifacts.continue", /* @version action.dataset.artifacts.continue */ 1, "数据表", write, { item_kind: "dataset", artifact_types: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION }] }),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.dataset.list */ 1, "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", /* @version action.dataset.get */ 1, "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", /* @version action.dataset.create */ 1, "新建数据表", "在当前项目新建一张草稿数据表（可带标题）并返回它；只创建草稿，不会固定成成果版本。填内容用「修改数据表」", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -55,7 +55,7 @@ export const datasetActions = {
   copy: defineObjectCopyAction("dataset.placement.copy", /* @version action.dataset.placement.copy */ 1, ["dataset"], "数据表", write),
 };
 /** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
-export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true, subject_kind: "dataset",
+export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: { title: "数据表", title_text: { key: "dataset.create.kind-title" } }, subject_kind: "dataset",
   read_permissions: ["dataset:read"], write_permissions: ["dataset:read", "dataset:write"] });
 export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActions).flatMap(d => d.action.permissions))];
 export interface DatasetActionPorts extends DatasetStores {
@@ -137,8 +137,8 @@ export function createDatasetContentHandlers(stores: DatasetStores): ActionHandl
     read: ({ item_id }, caller) => read(store => { const dataset = store.get(item_id, project(caller)); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
     receive: ({ title, body, request_id }, caller) => write(caller, store => {
       const dataset = store.receiveCsv(project(caller), request_id, title, body);
-      return { plugin: "dataset", item_id: dataset.id, title: dataset.title };
+      return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title };
     }),
-    create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title, project_id: project(caller) }); return { plugin: "dataset", item_id: dataset.id, title: dataset.title }; }),
+    create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title, project_id: project(caller) }); return { subject: { kind: "dataset", id: dataset.id }, title: dataset.title }; }),
   });
 }

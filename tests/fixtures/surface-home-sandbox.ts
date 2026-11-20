@@ -15,9 +15,12 @@ export function presentingPackage(scope: "project" | "home", delegated: readonly
   const add = contract.operations.find(item => item.id === "notes.add")!;
   // Both real writers read the old list before appending; both effects are part of their approval.
   add.effects = { storage: ["read", "write"], ...(delegated[0] ? { capabilities: [delegated[0].capability_id] } : {}) };
+  // The starting point is the command's own (contract-design §2.4): its form opens on the stage's panel.
+  if (add.kind === "command") add.start = { item_kind: kind, title: "New note", hint: "Write a note", open: { view_id: "app", panel: "editor" } };
   const alternate = delegated[1];
   if (alternate) {
-    contract.operations.push({ ...add, id: "notes.alternate", effects: { storage: ["read", "write"], capabilities: [alternate.capability_id] } });
+    contract.operations.push({ ...add, id: "notes.alternate", effects: { storage: ["read", "write"], capabilities: [alternate.capability_id] },
+      start: { item_kind: kind, title: "Another note", hint: "Write it another way", open: { view_id: "app", panel: "alternate-editor" } } });
     contract.pages[0]!.regions[0]!.operationIds.push("notes.alternate");
   }
   const overview = definePresentationOverviewAction(sandboxActionId(build, "notes.overview"), 1, "Notes overview", [], scope);
@@ -45,8 +48,7 @@ export function presentingPackage(scope: "project" | "home", delegated: readonly
     }
   }
   contract.presentation = { objects: editorDialog ? [{ kind, fields: [{ key: "title", role: "title" }], forms: { row: { fields: ["title"] }, ...(objectCard ? { card: { fields: ["title"] } } : {}) } }] : [], overview: { capability_id: overview.capability_id, version: overview.version,
-    start: [{ ...start("notes.add"), open: { view_id: "app", panel: "editor" } },
-      ...(alternate ? [{ ...start("notes.alternate"), open: { view_id: "app", panel: "alternate-editor" } }] : [])] } };
+    start: [start("notes.add"), ...(alternate ? [start("notes.alternate")] : [])] } };
   if (distinctForms) contract.presentation = { ...contract.presentation, objects: [...contract.presentation.objects,
     { kind: secondKind, fields: [{ key: "title", role: "title" }, { key: "summary", role: "summary" }], forms: { row: { fields: ["title", "summary"] } } }] };
   const { files, manifest } = packageFiles(publisher.identity);

@@ -6,8 +6,6 @@ import type {
   GoalRecord,
   GoalRelationRecord,
   GoalsBoardRecord,
-  ProjectGuidanceEntryRecord,
-  ProjectGuidanceRevisionRecord,
 } from "../contract/goals.js";
 
 type Row = Record<string, unknown>;
@@ -159,24 +157,6 @@ export class GoalsRepository {
     return row ? mapRelation(row) : null;
   }
 
-  listProjectGuidanceEntries(
-    projectId: string,
-    includeInactive = false,
-  ): ProjectGuidanceEntryRecord[] {
-    return (this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM project_guidance_entries
-      WHERE project_id = ?${includeInactive ? "" : " AND active = 1"}
-      ORDER BY position, guidance_id
-    `).all(projectId) as Row[]).map(mapGuidanceEntry);
-  }
-
-  listProjectGuidanceRevisions(projectId: string): ProjectGuidanceRevisionRecord[] {
-    return (this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM project_guidance_revisions
-      WHERE project_id = ? ORDER BY created_at DESC, guidance_id, revision DESC
-    `).all(projectId) as Row[]).map(mapGuidanceRevision);
-  }
-
   eventCursor(projectId: string): number {
     return this.journal.eventCursor(projectId);
   }
@@ -260,44 +240,6 @@ function mapRelation(row: Row): GoalRelationRecord {
   };
 }
 
-function mapGuidanceEntry(row: Row): ProjectGuidanceEntryRecord {
-  return {
-    guidance_id: text(row.guidance_id),
-    project_id: text(row.project_id),
-    position: number(row.position),
-    revision: number(row.revision),
-    active: bool(row.active),
-    kind: text(row.kind) as ProjectGuidanceEntryRecord["kind"],
-    content: text(row.content),
-    content_hash: text(row.content_hash),
-    source_refs: storedJson(row, "project_guidance_entries", "source_refs_json", []),
-    created_by: text(row.created_by),
-    confirmation_summary: text(row.confirmation_summary),
-    reason: text(row.reason),
-    created_at: text(row.created_at),
-    updated_by: text(row.updated_by),
-    updated_at: text(row.updated_at),
-  };
-}
-
-function mapGuidanceRevision(row: Row): ProjectGuidanceRevisionRecord {
-  return {
-    revision_id: text(row.revision_id),
-    guidance_id: text(row.guidance_id),
-    project_id: text(row.project_id),
-    revision: number(row.revision),
-    kind: text(row.kind) as ProjectGuidanceRevisionRecord["kind"],
-    content: text(row.content),
-    content_hash: text(row.content_hash),
-    source_refs: storedJson(row, "project_guidance_revisions", "source_refs_json", []),
-    active: bool(row.active),
-    changed_by: text(row.changed_by),
-    change_kind: text(row.change_kind) as ProjectGuidanceRevisionRecord["change_kind"],
-    confirmation_summary: text(row.confirmation_summary),
-    reason: text(row.reason),
-    created_at: text(row.created_at),
-  };
-}
 
 function json(value: unknown): string {
   return JSON.stringify(value ?? null);
@@ -313,8 +255,4 @@ function nullableText(value: unknown): string | null {
 
 function number(value: unknown): number {
   return Number(value ?? 0);
-}
-
-function bool(value: unknown): boolean {
-  return Number(value ?? 0) === 1;
 }

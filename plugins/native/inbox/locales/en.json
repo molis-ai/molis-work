@@ -43,6 +43,7 @@
     "inbox.projection.inbox-workflow": "Inbox · Workflow",
     "inbox.projection.matched-source-rule": "Matched a source rule",
     "inbox.projection.molis-work-waiting-decision": "Molis Work is waiting for a decision",
+    "inbox.projection.needs-you": "Needs you",
     "inbox.projection.open": "Open",
     "inbox.projection.open-handle-original-message-complete-ignore-attention-reference": "Open and handle the original message, or complete or ignore this attention reference directly.",
     "inbox.projection.rule-rule-needs-human-review": "Rule “{rule}” needs human review",

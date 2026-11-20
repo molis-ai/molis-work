@@ -64,8 +64,8 @@ export interface SurfaceFocus {
   /** Bounded neighbourhood: the heading path, and at most 300 characters on each side. */
   readonly surroundings?: { readonly heading_path: readonly string[]; readonly before?: string; readonly after?: string };
   readonly unsaved?: boolean;
-  /** The Goal the object belongs to, when the surface knows it. */
-  readonly goal?: { readonly id: string; readonly title: string; readonly state?: string };
+  /** What the object belongs to, when the page that owns it says so (a Goal, a project area): any plugin's object. */
+  readonly belongs_to?: SurfaceBelongsTo;
   /**
    * Where the thing in hand is. The workbench sets it from the document that reported the focus (a plugin's own claim is
    * not taken); absent means the work area, `main`.
@@ -75,6 +75,20 @@ export interface SurfaceFocus {
   readonly side_tab?: string;
   /** Where the bar is drawn. Meaningful only in the document that reported it: it never goes to the Host or across frames. */
   readonly screen?: SurfaceScreenAnchor;
+}
+
+/**
+ * The object the thing in hand belongs to, named by the page that owns the thing in hand: whose object it is, its kind and
+ * id, its title, and optionally its state and the noun people call that kind (「目标」). Like the rest of a focus it is the
+ * page's claim and is read as material (S-13), never as an instruction.
+ */
+export interface SurfaceBelongsTo {
+  readonly plugin_id: string;
+  readonly kind: string;
+  readonly id: string;
+  readonly title: string;
+  readonly state?: string;
+  readonly noun?: string;
 }
 
 /** Where the thing in hand is: the work area on the left, a cell of the right panel, or the Assistant panel. */
@@ -96,7 +110,7 @@ export interface SurfaceScreenAnchor {
   readonly placement?: "above" | "below";
 }
 
-/** What a landing is inside its object. `object`: the object itself is where things go (a Goal, a Coding session). */
+/** What a landing is inside its object. `object`: the object itself is where things go (a record, a working session). */
 export type SurfaceLandingPosition = "cursor" | "selection" | "end" | "object";
 export const SURFACE_LANDING_POSITIONS: readonly SurfaceLandingPosition[] = ["cursor", "selection", "end", "object"];
 

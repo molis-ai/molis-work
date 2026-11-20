@@ -49,8 +49,21 @@ export interface GoalStateFacts {
   [field: string]: unknown;
 }
 
-/** Read-only, scoped by the Host's project: the Goal and its state as they were when Coding pinned them. */
+/** One of the Goal's requirements as the platform's requirement list words it (contract-design §10): what it asks, not whether it is met. */
+export interface GoalRequirementTerms {
+  id: string;
+  version: number;
+  statement: string;
+  expected: string | null;
+  requires_person: boolean;
+}
+
+/**
+ * Read-only, scoped by the Host's project: the Goal, its state and its requirements as they were when Coding pinned them. The
+ * requirements are the platform's (`acceptance.read@1` for the subject the state names); Goals' state only says where they came from.
+ */
 export interface GoalContextSnapshot {
   goal: GoalFacts;
   state: GoalStateFacts;
+  requirements: GoalRequirementTerms[];
 }

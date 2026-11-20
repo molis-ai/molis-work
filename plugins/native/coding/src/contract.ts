@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ARTIFACT_DOCUMENT_INPUT_TYPE, ARTIFACT_DOCUMENT_OUTPUT_TYPE, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /** The input of `coding.results.document`: which fixed Coding report or change set to turn into text. */
@@ -30,6 +30,7 @@ export const codingResultDocument: ActionDefinition<CodingResultDocumentInput, C
   action: {
     title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 执行报告或固定变更转成可复制的 Markdown 正文；已归档、不属于本项目或不是 Coding 固定成果的拒绝；只读",
     kind: "query", scope: "project", audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],
+    input_type: ARTIFACT_DOCUMENT_INPUT_TYPE, output_type: ARTIFACT_DOCUMENT_OUTPUT_TYPE,
     input_schema: { type: "object", properties: { reference: versionReference }, required: ["reference"], additionalProperties: false },
     output_schema: { type: "object", properties: { reference: versionReference, title: { type: "string" }, saved_at: { type: "string" }, markdown: { type: "string" } },
       required: ["reference", "title", "saved_at", "markdown"], additionalProperties: false },

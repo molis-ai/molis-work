@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalMcpServer, recoverAcceptanceCommits } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { ACCEPTANCE_DECIDE_PERMISSION, ACCEPTANCE_PROVIDER_ID, ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions, acceptanceRequestId, type AcceptanceReadResult, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
-import { AcceptanceCommitIntents, openAcceptance, purgeAcceptanceProject } from "@molis-ai/molis-work-module-acceptance";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
@@ -21,34 +17,31 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
  */
 
 const ALL = [ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, ACCEPTANCE_DECIDE_PERMISSION];
-const SUBJECT = { provider_id: "plugin.homebg", subject: { kind: "homebg_task", id: "j1" } };
+/** The fixture plugin's task; `rig` fills in the provider the Host registered the plugin's actions under. */
+const SUBJECT = { provider_id: "", subject: { kind: "homebg_task", id: "j1" } };
 const code = (...expected: string[]) => (error: unknown) => error instanceof ActionError && expected.includes(error.code);
-const person = (projectId: string, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...ALL], ...change });
-const agent = (projectId: string, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "agent:fixture", audience: "agent", project_id: projectId, permissions: [...ALL], runtime_session_id: "session-1", ...change });
+const person = (projectId: string, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: [...ALL, "homebg:read"], ...change });
+/** An Agent that can read the fixture plugin's tasks (`homebg:read`), so it may deliver and report on one (S-acceptance-subject-owner). */
+const agent = (projectId: string, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "agent:fixture", audience: "agent", project_id: projectId, permissions: [...ALL, "homebg:read"], runtime_session_id: "session-1", ...change });
 /** How the Host or the service turns a caller away before anything is written: not offered to that audience, no issued plugin identity, or not the person. */
 const REFUSED = code("actions.forbidden", "actions.audience_denied", "actions.not_found", "host.plugin_caller_invalid", "acceptance.scope");
 const REQUIREMENTS = [{ id: "r1", statement: "三档并排", requires_person: false }, { id: "r2", statement: "发布前给你看一眼", requires_person: true }];
 
 async function rig(t: Parameters<typeof backgroundRig>[0]) {
-  const built = await backgroundRig(t, backgroundPlugin(() => ({ source: { surface: "example", title: "示例", icon: "list" }, tasks: [] })), ["A", "B"]);
+  // The plugin reads its own tasks back, so an Agent that can read the task may deliver and report on it (S-acceptance-subject-owner).
+  const built = await backgroundRig(t, backgroundPlugin(() => ({ source: { surface: "example", title: "示例", icon: "list" }, tasks: [] }), { reader: true }), ["A", "B"]);
   const served = await serveTestHost(t, { home: built.home, host: built.host });
   const a = built.project("A"), b = built.project("B"), client = built.host.actionClient(a);
+  SUBJECT.provider_id = (await client.discover(agent(a.project_id))).find(view => view.capability_id === "homebg.task.read")!.provider.provider_id;
   const call = <T = AcceptanceView>(caller: ActionCallContext, action: { capability_id: string; version: number }, input: unknown) =>
     client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<T>;
   const read = async () => (await call<AcceptanceReadResult>(person(a.project_id), acceptanceActions.read, { subjects: [SUBJECT] })).views[0]!;
   return { ...built, served, a, b, client, call, read };
 }
 
-test("APR-16: recovery with no pending intent does not create the acceptance library", { timeout: 60_000 }, async t => {
-  const { home, a, host } = await rig(t);
-  assert.equal(existsSync(join(home, "acceptance", "acceptance.db")), false, "the fixture has not used acceptance yet");
-  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
-  assert.equal(existsSync(join(home, "acceptance", "acceptance.db")), false, "recovery must not create a library when there is nothing to recover");
-});
-
 test("S-acceptance-person-decides APR-15: only the person's own page call accepts or returns a requirement; an Agent, a workflow, an MCP client, a plugin and a call a plugin handed on are refused even holding the permission, and nothing is recorded", { timeout: 60_000 }, async t => {
   const { home, catalog, served, a, b, host, call, read } = await rig(t);
-  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
+  await call(person(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
   await call(agent(a.project_id), acceptanceActions.deliver, { subject: SUBJECT, version: "v1" });
   const selection = { subject: SUBJECT, version: "v1", accepts: [{ id: "r2", version: 1 }], returns: [{ id: "r1", version: 1, note: "还差截图" }] };
 
@@ -85,11 +78,10 @@ test("S-acceptance-person-decides APR-15: only the person's own page call accept
   ]);
   const storedDecision = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(committed.record.decision_id));
   assert.equal(storedDecision?.actor_id, LOCAL_PERSON_ACTOR_ID);
-  // QEA-117: the normal atomic writer does not create legacy recovery files.
-  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "a successful atomic commit creates no legacy intent");
   assert.equal(storedDecision?.source.entry.source, "management");
-  // After a delivery only the person changes what is asked.
-  await assert.rejects(call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [{ ...REQUIREMENTS[0]!, statement: "随便" }, REQUIREMENTS[1]!] }), code("acceptance.requirements_fixed"));
+  // An Agent is not the object's side, so it never changes what is asked (S-acceptance-subject-owner); after a delivery even the
+  // object's own side cannot, only the person (the module's own test, acceptance.requirements_fixed).
+  await assert.rejects(call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: [{ ...REQUIREMENTS[0]!, statement: "随便" }, REQUIREMENTS[1]!] }), code("acceptance.subject_unknown"));
   // The record is the project's: the same object read in another project has nothing, and a call outside a project is refused.
   const elsewhere = (await host.actionClient(b).invoke(person(b.project_id), { capability_id: acceptanceActions.read.capability_id, version: 1, provider_id: ACCEPTANCE_PROVIDER_ID }, { subjects: [SUBJECT] }) as AcceptanceReadResult).views[0]!;
   assert.deepEqual([elsewhere.requirements.length, elsewhere.version], [0, null]);
@@ -98,7 +90,7 @@ test("S-acceptance-person-decides APR-15: only the person's own page call accept
 
 test("S-acceptance-evidence-tier PWA-144: the tier of a check is the platform's own finding; a report cannot carry one, the person cannot report, and evidence the Agent Host does not confirm as the caller's own round stays the reporter's word and satisfies nothing", { timeout: 60_000 }, async t => {
   const { a, call } = await rig(t);
-  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
+  await call(person(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
   // A round the Agent Host does not know as this session's is not kept as where the version was made.
   await call(agent(a.project_id), acceptanceActions.deliver, { subject: SUBJECT, version: "v1", made_in: { run_id: "run-forged" } });
   const report = { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "跑了测试", observed: "全过", evidence: [{ kind: "command_receipt", run_id: "run-forged", call_id: "c1" }] };
@@ -162,12 +154,14 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   }).then(res => res.json() as Promise<{ works: Array<{ work_id: string; main?: boolean }> }>);
   const workId = listedWorks.works.find(work => !work.main)!.work_id;
   const workSubject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: workId } };
-  await invoke(agentCaller, acceptanceActions.set, { subject: workSubject, requirements: [
+  await invoke(person(pid), acceptanceActions.set, { subject: workSubject, requirements: [
     { id: "r1", statement: "包含三档月付与年付", requires_person: true },
     { id: "r2", statement: "底部注明不含税", requires_person: true },
   ] });
-  await invoke(agentCaller, acceptanceActions.deliver, { subject: workSubject, version: "v1" });
-  await invoke(agentCaller, acceptanceActions.report, { subject: workSubject, reports: [
+  // The Assistant's own round speaks for its work (the Host sets `acting_for` there, as `assistantActionContext` does).
+  const workCaller = { ...agentCaller, acting_for: { provider_id: workSubject.provider_id, kind: workSubject.subject.kind, id: workId } };
+  await invoke(workCaller, acceptanceActions.deliver, { subject: workSubject, version: "v1" });
+  await invoke(workCaller, acceptanceActions.report, { subject: workSubject, reports: [
     { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "自查", observed: "已对齐" },
   ] });
 
@@ -210,8 +204,11 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   // 2. Re-delivery v1 -> v2 carry-over vs invalidation, expired request refusal, missing read permission refusal, and settled history reopen (APR-16).
   const gatedProvider = preparedMetadata.find(view => view.provider.plugin_id === "io.molis.work.todo")!.provider.provider_id;
   const gatedSubject = { provider_id: gatedProvider, subject: { kind: "todo_item", id: "todo-1" } };
-  await invoke(agentCaller, acceptanceActions.set, { subject: gatedSubject, requirements: REQUIREMENTS });
-  await invoke(agentCaller, acceptanceActions.deliver, { subject: gatedSubject, version: "v1" });
+  // The person here holds the todo reader's grant too, as the person on this machine does.
+  const todoPerson = person(pid, { permissions: [...ALL, "todo:read"] });
+  await invoke(todoPerson, acceptanceActions.set, { subject: gatedSubject, requirements: REQUIREMENTS });
+  // The person delivers here: the item is never created, so only the person's check (the reader is available) passes.
+  await invoke(todoPerson, acceptanceActions.deliver, { subject: gatedSubject, version: "v1" });
   const gatedLookup = { action: decideAction, request_id: acceptanceRequestId(gatedSubject) };
   const v1Gated = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, gatedLookup);
   const v1Committed = await env.web.post<{ record: ProjectTrustedDecision }>(`${approvalsPrefix}/decide`, {
@@ -219,7 +216,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   });
 
   // Re-deliver v2 touching r2 only: r1 retains `person_accepted` pointing to v1's ReviewReference; r2's acceptance is invalidated.
-  await invoke(agentCaller, acceptanceActions.deliver, { subject: gatedSubject, version: "v2", touches: ["r2"], summary: "重做 r2" });
+  await invoke(todoPerson, acceptanceActions.deliver, { subject: gatedSubject, version: "v2", touches: ["r2"], summary: "重做 r2" });
   const v2Gated = await env.web.post<ReviewRequest>(`${approvalsPrefix}/request`, gatedLookup);
   assert.deepEqual(v2Gated.requirements.find(req => req.id === "r1")?.evidence.find(ev => ev.tier === "person_accepted")?.decision, {
     reference: v1Gated.reference,
@@ -250,7 +247,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
     readerAvailable = true;
   }
 
-  // Commit-stage refusal inside `projectReviewDecisions.commit` / `checkCommit` rolls back `acceptance.db` too (zero business records on either side).
+  // Commit-stage refusal inside `projectReviewDecisions.commit` / `checkCommit` rolls back the acceptance rows too: they are in the same project library and the same transaction (zero business records).
   await env.host.withProject(ref, ({ store }) => {
     store.db.exec(`
       CREATE TRIGGER test_rule_change_mid_commit AFTER INSERT ON project_review_decisions
@@ -269,7 +266,7 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
     await env.host.withProject(ref, ({ store }) => { store.db.exec("DROP TRIGGER IF EXISTS test_rule_change_mid_commit"); });
   }
   const afterRollback = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
-  assert.equal(afterRollback.requirements.find(item => item.id === "r2")?.person, "pending", "acceptance.db rolled back when projectReviewDecisions.commit rejected");
+  assert.equal(afterRollback.requirements.find(item => item.id === "r2")?.person, "pending", "the acceptance rows rolled back when projectReviewDecisions.commit rejected");
   assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
   assert.equal(await env.host.withProject(ref, ({ store }) => projectApprovalRules(store.db, pid).read(false).rules.some(rule => rule.id === "mid-commit-rule")), false);
 
@@ -291,27 +288,14 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   const afterCommitRefusal = (await env.web.post<AcceptanceReadResult>(`${acceptancePrefix}/read`, { subjects: [gatedSubject] })).views[0]!;
   assert.equal(afterCommitRefusal.requirements.find(item => item.id === "r2")?.person, "pending", "final project COMMIT refusal must roll back the acceptance decision");
   assert.equal(await env.host.withProject(ref, ({ store }) => projectReviewDecisions(store.db, pid).forRequest(v2Gated.reference.id)), null);
-  // QEA-85: COMMIT succeeds, then connection cleanup fails. The original receipt wins over the cleanup error.
-  const cleanupFault = await env.host.withProject(ref, ({ store }) => {
-    const original = store.db.pragma.bind(store.db);
-    return t.mock.method(store.db, "pragma", (sql, options) => {
-      const result = original(sql, options);
-      if (sql === "busy_timeout=5000") throw new Error("qea-post-commit-cleanup");
-      return result;
-    });
-  });
-  let recovered: { record: ProjectTrustedDecision; replayed: boolean };
-  try {
-    recovered = await env.web.post(`${approvalsPrefix}/decide`, commitRequest);
-    assert.equal(recovered.replayed, true, "a cleanup failure reads back the committed decision");
-  } finally { cleanupFault.mock.restore(); }
-  const repeated = await env.web.post<{ record: ProjectTrustedDecision }>(`${approvalsPrefix}/decide`, commitRequest);
-  const acceptanceRows = openSqliteConnection(homeSqlitePath(env.home, "acceptance"), { readonly: true });
-  try {
-    assert.equal(acceptanceRows.prepare("SELECT count(*) AS n FROM acceptance_decisions WHERE decision_id=? AND requirement_id='r2'").get(recovered.record.decision_id)?.n, 1,
-      "the same-key replay does not append another item decision");
-  } finally { acceptanceRows.close(); }
+  // QEA-85: the decision and its record commit in one library, so nothing runs after the COMMIT that could fail it; an answer lost after it
+  // is the same-key retry, which reads the committed decision back and writes no second one.
+  const recovered = await env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, commitRequest);
+  const repeated = await env.web.post<{ record: ProjectTrustedDecision; replayed: boolean }>(`${approvalsPrefix}/decide`, commitRequest);
+  assert.equal(repeated.replayed, true, "a same-key retry reads back the committed decision");
   await env.host.withProject(ref, ({ store }) => {
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM acceptance_decisions WHERE decision_id=? AND requirement_id='r2'").get(recovered.record.decision_id)?.n, 1,
+      "the same-key replay does not append another item decision");
     assert.equal(store.db.prepare("SELECT count(*) AS n FROM project_review_decisions WHERE decision_id=?").get(recovered.record.decision_id)?.n, 1);
   });
   assert.equal(repeated.record.decision_id, recovered.record.decision_id, "same-key retry retains the original decision");
@@ -333,71 +317,3 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   assert.ok(historyRows.some(row => row.id === v1Committed.record.decision_id && row.person === LOCAL_PERSON_ACTOR_ID));
 });
 
-test("QEA-117 APR-15: an existing acceptance decision whose project commit did not land is recovered once from its durable commit intent", { timeout: 60_000 }, async t => {
-  const { home, a, host, call } = await rig(t);
-  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
-  await call(agent(a.project_id), acceptanceActions.deliver, { subject: SUBJECT, version: "v1" });
-  const owner = { kind: "system" as const, scope: "project" as const, project_id: a.project_id, provider_id: ACCEPTANCE_PROVIDER_ID };
-  const record: ProjectTrustedDecision = {
-    decision_id: "recovery-decision",
-    reference: { owner: { ...owner, kind: "trusted-decision" as const }, id: "recovery-request", version: "v1" },
-    decision: "accept:r1", note: null, decided_at: "2026-11-17T00:00:00.000Z", actor_id: LOCAL_PERSON_ACTOR_ID,
-    source: { kind: "person", actor_id: LOCAL_PERSON_ACTOR_ID, entry: { source: "web", conversation_ref: "web:recovery", message_ref: "web:recovery" } },
-    request_key: "recovery-key", choice_fingerprint: "a".repeat(64), publisher_signature: `system:${ACCEPTANCE_PROVIDER_ID}`,
-    review: { target: { owner, subject: { kind: "acceptance_subject", id: "recovery" }, version: "v1" }, requirements: [] },
-  };
-  const opened = openAcceptance(home);
-  try {
-    opened.service.decide({ project_id: a.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, person: true, session: null },
-      { subject: SUBJECT, version: "v1", accepts: [{ id: "r1", version: 1 }], returns: [] }, record.decision_id);
-    // Existing on-disk format written by the former two-commit implementation.
-    const intentDirectory = join(home, "acceptance", "commit-intents");
-    mkdirSync(intentDirectory, { recursive: true });
-    writeFileSync(join(intentDirectory, `${record.decision_id}.json`), JSON.stringify({
-      decision_id: record.decision_id, project_id: a.project_id, record_json: JSON.stringify(record), created_at: record.decided_at,
-    }));
-    assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 1);
-  } finally { opened.close(); }
-  assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id)), null,
-    "the simulated project commit failure leaves the platform record missing");
-  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
-  const restored = await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id));
-  assert.equal(restored?.decision_id, record.decision_id);
-  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "the intent is removed after the idempotent restore");
-  // Simulate a crash after restoring the project record but before deleting the old intent.
-  writeFileSync(join(home, "acceptance", "commit-intents", `${record.decision_id}.json`), JSON.stringify({
-    decision_id: record.decision_id, project_id: a.project_id, record_json: JSON.stringify(record), created_at: record.decided_at,
-  }));
-  await recoverAcceptanceCommits(host, home, async id => id === a.project_id ? a : null, a.project_id);
-  assert.deepEqual(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).findCommitted(record.decision_id)), restored,
-    "recovery of an already committed record preserves the complete original decision");
-  assert.equal(await host.withProject(a, ({ store }) => projectReviewDecisions(store.db, a.project_id).count()), 1, "a second recovery does not duplicate the decision");
-  assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "the replayed intent is cleared");
-});
-
-
-test("QEA-117: failed project purge keeps acceptance rows and existing recovery intents until the database commits", { timeout: 60_000 }, async t => {
-  const { home, a, call } = await rig(t);
-  await call(agent(a.project_id), acceptanceActions.set, { subject: SUBJECT, requirements: REQUIREMENTS });
-  const directory = join(home, "acceptance", "commit-intents");
-  mkdirSync(directory, { recursive: true });
-  const intent = { decision_id: "purge-recovery", project_id: a.project_id, record_json: "{}", created_at: "2026-11-17T00:00:00.000Z" };
-  writeFileSync(join(directory, `${intent.decision_id}.json`), JSON.stringify(intent));
-  const db = openSqliteConnection(homeSqlitePath(home, "acceptance"));
-  try {
-    db.exec(`
-      CREATE TABLE qea_purge_parent (id INTEGER PRIMARY KEY);
-      CREATE TABLE qea_purge_child (parent_id INTEGER REFERENCES qea_purge_parent(id) DEFERRABLE INITIALLY DEFERRED);
-      CREATE TRIGGER qea_purge_commit AFTER DELETE ON acceptance_subjects
-      BEGIN INSERT INTO qea_purge_child(parent_id) VALUES (1); END;
-    `);
-    assert.throws(() => purgeAcceptanceProject(home, a.project_id), /FOREIGN KEY constraint failed/u);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_subjects WHERE project_id=?").get(a.project_id)?.n, 1);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_requirements").get()?.n, REQUIREMENTS.length);
-    assert.deepEqual(new AcceptanceCommitIntents(home).list(a.project_id), [intent], "COMMIT failure preserves the original recovery record");
-    db.exec("DROP TRIGGER qea_purge_commit; DROP TABLE qea_purge_child; DROP TABLE qea_purge_parent;");
-    purgeAcceptanceProject(home, a.project_id);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM acceptance_subjects WHERE project_id=?").get(a.project_id)?.n, 0);
-    assert.equal(new AcceptanceCommitIntents(home).list(a.project_id).length, 0, "successful retry clears the recovery file after database commit");
-  } finally { db.close(); }
-});

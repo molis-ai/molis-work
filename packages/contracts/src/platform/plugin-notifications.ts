@@ -1,3 +1,4 @@
+import { closedObjectSchema as closed } from "./closed-object-schema.js";
 import type { PluginDatabaseTransaction } from "./plugin-database.js";
 
 export interface PluginNotificationInput {
@@ -62,7 +63,13 @@ export interface PluginNotificationDeliveryReceipt {
  */
 export const PLUGIN_NOTIFICATION_DELIVERY_ACTOR = "platform-notifications";
 
-/** `notifications.receive` in a Manifest: the plugin takes the platform's notifications (D6-2). The action must be one of its own `workflow` command actions. */
-export interface PluginNotificationReceiverDeclaration {
-  readonly receive: { readonly capability_id: string; readonly version: number };
-}
+const text = (maxLength: number) => ({ type: "string", maxLength } as const);
+/**
+ * The receiver's input and output, exactly (contract-design §2.1): a plugin takes the platform's notifications by an intake that accepts
+ * `[{ kind: "notification" }]` on a project command whose only audience is `workflow`, and the SDK refuses any other shape.
+ */
+export const PLUGIN_NOTIFICATION_DELIVERY_INPUT_SCHEMA = closed({
+  notification_id: text(100), sender_plugin_id: text(200), sender_name: text(200), sender_install_id: text(200), sender_generation: text(200),
+  key: text(300), title: text(200), summary: text(1000), body: text(100000), open_plugin_id: text(200), created_at: text(40),
+});
+export const PLUGIN_NOTIFICATION_DELIVERY_RECEIPT_SCHEMA = closed({ item_id: { type: "string" }, created: { type: "boolean" }, judgment_error_code: text(200) }, ["item_id", "created"]);

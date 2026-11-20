@@ -10,8 +10,10 @@ export interface FeedApi {
     readonly events: FeedEvents;
 }
 
+export type FeedAttentionReason = "manual" | "source_rule";
+
 export interface FeedAttentionRequest {
-    reason: Extract<AttentionReason, "manual" | "source_rule">;
+    reason: FeedAttentionReason;
     detail?: Record<string, unknown>;
 }
 
@@ -359,6 +361,7 @@ export interface SourcesApi {
 
 export declare const feedErrors: import("@molis-ai/molis-work-contracts/platform/actions").ErrorCodeRaisers<{
     readonly contract_source_history_decision_required: "internal";
+    readonly entry_not_found: "not_found";
     readonly item_not_found: "not_found";
     readonly source_not_found: "not_found";
     readonly out_rule_not_found: "not_found";

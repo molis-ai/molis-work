@@ -178,10 +178,10 @@ test("placement journey: one document used by two projects and a Goal — edit, 
     await click("dialog.placement-dialog [data-placement-confirm]");
     await card(`已用于项目「${name}」`);
   }
-  await panel("goal");
-  await click('.placement-panel [data-placement-action="goal"]');
-  await waitFor(`document.querySelector('dialog.placement-dialog input[name="goal"][value="${projectId}|CORE"]')`, 12_000);
-  await click(`dialog.placement-dialog input[name="goal"][value="${projectId}|CORE"]`);
+  await panel("attach");
+  await click('.placement-panel [data-placement-action="attach"]');
+  await waitFor(`document.querySelector('dialog.placement-dialog input[name="goal"][value="${projectId}|goal|CORE"]')`, 12_000);
+  await click(`dialog.placement-dialog input[name="goal"][value="${projectId}|goal|CORE"]`);
   await click("dialog.placement-dialog [data-placement-confirm]");
   await card("已关联到目标「");
 

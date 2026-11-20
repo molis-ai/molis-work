@@ -1,5 +1,5 @@
 import { codeRootFile, contextFileSkip, contextSkipRuleName } from "@molis-ai/molis-work-contracts/services/materials"; import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
-import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js"; import { CONTEXT_ONBOARDING_SESSIONS_PART } from "./context-onboarding-sessions.js";
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js"; import { CONTEXT_ONBOARDING_SESSIONS_PART } from "./context-onboarding-sessions.js"; import { CONTEXT_ONBOARDING_WELCOME_PART } from "./context-onboarding-welcome.js";
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
@@ -91,32 +91,7 @@ ${CONTEXT_ONBOARDING_SESSIONS_PART}
   const primary = (label, action, options) => primaryText(readText(label), action, options);
   // A phone hides the label of a button that has an icon, so it keeps its name.
   const secondary = (label, action, o) => btn({variant:'secondary', size:'lg', icon:o?.icon, label:globalThis.t.text(label), disabled:o?.disabled, attrs:{'data-action':action, ...(o?.icon ? {'aria-label':globalThis.t.text(label)} : {})}});
-  /* ───────── The opening and the two Welcome questions ───────── */
-  function opening() {
-    return {kind:'opening', view:'opening', step:'', html:'<div class="stage-single"><div class="stage-sheet opening" data-view="opening"><div class="opening-glow" aria-hidden="true"></div><div class="opening-copy"><div class="opening-caption">' + (document.getElementById('cx-caption')?.innerHTML || '') + '</div><h1 class="ob-greeting-wordmark" id="ob-title" tabindex="-1">' + (document.getElementById('cx-wordmark')?.innerHTML || '') + '</h1></div></div></div>',
-      bar:{start:exitButton(), center:'', end:primary("workbench.context-onboarding.begin",'intro-next')}};
-  }
-  function language() {
-    const current = document.documentElement.dataset.uiLanguageTag;
-    const catalog = globalThis.molisWorkLanguageCatalog?.().languages || [];
-    const next = encodeURIComponent(location.pathname + location.search);
-    const option = row => '<a class="mw-choice" data-slot="choice" data-ui-language="' + row.tag + '" href="/locale?lang=' + row.tag + '&next=' + next + '" lang="' + row.html_lang + '" hreflang="' + row.html_lang + '"' + (current === row.tag ? ' aria-current="true"' : '') + '><span class="mw-choice__label">' + esc(row.name) + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></a>';
-    return {kind:'welcome', view:'language', step:'language',
-      html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="language"><section class="welcome-q">' + title(globalThis.t.text("workbench.context-onboarding.language")) + '<p>' + globalThis.t.text("workbench.context-onboarding.start-language-know-best-can-change-settings-any") + '</p><div class="welcome-options" role="group" aria-label="' + globalThis.t.text("workbench.context-onboarding.language-2") + '">' + catalog.map(option).join('') + '</div></section><aside class="welcome-scene" aria-hidden="true"><div class="ob-greeting"><strong lang="' + document.documentElement.lang + '">' + globalThis.t("workbench.context-onboarding.greeting") + '</strong><span>Molis Work</span></div></aside></div></div>',
-      bar:{start:exitButton() + stepsBar('language'), center:'', end:primary("workbench.context-onboarding.continue",'intro-next')}};
-  }
-  const miniRow = (g, w, s) => '<div class="ob-mini-row"><i>' + glyph(g) + '</i><span><b style="width:' + w + '%"></b><s style="width:' + s + '%"></s></span></div>';
-  function miniWorkbench() {
-    const row = miniRow;
-    return '<div class="ob-mini"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + row('target',62,40) + row('rss',48,58) + row('note',70,36) + '</div><div class="ob-mini-bar"><span class="ob-mini-dock"><i></i><i class="is-on"></i><i></i></span><span class="ob-mini-composer"><i></i><em></em></span><span class="ob-mini-avatar"></span></div></div>';
-  }
-  function appearance() {
-    const prefs = globalThis.molisWorkPreferences, theme = prefs ? prefs.theme() : 'system', density = prefs ? prefs.density() : 'standard';
-    const opt = (attr, value, label, current, g) => choice({label:globalThis.t.text(label), icon:g, selected:current === value, attrs:{[attr]:value}});
-    return {kind:'welcome', view:'appearance', step:'appearance',
-      html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="appearance"><section class="welcome-q">' + title(globalThis.t.text("workbench.context-onboarding.appearance")) + '<p>' + globalThis.t.text("workbench.context-onboarding.choose-light-dark-follow-system-changes-apply-once") + '</p><div class="welcome-options" role="group" aria-label="' + globalThis.t.text("workbench.context-onboarding.theme") + '">' + opt('data-theme-option','light',"workbench.context-onboarding.light",theme,'sun') + opt('data-theme-option','dark',"workbench.context-onboarding.dark",theme,'moon') + opt('data-theme-option','system',"workbench.context-onboarding.follow-system",theme,'system') + '</div><p class="welcome-label">' + globalThis.t.text("workbench.context-onboarding.interface-density") + '</p><div class="welcome-options" role="group" aria-label="' + globalThis.t.text("workbench.context-onboarding.interface-density") + '">' + opt('data-density-option','standard',"workbench.context-onboarding.standard",density,'rows') + opt('data-density-option','compact',"workbench.context-onboarding.compact",density,'list') + '</div></section><aside class="welcome-scene" aria-hidden="true">' + miniWorkbench() + '</aside></div></div>',
-      bar:{start:btn({variant:'ghost', size:'lg', label:globalThis.t.text("workbench.context-onboarding.previous"), cls:'arrival-back', attrs:{'data-action':'intro-back'}}) + stepsBar('appearance'), center:'', end:primary("workbench.context-onboarding.continue",'intro-next')}};
-  }
+${CONTEXT_ONBOARDING_WELCOME_PART}
   /* ───────── Sources: add what the project is made from ───────── */
   const sourceRows = () => [
     {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:readText("workbench.context-onboarding.folder-materials"), caption: native ? readText("workbench.context-onboarding.folder-materials-native") : readText("workbench.context-onboarding.folder-materials-web")},
@@ -273,7 +248,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
       + (uploading ? note(globalThis.t.text("workbench.context-onboarding.uploading-files-stay-page-until-upload-finishes-after"), 'clock') + meter(uploading.done, uploading.total, globalThis.t.text("workbench.context-onboarding.upload-progress"), globalThis.t.text("workbench.context-onboarding.done-total-uploaded", {done:amount(uploading.done), total:amount(uploading.total)})) : queued ? note(globalThis.t.text("workbench.context-onboarding.that-s-lot-material-once-start-files-read"), 'clock') : '')
       + note(globalThis.t.text(config.ai_available ? "workbench.context-onboarding.after-start-selected-text-read-sent-chosen-model" : "workbench.context-onboarding.after-start-selected-text-read-stored-computer-original"), 'shield')
       + (picked().some(s => s.kind === 'gmail') ? note(globalThis.t.text("workbench.context-onboarding.value-20-most-recent-emails-chosen-time-read"), 'mail') : '')
-      + collapsible(globalThis.t.text("workbench.context-onboarding.how-reading-works"), '<p>' + globalThis.t.text("workbench.context-onboarding.no-limit-how-many-files-how-big-each") + '</p>');
+      + draftsChoice() + collapsible(globalThis.t.text("workbench.context-onboarding.how-reading-works"), '<p>' + globalThis.t.text("workbench.context-onboarding.no-limit-how-many-files-how-big-each") + '</p>');
     const listed = journey.sources.filter(s => s.selected || (directory(s) && s.metadata));
     const right = stageHead(globalThis.t.text("workbench.context-onboarding.confirm-one-one"), globalThis.t.text("workbench.context-onboarding.n-selected-size", {n:total.count, size:size(total.bytes)})) + listed.map(scopeGroup).join('') + staleSummaryCard();
     return {kind:'onboard', view:'preview', step:'scope', left, right,
@@ -295,7 +270,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
     const heading = reading ? (done===picked().length ? "workbench.context-onboarding.tracing-how-work-fits-together" : "workbench.context-onboarding.reading-materials") : "workbench.context-onboarding.materials-kept";
     // Files, not sources: each source is read file by file, and its checkpoint says how far it has come.
     const files = picked().reduce((n, s) => ({done:n.done + (s.references ? s.references.length + (s.issues?.length || 0) + (s.held_secrets?.length || 0) : s.reading?.done || 0), total:n.total + (s.references ? s.references.length + (s.issues?.length || 0) + (s.held_secrets?.length || 0) : s.reading?.total || 0)}), {done:0, total:0});
-    const synthesis = journey.synthesis, todo = journey.todo, bytes = journey.reading_bytes?.total ? journey.reading_bytes : null;
+    const synthesis = journey.synthesis, todo = journey.drafts && journey.drafts.status !== 'none' ? journey.drafts : null, bytes = journey.reading_bytes?.total ? journey.reading_bytes : null;
     // Reading goes by bytes; the summary and the todo drafts by their calls, with what is left timed by the calls done (2026-10-22).
     const summing = done >= picked().length && reading, calls = synthesis?.batches;
     const phases = [[readText("workbench.context-onboarding.reading-materials-2"), (files.total ? globalThis.t.text("workbench.context-onboarding.done-total-total", {done:files.done, total:files.total}) : globalThis.t.text("workbench.context-onboarding.done-total-total", {done, total:picked().length})) + (bytes ? ' · ' + amount(Math.min(bytes.done, bytes.total)) + ' / ' + amount(bytes.total) : ''), done >= picked().length ? 'done' : 'progress', null],
@@ -320,25 +295,33 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
     for(const line of esc(text).split('\n')){const heading=/^#{1,3} (.+)$/.exec(line);if(heading){flush();out.push('<h3>'+heading[1]+'</h3>');}else if(!line.trim())flush();else paragraph.push(line);}
     flush();return out.join('').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\[S(\d+)\]/g,'<button class="cx-citation" data-cite="S$1" aria-label="'+globalThis.t.text("workbench.context-onboarding.view-source")+' S$1">[S$1]</button>');
   }
-  // Todo drafts from the same materials: the person keeps what they want; the rest waits in Todo's “待你确认”.
-  let todoPicked=null;
+  // Drafts from the same materials, by the plugin that drafts them (contract-design §2.5): the person keeps what they want; the rest waits there.
+  let draftPicked=null, draftWordsFor='';
 ${CONTEXT_ONBOARDING_TAKE_PART}
-  const KIND={request:["workbench.context-onboarding.todo-needs-you",'attention','status-needs-you'],commitment:["workbench.context-onboarding.todo-your-commitment",'progress','status-progress'],waiting:["workbench.context-onboarding.todo-waiting",'hold','status-waiting'],suggestion:["workbench.context-onboarding.todo-suggestion",'quiet','status-todo']};
-  function draftDay(date){return globalThis.t.text("common.generated.formatted",{value:{kind:"date",at:date,style:"month-day"}});}
+  // The platform's state word of a draft, drawn as the page drew Todo's four kinds.
+  const TONE={answer:['attention','status-needs-you'],running:['progress','status-progress'],waiting:['hold','status-waiting'],idle:['quiet','status-todo']};
+  /** The drafting plugin's words for these drafts, read once for each set of batches (a grant from the journey's answer, never on every poll). */
+  async function installDraftWords(){
+    const d=journey&&journey.drafts, at=d?journey.id+':'+d.plugin_id+':'+d.batches.map(b=>b.batch_id+'@'+(b.snapshot?b.snapshot.revision:'')).join(','):'';
+    if(!d||!d.plugin_id||!d.batches.length||at===draftWordsFor||!globalThis.molisWorkSurfaceText)return;
+    draftWordsFor=at;
+    try{const words=await api(endpoint('words'));await globalThis.molisWorkSurfaceText.install('/api/ui/locales',words.surface_text||[],AbortSignal.timeout(30000));render();}catch{draftWordsFor='';}
+  }
   function drafts(){
-    const t=journey.todo;if(!t)return '';
-    // One list to confirm, however many batches the drafts were organized in.
-    const batches=t.batches||[], candidates=batches.flatMap(b=>b.candidates), referenceOnly=batches.reduce((n,b)=>n+b.reference_only.length,0);
-    if(t.status==='pending')return '<p class="mw-brief__quiet" role="status">'+(t.total>1?globalThis.t.text("workbench.context-onboarding.finding-todos-batch-k-n",{n:t.total,k:Math.min(batches.length+1,t.total)}):globalThis.t.text("workbench.context-onboarding.finding-what-needs-materials"))+'</p>';
-    if(t.status==='failed'||!batches.length)return '<p class="mw-brief__quiet">'+(t.error?globalThis.t.text("workbench.context-onboarding.couldn-t-draft-todos-reason-once-project-exists",{reason:esc(t.error)}):globalThis.t.text("workbench.context-onboarding.couldn-t-draft-todos-once-project-exists-assistant"))+'</p>';
+    const d=journey.drafts;if(!d)return '';
+    if(d.status==='none')return '<p class="mw-brief__quiet">'+globalThis.t.text("workbench.context-onboarding.no-plugin-drafts")+'</p>';
+    // One list to confirm, however many batches the drafts were organized in; a batch not read back yet shows nothing of its own.
+    const batches=(d.batches||[]).map(b=>b.snapshot).filter(Boolean), candidates=batches.flatMap(b=>b.candidates), referenceOnly=batches.reduce((n,b)=>n+b.reference_only,0);
+    const say=ref=>globalThis.say({owner:d.plugin_id,...ref});
+    if(d.status==='pending')return '<p class="mw-brief__quiet" role="status">'+(d.total>1?globalThis.t.text("workbench.context-onboarding.finding-todos-batch-k-n",{n:d.total,k:Math.min(d.batches.length+1,d.total)}):globalThis.t.text("workbench.context-onboarding.finding-what-needs-materials"))+'</p>';
+    if(d.status==='failed'||!batches.length)return '<p class="mw-brief__quiet">'+(d.error?globalThis.t.text("workbench.context-onboarding.couldn-t-draft-todos-reason-once-project-exists",{reason:esc(d.error)}):globalThis.t.text("workbench.context-onboarding.couldn-t-draft-todos-once-project-exists-assistant"))+'</p>';
     const open=candidates.filter(c=>!c.decision);
-    if(!todoPicked)todoPicked=new Set(open.filter(c=>c.selected).map(c=>c.candidate_id));
-    const notes=batches.flatMap(b=>b.notes).map(n=>'<p class="mw-brief__hint">'+esc(n)+'</p>').join('');
+    if(!draftPicked)draftPicked=new Set(open.filter(c=>c.selected).map(c=>c.candidate_id));
+    const notes=batches.flatMap(b=>b.notes).map(n=>'<p class="mw-brief__hint">'+say(n)+'</p>').join('');
     if(!open.length)return '<p class="mw-brief__quiet">'+globalThis.t.text("workbench.context-onboarding.nothing-materials-needs-move")+'</p>'+notes;
-    return '<p class="mw-brief__hint">'+globalThis.t.text("workbench.context-onboarding.ticked-ones-become-todos-new-project-rest-wait")+' <b>'+globalThis.t.text("workbench.context-onboarding.n-total-selected",{n:todoPicked.size,total:open.length})+'</b></p><ul class="mw-file-list cx-drafts">'+open.map(c=>{
-      const k=KIND[c.kind]||KIND.suggestion;
-      const meta=[c.due_date?globalThis.t.text("workbench.context-onboarding.due-date",{date:draftDay(c.due_date)})+(c.due_phrase?globalThis.t.text("workbench.context-onboarding.written-phrase",{phrase:esc(c.due_phrase)}):''):'',c.kind==='waiting'&&c.waiting?globalThis.t.text("workbench.context-onboarding.waiting-who",{who:esc(c.waiting.who)}):(c.owner.stated?'':globalThis.t.text("workbench.context-onboarding.owner-unclear")),c.existing?globalThis.t.text("workbench.context-onboarding.related-existing-todo"):''].filter(Boolean).join(' · ');
-      return '<li class="mw-file-row is-todo cx-draft"><label class="mw-file-row__label"><input type="checkbox" class="mw-check" id="cx-t-'+c.candidate_id+'" data-draft="'+c.candidate_id+'" '+(todoPicked.has(c.candidate_id)?'checked':'')+'><span class="cx-draft-copy"><span class="mw-file-row__name">'+esc(c.title)+'</span>'+(meta?'<small class="cx-draft-meta">'+meta+'</small>':'')+(c.evidence[0]?'<small class="cx-draft-evidence">“'+esc(c.evidence[0].excerpt)+'”</small>':'')+'</span></label>'+status(readText(k[0]),k[1],k[2])+'</li>';
+    return '<p class="mw-brief__hint">'+globalThis.t.text("workbench.context-onboarding.ticked-ones-become-todos-new-project-rest-wait")+' <b>'+globalThis.t.text("workbench.context-onboarding.n-total-selected",{n:draftPicked.size,total:open.length})+'</b></p><ul class="mw-file-list cx-drafts">'+open.map(c=>{
+      const k=TONE[c.label.state]||TONE.idle, meta=c.meta.map(say).filter(Boolean).join(' · ');
+      return '<li class="mw-file-row is-todo cx-draft"><label class="mw-file-row__label"><input type="checkbox" class="mw-check" id="cx-t-'+esc(c.candidate_id)+'" data-draft="'+esc(c.candidate_id)+'" '+(draftPicked.has(c.candidate_id)?'checked':'')+'><span class="cx-draft-copy"><span class="mw-file-row__name">'+esc(c.title)+'</span>'+(meta?'<small class="cx-draft-meta">'+meta+'</small>':'')+(c.evidence?'<small class="cx-draft-evidence">“'+esc(c.evidence)+'”</small>':'')+'</span></label>'+status(globalThis.say.text({owner:d.plugin_id,...c.label.text}),k[0],k[1])+'</li>';
     }).join('')+'</ul>'+notes+(referenceOnly?'<p class="mw-brief__hint">'+globalThis.t.text("workbench.context-onboarding.n-more-reference-only-not-listed-todos",{n:referenceOnly})+'</p>':'');
   }
   /** The new project as it will look in the chooser: the same brief, drawn from what is being decided. */
@@ -351,17 +334,17 @@ ${CONTEXT_ONBOARDING_TAKE_PART}
       + '<div class="mw-brief__cols"><section class="mw-brief__sec"><h2>' + nextHtml.title + '</h2>' + nextHtml.body + '</section></div></article></div>';
   }
   function review() {
-    const s=journey.summary, draftsHtml = drafts(), picks = todoPicked ? todoPicked.size : 0;
+    const s=journey.summary, draftsHtml = drafts(), picks = draftPicked ? draftPicked.size : 0;
     const left = (existing() ? question(readText("workbench.context-onboarding.name-summary-existing"), globalThis.t.text("workbench.context-onboarding.summary-goes-into-project", {project:journey.project_title || ''})) : question(globalThis.t.text("workbench.context-onboarding.name-new-project"), globalThis.t.text("workbench.context-onboarding.project-suggestion-was-drawn-materials-name-summary-can"))) + errorLine(error||journey.error) + lateNotice()
       + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + globalThis.t.text(existing() ? "workbench.context-onboarding.summary-title" : "workbench.context-onboarding.project-name") + '</label><input id="cx-project-title" class="mw-input ob-name__input" data-plain-field value="' + esc(s.title) + '"></div>'
       + '<div class="ob-name"><div class="cx-actions"><span class="ob-label">' + globalThis.t.text("workbench.context-onboarding.work-summary") + '</span>' + btn({variant:'ghost', size:'sm', label:globalThis.t.text(editing ? "workbench.context-onboarding.done-editing" : "workbench.context-onboarding.edit-summary"), attrs:{'data-action':'edit'}}) + '</div>'
       + (editing ? '<textarea id="cx-summary-editor" class="mw-textarea cx-summary-editor" rows="10" maxlength="100000" aria-label="' + globalThis.t.text("workbench.context-onboarding.edit-summary") + '">' + esc(s.body) + '</textarea>' : '<div class="cx-summary">' + markdown(s.body) + '</div>') + '</div>'
       + '<p class="ob-note">' + glyph('note') + '<span>' + globalThis.t.text("workbench.context-onboarding.sources-sources-materials-n", {sources:picked().length, n:s.references.length}) + '</span></p>'
       + (s.references.length ? collapsible(globalThis.t.text("workbench.context-onboarding.based-these-materials-n", {n:s.references.length}), '<div class="cx-sources">' + s.references.map(r=>'<button type="button" class="cx-reference" data-cite="'+r.label+'"><span>'+globalThis.t.text("workbench.context-onboarding.label-version-version",{label:r.label,version:r.version})+'</span>'+esc(r.title)+'</button>').join('') + picked().filter(x=>x.error).map(x=>'<p class="cx-source-meta">'+globalThis.t.text(names[x.kind])+': '+esc(x.error)+'</p>').join('') + picked().map(issues).join('') + '</div>') : '')
-      + verificationPanel() + (existing() ? '' : takeChoice()) + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
+      + verificationPanel() + (existing() ? '' : takeChoice()) + documentsChoice() + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
     const right = briefPreview(s.title, s.body, {title:readText("workbench.context-onboarding.next-todo-drafts"), body:draftsHtml || '<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.no-todo-drafts") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now-n-n", {n:s.references.length}));
     return {kind:'onboard', view:'review', step:'start', left, right,
-      bar:{start:exitButton() + stepsBar('start'), center:barStatus({glyph:'check', title:todoPicked ? globalThis.t.text("workbench.context-onboarding.project-suggestion-ready-n-n", {n:picks}) : globalThis.t.text("workbench.context-onboarding.project-suggestion-ready"), caption:globalThis.t.text(todoPicked&&todoPicked.size?"workbench.context-onboarding.summary-source-snapshot-todos-checked-saved-together-project":"workbench.context-onboarding.summary-snapshot-its-sources-saved-project")}),
+      bar:{start:exitButton() + stepsBar('start'), center:barStatus({glyph:'check', title:draftPicked ? globalThis.t.text("workbench.context-onboarding.project-suggestion-ready-n-n", {n:picks}) : globalThis.t.text("workbench.context-onboarding.project-suggestion-ready"), caption:globalThis.t.text(draftPicked&&draftPicked.size?"workbench.context-onboarding.summary-source-snapshot-todos-checked-saved-together-project":"workbench.context-onboarding.summary-snapshot-its-sources-saved-project")}),
         end:secondary("workbench.context-onboarding.adjust-sources",'restart') + primaryText(busy ? readText("workbench.context-onboarding.saving")
           : picks ? globalThis.t.text("workbench.context-onboarding.use-count-count", {count:picks}) : readText("workbench.context-onboarding.use-start"),'adopt',{disabled:busy})}};
   }
@@ -377,8 +360,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   /* ───────── Which screen ───────── */
   let loadError = '';
   function takeNotTaken() {
-    const reason = ['unavailable', 'moved', 'refused'].includes(takeNotice) ? takeNotice : 'unavailable';
-    return {kind:'onboard', view:'take-not-taken', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="take-not-taken"><div class="ob-error-page">' + empty({icon:'circle-alert', title:globalThis.t.text("workbench.context-onboarding.take-not-taken.title"), body:globalThis.t.text("workbench.context-onboarding.take-not-taken." + reason), action:btn({variant:'primary', size:'md', label:globalThis.t.text("workbench.context-onboarding.take-not-taken.continue"), attrs:{'data-action':'take-continue'}})}) + '</div></div></div>', bar:{start:exitButton(), center:'', end:''}};
+    const partial = takeNotice === 'partial', reason = ['unavailable', 'moved', 'refused'].includes(takeNotice) ? takeNotice : 'unavailable', r = journey.take_result || {materials:0, of:0};
+    return {kind:'onboard', view:'take-not-taken', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="take-not-taken"><div class="ob-error-page">' + empty({icon:partial ? 'info' : 'circle-alert', title:partial ? globalThis.t.text("workbench.context-onboarding.take-partial.title", {n:r.materials, total:r.of}) : globalThis.t.text("workbench.context-onboarding.take-not-taken.title"), body:partial ? globalThis.t.text("workbench.context-onboarding.take-partial.body") : globalThis.t.text("workbench.context-onboarding.take-not-taken." + reason), action:btn({variant:'primary', size:'md', label:globalThis.t.text("workbench.context-onboarding.take-not-taken.continue"), attrs:{'data-action':'take-continue'}})}) + '</div></div></div>', bar:{start:exitButton(), center:'', end:''}};
   }
   function view() {
     if (introStep === 'opening') return opening();
@@ -386,7 +369,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if (introStep === 'appearance') return appearance();
     if (!journey && !loadError) return {kind:'onboard', view:'loading', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="loading"><div class="ob-error-page"><h1 id="ob-title" tabindex="-1">' + globalThis.t.text("workbench.context-onboarding.start-what-re-working") + '</h1><p role="status">' + globalThis.t.text("workbench.context-onboarding.checking-available-sources") + '</p></div></div></div>', bar:{start:exitButton(), center:'', end:''}};
     if (!journey) return {kind:'onboard', view:'error', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="error"><div class="ob-error-page">' + empty({icon:'circle-alert', title:globalThis.t.text("workbench.context-onboarding.onboarding-can-t-open-right-now"), body:failureText(loadError), action:btn({variant:'secondary', size:'md', label:globalThis.t.text("workbench.context-onboarding.reload"), attrs:{'data-action':'reload'}})}) + '</div></div></div>', bar:{start:exitButton(), center:'', end:''}};
-    if (journey.take_result?.not_taken) return takeNotTaken();
+    if (takeNotice) return takeNotTaken();
     if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'sources', left:question(globalThis.t.text("workbench.context-onboarding.continue-work"), journey.error) + (error ? errorLine(error) : ''), right:'<div class="ob-preview">' + empty({icon:'folder', title:globalThis.t.text("workbench.context-onboarding.materials-need-be-chosen-again"), body:globalThis.t.text("workbench.context-onboarding.last-time-s-materials-can-t-be-reused")}) + '</div>', bar:{start:exitButton() + stepsBar('sources'), center:'', end:primary("workbench.context-onboarding.choose-materials-again",'new-journey')}};
     if (journey.adoption) return savingProject();
     if (blank) return blankForm();
@@ -516,7 +499,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   function save() {
     clearTimeout(inputTimer);
     const id=journey.id, sources=journey.sources.map(({references,issues,error,skipped,held_secrets,reused_references,reading,...s})=>JSON.parse(JSON.stringify(s))),autoStart=journey.auto_start===true,previewed=journey.previewed===true;
-    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api(contextPath+'/'+id+'/selection',{sources,auto_start:autoStart,previewed});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
+    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api(contextPath+'/'+id+'/selection',{sources,auto_start:autoStart,previewed,...(draftsPicked?{drafts_taker:draftsPicked}:{})});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
     saveQueue=next; return next;
   }
   function preserveEdits() {
@@ -525,14 +508,16 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(name)journey.summary.title=name.value;if(body)journey.summary.body=body.value;
   }
   function projectLocation() {
-    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open, home = '/projects/'+encodeURIComponent(journey.project_id); // a folder handed to a plugin: go on there, in what it opened. With todos added, start from one; otherwise from the overview.
+    const take = journey.adoption && journey.adoption.take, opened = journey.take_result && journey.take_result.open, home = '/projects/'+encodeURIComponent(journey.project_id); // a folder handed to a plugin: go on there, in what it opened.
     if (take) return route(objectLinkAt(home, opened ? { surface: take.project_plugin_id, id: opened.item_id, title: opened.title } : { surface: take.project_plugin_id }));
-    if (journey.todo && journey.todo.added && journey.todo.added.length) return route(objectLinkAt(home, { surface: 'todo' }));
-    return route(objectLinkAt(home, { surface: 'pages', id: journey.document_id || '', title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }));
+    // Drafts kept: the drafting plugin's page. Otherwise the summary, where the plugin that kept the documents opens it (contract-design §2.5).
+    if (journey.drafts && journey.drafts.surface && journey.drafts.added && journey.drafts.added.length) return route(objectLinkAt(home, { surface: journey.drafts.surface }));
+    const summary = journey.summary_open;
+    return route(summary ? objectLinkAt(home, { surface: summary.surface, id: summary.id, title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }) : home);
   }
   async function poll() {
     clearTimeout(timer);
-    try { journey=await api(endpoint()); if(journey.phase==='complete'){if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();return;}location.assign(projectLocation());return;} render();if(journey.phase==='reading'||journey.phase==='adopting')timer=setTimeout(poll,1800); }
+    try { journey=await api(endpoint()); if(journey.phase==='complete'){if(takeHeld()){render();return;}location.assign(projectLocation());return;} render();void installDraftWords();if(journey.phase==='reading'||journey.phase==='adopting')timer=setTimeout(poll,1800); }
     catch(e){error=keepFailure(e);render();timer=setTimeout(poll,5000);}
   }
   async function connect(auto=false) {
@@ -612,10 +597,10 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     journey=await api(contextPath,{id:crypto.randomUUID(),project_id:project||undefined});
     if(journey.existing)journey=await api(endpoint());
     journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
-    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();
+    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';draftPicked=null;await save();
   }
   async function reopen() {
-    await saveQueue;journey=await api(endpoint('reopen'),{});journey.previewed=false;blank=false;error='';editing=false;todoPicked=null;render();
+    await saveQueue;journey=await api(endpoint('reopen'),{});journey.previewed=false;blank=false;error='';editing=false;draftPicked=null;render();
   }
   function saveDraft() {
     const id=journey.id, draft={title:journey.summary.title,body:journey.summary.body};
@@ -625,9 +610,9 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     preserveEdits();await saveQueue;
     const accepted=journey.adoption;
     const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
-    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[],...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
+    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,keep:!isBlank&&draftPicked?[...draftPicked]:[],...(!accepted&&documentsPicked?{documents_taker:documentsPicked}:{}),...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
     blank=false;
-    if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}
+    if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(takeHeld()){render();}
       else if(sessionsNext())location.assign(route('/onboarding?project='+encodeURIComponent(journey.project_id)+'&sessions=1'));
       else location.assign(projectLocation());}else{error=journey.error||globalThis.t.text("workbench.context-onboarding.saving-didn-t-finish-try-again");render();}
   }
@@ -656,7 +641,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     // Only what changes the selection is saved; leaving the name field, say, must not touch it (a journey already read refuses).
     let changed=false;
     try {
-      if(el.dataset.take!==undefined){takePicked=el.checked?el.dataset.take:'';document.querySelectorAll('[data-take]').forEach(box=>{if(box!==el)box.checked=false;});return;}if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
+      if(el.dataset.draftsTaker!==undefined){draftsPicked=el.dataset.draftsTaker;void save();return;}if(el.dataset.documentsTaker!==undefined){documentsPicked=el.dataset.documentsTaker;return;}if(el.dataset.take!==undefined){takePicked=el.checked?el.dataset.take:'';document.querySelectorAll('[data-take]').forEach(box=>{if(box!==el)box.checked=false;});return;}if(el.dataset.draft){if(el.checked)draftPicked.add(el.dataset.draft);else draftPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSourceForEdit(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
       else if(el.dataset.field){if(el.tagName!=='SELECT'){if(inputTimer){clearTimeout(inputTimer);inputTimer=0;await save();}return;}const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
@@ -793,7 +778,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
     if(params.get('start')==='blank'||params.get('name')){blank=true;blankName=(params.get('name')||'').trim();}
     const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
-    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete'){if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
+    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
   }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();
 `;

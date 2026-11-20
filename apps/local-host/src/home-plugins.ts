@@ -215,18 +215,23 @@ export class HomePluginHost {
       // A package switched off is not known to the supervisor after a restart, and is still the person's to switch on.
       ?? this.installed?.releaseFor(pluginId)?.packaged?.manifest;
   }
-  /** Whether the Host's start list (a catalog entry's `runtime`, or a Home fixture) says this is the Home half of a dual-instance plugin. */
+  /** Whether the Host's start list (or an installed pinned dual-instance sandbox package, PEQ-06) runs a Home half and project halves. */
   dualInstance(pluginId: string): boolean {
     return this.options.entries.some(entry => entry.dual_instance === true && entry.manifest.plugin_id === pluginId)
-      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId);
+      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId)
+      || this.installed?.isDualInstance(pluginId) === true;
   }
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
   }
   /** Only the matching trusted project half may use this Home activation as its optional permission upper bound. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void {
-    const home = this.installation(project.install_id);
-    if (!home || !this.dualInstance(project.plugin_id) || home.plugin_id !== project.plugin_id || home.install_id !== project.install_id
+    const pinnedSandbox = project.publisher_trust === "pinned" && project.execution === "sandbox";
+    const home = this.installation(pinnedSandbox ? project.plugin_id : project.install_id);
+    const sameIdentity = pinnedSandbox
+      ? Boolean(home && home.publisher_trust === "pinned" && home.execution === "sandbox")
+      : Boolean(home && home.install_id === project.install_id);
+    if (!home || !sameIdentity || !this.dualInstance(project.plugin_id) || home.plugin_id !== project.plugin_id
       || home.publisher_id !== project.publisher_id || home.publisher_signature !== project.publisher_signature || home.state !== "running" || !this.platform) {
       throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
     }
@@ -296,16 +301,18 @@ export class HomePluginHost {
     const { db, storage } = openHomePluginStore(this.options.home);
     this.db = db;
     const repository = pluginInstallRecords(db);
+    const isDualDefinition = (definition: PluginDefinition): boolean =>
+      identity.dualInstance(definition) || (definition.execution === "sandbox" && definition.manifest.runtime?.scope === "home" && definition.manifest.runtime.dual_instance === true);
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
       invalidateView: pluginId => this.platform?.invalidateView(pluginId), wakeView: id => this.views.wake(id), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor, dualInstance: identity.dualInstance, localePacks: identity.localePacks });
+      providerFor: identity.providerFor, dualInstance: isDualDefinition, localePacks: identity.localePacks });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
     const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, this.installationScope.catalog(), runtime, rollback),
-      redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
+      redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
           { registry: this.options.registry, client: this.options.client, project_id: null }),

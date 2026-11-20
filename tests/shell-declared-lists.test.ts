@@ -24,14 +24,15 @@ test("RAC-690 Pages finds its rows by its own attribute, not by a class that bel
   }
 });
 
-test("RAC-691 the page scripts list no search row by plugin; the two outside the declarations are named in one place and still reach the page", () => {
+test("RAC-691 the page scripts list no search row by plugin; Feed declares its own searchRow while platform rows stay in search-rows.ts", () => {
   for (const file of [...TAB_WORKSPACE_FILES, "scripts/client/global-search.ts"]) {
     const text = source(file);
     assert.doesNotMatch(text, /"characters"|data-character-id|data-feed-task-toggle/u, `${file} lists a row by plugin`);
   }
   const named = source("search-rows.ts");
   assert.match(named, /CHARACTERS_SEARCH_ROW[^\n]*\["characters", "\[data-character-id\]", "characterId"\]/u);
-  assert.match(named, /FEED_SOURCE_SEARCH_ROW[^\n]*\["feed", "\[data-feed-task-toggle\]", "feedTaskToggle"\]/u);
+  assert.doesNotMatch(named, /FEED_SOURCE_SEARCH_ROW|data-feed-task-toggle/u, "Feed's search row moved to Feed's own registration");
+  assert.deepEqual(pack("feed")?.searchRow, { selector: "[data-feed-task-toggle]", idDataset: "feedTaskToggle" });
   assert.ok(CLIENT_SCRIPT.includes("[data-character-id]") && CLIENT_SCRIPT.includes("[data-feed-task-toggle]"), "both rows are written into the page");
 });
 

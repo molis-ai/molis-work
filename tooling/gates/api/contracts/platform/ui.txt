@@ -180,7 +180,7 @@ export interface ReviewDelegationReference {
 export type ReviewEvidence = {
     readonly target: ReviewTarget;
 } & ({
-    readonly tier: "self_reported" | "machine_checked";
+    readonly tier: "self_reported" | "machine_checked" | "peer_reviewed";
 } | {
     readonly tier: "person_accepted";
     readonly decision: ReviewDecisionReference;
@@ -433,26 +433,35 @@ export interface StagePagePublisher {
     publish(parts: StagePagePresentation): void;
 }
 
+export interface StageTerminalChoice {
+    readonly href: string;
+    readonly title: string;
+    readonly subtitle: string;
+    readonly action_label: string;
+}
+
 export interface StageTerminalPaneModel {
-    selected?: {
-        goal_id: string;
-        title: string;
-        decomposition_state: string;
-        fulfillment_state: string;
-        statusHtml: string;
-        event_work?: boolean;
+    readonly plugin_id: string;
+    readonly subject_kind: string;
+    readonly selected?: {
+        readonly id: string;
+        readonly title: string;
+        readonly status_html?: string;
     };
-    children: readonly {
-        goal_id: string;
-        title: string;
-        statusLabel: string;
-        nextAction: string;
-    }[];
-    cliAvailability: Record<string, boolean>;
-    promptRoute: string;
-    terminalsRoute: string;
-    text: (value: string, vars?: Record<string, string | number>) => string;
-    icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+    readonly read_only?: StageTerminalReadOnlyGuard;
+    readonly cliAvailability: Record<string, boolean>;
+    readonly text: (value: string, vars?: Record<string, string | number>) => string;
+    readonly icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+}
+
+export interface StageTerminalReadOnlyGuard {
+    readonly reason: string;
+    readonly heading: string;
+    readonly summary: string;
+    readonly empty_summary: string;
+    readonly add_disabled_title: string;
+    readonly empty_choices_text: string;
+    readonly choices: readonly StageTerminalChoice[];
 }
 
 export type StateRingFamily = typeof STATE_RING_FAMILIES[number]["key"];
@@ -1026,6 +1035,7 @@ export interface UiPageReviews<Element = unknown> {
 export interface UiPageRouteDeclaration {
     readonly route_id: string;
     readonly path: string;
+    readonly kind?: "page" | "fragment" | "refresh_document";
     readonly query?: readonly string[];
     readonly params?: Readonly<Record<string, string>>;
 }
@@ -1454,7 +1464,7 @@ export type UiTokenValue = string | {
 export interface UiViewCreateEntry {
     readonly station: string;
     readonly title: string;
-    readonly title_text?: TextRef;
+    readonly label?: string;
 }
 
 export interface UiViewDeclaration {
@@ -1478,13 +1488,16 @@ export interface UiViewDeclaration {
     readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
     readonly stage_surfaces?: readonly string[];
-    readonly creates?: UiViewCreateEntry;
-    readonly start?: UiViewStartEntry;
 }
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
 export type UiViewHue = (typeof UI_VIEW_HUES)[number];
+
+export interface UiViewIntakeEntries {
+    readonly creates?: UiViewCreateEntry;
+    readonly start?: UiViewStartEntry;
+}
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 
@@ -1499,9 +1512,7 @@ export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 
 export interface UiViewStartEntry {
     readonly title: string;
-    readonly title_text?: TextRef;
     readonly hint: string;
-    readonly hint_text?: TextRef;
     readonly icon?: string;
 }
 

@@ -27,18 +27,18 @@ const PINNED = { level: "pinned", publisher_key_id: `ed25519:sha256:${"a".repeat
 const signed = (runtime: unknown) => manifest(runtime, { publisher: { publisher_id: "someone", signature: PINNED.publisher_key_id } });
 const runtimeOf = (scope?: "home" | "project") => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, ...(scope ? { scope } : {}) });
 
-test("RAC-739 a Manifest says it runs in the Home with runtime.scope, and cannot say it is a dual-instance plugin (S-48)", () => {
+test("RAC-739 PEQ-06 a Manifest says it runs in the Home with runtime.scope, and may declare dual_instance: true alongside scope: home (S-48, S-80)", () => {
   assert.equal(parsePluginManifest(manifest(undefined)).runtime, undefined, "a project plugin writes nothing");
   assert.deepEqual(parsePluginManifest(manifest({ scope: "home" })).runtime, { scope: "home" });
+  assert.deepEqual(parsePluginManifest(manifest({ scope: "home", dual_instance: true })).runtime, { scope: "home", dual_instance: true });
   for (const [runtime, mentions] of [
     ["home", /runtime 必须为对象/u],
     [[], /runtime 必须为对象/u],
     [{}, /runtime\.scope 只能写 "home"/u],
     [{ scope: "project" }, /runtime\.scope 只能写 "home"/u],
     [{ scope: "platform" }, /runtime\.scope 只能写 "home"/u],
-    [{ scope: "home", dual_instance: true }, /runtime 不认这些字段：dual_instance（双实例的标记只来自宿主的登记/u],
-    [{ scope: "home", dual_instance: false }, /runtime 不认这些字段：dual_instance/u],
-    [{ dual_instance: true }, /runtime 不认这些字段：dual_instance/u],
+    [{ scope: "home", dual_instance: false }, /runtime\.dual_instance 只能写 true/u],
+    [{ dual_instance: true }, /runtime\.scope 只能写 "home"/u],
     [{ scope: "home", trust: "host" }, /runtime 不认这些字段：trust/u],
   ] as const) {
     assert.throws(() => parsePluginManifest(manifest(runtime)), (error: unknown) => error instanceof ActionError && mentions.test(error.message), JSON.stringify(runtime));
@@ -88,19 +88,28 @@ test("RAC-960 a pinned publisher's sandboxed package may write runtime.scope hom
   assert.deepEqual(refused.list(), []);
 });
 
-test("RAC-961 the Runtime a package is installed into is the one its Manifest names: a Home package never lands in a project, a project package never in the Home", () => {
+test("RAC-961 PEQ-06 the Runtime a package is installed into is the one its Manifest names: pure Home/project cannot cross, while pinned sandbox dual_instance runs in both", () => {
   const home = sandboxed(signed({ scope: "home" })), project = sandboxed(signed(undefined));
+  const dual = sandboxed(signed({ scope: "home", dual_instance: true }));
   assert.throws(() => assertScopeFitsRuntime(home.manifest, PINNED, "project"), code("plugin.home_scope_unavailable"));
   assert.throws(() => assertScopeFitsRuntime(project.manifest, PINNED, "home"), code("plugin.home_scope_unavailable"));
   assertScopeFitsRuntime(home.manifest, PINNED, "home");
   assertScopeFitsRuntime(project.manifest, PINNED, "project");
   assertScopeFitsRuntime(home.manifest, PINNED, undefined);
+  assertScopeFitsRuntime(dual.manifest, PINNED, "home");
+  assertScopeFitsRuntime(dual.manifest, PINNED, "project");
+  assert.throws(() => assertScopeFitsRuntime(dual.manifest, UNSIGNED_TRUST, "project"), code("plugin.home_scope_unavailable"));
+  assert.throws(() => assertHomeScopeAllowed(dual.manifest, UNSIGNED_TRUST, "sandbox"), code("plugin.home_scope_unavailable"));
+  assert.throws(() => assertHomeScopeAllowed(dual.manifest, PINNED, "host"), code("plugin.home_scope_unavailable"));
   const projectRuntime = runtimeOf("project"), homeRuntime = runtimeOf("home");
   assert.throws(() => projectRuntime.install({ definition: home, deployment: "local", grants: [], trust: PINNED }), code("plugin.home_scope_unavailable"));
   assert.throws(() => homeRuntime.install({ definition: project, deployment: "local", grants: [], trust: PINNED }), code("plugin.home_scope_unavailable"));
   assert.deepEqual([...projectRuntime.list(), ...homeRuntime.list()], [], "a refused install leaves no record");
   assert.equal(projectRuntime.install({ definition: project, deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
   assert.equal(homeRuntime.install({ definition: home, deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
+  const dualHome = runtimeOf("home"), dualProject = runtimeOf("project");
+  assert.equal(dualHome.install({ definition: dual, deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
+  assert.equal(dualProject.install({ definition: dual, deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
   // The Host's own build and the Host's test fixtures are not asked: a dual-instance plugin's halves share one Manifest and run in both.
   assert.equal(runtimeOf("project").install({ definition: definition(manifest({ scope: "home" })), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
   assert.equal(runtimeOf("home").install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");

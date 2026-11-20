@@ -1,9 +1,10 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { goalsApprovalOutcomesBinding } from "./approval-outcomes.js";
 import { createGoalsPlugin } from "./plugin.js";
 import { GOALS_PAGE_CLIENTS } from "./workbench-clients.js";
 import { GOALS_WORKBENCH_STYLESHEET } from "./workbench-styles.js";
 import { goalsStageUiContribution } from "./page/workbench-stage.js";
-import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
+import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -12,6 +13,7 @@ import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goa
 export const registration: PluginRegistration = {
   project_plugin_id: GOALS_PROJECT_PLUGIN_ID, catalog_order: 6,
   manifest: goalsManifest,
+  approval_outcomes: goalsApprovalOutcomesBinding,
   project_runtime: { create: createGoalsPlugin, package_name: "@molis-ai/molis-work-plugin-goals", factory_export: "createGoalsPlugin" },
   workbench: {
     order: 19,
@@ -28,10 +30,9 @@ export const registration: PluginRegistration = {
     goalsStatusUiContribution,
     goalsFactorsUiContribution,
     goalsDialogsUiContribution,
-    goalsSettingsUiContribution,
   ],
     stylesheet: GOALS_WORKBENCH_STYLESHEET,
-    stylesheetLayer: "beneath-shell",
+    stylesheetPrefixes: ["goal-"],
     pageClients: GOALS_PAGE_CLIENTS,
     recordRow: { selector: "[data-tree-item][data-goal-id]", idDataset: "goalId" },
   },

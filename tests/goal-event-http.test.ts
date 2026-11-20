@@ -34,7 +34,7 @@ function listen(server: Server): Promise<string> {
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -61,14 +61,15 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     idempotency_key: "agree-1",
     expected_config_version: afterCfg.config.version,
     expected_agreement_version: afterCfg.agreement.version,
-    new_requirements: [{ requirement_id: "playable", statement: "能从开始走到结束", bound_type_id: "scene" }],
+    outcome: "一段能从头走到尾的可玩片段",
   });
+  // The requirement is the platform's (contract-design §10).
+  app.setRequirements(BOARD, goalId, [{ requirement_id: "playable", statement: "能从开始走到结束" }]);
   app.goalEvents.report({
     project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "rep-1",
     events: [{
       type_id: "scene", type_version: 1, title: "开场已经能走进去",
       fields: { piece: "玩家可以从门口走进第一段。" },
-      judgments: [{ requirement_id: "playable", verdict: "supports" }],
     }],
   });
   const opened = app.goalEvents.applyConcern({
@@ -78,13 +79,13 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   });
   const requested = app.goalEvents.requestDecision({
     project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "ask-1",
-    question: "是否接受当前可玩范围？",
+    question: "是否接受重启缺口？",
     options: [
       { option_id: "yes", label: "接受", impact: "可以继续收尾" },
       { option_id: "no", label: "再补", impact: "先补重启" },
     ],
-    purpose: "requirement_acceptance",
-    scope: { requirement_ids: ["playable"], concern_ids: [opened.concern.concern_id] },
+    purpose: "suggestion",
+    scope: { concern_ids: [opened.concern.concern_id] },
   });
   const decided = app.goalEvents.recordTrustedDecision({
     project_id: BOARD, goal_id: goalId, idempotency_key: "dec-1",
@@ -92,9 +93,11 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
     request_id: requested.decision_request.request_id,
     selected_option_id: "yes",
     conclusion: "先按当前范围试用",
-    effects: [{ kind: "accept_requirements" }, { kind: "accept_concerns" }],
-    scope: { requirement_ids: ["playable"], concern_ids: [opened.concern.concern_id] },
+    effects: [{ kind: "accept_concerns" }],
+    scope: { concern_ids: [opened.concern.concern_id] },
   });
+  // The person accepts the requirement on the platform.
+  app.decide(BOARD, goalId, ["playable"]);
   app.goalEvents.applyConcern({
     project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-2",
     action: "accept", concern_id: opened.concern.concern_id, reason: "本轮接受重启缺口",
@@ -157,7 +160,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
 test("HTTP event-close rejects unknown kind without recording an event", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -210,7 +213,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async t
 test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -268,7 +271,7 @@ test("PG094-09: the Host serves Goals' declared routes by method and path; a bad
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -310,10 +313,23 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       body: JSON.stringify({
         expected_config_version: configuredState.config.version,
         expected_agreement_version: configuredState.agreement.version,
-        new_requirements: [{ requirement_id: "need", statement: "能读回刚才写入的事实", bound_type_id: "note" }],
+        outcome: "能读回刚才经公开路由写入的事实",
       }),
     });
     assert.equal(agree.status, 200, await agree.clone().text());
+    // A requirement is not the agreement's to change: the route refuses the field instead of dropping it (contract-design §10.3).
+    const naming = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
+      method: "POST",
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-agree-requirement" },
+      body: JSON.stringify({
+        expected_config_version: configuredState.config.version,
+        expected_agreement_version: configuredState.agreement.version + 1,
+        new_requirements: [{ requirement_id: "need", statement: "能读回刚才写入的事实" }],
+      }),
+    });
+    assert.equal(naming.status, 400, await naming.clone().text());
+    assert.equal((await naming.json() as { code: string }).code, "goals.event_http.unexpected_field");
+    app.setRequirements(BOARD, goalId, [{ requirement_id: "need", statement: "能读回刚才写入的事实" }]);
     const report = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-report`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-rep" },
@@ -335,8 +351,8 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
     const reviews = webGoalReviews(served.web, BOARD);
     const command = await reviews.prepare(goalsActions.decide, { goal_id: goalId, idempotency_key: "http-dec",
         conclusion: "接受当前范围",
-        effects: [{ kind: "accept_requirements" }, { kind: "accept_concerns" }],
-        scope: { requirement_ids: ["need"], concern_ids: [concernBody.concern.concern_id] },
+        effects: [{ kind: "accept_concerns" }],
+        scope: { concern_ids: [concernBody.concern.concern_id] },
     });
     const decided = (await reviews.submit<{ decision: { decision_id: string; authority_source: string; actor_id: string } }>(command)).result!;
     assert.equal(decided.decision.authority_source, "web");
@@ -350,6 +366,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
       }),
     });
     assert.equal(accept.status, 200, await accept.clone().text());
+    app.decide(BOARD, goalId, ["need"]);
     const state = await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-state`)).json() as {
       agreement: { version: number }; config: { version: number }; latest_reports: Array<{ title: string }>;
     };
@@ -377,7 +394,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
 test("HTTP progress uses the Goal cursor and legal field ids stay content", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -443,7 +460,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     assert.equal(scalarProgress.status, 400, await scalarProgress.clone().text());
     assert.deepEqual(app.goalEvents.listEvents(BOARD, goalId, { limit: 100 }), beforeScalar);
     const saved = app.goalEvents.listEvents(BOARD, goalId, { limit: 20 }).events.find((event) => event.kind === "report");
-    assert.equal(saved?.judgments.length, 0);
+    assert.equal(Object.hasOwn(saved ?? {}, "judgments"), false, "a report carries no judgment of a requirement");
     assert.equal((saved?.payload as { verdict?: string }).verdict, "原文 verdict");
     const readyCfg = app.goalEvents.readState(BOARD, goalId);
     app.goalEvents.setAgreement({
@@ -451,22 +468,18 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
       idempotency_key: "need-for-close",
       expected_config_version: readyCfg.config.version,
       expected_agreement_version: readyCfg.agreement.version,
-      new_requirements: [{ requirement_id: "closed-result", statement: "结果已交付", bound_type_id: "special" }],
+      outcome: "结果交付之后可以完成",
     });
+    app.setRequirements(BOARD, goalId, [{ requirement_id: "closed-result", statement: "结果已交付" }]);
     app.goalEvents.report({
       project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "support-close",
       events: [{
         type_id: "special", type_version: 1, title: "交付完成",
         fields: { requirement_id: "a", verdict: "b", title: "c" },
-        judgments: [{ requirement_id: "closed-result", verdict: "supports" }],
       }],
     });
-    // A report is only the reporter's own word (PWA-144): the person accepts the requirement through the protected entry before closing.
-    app.goalEvents.recordTrustedDecision({
-      project_id: BOARD, goal_id: goalId, idempotency_key: "accept-closed-result",
-      authority: hostEventDecisionAuthority("web", BOARD, "web-user", "accept-closed-result"),
-      conclusion: "结果已交付，我核对过", accepts_requirements: true, scope: { requirement_ids: ["closed-result"] },
-    });
+    // A report is only the reporter's own word (PWA-144): the person accepts the requirement on the platform before closing.
+    app.decide(BOARD, goalId, ["closed-result"]);
     const ready = app.goalEvents.readState(BOARD, goalId);
     const closed = app.goalEvents.submitClosure({
       project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user", idempotency_key: "do-complete",
@@ -526,7 +539,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
 test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -596,7 +609,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
 test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -670,7 +683,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
 test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -719,10 +732,10 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
   }
 });
 
-test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async t => {
+test("HTTP outcome replacement leaves the person's acceptance and the completion standing; stale agreement_change approval has no write", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -745,31 +758,20 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     const state = app.goalEvents.readState(BOARD, goalId);
     return { expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
   };
-  app.goalEvents.setAgreement({
-    project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
-    idempotency_key: "agree-expire", ...versions(),
-    new_requirements: [
-      { requirement_id: "r-one", statement: "真实完成购买", bound_type_id: "delivery" },
-      { requirement_id: "r-two", statement: "可查询订单", bound_type_id: "delivery" },
-    ],
-  });
+  // The requirements are the platform's (contract-design §10).
+  app.setRequirements(BOARD, goalId, [
+    { requirement_id: "r-one", statement: "真实完成购买" },
+    { requirement_id: "r-two", statement: "可查询订单" },
+  ]);
   app.goalEvents.report({
     project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "rep-expire",
     events: [{
       type_id: "delivery", type_version: 1, title: "真实核对结果",
       fields: { result: "隔离验收记录" },
-      judgments: [
-        { requirement_id: "r-one", verdict: "supports" },
-        { requirement_id: "r-two", verdict: "supports" },
-      ],
     }],
   });
-  // The runtime's "supports" is its own word (PWA-144): the person accepts both requirements first, and the replacement below expires those acceptances.
-  app.goalEvents.recordTrustedDecision({
-    project_id: BOARD, goal_id: goalId, idempotency_key: "accept-expire",
-    authority: hostEventDecisionAuthority("web", BOARD, "web-user", "accept-expire"),
-    conclusion: "两条要求我都核对过", accepts_requirements: true, scope: { requirement_ids: ["r-one", "r-two"] },
-  });
+  // The runtime's report is its own word (PWA-144): the person accepts both requirements on the platform.
+  app.decide(BOARD, goalId, ["r-one", "r-two"]);
   const closed = app.goalEvents.submitClosure({
     project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
     idempotency_key: "close-expire", kind: "complete", reason: "核对当前要求后明确收尾", result: "可操作的购买体验",
@@ -793,49 +795,43 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.equal(replace.status, 200, await replace.clone().text());
     const changed = app.goalEvents.readState(BOARD, goalId);
     assert.equal(changed.agreement.outcome, "展示购买按钮即可");
-    assert.equal(changed.work_status, "open");
-    assert.equal(changed.completion_effect, false);
-    assert.equal(changed.requirements.find((item) => item.requirement_id === "r-one")?.currently_satisfied, false);
-    assert.equal(changed.requirements.find((item) => item.requirement_id === "r-two")?.currently_satisfied, false);
+    // §10.9 question 3 (user 2026-11-18): the outcome changed and the requirements did not, so the person's acceptance stands and the
+    // Goal stays completed; its page says the outcome was changed after the acceptance.
+    assert.equal(changed.work_status, "completed");
     assert.equal(changed.closure?.closure_id, beforeChange.closure?.closure_id);
-    assert.equal(changed.closure?.superseded, true);
-    const incomplete = app.goalEvents.submitClosure({
-      project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "close-after-replace", kind: "complete", reason: "核对当前要求后明确收尾", result: "可操作的购买体验",
-      ...versions(),
-    });
-    assert.equal(incomplete.recorded, true);
-    assert.equal(incomplete.completion_applied, false);
+    assert.deepEqual(app.acceptanceView(BOARD, goalId).requirements.map((item) => [item.id, item.person]), [["r-one", "accepted"], ["r-two", "accepted"]]);
 
     const staleRequest = app.goalEvents.requestDecision({
       project_id: BOARD, goal_id: goalId, actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "ask-http-stale",
-      question: "取消原来的真实购买要求",
+      question: "把结果改回真实购买并能退款",
       options: [
         { option_id: "yes", label: "同意", impact: "按所展示内容应用" },
         { option_id: "no", label: "拒绝", impact: "保留当前约定并继续处理" },
       ],
       purpose: "agreement_change",
-      proposed_change: { retire_requirement_ids: ["r-one"] },
+      proposed_change: { outcome: "用户可以完成真实购买并能退款" },
     });
-    assert.equal(staleRequest.decision_request.commitment?.requirements[0]?.statement, "真实完成购买");
+    // The request commits to the outcome it would replace, and to nothing on the platform's requirement list (§10.9 question 3).
+    assert.deepEqual(staleRequest.decision_request.commitment, { outcome: "展示购买按钮即可", requirements: [] });
     const freshPage = await (await fetchProject(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
     assert.match(freshPage, /name="agreement_change_decision" value="authorize"/);
     assert.match(freshPage, /name="agreement_change_decision" value="deny"/);
     assert.doesNotMatch(freshPage, /name="agreement_change_decision"[^>]*checked/);
     assert.doesNotMatch(freshPage, /name="effect" value="authorize_agreement_change"/);
     assert.doesNotMatch(freshPage, /name="selected_option_id"/);
-    assert.match(freshPage, /退休要求/);
-    assert.match(freshPage, /真实完成购买/);
+    assert.match(freshPage, /用户可以完成真实购买并能退款/);
     const reviews = webGoalReviews(served.web, BOARD);
     const staleCommand = await reviews.prepare(goalsActions.decide, { goal_id: goalId, idempotency_key: "http-stale-approve",
-      request_id: staleRequest.decision_request.request_id, selected_option_id: "yes", conclusion: "批准之前展示的取消要求",
+      request_id: staleRequest.decision_request.request_id, selected_option_id: "yes", conclusion: "批准之前展示的结果变化",
       effects: [{ kind: "authorize_agreement_change" }] });
-    app.goalEvents.setAgreement({
-      project_id: BOARD, goal_id: goalId, actor_id: "web-user", actor_kind: "user",
-      idempotency_key: "http-revise-before-approve", ...versions(),
-      revise_requirements: [{ requirement_id: "r-one", statement: "真实购买并处理退货" }],
+    // The outcome changes again before the person answers: the one the request would replace no longer stands.
+    const again = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(goalId)}/event-agree`, {
+      method: "POST",
+      headers: { ...headers, "x-molis-work-idempotency-key": "http-outcome-again" },
+      body: JSON.stringify({ ...versions(), outcome: "只展示价格", idempotency_key: "http-outcome-again" }),
     });
+    assert.equal(again.status, 200, await again.clone().text());
     const stalePage = await (await fetchProject(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
     assert.match(stalePage, /已经变化/);
     assert.match(stalePage, /刷新或重新请求/);
@@ -851,7 +847,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
     assert.match(String(staleBody.error), /变化|变更|匹配|过期|基线|版本/);
     const afterStale = app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterStale.goal_event_cursor, beforeStale.goal_event_cursor);
-    assert.equal(afterStale.requirements.find((item) => item.requirement_id === "r-one")?.statement, "真实购买并处理退货");
+    assert.equal(afterStale.agreement.outcome, "只展示价格");
     assert.equal(afterStale.applied_decisions.length, beforeStale.applied_decisions.length);
   } finally {
     store.close();
@@ -861,7 +857,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
 test("HTTP create receipt has no retired state aliases and covers requirements and relations", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -969,7 +965,8 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     assert.equal(recoveredBody.replayed, false);
     const state = app.goalEvents.readState(BOARD, String(created.goal.goal_id));
     assert.equal(state.intent.source_kind, "web");
-    assert.deepEqual(state.requirements.map((item) => item.statement), ["真实付款成功"]);
+    // Goals hung the requirement on the platform after the write; its words are the platform's (contract-design §10).
+    assert.deepEqual(app.acceptanceView(BOARD, String(created.goal.goal_id)).requirements.map((item) => item.statement), ["真实付款成功"]);
     const childCount = boardSnapshot(store, BOARD).goals.filter((goal) => goal.title === "付款与收据").length;
     assert.equal(childCount, 1);
   } finally {
@@ -1034,7 +1031,7 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1155,7 +1152,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
 test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1283,7 +1280,7 @@ test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and inter
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const served = await serveTestHost(null, { home, host });
   t.after(async () => { await served.close(); await host.close(); rmSync(home, { recursive: true, force: true }); });
-  const project = await served.createProject("错误出口");
+  const project = await served.createProject("错误出口", ["goals"]);
   const path = "/projects/" + encodeURIComponent(project.project_id) + "/api/plugins/io.molis.work.goals/goals";
   const created = await served.web.post<{ goal: { goal_id: string } }>(path, { title: "保存原事实", idempotency_key: "create" });
   const goalId = created.goal.goal_id;

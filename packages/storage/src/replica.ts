@@ -88,7 +88,7 @@ export interface SqliteReplica extends SyncReplicaAdapter {
   /** Read-only observation for asynchronous Host preparation; receive always decides again in its transaction. */
   inspectReceive(event: SyncEvent, options?: {retry?: boolean}): ReplicaReceiveDisposition;
 }
-function receiveDecision(db: ReplicaDatabase, serial: ReturnType<typeof replicaSerialization>, event: SyncEvent, options?: {retry?: boolean}): {kind: ReplicaReceiveDisposition; through?: number} {
+function receiveDecision(db: ReplicaDatabase, serial: ReturnType<typeof replicaSerialization>, event: SyncEvent, options?: {retry?: boolean}, mergesConcurrent=false): {kind: ReplicaReceiveDisposition; through?: number} {
   if(!Number.isSafeInteger(event.revision)||event.revision<1||typeof event.key!=='string')throw new Error('SYNC_INVALID_EVENT');
   const cursor=Number(db.prepare('SELECT cursor FROM replica_state WHERE id=1').get()!.cursor);
   const head=Number(db.prepare('SELECT revision FROM replica_heads WHERE key=?').get(event.key)?.revision??0);
@@ -100,7 +100,10 @@ function receiveDecision(db: ReplicaDatabase, serial: ReturnType<typeof replicaS
     if(canonical(mutation)!==canonical({operationId:event.operationId,key:event.key,base:event.base,value:event.value}))throw syncError('invalid','同步回执与待提交内容不一致',{sync_key:event.key});
     return {kind:'acknowledge',through:Number(out!.through_seq)};
   }
-  if(db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key)||db.prepare('SELECT 1 FROM replica_conflicts WHERE key=? AND waiting=0').get(event.key))return {kind:'conflict'};
+  if(db.prepare('SELECT 1 FROM replica_conflicts WHERE key=? AND waiting=0').get(event.key))return {kind:'conflict'};
+  // A local change not yet sent meets another device's copy. An owner whose merge loses neither side takes it (its own refusal is still a
+  // conflict) and the local change goes out afterwards as the merged copy; with a copy of ours in flight, or any other owner, it is a conflict.
+  if(db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key))return {kind:mergesConcurrent&&!out?'apply':'conflict'};
   return {kind:'apply'};
 }
 
@@ -139,6 +142,13 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
   belongsToProject?:ProjectMembership;
   read(key: string): unknown | null;
   apply(key: string, value: unknown | null): void;
+  /** The person chose the other device's copy in a conflict: put it in place whole. Defaults to `apply` (an owner whose merge already takes it). */
+  replace?(key: string, value: unknown | null): void;
+  /**
+   * `apply` merges another device's copy into this one without losing either side's rows, and throws where both cannot stand. Such an
+   * owner takes a copy that arrives while a local change of the same key waits to be sent, instead of holding it as a conflict.
+   */
+  mergesConcurrent?: boolean;
 }): SqliteReplica {
   const serial=replicaSerialization(()=>owner.authorize(),owner.protection);
   const comparison=(key:string,event:SyncEvent,local:unknown)=>{
@@ -149,10 +159,10 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
   const head=(key:string)=>Number(db.prepare('SELECT revision FROM replica_heads WHERE key=?').get(key)?.revision??0);
   const cursor=()=>Number(db.prepare('SELECT cursor FROM replica_state WHERE id=1').get()!.cursor);
   const setHead=(event:SyncEvent)=>db.prepare('INSERT INTO replica_heads VALUES (?,?) ON CONFLICT(key) DO UPDATE SET revision=excluded.revision').run(event.key,event.revision);
-  const apply=(event:Pick<SyncEvent,'key'|'value'>)=>{
+  const apply=(event:Pick<SyncEvent,'key'|'value'>,replace=false)=>{
     owner.authorize();owner.authorizeKey?.(event.key,event.value);
     db.exec('UPDATE replica_state SET applying=1 WHERE id=1');
-    owner.apply(event.key,event.value);
+    (replace&&owner.replace?owner.replace:owner.apply)(event.key,event.value);
     db.exec('UPDATE replica_state SET applying=0 WHERE id=1');
   };
   const missingDependency=(error:unknown)=>!!error&&typeof error==='object'&&'details' in error&&!!error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true;
@@ -171,7 +181,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
     ...(owner.locate?{locate(key:string){owner.authorize();const target=owner.locate!(key);owner.authorize();return target;}}:{}),
     hasProjectChanges:projectId=>projectChanges(db,projectId,owner.authorize,owner.belongsToProject,serial),
     inspectReceive(event,options){return replicaTransaction(db,()=>{
-      authorizeReplicaValue(owner,event.key,event.value);const decision=receiveDecision(db,serial,event,options);owner.authorize();return decision.kind;
+      authorizeReplicaValue(owner,event.key,event.value);const decision=receiveDecision(db,serial,event,options,owner.mergesConcurrent);owner.authorize();return decision.kind;
     });},
     acknowledge(key,operationId,revision){replicaTransaction(db,()=>{
       authorizeReplicaValue(owner,key);if(!Number.isSafeInteger(revision)||revision<1)throw syncError('invalid','同步回执版本无效');
@@ -199,7 +209,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
     }); },
     receive(event,options) { replicaTransaction(db,()=>{
       authorizeReplicaValue(owner,event.key,event.value);
-      const decision=receiveDecision(db,serial,event,options);
+      const decision=receiveDecision(db,serial,event,options,owner.mergesConcurrent);
       if(decision.kind==='ignore')return;
       if(decision.kind==='cursor'){db.prepare('UPDATE replica_state SET cursor=MAX(cursor,?) WHERE id=1').run(event.revision);owner.authorize();return;}
       if(decision.kind==='acknowledge'){
@@ -222,7 +232,8 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       for(const row of db.prepare('SELECT key,event FROM replica_conflicts WHERE waiting=1 ORDER BY key').all()){
         const event=serial.read(row.event,String(row.key),'conflict') as SyncEvent;
         if(!replicaKeyVisible(owner,event.key,event.value))continue;
-        if(db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key)||db.prepare('SELECT 1 FROM replica_outbox WHERE key=?').get(event.key)){
+        const sending=!!db.prepare('SELECT 1 FROM replica_outbox WHERE key=?').get(event.key);
+        if(sending||(!owner.mergesConcurrent&&db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key))){
           conflict(event,'两台设备修改了同一项，双方内容均已保留');continue;
         }
         try{replicaTransaction(db,()=>{apply(event);setHead(event);db.prepare('DELETE FROM replica_conflicts WHERE key=?').run(event.key);owner.authorize();});}
@@ -240,7 +251,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       if(expectedState!==undefined&&comparison(key,event,read(key))!==expectedState)throw syncError('conflict','比较内容已变化，请重新查看');
       if(choice!=='local'&&choice!=='remote')throw new Error('SYNC_INVALID_CHOICE');
       db.prepare('INSERT INTO replica_resolutions(key,choice,local_json,remote_json) VALUES (?,?,?,?)').run(key,choice,serial.write(read(key),key,'recovery_local'),serial.write(event,key,'recovery_remote'));
-      if(choice==='remote')apply(event);
+      if(choice==='remote')apply(event,true);
       db.prepare('DELETE FROM replica_changes WHERE key=?').run(key);
       db.prepare('DELETE FROM replica_outbox WHERE key=?').run(key);
       db.prepare('DELETE FROM replica_conflicts WHERE key=?').run(key);

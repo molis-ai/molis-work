@@ -49,10 +49,15 @@ export const feedManifest: PluginManifest = {
   databases: { project: FEED_PROJECT_DATABASE, home: FEED_HOME_DATABASE },
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault. Both are the person's Inbox: Feed writes them under
   // its own plugin id, and the platform lists an owned entry in the Inbox only for the kinds its owner declares there (PG-094 S12).
-  attention: { subjects: ["feed_item", "source_fault"], inbox: ["feed_item", "source_fault"] },
+  attention: {
+    subjects: [
+      { type: "feed_item", object_kind: "feed_item", reasons: [{ id: "manual" }, { id: "source_rule" }, { id: "artifact_out_failed", attention: "failed" }] },
+      { type: "source_fault", object_kind: "source", reasons: [{ id: "source_fault", attention: "failed" }] },
+    ],
+    inbox: ["feed_item", "source_fault"],
+  },
   // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
-  notifications: { receive: { capability_id: "feed.notifications.receive", version: /* @version action.feed.notifications.receive */ 1 } },
   action_scenes: [feedRuntimeCaptureScene],
   // The page's requests: each adapts one HTTP call to Feed's own actions (`createFeedRouteHandlers`), under /api/plugins/<plugin_id>/. The
   // project instance answers them; the page's HTML is the shell's (`/api/stage/feed`).

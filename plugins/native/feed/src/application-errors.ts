@@ -1,15 +1,15 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { attentionErrors, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { feedErrors } from "./contract/feed.js";
 import type { SourceHistoryDecision } from "./projection.js";
 
-/** An Attention module refusal reaches callers as a declared failure: the Inbox's for a missing entry, Feed's for the rest. */
+/** An Attention module refusal reaches callers as a declared Feed failure. */
 export function callAttention<T>(operation: () => T): T {
   try {
     return operation();
   } catch (error) {
     if (error instanceof ActionError && error.code.startsWith("attention.") && Object.hasOwn(attentionErrors, error.code.slice("attention.".length))) {
-      throw error.code === "attention.entry_not_found" ? inboxErrors.entry_not_found(error.message)
+      throw error.code === "attention.entry_not_found" ? feedErrors.entry_not_found(error.message)
         : error.code === "attention.revision_conflict" ? feedErrors.revision_conflict(error.message)
           : feedErrors.invalid_transition(error.message);
     }

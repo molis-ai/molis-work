@@ -4,6 +4,7 @@
  * are local shortcuts filtered here.
  */
 import { searchRows } from "../../search-rows.js";
+import { pluginSearchRecordKinds } from "../../plugin-catalog.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
@@ -293,6 +294,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     };
     setTimeout(tick, 120);
   };
+  const SEARCH_RECORD_KINDS = ${JSON.stringify(pluginSearchRecordKinds())};
   const openTarget = (target, kind, title) => {
     const surface = target.surface, id = target.id;
     expandDirectory?.(surface);
@@ -300,7 +302,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       openTabItem?.("goals", id, title, "commit");
       requestAnimationFrame(() => document.querySelector('[data-tree-item][data-goal-id="' + CSS.escape(id) + '"]')?.scrollIntoView({ block: "nearest" }));
     } else if (surface === "artifacts") openTabItem?.("artifacts", id.startsWith("/projects/") ? id : route(id), title);
-    else if (ITEM_TABS.includes(surface) && !(surface === "feed" && kind === "source")) openTabItem?.(surface, id, title);
+    else if (ITEM_TABS.includes(surface) && !(Object.hasOwn(SEARCH_RECORD_KINDS, surface) && SEARCH_RECORD_KINDS[surface].includes(kind))) openTabItem?.(surface, id, title);
     else if (RECORD_ROWS.includes(surface)) openPluginRecord?.(surface, id);
     else openPlugin?.(surface);
     mobileDocument();

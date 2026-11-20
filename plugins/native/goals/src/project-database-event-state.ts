@@ -1,8 +1,7 @@
-// Event work's derived state in a project's library, as GOALS_PROJECT_DATABASE (./project-database.ts) declares it. Moved here whole
-// from modules/goals (S8, PG-020); the text of each statement is as it was.
+// Event work's derived state in a project's library, as GOALS_PROJECT_DATABASE (./project-database.ts) declares it.
 
-/** Who owns a Goal's event state, its agreements, summaries, concerns, decisions, conclusions, closures and status. */
-const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
+/** Who owns a Goal's event state, its agreements, summaries, concerns, decisions, closures, and status. */
+export const GOALS_EVENT_STATE_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_state_owners (
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -56,7 +55,8 @@ const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
     cited_decision_id TEXT,
     previous_status TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL${concernSubjects}
+    updated_at TEXT NOT NULL,
+    cited_subjects_json TEXT NOT NULL DEFAULT '[]'
   );
   CREATE INDEX IF NOT EXISTS goal_event_concerns_goal_idx
     ON goal_event_concerns(project_id, goal_id, status);
@@ -101,22 +101,6 @@ const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
   CREATE INDEX IF NOT EXISTS goal_event_applied_decisions_goal_idx
     ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
 
-  CREATE TABLE IF NOT EXISTS goal_event_requirement_conclusions (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    requirement_id TEXT NOT NULL,
-    decision_id TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
-    received_at TEXT NOT NULL,
-    journal_seq INTEGER NOT NULL,
-    checked_artifact_id TEXT,
-    checked_version INTEGER,
-    PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
-  );
-  CREATE INDEX IF NOT EXISTS goal_event_requirement_conclusions_latest_idx
-    ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
-
   CREATE TABLE IF NOT EXISTS goal_event_closures (
     closure_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -133,7 +117,8 @@ const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
     unmet_reasons_json TEXT NOT NULL DEFAULT '[]',
     superseded INTEGER NOT NULL CHECK (superseded IN (0, 1)),
     superseded_reason TEXT,
-    recorded_at TEXT NOT NULL
+    recorded_at TEXT NOT NULL,
+    acceptance_round INTEGER
   );
   CREATE INDEX IF NOT EXISTS goal_event_closures_goal_idx
     ON goal_event_closures(project_id, goal_id, recorded_at);
@@ -146,5 +131,3 @@ const EVENT_STATE_SCHEMA = (concernSubjects: string) => `
     PRIMARY KEY (goal_id)
   );
 `;
-
-export const GOALS_EVENT_STATE_SQL = EVENT_STATE_SCHEMA(",\n    cited_subjects_json TEXT NOT NULL DEFAULT '[]'");

@@ -86,19 +86,20 @@ test("RAC-393-ENTRY RAC-393-LIST S-77 both actions refuse non-user audiences and
   assert.deepEqual(ledger.consents(GOALS), [row], "every rejection preserves the original ledger");
 });
 
-test("RAC-385 S-77 the Host agrees to Goals' 常开 once at startup, and a person's revocation stands across the next start", async () => {
+test("RAC-385 S-77 the Host agrees to Shelf's 常开 once at startup, and a person's revocation stands across the next start", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-consent-startup-"));
   const start = async () => { const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await host.homePlugins!.ready(); await host.homePlugins!.close(); await host.close(); };
-  const goalsAgreements = () => new HomeConsentLedger(home).consents(GOALS).filter(row => row.kind === "always_on");
+  const SHELF = "io.molis.work.shelf";
+  const shelfAgreements = () => new HomeConsentLedger(home).consents(SHELF).filter(row => row.kind === "always_on");
   try {
     await start();
-    const [first, ...others] = goalsAgreements();
+    const [first, ...others] = shelfAgreements();
     assert.deepEqual([others.length, first!.granted_by, first!.revoked_at], [0, "host_build", null]);
     await start();
-    assert.deepEqual(goalsAgreements(), [first], "the next start writes nothing");
+    assert.deepEqual(shelfAgreements(), [first], "the next start writes nothing");
     new HomeConsentLedger(home).revoke(first!.consent_id, AT);
     await start();
-    assert.deepEqual(goalsAgreements(), [{ ...first!, revoked_at: AT }], "the Host does not agree again after the person took it back");
+    assert.deepEqual(shelfAgreements(), [{ ...first!, revoked_at: AT }], "the Host does not agree again after the person took it back");
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 

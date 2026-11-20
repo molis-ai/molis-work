@@ -1,5 +1,4 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
-import { shelfAdmit } from "./shelf-admit.js";
 import { ACTION_ERROR_CODE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesActions } from "./actions.js";
@@ -27,13 +26,10 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: downloadName(request, file.filename),
         disposition: request.query.download === "1" ? "attachment" as const : "inline" as const };
     } },
-    { route_id: "images.images.shelf", async handle(request) {
-      const result = await image.handle(request);
-      if (result.status !== 200) return result;
-      const file = result.body as { base64: string; mime_type: string; filename: string }, input = body(request);
-      const filename = typeof input.filename === "string" && input.filename.trim() ? input.filename.trim() : file.filename;
-      return bindPluginActionRoute(context, shelfAdmit, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
-    } },
+    route(imagesActions.saveCopy, request => {
+      const input = body(request);
+      return { id: request.params.id!, image_id: request.params.image_id!, ...(typeof input.filename === "string" && input.filename.trim() ? { filename: input.filename.trim() } : {}) };
+    }, "images.images.shelf"),
   ];
 }
 

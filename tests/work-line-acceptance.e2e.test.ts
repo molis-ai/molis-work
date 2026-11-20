@@ -75,15 +75,13 @@ test("QEA-87 PWA-144 PWA-145 PWA-146: the event's card sums up its requirements 
   const maker: AcceptanceCaller = { project_id: projectId, actor_id: "agent:assistant", person: false, session: "s-maker" };
   const ports: AcceptanceEvidencePorts = { artifactReadable: async () => true, stopped: () => false,
     checkRun: async (_run, calls) => ({ commands: calls.map(call_id => ({ call_id, recorded: true, exit_code: 0, timed_out: false, cancelled: false, changed_after: false })) }) };
-  const acceptance = openAcceptance(homeDirectory);
-  try {
-    await acceptance.service.deliver(maker, { subject: target, version: "v1", made_in: { run_id: "run-1" } }, ports);
-    await acceptance.service.report(maker, { subject: target, reports: [
-      { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "三种宽度截图比对", observed: OBSERVED, evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c1" }] },
-      { requirement_id: "r2", verdict: "supports", checked: { version: "v1" }, method: "执行者说明", observed: "已按要求改" },
-      { requirement_id: "r3", verdict: "supports", checked: { version: "v1" }, method: "整页截图", observed: "与定样一致", evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c3" }] },
-    ] }, ports);
-  } finally { acceptance.close(); }
+  const acceptance = openAcceptance(browser.store.db, projectId!);
+  await acceptance.deliver(maker, { subject: target, version: "v1", made_in: { run_id: "run-1" } }, ports);
+  await acceptance.report(maker, { subject: target, reports: [
+    { requirement_id: "r1", verdict: "supports", checked: { version: "v1" }, method: "三种宽度截图比对", observed: OBSERVED, evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c1" }] },
+    { requirement_id: "r2", verdict: "supports", checked: { version: "v1" }, method: "执行者说明", observed: "已按要求改" },
+    { requirement_id: "r3", verdict: "supports", checked: { version: "v1" }, method: "整页截图", observed: "与定样一致", evidence: [{ kind: "command_receipt", run_id: "run-1", call_id: "c3" }] },
+  ] }, ports);
   const stands = await door<AcceptanceReadResult>("read", { subjects: [target] });
   assert.deepEqual(stands.body.views[0]!.counts, { total: 4, verified: 2, needs_person: 3, accepted: 0, satisfied: 1 });
 

@@ -1,5 +1,5 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventTrustedAuthoritySources, type GoalEventTrustedAuthority } from "./contract/goals.js";
+import { goalEventTrustedAuthoritySources, type GoalAcceptanceReading, type GoalEventTrustedAuthority } from "./contract/goals.js";
 import { goalEntryActions, type GoalDecisionActionInput } from "./contract/goal-actions.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
@@ -24,6 +24,8 @@ export function createGoalDecisionActionHandler(events: GoalEventApplication, pr
       try { authority(caller); return { available: true }; }
       catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; }
     },
-    handle: (caller, input) => events.recordTrustedDecision({ ...input as GoalDecisionActionInput, project_id: projectId, authority: authority(caller) }),
+    // `acceptance` is Goals' own reading of the Goal's requirements (the third argument, supplied by the plugin's wrapper alone).
+    handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.recordTrustedDecision({ ...input as GoalDecisionActionInput, project_id: projectId,
+      authority: authority(caller), acceptance }),
   };
 }

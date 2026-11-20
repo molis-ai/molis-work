@@ -43,26 +43,26 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
     method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": authorized ? token : "invalid",
       "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, projectId === "missing" ? second.project_id : projectId) }),
   });
-  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
+  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["schedule"]);
   assert.equal((await add(second.project_id, "inbox", false)).status, 403);
-  assert.deepEqual(catalog.listProjectPlugins(second.project_id), ["goals", "schedule"]);
+  assert.deepEqual(catalog.listProjectPlugins(second.project_id), ["schedule"]);
   assert.equal((await add(second.project_id, "unknown")).status, 400);
   assert.equal((await add("missing", "inbox")).status, 404);
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await add(second.project_id, "inbox");
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, second.project_id) });
+    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, second.project_id) });
   }
-  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
+  assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["schedule"]);
   await host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog)({ homeDirectory }, reopened => {
-    assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "inbox", "schedule"]);
+    assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["inbox", "schedule"]);
   });
   const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(second.project_id).n, 1);
   } finally { db.close(); }
   const index = await (await fetch(origin + "/api/settings/project-plugins")).json();
-    assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["goals", "inbox", "schedule"]);
+    assert.deepEqual(index.projects.find((item: { project_id: string }) => item.project_id === second.project_id).plugins, ["inbox", "schedule"]);
 });
 
 test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay idempotent", async t => {
@@ -88,9 +88,9 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await add(project.project_id, "feed");
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { project_id: project.project_id, plugins: ["feed", "goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
+    assert.deepEqual(await response.json(), { project_id: project.project_id, plugins: ["feed", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   }
-  assert.deepEqual((await (await add(inboxOnly.project_id, "inbox")).json()).plugins, ["goals", "inbox", "schedule"]);
+  assert.deepEqual((await (await add(inboxOnly.project_id, "inbox")).json()).plugins, ["inbox", "schedule"]);
   const feedPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.match(feedPage, /data-plugin-id="inbox"[^>]*data-work-surface-open="inbox"/);
   assert.doesNotMatch(feedPage, /data-directory-open="inbox"/);
@@ -135,30 +135,32 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await change("DELETE", project.project_id, "inbox", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
   assert.equal((await change("DELETE", "missing", "inbox")).status, 404);
-  // Goals and Shelf are 常开插件: no project removes or hides them, and the refusal records nothing (RAC-386, privileges.md V-01).
-  for (const plugin of ["shelf", "goals"]) {
-    const alwaysOn = await change("DELETE", project.project_id, plugin);
-    assert.equal(alwaysOn.status, 400, plugin);
-    assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on", plugin);
-  }
+  // Shelf is the only 常开插件 (PEQ-12): no project removes or hides it; Goals can be added and removed like any other plugin.
+  const alwaysOn = await change("DELETE", project.project_id, "shelf");
+  assert.equal(alwaysOn.status, 400, "shelf");
+  assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on", "shelf");
   assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
+  assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false);
+  assert.equal((await change("POST", project.project_id, "goals")).status, 200);
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), true);
+  assert.equal((await change("DELETE", project.project_id, "goals")).status, 200);
+  assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false);
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedFeed = await change("DELETE", project.project_id, "feed");
   assert.equal(removedFeed.status, 200);
-  assert.deepEqual(await removedFeed.json(), { project_id: project.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  assert.deepEqual(await removedFeed.json(), { project_id: project.project_id, plugins: ["inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedInbox = await change("DELETE", project.project_id, "inbox");
-  assert.deepEqual((await removedInbox.json()).plugins, ["goals", "schedule"]);
+  assert.deepEqual((await removedInbox.json()).plugins, ["schedule"]);
   assert.equal((await change("DELETE", project.project_id, "inbox")).status, 200);
   const hidden = await change("DELETE", project.project_id, "pages");
   assert.equal(hidden.status, 200);
-  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: ["pages"], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: ["pages"], revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.equal((await change("DELETE", project.project_id, "pages")).status, 200);
   const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.doesNotMatch(hiddenPage, /data-plugin-id="pages"/);
   const restored = await change("POST", project.project_id, "pages");
-  assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.match(restoredPage, /data-plugin-id="pages"/);
   // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.
@@ -167,7 +169,7 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await characters.json()).code, "catalog.plugin_not_found");
   assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, [], "the refusal hides nothing");
   assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-settings-section="characters"/, "the section is still there after the refusal");
-  assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals", "schedule"]);
+  assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["schedule"]);
   assert.deepEqual(catalog.projectPluginMembership(other.project_id).hidden, []);
   const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {

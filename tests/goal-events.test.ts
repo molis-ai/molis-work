@@ -252,79 +252,7 @@ test("old and new type versions keep their own field definitions after a second 
   }
 });
 
-test("latest related report updates only that requirement; human_decision stays an actor report", () => {
-  const data = fixture({ human: true });
-  try {
-    data.module.events.configure({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      expected_version: 0, idempotency_key: "cfg-v1", types: [storyDelivery(1)],
-      requirement_bindings: [
-        { type_id: "story-delivery", requirement_id: "playable-scene" },
-        { type_id: "story-delivery", requirement_id: "choice-response" },
-      ],
-    });
-    const support = data.module.events.report({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "support-all",
-      events: [reportDelivery({
-        fields: { piece: "开场可玩", limits: "" },
-        judgments: [
-          { requirement_id: "playable-scene", verdict: "supports" },
-          { requirement_id: "choice-response", verdict: "supports" },
-          { requirement_id: "human-signoff", verdict: "supports" },
-        ],
-      })],
-    });
-    const contradict = data.module.events.report({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "contradict-choice",
-      events: [reportDelivery({
-        title: "第二选择没有不同回应",
-        fields: { piece: "同一洞穴", limits: "选择尚未分叉" },
-        judgments: [{ requirement_id: "choice-response", verdict: "contradicts" }],
-      })],
-    });
-
-    let current = data.module.events.readCurrentRequirements(BOARD, GOAL);
-    const byId = Object.fromEntries(current.map((item) => [item.requirement_id, item]));
-    assert.equal(byId["playable-scene"]?.current_report?.verdict, "supports");
-    assert.equal(byId["playable-scene"]?.current_report?.event_id, support.events[0]?.event_id);
-    assert.equal(byId["choice-response"]?.current_report?.verdict, "contradicts");
-    assert.equal(byId["choice-response"]?.current_report?.event_id, contradict.events[0]?.event_id);
-    assert.equal(byId["human-signoff"]?.current_report?.verdict, "supports");
-    assert.equal(byId["human-signoff"]?.human_decision_required, true);
-    assert.equal(byId["human-signoff"]?.current_report?.tier, "self_reported");
-    assert.equal(byId["human-signoff"]?.current_report?.substitutes_human_decision, false);
-
-    data.module.events.report({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "unknown-choice",
-      events: [reportDelivery({
-        title: "还无法判断分叉",
-        fields: { piece: "同一洞穴", limits: "需要更多玩家样本" },
-        judgments: [{ requirement_id: "choice-response", verdict: "unknown" }],
-      })],
-    });
-    current = data.module.events.readCurrentRequirements(BOARD, GOAL);
-    const afterUnknown = Object.fromEntries(current.map((item) => [item.requirement_id, item]));
-    assert.equal(afterUnknown["playable-scene"]?.current_report?.verdict, "supports");
-    assert.equal(afterUnknown["choice-response"]?.current_report?.verdict, "unknown");
-    assert.equal(afterUnknown["human-signoff"]?.current_report?.verdict, "supports");
-    assert.equal(afterUnknown["human-signoff"]?.current_report?.substitutes_human_decision, false);
-
-    const oldEvent = data.module.events.readEvent(BOARD, GOAL, support.events[0]!.event_id);
-    assert.deepEqual(oldEvent.judgments, [
-      // A judgment with no basis is the reporter's own word (evidence contract, 2026-11-11).
-      { requirement_id: "choice-response", verdict: "supports", basis: null, tier: "self_reported", gap: null },
-      { requirement_id: "human-signoff", verdict: "supports", basis: null, tier: "self_reported", gap: null },
-      { requirement_id: "playable-scene", verdict: "supports", basis: null, tier: "self_reported", gap: null },
-    ]);
-  } finally {
-    close(data);
-  }
-});
-
-test("invalid structure, missing required fields, cross-goal refs and a later batch item roll back", () => {
+test("invalid structure, missing required fields, a Goal of another project and a later batch item roll back", () => {
   const data = fixture();
   try {
     writeProjectRoot(data.store.db, OTHER_BOARD, "2026-10-20T00:00:00.000Z");
@@ -374,16 +302,6 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
         events: [reportDelivery({ type_version: 9, fields: { piece: "有内容" } })],
       }),
       (error: unknown) => error instanceof ActionError && error.code === "goals.event_type.version_not_found",
-    );
-    assert.throws(
-      () => data.module.events.report({
-        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-req",
-        events: [reportDelivery({
-          fields: { piece: "有内容" },
-          judgments: [{ requirement_id: "other-criterion", verdict: "supports" }],
-        })],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.cross_goal_reference",
     );
     assert.throws(
       () => data.module.events.report({
@@ -614,106 +532,6 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
   }
 });
 
-test("bound requirements reject incompatible types in a batch; unbound and bound-matching types still report", () => {
-  const data = fixture();
-  try {
-    data.module.events.configure({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      expected_version: 0, idempotency_key: "cfg-types",
-      types: [storyDelivery(1), storyObservation()],
-      requirement_bindings: [{ type_id: "story-delivery", requirement_id: "playable-scene" }],
-    });
-    data.module.events.state.setAgreement({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "cfg-types-req",
-      expected_config_version: 1,
-      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
-      new_requirements: [{
-        requirement_id: "ready",
-        statement: "开场已经可以交给别人玩",
-        bound_type_id: "story-delivery",
-      }],
-    });
-    const beforeJournal = count(data.store, "SELECT COUNT(*) AS count FROM events WHERE project_id = ?", BOARD);
-    const beforeWork = count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ?", BOARD);
-    const beforeJudgments = count(data.store, "SELECT COUNT(*) AS count FROM goal_work_event_judgments");
-
-    assert.throws(
-      () => data.module.events.report({
-        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "batch-incompatible",
-        events: [
-          {
-            type_id: "story-observation", type_version: 1, title: "先记下玩家卡住了",
-            fields: { behavior: "在洞穴门口停住" },
-            judgments: [{ requirement_id: "choice-response", verdict: "unknown" }],
-          },
-          {
-            type_id: "story-observation", type_version: 1, title: "观察不能冒充交付",
-            fields: { behavior: "有人走完了开场" },
-            judgments: [{ requirement_id: "ready", verdict: "supports" }],
-          },
-        ],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.incompatible_requirement",
-    );
-    assert.throws(
-      () => data.module.events.report({
-        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "criterion-incompatible",
-        events: [{
-          type_id: "story-observation", type_version: 1, title: "观察不能绑定验收",
-          fields: { behavior: "看起来能玩" },
-          judgments: [{ requirement_id: "playable-scene", verdict: "supports" }],
-        }],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_report.incompatible_requirement",
-    );
-
-    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM events WHERE project_id = ?", BOARD), beforeJournal);
-    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ?", BOARD), beforeWork);
-    assert.equal(count(data.store, "SELECT COUNT(*) AS count FROM goal_work_event_judgments"), beforeJudgments);
-    assert.equal(data.module.events.readCurrentRequirements(BOARD, GOAL).find((item) => item.requirement_id === "ready")?.current_report, null);
-
-    const compatible = data.module.events.report({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "bound-ok",
-      events: [reportDelivery({
-        fields: { piece: "开场可玩" },
-        judgments: [
-          { requirement_id: "playable-scene", verdict: "supports" },
-          { requirement_id: "ready", verdict: "supports" },
-        ],
-      })],
-    });
-    const unbound = data.module.events.report({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "unbound-ok",
-      events: [{
-        type_id: "story-observation", type_version: 1, title: "选择分叉还不清楚",
-        fields: { behavior: "两次选择看起来差不多" },
-        judgments: [{ requirement_id: "choice-response", verdict: "unknown" }],
-      }],
-    });
-    assert.equal(compatible.events[0]?.judgments.find((item) => item.requirement_id === "ready")?.verdict, "supports");
-    assert.equal(unbound.events[0]?.type?.type_id, "story-observation");
-
-    data.store.close();
-    const reopened = new LocalProjectDatabase(data.databasePath);
-    try {
-      const events = openModule(reopened).events;
-      const current = Object.fromEntries(events.readCurrentRequirements(BOARD, GOAL).map((item) => [item.requirement_id, item]));
-      assert.equal(current.ready?.current_report?.verdict, "supports");
-      assert.equal(current.ready?.current_report?.event_id, compatible.events[0]?.event_id);
-      assert.equal(current["playable-scene"]?.current_report?.verdict, "supports");
-      assert.equal(current["choice-response"]?.current_report?.verdict, "unknown");
-      assert.equal(current["choice-response"]?.current_report?.event_id, unbound.events[0]?.event_id);
-      assert.equal(events.readEvent(BOARD, GOAL, unbound.events[0]!.event_id).payload.behavior, "两次选择看起来差不多");
-    } finally {
-      reopened.close();
-    }
-  } finally {
-    try { data.store.close(); } catch { /* closed before reopen */ }
-    rmSync(data.directory, { recursive: true, force: true });
-  }
-});
-
 test("constructor and __proto__ field ids keep own text through save and reopen", () => {
   const data = fixture();
   try {
@@ -915,52 +733,6 @@ test("bounded latest reports are the actual newest reports, not the first histor
   }
 });
 
-test("Runtime supports on a human_decision criterion still leaves a user-confirmation gap", () => {
-  const data = fixture();
-  try {
-    const app = eventApp(data);
-    app.createIntent({
-      project_id: BOARD,
-      goal_id: "accepted-human",
-      title: "需要用户确认的交付",
-      outcome: "用户亲自确认可以内部试用",
-      why: "验证报告不能代替确认",
-      business_logic: "Runtime 可报告支持，正式确认仍待用户。",
-      requirements: [{
-        requirement_id: "accepted-human-signoff",
-        statement: "用户亲自确认可以内部试用",
-        human_decision_required: true,
-      }],
-      actor_id: "user-1",
-      idempotency_key: "create-accepted-human",
-      source_kind: "web",
-    });
-    app.configure({
-      project_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-human",
-      types: [storyDelivery(1)],
-    });
-    app.report({
-      project_id: BOARD, goal_id: "accepted-human", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "report-human",
-      events: [reportDelivery({
-        fields: { piece: "可玩片段" },
-        judgments: [{ requirement_id: "accepted-human-signoff", verdict: "supports" }],
-      })],
-    });
-    const requirements = data.module.events.readCurrentRequirements(BOARD, "accepted-human");
-    const human = requirements.find((item) => item.requirement_id === "accepted-human-signoff");
-    assert.equal(human?.human_decision_required, true);
-    assert.equal(human?.current_report?.verdict, "supports");
-    assert.equal(human?.current_report?.substitutes_human_decision, false);
-    const state = app.readState(BOARD, "accepted-human");
-    const gap = state.gaps.find((item) => item.requirement_id === "accepted-human-signoff");
-    assert.ok(gap);
-    assert.equal(gap.human_decision_required, true);
-    assert.equal(gap.current_verdict, "supports");
-  } finally {
-    close(data);
-  }
-});
-
 test("type v2 can rename and drop fields while old events stay on v1", () => {
   const data = fixture();
   try {
@@ -1015,45 +787,3 @@ test("type v2 can rename and drop fields while old events stay on v1", () => {
   }
 });
 
-test("extra requirement unknown control fields are rejected and human_decision_required persists", () => {
-  const data = fixture();
-  try {
-    data.module.events.configure({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      expected_version: 0, idempotency_key: "cfg-human-extra", types: [storyDelivery(1)],
-    });
-    const before = data.module.events.listEvents(BOARD, GOAL).events.length;
-    assert.throws(
-      () => data.module.events.state.setAgreement({
-        project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-        idempotency_key: "unknown-field",
-        expected_config_version: 1,
-        expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
-        new_requirements: [{
-          requirement_id: "human-extra",
-          statement: "用户必须亲自确认购买体验",
-          human_decision_required: true,
-          independently_verified: true,
-        } as never],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.event_config.unsupported_property",
-    );
-    assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
-    data.module.events.state.setAgreement({
-      project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", actor_kind: "runtime",
-      idempotency_key: "human-extra-ok",
-      expected_config_version: 1,
-      expected_agreement_version: data.module.events.state.readWorkState(BOARD, GOAL).agreement.version,
-      new_requirements: [{
-        requirement_id: "human-extra",
-        statement: "用户必须亲自确认购买体验",
-        human_decision_required: true,
-      }],
-    });
-    const extra = data.module.events.readCurrentRequirements(BOARD, GOAL).find((item) => item.requirement_id === "human-extra");
-    assert.equal(extra?.human_decision_required, true);
-    assert.equal(extra?.currently_satisfied, false);
-  } finally {
-    close(data);
-  }
-});

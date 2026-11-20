@@ -2,8 +2,10 @@ import { PROJECT_RUNTIME_KEY, runtimeSettingsActions } from "./project-runtime-s
 import { PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
+import { handleProjectGuidanceHttp } from "./project-guidance-http.js";
 import { handleMainlineHttp, mainlineAttention } from "./mainline-http.js";
 import { handleAcceptanceHttp } from "./acceptance-http.js";
+import { handleWorkTerminalHttp } from "./work-terminal-http.js";
 import { handleMainlineEventSurfacesHttp } from "./mainline-event-surfaces-http.js";
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -289,11 +291,15 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleSkillSettingsHttp(request, response, url, localHost, hostReference).then(handled => handled || handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference })) },
   // The 「能力包」 page (specs/capability-pack §4.7, §4.9): the kit, its exports and prompt edits brought back, as the person in this project.
   { id: "kit", handle: ({ request, response, url, localHost, hostReference }) => handleKitSettingsHttp(request, response, url, localHost, hostReference) },
+  // The project's guidance in its settings (specs/plugin-equal-standing/contract-design.md §9), as the person.
+  { id: "project-guidance", handle: ({ request, response, url, localHost, hostReference }) => handleProjectGuidanceHttp(request, response, url, localHost, hostReference) },
   // The task panel (specs/work-line §6): the project's background tasks and the commands their rows offer, as the person.
   { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
   // The requirement column (specs/proactive-assistant §7.3.1): what was asked of a piece of work, how each item was checked, and the person's accept or return.
-  { id: "acceptance", handle: ({ request, response, url, localHost, hostReference, serverOptions }) => handleAcceptanceHttp(request, response, url, localHost, hostReference, serverOptions.homeDirectory) },
+  { id: "acceptance", handle: ({ request, response, url, localHost, hostReference }) => handleAcceptanceHttp(request, response, url, localHost, hostReference) },
+  // Object work terminals (batch 44 item 4, PEQ-17): platform-managed terminals for any plugin declaring `work_terminals`.
+  { id: "work-terminals", handle: ({ request, response, url, localHost, hostReference }) => handleWorkTerminalHttp(request, response, url, localHost, hostReference) },
   // The shell's UI stages in this project, through the same door as the Home's (observation-collection §4).
   { id: "observation-ui", handle: ({ request, response, url, localHost, hostReference }) => handleObservationShellHttp(request, response, url, localHost, hostReference) },
   { id: "observation-api", handle: ({ request, response, url, localHost, hostReference }) => handleObservationHttp(request, response, url, localHost, hostReference) },

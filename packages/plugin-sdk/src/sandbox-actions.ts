@@ -12,12 +12,12 @@ import { validTrustedReviewRow } from './action-declarations.js';
 export const sandboxPackageBuildId = (pluginId: string, signature: string) => createHash('sha256').update(JSON.stringify([pluginId, signature])).digest('hex').slice(0, 32);
 export const sandboxActionId = (buildId: string, operationId: string) => 'generated.' + buildId.slice(0, 8) + '.' + operationId;
 
-function reviewDeclarationProblems(contract: SandboxPluginContract, scope: 'home' | 'project'): string[] {
+function reviewDeclarationProblems(contract: SandboxPluginContract, scope: 'home' | 'project', dualInstance = false): string[] {
   return contract.operations.flatMap(operation => {
     const review: unknown = operation.trusted_review;
     if (review === undefined) return [];
     const problem = (message: string) => ['Trusted review of ' + operation.id + ': ' + message];
-    if (scope !== 'project' || operation.kind !== 'command' || operation.external !== undefined || operation.background_job !== undefined
+    if (scope !== 'project' && !dualInstance || operation.kind !== 'command' || operation.external !== undefined || operation.background_job !== undefined
       || !operation.effects.projectDatabase?.includes('write') || Object.keys(operation.effects).some(key => key !== 'projectDatabase')) {
       return problem('the command must apply its change in its project database transaction');
     }
@@ -80,6 +80,34 @@ export function sandboxBackgroundProblems(contract: SandboxPluginContract): stri
   return problems;
 }
 
+/**
+ * A starting point is a command's (contract-design §2.4): its operation id becomes the intake's id, so it is written the way an intake id is.
+ * Its words are checked again where the Manifest is (`inspectContextDeclarations`).
+ */
+export function sandboxStartProblems(contract: SandboxPluginContract): string[] {
+  return contract.operations.flatMap(operation => {
+    const start: unknown = operation.start;
+    if (start === undefined) return [];
+    const problem = 'The start of ' + operation.id + ': ';
+    if (operation.kind !== 'command' || operation.read_protocol !== undefined) return [problem + 'only a command makes one from nothing'];
+    if (!/^[a-z0-9][a-z0-9_.-]{0,49}$/.test(operation.id)) return [problem + 'the operation id becomes the intake id: lowercase letters, digits, _ . - and at most 50'];
+    if (!isRecord(start) || typeof start.item_kind !== 'string' || typeof start.title !== 'string' || typeof start.hint !== 'string'
+      || Object.keys(start).some(key => !['item_kind', 'title', 'title_text', 'hint', 'hint_text', 'icon', 'open'].includes(key))) {
+      return [problem + 'declare item_kind, title and hint, and optionally title_text, hint_text, icon and open'];
+    }
+    return [];
+  });
+}
+
+/** The blank intake a start projects to: the intake's words are the start's. */
+function startIntake(operation: SandboxOperationContract): Pick<ActionDefinition['action'], 'intake'> {
+  const start = operation.start;
+  if (!start) return {};
+  const { item_kind, ...words } = start;
+  return { intake: { intake_id: operation.id, item_kind, title: words.title, ...(words.title_text ? { title_text: words.title_text } : {}),
+    verb: words.title, describe: words.hint, accepts: [], examples: [], start: words } };
+}
+
 /** Local closure only. Runtime capability selection is deliberately absent from a signed declaration. */
 export function sandboxOperationEffects(contract: SandboxPluginContract, operation: SandboxOperationContract): SandboxEffects {
   const result: Record<string, string[]> = {};
@@ -111,13 +139,16 @@ export function assertSandboxUpgradeValidator(manifest: Pick<PluginManifest, "up
 }
 
 /** One deterministic action projection for signed packages, generated releases and their running scopes. */
-export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
-  const problems = [...sandboxBackgroundProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope)];
+export function sandboxOperationActions(input: { contract: SandboxPluginContract; buildId: string; version: number; title: string; scope: 'home' | 'project'; dualInstance?: boolean; upgradeOperation?: string; hasProjectDatabase?: boolean }): ActionDefinition[] {
+  const problems = [...sandboxBackgroundProblems(input.contract), ...sandboxStartProblems(input.contract), ...reviewDeclarationProblems(input.contract, input.scope, input.dualInstance)];
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('; '));
+  const scopeOf = (operation: SandboxOperationContract): 'home' | 'project' =>
+    input.dualInstance ? (operation.effects.projectDatabase?.length || operation.trusted_review !== undefined ? 'project' : 'home') : input.scope;
   return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
+    const actionScope = scopeOf(operation);
     if (operation.read_protocol !== undefined) {
       const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
-        title: input.title + ' · ' + (operation.description || operation.id), scope: input.scope,
+        title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
       return { ...definition, action: { ...definition.action, local_id: operation.id } };
     }
@@ -125,11 +156,12 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       capability_id: sandboxActionId(input.buildId, operation.id), version: input.version, operation: operation.kind,
       action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
         description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
-        scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
+        scope: actionScope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
         permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation), input.hasProjectDatabase), subject_kinds: operation.trusted_review?.subject_kinds ?? [],
         input_schema: { ...operation.input }, output_schema: { ...operation.output },
         ...(operation.external === undefined ? {} : { external: operation.external }),
         ...(operation.draft === undefined ? {} : { draft: operation.draft }),
+        ...startIntake(operation),
         ...(operation.trusted_review ? { requires_trusted_decision: true as const,
           trusted_decision_row: operation.trusted_review.row,
           trusted_decision_request: { capability_id: sandboxActionId(input.buildId, operation.trusted_review.reader), version: input.version } } : {}),

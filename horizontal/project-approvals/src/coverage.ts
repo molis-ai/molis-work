@@ -40,7 +40,7 @@ function reviewEvidence(values: unknown, owner: Owner): ReviewEvidence[] {
   return values.map((value: unknown) => {
     if (!isRecord(value)) throw invalid();
     const target = reviewTarget(value.target, owner);
-    if (value.tier === "self_reported" || value.tier === "machine_checked") return { target, tier: value.tier };
+    if (value.tier === "self_reported" || value.tier === "machine_checked" || value.tier === "peer_reviewed") return { target, tier: value.tier };
     if (value.tier !== "person_accepted") throw invalid();
     return { target, tier: "person_accepted", decision: reference(value.decision, owner.project_id) };
   });

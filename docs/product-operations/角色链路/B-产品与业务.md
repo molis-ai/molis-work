@@ -51,7 +51,7 @@
 
 ### FND-04 定价改版：用"定价 + 企业 SaaS"方法拆目标，改一条要求只重议受影响的那几块
 - 触发：免费用户占比太高，决定 11 月 15 日上付费档；周三晚上要拆清楚，周四给两位兼职开发派活。
-- 链路：Goals 建"11/15 上线付费档"，项目说明写硬约束"不做免费无限额、价格页文案本人定"（`goals.guidance.add`；内置助理和插件 Agent 每轮都带上，外部 AI 在读连接摘要时拿到，Work 不往外部 Agent 的每一轮推送）→ `goals.planning.catalog` 选"定价与变现"领域、企业 SaaS 行业、支付资产叠加层，`planning.read` 读正文 → 让 Claude Code 经 MCP 按方法提结构提案（`goals.tree.submit`），系统做整图检查（缺端点、循环、重复关系）→ 你逐条确认（`goals.tree.decide`，只有本人能调）→ 把"价格页文案"设为必须本人验收 → 周五改主意：先对 10% 新用户灰度，`goals.planning.impact` 算出受影响子图，只对子图重新提案、确认。
+- 链路：Goals 建"11/15 上线付费档"，项目说明写硬约束"不做免费无限额、价格页文案本人定"（`projects.guidance.add`；内置助理和插件 Agent 每轮都带上，外部 AI 在读连接摘要时拿到，Work 不往外部 Agent 的每一轮推送）→ `goals.planning.catalog` 选"定价与变现"领域、企业 SaaS 行业、支付资产叠加层，`planning.read` 读正文 → 让 Claude Code 经 MCP 按方法提结构提案（`goals.tree.submit`），系统做整图检查（缺端点、循环、重复关系）→ 你逐条确认（`goals.tree.decide`，只有本人能调）→ 把"价格页文案"设为必须本人验收 → 周五改主意：先对 10% 新用户灰度，`goals.planning.impact` 算出受影响子图，只对子图重新提案、确认。
 - 交付物：一棵确认过的 Goal 树、带本人验收的要求、一次有影响范围的变更记录。
 - 机制：M2、M1、M5
 - 成熟度：main 可用；瓶颈：外部 Runtime 写提案要先接入、授权并新开 Session；方法不会自动成树，拆分质量取决于模型。
@@ -341,7 +341,7 @@
 
 ### MKT-01 新功能发布包：一份 PRD 出博客、FAQ、英文版、封面和销售三页，口径一处管
 - 触发：10 月 28 日发布"团队版"，PM 的 PRD 周二定稿，你有两天出全套物料。
-- 链路：项目说明写品牌语气与禁用词（`goals.guidance.add`），助理和插件 Agent 每轮都收到；「设置 › 提示词」把 Pages 写作助理的指令存成"我的版本"，加上品牌语气 → 把 PM 固定的 PRD 版本记为 Goal"10/28 发布"的输入（`goals.artifact_inputs.pin`）→ 新建博客稿，选中段落用 `pages.ai`"要点"出 FAQ、"改写·更口语"出社媒短文，"整篇翻译成新文档"出英文版 → 图片插件用你连的生图服务出 3 张封面候选（`images.jobs.start`）→ `ppt.create` 后用 `ppt.outline`（给 `page_id`，不调模型）或 `ppt.outline_ai`（调模型，最多 12 页，页数不能指定）从博客出大纲，删到销售三页，导出 `.pptx` → 全部 `promote` 固定，记为 Goal 交付物 → PRD 再改时，Goal 页上那份输入显示"原文已改，这里仍是第 N 版"，你据此逐份核。
+- 链路：项目说明写品牌语气与禁用词（`projects.guidance.add`），助理和插件 Agent 每轮都收到；「设置 › 提示词」把 Pages 写作助理的指令存成"我的版本"，加上品牌语气 → 把 PM 固定的 PRD 版本记为 Goal"10/28 发布"的输入（`goals.artifact_inputs.pin`）→ 新建博客稿，选中段落用 `pages.ai`"要点"出 FAQ、"改写·更口语"出社媒短文，"整篇翻译成新文档"出英文版 → 图片插件用你连的生图服务出 3 张封面候选（`images.jobs.start`）→ `ppt.create` 后用 `ppt.outline`（给 `page_id`，不调模型）或 `ppt.outline_ai`（调模型，最多 12 页，页数不能指定）从博客出大纲，删到销售三页，导出 `.pptx` → 全部 `promote` 固定，记为 Goal 交付物 → PRD 再改时，Goal 页上那份输入显示"原文已改，这里仍是第 N 版"，你据此逐份核。
 - 交付物：一组固定版物料，挂在发布 Goal 下，并记着基于 PRD 的哪一版。
 - 机制：M4、M1、M7
 - 成熟度：main 部分；瓶颈：图片插件只过了受控厂商测试，付费账号未验；物料之间的派生关系没有自动追踪，要靠 Goal 上"输入是哪一版"人工对照；PPT 不含图片。

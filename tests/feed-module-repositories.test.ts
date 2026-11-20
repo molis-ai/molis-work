@@ -1,3 +1,4 @@
+import { unassignedFeedAttention } from "./fixtures/feed-ledger.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -35,7 +36,7 @@ function feedModules(store: LocalProjectDatabase): {
     exists: (projectId, subjectType, subjectId) =>
       subjectType === "feed_item" && feed.query.exists(projectId, subjectId),
   });
-  feed = new FeedModule(fromProjectConnection(store.db), attention, {
+  feed = new FeedModule(fromProjectConnection(store.db), unassignedFeedAttention(attention), {
     ledger: feedLedger(createContextLedger(store.db, { authorize: (access) => access.scope.kind === "personal" })),
   });
   return { attention, feed };
@@ -57,7 +58,7 @@ test("Feed and Attention repositories preserve Signal revisions and state across
       assert.throws(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry"), (error: unknown) => error instanceof ActionError
         && error.code === "attention.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 400);
       assert.throws(() => callAttention(() => attention.query.get(DEMO_PROJECT_ID, "missing-fas-entry")), (error: unknown) => error instanceof ActionError
-        && error.code === "inbox.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 404);
+        && error.code === "feed.entry_not_found" && error.message === "找不到这个 Inbox Entry" && actionHttpStatus(error) === 404);
       assert.deepEqual(firstStore.db.prepare("SELECT * FROM events ORDER BY event_id").all(), priorEvents);
       const first = feed.commands.ingest({
         project_id: DEMO_PROJECT_ID,

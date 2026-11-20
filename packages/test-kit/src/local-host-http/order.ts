@@ -1,25 +1,29 @@
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/** What the order of a grant set depends on: the action's identity, its provider, and the two things it needs before it works. */
+/** What the order of a grant set depends on: the action's identity, its provider, and what it needs before it works. */
 export type GrantOrderView = Pick<ActionView, "capability_id" | "version"> & {
   readonly provider: Pick<ActionView["provider"], "provider_id">;
-  readonly action: Pick<ActionView["action"], "required_actions" | "required_scene">;
+  readonly action: Pick<ActionView["action"], "required_actions" | "required_roles" | "required_scene" | "input_type" | "output_type">;
 };
 
 const label = (view: GrantOrderView) => `${view.capability_id}@${view.version}`;
 
 /**
  * The order in which the Host accepts a set of grants: each view after every view in the set that it names in `required_actions`
- * (matched on capability and version, and on the provider when the reference pins one), and a view that needs a scene binding
- * after the views that do not, since the function bound to the scene is an ordinary action. A dependency wins over that
- * preference, and the order otherwise stays as given. A view the set holds more than once (the same object) is taken once, at its
- * first place: a repeat is not a cycle. A cycle throws: the Host would refuse it too (`actions.dependency_cycle`).
+ * (matched on capability and version, and on the provider when the reference pins one) or matches in `required_roles`, and a view
+ * that needs a scene binding after the views that do not, since the function bound to the scene is an ordinary action. A dependency
+ * wins over that preference, and the order otherwise stays as given. A view the set holds more than once (the same object) is taken
+ * once, at its first place: a repeat is not a cycle. A cycle throws: the Host would refuse it too (`actions.dependency_cycle`).
  */
 export function orderGrantViews<View extends GrantOrderView>(given: readonly View[]): View[] {
   const views = [...new Set(given)];
-  const needs = new Map<View, readonly View[]>(views.map(view => [view, (view.action.required_actions ?? []).flatMap(reference =>
-    views.filter(other => other.capability_id === reference.capability_id && other.version === reference.version
-      && (!reference.provider_id || other.provider.provider_id === reference.provider_id)))]));
+  const needs = new Map<View, readonly View[]>(views.map(view => [view, [
+    ...(view.action.required_actions ?? []).flatMap(reference =>
+      views.filter(other => other.capability_id === reference.capability_id && other.version === reference.version
+        && (!reference.provider_id || other.provider.provider_id === reference.provider_id))),
+    ...(view.action.required_roles ?? []).flatMap(role =>
+      views.filter(other => other !== view && other.action.input_type === role.input_type && other.action.output_type === role.output_type)),
+  ]]));
   const placed = new Set<View>();
   const ordered: View[] = [];
   while (ordered.length < views.length) {

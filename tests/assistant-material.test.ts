@@ -17,14 +17,15 @@ test("new material that shares a Goal with a live work raises one merged notice;
   const goals = new Map([["g-q4", "Q4 计划"], ["g-other", "别的目标"]]);
   const notes = new Map([["n1", ["g-q4"]]]);
   const feed: Array<WorkEvent & { goal_ids: string[] }> = [];
+  const onGoals = (ids: readonly string[]) => ids.map(id => ({ kind: "goal", id }));
   const goalReader = defineSubjectContextAction("fixture.goal.read", 1, "goal", "目标", []);
   const noteReader = defineSubjectContextAction("fixture.note.read", 1, "note", "笔记", []);
   const itemReader = defineSubjectContextAction("fixture.item.read", 1, "feed_item", "Feed 条目", []);
   const events = defineWorkEventsAction("fixture.feed.events", 1, ["feed_item"], "Feed 首页事项", []);
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.feed", kind: "plugin", title: "Feed" }, definitions: [goalReader, noteReader, itemReader, events], handlers: [
-    { ...goalReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: goals.get(id)!, content: "", goal_ids: [id] }); } },
-    { ...noteReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "note", id }, revision: "1", title: id, content: "", goal_ids: notes.get(id) ?? [] }); } },
-    { ...itemReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; const item = feed.find(row => row.subject.id === id)!; return subjectContext({ subject: { kind: "feed_item", id }, revision: "1", title: item.title, content: "", goal_ids: item.goal_ids }); } },
+    { ...goalReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "goal", id }, revision: "1", title: goals.get(id)!, content: "", attached_to: onGoals([id]) }); } },
+    { ...noteReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; return subjectContext({ subject: { kind: "note", id }, revision: "1", title: id, content: "", attached_to: onGoals(notes.get(id) ?? []) }); } },
+    { ...itemReader, handle: (_c, input) => { const id = (input as { subject_id: string }).subject_id; const item = feed.find(row => row.subject.id === id)!; return subjectContext({ subject: { kind: "feed_item", id }, revision: "1", title: item.title, content: "", attached_to: onGoals(item.goal_ids) }); } },
     { ...events, handle: (_c, input) => { const window = input as { from: string; to: string };
       return { source: { surface: "feed", title: "Feed", icon: "rss" }, events: feed.filter(item => item.occurred_at >= window.from && item.occurred_at < window.to).map(({ goal_ids: _goals, ...event }) => event) }; } },
   ] });
@@ -55,7 +56,7 @@ test("new material that shares a Goal with a live work raises one merged notice;
     assert.equal((await Promise.all(overlapping))[1], 0, "a look already running is not joined by another");
     const [notice] = service.notices.notices(null);
     assert.equal(notice!.kind, "material");
-    assert.match(noticeText(notice!), /Feed 有新内容「竞品发布了 Q4 路线图」，和这项工作的目标「Q4 计划」有关/);
+    assert.match(noticeText(notice!), /Feed 有新内容「竞品发布了 Q4 路线图」，和这项工作关注的「Q4 计划」有关/);
 
     // Looked at again: the same items raise nothing; a second relevant one merges into the same notice.
     clock = new Date("2026-09-29T09:10:00.000Z");

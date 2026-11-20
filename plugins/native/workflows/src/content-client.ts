@@ -1,5 +1,6 @@
 import { type ActionDefinition, type ActionView, type BoundActionClient, type WorkflowContentBinding,
   type WorkflowContentRole, type WorkflowItemRef, type WorkflowPayload, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { WorkflowStepItem } from "./model.js";
 import type { WorkflowContentPorts, WorkflowStationInfo } from "./actions.js";
 import { workflowsErrors } from "./error.js";
 
@@ -69,8 +70,11 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
       && view.capability_id === ref.capability_id && view.version === ref.version);
     if (!view) throw workflowsErrors.unavailable(`能力 ${ref.capability_id} 已失效；原引用已保留`);
     const result = await actions.invoke(definition(view), input);
-    if ((role === "create" || role === "receive") && (result as WorkflowItemRef).plugin !== plugin) {
-      throw workflowsErrors.invalid_result("内容能力返回了另一个站点的引用");
+    if (role === "create" || role === "receive") {
+      // The station's object is of the kind it declares; anything else is not this station's.
+      const made = result as WorkflowItemRef;
+      if (made.subject.kind !== view.action.subject_kinds[0]) throw workflowsErrors.invalid_result("内容能力返回了另一个站点的引用");
+      return { plugin, item_id: made.subject.id, title: made.title } satisfies WorkflowStepItem as T;
     }
     return result as T;
   };
@@ -96,8 +100,8 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
     },
     resolveStation: async station => ({ ...station, content: await resolve(station.plugin, station.content) }),
     listStartItems: plugin => invoke<readonly WorkflowStartItem[]>(plugin, "list", {}),
-    createBlank: (plugin, title, content) => invoke<WorkflowItemRef>(plugin, "create", { title }, content),
+    createBlank: (plugin, title, content) => invoke<WorkflowStepItem>(plugin, "create", { title }, content),
     read: (item, content) => invoke<WorkflowPayload>(item.plugin, "read", { item_id: item.item_id }, content),
-    receive: (plugin, payload, requestId, content) => invoke<WorkflowItemRef>(plugin, "receive", { ...payload, request_id: requestId }, content),
+    receive: (plugin, payload, requestId, content) => invoke<WorkflowStepItem>(plugin, "receive", { ...payload, request_id: requestId }, content),
   };
 }

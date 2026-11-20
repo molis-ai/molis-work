@@ -13,7 +13,7 @@ test("MEM-14 Run recipes use live switches without reading bodies, automatically
   let accesses = 0;
   const backend = new Proxy({}, { get() { accesses++; throw new Error("Preparing a recipe must not access SDK memory"); } }) as MemoryBackendPort;
   const service = new MemoryService({ backend, ledger });
-  const who: MemoryCaller = { actor_id: "alice", project_id: "project-a", consumer: "agent", plugin_id: "io.molis.work.coding" };
+  const who: MemoryCaller = { actor_id: "alice", project_id: "project-a", consumer: "agent", current_scene: "coding", plugin_id: "io.molis.work.coding" };
   const person = { ...who, consumer: "ui" as const, person: true };
   service.savePrefs(person, "personal", "off");
   service.savePrefs(person, "project", "reviewed");
@@ -31,6 +31,6 @@ test("MEM-14 Run recipes use live switches without reading bodies, automatically
   assert.deepEqual(manual!.scopes, recipe!.scopes, "manual mode retains owned scopes for separately authorized explicit recollection");
   service.savePrefs(person, "project", "reviewed");
   assert.equal((await service.forRun(who, {}, { skip: true }))!.skip, true);
-  assert.equal((await service.forRun({ ...who, consumer: "assistant", plugin_id: undefined }, {}))!.current_scene, "assistant");
+  assert.equal((await service.forRun({ ...who, consumer: "assistant", current_scene: undefined, plugin_id: undefined }, {}))!.current_scene, "assistant");
   assert.equal(accesses, 0);
 });

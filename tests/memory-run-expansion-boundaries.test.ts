@@ -126,7 +126,7 @@ test("C1 actual generic gateway Memory Action uses the same body-free expansion 
   const ledger = openMemoryLedger({ homeDirectory: f.home });
   try {
     const memory = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
-    const chosen = await memory.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: f.project.project_id, consumer: "agent", plugin_id: "io.molis.work.coding" }, {}); assert.ok(chosen);
+    const chosen = await memory.forRun({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: f.project.project_id, consumer: "agent", current_scene: "coding", plugin_id: "io.molis.work.coding" }, {}); assert.ok(chosen);
     const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: f.project.project_id, plugin_id: "io.molis.work.coding", install_id: "gateway-host-test" };
     const session = await adapter.createSession({ ...owner, workspace: "business", title: "Gateway selection" });
     const context = (signal?: AbortSignal, selection?: { assert_current(): void }) => ({ actor_id: "agent:prologue", actor_kind: "runtime" as const, project_id: f.project.project_id, audience: "agent" as const,
@@ -198,7 +198,7 @@ test("C1 nonempty readable parent does not grant its undeclared child canonical 
   const ledger = openMemoryLedger({ homeDirectory: f.home });
   try {
     const memory = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => adapter.memory!) });
-    const chosen = await memory.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent", plugin_id: owner.plugin_id }, { query: text });
+    const chosen = await memory.forRun({ actor_id: owner.actor_id, project_id: owner.project_id, consumer: "agent", current_scene: "coding", plugin_id: owner.plugin_id }, { query: text });
     assert.ok(chosen); assert.equal(chosen.task, true); assert.equal(chosen.skip, false);
     const directory = { canonical_path: f.directory, realpath_verified: true };
     probing = true;

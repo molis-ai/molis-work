@@ -52,7 +52,7 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
     const { instance: previewed } = await actions.invoke(w.instance, { id: crashed.instance_id });
     const input = (await actions.invoke(w.preview, { id: crashed.instance_id })).input;
     const pending = { key: handoffKey(crashed, 0), kind: "ai" as const, actor: "ai" as const, at: new Date().toISOString(), input,
-      output: { title: "崩溃前的整理稿", body: "已经送达，只是没来得及记录。", url: null, source: null, feed_item_id: null }, rule: "整理成一页" };
+      output: { title: "崩溃前的整理稿", body: "已经送达，只是没来得及记录。", url: null, source: null }, rule: "整理成一页" };
     const store = openWorkflowsStore(home);
     try { const raw = store.instance(crashed.instance_id, PROJECT); store.saveInstance(raw, { ...raw, chain: previewed.chain, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending } : step), updated_at: new Date().toISOString() }); }
     finally { store.close(); }

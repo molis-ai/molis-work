@@ -71,16 +71,16 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
 
 /** Bind only the union selected by Memory; this is identity preparation, never an authorization snapshot. */
 export function formationSourceBinding(home: string, adapter: AgentRuntimeAdapter, caller: MemoryCaller,
-  codingCheck?: (sources: readonly MemoryLearningOwnedSource[]) => void) {
-  let coding: readonly MemoryLearningOwnedSource[] = [], assistant: readonly { session_id: string; project_id: string | null }[] = [];
+  ownedCheck?: (sources: readonly MemoryLearningOwnedSource[]) => void) {
+  let owned: readonly MemoryLearningOwnedSource[] = [], assistant: readonly { session_id: string; project_id: string | null }[] = [];
   const observations: AgentSessionWriteObservation[] = [], observed = new Set<string>();
   let closed = false;
   const assert_current = () => {
     if (closed) throw memoryErrors.forbidden("原形成调用已结束");
     for (const observation of observations) observation.assert_current();
-    if (coding.length) {
-      if (!codingCheck) throw memoryErrors.forbidden("这次来源调用不拥有 Coding 业务检查");
-      codingCheck(coding);
+    if (owned.length) {
+      if (!ownedCheck) throw memoryErrors.forbidden("这次来源调用不拥有插件来源业务检查");
+      ownedCheck(owned);
     }
     for (const source of assistant) if (assistantMemorySourceWork(home, caller.actor_id, source.session_id)?.project_id !== source.project_id)
       throw memoryErrors.forbidden("实际参与形成的助理来源已失效");
@@ -96,7 +96,7 @@ export function formationSourceBinding(home: string, adapter: AgentRuntimeAdapte
       observations.push(lifecycle.observeWrites(added.map(session_id => ({ session_id, runtime_id: adapter.descriptor.runtime_id }))));
       for (const id of added) observed.add(id);
     }
-    const nextCoding: MemoryLearningOwnedSource[] = [], nextAssistant: Array<{ session_id: string; project_id: string | null }> = [];
+    const nextOwned: MemoryLearningOwnedSource[] = [], nextAssistant: Array<{ session_id: string; project_id: string | null }> = [];
     for (const [position, ref] of refs.entries()) {
       const identity = identities[position]!;
       const canonical = await lifecycle.read({ session_id: identity.session_id, runtime_id: adapter.descriptor.runtime_id });
@@ -106,10 +106,10 @@ export function formationSourceBinding(home: string, adapter: AgentRuntimeAdapte
       if (!session || !isDeepStrictEqual(session.owner, canonical.owner) || session.owner.actor_id !== caller.actor_id || session.status.recovery) throw memoryErrors.forbidden("实际形成来源的主人不可核验");
       if (session.owner.plugin_id === ASSISTANT_PLUGIN_ID) nextAssistant.push({ session_id: identity.session_id,
         project_id: session.owner.project_id === ASSISTANT_PERSONAL_OWNER ? null : session.owner.project_id });
-      else if (session.owner.plugin_id === "io.molis.work.coding") nextCoding.push(Object.freeze({ ...ref, session_id: identity.session_id }));
+      else if (session.owner.plugin_id) nextOwned.push(Object.freeze({ ...ref, session_id: identity.session_id }));
       else throw memoryErrors.forbidden("实际形成来源不属于可用的来源主人");
     }
-    coding = Object.freeze([...coding, ...nextCoding.filter(next => !coding.some(old => old.event_id === next.event_id && old.version === next.version && old.session_id === next.session_id))]);
+    owned = Object.freeze([...owned, ...nextOwned.filter(next => !owned.some(old => old.event_id === next.event_id && old.version === next.version && old.session_id === next.session_id))]);
     assistant = Object.freeze([...assistant, ...nextAssistant.filter(next => !assistant.some(old => old.session_id === next.session_id && old.project_id === next.project_id))]);
     assert_current();
   };

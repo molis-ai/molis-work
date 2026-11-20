@@ -162,25 +162,17 @@ export const COSS_CONTROL_STYLES = `
   .feed-task-config-trigger svg { width: 16px; height: 16px; }
   .form-disclosure { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
   .form-disclosure[open] > summary { margin-bottom: 12px; }
-  .form-disclosure .goal-choice-list { max-height: 230px; overflow-y: auto; }
   .event-form-body > :is(label,fieldset) { margin: 0; }
   .event-form fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
   .event-form legend { color: var(--ink-soft); font-size: 13px; padding-inline: 4px; }
   .event-form :is(input,textarea,select):focus-visible:not([class^="mw-"]) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .event-form-status:not([hidden]), .event-field-error:not([hidden]) { padding: 12px 12px; border-left: 2px solid currentColor; margin-block: 12px; font-size: 13px; line-height: 1.6; }
-  body.immersive-workbench .goal-event-document .event-form { width: min(100%, 780px); box-sizing: border-box; align-self: center; gap: 0; padding: 0; overflow: hidden; }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; border: 0; border-radius: 8px; background: var(--red-soft); }
-  body.immersive-workbench .goal-event-document .event-form > [data-event-back] { display: none; }
-  body.immersive-workbench .goal-event-document .event-form :is(label > span, legend) { font-size: 13px; }
-  body.immersive-workbench .goal-event-document .event-form :is(.form-lead,.form-note,small) { font-size: 13px; line-height: 1.65; }
-  body.immersive-workbench .goal-event-document .event-form button[type=submit] { align-self: flex-start; width: auto; min-height: 36px; background: var(--action); color: var(--action-ink); padding-inline: 16px; border-radius: 7px; }
   body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
   @media (max-width: 640px) {
     .feed-task-dialog-shell { max-height: calc(100dvh - 18px); }
     .feed-task-dialog-shell > header, .feed-task-dialog-body { padding: 16px; }
     .feed-task-health { flex-direction: column; gap: 4px; }
-    body.immersive-workbench .goal-event-document .event-form { padding: 0; }
-    body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
   }
 
   /* Motion communicates focus and feedback; moving panes remain under the pointer. */

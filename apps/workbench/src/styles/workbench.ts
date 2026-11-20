@@ -327,21 +327,11 @@ export const MORE_STYLES = `
   .dialog-icon--danger { color: var(--red); background: var(--red-soft); }
   .create-dialog h2 { margin: 0; font-size: 20px; }
   .create-dialog header p { margin: 1px 0 0; color: var(--muted); font-size: 12px; }
-  .goal-lifecycle-hint { display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--rail); }
-  .goal-lifecycle-hint > svg { flex: 0 0 auto; margin-top: 4px; color: var(--muted); }
-  .goal-lifecycle-hint span { display: grid; gap: 4px; }
-  .goal-lifecycle-hint small { color: var(--muted); }
   .dialog-body { padding: 16px 24px 24px; overflow: auto; display: grid; gap: 12px; }
   .dialog-body label { display: grid; gap: 4px; }
   .dialog-body label > span, .dialog-body legend { font-weight: 400; }
   .dialog-body small { color: var(--muted); font-weight: 400; }
   .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select { width: 100%; border: 1px solid var(--control-input); border-radius: var(--radius-control); padding: 8px 12px; background: var(--paper); resize: vertical; }
-  .goal-trash-dialog { width: min(560px, calc(100vw - 32px)); }
-  .goal-trash-dialog .dialog-body { align-content: start; grid-auto-rows: max-content; }
-  .goal-trash-target { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
-  .goal-trash-target strong { overflow-wrap: anywhere; }
-  .goal-trash-target small { font-size: 11px; }
-  .goal-trash-note { margin: 0; padding: 12px 12px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink-soft); background: var(--page); font-size: 12px; }
   .field-row { display: grid; gap: 12px; }
   .field-row--split { grid-template-columns: 1fr 120px; }
   .dialog-body fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -352,11 +342,6 @@ export const MORE_STYLES = `
   .relation-field-heading p, .relation-field > legend small { margin: 4px 0 0; color: var(--muted); font-size: 12px; font-weight: 400; }
   .relation-field > legend strong, .relation-field > legend small { display: block; }
   .relation-preview { margin: 8px 0 0; padding: 8px 8px; border-radius: 4px; color: var(--ink-soft); background: var(--nav-hover); font-size: 12px; overflow-wrap: anywhere; }
-  .goal-choice-list { max-height: 134px; margin-top: 8px; padding: 4px; border: 1px solid var(--line); border-radius: 5px; overflow: auto; display: grid; grid-template-columns: 1fr 1fr; }
-  .goal-choice { padding: 8px 8px; display: grid !important; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px !important; border-radius: 4px; cursor: pointer; }
-  .goal-choice:hover { background: var(--nav-hover); }
-  .goal-choice > span { min-width: 0; display: grid; }
-  .goal-choice strong, .goal-choice small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .form-error { margin: 0; padding: 8px 12px; border-radius: 4px; color: var(--red); background: var(--red-soft); }
   .create-dialog footer { padding: 12px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
   .toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 24px; z-index: 30; }

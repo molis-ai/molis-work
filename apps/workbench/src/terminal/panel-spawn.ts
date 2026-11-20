@@ -17,7 +17,7 @@ export interface PanelSpawnOptions {
   send(message: Record<string, unknown>): Promise<void>;
 }
 
-/** The channel only attaches (S-103 ⑦): the Host started the process when Goals was asked to open it. */
+/** The channel only attaches (S-103 ⑦): the Host started the process when the platform work terminal was asked to open it. */
 const attachMessage = (panel: PanelRecord, size: { cols: number; rows: number } | undefined) => ({
   type: "spawn",
   panelId: panel.panel_id,

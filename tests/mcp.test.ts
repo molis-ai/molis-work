@@ -238,6 +238,7 @@ it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy w
       MOLIS_WORK_SESSION_ID: "session-molis-work",
       CODEX_THREAD_ID: "thread-native",
       MOLIS_WORK_PANEL_ID: "panel-surface",
+      MOLIS_WORK_FOCUS_KIND: "goal",
       MOLIS_WORK_FOCUS_ID: "goal-current",
       MOLIS_WORK_WORK_CONTEXT_ID: "host-work-context",
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
@@ -247,7 +248,10 @@ it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy w
     assert.equal(host.molisWorkSessionId, "session-molis-work");
     assert.equal(host.nativeRuntimeSessionId, "thread-native");
     assert.equal(host.panelId, "panel-surface");
-    assert.equal(host.focusId, "goal-current");
+    assert.deepEqual(host.focus, { kind: "goal", id: "goal-current" });
+    // An id alone does not say whose object it is: no focus (batch 44 C7).
+    assert.equal(runtimeContextHostFromEnvironment({ MOLIS_WORK_RUNTIME_ID: "codex", MOLIS_WORK_FOCUS_ID: "goal-current", PWD: "/tmp/molis-work-session-identities" },
+      "/tmp/molis-work-session-identities")?.focus, null);
     assert.equal(host.hostWorkContextId, "host-work-context");
     assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });

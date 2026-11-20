@@ -1,4 +1,6 @@
+import type { AcceptanceSubject } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import type { GoalAcceptanceCriterion } from "./goals.js";
+import type { GoalAcceptanceReading } from "./goal-event-state.js";
 import type {
   ApplyGoalConcernInput,
   CiteGoalDecisionInput,
@@ -12,7 +14,6 @@ import type {
   GoalEventProgressResult,
   GoalEventResumeResult,
   GoalEventSystemPayload,
-  GoalEventUserConclusion,
   GoalEventWorkStateView,
   RecordGoalProgressSummaryInput,
   RecordGoalUserDecisionInput,
@@ -40,9 +41,6 @@ export type GoalEventSemanticFamily = (typeof goalEventSemanticFamilies)[number]
 
 export const goalEventFieldFormats = ["text", "longtext"] as const;
 export type GoalEventFieldFormat = (typeof goalEventFieldFormats)[number];
-
-export const goalEventJudgmentVerdicts = ["supports", "contradicts", "unknown"] as const;
-export type GoalEventJudgmentVerdict = (typeof goalEventJudgmentVerdicts)[number];
 
 export const goalEventTypeSourceKinds = ["local", "runtime"] as const;
 export type GoalEventTypeSourceKind = (typeof goalEventTypeSourceKinds)[number];
@@ -93,6 +91,10 @@ export type GoalEventRequirementSource =
       policy_binding_ids: string[];
     };
 
+/**
+ * A requirement as a configuration event recorded what Goals hung on the Goal: the event's payload, kept as written. Since batch 44 the
+ * requirement itself is the platform's (`GoalRequirementLink` is what Goals keeps), and a new one is recorded active, at revision 1.
+ */
 export interface GoalEventExtraRequirement {
   requirement_id: string;
   statement: string;
@@ -116,6 +118,18 @@ export interface GoalEventTypeDefinitionInput {
   fields: GoalEventFieldDefinition[];
 }
 
+/**
+ * Where a requirement Goals hung on the platform came from (`goal_requirement_links`): its origin, and the event types bound to it.
+ * What it says, its version and whether it is met are the platform's (`acceptance.read@1` for the Goal's `acceptance_subject`).
+ */
+export interface GoalRequirementLink {
+  requirement_id: string;
+  origin: GoalEventRequirementSource | null;
+  bound_type_ids: string[];
+  created_in_config_version: number;
+  created_at: string;
+}
+
 export interface GoalEventExtraRequirementInput {
   requirement_id: string;
   statement: string;
@@ -133,6 +147,8 @@ export interface ConfigureGoalEventsInput {
   idempotency_key: string;
   types?: GoalEventTypeDefinitionInput[];
   requirement_bindings?: GoalEventRequirementBinding[];
+  /** The Goal's requirements as the platform has them, read by Goals itself before the call (never the caller's). */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export interface GoalEventConfigView {
@@ -140,7 +156,6 @@ export interface GoalEventConfigView {
   goal_id: string;
   version: number;
   types: GoalEventTypeDefinition[];
-  extra_requirements: GoalEventExtraRequirement[];
   requirement_bindings: GoalEventRequirementBinding[];
   updated_at: string | null;
   updated_by: string | null;
@@ -153,61 +168,11 @@ export interface ConfigureGoalEventsResult {
   replayed: boolean;
 }
 
-/**
- * What a judgment's basis points at, kept as a reference only: the record stays with its owner (the 成果库, the Agent Host) and is
- * read there. A new kind of evidence is a new member here; nothing else changes (specs/proactive-assistant PWA-144).
- */
-export const goalEventEvidenceKinds = ["artifact_version", "command_receipt"] as const;
-export type GoalEventEvidenceRef =
-  | { kind: "artifact_version"; artifact_id: string; version: number }
-  | { kind: "command_receipt"; run_id: string; call_id: string };
-export const GOAL_EVENT_EVIDENCE_MAX = 8;
-
-/** What the reporter says it checked and how: an exact version in the 成果库 (never "the latest"), two sentences for people, and references. */
-export interface GoalEventJudgmentBasisInput {
-  checked: { artifact_id: string; version: number };
-  method: string;
-  observed: string;
-  evidence?: GoalEventEvidenceRef[];
-}
-
-/**
- * How far a judgment is backed, worked out by Goals when the report arrives and never taken from the reporter:
- * `self_reported` is the reporter's own word; `machine_verified` is a command the platform itself ran in the round that made the
- * checked version, which ended normally with nothing written after it; `peer_reviewed` is a session other than the one that did
- * the work, known to the platform, saying it checked that version.
- */
-export const goalEventBasisTiers = ["self_reported", "machine_verified", "peer_reviewed"] as const;
-export type GoalEventBasisTier = (typeof goalEventBasisTiers)[number];
-/** Why a basis that names evidence stayed the reporter's own word. */
-export const goalEventBasisGaps = ["evidence_missing", "evidence_unreadable", "subject_mismatch", "check_failed"] as const;
-export type GoalEventBasisGap = (typeof goalEventBasisGaps)[number];
-
-export interface GoalEventJudgmentBasis extends GoalEventJudgmentBasisInput {
-  evidence: GoalEventEvidenceRef[];
-}
-
-export interface GoalEventJudgmentInput {
-  requirement_id: string;
-  verdict: GoalEventJudgmentVerdict;
-  basis?: GoalEventJudgmentBasisInput;
-}
-
-/**
- * What Goals found when it weighed one judgment's basis, before anything is written. Made only by Goals' own check of the call
- * (`verifyReportEvidence`): no action input carries it, so a caller cannot state its own tier.
- */
-export interface GoalEventJudgmentAssessment {
-  tier: GoalEventBasisTier;
-  gap: GoalEventBasisGap | null;
-}
-
 export interface ReportGoalWorkEventInput {
   type_id: string;
   type_version: number;
   title: string;
   fields: Record<string, string>;
-  judgments?: GoalEventJudgmentInput[];
 }
 
 export interface GoalEventReportProgressInput {
@@ -224,23 +189,6 @@ export interface ReportGoalEventsInput {
   idempotency_key: string;
   events: ReportGoalWorkEventInput[];
   progress?: GoalEventReportProgressInput;
-  /**
-   * Set by Goals' own action handler from the call, never by a caller: the session the Host bound the reporting round to, and what
-   * the check of each judgment's basis found, by event index and requirement. Absent means every judgment is the reporter's own word.
-   */
-  trusted?: { reporter_session: string | null; assessments: ReadonlyMap<string, GoalEventJudgmentAssessment> };
-}
-
-/** The key of one judgment in `ReportGoalEventsInput.trusted.assessments`. */
-export const goalEventAssessmentKey = (eventIndex: number, requirementId: string): string => `${eventIndex}:${requirementId}`;
-
-export interface GoalWorkEventJudgment {
-  requirement_id: string;
-  verdict: GoalEventJudgmentVerdict;
-  /** What the reporter said it checked; null for a judgment that names nothing. */
-  basis: GoalEventJudgmentBasis | null;
-  tier: GoalEventBasisTier;
-  gap: GoalEventBasisGap | null;
 }
 
 export interface GoalEventConfigurationPayload {
@@ -266,21 +214,18 @@ export interface GoalConfigurationWorkEventRecord extends GoalWorkEventBase {
   kind: "configuration";
   type: null;
   payload: GoalEventConfigurationPayload;
-  judgments: GoalWorkEventJudgment[];
 }
 
 export interface GoalReportWorkEventRecord extends GoalWorkEventBase {
   kind: "report";
   type: GoalEventTypeDefinition | null;
   payload: Record<string, string>;
-  judgments: GoalWorkEventJudgment[];
 }
 
 export interface GoalSystemWorkEventRecord extends GoalWorkEventBase {
   kind: "system";
   type: null;
   payload: GoalEventSystemPayload;
-  judgments: GoalWorkEventJudgment[];
 }
 
 export type GoalWorkEventRecord =
@@ -297,7 +242,6 @@ export interface ReportGoalEventsRecordedResult {
 export interface ReportGoalEventsResult extends ReportGoalEventsRecordedResult {
   goal_event_cursor: number;
   work_status: GoalEventWorkStateView["work_status"];
-  gaps: GoalEventWorkGap[];
   progress_summary: GoalEventWorkStateView["progress_summary"];
   completion_effect: boolean;
   can_record: boolean;
@@ -312,6 +256,8 @@ export interface ConfigureGoalEventsApplicationInput {
   idempotency_key: string;
   types?: GoalEventTypeDefinitionInput[];
   requirement_bindings?: GoalEventRequirementBinding[];
+  /** Set by Goals' own handler from its reading of the platform, never by a caller. */
+  acceptance?: GoalAcceptanceReading;
 }
 
 export const goalIntentSourceKinds = ["web", "onboarding", "feed", "runtime", "tree"] as const;
@@ -322,6 +268,9 @@ export interface CreateGoalIntentRequirementInput {
   statement: string;
   human_decision_required?: boolean;
 }
+
+/** A requirement a new Goal hangs on the platform's acceptance: its id (given, or derived from the Goal and its place), words, and need of the person. */
+export interface GoalHungRequirement { requirement_id: string; statement: string; human_decision_required: boolean }
 
 export interface CreateGoalIntentInput {
   project_id: string;
@@ -360,14 +309,6 @@ export interface GoalEventReportSummary {
   type_version: number | null;
   received_at: string;
   journal_seq: number;
-  judgments: GoalWorkEventJudgment[];
-}
-
-export interface GoalEventWorkGap {
-  requirement_id: string;
-  statement: string;
-  current_verdict: GoalEventJudgmentVerdict | null;
-  human_decision_required: boolean;
 }
 
 export interface GoalEventStateView {
@@ -380,9 +321,11 @@ export interface GoalEventStateView {
     source_kind: GoalIntentSourceKind | null;
   };
   config: GoalEventConfigView;
-  requirements: GoalEventRequirementStatus[];
+  /** The requirements Goals hung on the Goal; what they say and whether they are met is read from the platform for `acceptance_subject`. */
+  requirements: GoalRequirementLink[];
+  /** The Goal's requirements and acceptance on the platform (`acceptance.read@1`). */
+  acceptance_subject: AcceptanceSubject;
   latest_reports: GoalEventReportSummary[];
-  gaps: GoalEventWorkGap[];
   observed_event_cursor: number;
   /** Max work-event journal_seq on this Goal; 0 when the Goal has no work events yet. */
   goal_event_cursor: number;
@@ -408,7 +351,6 @@ export interface GoalEventDirectoryItem {
   completion_effect: boolean;
   can_record: boolean;
   next_hint: string;
-  unmet_requirement_count: number;
   pending_decision_count: number;
   blocking_concern_count: number;
   updated_at: string;
@@ -473,50 +415,6 @@ export interface GoalEventTimelinePage {
   observed_event_cursor: number;
 }
 
-export interface GoalEventRequirementReport {
-  event_id: string;
-  actor_id: string;
-  actor_kind: "user" | "runtime" | null;
-  verdict: GoalEventJudgmentVerdict;
-  received_at: string;
-  journal_seq: number;
-  basis: GoalEventJudgmentBasis | null;
-  tier: GoalEventBasisTier;
-  gap: GoalEventBasisGap | null;
-  /** True for `machine_verified` and `peer_reviewed`; a report is never the person's decision either way. */
-  substitutes_human_decision: false;
-}
-
-/** What stands behind a requirement that is met: the person's acceptance, or an independently verified report where none is asked. */
-export const goalEventSatisfactionGrounds = ["user_accepted", "machine_verified", "peer_reviewed"] as const;
-export type GoalEventSatisfactionGround = (typeof goalEventSatisfactionGrounds)[number];
-
-export interface GoalEventRequirementStatus {
-  requirement_id: string;
-  revision: number;
-  goal_id: string;
-  statement: string;
-  origin: {
-    kind: "goal_event_requirement" | "imported_acceptance_criterion" | "imported_human_approval" | "create_input";
-    decision_method?: GoalAcceptanceCriterion["decision_method"];
-    pass_condition?: string;
-    config_version?: number;
-    policy_binding_ids?: string[];
-  };
-  bound_type_ids: string[];
-  human_decision_required: boolean;
-  current_report: GoalEventRequirementReport | null;
-  user_conclusion: GoalEventUserConclusion | null;
-  currently_satisfied: boolean;
-  /** What it is met by; null while it is not met. Execution, verification and the person's acceptance are never folded into one. */
-  satisfied_by: GoalEventSatisfactionGround | null;
-  /**
-   * True when the person's conclusion was about another version than the one the latest report checked: the conclusion no longer
-   * counts for this requirement until they decide again (user decision 2026-11-11: per requirement, by version).
-   */
-  conclusion_superseded: boolean;
-}
-
 export interface GoalEventLatestReportsQuery {
   limit?: number;
 }
@@ -539,11 +437,8 @@ export interface GoalEventFactsApi {
   listLatestTimeline(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage;
   listLatestReports(projectId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
   readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord;
-  readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
-  /** Whether this actor's report under this idempotency key is already recorded (its repeat is answered from the record). */
-  reportRecorded(projectId: string, actorId: string, idempotencyKey: string): boolean;
-  /** The platform sessions that reported the requirement done on their own word alone. */
-  selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string>;
+  /** The requirements Goals hung on the Goal, in the order they were hung. */
+  readRequirementLinks(projectId: string, goalId: string): GoalRequirementLink[];
   /** Persisted createIntent channel; independent of timeline pagination. Null when no intent_created fact exists. */
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
   readObservedEventCursor(projectId: string): number;
@@ -589,5 +484,5 @@ export interface GoalEventIntentApi {
     source_kind?: GoalIntentSourceKind;
     outcome?: string;
     requirements?: CreateGoalIntentRequirementInput[];
-  }): void;
+  }): GoalHungRequirement[];
 }

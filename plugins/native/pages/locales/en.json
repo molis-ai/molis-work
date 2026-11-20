@@ -338,6 +338,7 @@
     "pages.capability-library.pages-import-v1.title": "Import documents",
     "pages.capability-library.pages-import-preview-v1.title": "Preview import",
     "pages.capability-library.pages-placement-copy-v1.title": "Page",
-    "pages.capability-library.pages-placement-move-v1.title": "Page"
+    "pages.capability-library.pages-placement-move-v1.title": "Page",
+    "pages.onboarding.part-k-n": " · part {k} of {n}"
   }
 }

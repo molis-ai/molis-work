@@ -11,8 +11,8 @@ import type {
   GoalEventLatestReportsQuery,
   GoalEventListPage,
   GoalEventListQuery,
-  GoalEventRequirementStatus,
   GoalEventStateApi,
+  GoalRequirementLink,
   GoalEventTimelinePage,
   GoalWorkEventRecord,
   ReportGoalEventsInput,
@@ -23,8 +23,8 @@ import { GoalEventConfiguration } from "./event-facts-configure.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";
 import { GoalEventReads } from "./event-facts-reads.js";
 import { GoalEventFactsRepository } from "./event-facts-repository.js";
-import { GoalEventReporting, REPORT_GOAL_EVENTS_OPERATION } from "./event-facts-report.js";
-import { applyGoalEventAgreementChange, readCurrentGoalEventRequirements } from "./event-facts-requirements.js";
+import { GoalEventReporting } from "./event-facts-report.js";
+import { goalRequirementTerms, readGoalRequirementLinks } from "./event-facts-requirements.js";
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 import { GoalEventIntent } from "./event-intent.js";
 import { GoalEventState } from "./event-state.js";
@@ -56,8 +56,8 @@ export class GoalEventFacts implements GoalEventFactsApi {
         requireWritableGoal: (projectId, goalId) => requireWritableGoal(this.context, projectId, goalId),
         actorKind: (kind) => eventActorKind(kind),
         configVersion: (projectId, goalId) => this.records.config.getConfig(projectId, goalId)?.current_version ?? 0,
-        readCurrentRequirements: (projectId, goalId) => this.readCurrentRequirements(projectId, goalId),
-        applyAgreementChange: (input, goal) => applyGoalEventAgreementChange(this.context, this.records, this.configWrites, input, goal),
+        requirementLinks: (projectId, goalId) => readGoalRequirementLinks(this.records, projectId, goalId),
+        requirementTerms: (projectId, goalId, reading) => goalRequirementTerms(this.records, projectId, goalId, reading),
         readCompletionContext: (projectId, goalId) => this.readCompletionContext(projectId, goalId),
       },
     );
@@ -101,16 +101,9 @@ export class GoalEventFacts implements GoalEventFactsApi {
     return this.reads.readEvent(projectId, goalId, eventId);
   }
 
-  readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[] {
-    return readCurrentGoalEventRequirements(this.context, this.records, projectId, goalId);
-  }
-
-  reportRecorded(projectId: string, actorId: string, idempotencyKey: string): boolean {
-    return this.context.repository.getIdempotency(projectId, actorId, REPORT_GOAL_EVENTS_OPERATION, idempotencyKey) !== null;
-  }
-
-  selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string> {
-    return this.records.workEvents.selfSupportingSessions(projectId, goalId, requirementId);
+  readRequirementLinks(projectId: string, goalId: string): GoalRequirementLink[] {
+    this.context.requireGoal(projectId, goalId);
+    return readGoalRequirementLinks(this.records, projectId, goalId);
   }
 
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null {

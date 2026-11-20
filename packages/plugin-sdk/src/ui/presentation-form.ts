@@ -221,3 +221,13 @@ export function renderPresentationForm(object: OwnedPresentationObject, form: Fo
   const bandTime = bandTimeField ? renderField(bandTimeField, value(bandTimeField.key), text) : "";
   return `${start}<header class="mw-presentation__band">${ownerTile(owner, false)}<span>${escapeHtml(owner.name)}</span>${bandTime}${status}</header>${stale}${renderPreviewCard({ title, body: summary })}<div class="mw-presentation__fields">${body}</div>${controls}${notices}</div>`;
 }
+
+/** Column header row shared by plugin lists; pairs with `.mw-list-columns` in presentation styles. */
+export function renderListColumns(
+  labels: readonly string[],
+  options: { className?: string; attrs?: string } = {},
+): string {
+  const classes = ["mw-list-columns", options.className].filter(Boolean).join(" ");
+  const extra = options.attrs ? ` ${options.attrs}` : "";
+  return `<div class="${escapeHtml(classes)}"${extra} aria-hidden="true">${labels.map(label => `<span>${escapeHtml(label)}</span>`).join("")}</div>`;
+}

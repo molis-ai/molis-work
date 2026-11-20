@@ -1,9 +1,11 @@
-import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
+import { OWN_DIRECTORY_SURFACES, pluginSurfaceAliases } from "../../plugin-catalog.js";
 import { readClientPluginTitles } from "../../plugin-directory.js";
 
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
+  const SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())};
+  const canonicalSurface = (surface) => (Object.hasOwn(SURFACE_ALIASES, surface) ? SURFACE_ALIASES[surface] : surface);
   const readTitles = ${readClientPluginTitles.toString()};
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: readText,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
@@ -14,9 +16,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const directoryFilterMenus = () => [
-    ...treePane.querySelectorAll(".source-filter-menu"),
-  ];
+  const directoryFilterMenus = () => [];
   const frame = document.querySelector("[data-goal-node-workspace]");
   const workMain = document.querySelector("[data-goal-work-main]");
   const modesScope = getState().project?.project_id || getState().snapshot.board.project_id;
@@ -29,12 +29,12 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
     if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";
     const surface = getSurface();
-    if (surface === "feed" || surface === "sources") return "feed";
-    if (["goals", "home", "market"].includes(surface)) return surface;
-    if (surface === "settings") return "settings";
-    if (surface === "project-settings") return "project-settings";
-    if (OWN_DIRECTORY_SURFACES.includes(surface)) return surface === "sources" ? "feed" : surface;
-    return [...(pluginRail?.querySelectorAll("[data-plugin-id]") || [])].some(button => button.dataset.pluginId === surface) ? surface : "";
+    const canonical = canonicalSurface(surface);
+    if (["goals", "home", "market"].includes(canonical)) return canonical;
+    if (canonical === "settings") return "settings";
+    if (canonical === "project-settings") return "project-settings";
+    if (OWN_DIRECTORY_SURFACES.includes(surface)) return canonical;
+    return [...(pluginRail?.querySelectorAll("[data-plugin-id]") || [])].some(button => button.dataset.pluginId === canonical) ? canonical : "";
   };
   const syncPresence = () => {
     const drawerOpen = narrow() && workspace.dataset.mobileView === "tree";
@@ -278,8 +278,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (saved.details == null) setDetails(frame.clientWidth >= 840);
     else syncPresence();
   }).observe(frame);
-  document.addEventListener("molis-work:goal-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
-  document.addEventListener("molis-work:goal-panel-presence", syncPresence);
+  document.addEventListener("molis-work:record-document-loaded", () => syncGoalMode(workspace.dataset.workspaceMode));
+  document.addEventListener("molis-work:record-panel-presence", syncPresence);
   window.addEventListener("resize", sync);
   return { sync, syncPresence, syncGoalMode, hideDirectory, showDirectory };
 }`;

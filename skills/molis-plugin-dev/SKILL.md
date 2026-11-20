@@ -164,7 +164,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 安装
 
-本目录随 npm 包和 `molis-work install` 发布，**不会**随 Runtime 接入自动挂到 Codex / Claude。`goal-advance` 才是推进 Goal 的协议。
+本目录随 npm 包和 `molis-work install` 发布，**不会**随 Runtime 接入自动挂到 Codex / Claude。
 
 ```bash
 ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/skills/molis-plugin-dev"

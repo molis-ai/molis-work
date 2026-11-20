@@ -66,14 +66,15 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
         const source = (await briefsOf(ports, caller, [entry])).sources.get(entry.subject_id);
         if (!source) throw new ActionError("actions.missing", "来源已经不存在");
         const detail = typeof entry.detail?.message === "string" ? entry.detail.message : "";
-        return { title: `来源「${source.name}」需要处理`, body: detail || `来源「${source.name}」需要人工恢复。`, source: source.name, feed_item_id: null };
+        return { title: `来源「${source.name}」需要处理`, body: detail || `来源「${source.name}」需要人工恢复。`, source: source.name };
       }
       throw new ActionError("actions.input_invalid", "这条 Inbox 事项没有可以交接的正文");
     },
     receive: async (input, caller) => {
-      const itemId = input.feed_item_id ?? (await ports.receiveFeed(input, caller)).item_id;
+      // A Feed item handed on is taken as itself; other content becomes a Feed item first, so an entry always stands for one.
+      const itemId = input.source_ref?.kind === "feed_item" ? input.source_ref.id : (await ports.receiveFeed(input, caller)).subject.id;
       const entry = await ports.admit(itemId, caller);
-      return { plugin: "inbox", item_id: entry.entry_id, title: input.title };
+      return { subject: { kind: "inbox_entry", id: entry.entry_id }, title: input.title };
     },
   }), bindSearchEntriesHandler(inboxSearchEntriesAction, async caller => {
     const entries = openEntries(ports), { items, sources } = await briefsOf(ports, caller, entries);
@@ -93,6 +94,6 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
     const current = ports.entry(entry.entry_id);
     if (!sameInboxEntry(current, entry)) throw new ActionError("actions.subject_changed", "事项在读取期间已变化");
     return subjectContext({ subject: { kind: "inbox_entry", id: entry.entry_id }, revision: `${entry.revision}:${related.revision}`,
-      title: related.title, content: related.content, truncated: related.truncated, open: { surface: "inbox", id: entry.entry_id }, ...(related.goal_ids ? { goal_ids: related.goal_ids } : {}) });
+      title: related.title, content: related.content, truncated: related.truncated, open: { surface: "inbox", id: entry.entry_id }, ...(related.attached_to ? { attached_to: related.attached_to } : {}) });
   } }];
 }

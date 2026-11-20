@@ -17,7 +17,7 @@ const document = (text: string) => ({ type: "doc" as const, content: [{ type: "p
 test("BRC-04 · one background search directory refreshes the two changed sources", { timeout: 60_000 }, async t => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout", "setInterval"], now: Date.parse("2026-11-09T18:00:00Z") });
   const home = await openTestHome(t, { host: { clock: () => new Date() } });
-  const project = await home.createProject("Search refresh", ["pages", "form"]);
+  const project = await home.createProject("Search refresh", ["goals", "pages", "form"]);
   const caller = await home.host.localPersonContext(project.reference);
   const actions = home.host.actionClient(project.reference);
   const call = <I, O>(definition: ActionDefinition<I, O>, input: I) => actions.invoke(caller, definition, input) as Promise<O>;

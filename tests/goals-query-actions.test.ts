@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, cachedMolisWorkWebView, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
-import { goalPluginActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
@@ -71,8 +71,9 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     const directory = await actions.invoke(goalsActions.directoryItem, { goal_id });
     assert.equal(directory?.title, state.intent.title);
     assert.equal(await actions.invoke(goalsActions.directoryItem, { goal_id: "MISSING" }), null);
-    const resumed = await readGoalResumeFacts(actions, [goal_id]);
-    assert.deepEqual(resumed.goals, [directory]);
+    // The resume facts are Goals' own summary now (batch 44 C7): the focused Goal, as the directory names it.
+    const resumed = await actions.invoke(goalsActions.resumeSummary, { focus: { kind: "goal", id: goal_id } });
+    assert.deepEqual([resumed.focus?.subject, resumed.focus?.title], [{ kind: "goal", id: goal_id }, directory!.title]);
     const ascending: string[] = [];
     let after_cursor: number | undefined;
     do {
@@ -114,8 +115,8 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     denied = goalsActions.state.capability_id;
     await assert.rejects(actions.invoke(goalsActions.state, { goal_id }), { code: "actions.plugin_disabled" });
     await assert.rejects(actions.invoke(goalPluginActions.state, { goal_id }), { code: "actions.plugin_disabled" });
-    denied = goalsActions.list.capability_id;
-    await assert.rejects(readGoalResumeFacts(actions, [goal_id]), { code: "actions.plugin_disabled" });
+    denied = goalsActions.resumeSummary.capability_id;
+    await assert.rejects(actions.invoke(goalsActions.resumeSummary, { focus: { kind: "goal", id: goal_id } }), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.snapshot.capability_id;
@@ -150,7 +151,9 @@ test("query contracts read the completion, human requirements and event payloads
       assert.equal(core.work_status, "completed");
       assert.equal(core.closure, null);
       const human = await actions.invoke(goalsActions.state, { goal_id: "OLD-HUMAN" });
-      assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
+      assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.origin?.kind, "imported_acceptance_criterion");
+      const platformReq = await host.withProject(ref, r => goalApplicationOf(r).acceptanceView(ref.project_id, "OLD-HUMAN").requirements.find(item => item.id === "OLD-HUMAN-C1"));
+      assert.equal(platformReq?.requires_person, true);
       const directory = await actions.invoke(goalsActions.list, { limit: 100 });
       for (const goal of directory.goals) {
         const state = await actions.invoke(goalsActions.state, { goal_id: goal.goal_id });
@@ -209,11 +212,12 @@ test("Web cache keeps the cursor of its authorized collection when a write lands
       }
       return result;
     } };
-    const cache = new Map(), options = { databasePath: project.database_path, projectId: project.project_id, homeDirectory: home };
-    const first = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    const first = await delayed.invoke(goalsActions.collection, {});
     assert.equal(first.goals.some(item => item.goal.goal_id === "after"), false);
-    const next = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    const next = await delayed.invoke(goalsActions.collection, {});
     assert.equal(next.goals.some(item => item.goal.goal_id === "after"), true);
     assert.ok(next.snapshot.cursor > first.snapshot.cursor);
+    const cache = new Map(), options = { databasePath: project.database_path, projectId: project.project_id, homeDirectory: home };
+    assert.equal("goals" in cachedMolisWorkWebView(cache, options), false, "platform WebView cache stores no Goals collection");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

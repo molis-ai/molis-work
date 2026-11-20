@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { PlacementRelatedItem } from "@molis-ai/molis-work-contracts/services/placement";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
@@ -12,6 +12,7 @@ test("IUI-07 IUI-08 IUI-26: a real Home card can choose a project and a receiver
   const { projectId } = b;
   assert.ok(projectId);
   const prefix = "/projects/" + projectId;
+  await addProjectPlugin(b.web, projectId, "goals");
   const title = "Keep this original Goal in place", target = await createProject(b.web, "Use the original here");
   const { goal } = await b.web.post<{ goal: { goal_id: string } }>(prefix + "/api/plugins/io.molis.work.goals/goals", {
     title, outcome: "A real original Goal in this project", idempotency_key: randomUUID(),

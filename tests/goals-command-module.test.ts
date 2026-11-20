@@ -67,19 +67,6 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
     }, { actor_id: "user-1", idempotency_key: "add-relation" });
     assert.match(relation.relation_id, /^relation-/u);
 
-    const guidance = goals.commands.addProjectGuidance({
-      project_id: "board-module",
-      actor_id: "user-1",
-      kind: "quality_bar",
-      content: "迁移必须保持功能无损。",
-      reason: "跨 Goal 复用",
-      confirmation_summary: "用户确认无损迁移",
-      user_confirmed: true,
-      idempotency_key: "add-guidance",
-    });
-    assert.equal(guidance.entry.revision, 1);
-    assert.match(goals.query.readProjectGuidance("board-module").runtime_prompt_prefix, /功能无损/u);
-
     const replay = goals.commands.createGoal("board-module", acceptedGoal("goal-parent", "父 Goal", "父结果"), {
       actor_id: "user-1",
       idempotency_key: "create-parent",

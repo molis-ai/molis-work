@@ -23,8 +23,9 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
   const at = { actor_id: "web-user", scope: { kind: "personal" as const, id: projectId } };
   artifacts.commands.registerVersion({ project_id: projectId, actor_id: "web-user", artifact_id: "a", version: 1, artifact_type_id: "io.example.report", schema_version: 1,
     producer: { plugin_id: "io.example", plugin_version: "1", binding_signature: "s" }, content: { kind: "inline", payload: { title: "a" } }, ...pinnedArtifact("a") });
-  const edge = (module: string, id: string) => ledger.commands.put(at, { key: `goal.input:${module}:${id}:a@1`, type: "goal.input", cause: "reason",
-    source: { module, id, version: null, scope: at.scope }, target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
+  // Batch 44 C6: an object's end names the plugin it is in; the kind's owner is the plugin that declared it, whatever the object kind says.
+  const edge = (pluginId: string, id: string) => ledger.commands.put(at, { key: `goal.input:${pluginId}:${id}:a@1`, type: "goal.input", cause: "reason",
+    source: { module: "plugins", plugin_id: pluginId, object_type: "goal", id, version: null, scope: at.scope }, target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
   const actions = new ActionService();
   actions.registerProvider({
     provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
@@ -37,16 +38,16 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
 
 test("RAC-421 S-82 an edge of a Goals link kind written by another module is not a Goal's link", async t => {
   const r = rig(t, artifactLinkKinds());
-  r.edge("example", "X1");
-  assert.deepEqual(await r.links(), { plugins: [], other: 1 }, "counted as some other link, never listed as a Goal");
-  r.edge("goals", "G1");
+  r.edge("io.example", "X1");
+  assert.deepEqual(await r.links(), { plugins: [], other: 1 }, "another plugin's object of the same kind is counted as some other link, never listed as a Goal");
+  r.edge("io.molis.work.goals", "G1");
   assert.deepEqual(await r.links(), { plugins: [{ plugin_id: "io.molis.work.goals", plugin_title: "Goals",
     objects: [{ id: "G1", title: "Goal G1", role: "input", proposal: false, open: { surface: "goals", id: "G1" } }] }], other: 1 }, "the owner's own edge is");
 });
 
 test("RAC-421 S-82 with the owner out of effect its kinds are gone, and the versions it linked stay readable", async t => {
   const r = rig(t, new Map());
-  r.edge("goals", "G1");
+  r.edge("io.molis.work.goals", "G1");
   assert.deepEqual(await r.links(), { plugins: [], other: 1 }, "no kind, so no Goal link and no failure");
   assert.equal(r.artifacts.query.getArtifactVersion(projectId, { artifact_id: "a", version: 1 })?.artifact_id, "a", "the linked version is still there to read");
 });

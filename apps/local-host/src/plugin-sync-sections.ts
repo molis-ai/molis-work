@@ -3,7 +3,7 @@ import type { ReplicaDatabase } from "@molis-ai/molis-work-contracts/platform/pl
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginSyncBinding, SyncSectionsDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { ProjectReplicaDefinition, ProjectReplicaRows, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { goalContextReplicationDefinition, CONTEXT_LEDGER_SCHEMA } from '@molis-ai/molis-work-module-context-ledger';
+import { relationEdgesReplicationDefinition, relationEdgesTriggerCondition, CONTEXT_LEDGER_SCHEMA } from '@molis-ai/molis-work-module-context-ledger';
 import { LOCAL_JOURNAL_SCHEMA_SQL, PROJECT_SECTIONS_INLINE_ENCODING, createProjectReplicaSection, createProjectReplicaJournal, mapReplicaSequences, createSqliteReplica, replicaMarkSql } from '@molis-ai/molis-work-storage';
 import { createProjectGoalContent } from './project-goal-content.js';
 import { pluginSyncAuthority } from './plugin-sync-authority.js';
@@ -25,7 +25,7 @@ function definitions(manifest: PluginManifest, value: SyncSectionsDefinition): P
       ...(table.projectColumn?{projectColumn:table.projectColumn}:{}),
       ...(table.parent?{where:`${table.parent.column} IN (SELECT ${table.parent.key} FROM ${table.parent.table} WHERE ${table.parent.projectColumn??'project_id'}=?)`,
         projectExpression:`(SELECT ${table.parent.projectColumn??'project_id'} FROM ${table.parent.table} WHERE ${table.parent.key}=$row.${table.parent.column})`}:{}) })) }));
-  for(const platform of value.platform){if(platform==='goal-context')result.push(goalContextReplicationDefinition());else if(platform==='attention')result.push(attentionContentReplicationDefinition());}
+  for(const platform of value.platform){if(platform==='relation-edges')result.push(relationEdgesReplicationDefinition(value.kind,manifest.plugin_id));else if(platform==='attention')result.push(attentionContentReplicationDefinition());}
   return result;
 }
 function exact(input:unknown,keys:readonly string[]):Record<string,unknown>{
@@ -78,7 +78,7 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
   const grants=()=>{
     port.assertActive();
     if(definition.journal)port.authorize('journal:project');
-    if(definition.platform.includes('goal-context')){port.authorize('context-ledger:read');port.authorize('context-ledger:write');}
+    if(definition.platform.includes('relation-edges')){port.authorize('context-ledger:read');port.authorize('context-ledger:write');}
     if(definition.platform.includes('attention')){port.authorize('attention:read');port.authorize('attention:write');}
     port.assertActive();
   };
@@ -104,7 +104,7 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
 /** Trusted platform tables exist only in the reference scratch; they are never plugin-owned objects. */
 export function sectionsPlatformPrelude(manifest:PluginManifest):string{
   const selected=(manifest.sync?.collections??[]).filter(c=>c.sections);
-  return (selected.some(c=>c.sections!.platform.includes('attention'))?ATTENTION_SCHEMA_SQL:'') + (selected.some(c=>c.sections!.platform.includes('goal-context'))?CONTEXT_LEDGER_SCHEMA:'') +
+  return (selected.some(c=>c.sections!.platform.includes('attention'))?ATTENTION_SCHEMA_SQL:'') + (selected.some(c=>c.sections!.platform.includes('relation-edges'))?CONTEXT_LEDGER_SCHEMA:'') +
     (selected.some(c=>c.sections!.journal)?LOCAL_JOURNAL_SCHEMA_SQL:'');
 }
 /** Changes to the explicitly joined platform slice participate in the same current baseline. */
@@ -112,9 +112,9 @@ export function sectionsPlatformSchema(manifest:PluginManifest,collectionId:stri
   const declared=manifest.sync?.collections.find(c=>c.id===collectionId)?.sections;if(!declared)return '';
   const mark=(project:string)=>replicaMarkSql(`json_array(${project},'${declared.kind}',${project})`).replace(/\breplica_/gu,namespace+'_replica_');
   let sql='';
-  if(declared.platform.includes('goal-context'))for(const operation of ['INSERT','UPDATE','DELETE']){
+  if(declared.platform.includes('relation-edges'))for(const operation of ['INSERT','UPDATE','DELETE']){
     const row=operation==='DELETE'?'OLD':'NEW';
-    sql+=`CREATE TRIGGER ${namespace}_context_${operation.toLowerCase()} ${operation==='DELETE'?'BEFORE':'AFTER'} ${operation} ON context_edges WHEN ${row}.scope_kind='personal' AND (json_extract(${row}.source_json,'$.module')='goals' OR json_extract(${row}.target_json,'$.module')='goals') BEGIN ${mark(row+'.scope_id')} END;\n`;
+    sql+=`CREATE TRIGGER ${namespace}_context_${operation.toLowerCase()} ${operation==='DELETE'?'BEFORE':'AFTER'} ${operation} ON context_edges WHEN ${relationEdgesTriggerCondition(row,manifest.plugin_id)} BEGIN ${mark(row+'.scope_id')} END;\n`;
   }
   if(declared.platform.includes('attention'))for(const table of attentionContentReplicationDefinition().tables)for(const operation of ['INSERT','UPDATE','DELETE']){
     const row=operation==='DELETE'?'OLD':'NEW';sql+=`CREATE TRIGGER ${namespace}_${table.name}_${operation.toLowerCase()} ${operation==='DELETE'?'BEFORE':'AFTER'} ${operation} ON ${table.name} BEGIN ${mark(row+'.project_id')} END;\n`;

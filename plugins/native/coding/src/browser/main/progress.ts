@@ -41,7 +41,7 @@ function drawCurrentGoal(_page: Page, add: (tag: "h3" | "p", text: string) => vo
   for (const item of goal.acceptance_criteria) {
     add("p", uiText.text("coding.goal.field", { label: uiText.text("coding.goal.acceptance"), value: uiText.text("coding.goal.criterion", { statement: item.statement, pass: item.pass_condition, method: item.decision_method }) }));
   }
-  for (const requirement of state.requirements) add("p", requirement.human_decision_required ? uiText.text("coding.goal.needs-person", { statement: requirement.statement }) : requirement.statement);
+  for (const requirement of current.requirements) add("p", requirement.requires_person ? uiText.text("coding.goal.needs-person", { statement: requirement.statement }) : requirement.statement);
   if (state.progress_summary) add("p", uiText.text("coding.progress.existing", { summary: state.progress_summary.summary }));
   if (state.goal_event_cursor !== value.report_goal.goal_event_cursor) add("p", uiText.text("coding.progress.goal-updated"));
 }

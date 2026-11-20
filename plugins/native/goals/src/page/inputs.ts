@@ -47,7 +47,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
       let subject: [string, string] | null = null;
       try { const value = JSON.parse(binding.source_ref); if (Array.isArray(value) && value.length === 2) subject = [String(value[0]), String(value[1])]; } catch { subject = null; }
       if (!subject) return "";
-      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-input-digest="${escapeHtml(binding.snapshot_digest ?? "")}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(uiText.text("goals.inputs.loading"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
+      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-target-kind="goal" data-placement-target-id="${goalId}" data-goal-input-digest="${escapeHtml(binding.snapshot_digest ?? "")}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong>${follows}<small data-placement-material-state>${escapeHtml(uiText.text("goals.inputs.loading"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
     }
     const pending = binding.source_type === "feed_item" && binding.state === "proposed";
     const stated = { proposed: uiText.text("goals.inputs.pending-confirmation"), confirmed: uiText.text("goals.inputs.confirmed") }[binding.state] ?? binding.state;
@@ -61,7 +61,7 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { escapeHtml, renderR
   });
   const rows = [...live, ...fixed].join("");
   // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
-  const create = creatable.map(({ station, title, label }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(label ?? title)}</button>`).join("");
+  const create = creatable.map(({ station, title, label }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-placement-target-kind="goal" data-placement-target-id="${goalId}" data-goal-id="${goalId}">${escapeHtml(label ?? title)}</button>`).join("");
   return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${uiText("goals.inputs.inputs")}</h3>
     <div class="placement-goal-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${uiText("goals.inputs.add-input")}</button><span>${uiText("goals.inputs.create-goal")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${uiText("goals.inputs.no-inputs-yet")}</p>`}

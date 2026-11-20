@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { CHARACTERS_CLIENT_PATH, deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { CHARACTERS_CLIENT_PATH, deferredSurfaceClients, pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
 import { assetProblems } from "../scripts/gates/page-assets-policy.mjs";
 import { buildBaseline, command, cachedMeasurement, reportMatches, trustedRun } from "../scripts/gates/page-assets-baseline.mjs";
 const script = fileURLToPath(new URL("../scripts/gates/page-assets.mjs", import.meta.url));
@@ -203,7 +203,7 @@ test("CCR-06 actual repository build measures all served workbench and plugin pa
   const report = JSON.parse(result.out); assert.deepEqual(report.discoveryMisses, []);
   for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js"]) assert.ok(report.measured[asset] > 0);
   // The stage's deferred surfaces and on-demand plugin sheets, and 角色's program, which the settings pages load (not a stage surface).
-  const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginSurfaceClients().filter(client => pluginOnDemandStylesheet(client.id)).map(client => `/assets/molis-work-plugins/${client.id}.css`)])].sort();
+  const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginWorkbenchPacks().filter(pack => pluginOnDemandStylesheet(pack.project_plugin_id)).map(pack => `/assets/molis-work-plugins/${pack.project_plugin_id}.css`)])].sort();
   assert.ok(bundles.length > 0); assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles);
 });
 

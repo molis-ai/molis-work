@@ -133,10 +133,10 @@ test("RAC-872: the platform no longer exports the Coding or Shelf contracts", as
   }
 });
 
-test("RAC-873 Audit #10: Shelf and Images discover providers by role via actions:delegate and import neither provider", () => {
+test("RAC-873 Audit #10: Shelf and Images discover providers by role and import neither provider", () => {
   assert.deepEqual(shelfManifest.capabilities.consumes, []);
   assert.deepEqual(imagesManifest.capabilities.consumes, []);
-  assert.ok(shelfManifest.permissions.some(item => item.permission === "actions:delegate"), "Shelf discovers document/preview role via actions:delegate");
+  assert.ok(shelfManifest.permissions.some(item => item.permission === "actions:invoke"), "Shelf discovers document/preview role via actions.dependencies");
   assert.ok(imagesManifest.permissions.some(item => item.permission === "actions:delegate"), "Images discovers file-copy intake role via actions:delegate");
   const sources = (root: string): string[] => readdirSync(root, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? sources(join(root, entry.name)) : entry.name.endsWith(".ts") ? [readFileSync(join(root, entry.name), "utf8")] : []);

@@ -111,10 +111,12 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   // is a mark on that work's tab and in the list of works, gone once it is seen.
   // On a project page the first place in the top strip says how much waits on the person, and this count is that same number
   // (WLN-39): the list behind it is still the notices and the plugins' items. It says it as an attribute; a change repaints here.
+  // A standalone workbench bar (such as the Assistant specimen frame, without the top strip) still owns the bar, so the bell
+  // reads 0 from [data-work-bar] instead of counting the notice list on its own.
   let headWatched = null;
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
-    const head = document.querySelector("[data-top-corner-toggle]");
+    const head = document.querySelector("[data-top-corner-toggle],[data-work-bar]");
     if (head && head !== headWatched) { headWatched = head; new MutationObserver(() => paintAttention()).observe(head, { attributes: true, attributeFilter: ["data-waiting"] }); }
     // With nothing on the line waiting, what the list holds keeps the bell in reach, without a number of its own.
     const listed = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting + attentionObjectsCount;

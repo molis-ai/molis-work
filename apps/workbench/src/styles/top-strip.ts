@@ -121,6 +121,7 @@ ${TOP}{
     & .plugin-rail-item :is(.plugin-rail-hint,.plugin-rail-confirm){grid-column:3;grid-row:1}
     & .plugin-rail-item .plugin-rail-hint{opacity:0;transition:opacity ${HOVER}}
     & :is(.plugin-rail-tile:not(.is-confirming):is(:hover,:focus-within),.plugin-rail-items>.plugin-rail-item:is(:hover,:focus-visible)) .plugin-rail-hint{opacity:1}
+    @media (hover:none),(pointer:coarse){& :is(.plugin-rail-tile:not(.is-confirming),.plugin-rail-items>.plugin-rail-item) .plugin-rail-hint{opacity:1}}
   }
   &>.desktop-titlebar-drag{order:3;flex:1 1 0;width:auto;min-width:0}
 

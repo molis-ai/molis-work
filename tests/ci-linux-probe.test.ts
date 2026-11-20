@@ -453,48 +453,12 @@ test("on this repository: no browser file is run, known darwin and live files ar
   assert.deepEqual(launching.filter((name) => !marks(`tests/${name}`)?.includes("browser")), [], "every file that opens the goal browser is a browser file");
 });
 
-// Decision #14: the probe informs and does not block, and its own rules are checked by the blocking job. It stayed that way when the
-// product subset it led to joined Verify (2026-10-31; tests/ci-product-subset.test.ts holds that job's lines).
-test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and that Verify does not wait for", () => {
-  const probeJob = jobBlock("linux-probe");
-  assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
-  assert.match(probeJob, /^    continue-on-error: true$/m, "a red probe must not turn the workflow red");
-  // Decision #14 joins the test jobs to Verify; the existing nightly and manual probe entry points stay unchanged.
-  assert.match(probeJob, /^    if: \$\{\{ github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch' \}\}$/m);
-  assert.doesNotMatch(probeJob, /inputs\.linux_probe/, "a manual run still starts the probe without a new opt-in");
-  const condition = /^    if: \$\{\{ (.*) \}\}$/m.exec(probeJob)?.[1];
-  assert.ok(condition, "the actual probe condition exists");
-  for (const [event, runs] of [["pull_request", false], ["push", false], ["merge_group", false], ["schedule", true], ["workflow_dispatch", true]] as const) {
-    assert.equal(Boolean(evaluateExpression(condition, { "github.event_name": event })), runs, `${event}: the existing probe entry point is preserved`);
-  }
+// The nightly linux-probe job was superseded by full-suite.yml and removed from ci.yml; the shared probe script and
+// classification/runner modules stay tested by a blocking job.
+test("ci.yml: the retired linux-probe job is absent while a blocking job still verifies the shared probe rules", () => {
+  assert.doesNotMatch(workflow, /^  linux-probe:/m, "linux-probe job is retired from ci.yml");
   assert.match(workflow, /^  schedule:\n    - cron: "[^"]+"$/m);
   assert.match(workflow, /^  group: ci-.*github\.event_name == 'schedule' && 'nightly'/m);
-  assert.match(probeJob, /node scripts\/ci-linux-probe\.mjs --expect-platform linux /, "the probe refuses to record results from another platform");
-  assert.match(probeJob, /run: exec node scripts\/ci-linux-probe\.mjs /, "the probe is the step's own process, so a cancel's signal reaches it and not only the shell around it");
-  assert.match(probeJob, /uses: actions\/upload-artifact@/);
-  // The workflow cancels a superseded run (cancel-in-progress) and the job has a time limit; the report is kept for those too.
-  assert.match(probeJob, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the upload runs when the job is cancelled or timed out");
-  assert.match(probeJob, /^    timeout-minutes: \d+$/m, "a stuck run is stopped by the job, which cancels it and lets the probe write its partial report");
-  const needs = workflow.split("\n").filter((line) => /^\s*needs:|^\s+- \S+\s*$/.test(line) && !/^\s+- (name|uses|run):/.test(line));
-  assert.ok(needs.every((line) => !line.includes("linux-probe")), `no job needs linux-probe: ${needs.join(" | ")}`);
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
-});
-
-test("ci.yml: a blocking job runs the probe's own rules", () => {
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-linux-probe.test.ts")), `a job that verify needs (${blockingJobs().join(", ")}) runs tests/ci-linux-probe.test.ts`);
-});
-
-// R-58: the probe job is a matrix of six shards, each with uv at the version and action pin of the full suite (the managed Python installer test runs real uv).
-test("RAC-719 ci.yml: the Linux probe is six shards that cover the list, each installing uv as full-suite.yml does", () => {
-  const probeJob = jobBlock("linux-probe");
-  assert.deepEqual(/^        shard: \[([\d, ]+)\]$/m.exec(probeJob)?.[1]?.split(",").map((value) => Number(value.trim())), [1, 2, 3, 4, 5, 6], "the matrix is shard 1 to 6");
-  assert.match(probeJob, /^      fail-fast: false$/m, "one shard's trouble does not cancel the others");
-  assert.match(probeJob, /--shard \$\{\{ matrix\.shard \}\}\/6$/m, "the divisor is the number of shards in the matrix");
-  assert.match(probeJob, /name: linux-probe-\$\{\{ matrix\.shard \}\}$/m, "each shard keeps its own report");
-  const uv = (text: string) => ({ action: /uses: (astral-sh\/setup-uv@[0-9a-f]{40})/.exec(text)?.[1], version: /setup-uv@[\s\S]*?version: "([^"]+)"/.exec(text)?.[1] });
-  const full = readFileSync(fileURLToPath(new URL("../.github/workflows/full-suite.yml", import.meta.url)), "utf8");
-  assert.ok(uv(full).action && uv(full).version, "the full suite installs uv from a pinned action and a fixed version");
-  assert.deepEqual(uv(probeJob), uv(full), "the probe installs the same uv the same way");
-  assert.ok(probeJob.indexOf("setup-uv@") < probeJob.indexOf("run: pnpm build"), "uv is there before the build and the tests");
-  assert.match(probeJob, /^    continue-on-error: true$/m, "the probe still decides nothing");
 });

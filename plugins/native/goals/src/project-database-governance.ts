@@ -56,48 +56,6 @@ export const GOALS_GOVERNANCE_SQL = `
     ON goal_tree_proposal_items(project_id, state, item_id);
 `;
 
-/** The v2 decision tables that explicit maintenance moves into the platform library. */
-export const GOALS_V2_DECISIONS_SQL = `
-  CREATE TABLE goal_tree_proposal_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
-    decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'revised', 'conflict')),
-    actor_id TEXT NOT NULL,
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('runtime_dialogue', 'web', 'management')),
-    runtime_actor_id TEXT,
-    conversation_ref TEXT NOT NULL,
-    message_ref TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
-  );
-  CREATE INDEX goal_tree_proposal_decisions_item_idx
-    ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
-
-  CREATE TABLE IF NOT EXISTS goal_event_trusted_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    actor_id TEXT NOT NULL,
-    actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('web', 'management')),
-    conversation_ref TEXT NOT NULL,
-    message_ref TEXT NOT NULL,
-    request_id TEXT,
-    selected_option_id TEXT,
-    conclusion TEXT NOT NULL,
-    accepts_requirements INTEGER NOT NULL CHECK (accepts_requirements IN (0, 1)),
-    scope_json TEXT NOT NULL,
-    change_json TEXT,
-    recorded_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
-`;
-
 /** Goals owns the outcome of materializing each item; the platform owns the approval and who gave it. */
 export const GOALS_TREE_EFFECTS_SQL = `
   CREATE TABLE goal_tree_item_effects (

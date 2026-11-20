@@ -3686,7 +3686,7 @@ export interface PluginArtifactClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
-    listConsumable(filter?: PluginConsumableFilter): PluginConsumableVersion[];
+    listConsumable(): PluginConsumableVersion[];
     join?<T>(transaction: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
@@ -3760,17 +3760,11 @@ export interface PluginBackgroundExecution<T> {
     cancel(): void;
 }
 
-export interface PluginConsumableFilter {
-    artifact_type_id?: string;
-    producer_plugin_id?: string;
-}
-
 export interface PluginConsumableVersion extends ArtifactReference {
     kind: "artifact" | "process_item";
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
-    producer_plugin_id: string;
 }
 
 export interface PluginContextLedgerClient {
@@ -4583,9 +4577,7 @@ export interface PluginMaterialsClient {
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
-    attach?(upload: MaterialUpload, request?: {
-        signal?: AbortSignal;
-    }): Promise<ConversationAttachment>;
+    attach?(upload: MaterialUpload, request?: ConversationAttachmentUploadRequest): Promise<ConversationAttachment>;
     readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }
 
@@ -4970,8 +4962,7 @@ export interface PluginProjectDatabase extends PluginDatabase {
         read(history?: boolean): ProjectApprovalRules;
     };
     readonly approvalHistory?: {
-        read(id: string): ProjectTrustedDecision | ProjectDecisionHistory | null;
-        transferred(subject: ProjectDecisionHistory["subject"]): readonly ProjectDecisionHistory[];
+        read(id: string): ProjectTrustedDecision | null;
     };
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
 }

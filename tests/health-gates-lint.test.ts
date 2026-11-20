@@ -606,6 +606,19 @@ test("a stricter rule set passes, and both sides are measured with the head's ru
   assert.match(run.out, /2 console calls/, "scripts/tool.mjs is counted now, next to noisy.ts");
 });
 
+test("scoped --base lint follows relative importers when a callee becomes async", () => {
+  branch("sync-base", () => {
+    put("packages/alpha/src/sync-callee.ts", "export function syncWork() { return 1; }\n");
+    put("packages/alpha/src/sync-caller.ts", "import { syncWork } from './sync-callee.js';\nexport function runSync() { syncWork(); }\n");
+  });
+  git("checkout", "-q", "-B", "async-callee");
+  put("packages/alpha/src/sync-callee.ts", "export async function syncWork() { return 1; }\n");
+  commit("callee becomes async while caller is untouched");
+  const caught = gate("--base", "sync-base");
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /floating promises in packages\/alpha\/src\/sync-caller\.ts 0 → 1/);
+});
+
 test("the report lists each count per file, next to the merge-base's", () => {
   git("checkout", "-q", "-f", "main");
   assert.equal(gate("--update").code, 0);

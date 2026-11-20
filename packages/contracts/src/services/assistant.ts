@@ -140,6 +140,7 @@ export interface AssistantMaterialText {
   text?: string;
   truncated?: boolean;
   url?: string;
+  original_available?: true;
   source?: AssistantSurfaceRef;
   object?: AssistantObjectRef;
   draft?: boolean;
@@ -212,7 +213,6 @@ export interface AssistantLanding {
   after?: string;
   selected?: string;
 }
-
 /** A material the person put into this message, or one the page offered and they kept. */
 export interface AssistantMaterial {
   material_id: string;
@@ -230,6 +230,7 @@ export interface AssistantMaterial {
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, kept by the platform's material service as a conversation attachment (only its reference here). */
   image?: { attachment: MaterialRef; media_type: string; byte_length: number };
+  file_attachment?: MaterialRef;
   /** In a work's view: an image whose bytes are no longer kept (removed, or brought before attachments were kept); it cannot be shown or sent again. */
   expired?: boolean;
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
@@ -241,7 +242,6 @@ export interface AssistantMaterial {
   /** From unsaved edits: the saved object says something else. */
   draft?: boolean;
 }
-
 /**
  * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven through the
  * six actions of the work-executor protocol it publishes, and its own page shows the same session. The plugin is kept by `plugin_id`

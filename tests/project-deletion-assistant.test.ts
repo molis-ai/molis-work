@@ -28,8 +28,6 @@ async function assistantHome(t: { after(fn: () => Promise<void> | void): void })
   for (const work of [gone, archived, kept, personal]) {
     store.followUps.save(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
-    // Rows left in the table no longer written (jobs are steps on the work's graph now) still go with their work.
-    db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?)").run(`job-${work.work_id}`, ACTOR, work.work_id, "{}");
     store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: { original: "做完了" } }, `notice-${work.work_id}`);
     store.addRound(work.work_id, { run_id: `run-${work.work_id}`, text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
     store.relations.link({ work_id: work.work_id, project_id: work.project_ref?.project_id ?? null }, "origin", { kind: "pages.doc", id: `doc-${work.work_id}`, revision: "1" }, "从文稿开始");
@@ -50,7 +48,7 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.equal(purged, 2);
   assert.deepEqual(store.list(ACTOR).map(work => work.title).sort(), ["个人工作", "留下的工作"]);
   assert.deepEqual(store.list(ACTOR, { archived: true }), []);
-  for (const table of ["assistant_rounds", "assistant_followups", "assistant_jobs", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
+  for (const table of ["assistant_rounds", "assistant_followups", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
   assert.deepEqual(store.followUps.list(ACTOR).map(item => item.work_id).sort(), [kept.work_id, personal.work_id].sort());
   assert.deepEqual(store.relations.forWork({ work_id: gone.work_id, project_id: "project-gone" }), [], "the relations it recorded are removed");
   assert.deepEqual(store.relations.forWork({ work_id: archived.work_id, project_id: "project-gone" }), []);
@@ -61,23 +59,29 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.equal(await purgeAssistantProject(home, "project-gone"), 0, "again: nothing left, and nothing needs the live service");
 });
 
-test("S-conversation-attachments: deleting a project drops the pictures only its Assistant works sent, and keeps one another work still shows", async t => {
+test("S-conversation-attachments: deleting a project drops the pictures only its Assistant works sent, with the same rule for documents (B35-R5)", async t => {
   const { home, store, gone, kept } = await assistantHome(t);
   const attachments = assistantAttachments(home);
-  // Two pictures (by their bytes): one only the deleted project's work sent, one both works sent.
   const picture = (tag: string) => Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from(tag)]).toString("base64");
   const only = await attachments.attach({ file_name: "only.png", data_base64: picture("only-in-the-deleted-project") });
   const shared = await attachments.attach({ file_name: "shared.png", data_base64: picture("in-both-projects") });
+  const sharedText = "Shared original";
+  const doc = (title: string, contents: string) => attachments.attach({ file_name: title, data_base64: Buffer.from(contents).toString("base64") });
+  const onlyDoc = await doc("only.txt", "Deleted project's original"), sharedDoc = await doc("shared.txt", sharedText);
   const material = (attached: typeof only) => ({ material_id: `image-${attached.title}`, kind: "image" as const, title: attached.title, explicit: true,
     image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } });
-  store.addRound(gone.work_id, { run_id: "run-pictures", text: "看图", materials: [material(only), material(shared)], context: null, started_at: new Date().toISOString() });
-  store.addRound(kept.work_id, { run_id: "run-shared", text: "看图", materials: [material(shared)], context: null, started_at: new Date().toISOString() });
+  const file = (attached: typeof onlyDoc) => ({ material_id: attached.title, kind: "file" as const, title: attached.title, explicit: true, file_attachment: attached.ref });
+  store.addRound(gone.work_id, { run_id: "run-pictures", text: "看图", materials: [material(only), material(shared), file(onlyDoc), file(sharedDoc)], context: null, started_at: new Date().toISOString() });
+  store.addRound(kept.work_id, { run_id: "run-shared", text: "看图", materials: [material(shared), file(sharedDoc)], context: null, started_at: new Date().toISOString() });
 
   await purgeAssistantProject(home, "project-gone", { stop: async () => undefined });
 
   assert.equal(attachments.holds(only.ref), false, "a picture no work names any more goes with its bytes");
   await assert.rejects(attachments.read(only.ref, { as: "image" }), { code: "material.attachment.not_found" });
   assert.equal(attachments.holds(shared.ref), true, "a picture the other project's work still shows stays");
+  await assert.rejects(attachments.read(onlyDoc.ref, { as: "original" }), { code: "material.attachment.not_found" });
+  const read = await attachments.read(sharedDoc.ref, { as: "original" });
+  assert.equal(Buffer.from(read.original!).toString("utf8"), sharedText);
 });
 
 test("a Home without an Assistant library has nothing to clear and gets none", async t => {

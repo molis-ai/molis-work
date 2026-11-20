@@ -234,7 +234,7 @@ export const codingManifest: PluginManifest = {
     // One picture of at most 5 MB, as base64 in JSON (routes-images.ts).
     { route_id: "coding.attachments", method: "POST", path: "/sessions/:sessionId/attachments", max_body_bytes: 7_100_000 },
     { route_id: "coding.commands", method: "GET", path: "/commands" },
-    { route_id: "coding.round-image", method: "GET", path: "/sessions/:sessionId/runs/:runId/images/:materialId" },
+    { route_id: "coding.round-images", method: "GET", path: "/sessions/:sessionId/runs/:runId/images" },
     { route_id: "coding.scope-check", method: "POST", path: "/sessions/:sessionId/scope-check" },
     { route_id: "coding.queued-round", method: "POST", path: "/sessions/:sessionId/queued" },
     { route_id: "coding.messages", method: "GET", path: "/sessions/:sessionId/messages" },

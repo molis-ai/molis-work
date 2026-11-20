@@ -138,6 +138,7 @@ export const CONVERSATION_ATTACHMENT_SUBJECT_KIND = "conversation_attachment";
 export const CONVERSATION_ATTACHMENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
 export type ConversationAttachmentImageType = (typeof CONVERSATION_ATTACHMENT_IMAGE_TYPES)[number];
 export const CONVERSATION_ATTACHMENT_LIMITS = {
+  round_images: 6,
   /** A picture: what the model providers take in one image. */
   image_bytes: 5 * 1024 * 1024,
   /** A document read for its text (PDF, Office, text, a picture's words, a recording's transcript). */
@@ -158,7 +159,7 @@ export interface ConversationAttachment {
   /** A document's text as the platform read it; absent on a picture. `pages` is null where a format has no pages. */
   text?: { chars: number; truncated: boolean; pages: number | null; coverage: MaterialExtraction["coverage"]["status"]; issues: string[] };
 }
-/** An attachment read back: its text, or a picture's bytes. */
+/** An attachment read back: its text or a picture for the model. */
 export interface ConversationAttachmentContent {
   attachment: ConversationAttachment;
   text?: string;
@@ -166,3 +167,5 @@ export interface ConversationAttachmentContent {
 }
 /** How one caller reads back what it attached. */
 export interface ConversationAttachmentRequest { signal?: AbortSignal; as: "text" | "image" }
+/** A caller with an image-only entry can refuse other files before any extraction or write. */
+export interface ConversationAttachmentUploadRequest { signal?: AbortSignal; expected_kind?: "image" }

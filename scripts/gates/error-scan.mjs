@@ -209,6 +209,7 @@ function codePositions(scans) {
 }
 
 const passes = new WeakMap();
+const scanFileCache = new Map();
 /**
  * Measures a snapshot: { subclasses, shape, status } as { file: count }, `sites` as { file: [{ line, code }] }, and `details` as
  * { count record: { file: [text] } } so a failure can name the line. `isSource` is the entry's own test for a source file.
@@ -220,7 +221,11 @@ export function measureErrors(snapshot, isSource) {
   for (const file of snapshot.files) {
     if (!isSource(file)) continue;
     const text = snapshot.read(file);
-    if (text !== null) scans.set(file, scanFile(file, text));
+    if (text === null) continue;
+    const cached = scanFileCache.get(file);
+    const scanned = cached && cached.text === text ? cached.scanned : scanFile(file, text);
+    if (!cached || cached.text !== text) scanFileCache.set(file, { text, scanned });
+    scans.set(file, scanned);
   }
   const positions = codePositions(scans);
   result = { subclasses: {}, shape: {}, status: {}, sites: {}, details: new Map() };

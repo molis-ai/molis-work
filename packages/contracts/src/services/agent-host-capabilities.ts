@@ -1,6 +1,7 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
+import { CONVERSATION_ATTACHMENT_LIMITS } from "./materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
 import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "./agent-host-ports.js";
@@ -226,7 +227,7 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
     { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
       properties: { ...materialFields, text: text(1_000_000), ...materialSource } },
   ] } },
-  image_materials: { type: "array", maxItems: 6, items: { type: "object", required: ["material_id", "title", "attachment", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
+  image_materials: { type: "array", maxItems: CONVERSATION_ATTACHMENT_LIMITS.round_images, items: { type: "object", required: ["material_id", "title", "attachment", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     attachment: MATERIAL_REF_SCHEMA, media_type: entryId } } },
   skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema }, auto_skills: { const: false },
   mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version", "configuration_version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },

@@ -39,7 +39,7 @@ import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
 import { eventServes, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
 import { AssistantReportRounds } from "./assistant-task-reports.js";
-import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
+import { AssistantMaterialAccess } from "./assistant-attachments.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
 import { titleFrom, recoveryView, type CapabilityTitles } from "./assistant-present.js";
 import { AssistantWorkReads } from "./assistant-work-reads.js";
@@ -94,7 +94,8 @@ export class AssistantService {
   readonly dispatcher: AssistantDispatch;
   readonly outcomes: AssistantOutcomes;
   readonly workSubtasks: AssistantWorkSubtasks;
-  readonly materials: AssistantRoundMaterials;
+  private readonly materials: AssistantRoundMaterials;
+  readonly materialAccess: AssistantMaterialAccess;
   readonly memory: AssistantMemoryBridge;
   readonly budget: AssistantBudget;
   readonly notices: AssistantNotices;
@@ -148,7 +149,8 @@ export class AssistantService {
         try { const result = await this.hostStarted(() => this.dispatcher.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy), handed: () => { handed = true; } })); if (request) store.requests.finishRequest(actorId, request, result); return result; }
         catch (error) { if (request && !handed) store.requests.releaseRequest(actorId, request); throw error; }
       } });
-    this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materials.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
+    this.materialAccess = new AssistantMaterialAccess(store, actorId, ports.attachments);
+    this.reads = new AssistantWorkReads(store, ports, actorId, now, { capabilityTitles: (...a) => this.outcomes.capabilityTitles(...a), rememberTitle: (...a) => this.outcomes.rememberTitle(...a), rememberedTitle: (...a) => this.outcomes.rememberedTitle(...a), executorOf: (...a) => this.dispatcher.executorOf(...a), holdsImage: (...a) => this.materialAccess.holdsImage(...a), continuations: this.continuations, delegations: this.delegations });
     this.dispatcher = new AssistantDispatch(store, ports, actorId, now, this.starting, this.titles, this.recalled, this.chosenMemory, { assistantPart: (...a) => this.reads.assistantPart(...a), workObjects: (...a) => this.reads.workObjects(...a), stateSafely: (...a) => this.reads.stateSafely(...a), publicWork: (...a) => this.reads.publicWork(...a), readSubject: (...a) => this.materials.readSubject(...a), roundMaterials: (...a) => this.materials.roundMaterials(...a), assertBudget: (...a) => this.budget.assertBudget(...a), workUsage: (...a) => this.budget.workUsage(...a), memoryForRound: (...a) => this.memory.memoryForRound(...a), notice: (...a) => this.notices.notice(...a), read: (...a) => this.read(...a), continuations: this.continuations, delegations: this.delegations });
     this.outcomes = new AssistantOutcomes(store, ports, actorId, now, this.titles, { executorOf: (...a) => this.dispatcher.executorOf(...a), dispatch: (...a) => this.dispatcher.dispatch(...a), latestRun: (...a) => this.reads.latestRun(...a), read: (...a) => this.read(...a), jobs: this.jobs, stepGate: this.continuations.stepGate });
     this.workSubtasks = new AssistantWorkSubtasks(store, ports, actorId, { outcomes: this.outcomes, dispatch: (...args) => this.dispatcher.dispatch(...args), executorOf: (...args) => this.dispatcher.executorOf(...args), parentOf: work => this.delegations.parentOf(work), read: workId => this.read(workId),
@@ -210,8 +212,7 @@ export class AssistantService {
     const text = input?.reask !== undefined ? reaskTask() : checkText(input?.text, "要发送的内容", MAX_TEXT);
     if (input) input = mainSendInput(this.store, this.actorId, input, to => sendScope(to.scope, caller, to.executor));
     const original_input = sentOriginal(input, caller.original_input, writtenBy);
-    let materials = checkMaterials(input.materials);
-    checkHeldImages(materials, image => this.materials.holdsImage(image));
+    let materials = this.materialAccess.checkSend(input.materials);
     const context = checkContext(input.context);
     const choice = input.executor;
     if (choice !== undefined && choice.kind !== "assistant" && !(choice.kind === "plugin" && typeof choice.plugin_id === "string" && choice.plugin_id)) throw assistantErrors.invalid("不认识的执行者");
@@ -226,8 +227,6 @@ export class AssistantService {
     if (input.subtask) {
       if (input.work_id !== input.subtask.binding?.work_id || !["send", "continue"].includes(input.subtask.operation)
         || input.character !== undefined || input.reask !== undefined || input.target === "answer" || input.delivery !== undefined) throw assistantErrors.invalid("Invalid subtask input target");
-      // A completed request remains readable after this child advances or is taken back.
-      // Fresh requests are checked below, before any Work input or execution effect.
       this.store.get(this.actorId, input.work_id);
     }
     const claim = this.store.requests.claimRequest(this.actorId, String(input.request_id ?? ""), input.work_id);
@@ -242,6 +241,7 @@ export class AssistantService {
       const assertLifetime = existing && existing.executor.kind === "assistant" && !existing.reply_target && !(input.delivery === "after-run" && input.target !== "answer")
         ? await holdExistingWorkLifetime(this.ports, existing) : undefined;
       const scope = existing ?? { project_ref: sendScope(input.scope, caller, choice).kind === "project" ? caller.project_ref : undefined };
+      materials = await this.materialAccess.documentInputs(materials);
       materials = await readComposerMaterials(materials, scope, this.ports);
       await caller.beforeStart?.();
       assertSendCurrent(stillCurrent);

@@ -44,12 +44,12 @@ test("PWA-155 PWA-157 an ended task that reports to the Assistant is reported on
   await change(null);
   assert.deepEqual(read, [], "the Assistant's own store changing reads no table while nothing waits");
   await change("p");
-  assert.deepEqual(asked.map(one => [one.project_id, one.row.subject.id, one.end]), [["p", "t1", "done"]], "only the ended row that reports here: not the running one, not the unmarked one");
+  assert.deepEqual(asked.map(one => [one.project_id, one.tasks.map(task => [task.row.subject.id, task.end])]), [["p", [["t1", "done"]]]], "only the ended row that reports here: not the running one, not the unmarked one");
   await change("p");
   assert.equal(asked.length, 1, "the same end is reported once");
   tables.set("p", table(row({ state: "failed", updated_at: "2026-11-15T11:00:00.000Z" })));
   await change("p");
-  assert.deepEqual(asked.map(one => one.end), ["done", "failed"], "a new end of it is a new report");
+  assert.deepEqual(asked.map(one => one.tasks.map(task => task.end)), [["done"], ["failed"]], "a new end of it is a new report");
   watcher.close();
   assert.equal(listening(), false, "closed, it hears nothing more");
 });
@@ -105,18 +105,18 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
   let latest: { phase: AgentRunView["phase"] } | null = null, continuation: string | undefined, refuse: Error | undefined;
   const started: string[] = [], followed = new Set<string>();
   const rounds = (on: AssistantStore) => new AssistantReportRounds({ store: on, actorId: "user", session: async () => ({ latest_run: latest }), continuation: async () => continuation,
-    start: async (_work, text) => { if (refuse) throw refuse; started.push(text); }, follows: async (_project, job) => followed.has(job) });
+    start: async (_work, text) => { if (refuse) throw refuse; started.push(text); }, followed: async () => followed });
   const reportRounds = rounds(store);
   // Ends after the main conversation exists (an end from before it is not news to it, below).
   const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
-  const report: TaskReport = { project_id: "p", row: row({ updated_at: later(1) }), end: "done" };
+  const report: TaskReport = { project_id: "p", tasks: [{ row: row({ updated_at: later(1) }), end: "done" }] };
   try {
     assert.equal(reportRounds.reportsTo("p"), false);
     assert.equal(await reportRounds.report(report), "none", "no main conversation in the project yet: nothing to report to");
     const main = store.create({ actor_id: "user", title: "", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
     assert.equal(reportRounds.reportsTo("p"), true);
-    assert.equal(await reportRounds.report({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }), "none",
+    assert.equal(await reportRounds.report({ project_id: "p", tasks: [{ row: row({ subject: { kind: "demo_task", id: "t0" }, updated_at: "2020-01-01T00:00:00.000Z" }), end: "done" }] }), "none",
       "a task that ended before the main conversation existed is not told to it");
     latest = { phase: "running" };
     assert.equal(await reportRounds.report(report), "later", "answering now: later");
@@ -130,14 +130,14 @@ test("PWA-155 PWA-157 the Assistant tells the person once and starts one round t
     const notices = () => (db.prepare("SELECT kind, work_id FROM assistant_notices").all() as Array<{ kind: string; work_id: string }>).map(one => [one.kind, one.work_id]);
     assert.deepEqual(notices(), [["completed", main.work_id]]);
     // A round that began in between: the report waits for it, nothing is marked told.
-    const other: TaskReport = { project_id: "p", row: row({ subject: { kind: "demo_task", id: "t9" }, updated_at: later(2) }), end: "failed" };
+    const other: TaskReport = { project_id: "p", tasks: [{ row: row({ subject: { kind: "demo_task", id: "t9" }, updated_at: later(2) }), end: "failed" }] };
     refuse = Object.assign(new Error("busy"), { code: "assistant.state" });
     assert.equal(await reportRounds.report(other), "later");
     assert.equal(notices().length, 1);
     refuse = undefined;
     // PWA-155: a job a conversation started and follows is that conversation's news, whatever its row says.
     followed.add("t7");
-    assert.equal(await reportRounds.report({ project_id: "p", row: row({ subject: { kind: "demo_task", id: "t7" }, updated_at: later(3) }), end: "done" }), "none");
+    assert.equal(await reportRounds.report({ project_id: "p", tasks: [{ row: row({ subject: { kind: "demo_task", id: "t7" }, updated_at: later(3) }), end: "done" }] }), "none");
     assert.deepEqual([started.length, notices().length], [1, 1]);
     // Restarted: the same end is not reported again.
     assert.equal(await rounds(new AssistantStore(db)).report(report), "none");
@@ -155,7 +155,7 @@ test("PWA-156 the Assistant starts a report as the Host, with a round that only 
   try {
     const main = store.create({ actor_id: "user", title: "", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
     store.update("user", main.work_id, null, { session_id: "s-main" });
-    assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
+    assert.equal(await service.reports.report({ project_id: "p", tasks: [{ row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }] }), "reported");
     assert.deepEqual(intents, [{ byHost: true, report_only: true }], "as the Host, a round that only reports");
   } finally { service.continuations.close(); db.close(); }
 });
@@ -196,7 +196,7 @@ test("RRC-01 RRC-02 rounds that only report neither use up nor start again what 
     assert.deepEqual(await service.continuations.takeUp(store.get("user", work.work_id)), { run: { run_id: "run-1", session_id: "s-main" } },
       "seven rounds it went on in and three reports after them: the eighth on its own still starts");
     view = undefined; // its continuation taken up: nothing eligible is left for a report to wait on
-    assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
+    assert.equal(await service.reports.report({ project_id: "p", tasks: [{ row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }] }), "reported");
     assert.equal(stored("run-2")?.report_only, true, "the report's own round is stored as one");
     eligible("k9");
     const refused = await service.continuations.takeUp(store.get("user", work.work_id));
@@ -234,4 +234,68 @@ test("RRC-03 a store written before opens as it is, at the same version: rounds 
     store.addRound("w-old", roundOf("new-report", { written_by: "host", report_only: true }));
     assert.equal(store.rounds("w-old", 1)[0]?.report_only, true, "a report from now on is stored as one");
   } finally { db.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+// Batch 97-2 (specs/backlog/BL-work-line-report-batch.md): what one read of a project's table finds ended goes to its main
+// conversation in one round; a busy conversation has all of it wait; each task is still told once, by its own notice.
+const ENDED_AT = new Date(Date.now() + 60_000).toISOString(); // after the main conversations below exist
+const ended = (id: string, over: Record<string, unknown> = {}) => row({ subject: { kind: "demo_task", id }, title: `任务${id}`, updated_at: ENDED_AT, ...over });
+
+test("WRB-01 WRB-02 two tasks of one project ending together are one report; another project's are its own", async () => {
+  const tables = new Map([["p", table(ended("a"), ended("b", { state: "failed" }))], ["q", table(ended("c"))]]);
+  const { asked, change } = reports(tables);
+  await change("p");
+  await change("q");
+  assert.deepEqual(asked.map(one => [one.project_id, one.tasks.map(task => [task.row.subject.id, task.end])]),
+    [["p", [["a", "done"], ["b", "failed"]]], ["q", [["c", "done"]]]], "one report per project and read, never one that mixes projects");
+});
+
+test("WRB-03 a busy main conversation has the whole batch wait, and what ended meanwhile joins it", async () => {
+  let busy = true;
+  const tables = new Map([["p", table(ended("a"), ended("b"))]]);
+  const { asked, change } = reports(tables, () => busy ? "later" : "reported");
+  await change("p");
+  tables.set("p", table(ended("a"), ended("b"), ended("c")));
+  busy = false;
+  await change(null);
+  assert.deepEqual(asked.map(one => one.tasks.map(task => task.row.subject.id)), [["a", "b"], ["a", "b", "c"]], "nothing told while busy; then all three in one report");
+  await change("p");
+  assert.equal(asked.length, 2, "and each only once");
+});
+
+test("WRB-01 WRB-03 WRB-04 one round lists every result, busy waits whole, a retry tells each task once, and another project stays apart", async () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  let latest: { phase: AgentRunView["phase"] } | null = { phase: "running" }, refuse: Error | undefined;
+  const started: Array<{ work: string; text: string }> = [];
+  const rounds = (on: AssistantStore) => new AssistantReportRounds({ store: on, actorId: "user", session: async () => ({ latest_run: latest }), continuation: async () => undefined,
+    start: async (work, text) => { if (refuse) throw refuse; started.push({ work: work.work_id, text }); }, followed: async () => new Set() });
+  const reportRounds = rounds(store);
+  const notices = () => (db.prepare("SELECT work_id, body FROM assistant_notices ORDER BY created_at").all() as Array<{ work_id: string; body: string }>)
+    .map(one => [one.work_id, /任务[a-z]/u.exec(one.body)?.[0]]);
+  try {
+    const p = mainWork(store);
+    const q = store.update("user", store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "q" }, project_ref: { project_id: "q", storage_key: "memory:q" }, origin: null, main: true }).work_id, null, { session_id: "s-q" });
+    const both: TaskReport = { project_id: "p", tasks: [{ row: ended("a"), end: "done" }, { row: ended("b", { state: "failed", step: { text: "缺少权限" } }), end: "failed" }] };
+    assert.equal(await reportRounds.report(both), "later", "busy: the whole batch waits");
+    latest = { phase: "completed" };
+    refuse = Object.assign(new Error("busy"), { code: "agent.session_busy" });
+    assert.equal(await reportRounds.report(both), "later", "a round began in between: still all of it waits");
+    assert.deepEqual([started.length, notices().length], [0, 0], "nothing started, nobody told");
+    refuse = undefined;
+    assert.equal(await reportRounds.report(both), "reported");
+    assert.equal(started.length, 1, "one round for both");
+    assert.equal(started[0]!.work, p.work_id);
+    assert.match(started[0]!.text, /2 项后台任务[\s\S]*「任务a」已经办完[\s\S]*「任务b」没有办成：缺少权限[\s\S]*只汇报/u);
+    assert.deepEqual(notices(), [[p.work_id, "任务a"], [p.work_id, "任务b"]], "each task told once, by its own notice");
+    // Retried with one already told and one new: only the new one, in a round of its own.
+    assert.equal(await reportRounds.report({ project_id: "p", tasks: [{ row: ended("a"), end: "done" }, { row: ended("d"), end: "done" }] }), "reported");
+    assert.equal(started.length, 2);
+    assert.doesNotMatch(started[1]!.text, /任务a/u, "what was told before is not told again");
+    assert.match(started[1]!.text, /^（Molis 转告）后台任务「任务d」已经办完。/u, "one task: told as one always was");
+    assert.equal(await rounds(new AssistantStore(db)).report(both), "none", "after a restart, the same ends are not told again");
+    // Another project's end goes to its own main conversation only.
+    assert.equal(await reportRounds.report({ project_id: "q", tasks: [{ row: ended("c"), end: "done" }] }), "reported");
+    assert.deepEqual(started.map(one => one.work), [p.work_id, p.work_id, q.work_id]);
+    assert.deepEqual(notices().map(([work]) => work), [p.work_id, p.work_id, p.work_id, q.work_id]);
+  } finally { db.close(); }
 });

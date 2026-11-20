@@ -10,7 +10,6 @@ import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { surfacePlacementCallPorts } from "./placement-surface-call.js";
-import { placementLibraryV2Upgrade } from "./placement-library-v2-upgrade.js";
 
 
 /** The one catalog record a partition needs to be opened. */
@@ -43,9 +42,9 @@ export interface PlacementHost {
  * reaches plugins only through the shared directory. Nothing about any plugin is known here.
  */
 /** The placement store's one current schema (repository-anti-corruption §4.1): the context ledger's tables and the titles last seen. */
-export const PLACEMENT_BASELINE: SqliteBaseline = { version: /* @version database.placement_baseline */ 2, schema: `${CONTEXT_LEDGER_SCHEMA}
+export const PLACEMENT_BASELINE: SqliteBaseline = { version: /* @version database.placement_baseline */ 1, schema: `${CONTEXT_LEDGER_SCHEMA}
   CREATE TABLE placement_titles (kind TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (kind, id));
-`, upgrades: [{ from: 1, ...placementLibraryV2Upgrade }] };
+`, upgrades: [] };
 
 export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const db = openHomeSqliteDatabase(ports.homeDirectory, PLACEMENT_HOME_STORE.path);

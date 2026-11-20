@@ -41,19 +41,9 @@ export const SPEC_SECTION3_WHITELIST = {
 /**
  * Separate migration-only exception list (PEQ-03). Every entry carries its removal condition
  * and is checked for staleness so retired upgrades leave the list with their code.
+ * Empty after the pre-release v1 baseline reset.
  */
-export const MIGRATION_PLUGIN_IMPORT_EXCEPTIONS = [
-  {
-    file: "apps/local-host/src/project-library-v5-handover.ts",
-    packages: ["@molis-ai/molis-work-plugin-goals"],
-    removeWhen: "Direct upgrade from project library v5/v6 to v7 is retired.",
-  },
-  {
-    file: "apps/local-host/src/project-library-v7-upgrade.ts",
-    packages: ["@molis-ai/molis-work-plugin-goals"],
-    removeWhen: "Direct upgrade from project library v6 to v7 is retired.",
-  },
-];
+export const MIGRATION_PLUGIN_IMPORT_EXCEPTIONS = [];
 
 function collectPlatformFiles(repositoryRoot) {
   const result = [];

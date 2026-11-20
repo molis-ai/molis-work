@@ -1,5 +1,9 @@
 PRAGMA foreign_keys=OFF;
 BEGIN;
+CREATE TABLE connection_changes (
+  service_id TEXT PRIMARY KEY REFERENCES connections(id) ON DELETE CASCADE,
+  auth_connection_id TEXT
+);
 CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,
@@ -23,7 +27,7 @@ CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_heads (key TEXT PRIMARY K
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "connections"("id","name","api_format","base_url","model","created_at","updated_at") VALUES('fb7262d0-ba17-43c8-b60f-2b2907a8a39f','金样图片连接 seed 已改','openai-images','http://127.0.0.1:9/v1','golden-model','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
+INSERT INTO "connections"("id","name","api_format","base_url","model","created_at","updated_at") VALUES('93c1b659-10ff-47d8-94b9-ed694bf8af76','金样图片连接 seed 已改','openai-images','http://127.0.0.1:9/v1','golden-model','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
 INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_context"("id","project_id") VALUES(1,NULL);
 INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_replica_state"("id","device","cursor","applying") VALUES(1,'cb6274973d095ebe2e2b64b78420525e',0,0);

@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
-import { createServer } from "node:net";
-import { availableParallelism, tmpdir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { readdir } from "node:fs/promises";
+import { availableParallelism } from "node:os";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
 //   --jobs <n>              files at once (default: MOLIS_WORK_TEST_JOBS, else half the cores, at most 6)
@@ -20,11 +20,13 @@ import { fileURLToPath } from "node:url";
 //   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
 //                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
 //                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
+//   --exclude-gate-meta     leave out CI/gate/health/runner self-tests (scripts/run-tests/strata.mjs) before --shard picks.
+//   --exclude-visual-audit  leave out the 13 full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
 // A run with a browser file first takes the machine's browser slot (scripts/machine-slot.mjs) and waits its turn for it.
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [--exclude-gate-meta] [--exclude-visual-audit] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -32,7 +34,7 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false };
+const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false, excludeGateMeta: false, excludeVisualAudit: false };
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -44,6 +46,8 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--verbose") options.verbose = true;
   else if (name === "--retries") options.retries = whole(name, value(), 0);
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
+  else if (name === "--exclude-gate-meta") options.excludeGateMeta = true;
+  else if (name === "--exclude-visual-audit") options.excludeVisualAudit = true;
   else if (name === "--bail") options.bail = true;
   else if (name === "--shard") {
     const shard = /^(\d+)\/(\d+)$/.exec(value() ?? "");
@@ -61,6 +65,20 @@ if (options.skipMacosOnly) {
   const kept = targets.filter((file) => !macosOnly(file));
   console.log(`run-tests: left out ${targets.length - kept.length} macOS-only files of ${targets.length}`);
   targets.splice(0, targets.length, ...kept);
+}
+if (options.excludeGateMeta || options.excludeVisualAudit) {
+  const { isGateMetaTest, isVisualAuditTest } = await import("./run-tests/strata.mjs");
+  const repoPath = (file) => relative(root, resolve(file));
+  if (options.excludeGateMeta) {
+    const kept = targets.filter((file) => !isGateMetaTest(repoPath(file)));
+    console.log(`run-tests: left out ${targets.length - kept.length} gate-meta files of ${targets.length}`);
+    targets.splice(0, targets.length, ...kept);
+  }
+  if (options.excludeVisualAudit) {
+    const kept = targets.filter((file) => !isVisualAuditTest(repoPath(file)));
+    console.log(`run-tests: left out ${targets.length - kept.length} visual-audit files of ${targets.length}`);
+    targets.splice(0, targets.length, ...kept);
+  }
 }
 const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
 const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
@@ -94,24 +112,11 @@ if (targets.length > 1 || options.shard) {
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential
   // home. Production's Keychain selection and existing ciphertext stay untouched.
-  // The real path of the temporary directory (macOS: /var is a link to /private/var), handed to the test as its tmpdir() too: a Home is
-  // resolved to its real path where it enters (S-11), and a test that builds one under tmpdir() then names it the way the product does.
-  const temporary = await realpath(tmpdir());
-  const home = await mkdtemp(join(temporary, "molis-test-home-"));
-  // A forwarding process that is told no address asks 127.0.0.1:4173, where this machine may run a real Home's service. Each test
-  // process gets its own free loopback port instead: nothing answers there, as on CI, and a resident the test starts can bind it.
-  const residentUrl = await new Promise((resolveUrl, reject) => {
-    const probe = createServer().once("error", reject);
-    probe.listen(0, "127.0.0.1", () => { const { port } = probe.address(); probe.close(() => resolveUrl(`http://127.0.0.1:${port}`)); });
-  });
+  const isolated = await prepareIsolatedTestEnv(process.env);
   try {
-    const environment = { ...process.env };
-    // This is a new test coordinator, including when a test verifies the runner.
-    delete environment.NODE_TEST_CONTEXT;
     const child = spawn(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", ...testArgs, ...targets], {
       stdio: "inherit",
-      env: { ...environment, NODE_ENV: "test", TMPDIR: temporary, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: residentUrl,
-        MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" },
+      env: isolated.env,
     });
     const interrupt = () => child.kill("SIGINT");
     const terminate = () => child.kill("SIGTERM");
@@ -127,6 +132,6 @@ if (targets.length > 1 || options.shard) {
       process.off("SIGTERM", terminate);
     }
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await isolated.cleanup();
   }
 }

@@ -2,7 +2,7 @@
 
 恢复后搜索目录要花时间重建。只看到一部分卡时就按缺失清理，卡可能会消失，重建后原来写好的内容也可能找不回来。
 
-预计 **8–16 工时**。维护范围为知识线。正式交付项为 [73-3](../../batches/73.md#batch-73-item-3)。[原始待办](../../../../backlog/BL-knowledge-restore-partial-catalog.md) · [派工总表](../README.md)
+预计 **8–16 工时**。维护范围为知识线。正式交付项为 [73-3](../../batches/73.md#batch-73-item-3)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-knowledge-restore-partial-catalog.md) · [派工总表](../README.md)
 
 ## 可复制的开工 Prompt
 

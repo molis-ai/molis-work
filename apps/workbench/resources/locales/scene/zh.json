@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "owner": "workbench",
+  "locale": "zh",
+  "messages": {
+    "workbench.scene.pending-owner-unavailable": "原设置提供方当前不可用。恢复后可继续核对。",
+    "workbench.scene.pending-owner-replaced": "原设置提供方的安装已更换。只有原安装可以核对这次请求。"
+  }
+}

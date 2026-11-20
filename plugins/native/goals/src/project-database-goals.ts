@@ -2,7 +2,7 @@
 // Moved here from modules/goals (S8, PG-020). The statements are as they were in the project library's baseline, except `boards`: it lost
 // its `title` (the Catalog owns the project's name) and its `project_id` points at the library's `project_root` row.
 
-/** The Goal tree: Goals, criteria, relations, trash, and project guidance. */
+/** The Goal tree: Goals, criteria, relations, and trash. */
 export const GOALS_TABLES_SQL = `
   CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
@@ -91,67 +91,6 @@ export const GOALS_TABLES_SQL = `
   CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 
-`;
-
-/** The project guidance Goals kept until its library v6 (batch 44 moved it to the platform's `modules/projects`): versions 1–5 hold it. */
-export const GOALS_GUIDANCE_SQL = `
-  CREATE TABLE project_guidance_entries (
-    guidance_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    position INTEGER NOT NULL,
-    revision INTEGER NOT NULL DEFAULT 1,
-    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
-    kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL DEFAULT '[]',
-    created_by TEXT NOT NULL,
-    confirmation_summary TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_by TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(project_id, position),
-    UNIQUE(project_id, kind, content_hash)
-  );
-  CREATE INDEX project_guidance_project_idx
-    ON project_guidance_entries(project_id, position, guidance_id);
-
-  CREATE TABLE project_guidance_revisions (
-    revision_id TEXT PRIMARY KEY,
-    guidance_id TEXT NOT NULL REFERENCES project_guidance_entries(guidance_id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    revision INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL DEFAULT '[]',
-    active INTEGER NOT NULL CHECK (active IN (0, 1)),
-    changed_by TEXT NOT NULL,
-    change_kind TEXT NOT NULL CHECK (change_kind IN ('created', 'edited', 'deactivated', 'restored')),
-    confirmation_summary TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    UNIQUE(guidance_id, revision)
-  );
-  CREATE INDEX project_guidance_revisions_project_idx
-    ON project_guidance_revisions(project_id, guidance_id, revision DESC);
-`;
-
-/** The v2 rules that explicit maintenance moves into the platform library. */
-export const GOALS_V2_POLICY_SQL = `
-  CREATE TABLE policy_bindings (
-    policy_binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT REFERENCES goals(goal_id),
-    scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
-    policy_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('active', 'replaced', 'withdrawn')),
-    created_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
 `;
 
 /**

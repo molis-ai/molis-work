@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginApprovalOutcome, PluginApprovalOutcomesBinding } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { ProjectReplicaRow, ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -24,7 +25,7 @@ function compare(left: unknown, right: unknown): number {
   return a < b ? -1 : Number(a > b);
 }
 
-/** A decision outcome's digest from its facts; the project library's 6→7 step also uses it for the digest a record froze before (v5). */
+/** A decision outcome's digest from its immutable owner facts. */
 export function goalDecisionOutcomeDigest(kind: Outcome["kind"], facts: unknown): string {
   return "sha256:" + createHash("sha256").update(canonicalJsonText(["goals-decision-outcome", 1, kind, facts], "null")).digest("hex");
 }
@@ -40,8 +41,8 @@ function appliedEventFields(applied: ProjectReplicaRow): EventFields {
 }
 
 /**
- * A Goal decision's outcome: the applied decision and its event. The third part held the person's conclusions on requirements up to
- * Goals v5; from v6 they are the platform's acceptance (contract-design §10.4), so it is empty, as it always was for a decision with none.
+ * A Goal decision's outcome: the applied decision and its event. Requirement conclusions belong to the platform's
+ * acceptance store, so the third tuple element stays empty.
  */
 function eventOutcome(applied: ProjectReplicaRow, event: ProjectReplicaRow | undefined): Outcome {
   if (!event || event.event_id !== applied.event_id || event.kind !== "system" || event.project_id !== applied.project_id
@@ -102,3 +103,25 @@ export function assertGoalApprovalHistory(previous: ReadonlyMap<string, Outcome>
     if ((result.kind === "goal" ? goals : proposals).has(result.id) && !incoming.has(decision)) throw invalid();
   }
 }
+
+/** Trusted owner binding declared in Goals' registration so platform sync never imports the Goals package directly (PEQ-03). */
+export const goalsApprovalOutcomesBinding: PluginApprovalOutcomesBinding = {
+  collection_id: "project_goals",
+  subject_kinds: ["goal", "goal-tree-proposal"],
+  readOutcome(db, project, decision, subjectKind) {
+    if (subjectKind !== "goal" && subjectKind !== "goal-tree-proposal") return null;
+    return readGoalApprovalOutcome(db, project, decision, subjectKind);
+  },
+  outcomesFromFacts: goalApprovalOutcomes,
+  assertHistory(previous, incoming, facts) {
+    const narrow = (source: ReadonlyMap<string, PluginApprovalOutcome>): Map<string, Outcome> => {
+      const result = new Map<string, Outcome>();
+      for (const [id, item] of source) {
+        if (item.kind !== "goal" && item.kind !== "goal-tree-proposal") throw invalid();
+        result.set(id, { kind: item.kind, id: item.id, digest: item.digest });
+      }
+      return result;
+    };
+    assertGoalApprovalHistory(narrow(previous), narrow(incoming), facts);
+  },
+};

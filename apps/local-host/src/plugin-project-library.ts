@@ -78,7 +78,6 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
     const decisions = projectId && rules ? projectReviewDecisions(library.db as SqliteDatabase, projectId) : undefined;
     const approvalHistory: PluginProjectDatabase["approvalHistory"] = decisions ? {
       read(id) { checkRead(); const record = decisions.read(id, ruleOwner); return record && decisionOwnerMatches(record, ruleOwner) ? record : null; },
-      transferred(subject) { checkRead(); return decisions.transferred(ruleOwner, subject); },
     } : undefined;
     const client = pluginDatabaseClient({ reader, writer: library.db, inTransaction: () => library.db.inTransaction === true, projectId,
       ...(approvalRules ? { approvalRules: Object.freeze(approvalRules) } : {}),

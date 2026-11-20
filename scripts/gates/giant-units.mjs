@@ -43,13 +43,22 @@ const functionOwners = (source, span, limits) => {
   return names;
 };
 
+const fileCache = new Map();
+
 export function measureGiantUnits(snapshot, limits) {
     const giant = {};
+    const limitKey = `${limits.file}:${limits.classLines}:${limits.classMethods}:${limits.functionLines}`;
     for (const file of snapshot.files.filter(isSource)) {
       const text = snapshot.read(file);
       if (text === null) continue;
+      const cached = fileCache.get(file);
+      if (cached && cached.limitKey === limitKey && cached.text === text) {
+        for (const [key, value] of cached.entries) giant[key] = value;
+        continue;
+      }
+      const own = {};
       const lines = text.split("\n").length;
-      if (lines > limits.file) giant[`file ${file}`] = lines;
+      if (lines > limits.file) own[`file ${file}`] = lines;
       const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
       const span = (node) => source.getLineAndCharacterOfPosition(node.getEnd()).line - source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
       const names = functionOwners(source, span, limits);
@@ -69,18 +78,21 @@ export function measureGiantUnits(snapshot, limits) {
           const key = `class ${file}#${node.name?.text ?? "(anonymous)"}`;
           const methods = node.members.filter((member) => ts.isMethodDeclaration(member) || ts.isGetAccessor(member) || ts.isSetAccessor(member)).length;
           const size = span(node);
-          if (size > limits.classLines || methods > limits.classMethods) giant[key] = { lines: Math.max(giant[key]?.lines ?? 0, size), methods: Math.max(giant[key]?.methods ?? 0, methods) };
+          if (size > limits.classLines || methods > limits.classMethods) own[key] = { lines: Math.max(own[key]?.lines ?? 0, size), methods: Math.max(own[key]?.methods ?? 0, methods) };
         }
         if (isFunctionUnit(node)) {
           const size = span(node);
           if (size > limits.functionLines) {
             const key = `function ${file}#${ownerOf(node)}`;
-            giant[key] = Math.max(giant[key] ?? 0, size);
+            own[key] = Math.max(own[key] ?? 0, size);
           }
         }
         ts.forEachChild(node, visit);
       };
       visit(source);
+      const entries = Object.entries(own);
+      fileCache.set(file, { limitKey, text, entries });
+      for (const [key, value] of entries) giant[key] = value;
     }
     return giant;
 }

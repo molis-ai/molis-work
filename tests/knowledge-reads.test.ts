@@ -19,7 +19,7 @@ async function fixture(t: import("node:test").TestContext, budget?: RoundBudget,
   t.after(() => cards.close());
   let now = at;
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, ...(budget ? { budget } : {}), clock: () => new Date(now) });
-  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => null });
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => ({ pieces: knowledgeCatalog(f.index, projectId), unsettled: new Set<string>() }), writer: () => null });
   return { ...f, cards, knowledge, manage: new KnowledgeCards(cards, organizer), setNow: (value: string) => { now = value; } };
 }
 

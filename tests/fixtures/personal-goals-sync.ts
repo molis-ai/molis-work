@@ -28,9 +28,9 @@ export async function fixture(t: TestContext) {
   const check = () => { if (!active) throw new Error('host.test_revoked'); };
   const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
   const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',check));
-  t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
+  t.after(async()=>{try{await Promise.all(runtimes.map(runtime=>runtime.close()));}finally{rmSync(root,{recursive:true,force:true});}});
   const registrations=runtimes.map(runtime=>runtime.registration);
-  for(const registration of registrations)await registration.refresh();
+  await Promise.all(registrations.map(registration=>registration.refresh()));
   assert.deepEqual(registrations[1]!.withReplica(replica=>replica.counts()),{pending:0,conflicts:0},'automatic empty board initialization is not a local user edit');
   let policy: SpaceSyncPolicy = { spaceId: space.spaceId, revision: 0, selections: [] };
   const journal = new Map<string, SyncEvent[]>();

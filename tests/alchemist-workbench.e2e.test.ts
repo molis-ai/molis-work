@@ -8,7 +8,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { shouldSaveReviewScreenshots, specEvidenceDirectory } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 // Seed through the production API; only the external model/search are explicit fixtures.
@@ -173,13 +173,14 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await terminalUi();await noModelCard();
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
+  const saveShots = Boolean(process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS) || shouldSaveReviewScreenshots();
   const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? specEvidenceDirectory('specs/archive/alchemist-plugin/verification');
-  await mkdir(screenshotDirectory,{recursive:true});
+  if (saveShots) await mkdir(screenshotDirectory,{recursive:true});
   for(const [width,height,label] of [[1440,1000,'desktop'],[390,844,'mobile']] as const){
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<500},sessionId);
     const bounds=await evaluate<{width:number;right:number}>(`(()=>{const r=document.querySelector('${content}').getBoundingClientRect();return {width:document.documentElement.scrollWidth,right:r.right}})()`);
     assert.ok(bounds.width<=width+1&&bounds.right<=width+1,JSON.stringify(bounds));
-    for(const theme of ['light','dark']){await b.evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
+    if (saveShots) for(const theme of ['light','dark']){await b.evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
   }
   await click('[data-alc-action="back"]');await visible(`[data-alchemist-id="${ids.idea}"]`);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');

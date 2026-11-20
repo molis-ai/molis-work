@@ -259,38 +259,32 @@ test("D0071-04 explicit connect creates a private credential; failure and remova
   assert.equal(first.rollback(), false); assert.equal(await readFile(file, "utf8"), newer);
 });
 
-// Batch 44, docs/system/CONTRACT-CHANGES.md 「第 44 批存量搬迁」 C (PEQ-14): the Home's upgrade round takes a version 1 receipt to 2. The
-// goal-advance link it recorded goes only while it is still the one Molis Work made; anything the person changed stays, and a receipt that
-// is not Molis Work's own is not touched at all.
-test("PEQ-14 the upgrade round drops goal-advance from version 1 receipts and removes only the link Molis Work made", async t => {
+// Batch 44 (PEQ-14): the v1 baseline receipt carries only MCP config ownership (no goal-advance Skill fields). Any receipt carrying
+// retired skill_path/skill_target fields or a foreign owner is refused by the upgrade round without touching disk files or symlinks.
+test("PEQ-14 the upgrade round accepts clean v1 receipts and refuses receipts carrying retired goal-advance fields or foreign owners", async t => {
   const area = await mkdtemp(join(tmpdir(), "molis-runtime-receipt-"));
   t.after(() => rm(area, { recursive: true, force: true }));
   const home = join(area, "home"), userHome = join(area, "user"), receipts = join(home, "runtime-integrations");
   const target = join(home, "releases", "molis-work-old", "skills", "goal-advance");
   await Promise.all([mkdir(target, { recursive: true }), mkdir(receipts, { recursive: true }),
-    mkdir(join(userHome, ".codex", "skills"), { recursive: true }), mkdir(join(userHome, ".claude", "skills"), { recursive: true }),
-    mkdir(join(userHome, ".grok", "skills"), { recursive: true })]);
-  const receipt = (runtime_id: string, config_path: string, skill_path: string, owner = "molis-work-runtime-integration-v1") => ({ schema_version: 1, owner, runtime_id,
-    config_path, config_entry_fingerprint: `fingerprint-${runtime_id}`, skill_path, skill_target: target, connected_at: "2026-11-01T00:00:00.000Z" });
-  const ours = join(userHome, ".codex", "skills", "goal-advance"), changed = join(userHome, ".claude", "skills", "goal-advance");
-  const foreign = join(userHome, ".grok", "skills", "goal-advance"), elsewhere = join(area, "my-own-skill");
-  await mkdir(elsewhere);
-  await symlink(target, ours, "dir"); await symlink(elsewhere, changed, "dir"); await symlink(target, foreign, "dir");
-  await writeFile(join(receipts, "codex.json"), JSON.stringify(receipt("codex", join(userHome, ".codex", "config.toml"), ours)));
-  await writeFile(join(receipts, "claude-code.json"), JSON.stringify(receipt("claude-code", join(userHome, ".claude.json"), changed)));
-  const foreignText = JSON.stringify(receipt("grok-build", join(userHome, ".grok", "config.toml"), foreign, "someone-else"));
+    mkdir(join(userHome, ".codex", "skills"), { recursive: true }), mkdir(join(userHome, ".grok", "skills"), { recursive: true })]);
+  const clean = { schema_version: 1, owner: "molis-work-runtime-integration-v1", runtime_id: "codex",
+    config_path: join(userHome, ".codex", "config.toml"), config_entry_fingerprint: "fingerprint-codex", connected_at: "2026-11-01T00:00:00.000Z" };
+  const legacySkill = join(userHome, ".codex", "skills", "goal-advance");
+  await symlink(target, legacySkill, "dir");
+  const legacyText = JSON.stringify({ ...clean, runtime_id: "claude-code", config_path: join(userHome, ".claude.json"),
+    skill_path: legacySkill, skill_target: target });
+  const foreignText = JSON.stringify({ ...clean, runtime_id: "grok-build", owner: "someone-else" });
+  await writeFile(join(receipts, "codex.json"), JSON.stringify(clean));
+  await writeFile(join(receipts, "claude-code.json"), legacyText);
   await writeFile(join(receipts, "grok-build.json"), foreignText);
 
   const report = runHomeUpgrade(home);
   const states = Object.fromEntries(report.units.filter(unit => unit.relative_path.startsWith("runtime-integrations")).map(unit => [unit.relative_path, unit.state]));
-  assert.deepEqual(states, { "runtime-integrations/claude-code.json": "committed", "runtime-integrations/codex.json": "committed", "runtime-integrations/grok-build.json": "failed" });
-  const codex = JSON.parse(await readFile(join(receipts, "codex.json"), "utf8"));
-  assert.deepEqual(codex, { schema_version: 2, owner: "molis-work-runtime-integration-v1", runtime_id: "codex", config_path: join(userHome, ".codex", "config.toml"),
-    config_entry_fingerprint: "fingerprint-codex", connected_at: "2026-11-01T00:00:00.000Z" }, "the receipt keeps what it says about the config and nothing about a Skill");
-  await assert.rejects(readlink(ours), { code: "ENOENT" }, "Molis Work's own link to the recorded target is removed");
-  assert.equal(JSON.parse(await readFile(join(receipts, "claude-code.json"), "utf8")).schema_version, 2);
-  assert.equal(await readlink(changed), elsewhere, "a link the person pointed elsewhere is left as it is");
-  assert.equal(await readFile(join(receipts, "grok-build.json"), "utf8"), foreignText, "a receipt that is not Molis Work's own is refused and kept byte for byte");
-  assert.equal(await readlink(foreign), target, "and its link is not touched");
-  await assert.doesNotReject(filesystem.stat(target), "the release folder itself is not the upgrade's to remove");
+  assert.deepEqual(states, { "runtime-integrations/claude-code.json": "failed", "runtime-integrations/codex.json": "current", "runtime-integrations/grok-build.json": "failed" });
+  assert.deepEqual(JSON.parse(await readFile(join(receipts, "codex.json"), "utf8")), clean);
+  assert.equal(await readFile(join(receipts, "claude-code.json"), "utf8"), legacyText, "a receipt with retired skill fields is refused and preserved byte for byte");
+  assert.equal(await readlink(legacySkill), target, "refusing the receipt does not touch symlinks");
+  assert.equal(await readFile(join(receipts, "grok-build.json"), "utf8"), foreignText, "a foreign receipt is refused and preserved byte for byte");
+  await assert.doesNotReject(filesystem.stat(target));
 });

@@ -22,7 +22,10 @@ export function reported(stdout, status) {
 
 if (isMainScript(import.meta.url)) {
   const script = fileURLToPath(new URL("./replay-golden-homes.mjs", import.meta.url));
-  const replay = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", script, ...process.argv.slice(2)], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 16 * 1024 * 1024 });
+  const passed = process.argv.slice(2);
+  const ciConcurrency = process.env.GITHUB_ACTIONS === "true" && !passed.includes("--concurrency")
+    ? ["--concurrency", process.env.MOLIS_WORK_GOLDEN_CONCURRENCY || "3"] : [];
+  const replay = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", script, ...ciConcurrency, ...passed], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 16 * 1024 * 1024 });
   const status = replay.status ?? 1, { summary, notices } = reported(replay.stdout ?? "", status);
   process.stdout.write(replay.stdout ?? "");
   for (const notice of notices) process.stdout.write(`${notice}\n`);

@@ -4,7 +4,7 @@ export function createContextLedger(db: ContextLedgerDatabase, options: ContextL
   return new ContextLedgerService(new ContextLedgerRepository(db, options.initializeSchema), options);
 }
 
-export { CONTEXT_LEDGER_SCHEMA, createContextLedgerSchema, rewriteStoredContextEdges, type ContextLedgerDatabase, type StoredContextEdge, type StoredContextEdgeChange } from "./repository.js";
+export { CONTEXT_LEDGER_SCHEMA, createContextLedgerSchema, type ContextLedgerDatabase } from "./repository.js";
 export { contextEdgeQueryKeys, type ContextLedgerOptions } from "./service.js";
 export { createContextMaterializer } from "./materialization.js";
 export { relationEdgesReplicationDefinition, relationEdgesTriggerCondition } from './replication.js';

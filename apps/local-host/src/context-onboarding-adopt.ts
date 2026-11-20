@@ -80,22 +80,31 @@ export async function importAdoptedMaterialsAndSummary(options: {
   const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
   const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
   const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;
-  // Frozen: the keys of a summary import already kept (`todo_selected` though the field is `keep` now), so a journey that was adopting or
-  // failed before version 2 retries with the hash it was first kept under, never `changed` (contract-design §2.5).
+  // The accepted text and the fixed references identify an import across journeys. Draft selections are a separate write.
+  const sameSessionImport = refs.some(ref => ref.session_key) ? createHash("sha256").update(JSON.stringify([
+    journey.project_id, journey.adoption!.title, journey.adoption!.body,
+    refs.map(ref => [ref.label, ref.artifact, ref.parts]),
+  ])).digest("hex") : null;
+  const summaryRequest = (sameSessionImport ? "sessions:" + sameSessionImport : id) + ":summary";
   const summaryHash = createHash("sha256").update(JSON.stringify({
     title: journey.adoption!.title,
     body: journey.adoption!.body,
     blank: journey.adoption!.blank,
-    todo_selected: journey.adoption!.keep ?? [],
+    keep: journey.adoption!.keep ?? [],
   })).digest("hex");
-  const summary = (await keepDocuments({ request_id: id + ":summary", request_hash: summaryHash, title: summaryTitle, markdown: summaryText })).parts[0]!;
+  const summary = (await keepDocuments({
+    request_id: summaryRequest,
+    request_hash: sameSessionImport ?? summaryHash,
+    title: summaryTitle,
+    markdown: summaryText,
+  })).parts[0]!;
   journey.summary_open = summary.open;
   if (text.trim()) {
     const artifact = await actions.invoke(artifactsActions.importFile, {
       source: "file",
       filename: "summary.md",
       title: summaryTitle.length <= 200 ? summaryTitle : cutHead(summaryTitle, 199) + "…",
-      source_id: "onboarding:" + id + ":summary",
+      source_id: "onboarding:" + summaryRequest,
       content: text,
     });
     journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });

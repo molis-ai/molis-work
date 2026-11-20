@@ -293,6 +293,7 @@ type InterruptedStep = ({
 } | {
     state: "pending_verification";
     request_id: string;
+    current?: (typeof pendingCurrentStates)[number];
 } | {
     state: "skipped";
     reason: (typeof skipReasons)[number];
@@ -312,6 +313,8 @@ declare const actionableDecisions: readonly ["create", "reuse", "update", "needs
 declare const appliedCurrentStates: readonly ["changed", "owner_unavailable"];
 
 declare const dependencyChanges: readonly ["added", "removed", "changed"];
+
+declare const pendingCurrentStates: readonly ["owner_unavailable", "owner_replaced"];
 
 declare const previewSkipReasons: readonly ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"];
 

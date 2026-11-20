@@ -6,7 +6,7 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // SRB-09 (batch 35 item 1): an existing project's round offers the person's AI tool sessions. The project's AI may not read them until
 // the person turns the permit on, here, on their own page; until then the row says why and nothing is organized from them.
-test("SRB-09 onboarding for an existing project: the sessions row asks the person to allow the project's AI, and allowing it takes", { timeout: 120_000 }, async t => {
+test("SRB-09 B35-R1 the existing project's Sessions page opens onboarding and the person can allow the project's AI", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
@@ -26,10 +26,12 @@ test("SRB-09 onboarding for an existing project: the sessions row asks the perso
     await writeFile(`${directory}/${state}.png`, Buffer.from(data, "base64"));
   };
 
-  await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?project=${encodeURIComponent(project)}` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(project)}/?openPlugin=sessions` }, sessionId));
+  const entry = 'a[href^="/onboarding?project="]';
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(`[data-work-surface=sessions]:not([hidden]) ${entry}`)}))`);
+  await click(entry);
   await waitFor("Boolean(document.querySelector('.ob-source[data-src=sessions]'))");
   assert.match(await evaluate<string>("document.querySelector('.ob-source[data-src=sessions]').textContent"), /读归到这个项目的 Claude Code、Codex 等会话/);
-  await click("[data-open=sessions]");
   await waitFor("Boolean(document.querySelector('[data-action=sessions-permit]'))");
   const panel = await evaluate<string>("document.querySelector('.ob-source[data-src=sessions] .ob-source__cfg').textContent");
   assert.match(panel, /这个项目的 AI 还不能读外部会话。没打开，这一步不整理会话。/);

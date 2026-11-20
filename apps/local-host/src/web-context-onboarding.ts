@@ -5,7 +5,7 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { connectorLoginReady } from "./connector-directory.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { codeRoot } from "./context-onboarding-sources.js";
-import { contextReferenceText, draftSnapshots, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { contextReferenceText, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
 import type { OnboardingMaterialKind } from "./onboarding-takers.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -26,7 +26,7 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
     try {
       if (req.method === "GET" && url.pathname === prefix) {
         const model = await onboardingTextModel(home, ports.model);
-        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()),
+        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete(url.searchParams.get("project"))),
           // The plugins that draft and that keep documents, by name, only when there are several to choose from (contract-design §2.5).
           draft_takers: choice(ports, "drafts"), document_takers: choice(ports, "documents") }); return true;
       }
@@ -42,13 +42,13 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
       else if (req.method === "GET" && match[3]) { const text = await contextReferenceText(home, id, match[3]); json(res, 200, { text: text.slice(0, 200_000), chars: text.length }); }
       else if (req.method === "GET" && !match[2]) {
         // The plugins that declare they take a code folder, by name, only while this round has one to hand over (batch12-design §7.3).
-        const journey = await withSnapshots(readContextJourney(home, id), ports, signal ??= responseAbortSignal(res));
+        const journey = readContextJourney(home, id, url.searchParams.get("project") ?? undefined);
         // A round for an existing project shows that project's name; the page cannot read the catalog itself.
         const project = journey.existing ? await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(journey.project_id).display_name).catch(() => null) : null;
         json(res, 200, { ...journey, ...(journey.existing ? { project_title: project } : {}), takers: codeRoot(journey) ? named(ports, "code_root") : [] });
       }
       // The drafting plugin's words for the drafts this round shows (surface-composition §14.6): asked once the drafts are there, not on each poll.
-      else if (req.method === "GET" && match[2] === "words") json(res, 200, { surface_text: draftWords(home, await withSnapshots(readContextJourney(home, id), ports, signal ??= responseAbortSignal(res)), host) });
+      else if (req.method === "GET" && match[2] === "words") json(res, 200, { surface_text: draftWords(home, readContextJourney(home, id, url.searchParams.get("project") ?? undefined), host) });
       else if (req.method === "POST" && match[2] === "reopen") json(res, 200, await door.invoke(as(), actions.reopen.definition, { journey: id }));
       else if (req.method === "POST" && match[2] === "selection") json(res, 200, await door.invoke(as(), actions.select.definition, { journey: id, body: await readNativePluginJsonBody(req, 72_000_000) }));
       else if (req.method === "POST" && match[2] === "start") json(res, 202, await door.invoke(as(), actions.start.definition, { journey: id }));
@@ -63,13 +63,6 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
 
 const named = (ports: ContextOnboardingPorts, kind: OnboardingMaterialKind) => (ports.takers?.(kind) ?? []).map(({ plugin_id, name }) => ({ plugin_id, name }));
 const choice = (ports: ContextOnboardingPorts, kind: OnboardingMaterialKind) => { const takers = named(ports, kind); return takers.length > 1 ? takers : []; };
-
-/** A journey drafted before version 2 keeps batches without a snapshot: they are read again for this answer only, never written back. */
-async function withSnapshots(journey: ContextJourney, ports: ContextOnboardingPorts, signal: AbortSignal): Promise<ContextJourney> {
-  if (!journey.drafts?.batches.some(batch => !batch.snapshot)) return journey;
-  const found = await draftSnapshots(journey, ports, signal).catch(() => new Map());
-  return { ...journey, drafts: { ...journey.drafts, batches: journey.drafts.batches.map(batch => batch.snapshot ? batch : { ...batch, snapshot: found.get(batch.batch_id) ?? null }) } };
-}
 
 /** One grant for the keys the drafts name, from the running Home instance of the plugin that drafted them; none when it is not running. */
 function draftWords(home: string, journey: ContextJourney, host: MolisWorkLocalHost): { ref: string; owner: string; positions: string[] }[] {

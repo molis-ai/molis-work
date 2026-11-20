@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AcceptanceSubject, AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { acceptanceReplica, acceptanceSyncKey, importAcceptanceHandover, openAcceptance } from "@molis-ai/molis-work-module-acceptance";
+import { acceptanceReplica, acceptanceSyncKey, openAcceptance } from "@molis-ai/molis-work-module-acceptance";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 // The platform's requirements and acceptance between one person's devices (contract-design §10.5, user 2026-11-18 「Add sync now」): one
@@ -110,20 +110,26 @@ test("PEQ-16 two devices that each changed the requirements conflict and stop sy
   assert.deepEqual(b.view().requirements.map(item => item.id), ["r1", "ra"]);
 });
 
-test("PEQ-16 a decision moved from Goals counts on the second device without a platform record (trusted as far as the sync itself)", async t => {
-  const a = device(t), b = device(t), revision = { value: 0 };
-  const goal: AcceptanceSubject = { provider_id: "io.molis.work.goals", subject: { kind: "goal", id: "G1" } };
-  // What the 6→7 step writes for a Goal whose requirement the person accepted in Goals (origin `goals_v5`).
-  a.store.db.transaction(() => importAcceptanceHandover(a.store.db, "p1", [{
-    subject: goal, created_at: at,
-    requirements: [{ requirement_id: "g1", version: 1, statement: "从 Goals 搬来", expected: null, part: null, requires_person: true, withdrawn: false, position: 0, by_person: false, actor_id: "runtime-1", created_at: at }],
-    deliveries: [{ round: 1, version: "goal-decision:d1", touches: null, actor_id: "system:upgrade", delivered_at: at }],
-    checks: [],
-    decisions: [{ decision_id: "d1", clock: 1, requirement_id: "g1", requirement_version: 1, stands_round: 1, version: "goal-decision:d1", decision: "accepted", note: null,
-      origin_ref: "gov-1", actor_id: "web-user", decided_at: at }],
-    satisfied: { g1: true },
-  }])).immediate();
-  send(a, b, revision);
-  const moved = b.service.read(PROVIDER, { subjects: [goal] }).views[0]!.requirements[0]!;
-  assert.deepEqual([moved.person, moved.satisfied, moved.decision?.origin], ["accepted", true, "goals_v5"], "trusted as far as the sync itself");
+test("PEQ-16 a synced decision with an unvouched or non-trusted origin is refused by the acceptance schema", async t => {
+  const a = device(t), b = device(t);
+  a.service.set(PROVIDER, { subject: SUBJECT, requirements: [{ id: "r1", statement: "需要本人认可", requires_person: true }] });
+  await a.service.deliver(PROVIDER, { subject: SUBJECT, version: "v1" }, NO_EVIDENCE);
+  const first = a.replica.next()!;
+  b.replica.receive({ ...first, revision: 1 });
+  const payload = first.value as Record<string, unknown>;
+  const forged = {
+    ...first,
+    operationId: "forged-origin-op",
+    revision: 2,
+    value: {
+      ...payload,
+      decisions: [{
+        decision_id: "forged-1", clock: 1, requirement_id: "r1", requirement_version: 1, stands_round: 1, version: "v1",
+        decision: "accepted", note: null, origin: "goals_v5", origin_ref: "gov-1", actor_id: "web-user", decided_at: at,
+      }],
+    },
+  };
+  assert.throws(() => b.replica.receive(forged), /CHECK constraint failed/i);
+  const state = b.view().requirements[0]!;
+  assert.deepEqual([state.person, state.satisfied], ["pending", false], "refused decision writes nothing");
 });

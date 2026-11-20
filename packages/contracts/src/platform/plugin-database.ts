@@ -1,5 +1,5 @@
 import type { TextRef } from "./ui-text.js";
-import type { ProjectApprovalRules, ProjectDecisionHistory, ProjectTrustedDecision } from "../services/project-approvals.js";
+import type { ProjectApprovalRules, ProjectTrustedDecision } from "../services/project-approvals.js";
 
 /**
  * SQL over a plugin's own tables, in the Home (`services.database`) or in the project's library (`services.project_database`). The
@@ -159,10 +159,9 @@ export interface PluginProjectDatabase extends PluginDatabase {
   readonly journal: PluginJournalReader;
   /** Project-wide and original-publisher rules relevant to this activation's objects. */
   readonly approvalRules?: { read(history?: boolean): ProjectApprovalRules };
-  /** The original publisher's decisions in this project's library. Imported history is read-only. */
+  /** The original publisher's decisions in this project's library. */
   readonly approvalHistory?: {
-    read(id: string): ProjectTrustedDecision | ProjectDecisionHistory | null;
-    transferred(subject: ProjectDecisionHistory["subject"]): readonly ProjectDecisionHistory[];
+    read(id: string): ProjectTrustedDecision | null;
   };
   transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
 }

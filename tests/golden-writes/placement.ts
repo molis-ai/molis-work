@@ -11,7 +11,7 @@ export default async function ({ call, projectId, tag }: GoldenWriteContext) {
   readsBack(await call("placement.locate", { object }), projectId);
   await call("placement.move", { object, to_project_id: "personal" });
   readsBack(await call("placement.locate", { object }), "personal");
-  // Attached to one of the project's Goals from where it lives (placement library v2: \`placement.attached_in\`; v1 wrote \`placement.goal_in\`).
+  // Attached to one of the project's Goals from where it lives (`placement.attached_in`).
   const { kinds } = await call("placement.attach.targets", { project_id: projectId, object }) as { kinds: Array<{ kind: string; targets: Array<{ id: string }> }> };
   const goal = kinds.find(entry => entry.kind === "goal")?.targets.map(target => target.id).sort()[0];
   if (!goal) throw new Error("golden placement: the project has no Goal to attach to");

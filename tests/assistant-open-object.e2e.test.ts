@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import type { AssistantMaterial, AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test, { type TestContext } from "node:test";
-import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openWork, seedWork, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // specs/visual-ui-experience VUX-12 「来源、产出……进入已有对象/预览……保留返回会话路径与状态；……失效、读取失败反馈准确可恢复」:
@@ -11,6 +12,27 @@ import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 // 「正在看：doc-gone」. A real work on a real Host; the made object, which only a plugin's action records, is added to the
 // view the page reads, in the contract's shape, pointing at a Pages document that does not exist.
 const at = "2026-10-19T08:00:00.000Z";
+
+test("B35-R5 a sent document opens in the Assistant's side panel with a download of the exact original", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { command, evaluate, navigate, origin, projectId, sessionId, waitFor, web } = browser;
+  const api = `/projects/${projectId}/api/assistant`;
+  const original = "# Launch notes\n\nThe handover is on Tuesday.\n";
+  const { material } = await web.post<{ material: AssistantMaterial }>(api + "/attachments", { name: "handover.md", data: Buffer.from(original).toString("base64") });
+  const { work } = await web.post<AssistantSendResult>(api + "/send", { text: "请读这份交接", request_id: "handover-attachment", scope: { kind: "project", project_id: projectId }, materials: [material] });
+  await waitWork(browser, work.work_id, view => view.work.state === "completed");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-assistant-island]')");
+  await openWork(browser, work.work_id);
+  const chip = ".assistant-attachment";
+  await waitFor(`[...document.querySelectorAll(${JSON.stringify(chip)})].some(node => node.textContent.includes('handover.md'))`);
+  await evaluate(`[...document.querySelectorAll(${JSON.stringify(chip)})].find(node => node.textContent.includes('handover.md')).click()`);
+  const download = "document.querySelector('[data-side-files-body] a[download]')";
+  await waitFor(`Boolean(${download}?.checkVisibility())`);
+  assert.match(await evaluate<string>("document.querySelector('[data-side-files-body]').textContent"), /The handover is on Tuesday/);
+  const read = await evaluate<{ status: number; body: string }>(`fetch(${download}.href).then(async response => ({ status: response.status, body: await response.text() }))`);
+  assert.deepEqual(read, { status: 200, body: original });
+});
 
 /** A real work whose 产出 holds a result pointing at a Pages document that does not exist, open in the project workbench. */
 async function goneResult(t: TestContext) {

@@ -23,7 +23,7 @@ const CONNECTION_CHANGES = `CREATE TABLE connection_changes (
 export const IMAGES_DATABASE: HomePluginDatabaseDeclaration = {
   project_rows: IMAGES_PROJECT_ROWS,
   snapshot_exclusions: [{ path: "runners", reason: "Image runner ownership locks", restore: "preserve" }],
-  store_name: "images", version: /* @version database.images_database */ 2, upgrades: [{ from: 1, sql: CONNECTION_CHANGES }], read_permission: "storage:private", write_permission: "storage:private", schema: `
+  store_name: "images", version: /* @version database.images_database */ 1, upgrades: [], read_permission: "storage:private", write_permission: "storage:private", schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,

@@ -1,4 +1,4 @@
-import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type SqliteBaselineDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { OnboardingDocumentsResult, OnboardingDraftBatch } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 
@@ -161,76 +161,11 @@ export function contextJourneyId(value: unknown): string {
   return value;
 }
 /** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
-export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: /* @version database.context_onboarding_baseline */ 2, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);",
-  upgrades: [{ from: 1, run: upgradeJourneysFrom1 }] };
-
-const ONE = { todo: "io.molis.work.todo", todo_surface: "todo", pages_kind: "pages_document", pages_surface: "pages" } as const;
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === "string");
-const refused = (id: string, what: string): never => { throw new Error(`上手记录 ${id} 的 ${what} 不是第 1 版的形状，这一库不升级`); };
-
-/**
- * Version 1 → 2 (contract-design §2.5, D5, user 2026-11-17): the journey names its takers by what they declare, not Todo and Pages. Version 1
- * only ever had those two, so this step reads its facts as theirs. Todo's own batches cannot be read as the platform's shape: each keeps its
- * id and an empty snapshot, read again by id when shown. The drafts a person kept (`todo_selected`) are kept as given (`keep`); the summary
- * and the materials' documents become where they open. Any other shape refuses the step and the store stays as it was.
- */
-function upgradeJourneysFrom1(db: SqliteBaselineDatabase): void {
-  const rows = db.prepare("SELECT id, body FROM journeys").all() as { id: string; body: string }[];
-  const update = db.prepare("UPDATE journeys SET body=? WHERE id=?");
-  for (const row of rows) {
-    const body = JSON.parse(row.body) as Record<string, unknown>;
-    if (!isObject(body)) refused(row.id, "正文");
-    const part = (id: string, title: string): ContextDocumentPart => ({ subject: { kind: ONE.pages_kind, id }, open: { surface: ONE.pages_surface, id, title } });
-    const references = (list: unknown): void => {
-      if (list === undefined) return;
-      if (!Array.isArray(list)) return refused(row.id, "材料列表");
-      for (const ref of list) {
-        if (!isObject(ref)) refused(row.id, "材料");
-        if (ref.documents === undefined) continue;
-        if (!strings(ref.documents)) refused(row.id, "材料的文档");
-        ref.parts = (ref.documents as string[]).map(id => part(id, typeof ref.title === "string" ? ref.title : ""));
-        delete ref.documents;
-      }
-    };
-    if (body.summary !== null && body.summary !== undefined) { if (!isObject(body.summary)) refused(row.id, "摘要"); references((body.summary as Record<string, unknown>).references); }
-    if (body.sources !== undefined) {
-      if (!Array.isArray(body.sources)) refused(row.id, "来源");
-      for (const item of body.sources as unknown[]) {
-        if (!isObject(item)) refused(row.id, "来源");
-        const source = item as Record<string, unknown>;
-        references(source.references); references(source.reused_references);
-        if (source.reading !== undefined) { if (!isObject(source.reading)) refused(row.id, "读取进度"); references((source.reading as Record<string, unknown>).references); }
-      }
-    }
-    if ("document_id" in body) {
-      const id = body.document_id, adoption = isObject(body.adoption) ? body.adoption : undefined;
-      if (id !== null && typeof id !== "string") refused(row.id, "摘要文档");
-      body.summary_open = typeof id === "string" ? part(id, typeof adoption?.title === "string" ? adoption.title : "").open : null;
-      delete body.document_id;
-    }
-    if (body.adoption !== undefined) {
-      if (!isObject(body.adoption)) refused(row.id, "采用");
-      const adoption = body.adoption as Record<string, unknown>;
-      if (adoption.todo_selected !== undefined) {
-        if (!strings(adoption.todo_selected)) refused(row.id, "勾选的待办");
-        adoption.keep = adoption.todo_selected;
-        delete adoption.todo_selected;
-      }
-    }
-    if (body.todo !== undefined) {
-      const todo = body.todo;
-      if (!isObject(todo) || !["pending", "ready", "failed"].includes(String(todo.status)) || typeof todo.key !== "string" || !Array.isArray(todo.batches)
-        || !todo.batches.every(batch => isObject(batch) && typeof batch.batch_id === "string") || typeof todo.total !== "number"
-        || (todo.error !== null && typeof todo.error !== "string") || (todo.added !== undefined && !strings(todo.added)) || !isObject(todo.timing)) refused(row.id, "待办草稿");
-      const t = todo as Record<string, unknown> & { batches: { batch_id: string }[] };
-      body.drafts = { plugin_id: ONE.todo, surface: ONE.todo_surface, status: t.status, key: t.key, batches: t.batches.map(batch => ({ batch_id: batch.batch_id, snapshot: null })),
-        total: t.total, error: t.error, ...(t.added ? { added: t.added } : {}), timing: t.timing };
-      delete body.todo;
-    }
-    update.run(JSON.stringify(body), row.id);
-  }
-}
+export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = {
+  version: /* @version database.context_onboarding_baseline */ 1,
+  schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);",
+  upgrades: [],
+};
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
   const db = openHomeSqliteDatabase(home, CONTEXT_ONBOARDING_HOME_STORE.path);
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }
@@ -253,14 +188,16 @@ class ContextJourneyStore {
     const row = this.db.prepare("SELECT body FROM journeys WHERE json_extract(body, '$.oauth_status') = 'pending' AND json_extract(body, '$.oauth_state') = ?").get(state) as { body: string } | undefined;
     return row ? JSON.parse(row.body) as ContextJourney : null;
   }
-  latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string | null } | null {
+  latestIncomplete(projectId?: string | null): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string | null } | null {
     const row = this.db.prepare(`SELECT body FROM journeys
       WHERE json_extract(body, '$.phase') != 'complete'
+      AND (CASE WHEN ? IS NULL THEN COALESCE(json_extract(body, '$.existing'), 0) = 0
+        ELSE json_extract(body, '$.existing') = 1 AND json_extract(body, '$.project_id') = ? END)
       AND (json_extract(body, '$.adoption') IS NOT NULL
         OR json_extract(body, '$.phase') != 'selecting'
         OR EXISTS (SELECT 1 FROM json_each(json_extract(body, '$.sources'))
           WHERE json_extract(value, '$.selected') = 1))
-      ORDER BY updated_at DESC, rowid DESC LIMIT 1`).get() as { body: string } | undefined;
+      ORDER BY updated_at DESC, rowid DESC LIMIT 1`).get(projectId ?? null, projectId ?? null) as { body: string } | undefined;
     if (!row) return null;
     const j = JSON.parse(row.body) as ContextJourney;
     return { id: j.id, phase: j.phase, updated_at: j.updated_at, title: j.adoption?.title ?? j.summary?.title ?? null };
@@ -272,7 +209,11 @@ class ContextJourneyStore {
       id, phase: "selecting", sources: [], model: null, error: null, summary: null,
       project_id: projectId ?? `project-onboarding-${id}`, ...(projectId ? { existing: true as const } : {}), summary_open: null, updated_at: new Date().toISOString(),
     } satisfies ContextJourney), new Date().toISOString());
-    return this.get(id);
+    const journey = this.get(id);
+    if (journey.existing !== (projectId ? true : undefined) || (projectId && journey.project_id !== projectId)) {
+      throw new Error("这轮整理属于另一个项目");
+    }
+    return journey;
   }
   save(journey: ContextJourney): ContextJourney {
     journey.updated_at = new Date().toISOString();

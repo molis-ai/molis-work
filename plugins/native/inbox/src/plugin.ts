@@ -30,19 +30,42 @@ const FEED = {
 
 type DocumentGeneratorRefs = Record<DocumentGenerationRole, ActionReference>;
 
-/** Discover the project's document-generation provider by typed role protocol (Audit #10). */
-async function discoverDocumentGenerator(discover: () => Promise<readonly ActionView[]>): Promise<DocumentGeneratorRefs> {
-  const byProvider = new Map<string, Partial<DocumentGeneratorRefs>>();
+/** Discover a single document-generation role (e.g. `generations.list`, which does not require write/model permissions). */
+async function discoverDocumentGeneratorRole(discover: () => Promise<readonly ActionView[]>, wanted: DocumentGenerationRole): Promise<ActionReference> {
+  let unavailable: ActionView | undefined;
+  for (const view of await discover()) {
+    if (documentGenerationRoleOf(view.action) !== wanted) continue;
+    if (view.availability.available) return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    unavailable ??= view;
+  }
+  if (unavailable && !unavailable.availability.available) throw new ActionError(unavailable.availability.code, unavailable.availability.reason);
+  throw new ActionError("actions.connection_required", "当前项目没有可用的文稿生成插件");
+}
+
+/** Discover the project's full document-generation provider by typed role protocol (Audit #10). */
+async function discoverDocumentGenerator(discover: () => Promise<readonly ActionView[]>, activeRole: DocumentGenerationRole): Promise<DocumentGeneratorRefs> {
+  const byProvider = new Map<string, Partial<Record<DocumentGenerationRole, ActionView>>>();
   for (const view of await discover()) {
     const role = documentGenerationRoleOf(view.action);
-    if (!role || !view.availability.available) continue;
+    if (!role) continue;
     const group = byProvider.get(view.provider.provider_id) ?? {};
-    group[role] = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    group[role] = view;
     byProvider.set(view.provider.provider_id, group);
   }
+  let unavailable: ActionView | undefined;
   for (const group of byProvider.values()) {
-    if (DOCUMENT_GENERATION_ROLES.every(role => group[role])) return group as DocumentGeneratorRefs;
+    if (!DOCUMENT_GENERATION_ROLES.every(role => group[role])) continue;
+    const active = group[activeRole]!;
+    if (active.availability.available) {
+      return Object.fromEntries(DOCUMENT_GENERATION_ROLES.map(role => [role, {
+        capability_id: group[role]!.capability_id,
+        version: group[role]!.version,
+        provider_id: group[role]!.provider.provider_id,
+      }])) as DocumentGeneratorRefs;
+    }
+    unavailable ??= active;
   }
+  if (unavailable && !unavailable.availability.available) throw new ActionError(unavailable.availability.code, unavailable.availability.reason);
   throw new ActionError("actions.connection_required", "当前项目没有可用的文稿生成插件");
 }
 
@@ -106,13 +129,13 @@ export function createInboxPlugin(): PluginDefinition {
       }
       return { items, sources };
     };
-    const docGen = () => discoverDocumentGenerator(() => directory.discover());
+    const docGen = (role: DocumentGenerationRole) => discoverDocumentGenerator(() => directory.discover(), role);
     const pages = createInboxPagesHandlers({
-      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>((await docGen())["generations.get"], { request_id: requestId })).record,
-      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>((await docGen())["generations.list"], {})).records,
-      readDocument: async id => (await ask<{ document: InboxPagesDocument }>((await docGen())["document.get"], { id })).document,
-      generate: async input => ask((await docGen()).generate, { ...input, inputs: [...input.inputs] }),
-      generateReference: async () => (await docGen()).generate,
+      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>((await docGen("generations.get"))["generations.get"], { request_id: requestId })).record,
+      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>(await discoverDocumentGeneratorRole(() => directory.discover(), "generations.list"), {})).records,
+      readDocument: async id => (await ask<{ document: InboxPagesDocument }>((await docGen("document.get"))["document.get"], { id })).document,
+      generate: async input => ask((await docGen("generate")).generate, { ...input, inputs: [...input.inputs] }),
+      generateReference: async () => (await docGen("generate")).generate,
       readMaterial: async (entryId, caller): Promise<InboxPagesInputSnapshot> => {
         await caller.validate_permissions?.(["inbox:read"]);
         caller.signal?.throwIfAborted();

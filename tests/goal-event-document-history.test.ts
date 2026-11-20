@@ -29,7 +29,11 @@ const TOKEN = "molis-work-history-contract-token-0123456789abcdef";
 test("public document timeline is bounded and keeps the journal", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Goal event history", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "Goal event history", actor_id: "test" });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" });
+    return created;
+  });
   const DEMO_PROJECT_ID = project.project_id;
   // The catalog made the project and its file; the imported-requirements dump, renamed to this project's id, replaces that file with its journal.
   const fixture = materializeGoalEventHistory("imported");

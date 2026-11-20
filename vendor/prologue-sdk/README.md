@@ -1,6 +1,20 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main 64e5aaf4（2026-11-17，第 59 批）
+## 当前包：official main cfb842e4（2026-11-19，0.1.0-rc.1 安全与 Harness 深化 + 消费方一等端口）
+
+运行包为 `prologue-sdk-0.1.0-rc.1.tgz`，**1,494,922 字节**，SHA-256 `ddf44202aca998473acf0d1757f6cd5e6831cc33cf99acab13b426849bbe2580`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `cfb842e411ff446d06ca00d0c3875c6b4bbace85`（[Prologue #138](https://github.com/molis-ai/molis-prologue/pull/138)，基于 [Prologue #137](https://github.com/molis-ai/molis-prologue/pull/137) `d7fb690c82a97658839f3f31a5f5ecd13a8fed57` 与 #136 `66c404c7`），无 vendor 补丁。
+
+本包落地上游 A–C 三阶段系统性整改与消费方一等端口（`StorageGuard`、`CommandDispatchGuard`、`McpRequestGuard`、Session 级 `DynamicTool`、`runtime.subagents.subscribe`、`listBuiltInProtocols` / `isSupportedProtocol`），以及全量 Molis Work CI 暴露的 7 项集成修复（Anthropic 用户消息隔离、工具枚举交由领域拒答、导航页作用域与拒绝收紧、关机重试、HTTP MCP 在途 `onDispatched`、`StorageGuard` 同步快路径、取消时惰性 `awaitDispatchGuard` 零未捕获异常）。
+
+两份独立官方 `git archive` 使用 Node 24.15.0 与 pnpm 11.9.0 离线构建打包，产物逐字节一致。构建前上游完整 `QUALITY_BASE=origin/main pnpm quality` 通过（437/437 Vitest 文件 / 5,466 项测试、公开 API 快照、质量棘轮零增长、375 篇文档链接、干净消费者检查与 Rust fmt/clippy/test）。现核查 71 个 Prologue 提交，上一份官方 `66c404c7` 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 66c404c7（2026-11-19，遗留迁移与兼容代码清理）
+
+运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,479,460 字节**，SHA-256 `577c8ecbb04b6348d1e3722c63e57eb5874d72e88e82b03a467c08da2a993637`。[Prologue #136](https://github.com/molis-ai/molis-prologue/pull/136) 的官方 main `66c404c7dd81c254191388736ca05eb38d32f6c2` 与 PR 头 `99f9c7e10173cc62e9aef7d65ca9e21d3aa262fe` 同树（`d26829dc43144b56ab47276f0362dd6378dddc7d`），无 vendor 补丁。
+
+本包清理了已退役的 `Archive/`、旧记忆采用与旧行结构兼容（memory/candidate 行结构回到 1）、旧运行时幂等键回退以及 v1 会话/恢复兼容分支（仅保留 v2 封套与 `durable-prefix`）。构建前通过完整类型检查、`pnpm build`、`quality.mjs`（267 个文件 / 3,449 项测试）、公开 API 快照、质量棘轮、文档链接检查、干净消费者检查与 Rust fmt/clippy；[上游 GitHub 作业](https://github.com/molis-ai/molis-prologue/actions/runs/44514554194/job/135527050123)因账户付款或额度未启动步骤。现核查 69 个 Prologue 提交，上一份官方 `64e5aaf4` 包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 64e5aaf4（2026-11-17，第 59 批）
 
 运行包为 `prologue-sdk-0.0.0-rc.1.tgz`，**1,488,998 字节**，SHA-256 `4628595426c2a33a285640b245485634ed8f34224320838d8927b5736b741c85`。[Prologue #135](https://github.com/molis-ai/molis-prologue/pull/135) 的官方 main `64e5aaf444629aa597f028e63cf4090456830637` 与独立评审头 `88926b6c5cfa54e07ad2c070941dcd9aad383ffb` 同树。
 

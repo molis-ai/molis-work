@@ -13,6 +13,12 @@ export const fullSuiteWorkflow = readFileSync(
   "utf8",
 );
 
+/** .github/actions/setup-work/action.yml, the shared composite action for Node, pnpm and dependency install. */
+export const setupWorkAction = readFileSync(
+  fileURLToPath(new URL("../../.github/actions/setup-work/action.yml", import.meta.url)),
+  "utf8",
+);
+
 /** The lines of one job, from `  <name>:` to the next job. */
 export function jobBlock(name: string, text = workflow): string {
   const lines = text.split("\n");

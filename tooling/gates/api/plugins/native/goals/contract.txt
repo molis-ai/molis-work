@@ -1565,7 +1565,6 @@ export interface GovernanceEventDecisionApi {
     record(input: RecordGoalUserDecisionInput & {
         authority: GoalEventTrustedAuthority;
     }): GoalEventTrustedDecisionRecord;
-    read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null;
 }
 
 export interface GovernanceProvenanceApi {
@@ -2322,7 +2321,7 @@ export declare const goalEventDecisionEffectKinds: readonly ["accept_requirement
 
 export declare const goalEventDecisionPurposes: readonly ["suggestion", "requirement_acceptance", "action", "agreement_change"];
 
-export declare const goalEventDecisionRequestStatuses: readonly ["pending", "decided", "moved"];
+export declare const goalEventDecisionRequestStatuses: readonly ["pending", "decided"];
 
 export declare const goalEventFieldFormats: readonly ["text", "longtext"];
 

@@ -87,13 +87,13 @@ export async function hasStagedText(home: string, id: string, text: StagedText):
 export async function readStagedNote(home: string, id: string, key: string): Promise<string | null> {
   return readFile(staged(home, id, "notes", key), "utf8").catch(() => null);
 }
-export async function stageNote(home: string, id: string, key: string, note: string, beforePublish: () => void): Promise<void> {
+export async function stageNote(home: string, id: string, key: string, note: string, beforePublish: () => Promise<void>): Promise<void> {
   const path = staged(home, id, "notes", key), directory = join(journeyDirectory(home, id), "notes");
   await mkdir(directory, { recursive: true });
   const temporary = join(directory, `.incoming-${randomUUID()}`);
   try {
     await writeFile(temporary, note, { flag: "wx" });
-    beforePublish();
+    await beforePublish();
     renameSync(temporary, path);
   } catch (error) {
     await rm(temporary, { force: true });

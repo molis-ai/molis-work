@@ -409,9 +409,8 @@ B9 其余三组的写入已接入动作，见 §10.1.1；插件创作台一组�
 | 2 | Host 资料服务 | `apps/local-host/src/materials-http.ts`、`system-materials-actions.ts`、`materials.files.entries/content` | 上面的请求 → 调 `projects.directories.get`、`projects.workspace.files.read`；打开/固定走同一项目连接的事务 | 调用者由 `localWebActionContext` 造，资料服务只拿 `workspace:read` 加 open/capture 的 `artifact:read|write`、`storage:private`；文件读取按调用者当前可读的文件夹解析，个人固定版本还比 `owner_actor_id` | 文件夹不在、路径越界、指纹不符、选区失效、内容超过内联上限都拒绝；拒绝不写过程项/端口/事件 | 打开写阅读位置和 `files` 输出；固定写过程项、端口和两库复制日志，同事务提交 |
 | 3 | 知识来源 | `horizontal/knowledge` 的 `workspace_file` 来源与 `workspace.ts`；选择器用 `knowledge.glob` 列目录、`materials.read` 读 revision | 项目文件夹的相对路径 → `workspace_file` 引用；只存引用，不存正文 | 由调用者的目录权限决定可见条目；来源不借调用拿到别的目录 | 目录不在、引用脱钩、越权读取按 knowledge 与资料服务的拒绝 | 无第二份正文；`materials.recent`／`origins` 只记引用与现读出处处 |
 | 4 | 消费方 | Diff／Text Stats 的默认来源、Coding 的「打开资料」、Goal 的固定版本 | `{ plugin_id: "system.materials", port }` → 当前输出；或 `MaterialRef` → 固定快照/选区 | 默认绑定按当前完整 subject 的同意；旧 Files 同意撤销后不生效；`resolvePortInput` 核来源、类型/schema、输出引用、producer id/signature 与个人 owner | 来源不在、同意撤回、类型不符、版本不可读都拒绝，不交旧内容 | 端口投递与消费沿 Runtime；固定成果版本仍归成果库 |
-| 5 | 采用与删除 | `apps/local-host/src/process-items-adoption.ts`、`scripts/replay-golden-homes.mjs` | 旧布局项目库 → 改属过程项/端口/绑定，退役安装与 Files 游标，换日志并走完 2→3；全部项目采用后撤 Files 同意、移出项目成员 | 由持 Home 租约的维护入口执行；普通打开不采用 | 预检、备份、事务读回任一不符就拒绝并保留原件；真实 Home 另授权 | 采用报告逐项计数；金样回放只多放过还原后数出的 Files 独有行 |
 
-**守住它的用例**：`tests/system-materials-actions.test.ts`、`tests/files-era-adoption.test.ts`、`tests/process-items-adoption.test.ts`、`tests/side-panel-platform.test.ts`、`tests/side-materials-reader.e2e.test.ts`、`tests/coding-workbench.e2e.test.ts`；预算 `tests/call-budget.test.ts` 的 `sideFileFirstPages`。
+**守住它的用例**：`tests/system-materials-actions.test.ts`、`tests/side-panel-platform.test.ts`、`tests/side-materials-reader.e2e.test.ts`、`tests/coding-workbench.e2e.test.ts`；预算 `tests/call-budget.test.ts` 的 `sideFileFirstPages`。
 
 ## 12. 工作记录写入、查询与管理链（2026-11-14 补，第 28、29 批）
 

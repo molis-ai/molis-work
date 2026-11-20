@@ -538,7 +538,7 @@ export interface SandboxSdk {
             bytes: Uint8Array;
         }>;
         releaseOriginal(record_key: string): Promise<void>;
-        attach(file: SandboxMaterialFile): Promise<ConversationAttachment>;
+        attach(file: SandboxMaterialFile, request?: Pick<ConversationAttachmentUploadRequest, 'expected_kind'>): Promise<ConversationAttachment>;
         readAttachment(ref: MaterialRef, request: {
             as: 'text' | 'image';
         }): Promise<ConversationAttachmentContent>;

@@ -319,3 +319,25 @@ test("BCD-15: a code-root intake refuses a query, Home-scoped, shared or reshape
   // Coding is the first plugin to declare one, and its Manifest passes the same check.
   assert.deepEqual(parsePluginManifest(codingManifest).actions?.filter(item => intakeMaterial(item.action.intake, "code_root")).map(item => item.capability_id), ["coding.onboarding.take"]);
 });
+
+test("retired io.goalboard.* plugin IDs are rejected while io.molis.work.* is accepted", () => {
+  const manifest = {
+    schema_version: 1,
+    host_api_version: 1,
+    plugin_id: "io.goalboard.example.notes",
+    version: "1.0.0",
+    name: "Notes",
+    kind: "integration",
+    publisher: { publisher_id: "local-developer", signature: "local-development-identity" },
+    entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [{ permission: "artifact:write", required: true, reason: "share notes" }],
+    capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] },
+  };
+  assert.throws(
+    () => parsePluginManifest(manifest),
+    (error: unknown) => (error as { kind?: string; code?: string }).kind === "invalid" && (error as { code?: string }).code === "plugin.manifest_invalid",
+  );
+  assert.equal(parsePluginManifest({ ...manifest, plugin_id: "io.molis.work.example.notes" }).plugin_id, "io.molis.work.example.notes");
+});

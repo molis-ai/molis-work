@@ -122,6 +122,24 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
+export interface PluginApprovalOutcome {
+    readonly kind: string;
+    readonly id: string;
+    readonly digest: string;
+}
+
+export interface PluginApprovalOutcomesBinding {
+    readonly collection_id: string;
+    readonly subject_kinds: readonly string[];
+    readOutcome(db: {
+        prepare(sql: string): {
+            all(...params: string[]): unknown[];
+        };
+    }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
+    outcomesFromFacts(facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
+    assertHistory(previous: ReadonlyMap<string, PluginApprovalOutcome>, incoming: ReadonlyMap<string, PluginApprovalOutcome>, facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): void;
+}
+
 export interface PluginBoardSpecimen {
     readonly id: string;
     readonly title: string;
@@ -146,21 +164,13 @@ export type PluginDistributionVerifier = (release: {
 
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
+    readonly approval_outcomes?: PluginApprovalOutcomesBinding;
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;
     readonly personal?: true;
     readonly default_enabled?: true;
     readonly companions?: readonly string[];
-    readonly private_value_adoption?: {
-        readonly prefixes: readonly string[];
-        convert(key: string, value: string): string | null;
-    };
-    readonly private_value_upgrades?: readonly {
-        readonly project_from: number;
-        readonly prefixes: readonly string[];
-        convert(key: string, value: string): string | null;
-    }[];
     readonly runtime?: {
         readonly create: () => PluginDefinition;
         readonly package_name: string;

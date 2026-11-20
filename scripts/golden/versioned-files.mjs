@@ -28,9 +28,6 @@ const READERS = new Map([
       selection?.mono?.id, selection?.mono?.revision, recovery?.applied.request_id];
   }, '[1,"folio",1,"follow-skin","system-menlo",1,"appearance-seed"]']],
   ["jelly/preferences.json", [({ call }) => call("jelly.model.settings"), "golden-model-seed"]],
-  // The receipt names a user home no machine has, so preparing its removal can only answer that the configuration changed since; a receipt the
-  // owner could not read is refused instead, and with no receipt the answer is that nothing is managed.
-  ["runtime-integrations/codex.json", [({ http }) => http("/api/settings/runtimes/codex/plan", { body: { action: "remove" } }), "接入后相关配置已被改动"]],
   ["shelf/catalog.json", [({ call }) => call("shelf.snapshot"), "金样"]],
 ]);
 const RUNTIME_RECORDS = "agent-runtime/";

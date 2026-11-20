@@ -1,8 +1,6 @@
-import { ADOPTED_PROCESS_ITEMS_JOURNAL_SQL, ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
+import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline, type SqliteBaselineDatabase, type SqliteUpgradeStep } from "@molis-ai/molis-work-storage";
-import { applyPrivateValueAdoption, planPrivateValueAdoption } from "@molis-ai/molis-work-plugin-runtime";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
@@ -11,9 +9,7 @@ import { ACCEPTANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-acceptance";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL } from "@molis-ai/molis-work-service-surfaces";
 import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
-import { PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL, RUNTIME_RECEIPTS_SCHEMA_SQL } from "./project-runtime-settings.js";
-import { projectApprovalUpgradeReductions, transferProjectApprovals } from "./project-approval-upgrade.js";
-import { projectLibraryV7Upgrade } from "./project-library-v7-upgrade.js";
+import { PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL } from "./project-runtime-settings.js";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
   PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
@@ -36,30 +32,14 @@ import {
  * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
  * Listener Host tables along with its out rules.
  */
-/**
- * The Inbox tables as versions 1 to 6 made them: subject types and reasons checked against a closed list. Version 7 (batch 44, D3) drops
- * the two CHECKs; the earlier versions' layouts below keep them, so an upgrade from any of them starts from what that version really made.
- */
-const ATTENTION_SCHEMA_SQL_V6 = ATTENTION_SCHEMA_SQL
-  .replace("      subject_type TEXT NOT NULL,\n", "      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),\n")
-  .replace("      reason TEXT NOT NULL,\n", "      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),\n");
-if (ATTENTION_SCHEMA_SQL_V6 === ATTENTION_SCHEMA_SQL) throw new Error("the Inbox schema no longer has the columns its version-6 layout checked");
-
-/** The six process-item journal triggers, by the names both journals give them. */
-export const PROCESS_ITEMS_TRIGGER_NAMES: readonly string[] = ["identity", "version"].flatMap(row => ["insert", "update", "delete"].map(operation => `process_items_sync_${row}_${operation}`));
-
-/**
- * The library as version 2 left it, with the adopted process-items journal: the layout the Files retirement's adoption brings a version-2
- * library to before it takes the later steps (`project-layout.ts`). Version 3 adds the surface corrections after it.
- */
-export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
+const PROJECT_DATABASE_SCHEMA = [
   STORAGE_SPACE_SCHEMA_SQL,
   PROJECT_ROOT_SCHEMA_SQL,
   ARTIFACTS_SCHEMA_SQL,
   PROCESS_ITEMS_SCHEMA_SQL,
   LOCAL_JOURNAL_SCHEMA_SQL,
   CONTEXT_LEDGER_SCHEMA,
-  ATTENTION_SCHEMA_SQL_V6,
+  ATTENTION_SCHEMA_SQL,
   LOCAL_OPAQUE_BLOB_SCHEMA_SQL,
   PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL,
   PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
@@ -71,50 +51,15 @@ export const PROJECT_DATABASE_VERSION_2_SCHEMA = [
   SCHEDULER_SCHEMA_SQL,
   MATERIAL_RECENT_USES_SCHEMA_SQL,
   PROJECT_REPLICATION_SCHEMA_SQL,
+  SURFACE_CORRECTIONS_SCHEMA_SQL,
+  PROJECT_APPROVALS_SCHEMA_SQL,
+  PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL,
+  PROJECT_GUIDANCE_SCHEMA_SQL,
+  ACCEPTANCE_SCHEMA_SQL,
 ].join("\n");
 
-export const PROJECT_DATABASE_VERSION_3_SCHEMA = `${PROJECT_DATABASE_VERSION_2_SCHEMA}\n${SURFACE_CORRECTIONS_SCHEMA_SQL}`;
-
-/**
- * The built-in plugins' own conversions of their private values that the step from `from` carries (`private_value_upgrades` in their
- * registrations): Plugin Runtime owns the private values and the install records, so each goes through its plan and write, on the exact
- * official install's values only, each written only over the value it was read as. A value a plugin cannot read fails the step, and the
- * library stays at its old version.
- */
-const pluginPrivateValueUpgrades = (from: number) => (db: SqliteBaselineDatabase): void => {
-  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) for (const step of registration.private_value_upgrades ?? []) {
-    if (step.project_from !== from) continue;
-    const plan = planPrivateValueAdoption(db, { manifest: registration.manifest, private_value_adoption: { prefixes: step.prefixes, convert: step.convert } });
-    if (plan.refused.length) throw new Error(plan.refused.join("; "));
-    applyPrivateValueAdoption(db, plan);
-  }
-};
-
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 7,
-  schema: `${PROJECT_DATABASE_VERSION_3_SCHEMA.replace(ATTENTION_SCHEMA_SQL_V6, ATTENTION_SCHEMA_SQL)}\n${PROJECT_APPROVALS_SCHEMA_SQL}\n${PROJECT_RUNTIME_SETTINGS_SCHEMA_SQL}\n${PROJECT_GUIDANCE_SCHEMA_SQL}\n${ACCEPTANCE_SCHEMA_SQL}`,
-  upgrades: [
-    // 1 → 2 (specs/shared-sources-and-surfaces §2.1, §3): where a project was browsed is no setting any more, and 「最近用过」 starts empty.
-    // The step also lands on the adopted process-items journal (user 2026-11-12, specs/batch-06-shared-tools/current-version-adoption.md):
-    // the same trigger names now mark the new journal, the original journal stays untouched. Structure only; business rows are not converted.
-    { from: 1, sql: `DROP TABLE project_browsing_settings;\n${MATERIAL_RECENT_USES_SCHEMA_SQL}\n${PROCESS_ITEMS_TRIGGER_NAMES.map(name => `DROP TRIGGER ${name};`).join("\n")}\n${ADOPTED_PROCESS_ITEMS_JOURNAL_SQL}\n${ADOPTED_PROCESS_ITEMS_TRIGGERS_SQL}`,
-      reduces_rows: ["project_browsing_settings"] },
-    // 2 → 3: the Host keeps the person's corrections of what a surface showed (batch 15).
-    { from: 2, sql: SURFACE_CORRECTIONS_SCHEMA_SQL },
-    { from: 3, sql: PROJECT_APPROVALS_SCHEMA_SQL, run: transferProjectApprovals,
-      get reduces_rows() { return projectApprovalUpgradeReductions(); } },
-    // 4 → 5: what the built-in plugins keep in this library's private values in the old shape (a card's outcome as a sentence, user
-    // 2026-11-17), each converted by its own declared step.
-    { from: 4, run: pluginPrivateValueUpgrades(4) },
-    // 5 → 6 (batch 38): v5 created the two-column selection table only after the first pick. Both old shapes reach the same baseline.
-    { from: 5, sql: `CREATE TABLE IF NOT EXISTS project_runtime_settings (project_id TEXT PRIMARY KEY, runtime_id TEXT);
-      ALTER TABLE project_runtime_settings ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
-      ${RUNTIME_RECEIPTS_SCHEMA_SQL}` },
-    // 6 → 7 (batch 44, CONTRACT-CHANGES 「第 44 批存量搬迁」 A, B1, D1, D3): project guidance and acceptance to the platform, the Inbox's declared words, and relations naming plugin objects.
-    { from: 6, ...projectLibraryV7Upgrade },
-  ],
+  version: /* @version database.project_database_baseline */ 1,
+  schema: PROJECT_DATABASE_SCHEMA,
+  upgrades: [],
 };
-
-export const projectApprovalUpgrade: SqliteUpgradeStep = PROJECT_DATABASE_BASELINE.upgrades![2]!;
-/** The 6→7 step (batch 44 A, B1, D1, D3), which also moves Goals' library 5→6: the store snapshot checks the Host installs this very step. */
-export const projectLibraryV7Step: SqliteUpgradeStep = PROJECT_DATABASE_BASELINE.upgrades![5]!;

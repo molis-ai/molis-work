@@ -95,25 +95,6 @@ export const ATTENTION_SCHEMA_SQL = `
       ON attention_events(project_id, entry_id, at, event_id);
 `;
 
-const INBOX_ENTRY_FIELDS = "project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status, detail_json, revision, created_at, updated_at, completed_at";
-
-/**
- * The project library's 6→7 step (batch 44 D3, `docs/system/CONTRACT-CHANGES.md` 「第 44 批存量搬迁」): the Inbox entries lose the two
- * CHECKs that listed subject types and reasons. The table is made again with its current columns and its rows copied back; its indexes
- * and triggers are made again from their stored text, as they were. Runs in the caller's upgrade transaction, with foreign keys off.
- * Delete with the project library's version-6 golden support.
- */
-export function rebuildInboxEntries(db: { exec(sql: string): unknown; prepare(sql: string): { all(...params: unknown[]): unknown[] } }): void {
-  const kept = db.prepare("SELECT sql FROM sqlite_schema WHERE tbl_name = 'inbox_entries' AND type IN ('index', 'trigger') AND sql IS NOT NULL ORDER BY type, name")
-    .all() as Array<{ sql: string }>;
-  db.exec(`CREATE TABLE inbox_entries_rebuild AS SELECT ${INBOX_ENTRY_FIELDS} FROM inbox_entries;
-    DROP TABLE inbox_entries;
-    CREATE TABLE inbox_entries (${INBOX_ENTRIES_COLUMNS});
-    INSERT INTO inbox_entries (${INBOX_ENTRY_FIELDS}) SELECT ${INBOX_ENTRY_FIELDS} FROM inbox_entries_rebuild;
-    DROP TABLE inbox_entries_rebuild;`);
-  for (const { sql } of kept) db.exec(sql);
-}
-
 export class AttentionModule implements AttentionApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),

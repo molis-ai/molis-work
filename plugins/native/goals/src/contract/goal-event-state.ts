@@ -51,11 +51,8 @@ export type GoalEventDecisionPurpose = (typeof goalEventDecisionPurposes)[number
 /** The purposes a request made now may have: accepting requirements is the platform's per-item review. */
 export const goalEventNewDecisionPurposes = ["suggestion", "action", "agreement_change"] as const satisfies readonly GoalEventDecisionPurpose[];
 export type GoalEventNewDecisionPurpose = (typeof goalEventNewDecisionPurposes)[number];
-/**
- * A request's status. `moved`: a request for accepting requirements that was still waiting when the project library went to version 6;
- * the platform's per-item review took it over, and only that step set it (pending → moved).
- */
-export const goalEventDecisionRequestStatuses = ["pending", "decided", "moved"] as const;
+/** A request's status: waiting for the person or already decided. */
+export const goalEventDecisionRequestStatuses = ["pending", "decided"] as const;
 export type GoalEventDecisionRequestStatus = (typeof goalEventDecisionRequestStatuses)[number];
 
 /** A requirement's status as a configuration event recorded it (`GoalEventExtraRequirement`). */

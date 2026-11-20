@@ -28,12 +28,11 @@ test("UPG-01 the snapshot holds the catalog, the project database, every Home li
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 
-test("APR-19 PEQ-03 ONB-28 the built snapshot records Goals 4→5 and 5→6 with the project's actual 3→4 and 6→7 transactions, after its 4→5 card outcomes and 5→6 runtime settings receipts", () => {
+test("APR-19 the built snapshot records both the project database and Goals at v1 baseline with no pre-release upgrades", () => {
   const project = rows.find(row => row.store === "projects/*/molis-work.db");
   const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [7, [1, 2, 3, 4, 5, 6]]);
-  // Goals declares no step of its own: each from is the project step that moves it (3→4 the approvals, batch 44 D1 6→7 the relations).
-  assert.deepEqual([goals?.version, goals?.froms], [6, [4, 5]]);
+  assert.deepEqual([project?.version, project?.froms], [1, []]);
+  assert.deepEqual([goals?.version, goals?.froms], [1, []]);
 });
 
 test("UPG-01 the hash moves with what a Home in use would keep in its old form, and not with how a statement is written", () => {

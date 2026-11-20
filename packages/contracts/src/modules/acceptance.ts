@@ -85,8 +85,8 @@ export interface AcceptanceCheck {
   reported_at: string;
 }
 
-/** Where a decision's standing comes from: the platform's trusted-decision entry, or Goals' own applied decision moved over by the 6→7 upgrade. */
-export type AcceptanceDecisionOrigin = "trusted_decision" | "goals_v5";
+/** Where a decision's standing comes from: always the platform's trusted-decision entry. */
+export type AcceptanceDecisionOrigin = "trusted_decision";
 
 export interface AcceptancePersonDecision {
   decision_id: string;
@@ -245,22 +245,3 @@ export const acceptanceActions = {
       returns: { type: "array", maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: { ...ITEM, properties: { ...ITEM.properties, note: text(2000) }, required: ["id", "version", "note"] } } },
       required: ["subject", "version", "accepts", "returns"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceDecideRequest, AcceptanceView>,
 };
-
-/**
- * One subject's whole record as Goals hands it over in the project library's 6→7 upgrade (contract-design §10.4), and nowhere else:
- * the rows exactly as they are to be written, with ids, rounds and clocks already worked out from Goals' own data, and what Goals' own
- * rules said of each current requirement. The platform writes them and refuses the upgrade where its own reading differs.
- */
-export interface AcceptanceHandoverSubject {
-  subject: AcceptanceSubject;
-  created_at: string;
-  requirements: Array<{ requirement_id: string; version: number; statement: string; expected: string | null; part: string | null; requires_person: boolean; withdrawn: boolean;
-    position: number; by_person: boolean; actor_id: string; created_at: string }>;
-  deliveries: Array<{ round: number; version: string; touches: string[] | null; actor_id: string; delivered_at: string }>;
-  checks: Array<{ check_id: string; clock: number; requirement_id: string; requirement_version: number; round: number; verdict: "supports" | "contradicts"; tier: AcceptanceTier;
-    gap: AcceptanceGap | null; checked_version: string; method: string; observed: string; evidence: AcceptanceEvidenceRef[]; reporter_session: string | null; actor_id: string; reported_at: string }>;
-  decisions: Array<{ decision_id: string; clock: number; requirement_id: string; requirement_version: number; stands_round: number; version: string; decision: "accepted" | "returned";
-    note: string | null; origin_ref: string; actor_id: string; decided_at: string }>;
-  /** Goals' own reading of each current requirement before the move: satisfied or not. */
-  satisfied: Record<string, boolean>;
-}

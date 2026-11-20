@@ -299,45 +299,6 @@ test("UPG1-i-store-11: this repository has the origin registered and passes as i
   assert.deepEqual(storeVersionProblems({ read: real, readBase: real }), []);
 });
 
-test("APR-19 Goals 4→5 must name the real project 3→4 transfer, including its installed writer", () => {
-  const projectSchema = "apps/local-host/src/project-database-schema.ts";
-  const actual = real(projectSchema)!;
-  const goalsAt = (version: number) => realChecklist.replace(/(\| `projects\/<project_id>\/molis-work\.db#goals` \| )6 \|/, (_line, prefix: string) => prefix + version + " |");
-  // The change as batch 39 made it: Goals 4 → 5, the project library already past 4.
-  const oldChecklist = goalsAt(4), newChecklist = goalsAt(5);
-  assert.notEqual(oldChecklist, realChecklist);
-  assert.equal(checklistVersions(oldChecklist).get("`projects/<project_id>/molis-work.db#goals`"), 4);
-  const check = (specText = realSpec, source = actual) => storeVersionProblems({
-    read: (file: string) => file === SPEC ? specText : file === projectSchema ? source : file === CHECKLIST ? newChecklist : real(file),
-    readBase: (file: string) => file === CHECKLIST ? oldChecklist : real(file),
-  }).join("\n");
-  assert.equal(check(), "");
-  const wrongStep = realSpec.replace(/^(\| `projects\/<project_id>\/molis-work\.db#goals` \| 4 → 5 \|.*#)3→4`/mu, (_line, prefix: string) => prefix + "4→5`");
-  assert.notEqual(wrongStep, realSpec);
-  assert.match(check(wrongStep), /points at the step 4→5/u);
-  const missingWriter = actual.replace("run: transferProjectApprovals", "run: anotherStep");
-  assert.notEqual(missingWriter, actual);
-  assert.match(check(realSpec, missingWriter), /needs the project library's verified approval transfer from 4/u);
-});
-
-test("PEQ-03 Goals 5→6 must name the real project 6→7 step (batch 44 D1), spread as the Host's step", () => {
-  const projectSchema = "apps/local-host/src/project-database-schema.ts";
-  const actual = real(projectSchema)!;
-  const oldChecklist = realChecklist.replace(/(\| `projects\/<project_id>\/molis-work\.db#goals` \| )6 \|/, (_line, prefix: string) => prefix + "5 |");
-  assert.notEqual(oldChecklist, realChecklist);
-  const check = (specText = realSpec, source = actual) => storeVersionProblems({
-    read: (file: string) => file === SPEC ? specText : file === projectSchema ? source : real(file),
-    readBase: (file: string) => file === CHECKLIST ? oldChecklist : real(file),
-  }).join("\n");
-  assert.equal(check(), "");
-  const wrongStep = realSpec.replace(/^(\| `projects\/<project_id>\/molis-work\.db#goals` \| 5 → 6 \|.*#)6→7`/mu, (_line, prefix: string) => prefix + "5→6`");
-  assert.notEqual(wrongStep, realSpec);
-  assert.match(check(wrongStep), /points at the step 5→6/u);
-  const notSpread = actual.replace("...projectLibraryV7Upgrade", "run: projectLibraryV7Upgrade.run");
-  assert.notEqual(notSpread, actual);
-  assert.match(check(realSpec, notSpread), /needs the project library's verified joint step from 5/u);
-});
-
 test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot without its step, its pointer or by going down", () => {
   const rows = realRows();
   assert.ok(rows.length > 0);

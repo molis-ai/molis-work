@@ -23,7 +23,6 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { parseStoreSchemas, SCHEMA_COLUMNS, SCHEMAS_FILE } from "./store-schemas.mjs";
-import { GOALS_APPROVAL_TRANSFER } from "./goals-approval-transfer.mjs";
 import { isMainScript } from "../script-paths.mjs";
 
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -68,19 +67,8 @@ export async function productRows() {
       const name = store.library.file ?? `${store.path}.db`;
       return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);
     }),
-    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) => {
-      const result = row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project);
-      const transfer = GOALS_APPROVAL_TRANSFER;
-      // A Goals version a project-library step moves is an origin of Goals' library too, once the Host's chain holds that very step.
-      for (const step of transfer.steps) {
-        const installed = host[step.hostStep];
-        if (manifest.plugin_id === transfer.pluginId && result.version >= step.goalsTo && host.PROJECT_DATABASE_BASELINE.version >= step.to
-          && installed?.from === step.from && installed.run && host.PROJECT_DATABASE_BASELINE.upgrades?.includes(installed)) {
-          result.froms = [...new Set([...result.froms, step.goalsFrom])].sort((a, b) => a - b);
-        }
-      }
-      return result;
-    }),
+    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) =>
+      row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project)),
   ];
   return rows.sort((left, right) => (left.store < right.store ? -1 : left.store > right.store ? 1 : 0));
 }

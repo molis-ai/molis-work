@@ -102,7 +102,7 @@ export const goalsManifest: PluginManifest = {
   databases: { project: GOALS_PROJECT_DATABASE },
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
-  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 3, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
+  sync: { protocol_version: /* @version sync.protocol */ 1, collections: [{ id: 'project_goals', database: 'project', title: '目标、关系与工作记录', schema_version: /* @version sync.collection.goals.project_goals */ 1, requires: [], sections: goalSectionsDeclaration, tracking: goalSectionsTracking }] },
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,

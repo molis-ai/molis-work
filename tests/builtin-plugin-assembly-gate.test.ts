@@ -300,13 +300,7 @@ test("PEQ-03 platform directories never import native plugin packages outside ge
   const { WORKSPACE_PACKAGES } = await import("../scripts/workspace-packages.mjs");
   const { checkPlatformNoPluginPackageImports, MIGRATION_PLUGIN_IMPORT_EXCEPTIONS } = await import("../scripts/gates/platform-plugin-imports.mjs");
   assert.deepEqual(checkPlatformNoPluginPackageImports(repoRoot, WORKSPACE_PACKAGES), [], "PEQ-03: real tree has zero disallowed platform imports of native plugins");
-  assert.deepEqual(MIGRATION_PLUGIN_IMPORT_EXCEPTIONS.map((e: { file: string }) => e.file).sort(), [
-    "apps/local-host/src/project-library-v5-handover.ts",
-    "apps/local-host/src/project-library-v7-upgrade.ts",
-  ], "PEQ-03: migration exception list contains only the two explicit handover/upgrade bridges");
-  for (const entry of MIGRATION_PLUGIN_IMPORT_EXCEPTIONS) {
-    assert.ok(typeof entry.removeWhen === "string" && entry.removeWhen.length > 10, `${entry.file} must document removeWhen`);
-  }
+  assert.deepEqual(MIGRATION_PLUGIN_IMPORT_EXCEPTIONS, [], "PEQ-03: migration exception list is empty after pre-release v1 reset");
   const disallowed = checkPlatformNoPluginPackageImports(repoRoot, WORKSPACE_PACKAGES, {
     files: [
       { file: "apps/local-host/src/web-project-pages.ts", source: 'import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\n' },

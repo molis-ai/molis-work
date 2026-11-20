@@ -1,8 +1,8 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  ONBOARDING_DRAFT_GET_MAX, ONBOARDING_DRAFT_MATERIALS_MAX, ONBOARDING_DRAFT_PART_CHARS,
-  type OnboardingDraftBatch, type OnboardingDraftGetInput, type OnboardingDraftInput,
+  ONBOARDING_DRAFT_MATERIALS_MAX, ONBOARDING_DRAFT_PART_CHARS,
+  type OnboardingDraftBatch, type OnboardingDraftInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -13,9 +13,8 @@ import {
   type CallTiming,
   type ContextJourney,
   type ContextReference,
-  type ImportFile,
 } from "./context-onboarding-store.js";
-import { codeRoot, contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
+import { codeRoot, contextFilePath, contextSources, type readContextSource } from "./context-onboarding-sources.js";
 import {
   classifyContextModelFailure,
   commitHeldSecretDecision,
@@ -30,21 +29,19 @@ import { handToTaker, importAdoptedMaterialsAndSummary, keepDrafts } from "./con
 import {
   diskFull,
   dropStagedNotes,
-  hasStagedText,
   isStagedDigest,
   readStagedNote,
   readStagedText,
   removeJourneyStaging,
   stageContextUpload,
   stageNote,
-  stagedFileSize,
   stagedJourneyIds,
 } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { ONBOARDING_TEXT_MODEL_MISSING, onboardingTextModel, type TextModelPort } from "./configured-text-port.js";
 import type { HostTextCommitResult } from "./host-complete-text.js";
-import { prepareContextDocument } from "./context-onboarding-documents.js";
-import { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
+import { sessionReadRefusal } from "./context-onboarding-sessions.js";
+import { readContextMaterials, type SessionReadGuard } from "./context-onboarding-read.js";
 import { partTitle, textParts } from "./context-onboarding-parts.js";
 import { ARTIFACTS_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
@@ -82,8 +79,11 @@ const controllers = new Map<string, AbortController>();
 const key = (home: string, id: string) => home + ":" + id;
 const STALE_EPOCH = Symbol("stale_epoch");
 
-export function readContextJourney(home: string, id: string): ContextJourney {
+export function readContextJourney(home: string, id: string, expectedProject?: string | null): ContextJourney {
   const journey = withContextJourneys(home, store => store.get(id));
+  if (expectedProject !== undefined && (journey.existing ? journey.project_id : null) !== expectedProject) {
+    throw new Error(uiText.text("workbench.context-onboarding.request-failed-try-again"));
+  }
   if (journey.staging_removed && journey.phase !== "complete") {
     journey.requires_reselection = true;
     journey.error = "这轮整理超过 30 天没有继续，暂存的文件已清理以腾出空间。原记录已保留，请重新选择资料开始一轮整理。";
@@ -295,97 +295,27 @@ export async function waitContextJourney(home: string, id: string): Promise<Cont
   await running.get(key(home, id)); return readContextJourney(home, id);
 }
 
-/** The person's AI tool sessions as a source's files, through the Host's reader of them (BL-177); refused when this Host has none. */
-async function readSessionsSource(home: string, journey: ContextJourney, ports: ContextOnboardingPorts, signal: AbortSignal) {
-  if (!ports.sessions) throw new Error("这里读不了外部会话");
-  const read = await readOnboardingSessions(await ports.sessions(home, journey.project_id, signal), signal);
-  if ("refused" in read) throw new Error(read.refused);
-  return read;
-}
-
 async function organize(home: string, journey: ContextJourney, runEpoch: number, signal: AbortSignal, ports: ContextOnboardingPorts): Promise<void> {
   const isCurrent = () => {
     const latest = withContextJourneys(home, store => store.find(journey.id));
     return Boolean(latest && (latest.epoch ?? 0) === runEpoch);
   };
+  const assertCurrent = () => { if (!isCurrent()) throw STALE_EPOCH; };
   const save = () => {
-    if (!isCurrent()) throw STALE_EPOCH;
+    assertCurrent();
     return withContextJourneys(home, store => store.save(journey));
   };
   let reachedModel = false;
+  const sessionSource = journey.existing ? journey.sources.find(source => source.selected && source.kind === "sessions") : undefined;
   try {
-    // Bytes, not files, say how far reading has come (2026-10-22): one large file can be most of the wait. Staged files are counted
-    // from the disk before reading starts, what the Host reads itself (mail, pasted text) as it is read; every pass counts again,
-    // so a restart never counts a file twice.
-    const stagedSize = (file: ImportFile) => file.staged ? stagedFileSize(home, journey.id, file.staged) : Promise.resolve(0);
-    const bytes = journey.reading_bytes = { done: 0, total: 0 };
-    for (const source of journey.sources.filter(s => s.selected)) {
-      if (source.references) { const read = source.references.reduce((sum, ref) => sum + ref.original.size_bytes, 0); bytes.done += read; bytes.total += read; }
-      else for (const file of source.files ?? []) bytes.total += await stagedSize(file);
-    }
-    save();
-    // Reading is a queue: one file at a time, each saved as it is read, so a restart resumes after the last one (no limits, 2026-10-22).
-    for (const source of journey.sources.filter(s => s.selected)) {
-      signal.throwIfAborted();
-      if (source.references) continue;
-      // A new project has no sessions filed to it and no permit yet: the person chose them for the step after the project is made.
-      if (source.kind === "sessions" && !journey.existing) continue;
-      source.error = undefined; save();
-      try {
-        const sessions = source.kind === "sessions" ? await readSessionsSource(home, journey, ports, signal) : null;
-        const titles: Record<string, string> = sessions?.titles ?? {};
-        const input = sessions ?? await (ports.readSource ?? readContextSource)(home, source);
-        signal.throwIfAborted();
-        const reusedByPath = new Map((source.reused_references ?? []).map(r => [r.path, r]));
-        const reading = source.reading?.total === input.files.length
-          ? source.reading
-          : { done: 0, total: input.files.length, references: [], issues: [], held_secrets: [] };
-        const counted = Boolean(source.files?.length);
-        const sizeOf = async (file: ImportFile) => { if (counted) return stagedSize(file); const size = file.bytes?.length ?? 0; bytes.total += size; return size; };
-        for (const file of input.files.slice(0, reading.done)) bytes.done += await sizeOf(file);
-        source.reading = reading; save();
-        // The checkpoint is written every 100 files or every second, whichever comes first: the row holds every reference so far, so a
-        // write per file would cost the square of the file count. A restart reads those few files again, which staging makes cheap.
-        let saved = Date.now();
-        for (const file of input.files.slice(reading.done)) {
-          signal.throwIfAborted();
-          const prevRef = !file.bytes && !file.reason ? reusedByPath.get(file.path) : undefined;
-          const canReuse = prevRef
-            && (!file.staged || prevRef.original.sha256 === file.staged)
-            && await hasStagedText(home, journey.id, prevRef.text);
-          if (canReuse && prevRef) {
-            reading.references.push(prevRef);
-          } else {
-            const read = await prepareContextDocument(home, journey.id, source.kind, file, signal, journey.secret_decisions);
-            const session = source.kind === "sessions" ? sessionKeyOf(file.path) : null;
-            if ("reference" in read && session) Object.assign(read.reference, { session_key: session, title: titles[file.path] ?? read.reference.title });
-            if ("reference" in read) reading.references.push(read.reference);
-            else if ("secret_hold" in read) (reading.held_secrets ??= []).push(read.secret_hold);
-            else if ("issue" in read) reading.issues.push(read.issue);
-          }
-          bytes.done += await sizeOf(file); reading.done++;
-          if (reading.done % 100 === 0 || Date.now() - saved >= 1000) { save(); saved = Date.now(); }
-        }
-        source.references = reading.references;
-        source.issues = reading.issues;
-        source.skipped = reading.issues.length;
-        source.held_secrets = reading.held_secrets?.length ? reading.held_secrets : undefined;
-        source.reused_references = undefined;
-        source.reading = undefined;
-        source.files = undefined;
-        source.text = undefined;
-      } catch (error) {
-        if (error === STALE_EPOCH || signal.aborted) throw error;
-        // The disk is full: the whole round stops at this file, and 继续整理 goes on from it.
-        if (diskFull(error)) throw new Error("磁盘空间不足，已读取的材料仍在。腾出空间后点「继续整理」，会从这份文件接着读。");
-        source.error = error instanceof Error ? error.message : "读取失败，请重试";
-      }
-      save();
-    }
-    bytes.done = bytes.total;
+    const sessionGuard = await readContextMaterials(home, journey, sessionSource, signal, ports, save, assertCurrent);
     const selectedSources = journey.sources.filter(s => s.selected);
     journey.last_read_paths = readScopePathTags(selectedSources);
-    const unique = deduplicateSelectedReferences(selectedSources);
+    if (sessionSource && !sessionGuard) {
+      for (const ref of sessionSource.references ?? []) ref.used_in_summary = false;
+      if (sessionSource.error) journey.drafts = undefined;
+    }
+    const unique = deduplicateSelectedReferences(selectedSources.filter(source => source !== sessionSource || sessionGuard));
     save();
     if (!unique.length) {
       // The sessions were the round's material and could not be read (the permit is off, say): the organizing does not run, and says why.
@@ -402,9 +332,9 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? ONBOARDING_TEXT_MODEL_MISSING); }
     reachedModel = true;
     // Drafts come from the same materials, beside the overview; a failure there never stops the overview.
-    const drafts = draftFromMaterials(home, journey, unique, signal, ports, save);
-    const answer = await summarizeContext(home, unique, ai, journey, signal, save);
-    await drafts;
+    const drafts = draftFromMaterials(home, journey, unique, signal, ports, save, sessionGuard);
+    const answer = await summarizeContext(home, unique, ai, journey, signal, save, sessionGuard).finally(() => drafts);
+    await sessionGuard?.check();
     signal.throwIfAborted();
     if (!isCurrent()) throw STALE_EPOCH;
     answer.validateResult();
@@ -412,7 +342,7 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
     const citedLabels = new Set(parsed.references.filter(r => r.used_in_summary).map(r => r.label));
     for (const source of selectedSources) {
       for (const ref of source.references ?? []) {
-        ref.used_in_summary = !ref.duplicate_of && citedLabels.has(ref.label);
+        ref.used_in_summary = (source !== sessionSource || Boolean(sessionGuard)) && !ref.duplicate_of && citedLabels.has(ref.label);
       }
     }
     journey.summary = parsed;
@@ -437,10 +367,15 @@ async function organize(home: string, journey: ContextJourney, runEpoch: number,
       return;
     }
     if (signal.aborted) return;
+    const sessionError = sessionSource && sessionReadRefusal(error);
+    if (sessionError) {
+      sessionSource.error = sessionError;
+      journey.drafts = undefined;
+    }
     // Whole characters, not UTF-16 units: unit 600 can fall inside a two-unit character. The first slice bounds what is spread.
     journey.phase = "failed";
     journey.failure_kind = classifyContextModelFailure(error, journey.needs_model === true);
-    journey.error = error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留";
+    journey.error = sessionError || (error instanceof Error ? [...error.message.slice(0, 1_200)].slice(0, 600).join("") : "整理失败，材料已保留");
     withContextJourneys(home, store => {
       const cur = store.find(journey.id);
       if (cur && (cur.epoch ?? 0) === runEpoch) store.save(journey);
@@ -506,8 +441,9 @@ async function summarizeContext(
   journey: ContextJourney,
   signal: AbortSignal,
   save: () => unknown,
+  sessionGuard?: SessionReadGuard,
 ): Promise<HostTextCommitResult> {
-  const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label])]);
+  const cacheKey = JSON.stringify([journey.model, references.map(r => [r.source_id, r.version, r.label]), ...(sessionGuard ? [sessionGuard.revision] : [])]);
   if (journey.synthesis?.key !== cacheKey || !Array.isArray(journey.synthesis.notes)) journey.synthesis = { key: cacheKey, stage: 1, completed: 0, total: 0, notes: [], batches: { done: 0, all: 0 }, timing: { ms: 0, calls: 0 } };
   const checkpoint = journey.synthesis;
   // Every call of the summary, done and to come: the rounds before this one, this one, and the estimated rest. Counted again on
@@ -516,6 +452,10 @@ async function summarizeContext(
   const count = () => { checkpoint.batches = { done: before + checkpoint.completed, all: before + checkpoint.completed + summaryCallsLeft(checkpoint.total, checkpoint.completed, shrink) }; };
   // Registered instructions (editable in “Prompt 与 Character”), then this batch's materials, fenced under the fixed notice (S-13).
   const wrap = (instruction: InstructionPrompt, data: unknown) => instructed(instruction, fencedMaterials(data, "MATERIALS_" + randomUUID()));
+  const complete = async (instruction: InstructionPrompt, data: unknown) => {
+    await sessionGuard?.check();
+    return ai.completeText!(wrap(instruction, data), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]), ...(sessionGuard ? { beforeDispatch: sessionGuard.check } : {}) });
+  };
   let evidence = () => materialEvidence(home, journey.id, references), stage = 1;
   for (;;) {
     signal.throwIfAborted();
@@ -531,12 +471,13 @@ async function summarizeContext(
       const labels = [...new Set(batch.flatMap(item => item.labels))];
       let note = await readStagedNote(home, journey.id, bKey);
       if (note === null) {
-        const answer = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_NOTES, batch), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+        const answer = await timedCall(checkpoint.timing, () => complete(ONBOARDING_NOTES, batch));
         signal.throwIfAborted();
         note = answer.value;
         parseContextSummary(note, references.filter(r => labels.includes(r.label)));
         if (note.length > 8_000) throw new Error("分批整理结果过长，请重试；已完成批次和原文已保留。");
-        await stageNote(home, journey.id, bKey, note, () => {
+        await stageNote(home, journey.id, bKey, note, async () => {
+          await sessionGuard?.check();
           signal.throwIfAborted();
           answer.validateResult();
         });
@@ -559,8 +500,9 @@ async function summarizeContext(
   for await (const item of evidence()) final.push(item);
   signal.throwIfAborted();
   checkpoint.stage = stage; checkpoint.completed = 0; checkpoint.total = 1; checkpoint.batches = { done: before, all: before + 1 }; save();
-  const result = await timedCall(checkpoint.timing, () => ai.completeText!(wrap(ONBOARDING_PROPOSAL, final), { signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]) }));
+  const result = await timedCall(checkpoint.timing, () => complete(ONBOARDING_PROPOSAL, final));
   signal.throwIfAborted();
+  await sessionGuard?.check();
   checkpoint.completed = 1; checkpoint.batches = { done: before + 1, all: before + 1 }; save();
   return result;
 }
@@ -612,6 +554,7 @@ async function draftFromMaterials(
   signal: AbortSignal,
   ports: ContextOnboardingPorts,
   save: () => unknown,
+  sessionGuard?: SessionReadGuard,
 ): Promise<void> {
   if (!ports.takeAtHome) return;
   // Batches belong to the materials they came from; after the person chose again, the drafts start over.
@@ -634,8 +577,14 @@ async function draftFromMaterials(
         // Each batch keeps its own cancellation window.
         const client = ports.takeAtHome(taker.take, AbortSignal.any([signal, AbortSignal.timeout(20 * 60_000)]));
         // The journey id and the batch number make a retried pass return the same drafts instead of drafting twice.
-        const { batch } = await timedCall(drafts.timing, () => client.invoke(taker.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>, { origin: "onboarding",
-          title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"), request_id: `onboarding:${journey.id}:${bKey}:${index}`, materials }));
+        const { batch } = await timedCall(drafts.timing, () => client.invoke(
+          taker.take as ActionDefinition<OnboardingDraftInput, { batch: OnboardingDraftBatch }>,
+          { origin: "onboarding",
+            title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"),
+            request_id: `onboarding:${journey.id}:${bKey}:${index}`, materials },
+          sessionGuard ? { beforeEffect: sessionGuard.check } : undefined,
+        ));
+        await sessionGuard?.check();
         drafts.batches.push({ batch_id: batch.batch_id, snapshot: batch }); save();
       }
     }
@@ -646,22 +595,6 @@ async function draftFromMaterials(
     drafts.status = "failed"; drafts.error = error instanceof Error ? [...error.message.slice(0, 600)].slice(0, 300).join("") : "待办草稿没整理成";
   }
   save();
-}
-
-/**
- * The batches a journey kept without a snapshot (drafted before version 2), read again from their taker at Home by id, at most 50 a
- * call. Only answered, never written back: the journey is saved whole, and a write here would undo what an adoption saved meanwhile.
- */
-export async function draftSnapshots(journey: ContextJourney, ports: Pick<ContextOnboardingPorts, "takers" | "takeAtHome">, signal: AbortSignal): Promise<ReadonlyMap<string, OnboardingDraftBatch>> {
-  const missing = journey.drafts?.batches.filter(batch => !batch.snapshot).map(batch => batch.batch_id) ?? [];
-  const taker = journey.drafts?.plugin_id ? ports.takers?.("drafts").find(one => one.plugin_id === journey.drafts!.plugin_id) : undefined;
-  if (!missing.length || !taker?.drafts || !ports.takeAtHome) return new Map();
-  const client = ports.takeAtHome(taker.drafts.get, signal), found = new Map<string, OnboardingDraftBatch>();
-  for (let start = 0; start < missing.length; start += ONBOARDING_DRAFT_GET_MAX) {
-    const { batches } = await client.invoke(taker.drafts.get as ActionDefinition<OnboardingDraftGetInput, { batches: OnboardingDraftBatch[] }>, { ids: missing.slice(start, start + ONBOARDING_DRAFT_GET_MAX) });
-    for (const batch of batches) found.set(batch.batch_id, batch);
-  }
-  return found;
 }
 
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
@@ -686,16 +619,10 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   const chosen = journey.adoption?.documents ? undefined : chosenTaker(ports, "documents", typeof input.documents_taker === "string" ? input.documents_taker : undefined);
   const documents = journey.adoption?.documents ?? (chosen && { plugin_id: chosen.plugin_id, project_plugin_id: chosen.project_plugin_id });
   if (!documents) throw new Error((ports.takers?.("documents").length ?? 0) > 1 ? "请先选择用哪个插件保存文档" : "没有能保存文档的插件，项目没有建；装上一个能保存文档的插件后再继续");
-  // Only drafts this round made can be kept, however many batches there were. A batch kept without a snapshot is read again first; when
-  // that fails, what the person ticked in it is kept as ticked and the keep step answers for it.
+  // Only drafts this round made can be kept, however many batches there were.
   const kept = Array.isArray(input.keep) ? input.keep.filter((value): value is string => typeof value === "string") : [];
-  let drafted: ReadonlySet<string> | null = new Set(journey.drafts?.batches.flatMap(batch => batch.snapshot?.candidates.map(candidate => candidate.candidate_id) ?? []) ?? []);
-  if (!journey.adoption && kept.length && journey.drafts?.batches.some(batch => !batch.snapshot)) {
-    const read = await draftSnapshots(journey, ports, AbortSignal.timeout(60_000)).catch(() => null);
-    drafted = read ? new Set([...drafted, ...[...read.values()].flatMap(batch => batch.candidates.map(candidate => candidate.candidate_id))]) : null;
-    if (running.has(key(home, id))) { await running.get(key(home, id)); return readContextJourney(home, id); }
-  }
-  const keep = [...new Set(kept.filter(value => !drafted || drafted.has(value)))];
+  const drafted = new Set(journey.drafts?.batches.flatMap(batch => batch.snapshot?.candidates.map(candidate => candidate.candidate_id) ?? []) ?? []);
+  const keep = [...new Set(kept.filter(value => drafted.has(value)))];
   // The folder goes to a plugin the person picked among those that declare they take one; the folder is their own chosen folder as this
   // round read it, never a path from the request (ONB-44, batch12-design §7.3).
   const wanted = typeof input.take === "string" && input.blank !== true ? input.take : null;

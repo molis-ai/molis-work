@@ -44,28 +44,6 @@ test("S-upgrade-too-new-untouched: `browser/sites.json` one version ahead: read 
   assert.equal(sites.assistantEnabled, true, "the refused switch is not taken");
 });
 
-test("ONB-22/29: the Home upgrades Jelly and inactive installation preferences independently, only where a choice existed", t => {
-  const { home } = upgradeTestHome(t);
-  const choices = [
-    { relative: "jelly/preferences.json", provider_id: "text", model_id: "jelly-A" },
-    { relative: "plugin-files/retained-install/.model-settings/preference.json", provider_id: "another", model_id: "plugin-B" },
-  ];
-  for (const { relative, provider_id, model_id } of choices) place(home, relative, { schema_version: 1, provider_id, model_id });
-  const unset = join(home, "plugin-files", "no-choice", ".model-settings", "preference.json");
-  mkdirSync(dirname(unset), { recursive: true });
-  const unrelated = place(home, "plugin-files/retained-install/files/preference.json", { schema_version: 1, note: "user file" });
-  const prior = sha256(unrelated);
-  const report = runHomeUpgrade(home);
-  for (const { relative, provider_id, model_id } of choices) {
-    assert.equal(report.units.find(unit => unit.relative_path === relative)?.state, "committed");
-    const path = join(home, relative);
-    assert.deepEqual(json(path), { schema_version: 2, selection: { provider_id, model_id }, revision: 0, receipts: {} });
-    assert.equal(statSync(path).mode & 0o777, 0o600);
-  }
-  assert.equal(existsSync(unset), false);
-  assert.equal(sha256(unrelated), prior);
-});
-
 test("S-upgrade-too-new-untouched: `jelly/preferences.json` one version ahead or unreadable: the model choice is refused before anything it would change", async t => {
   // The fixture removes this Home after its Host has closed.
   const home = await mkdtemp(join(tmpdir(), "molis-too-new-preference-")), relative = join("jelly", "preferences.json");

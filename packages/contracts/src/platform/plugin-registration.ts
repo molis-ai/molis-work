@@ -113,9 +113,34 @@ export interface PluginWorkbenchRegistration {
  * each plugin package writes its own and the catalog is generated from them (W5-02, PG-065 in
  * specs/archive/repository-anti-corruption/privileges.md).
  */
+/** One decision outcome digest computed from the owning plugin's immutable rows. */
+export interface PluginApprovalOutcome {
+  readonly kind: string;
+  readonly id: string;
+  readonly digest: string;
+}
+
+/**
+ * Trusted owner binding for freezing and verifying synced decision outcomes alongside platform project approvals.
+ * Declaring this grants no approval or synchronization authority.
+ */
+export interface PluginApprovalOutcomesBinding {
+  readonly collection_id: string;
+  readonly subject_kinds: readonly string[];
+  readOutcome(db: { prepare(sql: string): { all(...params: string[]): unknown[] } }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
+  outcomesFromFacts(facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
+  assertHistory(
+    previous: ReadonlyMap<string, PluginApprovalOutcome>,
+    incoming: ReadonlyMap<string, PluginApprovalOutcome>,
+    facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>,
+  ): void;
+}
+
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
+  /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */
+  readonly approval_outcomes?: PluginApprovalOutcomesBinding;
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
   readonly project_plugin_id: string;
   /** Position in the catalog, unique across the build; the derived lists keep this order. */
@@ -130,29 +155,6 @@ export interface PluginRegistration {
   readonly default_enabled?: true;
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
-  /**
-   * This built-in plugin's own one-time conversion of its private values when a project library is adopted at the current version
-   * (specs/batch-06-shared-tools/current-version-adoption.md「Coding 私有值」). Plugin Runtime applies it to the values of this plugin's
-   * exact official install whose key starts with one of `prefixes`, in the adoption's transaction, each by its whole old value.
-   * `convert` returns the value in the current shape, or null when it already is; it throws to leave that project's library as it was.
-   * Deterministic and pure: it reads nothing else. Trusted: the Host reads it from this registration only, never from an installed package.
-   */
-  readonly private_value_adoption?: {
-    readonly prefixes: readonly string[];
-    convert(key: string, value: string): string | null;
-  };
-  /**
-   * This built-in plugin's conversion of its private values that a step of the project library's upgrade carries: `project_from` names the
-   * step by the version it upgrades from. Plugin Runtime applies it in that step's transaction, as `private_value_adoption` is applied: to the
-   * values of this plugin's exact official install whose key starts with one of `prefixes`, each by its whole old value; `convert` returns
-   * the value in the current shape, or null when it already is, and throws to leave the library at its old version. Deterministic and pure.
-   * Trusted: the Host reads it from this registration only, never from an installed package.
-   */
-  readonly private_value_upgrades?: readonly {
-    readonly project_from: number;
-    readonly prefixes: readonly string[];
-    convert(key: string, value: string): string | null;
-  }[];
   /**
    * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
    * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;

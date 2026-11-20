@@ -26,7 +26,7 @@ interface Ops {
 // Call the exact rules shipped in the public browser program, including its grouped-ops composition.
 // This also catches a source implementation that was changed but left out of the shipped program.
 const syntax = ts.createSourceFile("workbench.js", CLIENT_SCRIPT, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "withSidePane", "withLayout", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace"]);
+const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "withSidePane", "withLayout", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace", "takeSearchHits", "placeLayoutMenu"]);
 const bodies = new Map<string, string>();
 const visit = (node: ts.Node): void => {
   if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node.name && names.has(node.name.text)) bodies.set(node.name.text, node.getText(syntax));
@@ -184,4 +184,44 @@ test("D0037 the shipped divider clamps the snapped ratio to the live pane range"
   bounds = [0.1, 0.45];
   listeners.get("sash:pointermove")!({ pointerId: 1, clientX: 440, clientY: 0, preventDefault() {} });
   assert.equal(node.ratio, 0.45, "the maximum is enforced after snapping too");
+});
+
+test("shipped global search dedupes hits by plugin and id before the cap", () => {
+  assert.ok(bodies.has("takeSearchHits"), "CLIENT_SCRIPT ships takeSearchHits");
+  const takeSearchHits = vm.runInNewContext(`(${bodies.get("takeSearchHits")})`) as (
+    items: Array<{ plugin: string; id: string; search: string }>, query: string, limit: number,
+  ) => Array<{ plugin: string; id: string }>;
+  const duplicate = { plugin: "Pages", id: "page-a", search: "jev 的三个待验证问题" };
+  const sameTitle = { plugin: "Pages", id: "page-b", search: "jev 的三个待验证问题" };
+  const otherPlugin = { plugin: "Feed", id: "page-a", search: "jev 的三个待验证问题" };
+  const hits = takeSearchHits([duplicate, duplicate, sameTitle, otherPlugin], "jev", 12);
+  assert.deepEqual(Array.from(hits, (item) => [item.plugin, item.id]), [["Pages", "page-a"], ["Pages", "page-b"], ["Feed", "page-a"]]);
+  const crowded = [
+    { plugin: "Pages", id: "page-a", search: "doc" },
+    { plugin: "Pages", id: "page-a", search: "doc" },
+    ...Array.from({ length: 12 }, (_, index) => ({ plugin: "Pages", id: "page-" + index, search: "doc" })),
+  ];
+  const capped = takeSearchHits(crowded, "doc", 12);
+  assert.equal(capped.length, 12);
+  assert.equal(capped.at(-1)?.id, "page-10");
+  assert.equal(takeSearchHits([{ plugin: "Pages", id: "", search: "x" }, { plugin: "Pages", id: "", search: "x" }], "", 8).length, 2);
+});
+
+test("shipped layout menu placement stays inside a short viewport and scrolls when taller", () => {
+  assert.ok(bodies.has("placeLayoutMenu"), "CLIENT_SCRIPT ships placeLayoutMenu");
+  const placeLayoutMenu = vm.runInNewContext(`(${bodies.get("placeLayoutMenu")})`) as (
+    anchor: { top: number; bottom: number; right: number },
+    menu: { width: number; height: number },
+    viewport: { width: number; height: number },
+  ) => { top: number; left: number; maxHeight: number | null };
+  const short = placeLayoutMenu({ top: 4, bottom: 28, right: 240 }, { width: 260, height: 267 }, { width: 1024, height: 340 });
+  assert.ok(short.top >= 8 && short.top + 267 <= 340 - 8 && short.maxHeight === null && short.left >= 8 && short.left + 260 <= 1024 - 8);
+  const tall = placeLayoutMenu({ top: 4, bottom: 28, right: 240 }, { width: 260, height: 500 }, { width: 1024, height: 340 });
+  assert.equal(tall.maxHeight, 340 - 16);
+  assert.equal(tall.top, 8);
+  assert.ok(tall.top + tall.maxHeight <= 340 - 8);
+  const desktop = placeLayoutMenu({ top: 40, bottom: 80, right: 400 }, { width: 260, height: 267 }, { width: 1440, height: 900 });
+  assert.equal(desktop.top, 86);
+  assert.equal(desktop.left, 140);
+  assert.equal(desktop.maxHeight, null);
 });

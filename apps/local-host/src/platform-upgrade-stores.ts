@@ -26,8 +26,7 @@ import { assertSqliteDatabaseFiles } from "@molis-ai/molis-work-storage";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
-import { builtinPluginByProjectKey, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { GOALS_V5_LIBRARY, isGoalsApprovalSource } from "./project-library-v5-handover.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
@@ -123,9 +122,7 @@ export function pluginTablesDescriptor(manifest: PluginManifest, library: Plugin
     tables: {
       version: declaration.version,
       read: file => readUpgradeStore(file, db => (USER_VERSION_ACCESS.read(db) > library.version ? undefined : pluginProjectTablesVersion(db, manifest.plugin_id))),
-      // Goals' v1–v4 go through the approval transfer, and its v5 through the project library's own 4→5 step (batch 44 D1), before these tables are read.
-      problem: found => manifest.plugin_id === builtinPluginByProjectKey("goals")?.manifest.plugin_id && (isGoalsApprovalSource(found) || found === GOALS_V5_LIBRARY)
-        ? undefined : upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
+      problem: found => upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
       upgrade: file => {
         const db = openSqliteConnection(file);
         try {

@@ -275,7 +275,7 @@ export class RuntimeIntegrationService {
   private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string, assertCurrent?: () => void): Promise<void> {
     const filePath = path.join(this.homeDirectory, "runtime-integration-attempts", `${plan.plan_id}-${randomUUID()}.json`);
     await writeAtomic(filePath, `${JSON.stringify({
-      schema_version: /* @version format.runtime.integration.receipt */ 2,
+      schema_version: /* @version format.runtime.integration.receipt */ 1,
       owner: INTEGRATION_OWNER,
       plan_id: plan.plan_id,
       runtime_id: plan.runtime_id,

@@ -216,7 +216,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.plan-confirm-first");
   const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
   // 「请 AI 重新问」: the Host writes the round's words; the page names only the question.
-  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000);
+  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true);
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -342,7 +342,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, ...(tree ? { worktree_id: tree.worktree_id } : {}),
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true) }));
     receipted = true;
     return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };

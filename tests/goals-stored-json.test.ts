@@ -2,7 +2,6 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalsModule } from "./fixtures/goals-modules.js";
 import { fixtureProjectRule, GoalProjectApplication } from "./fixtures/goal-application.js";
 import { projectApprovalRules } from "@molis-ai/molis-work-service-project-approvals";
@@ -103,18 +102,6 @@ test("RAC-1268: readable rows read the same values again, and null columns read 
     });
     const proposal = data.app.governance.query.getGoalTreeProposal(BOARD, "proposal-null-narrative");
     assert.equal(proposal?.narrative, null);
-
-    const at = "2026-09-04T00:00:00.000Z", id = "decision-readable";
-    const original = { decision_id: id, project_id: BOARD, goal_id: "goal-null-columns", actor_id: "user-1", actor_kind: "user", authority_source: "web",
-      conversation_ref: "conversation://thread/message", message_ref: "message-1", request_id: null, selected_option_id: null, conclusion: "用户确认",
-      accepts_requirements: 1, scope_json: '{"requirement_ids":["r-1"],"event_ids":[],"concern_ids":[],"action":null}', change_json: null, recorded_at: at };
-    data.store.db.prepare(`INSERT INTO project_review_decisions(decision_id, project_id, record_json, recorded_at) VALUES (?, ?, ?, ?)`)
-      .run(id, BOARD, JSON.stringify({ kind: "history", subject: "event", decision_id: id, project_id: BOARD, recorded_at: at,
-        owner: { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature }, original }), at);
-    const decision = data.app.governance.eventDecisions.read(BOARD, "decision-readable");
-    assert.deepEqual(decision?.scope, { requirement_ids: ["r-1"], event_ids: [], concern_ids: [], action: null });
-    assert.equal(decision?.authorized_change, null);
-    assert.equal(decision?.request_id, null);
 
     assert.deepEqual(data.goals.query.snapshot(BOARD), before, "对照数据加完，快照仍与损坏前一致");
   } finally { data.close(); }

@@ -1,3 +1,4 @@
+import { CONVERSATION_ATTACHMENT_IMAGE_TYPES, CONVERSATION_ATTACHMENT_LIMITS } from "@molis-ai/molis-work-contracts/services/materials";
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { ComposerAttachmentState, ComposerHandle, ComposerNotice } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { Page } from "./page.js";
@@ -11,9 +12,8 @@ import { api, sessionPath } from "./request.js";
  * alone; nothing is dropped silently. A model with no mark is sent the pictures, and the line says it may not see them (decision 51).
  */
 
-export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
-const LIMIT = 5 * 1024 * 1024;
-const MAX = 6;
+const IMAGE_TYPES = CONVERSATION_ATTACHMENT_IMAGE_TYPES;
+const { image_bytes: LIMIT, round_images: MAX } = CONVERSATION_ATTACHMENT_LIMITS;
 
 /** What the Host kept for one picture: the round names it by `material_id` and the platform reads it again from `attachment`. */
 export interface KeptImage { readonly material_id: string; readonly title: string; readonly media_type: string; readonly byte_length: number; readonly attachment: unknown }
@@ -67,23 +67,20 @@ export function codingImages(page: Page, sessionId: () => string, model: () => {
   // A pasted picture comes without a name of its own.
   const named = (file: File) => file.name && file.name !== "image.png" ? file
     : new File([file], readText("coding.images.pasted") + "." + (file.type.split("/")[1] || "png").replace("jpeg", "jpg"), { type: file.type });
-  const pictures = (composer: ComposerHandle) => composer.materials().filter(item => item.kind === "attachment" && kept.has(item.ref));
+  const pictures = (composer: ComposerHandle) => composer.materials().flatMap(item => item.kind === "attachment" && kept.has(item.ref) ? [item.ref] : []);
   // The strip's files cross the frame as facts, so a refused picture is still there when one with its name, size, type and time is.
   const tooLarge = (composer: ComposerHandle) => { const on = composer.files(); return [...oversize].filter(file => on.some(one => one.name === file.name && one.size === file.size && one.type === file.type && one.lastModified === file.lastModified)); };
-  const choiceFor = (composer: ComposerHandle) => {
-    const refs = pictures(composer).map(item => item.kind === "attachment" ? item.ref : "");
-    return textOnly && refs.length && refs.every(ref => textOnly!.has(ref));
-  };
+  const choiceFor = (refs: readonly string[]) => textOnly && refs.every(ref => textOnly!.has(ref));
   return {
     accept: IMAGE_TYPES.join(","),
     async upload(given, signal) {
       const file = named(given);
       if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) return { state: "failed", reason: readText("coding.images.only-types") };
       if (file.size > LIMIT) { oversize.add(given); return { state: "failed", reason: readText("coding.images.over-limit", { size: size(file.size) }) }; }
-      const answer = await api<{ image: Omit<KeptImage, "material_id"> }>(page, sessionPath(sessionId()) + "/attachments", "POST", { name: file.name, data: await readBase64(file) }, signal);
+      const { image } = await api<{ image: Omit<KeptImage, "material_id"> }>(page, sessionPath(sessionId()) + "/attachments", "POST", { name: file.name, data: await readBase64(file) }, signal);
       const ref = "image-" + crypto.randomUUID();
-      kept.set(ref, { material_id: ref, ...answer.image });
-      return { state: "attached", ref, title: answer.image.title, meta: readText("coding.images.kept", { size: size(answer.image.byte_length) }) };
+      kept.set(ref, { material_id: ref, ...image });
+      return { state: "attached", ref, title: image.title, meta: readText("coding.images.kept", { size: size(image.byte_length) }) };
     },
     take(materials) {
       // 「不带图发」 holds for the send it was chosen for: the composer takes the pictures off with the words it sent.
@@ -108,13 +105,15 @@ export function codingImages(page: Page, sessionId: () => string, model: () => {
       if (!carried.length) return null;
       if (carried.length > MAX) return { tone: "info", icon: "circle-alert", text: readText("coding.images.too-many", { n: MAX }) };
       const chosen = model();
-      if (!chosen || choiceFor(composer)) return null;
+      if (!chosen || choiceFor(carried)) return null;
       if (chosen.vision === false) {
         const other = sighted();
+        const withoutImages = { label: readText("coding.images.text-only"), run: () => {
+          textOnly = new Set(carried);
+          page.refs.composer.refresh();
+        } };
         return { tone: "info", icon: "eye-off", text: readText("coding.images.no-vision", { model: chosen.label }),
-          ...(other ? { action: { label: readText("coding.images.use-sighted"), run: () => other.choose() } } : {}),
-          ...(other ? { also: { label: readText("coding.images.text-only"), run: () => { textOnly = new Set(carried.map(item => item.kind === "attachment" ? item.ref : "")); page.refs.composer.refresh(); } } }
-            : { action: { label: readText("coding.images.text-only"), run: () => { textOnly = new Set(carried.map(item => item.kind === "attachment" ? item.ref : "")); page.refs.composer.refresh(); } } }) };
+          ...(other ? { action: { label: readText("coding.images.use-sighted"), run: () => other.choose() }, also: withoutImages } : { action: withoutImages }) };
       }
       if (chosen.vision === undefined) return { tone: "info", icon: "image", text: readText("coding.images.unmarked", { model: chosen.label }) };
       return null;
@@ -123,7 +122,7 @@ export function codingImages(page: Page, sessionId: () => string, model: () => {
       if (tooLarge(composer).length) return readText("coding.images.shrink-first");
       const carried = pictures(composer);
       if (carried.length > MAX) return readText("coding.images.too-many", { n: MAX });
-      if (carried.length && model()?.vision === false && !choiceFor(composer)) return readText("coding.images.choose-first");
+      if (carried.length && model()?.vision === false && !choiceFor(carried)) return readText("coding.images.choose-first");
       return null;
     },
   };

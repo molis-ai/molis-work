@@ -1,23 +1,5 @@
 [
   {
-    "file": "plugins/native/goals/src/approval-transfer-sync.ts",
-    "name": "schema_version",
-    "values": { "1": 1, "2": 1 },
-    "reason": "APR-19 显式项目库移交识别旧 Goals 的 project_goals@1，用原集合键验证触发器与同步账本；第 44 批项目库 4→5（D1）从冻结的 project_goals@2 起步；现行集合仍由 Manifest 标记管理。"
-  },
-  {
-    "file": "plugins/native/goals/src/project-database.ts",
-    "name": "version",
-    "values": { "1": 1, "2": 1, "3": 1 },
-    "reason": "APR-19 已批准的一次性移交要逐个核对 Goals v1／v2／v3 源结构；这些仅供维护读取，现行项目库仍由 GOALS_PROJECT_DATABASE 声明。"
-  },
-  {
-    "file": "apps/local-host/src/project-layout.ts",
-    "name": "version",
-    "values": { "2": 1 },
-    "reason": "Files 退役前每个项目库所在的第 2 版旧布局，是采用程序认的起点、一个固定的历史版本，不是现行版本；现行项目库版本仍只在 PROJECT_DATABASE_BASELINE（随用户 2026-11-13「例外改指第 3 版」：采用从第 2 版旧布局换日志后走完 2→3）。"
-  },
-  {
     "file": "apps/local-host/src/system-materials-actions.ts",
     "name": "version",
     "values": { "1": 1 },
@@ -358,18 +340,6 @@
     "name": "expected_version",
     "values": { "1": 1 },
     "reason": "业务记录自身的修订号初值或比较，运行时递增，按 N34 约定不算自有版本。"
-  },
-  {
-    "file": "plugins/native/jelly/src/import.ts",
-    "name": "schemaVersion",
-    "values": { "1": 1, "5": 1 },
-    "reason": "原 Jelly 备份文件的外部格式号，由旧产品定义，导入时只读取比较。"
-  },
-  {
-    "file": "plugins/native/jelly/src/import.ts",
-    "name": "schema_version",
-    "values": { "5": 1 },
-    "reason": "记下导入来源的外部格式号（原 Jelly schema 5），是事实记录，不是当前写出的版本。"
   },
   {
     "file": "plugins/official-integrations/catalog/src/document-import.ts",
@@ -950,24 +920,6 @@
     "reason": "页面 HTML 注释里提到的设计稿名字，不进页面行为，不是版本。"
   },
   {
-    "file": "packages/contracts/src/modules/acceptance.ts",
-    "name": "goals_v5",
-    "values": { "goals_v5": 1 },
-    "reason": "从 Goals 第 5 版搬迁到平台认可表的固定来源枚举取值，只用于标识历史搬迁行，不是会升的版本号。"
-  },
-  {
-    "file": "modules/acceptance/src/handover.ts",
-    "name": "goals_v5",
-    "values": { "goals_v5": 1 },
-    "reason": "项目库 6→7 搬迁写入历史认可记录时使用的固定来源取值，只用于标识历史搬迁行，不是当前版本号。"
-  },
-  {
-    "file": "modules/acceptance/src/schema.ts",
-    "name": "goals_v5",
-    "values": { "goals_v5": 1 },
-    "reason": "平台认可决定表 origin 列允许的历史搬迁来源固定枚举取值，用于表约束，不是当前版本号。"
-  },
-  {
     "file": "packages/contracts/src/services/account-dto.ts",
     "name": "unified-account-v2",
     "values": { "unified-account-v2": 2 },
@@ -1058,12 +1010,6 @@
     "reason": "交给 Prologue 登记一轮技能时的注册版本：注册 id 取正文、名字与工具的哈希，内容一变就是新 id，所以恒为 1；技能自己的版本在 SkillRef 里。"
   },
   {
-    "file": "modules/projects/src/catalog-upgrade.ts",
-    "name": "workspace_project_memberships_v1",
-    "values": { "workspace_project_memberships_v1": 4 },
-    "reason": "目录库第 1 版升到第 2 版时重建成员表的临时表名，指的是升级出发的那一版，升完即删，不是当前版本；目录库的当前版本是 database.home.catalog。"
-  },
-  {
     "file": "packages/contracts/src/platform/external-tools.ts",
     "name": "version",
     "values": { "0.166.0": 3, "1.0.62": 1, "1.5.0": 1, "2.96.0": 1 },
@@ -1134,11 +1080,5 @@
     "name": "memory-forgetting-v2.json",
     "values": { "memory-forgetting-v2.json": 1 },
     "reason": "遗忘决定文件在 Home 里的文件名，v2 只标物理代（2026-11-06 更名片），是名字不是版本；文件里的格式版本由 format.memory.forgetting 管。"
-  },
-  {
-    "file": "horizontal/agent-host/src/code-intelligence/lsp-client.ts",
-    "name": "version",
-    "values": { "1": 1 },
-    "reason": "LSP 的 textDocument/didOpen 起始版本号，协议字段；不是产品、合同或库结构的版本，Molis 不比较它。"
   }
 ]

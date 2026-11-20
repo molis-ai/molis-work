@@ -1,19 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import test, { type TestContext } from "node:test";
+import test from "node:test";
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionCardView, draftActionCard, runActionCard, type ActionCard, type ActionCardPorts } from "@molis-ai/molis-work-plugin-sdk";
 import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PROJECT_APPROVALS_SCHEMA_SQL } from "@molis-ai/molis-work-service-project-approvals";
-import { ASSISTANT_STORE_BASELINE, PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA, assistantCardHtml, pluginSyncDatabaseDeclaration, upgradePluginLibrary } from "@molis-ai/molis-work-app-local-host";
-import { runSqliteUpgrade } from "@molis-ai/molis-work-storage";
-import { registration as workBrief } from "@molis-ai/molis-work-plugin-work-brief/registration";
-import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
+import { assistantCardHtml } from "@molis-ai/molis-work-app-local-host";
 import { workBriefActions, type BriefRefreshed } from "@molis-ai/molis-work-plugin-work-brief";
 import { pagePack, pageText, pluginIdOf, withPageText } from "./fixtures/page-text.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -99,97 +91,6 @@ test("BL-action-card-outcome-text: the same stored card reads in the language sh
   const drawn = withPageText("en", [], () => assistantCardHtml({ ...actionCardView(stale), run_id: null }, pageText("en")));
   assert.match(drawn, /The data changed after this was suggested/);
   assert.doesNotMatch(drawn, /数据在建议之后/, "no Chinese sentence on an English page");
-});
-
-function scratch(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "molis-stored-text-"));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  return directory;
-}
-const cardBody = (card_id: string, outcome?: string) => JSON.stringify({ card_id, work_id: "w1", revision: 2, run_id: null, title: "t", summary: "s", provider: "Todo", capability_title: "c",
-  effect: "write", reference, input: {}, input_schema: {}, editable: [], missing: [], status: "failed", ...(outcome === undefined ? {} : { outcome }), created_at: "2026-11-01", updated_at: "2026-11-01" });
-
-test("BL-action-card-outcome-text: the Assistant store 1 → 2 keeps an outcome already written as its words", t => {
-  const path = join(scratch(t), "assistant.db"), db = new DatabaseSync(path);
-  t.after(() => db.close());
-  db.exec(ASSISTANT_STORE_BASELINE.schema);
-  const insert = db.prepare("INSERT INTO assistant_cards(card_id, work_id, revision, status, created_at, body) VALUES (?, 'w1', 2, 'failed', '2026-11-01', ?)");
-  insert.run("said", cardBody("said", "结果未确认：连接中断。请到原处核对，不会自动重试"));
-  insert.run("empty", cardBody("empty", ""));
-  insert.run("none", cardBody("none"));
-  insert.run("long", cardBody("long", "长".repeat(2100)));
-  db.exec("PRAGMA user_version = 1");
-  runSqliteUpgrade(db, path, ASSISTANT_STORE_BASELINE);
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2);
-  const body = (id: string) => JSON.parse(String((db.prepare("SELECT body FROM assistant_cards WHERE card_id = ?").get(id) as { body: string }).body)) as { outcome?: OwnedTextRef; title: string };
-  assert.deepEqual(body("said").outcome, { literal: "结果未确认：连接中断。请到原处核对，不会自动重试" });
-  assert.equal(body("said").title, "t", "the rest of the card is as it was");
-  assert.equal("outcome" in body("empty"), false, "an empty sentence was no outcome");
-  assert.equal("outcome" in body("none"), false);
-  const long = body("long").outcome as { literal: string };
-  assert.equal(long.literal.length, 2000);
-  assert.ok(long.literal.endsWith("…"));
-});
-
-test("BL-action-card-outcome-text: the project library 4 → 5 rewrites only Coding's stored cards", t => {
-  const path = join(scratch(t), "molis-work.db"), db = new DatabaseSync(path);
-  t.after(() => db.close());
-  db.exec(PROJECT_DATABASE_VERSION_3_SCHEMA + PROJECT_APPROVALS_SCHEMA_SQL);
-  const install = db.prepare("INSERT INTO plugin_runtime_installs(install_id, record_json, publisher_trust) VALUES (?, ?, 'host')");
-  const official = { plugin_id: codingRegistration.manifest.plugin_id, publisher_signature: codingRegistration.manifest.publisher.signature, publisher_trust: "host" };
-  install.run("install-coding", JSON.stringify({ install_id: "install-coding", ...official }));
-  install.run("install-copy", JSON.stringify({ install_id: "install-copy", ...official, publisher_signature: "another-signature" }));
-  install.run("install-other", JSON.stringify({ install_id: "install-other", plugin_id: "io.example.other", publisher_trust: "host" }));
-  const value = (outcomes: Array<string | undefined>) => JSON.stringify({ cards: outcomes.map((outcome, index) => ({ card_id: `c${index}`, offer_id: "o", run_id: "r", status: "failed", ...(outcome === undefined ? {} : { outcome }) })) });
-  const put = db.prepare("INSERT INTO plugin_private_values(install_id, item_key, item_value) VALUES (?, ?, ?)");
-  put.run("install-coding", "cards:s1", value(["后台没有完成", undefined, ""]));
-  put.run("install-coding", "cards:s2", value([undefined]));
-  put.run("install-coding", "session:s1", JSON.stringify({ outcome: "不是卡" }));
-  put.run("install-other", "cards:s1", value(["别人的数据"]));
-  put.run("install-copy", "cards:s1", value(["不是官方安装"]));
-  db.exec("PRAGMA user_version = 4");
-  runSqliteUpgrade(db, path, PROJECT_DATABASE_BASELINE);
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, PROJECT_DATABASE_BASELINE.version);
-  const read = (install_id: string, key: string) => JSON.parse(String((db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id = ? AND item_key = ?").get(install_id, key) as { item_value: string }).item_value));
-  assert.deepEqual(read("install-coding", "cards:s1").cards.map((card: { outcome?: unknown }) => card.outcome), [{ literal: "后台没有完成" }, undefined, undefined]);
-  assert.equal("outcome" in read("install-coding", "cards:s1").cards[2], false, "an empty sentence was no outcome");
-  assert.deepEqual(read("install-coding", "cards:s2"), JSON.parse(value([undefined])));
-  assert.deepEqual(read("install-coding", "session:s1"), { outcome: "不是卡" }, "a value that is not a session's cards is left");
-  assert.deepEqual(read("install-other", "cards:s1"), JSON.parse(value(["别人的数据"])), "another plugin's value is left");
-  assert.deepEqual(read("install-copy", "cards:s1"), JSON.parse(value(["不是官方安装"])), "only the exact official install's values are Coding's");
-});
-
-test("BL-work-brief-source-name-text: the Work Brief library 1 → 2 keeps names and outcomes already written as their words", t => {
-  const path = join(scratch(t), "work-brief.db"), db = new DatabaseSync(path);
-  t.after(() => db.close());
-  const manifest = workBrief.manifest, declaration = manifest.databases!.home!;
-  db.exec(pluginSyncDatabaseDeclaration(manifest, declaration).schema);
-  const source = (plugin_id: string, name: string) => ({ plugin_id, name, read: "ok", subjects: [], turn: "idle" });
-  const card = (outcome?: string) => ({ card_id: "c", status: "failed", ...(outcome === undefined ? {} : { outcome }) });
-  const body = { sources: [source("io.molis.work.risk", "风险"), source("io.example.blank", "")], claims: [], attention: [],
-    next: [{ option_id: "n1", text: "t", why: "w", act: { kind: "card", card: card("后台没有完成") } }, { option_id: "n2", text: "t", why: "w", act: { kind: "assistant" } }] };
-  db.prepare("INSERT INTO briefs(id, scope, title, current_version, created_at, updated_at) VALUES ('b1', 'home', '', 1, 'x', 'x')").run();
-  db.prepare("INSERT INTO brief_versions(brief_id, version, as_of, created_at, produced_by_json, body_json) VALUES ('b1', 1, 'x', 'x', '{}', ?)").run(JSON.stringify(body));
-  db.prepare("INSERT INTO brief_proposals(id, brief_id, base_version, created_at, produced_by_json, body_json, conflicts_json) VALUES ('p1', 'b1', 1, 'x', '{}', ?, '[]')").run(JSON.stringify(body));
-  db.prepare("INSERT INTO brief_requests(project_id, actor_id, request_id, request_hash, result_json, at) VALUES ('', 'a', 'r1', 'h', ?, 'x')").run(JSON.stringify({ brief: {}, version: body, proposal: { body } }));
-  db.prepare("INSERT INTO brief_requests(project_id, actor_id, request_id, request_hash, result_json, at) VALUES ('', 'a', 'r2', 'h', ?, 'x')").run(JSON.stringify({ brief: {}, version: null, proposal: null }));
-  const mark = db.prepare("INSERT INTO brief_next_marks(brief_id, option_id, state, card_json, actor_id, at) VALUES ('b1', ?, ?, ?, 'a', 'x')");
-  mark.run("n1", "failed", JSON.stringify(card("标题太长")));
-  mark.run("n2", "done", JSON.stringify(card("")));
-  mark.run("n3", "later", null);
-  db.exec("PRAGMA user_version = 1");
-  upgradePluginLibrary(db as never, path, manifest);
-  assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 2);
-  const json = (sql: string) => JSON.parse(String(Object.values(db.prepare(sql).get() as Record<string, string>)[0]));
-  const upgraded = { ...body, sources: [{ ...source("io.molis.work.risk", ""), name: { literal: "风险" } }, { ...source("io.example.blank", ""), name: { literal: "io.example.blank" } }],
-    next: [{ ...body.next[0], act: { kind: "card", card: { ...card(), outcome: { literal: "后台没有完成" } } } }, body.next[1]] };
-  assert.deepEqual(json("SELECT body_json FROM brief_versions"), upgraded, "names and outcomes become words; order and everything else stay");
-  assert.deepEqual(json("SELECT body_json FROM brief_proposals"), upgraded);
-  assert.deepEqual(json("SELECT result_json FROM brief_requests WHERE request_id = 'r1'"), { brief: {}, version: upgraded, proposal: { body: upgraded } }, "a repeated request answers in the current shape");
-  assert.deepEqual(json("SELECT result_json FROM brief_requests WHERE request_id = 'r2'"), { brief: {}, version: null, proposal: null });
-  assert.deepEqual(json("SELECT card_json FROM brief_next_marks WHERE option_id = 'n1'"), { ...card(), outcome: { literal: "标题太长" } });
-  assert.deepEqual(json("SELECT card_json FROM brief_next_marks WHERE option_id = 'n2'"), card(), "an empty sentence was no outcome");
-  assert.equal((db.prepare("SELECT card_json FROM brief_next_marks WHERE option_id = 'n3'").get() as { card_json: unknown }).card_json, null);
 });
 
 test("BL-work-brief-source-name-text: a source's name is kept as its Manifest's name_text and reads in the language shown", { timeout: 90_000 }, async t => {

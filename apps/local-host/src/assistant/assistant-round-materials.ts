@@ -2,10 +2,9 @@ import { choosableRoles, roleKey } from "./assistant-characters.js";
 import { format, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ConversationAttachment } from "@molis-ai/molis-work-contracts/services/materials";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
 import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
@@ -13,11 +12,10 @@ import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
 import { assistantErrors } from "./assistant-errors.js";
-import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { PersonActions } from "./assistant-executor.js";
 import { landingMaterials } from "./assistant-landing.js";
-import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionMaterial, isExternalSessionObject } from "./assistant-external-sessions.js";
+import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionObject } from "./assistant-external-sessions.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
 import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
@@ -32,12 +30,6 @@ function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
   // The shared comparison key (`/skill-ref`): a Skill's identity is its whole exact reference, not an id two versions share.
   return `skill\0${skillRefKey("skill" in method ? method.skill.ref : method.ref)}`;
 }
-
-/** The most of one attached document's text a Send carries (all of a Send's materials together are bounded in assistant-send-materials.ts). */
-const MAX_ATTACHMENT_TEXT = 60_000;
-
-/** How much of a material text the person gets back to look at (what a round may give the model). */
-const MATERIAL_PREVIEW_CHARS = 20_000;
 
 /** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
 function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: string): AgentTextMaterial[] {
@@ -295,67 +287,5 @@ export class AssistantRoundMaterials {
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
     }
     return out;
-  }
-
-  /**
-   * A file the person brings, kept by the platform's material service as a conversation attachment (platform capability audit §6):
-   * a picture (PNG, JPEG, GIF, WebP, by its bytes) is kept as it is, for the model to see in the round it goes with; any other file
-   * is read once by the platform's readers (PDF, Word, text, a picture's words, a recording's transcript) into bounded text for this
-   * Send's materials. What cannot be read says why (scanned, encrypted, damaged, a kind no reader takes); nothing is guessed.
-   */
-  async readAttachment(input: { name: string; data: string }, control: { signal?: AbortSignal; beforeEffect?: () => void | Promise<void> } = {}): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
-    const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
-    if (!name || typeof input.data !== "string" || !input.data) throw assistantErrors.invalid("没有收到文件");
-    const attachments = this.ports.attachments;
-    if (!attachments) throw assistantErrors.unsupported("当前环境不能保存附件");
-    const said = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "");
-    let attached: ConversationAttachment;
-    try { attached = await attachments.attach({ file_name: name, data_base64: input.data }, control); }
-    catch (error) { throw (error as { code?: string }).code === "material.attachment.unsupported" ? assistantErrors.unsupported(said(error)) : assistantErrors.invalid(said(error)); }
-    if (attached.kind === "image") {
-      return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
-        image: { attachment: attached.ref, media_type: attached.media_type, byte_length: attached.byte_length } };
-    }
-    // Only the text goes on with the Send: the kept document is dropped once it is read, read or not.
-    const read = await attachments.read(attached.ref, { as: "text", ...(control.signal ? { signal: control.signal } : {}) }).catch(error => { throw assistantErrors.invalid(said(error)); })
-      .finally(() => attachments.forget([attached.ref]));
-    const whole = read.text ?? "";
-    if (!whole.trim()) throw assistantErrors.invalid(`「${name}」里没有读到文字${attached.text?.issues.length ? `（${attached.text.issues.slice(0, 2).join("；")}）` : ""}`);
-    const text = whole.slice(0, MAX_ATTACHMENT_TEXT), truncated = whole.length > MAX_ATTACHMENT_TEXT || attached.text?.truncated === true;
-    const pages = attached.text?.pages ?? undefined;
-    const note = pages ? `${pages} 页${truncated ? "，只取了前面一部分" : ""}` : truncated ? "只取了前面一部分" : "";
-    return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (note ? `（${note}）` : ""),
-      text, explicit: true, ...(pages ? { pages } : {}), ...(truncated ? { truncated: true } : {}) };
-  }
-
-  /** One material a round of this work brought, with its text (bounded), for the person to look at again. */
-  material(workId: string, materialId: string): AssistantMaterialText {
-    const work = this.store.get(this.actorId, workId);
-    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
-    if (!found) throw assistantErrors.not_found("这项工作里没有这份材料");
-    const text = typeof found.text === "string" ? found.text
-      : isExternalSessionMaterial(found) ? "（外部会话内容仅在发送当轮提供给模型，不在助理记录中留存原文）" : undefined;
-    // A page brought from the browser says where it came from on its first line.
-    const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
-    return { material_id: found.material_id, kind: found.kind, title: found.title,
-      ...(text !== undefined ? { text: text.slice(0, MATERIAL_PREVIEW_CHARS), ...(text.length > MATERIAL_PREVIEW_CHARS ? { truncated: true } : {}) } : {}),
-      ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
-  }
-
-  /** A picture a work carried, read back for the side panel from the platform's attachments. */
-  async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
-    const work = this.store.get(this.actorId, workId);
-    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
-    if (!found?.image) throw assistantErrors.not_found("这项工作里没有这张图片");
-    const gone = assistantErrors.expired("这张图片已不在了，需要时请重新添加这张图片。");
-    if (!this.holdsImage(found.image) || !this.ports.attachments) throw gone;
-    const read = await this.ports.attachments.read(found.image.attachment, { as: "image" }).catch(() => { throw gone; });
-    if (!read.image) throw gone;
-    return { media_type: read.image.media_type, data: Buffer.from(read.image.bytes).toString("base64") };
-  }
-
-  /** Whether a picture's bytes are still kept for the Assistant. */
-  holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
-    return !!this.ports.attachments?.holds(image.attachment);
   }
 }

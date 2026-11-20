@@ -71,7 +71,7 @@ CREATE TABLE acceptance_decisions (
   version TEXT NOT NULL,
   decision TEXT NOT NULL,
   note TEXT,
-  origin TEXT NOT NULL CHECK (origin IN ('trusted_decision', 'goals_v5')),
+  origin TEXT NOT NULL CHECK (origin IN ('trusted_decision')),
   origin_ref TEXT NOT NULL,
   actor_id TEXT NOT NULL,
   decided_at TEXT NOT NULL,

@@ -15,7 +15,15 @@ const send = (message) => {
 };
 const errors = (text) => text.split("\n").flatMap((line, index) => line.includes("BAD")
   ? [{ range: { start: { line: index, character: 0 }, end: { line: index, character: line.length } }, severity: 1, code: "E1", message: "bad line\nmore detail" }] : []);
-const publish = (uri) => setTimeout(() => send({ method: "textDocument/publishDiagnostics", params: { uri, diagnostics: errors(docs.get(uri) ?? "") } }), 30);
+const publish = ({ uri, version }, text, previous) => {
+  const sendReport = (report, result) => send({ method: "textDocument/publishDiagnostics", params: {
+    uri, ...(process.env.FAKE_LSP_UNVERSIONED ? {} : { version: report }), diagnostics: result,
+  } });
+  if (previous !== undefined && process.env.FAKE_LSP_STALE && text.includes("BAD new")) {
+    setTimeout(() => sendReport(previous, []), 20);
+    setTimeout(() => sendReport(version, errors(text)), 700);
+  } else sendReport(version, errors(text));
+};
 const trimmed = (lines, from, to) => lines.flatMap((line, index) => index >= from && index <= to && /[ ]+$/.test(line)
   ? [{ range: { start: { line: index, character: line.replace(/[ ]+$/, "").length }, end: { line: index, character: line.length } }, newText: "" }] : []);
 
@@ -27,19 +35,36 @@ const answer = (message) => {
   }
   if (method === "initialize") {
     const capabilities = { definitionProvider: true, ...(process.env.FAKE_LSP_NO_FORMAT ? {} : { documentFormattingProvider: true, documentRangeFormattingProvider: true }),
+      ...(process.env.FAKE_LSP_TS_REQUEST ? { executeCommandProvider: { commands: ["typescript.tsserverRequest"] } } : {}),
       ...(process.env.FAKE_LSP_PULL ? { diagnosticProvider: { interFileDependencies: false, workspaceDiagnostics: false } } : {}) };
     const asked = nextId++;
     pendingInit = { asked, respond: () => send({ id, result: { capabilities } }) };
     send({ id: asked, method: "workspace/configuration", params: { items: [{ section: "fake" }] } });
     return;
   }
-  if (method === "textDocument/didOpen") { docs.set(params.textDocument.uri, params.textDocument.text); publish(params.textDocument.uri); return; }
-  if (method === "textDocument/didChange") { docs.set(params.textDocument.uri, params.contentChanges.at(-1).text); publish(params.textDocument.uri); return; }
+  if (method === "textDocument/didOpen" || method === "textDocument/didChange") {
+    const document = params.textDocument;
+    const previous = docs.get(document.uri);
+    if (method.endsWith("didOpen") && previous) return;
+    const text = method.endsWith("didOpen") ? document.text : params.contentChanges.at(-1).text;
+    docs.set(document.uri, { text, version: document.version });
+    publish(document, text, previous?.version);
+    return;
+  }
   if (method === "textDocument/didClose") { docs.delete(params.textDocument.uri); return; }
-  if (method === "textDocument/diagnostic") { send({ id, result: { kind: "full", items: errors(docs.get(params.textDocument.uri) ?? "") } }); return; }
+  if (method === "textDocument/documentSymbol") { send({ id, result: [] }); return; }
+  if (method === "workspace/executeCommand" && params.command === "typescript.tsserverRequest") {
+    const [command, { file }] = params.arguments;
+    const body = command === "semanticDiagnosticsSync" ? errors(docs.get(file)?.text ?? "").map(error => ({
+      category: "error", message: error.message, code: 1001, startLocation: { line: error.range.start.line + 1, offset: 1 },
+    })) : [];
+    send({ id, result: { success: true, body } });
+    return;
+  }
+  if (method === "textDocument/diagnostic") { send({ id, result: { kind: "full", items: errors(docs.get(params.textDocument.uri)?.text ?? "") } }); return; }
   if (method === "textDocument/formatting" || method === "textDocument/rangeFormatting") {
     if (process.env.FAKE_LSP_FORMAT_ERROR) { send({ id, error: { code: -32603, message: "rustfmt.toml: unknown key `max_widht`" } }); return; }
-    const lines = (docs.get(params.textDocument.uri) ?? "").split("\n");
+    const lines = (docs.get(params.textDocument.uri)?.text ?? "").split("\n");
     const from = params.range?.start.line ?? 0, to = params.range?.end.line ?? lines.length - 1;
     send({ id, result: trimmed(lines, from, to) });
     return;

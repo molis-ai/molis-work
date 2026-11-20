@@ -43,8 +43,8 @@ export function readPromptCommand(file: { readonly location: PromptCommandLocati
 
 /** The task a command makes: its text with every `$ARGUMENTS` replaced by the words as typed, or the words after it when it names none. */
 export function fillPromptCommand(command: { readonly text: string; readonly takes_arguments: boolean }, words: string): string {
+  if (command.takes_arguments) return command.text.split(ARGUMENTS).join(words);
   const typed = words.trim();
-  if (command.takes_arguments) return command.text.split(ARGUMENTS).join(typed);
   return typed ? `${command.text.replace(/\s+$/u, "")}\n\n${typed}` : command.text;
 }
 

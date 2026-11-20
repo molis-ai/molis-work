@@ -47,7 +47,7 @@ const passes = (item: AcceptanceCheck | null) => item?.verdict === "supports" &&
  *   requirement, or a change of the requirement, puts it back to undecided and leaves every other requirement as it was; so does a
  *   `contradicts` check later than the decision on the same delivery (user 2026-11-05, adopted for every subject 2026-11-18);
  * - a decision made through the trusted-decision entry counts only where its record is in this library (`vouched`): one synced from
- *   another device before its record arrived waits; one moved over from Goals stands on Goals' own applied decision;
+ *   another device before its record arrived waits;
  * - a requirement that needs the person is satisfied only by the person; one that does not is satisfied by a passing check or by
  *   the person, and never while the person has returned it. Nothing here reads whether a run finished.
  */

@@ -7,7 +7,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { openWork, putInput, readWork, waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
-import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 test("QEA-50 · unreadable memory suggestions keep the conversation and draft, retry restores real candidates or an empty result", { timeout: 120_000 }, async t => {
   const logs: HostLogEntry[] = [];
@@ -60,13 +60,14 @@ test("QEA-50 · unreadable memory suggestions keep the conversation and draft, r
   assert.ok(diagnostic.length >= 1, "the failed read has a diagnostic for its actual work");
   assert.equal(diagnostic[0]?.error?.name, "Error");
   assert.doesNotMatch(JSON.stringify(logs), /fixture-private-memory-read-detail/);
-  const evidence = reviewEvidenceUrl("quality-audit-memory/"); await mkdir(evidence, { recursive: true });
+  const saveShots = shouldSaveReviewScreenshots();
+  const evidence = reviewEvidenceUrl("quality-audit-memory/"); if (saveShots) await mkdir(evidence, { recursive: true });
   for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
     await browser.command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
     await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }, { name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
     if (await browser.evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded') !== 'true'")) await browser.click("[data-assistant-side-toggle]");
     await browser.waitFor(`document.querySelector(${JSON.stringify(attention)}).getBoundingClientRect().width > 0`);
-    await writeFile(new URL(`candidate-unavailable-${theme}-${width}.png`, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
+    if (saveShots) await writeFile(new URL(`candidate-unavailable-${theme}-${width}.png`, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
   }
   await browser.click(`${attention} .assistant-item-actions button`);
   await browser.waitFor(`!document.querySelector(${JSON.stringify(attention)}).querySelector('.assistant-item-actions button').disabled`);

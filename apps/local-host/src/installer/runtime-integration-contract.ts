@@ -136,10 +136,9 @@ export interface RuntimeAdapter {
   restartInstructions: readonly string[];
 }
 
-/** What Molis Work wrote into a Runtime's configuration, kept in the Home (`runtime-integrations/<runtime>.json`). Version 2 dropped the
- *  `goal-advance` skill link (batch 44); `runtime-integration-receipt.ts` holds the file's declaration and its 1 → 2 step. */
+/** What Molis Work wrote into a Runtime's configuration, kept in the Home (`runtime-integrations/<runtime>.json`). */
 export interface IntegrationReceipt {
-  schema_version: /* @version format.runtime.integration.receipt */ 2;
+  schema_version: /* @version format.runtime.integration.receipt */ 1;
   owner: string;
   runtime_id: SupportedRuntimeId;
   config_path: string;

@@ -32,7 +32,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const api = (path, body) => molisWorkRequest(path, {body, fallback:globalThis.t.text("workbench.context-onboarding.request-failed-try-again")});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
   const keepFailure = err => err && typeof err==='object' && 'callId' in err ? err : String(err?.message||err);
-  const endpoint = suffix => '/api/onboarding/context/' + journey.id + (suffix ? '/' + suffix : '');
+  const endpoint = suffix => contextPath+'/'+journey.id+(suffix?'/'+suffix:'');
   const source = kind => journey.sources.find(s => s.kind === kind);
   const connected = () => (config.connections || []).filter(c => c.state === 'connected');
 ${CONTEXT_ONBOARDING_SESSIONS_PART}
@@ -441,7 +441,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   globalThis.molisWorkOnboardingDraw = { readText, esc, btn, choice, question, note, stageHead, stepsBar, exitButton, primary, secondary, barStatus };
   globalThis.molisWorkOnboardingModelHost = {
     render,
-    reload: async () => { try { config = await api('/api/onboarding/context'); } catch { /* the file step keeps the model line it had */ } },
+    reload: async () => { try { config = await readConfig(); } catch { /* the file step keeps the model line it had */ } },
     modelLabel: () => config.model || '',
     scopeDeltaHtml: () => scopeDeltaCard(),
     staleSummaryHtml: () => staleSummaryCard(),
@@ -499,7 +499,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   function save() {
     clearTimeout(inputTimer);
     const id=journey.id, sources=journey.sources.map(({references,issues,error,skipped,held_secrets,reused_references,reading,...s})=>JSON.parse(JSON.stringify(s))),autoStart=journey.auto_start===true,previewed=journey.previewed===true;
-    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api('/api/onboarding/context/'+id+'/selection',{sources,auto_start:autoStart,previewed,...(draftsPicked?{drafts_taker:draftsPicked}:{})});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
+    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api(contextPath+'/'+id+'/selection',{sources,auto_start:autoStart,previewed,...(draftsPicked?{drafts_taker:draftsPicked}:{})});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
     saveQueue=next; return next;
   }
   function preserveEdits() {
@@ -533,7 +533,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     try {
       const latest=await api(endpoint());
       if(latest.oauth_status==='pending'){authTimer=setTimeout(pollAuthorization,1800);return;}
-      journey=latest;config=await api('/api/onboarding/context');
+      journey=latest;config=await readConfig();
       if(latest.oauth_status==='connected'){error='';if(journey.auto_start&&journey.phase==='selecting')await prepare();else if(journey.phase==='reading'||journey.phase==='adopting')await poll();}
       else error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-try-again-use");
       render();
@@ -594,7 +594,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const oldId=journey?.id, previous=journey?.sources || [];
     if(oldId)await clearJourneyUploads(oldId);
     uploads.clear();pausedScan=null;
-    const forProject=new URL(location.href).searchParams.get('project');journey=await api('/api/onboarding/context',{id:crypto.randomUUID(),...(forProject?{project_id:forProject}:{})});
+    journey=await api(contextPath,{id:crypto.randomUUID(),project_id:project||undefined});
     if(journey.existing)journey=await api(endpoint());
     journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
     const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';draftPicked=null;await save();
@@ -604,7 +604,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   }
   function saveDraft() {
     const id=journey.id, draft={title:journey.summary.title,body:journey.summary.body};
-    const next=saveQueue.catch(()=>{}).then(()=>api('/api/onboarding/context/'+id+'/draft',draft));saveQueue=next;return next;
+    const next=saveQueue.catch(()=>{}).then(()=>api(contextPath+'/'+id+'/draft',draft));saveQueue=next;return next;
   }
   async function adopt(isBlank=false) {
     preserveEdits();await saveQueue;
@@ -761,7 +761,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   let otherTabs = null;
   try { otherTabs = new BroadcastChannel('molis-work:model-ready'); } catch (unavailable) { otherTabs = null; }
   if (otherTabs) otherTabs.onmessage = () => {
-    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
+    readConfig().then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
 
   /* ───────── Start ───────── */
@@ -770,14 +770,14 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const cold = (() => { try { if (sessionStorage.getItem('molis-work:arrived')) return false; sessionStorage.setItem('molis-work:arrived', '1'); return true; } catch { return true; } })();
     const mark = document.querySelector('.arrival-titlebar [data-wordmark]');
     if (introStep !== 'opening') { if (cold) arrival.typeWordmark(mark, {pace:'quick', delay:250}); else arrival.settleWordmark(mark); }
-    config=await api('/api/onboarding/context');await refreshGrants();
-    const url=new URL(location.href), id=url.searchParams.get('journey');
-    if(id)journey=await api('/api/onboarding/context/'+encodeURIComponent(id));else await restart();
+    config=await readConfig();await refreshGrants();
+    const id=params.get('journey');
+    if(id)journey=await api(contextPath+'/'+encodeURIComponent(id)+projectQuery);else await restart();
     if(journey.phase==='selecting'){journey.sources=kinds.map(kind=>journey.sources.find(s=>s.kind===kind)||({kind,selected:false,days:30}));await restoreUploadFiles();}
-    await refreshSessions();if(journey.phase==='selecting'&&journey.existing&&url.searchParams.get('sessions')==='1'){expanded='sessions';await useSessions();}
+    await refreshSessions();if(journey.phase==='selecting'&&journey.existing&&params.get('sessions')==='1'){expanded='sessions';await useSessions();}
     if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
-    if(url.searchParams.get('start')==='blank'||url.searchParams.get('name')){blank=true;blankName=(url.searchParams.get('name')||'').trim();}
-    const oauth=url.searchParams.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
+    if(params.get('start')==='blank'||params.get('name')){blank=true;blankName=(params.get('name')||'').trim();}
+    const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
     render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
   }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();

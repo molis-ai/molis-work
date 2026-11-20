@@ -20,10 +20,10 @@ interface AssistantProjectLive {
 }
 
 /** Everything a work keeps under its id, the work last. Usage counts stay: they are numbers the daily cap is read from. */
-const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos", "assistant_jobs",
+const WORK_TABLES = ["assistant_rounds", "assistant_cards", "assistant_notices", "assistant_followups", "assistant_undos",
   "assistant_unsettled", "assistant_observed", "assistant_requests", "assistant_works"] as const;
 
-/** The conversation attachments a stored work or round names (the pictures its rounds sent), by digest. */
+/** The conversation attachments a stored work or round names (uploaded files and pictures), by digest. */
 function namedAttachments(bodies: Iterable<string>, into = new Map<string, MaterialRef>()): Map<string, MaterialRef> {
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) { for (const item of value) visit(item); return; }
@@ -40,8 +40,8 @@ const bodiesOf = (db: ReturnType<typeof openBaselineHomeSqlite>, sql: string, ..
 /**
  * The project is deleted: the Assistant's works that belong to it go, with their rounds, cards, notices, follow-ups,
  * background jobs (a job nobody follows is looked at no more), undo steps and the relations they recorded. A running
- * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The pictures
- * those works' rounds sent go too, unless a work that stays names the same picture (the Assistant keeps them for the Home). The
+ * Assistant also stops the round a work is still running and cancels the timed rounds the runtime queued for it. The attachments
+ * those works' rounds sent go too, unless a work that stays names the same file (the Assistant keeps them for the Home). The
  * conversation itself is the runtime's session record. Forwarding processes leave this step for the running owner,
  * which can close the work's original permission before removing its rows.
  * Returns how many works went.

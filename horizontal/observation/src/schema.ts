@@ -126,9 +126,9 @@ const EVALUATION_HOLDS_SCHEMA_SQL = `
  * while preserving all existing records, encrypted snapshots, coverage rows, and `writer_state`.
  */
 export const OBSERVATION_BASELINE: SqliteBaseline = {
-  version: /* @version database.observation_baseline */ 2,
+  version: /* @version database.observation_baseline */ 1,
   schema: `${OBSERVATION_V1_SCHEMA_SQL}${EVALUATION_HOLDS_SCHEMA_SQL}`,
-  upgrades: [{ from: 1, sql: EVALUATION_HOLDS_SCHEMA_SQL }],
+  upgrades: [],
 };
 
 /** The library as the Home's store registry lists it: snapshotted with the Home (its evidence sealed), removed by a purge of user data. */

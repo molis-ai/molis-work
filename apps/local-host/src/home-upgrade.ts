@@ -368,10 +368,9 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 
 /**
  * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
- * stops the Home's snapshot, so a round removes them before it lists the stores. `goals` held the Goals plugin's library of the person's
- * planning methods until the methods became Skills of the catalog (batch 41; 用户 2026-11-14: 开发阶段没有用户，直接删).
+ * stops the Home's snapshot, so a round removes them before it lists the stores.
  */
-export const REMOVED_HOME_STORES: readonly string[] = ["goals"];
+export const REMOVED_HOME_STORES: readonly string[] = [];
 
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that

@@ -3,7 +3,7 @@ import { field, readsBack, type GoldenWriteContext } from "../fixtures/golden-wr
 /**
  * The project's guidance in the project library (`guidance_entries`, `guidance_revisions`): the platform's since batch 44
  * (specs/plugin-equal-standing/contract-design.md §9), whichever plugins the project has. An entry added, then edited, so the
- * replay writes a revision on top of the rows an older golden's Goals wrote and the 6→7 step carried over.
+ * replay writes a revision on top of the rows stored in the project library.
  */
 export default async function ({ call, tag }: GoldenWriteContext) {
   const write = { reason: "合成的理由", confirmation_summary: "合成的确认", user_confirmed: true };

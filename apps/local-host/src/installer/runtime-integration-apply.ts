@@ -67,7 +67,7 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
       if (!inspection.entryFingerprint) throw new Error("无法生成 Molis Work 配置所有权指纹");
       if (!await textWriteMatches(ports.receiptPath, receiptBefore, originalReceiptIdentity)) throw new Error("Runtime 收据在写入前发生了变化");
       current();
-      const writtenReceipt = await ports.writeReceipt({ schema_version: /* @version format.runtime.integration.receipt */ 2, owner: INTEGRATION_OWNER, runtime_id: plan.runtime_id,
+      const writtenReceipt = await ports.writeReceipt({ schema_version: /* @version format.runtime.integration.receipt */ 1, owner: INTEGRATION_OWNER, runtime_id: plan.runtime_id,
         config_path: configPath, config_entry_fingerprint: inspection.entryFingerprint, connected_at: new Date().toISOString() }, originalReceiptIdentity?.mode);
       receiptIdentity = writtenReceipt.identity; receiptAfter = writtenReceipt.contents; receiptMutated = true; current();
       return integrationResult("connected", plan.runtime_id, plan.plan_id, plan.backup_path, ports.receiptPath,

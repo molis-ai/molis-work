@@ -217,13 +217,15 @@ test("AC-05: review notes handed back to a session whose first read failed are r
 
 test("AC-05: switching to a session this window has not read yet shuts the box and what sets its next round at once, not at the next state read", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { command, sessionId, evaluate, waitFor, box, start, shut, owner } = opened;
+  const { command, sessionId, evaluate, waitFor, box, start, shut, afterAStateRead, owner } = opened;
   const SECOND_WORDS = "乙会话里写好的任务";
   const second = await start(SECOND_WORDS);
   await waitFor(confirmed(second, SECOND_WORDS));
   const first = await start();
 
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read'`);
+  // The page reads its state every fifth second on its own: count from just after one, so the next is not due while this looks.
+  await afterAStateRead();
   const reads = await evaluate<number>("stateReads");
   // In the same task as the switch: nothing has read the page's state since.
   const buttons = await evaluate<boolean[]>(`(()=>{

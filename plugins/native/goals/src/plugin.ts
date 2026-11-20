@@ -41,17 +41,13 @@ function controlOf(caller: ActionExecutionContext): PluginExecutionControl {
 }
 
 
-/** Goals receives the platform's own decision, and can read its transferred history in this project. */
+/** Goals receives the platform's own decision in this project. */
 function projectGovernance(sqlite: PluginSqlite, projectId: string, journal: ReturnType<typeof journalOver>,
   approvalHistory: NonNullable<PluginProjectDatabase["approvalHistory"]>): GovernanceCollaborationModule {
   const eventDecisions = new GovernanceEventDecisions(() => {
     const decision = sqlite.currentDecision();
     if (!decision) throw new ActionError("actions.forbidden", "需要平台记录的本人决定");
     return decision;
-  }, (project, id) => {
-    if (project !== projectId) return null;
-    const record = approvalHistory.read(id);
-    return record && "kind" in record ? record : null;
   });
   return new GovernanceCollaborationModule({ db: sqlite, journal, eventDecisions, treeApprovals: {
     current: () => sqlite.currentDecision(),
@@ -59,7 +55,6 @@ function projectGovernance(sqlite: PluginSqlite, projectId: string, journal: Ret
       const record = project === projectId ? approvalHistory.read(id) : null;
       return record && "request_key" in record ? record : null;
     },
-    transferred: project => project === projectId ? approvalHistory.transferred("proposal-item") : [],
   } });
 }
 

@@ -2,9 +2,9 @@
 
 **English** | [简体中文](README.zh.md)
 
-Molis Work is a local-first work platform: a plugin base with many plugins, where you and the AI Runtimes you use work on the same goals, sessions, feeds, code, documents and calendar, each kept by the plugin that owns it.
+Molis Work is a local-first **Agent OS**, **human-AI and team collaboration workbench**, and **multi-plugin platform**: you, the built-in Assistant, and external AI Runtimes work together across projects and mainlines on goals, sessions, feeds, code, documents and calendar, with every fact kept by the plugin or module that owns it (currently local single-Home collaboration, evolving toward shared team projects and team memory).
 
-The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Inbox, Feed, Schedule and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+The platform provides one resident host per Home, a shared action catalog with grant guardrails, the plugin runtime, the workbench shell, one Prologue AI runtime (Assistant, sub-agents, background tasks, memory, work records, skills and capability kits), and platform collaboration capabilities including external AI session integration, work mainlines, trusted user decisions and itemized acceptance. Every project currently includes Goals and can add Inbox, Feed, Schedule and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
 
 The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 

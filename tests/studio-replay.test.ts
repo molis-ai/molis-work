@@ -9,6 +9,7 @@ import { AgentBuilderWorkflow, BUILDER_PROMPTS, expandDesign, freezeStudioUi, pa
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { runStudioReplaySync } from "../scripts/studio-replay.mts";
 import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from "../scripts/studio-replay/corpus.mjs";
 import { CATALOG_MISS, LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
@@ -24,9 +25,15 @@ const recordedFixture = path.join(corpusDirectory, "recorded.json");
 const scratch = mkdtempSync(path.join(tmpdir(), "molis-studio-replay-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
-const cli = (args: string[], env: Record<string, string | undefined> = {}) => {
+const cliSpawn = (args: string[], env: Record<string, string | undefined> = {}) => {
   const run = spawnSync(process.execPath, ["--import", "tsx", path.join(root, "scripts/studio-replay.mts"), ...args], { cwd: root, encoding: "utf8", env: { ...process.env, MOLIS_WORK_SECRET_BACKEND: "file", ...env } });
   return { code: run.status, out: `${run.stdout}${run.stderr}` };
+};
+// Replay and harvest mutations run the exact same CLI entry in-process to avoid 50+ cold `tsx` subprocess boots;
+// `smoke` and the default end-to-end CLI check still spawn the real subprocess.
+const cli = (args: string[], env?: Record<string, string | undefined>) => {
+  if (env !== undefined || args[0] === "smoke") return cliSpawn(args, env);
+  return runStudioReplaySync(args);
 };
 /** The hand-written seed alone: the prompt example, corpus.json and the 3 first proposals of builder-designer. The rest of the committed corpus is recorded.json. */
 const seedEntries = () => [...builtinEntries(), ...loadCorpus([path.join(corpusDirectory, "corpus.json"), proposalsFixture]).entries];
@@ -68,7 +75,7 @@ test("the committed corpus holds the real design answers exported from the perso
   const all = committed(), recorded = all.filter(entry => entry.origin === "recorded");
   assert.equal(recorded.length, 383, "the 380 real answers and the 3 first proposals of builder-designer/minimax-notes-v1.json");
   assert.equal(recorded.filter(entry => entry.mode === "detail" && entry.attempt === 0).length, 80, "80 real full designs are first answers");
-  const result = cli([]);
+  const result = cliSpawn([]);
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /recorded detail\s+\d+\/80\s/, "the headline number is measured");
   assert.doesNotMatch(result.out, /is NOT measured|no recorded detail answers/, "and the report does not say it is not");
@@ -132,14 +139,16 @@ const memoryStorage = (): PluginPrivateStorage => {
   return { get: key => values.get(key) ?? null, set: (key, value) => { values.set(key, value); }, delete: key => values.delete(key),
     compareAndSet: (key, expected, value) => { if ((values.get(key) ?? null) !== expected) return false; values.set(key, value); return true; } };
 };
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const sketch = (id: string, title: string, base: { description: string; rationale: string; journey: string[] }) => ({ description: base.description, rationale: base.rationale, journey: base.journey, id, title,
   operations: [{ id: "notes.list", kind: "query", description: "列出", input: {}, output: [{ id: "string", text: "string" }] }, { id: "notes.add", kind: "command", description: "添加", input: { text: "string(1..200) 笔记" }, output: { id: "string" } }],
   pages: [{ id: "home", title, parts: [{ id: "editor", intent: "input", purpose: "写", uses: "notes.add" }, { id: "notes", intent: "collection", purpose: "看", uses: "notes.list" }] }] });
 
+const detailAnswerCache = loadCorpus([path.join(corpusDirectory, "corpus.json")]).entries.find(item => item.id === "detail-notes-plain")!.answer;
+const yieldTick = () => new Promise<void>(resolve => setImmediate(resolve));
+
 /** What the real workflow does with one recorded answer: accepted, or the reason it sent back to the designer. */
 async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean; refusal?: string }> {
-  const detailAnswer = loadCorpus([path.join(corpusDirectory, "corpus.json")]).entries.find(item => item.id === "detail-notes-plain")!.answer;
+  const detailAnswer = detailAnswerCache;
   const base = entry.base ?? { id: "quick", title: "快记", description: "d", rationale: "r", journey: ["写", "看"] };
   const proposals = JSON.stringify({ summary: "s", candidates: [sketch(base.id, base.title, base), sketch("other", base.title + "二", base)] });
   // The scripted designer: what each stage is given, in order. Anything after the answer under test is the repair request we read.
@@ -181,7 +190,7 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
         if (build.design && !build.active && !revised) { revised = true; await workflow.action(created.id, { action: "message", message: "改一下" }); }
         else if (revised && build.design && seen.some(task => task.mode === "revise") && !build.active && build.history.length) return { accepted: true };
       }
-      await sleep(5);
+      await yieldTick();
     }
     const last = workflow.store.require(created.id);
     throw new Error(`the workflow did not settle for ${entry.id}: ${last.phase} ${last.error ?? ""} after ${tasks().map(task => task.mode + (task.repair ? "+repair(" + task.repair.validationError.slice(0, 120) + ")" : "")).join(", ")}`);
@@ -191,11 +200,16 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
 test("the replay accepts and refuses exactly what the studio workflow does, with the same words", async () => {
   const entries = committed();
   assert.ok(entries.some(entry => entry.mode === "propose") && entries.some(entry => entry.mode === "detail") && entries.some(entry => entry.mode === "revise"), "all three stages are compared");
-  for (const entry of entries) {
-    const replayed = replayEntry(entry), real = await throughWorkflow(entry);
-    assert.equal(replayed.pass, real.accepted, `${entry.id}: replay says ${replayed.pass ? "accepted" : "refused (" + replayed.message + ")"}, the workflow says ${real.accepted ? "accepted" : "refused (" + real.refusal + ")"}`);
-    if (!replayed.pass) assert.equal(replayed.message, real.refusal, `${entry.id}: the workflow sends the designer back with the replay's words`);
-  }
+  let next = 0;
+  const worker = async () => {
+    while (next < entries.length) {
+      const entry = entries[next++]!;
+      const replayed = replayEntry(entry), real = await throughWorkflow(entry);
+      assert.equal(replayed.pass, real.accepted, `${entry.id}: replay says ${replayed.pass ? "accepted" : "refused (" + replayed.message + ")"}, the workflow says ${real.accepted ? "accepted" : "refused (" + real.refusal + ")"}`);
+      if (!replayed.pass) assert.equal(replayed.message, real.refusal, `${entry.id}: the workflow sends the designer back with the replay's words`);
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, worker));
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

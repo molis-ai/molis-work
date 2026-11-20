@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 import { openCoding } from "./fixtures/coding-browser.js";
@@ -29,13 +30,15 @@ function turn(text: string): string {
   return events.join("");
 }
 
-/** A script (top document) that pastes a PNG into the bar's box: `noise` makes one too large to send. */
-const paste = (name: string, side: number, noise = false) => `(async()=>{const canvas=document.createElement('canvas');canvas.width=${side};canvas.height=${side};
+/** A script that pastes or drops a PNG into the box. Noise makes it too large to send. */
+const putPicture = (name: string, side: number, noise = false, drop = false) => `(async()=>{const canvas=document.createElement('canvas');canvas.width=${side};canvas.height=${side};
   const g=canvas.getContext('2d');if(${noise}){const data=g.createImageData(${side},${side});crypto.getRandomValues(new Uint8Array(data.data.buffer).subarray(0,65536));
   for(let i=0;i<data.data.length;i+=65536)crypto.getRandomValues(data.data.subarray(i,Math.min(i+65536,data.data.length)));for(let i=3;i<data.data.length;i+=4)data.data[i]=255;g.putImageData(data,0,0);}
   else{g.fillStyle='#4a7';g.fillRect(0,0,${side},${side});g.fillStyle='#fff';g.fillRect(4,4,${side}/2,${side}/3);}
   const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));const dt=new DataTransfer();dt.items.add(new File([blob],${JSON.stringify(name)},{type:'image/png'}));
-  document.querySelector(${JSON.stringify(CODING_BOX)}).dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));return blob.size;})()`;
+  document.querySelector(${JSON.stringify(CODING_BOX)}).dispatchEvent(${drop
+    ? "new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true})"
+    : "new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true})"});return blob.size;})()`;
 
 /** A script (the Coding frame) that answers the page's state reads with these models from now on; the seeded Home has none. */
 const modelsAre = (models: ReadonlyArray<Record<string, unknown>>) => `(async()=>{const made=posts.find(one=>one.path.endsWith('/api/plugins/io.molis.work.coding/sessions')).path.replace(/\\/sessions$/,'');
@@ -62,8 +65,8 @@ test("A3 pictures in Coding's composer: thumbnails, the too-large shrink, the vi
     return n?{text:n.querySelector('.mw-composer__notice-text').textContent,buttons:[...n.querySelectorAll('[data-composer-notice]')].map(b=>b.textContent.trim())}:null;})()`);
 
   // Two screenshots pasted: each kept by the platform, shown as a thumbnail with its size and 「已存一份」.
-  await owner.evaluate(paste("登录页-现在.png", 64));
-  await owner.evaluate(paste("登录页-设计稿.png", 80));
+  await owner.evaluate(putPicture("登录页-现在.png", 64));
+  await owner.evaluate(putPicture("登录页-设计稿.png", 80));
   await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(ROWS)})].filter(row=>row.querySelector('small')?.textContent.includes('已存一份')).length===2`, 30_000);
   const kept = await rows();
   assert.deepEqual(kept.map(row => row.thumb), [true, true], "each row shows its picture");
@@ -92,7 +95,7 @@ test("A3 pictures in Coding's composer: thumbnails, the too-large shrink, the vi
   await owner.waitFor(`!document.querySelector('dialog.mw-picture') && document.activeElement?.matches('[data-composer-open]')`, 10_000);
 
   // One over 5 MB: its row says so, the send waits, and 「缩小到 5 MB 内」 puts a smaller copy in its place.
-  const size = await owner.evaluate<number>(paste("设计稿-首屏.png", 1800, true));
+  const size = await owner.evaluate<number>(putPicture("设计稿-首屏.png", 1800, true));
   assert.ok(size > 5 * 1024 * 1024, `the noise picture is ${size} bytes`);
   await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(ROWS)})].some(row=>row.classList.contains('is-failed')&&row.textContent.includes('超过 5 MB'))`, 30_000);
   await owner.waitFor(`document.querySelector(${JSON.stringify(NOTICE)})?.textContent.includes('超过 5 MB 上限')`, 15_000);
@@ -130,7 +133,7 @@ test("A3 pictures in Coding's composer: thumbnails, the too-large shrink, the vi
   assert.equal(words.images, undefined, "不带图发: the round carries no picture");
 });
 
-test("A3 a round sent with pictures names them by reference, gives them to the model, and shows them under the person's words", { timeout: 300_000 }, async t => {
+test("A3 B35-R6 a round forwards the exact pasted and dropped pictures and reads both back", { timeout: 300_000 }, async t => {
   const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -160,22 +163,23 @@ test("A3 a round sent with pictures names them by reference, gives them to the m
   const { owner, evaluate, waitFor } = opened;
   await opened.start("照这张图改首屏");
   await owner.waitFor(`document.querySelector(${JSON.stringify(codingControl("model"))})?.value.includes('fixture-plain')`, 30_000);
-  await owner.evaluate(paste("首屏.png", 48));
-  await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(ROWS)})].some(row=>row.querySelector('small')?.textContent.includes('已存一份'))`, 30_000);
+  await owner.evaluate(putPicture("首屏.png", 48));
+  await owner.evaluate(putPicture("参考稿.png", 96, false, true));
+  await owner.waitFor(`[...document.querySelectorAll(${JSON.stringify(ROWS)})].filter(row=>row.querySelector('small')?.textContent.includes('已存一份')).length===2`, 30_000);
   await owner.evaluate(`document.querySelector(${JSON.stringify(CODING_SEND)}).click()`);
   await waitFor(`posts.some(one=>/\\/runs$/.test(one.path))`, 30_000);
-  const body = await evaluate<{ images?: Array<{ material_id: string; title: string; media_type: string; attachment: { subject: { kind: string } } }> }>(`JSON.parse(posts.find(one=>/\\/runs$/.test(one.path)).body)`);
-  assert.equal(body.images?.length, 1);
-  assert.equal(body.images![0]!.media_type, "image/png");
-  assert.ok(body.images![0]!.attachment.subject.kind, "a reference the platform gave");
-  assert.ok(!JSON.stringify(body).includes("data:image") && !("data" in body.images![0]!), "no bytes in the round's request");
-  // The model's first call carries the picture as an image block, read from the platform's copy.
-  await waitFor(`Boolean(document.querySelector('.coding-turn[data-kind=user] .coding-turn__pictures .coding-turn__picture img'))`, 60_000);
+  const body = await evaluate<{ images: Array<{ title: string; media_type: string; attachment: { subject: { kind: string }; pin: { read_revision: string } } }> }>(`JSON.parse(posts.find(one=>/\\/runs$/.test(one.path)).body)`);
+  assert.deepEqual(body.images.map(image => image.title), ["首屏.png", "参考稿.png"]);
+  assert.ok(body.images.every(image => image.media_type === "image/png" && image.attachment.subject.kind === "conversation_attachment" && !("data" in image)));
+  assert.ok(!JSON.stringify(body).includes("data:image"), "no bytes in the round's request");
+  await waitFor(`document.querySelectorAll('.coding-turn[data-kind=user] .coding-turn__pictures .coding-turn__picture img').length===2`, 60_000);
   const first = JSON.parse(calls[0] ?? "{}") as { messages?: Array<{ content?: unknown }> };
-  const blocks = (first.messages ?? []).flatMap(message => Array.isArray(message.content) ? message.content as Array<{ type?: string; source?: { media_type?: string } }> : []);
-  assert.ok(blocks.some(block => block.type === "image" && block.source?.media_type === "image/png"), "the model is given the picture");
+  const blocks = (first.messages ?? []).flatMap(message => Array.isArray(message.content) ? message.content as Array<{ type?: string; source?: { media_type?: string; data?: string } }> : []);
+  const actual = blocks.filter(block => block.type === "image" && block.source?.media_type === "image/png" && block.source.data)
+    .map(block => createHash("sha256").update(Buffer.from(block.source!.data!, "base64")).digest("hex"));
+  assert.deepEqual(actual, body.images.map(image => image.attachment.pin.read_revision), "the model gets the platform's exact bytes");
   // The round's first message shows the picture, read back from the platform; it opens in the same dialog.
-  assert.equal(await evaluate<string>(`document.querySelector('.coding-turn__picture').getAttribute('aria-label')`), "放大看 " + body.images![0]!.title);
+  assert.equal(await evaluate<string>(`document.querySelector('.coding-turn__picture').getAttribute('aria-label')`), "放大看 " + body.images[0]!.title);
   await evaluate(`document.querySelector('.coding-turn__picture').click()`);
   await waitFor(`document.querySelector('dialog.mw-picture')?.open === true`, 10_000);
 });

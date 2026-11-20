@@ -27,7 +27,7 @@ CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_heads (key TEXT PRIMARY K
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_3a28c22289ed28c8fdbe3056c102_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "connections"("id","name","api_format","base_url","model","created_at","updated_at") VALUES('251d0b05-9726-4749-bcee-34e494afc3e3','金样图片连接 seed 已改','openai-images','http://127.0.0.1:9/v1','golden-model','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
+INSERT INTO "connections"("id","name","api_format","base_url","model","created_at","updated_at") VALUES('685a9880-9554-4422-8b4a-560442cf9745','金样图片连接 seed 已改','openai-images','http://127.0.0.1:9/v1','golden-model','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z');
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
 INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_context"("id","project_id") VALUES(1,NULL);
 INSERT INTO "sync_3a28c22289ed28c8fdbe3056c102_replica_state"("id","device","cursor","applying") VALUES(1,'3104bb145392cf1710cb9ddcd8942586',0,0);

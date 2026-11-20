@@ -19,6 +19,6 @@ export default async function ({ call, tag }: GoldenWriteContext) {
     subject,
     version: `v1-${tag}`,
     summary: `金样交付 ${tag}`,
-  });
-  readsBack(await call("acceptance.read", { subjects: [subject] }), `金样交付要求 ${tag}`);
+  }, { project_owner: true });
+  readsBack(await call("acceptance.read", { subjects: [subject] }, { project_owner: true }), `金样交付要求 ${tag}`);
 }

@@ -4,14 +4,6 @@
 
 export declare const CODING_CHANGESET_TYPE = "coding.changeset.v1";
 
-export declare const CODING_FILE_CHANGED_EVENT = "io.molis.work.coding.file-changed";
-
-export declare const CODING_PREFERENCE_EVENT = "io.molis.work.coding.preference";
-
-export declare const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
-
-export declare const CODING_WORKSPACE_INVALIDATED_EVENT = "io.molis.work.coding.workspace-invalidated";
-
 export interface ChangeSet {
     workspace: FileSnapshotWorkspaceRef;
     path: readonly string[];
@@ -143,10 +135,6 @@ export interface FilesCollectionAccess {
     entry_count: number;
     truncated: boolean;
 }
-
-export declare const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";
-
-export declare const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
 
 export declare const GIT_RESULT_SCHEMA_VERSION = 1;
 

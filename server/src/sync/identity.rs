@@ -40,6 +40,37 @@ pub(crate) async fn identity(req: &Request, env: &Env) -> ApiResult<String> {
         401,
         "UNAUTHORIZED",
     )?;
+    let application = env.var("APPLICATION_ID")?.to_string();
+    let signed_reads = env
+        .var("SYNC_READ_AUTH")
+        .ok()
+        .map(|value| value.to_string());
+    require(
+        signed_reads
+            .as_deref()
+            .is_none_or(|mode| matches!(mode, "live" | "signed")),
+        503,
+        "INVALID_AUTH_CONFIG",
+    )?;
+    // Only polling and incremental reads use a 30-second proof. History, file reads and mutations
+    // still check live Auth state. Request bodies cannot pick an account or reuse a proof.
+    if signed_reads.as_deref() == Some("signed")
+        && req.method() == Method::Get
+        && matches!(req.path().as_str(), "/v1/round" | "/v1/changes")
+    {
+        let token_hash = hex::encode(Sha256::digest(&authorization.as_bytes()[7..]));
+        let user = crate::signed_identity::sync_read_identity(
+            &origin,
+            &application,
+            &authorization,
+            &token_hash,
+        )
+        .await
+        .map_err(|_| Failure(503, "SYNC_AUTH_UNAVAILABLE"))?
+        .as_string()
+        .ok_or(Failure(401, "UNAUTHORIZED"))?;
+        return space_id(&origin, &application, &user);
+    }
     let headers = Headers::new();
     headers.set("Authorization", &authorization)?;
     // Workers supports manual/follow. Never follow an Auth redirect with the Bearer token.
@@ -59,13 +90,16 @@ pub(crate) async fn identity(req: &Request, env: &Env) -> ApiResult<String> {
         403,
         "WRONG_ISSUER",
     )?;
-    let application = string(&data["session"], "applicationId", 500)?;
     require(
-        application == env.var("APPLICATION_ID")?.to_string(),
+        string(&data["session"], "applicationId", 500)? == application,
         403,
         "WRONG_APPLICATION",
     )?;
-    // Same canonical tuple as the local space owner; request bodies cannot select another owner.
+    space_id(&origin, &application, user)
+}
+
+fn space_id(origin: &str, application: &str, user: &str) -> ApiResult<String> {
+    // Same canonical tuple as the local space owner.
     let tuple = serde_json::to_string(&[origin.trim_end_matches('/'), application, user])?;
     Ok(format!(
         "space_{}",

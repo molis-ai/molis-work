@@ -15,21 +15,11 @@ import {createProcessItemReplication} from '@molis-ai/molis-work-module-artifact
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {FILE_SNAPSHOT_SCHEMA_VERSION,FILE_SNAPSHOT_TYPE} from '@molis-ai/molis-work-contracts/modules/workspace-artifacts';
 import {CODING_PLAN_TYPE,codingManifest} from '@molis-ai/molis-work-plugin-coding';
-import {cloudFixture,filesEraWriter} from './testing.mjs';
+import {cloudFixture,filesEraWriter,toOriginalProcessItemsLayout} from './testing.mjs';
 
 const N=JSON.stringify(['io.molis.work.artifacts','molis','official-artifacts-binding','process_items',1]);
 const FILES={plugin_id:'io.molis.work.files',plugin_version:'1.0.0',binding_signature:'official-files-binding'};
 const SYSTEM={plugin:'system.materials',signature:'molis-work:system.materials'};
-
-/** What the old build's triggers left: the same writes recorded in the original journal, and no adopted journal at all. */
-function toOriginalLayout(path){
-  const db=new DatabaseSync(path);
-  try{
-    db.exec('INSERT INTO process_items_replica_changes(key) SELECT key FROM process_items_adopted_replica_changes ORDER BY seq');
-    for(const {name,sql} of db.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger' AND name LIKE 'process_items_sync_%'").all()){db.exec(`DROP TRIGGER ${name}`);db.exec(sql.replaceAll('process_items_adopted_replica_','process_items_replica_'));}
-    for(const {name} of db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'process_items_adopted_replica_%'").all())db.exec(`DROP TABLE ${name}`);
-  }finally{db.close();}
-}
 
 test('BSH-14-D a dirty device keeps its unsent lines, adopts with them and takes each over: same, conflict or a new write on the adopted stream',{timeout:180000},async t=>{
   const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-process-takeover-'));
@@ -71,7 +61,7 @@ test('BSH-14-D a dirty device keeps its unsent lines, adopts with them and takes
     snapshot('files-shared',2,'second fix');snapshot('files-local',1,'only here');
     filesEra.close();source.close();
   }
-  toOriginalLayout(project.database_path);
+  toOriginalProcessItemsLayout(project.database_path);
   // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.
   {const db=new DatabaseSync(project.database_path);try{for(const id of ['coding-plan','files-shared'])db.prepare('INSERT INTO process_items_replica_heads(key,revision) VALUES (?,1)').run(key(id));}finally{db.close();}}
 

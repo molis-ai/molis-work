@@ -27,7 +27,7 @@ export type BuiltinSyncBinding = ({
         spaceId: string;
         authorize(): void;
     }) => SyncContentCodec;
-    readonly scope: 'home' | 'home-with-projects' | 'projects';
+    readonly scope: 'home' | 'projects';
     open(home: string, ownerId: string): {
         close(): void;
         replica(context: AggregateReplicaContext): SyncReplicaAdapter;

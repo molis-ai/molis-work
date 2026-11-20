@@ -36,6 +36,41 @@ interface Surface {
   users:Map<string,()=>boolean>; connections:Map<Duplex,()=>boolean>; responses:Map<ServerResponse,()=>boolean>;
 }
 
+function disconnectSurface(entry:Surface,graceful=false){
+  for(const response of entry.responses.keys())if(!graceful||response.headersSent&&!response.writableEnded)response.destroy();
+  for(const socket of entry.connections.keys())socket.destroy();
+}
+
+function dispatchPersonalSurface(entry:Surface,request:IncomingMessage,response:ServerResponse,url:URL,valid:()=>boolean,notify:(space:string)=>void){
+  entry.responses.set(response,valid);
+  response.once('close',()=>entry.responses.delete(response));
+  if(!valid()){sendLocalWebJson(response,401,{error:'账号已切换。'});return;}
+  if(!url.pathname.startsWith('/api/sync')&&['POST','PUT','PATCH','DELETE'].includes(request.method??'')){
+    // Sync routes are dispatched before this point. Covers Web API, MCP HTTP, and action mutations.
+    response.once('finish',()=>{
+      if(response.statusCode>=200&&response.statusCode<300&&valid())notify(entry.space.spaceId);
+    });
+  }
+  entry.server.emit('request',request,response);
+}
+
+type SelectedSpace = { space:StorageSpace; directory:string; session:WebAccountSession|null };
+function personalCopyContext(selected:SelectedSpace,home:string,withCatalog:LocalWebCatalogRunner|undefined,selection:(request:IncomingMessage)=>SelectedSpace,request:IncomingMessage,isStopping:()=>boolean){
+  if(selected.space.kind!=='personal'||!withCatalog||!selected.session)return null;
+  const identity=selected.session.auth.identity();
+  if(!identity)return null;
+  const targetSpaceId=selected.space.spaceId;
+  return {
+    sourceHome:home,targetHome:selected.directory,targetSpaceId,actorId:identity.userId,
+    sourceWithCatalog:withCatalog,targetWithCatalog:withCatalog,
+    authorize:()=>{
+      if(isStopping())throw new ActionError('actions.unavailable','服务正在关闭。');
+      const current=selection(request);
+      if(current.space.kind!=='personal'||current.space.spaceId!==targetSpaceId)throw new ActionError('actions.forbidden','账号或空间已切换，请重新预览。');
+    },
+  };
+}
+
 export interface SpaceWebSurface extends http.Server {
   /** Resolves after the runtime and background writers have released their Home. */
   spaceDisposed?:Promise<void>;
@@ -213,15 +248,11 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     surfaces.set(space.spaceId,result);
     return result;
   };
-  const disconnect=(entry:Surface,graceful=false)=>{
-    for(const response of entry.responses.keys())if(!graceful||response.headersSent&&!response.writableEnded)response.destroy();
-    for(const socket of entry.connections.keys())socket.destroy();
-  };
   const retire=(entry:Surface,graceful=false)=>{
     options.webSessions?.revokeScope(entry.token);
     entry.releaseAuthority?.();
     surfaces.delete(entry.space.spaceId);
-    disconnect(entry,graceful);
+    disconnectSurface(entry,graceful);
     const disposed=closeSpaceSurface(entry.server);
     const retirement:{disposed:Promise<void>;token:string;retry?:()=>void}={disposed,token:entry.token};
     retiring.set(entry.space.spaceId,retirement);
@@ -258,14 +289,18 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     for(const entry of syncs.values())entry.service?.close();
     for(const entry of [...surfaces.values()]){
       entry.releaseAuthority?.();
-      disconnect(entry,true);
+      disconnectSurface(entry,true);
     }
   };
   const resume=async(request:IncomingMessage)=>{
     try{(await syncFor(selection(request),request))?.start();}
     catch{ /* Sync settings report the failure; unavailable sync must not prevent local work. */ }
   };
-  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
+  const notifySyncChange=(spaceId:string)=>{
+    const sync=syncs.get(spaceId);
+    if(sync?.active())sync.service?.notifyLocalChange();
+  };
+  return {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface:()=>activeSpaceId?surfaces.get(activeSpaceId):undefined,isStopping:()=>stopping};
 }
 
 async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
@@ -312,7 +347,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   // The installation login response must survive retirement of the previous business Home.
   const loginSessions = new WebSessions(resolveConfiguredHome(options.homeDirectory) + ":installation-login");
   options = { ...options, webSessions: sessions };
-  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  const {home,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,notifySyncChange,surfaces,stop,settleAccount,releaseRetired,isAccountReady,activeSurface,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
@@ -380,7 +415,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
           if(!webRequestAuthenticated(request,token)){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request),maintenance:()=>surfaces.get(selected.space.spaceId)?.server.processItemsMaintenance});
+          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request),maintenance:()=>surfaces.get(selected.space.spaceId)?.server.processItemsMaintenance,copy:()=>personalCopyContext(selected,home,withCatalog,selection,request,isStopping)});
           return;
         }
         if(accountPath){
@@ -421,10 +456,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // Dispatch an open Home without yielding, so the core's synchronous
         // request guards run before the HTTP parser continues with the body.
         const entry=surfaces.get(selected.space.spaceId)??await surface(selected),valid=attach(entry,request);
-        entry.responses.set(response,valid);
-        response.once('close',()=>entry.responses.delete(response));
-        if(!valid()){sendLocalWebJson(response,401,{error:'账号已切换。'});return;}
-        entry.server.emit('request',request,response);
+        dispatchPersonalSurface(entry,request,response,url,valid,notifySyncChange);
         // Do not yield before the core's synchronous HTTP guards (including malformed mutation bodies).
         void resume(request);
       }catch(error){

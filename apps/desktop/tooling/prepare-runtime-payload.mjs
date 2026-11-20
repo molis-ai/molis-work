@@ -1,14 +1,12 @@
-import { pathToFileURL } from "node:url";
-import { workSettings } from "../../../scripts/account-environments.mjs";
-import { releaseProfile } from "../../local-host/src/release-profile.ts";
 import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkRuntimePayload, releaseProfile } from "@molis-ai/molis-work-app-local-host";
 
 const packBundled = fileURLToPath(new URL("../../../tooling/release/pack-bundled.mjs", import.meta.url));
+const accountEnvironments = fileURLToPath(new URL("../../../scripts/account-environments.mjs", import.meta.url));
 
 const [sourceDirectory, resourceDirectory, nodeExecutablePath] = process.argv.slice(2);
 if (!sourceDirectory || !resourceDirectory || !nodeExecutablePath) {
@@ -26,7 +24,7 @@ try {
   const profile = process.env.MOLIS_WORK_RELEASE_PROFILE ?? "dev";
   const signedPackages = execFileSync(process.execPath, [packBundled, sourceDirectory, path.join(temporary, "signed-packages"), profile], { encoding: "utf8" }).trim() || undefined;
   const name = releaseProfile(profile).accountEnvironment;
-  const settings = name ? workSettings(name, pathToFileURL(path.resolve(sourceDirectory) + "/"), { publicOnly: true, installed: true }) : undefined;
+  const settings = name ? JSON.parse(execFileSync(process.execPath, [accountEnvironments, name, sourceDirectory], { encoding: "utf8" })) : undefined;
   await createMolisWorkRuntimePayload({ sourceDirectory, destinationDirectory: staged, nodeExecutablePath,
     desktopDistribution: { profile, signedPackages, ...settings } });
   const node = path.join(staged, "runtime", "node");

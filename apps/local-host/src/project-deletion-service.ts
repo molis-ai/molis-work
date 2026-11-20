@@ -94,6 +94,70 @@ export class ProjectDeletionService {
       return catalog.deleteProject(input);
     });
   }
+
+  /**
+   * Final local cleanup of a personal project only after verified server-side purge/expiry proof,
+   * zero unsettled owner queues/conflicts, zero live runtime tasks, and zero live terminals.
+   * Device clocks never authorize final cleanup.
+   */
+  async finalizeExpiredPersonalProject(
+    homeDirectory: string,
+    input: { project_id: string; actor_id: string; idempotency_key: string; server_purged_at: number },
+    guards: { authorize(): void; assertChildrenSettled(projectId: string): void; refreshChildren?(): Promise<void> },
+  ): Promise<ProjectDeletionResult> {
+    guards.authorize();
+    if (!Number.isSafeInteger(input.server_purged_at) || input.server_purged_at <= 0) {
+      throw catalogErrors.project_storage_invalid('缺少服务端过期或永久清理凭据，本机原件已保留');
+    }
+    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) {
+      throw catalogErrors.personal_space('个人空间不能删除；可以把里面的内容移到项目或逐个删除');
+    }
+    requiredDeletionIdempotencyKey(input.idempotency_key);
+    return this.withCatalog({ homeDirectory }, async catalog => {
+      guards.authorize();
+      if (readStorageSpace(catalog.homeDirectory)?.kind !== 'personal') {
+        throw catalogErrors.project_storage_invalid('仅个人空间项目可按服务端过期凭据最终清理');
+      }
+      if (!catalog.recycle.isRecycled(input.project_id)) {
+        throw catalogErrors.project_storage_invalid('项目尚未进入回收状态，不能执行最终清理');
+      }
+      const observed = catalog.recycle.inspect(input.project_id);
+      const assertReady = () => {
+        guards.authorize();
+        if (!this.ports.isProjectBusy) throw catalogErrors.project_storage_invalid('项目运行状态尚未接入，原件已保留');
+        if (this.ports.isProjectBusy(observed.database_path)) throw catalogErrors.project_task_live('项目仍有运行或排队的任务，请结束后重试', { sync_waiting: true });
+        if (catalog.terminalPanels.listIds(input.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
+          throw catalogErrors.project_terminal_live(uiText.text("workbench.project-deletion-service.close-running-terminals-project-before-deleting"));
+        }
+        guards.assertChildrenSettled(input.project_id);
+      };
+      await guards.refreshChildren?.();
+      assertReady();
+      return withPassiveProjectChange(homeDirectory, input.project_id, async () => {
+        assertReady();
+        await this.ports.releaseProject(observed.database_path);
+        await guards.refreshChildren?.();
+        assertReady();
+        // Recycled projects are hidden from ProjectService.get(); unhide under the passive
+        // reservation immediately before delegating physical deletion and receipt recording.
+        await catalog.commit(() => catalog.recycle.change({
+          project_id: input.project_id,
+          recycled: false,
+          confirmed: true,
+          actor_id: input.actor_id,
+          operation_id: `${input.idempotency_key}:finalize`,
+          expected_state: observed.state,
+        }, assertReady));
+        return catalog.deleteProject({
+          project_id: input.project_id,
+          actor_id: input.actor_id,
+          idempotency_key: input.idempotency_key,
+          delete_confirmed: true,
+          output_files: 'keep',
+        });
+      });
+    });
+  }
 }
 
 /**

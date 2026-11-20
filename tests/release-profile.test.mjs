@@ -9,7 +9,7 @@ import test from "node:test";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { workEnvironment, workSettings } from "../scripts/account-environments.mjs";
 import { carrierIssues, connectorApplicationReferences, misplacedValues, missingProfileValues, nodeVersion, tauriSettings } from "../tooling/release/profile.mjs";
-import { releaseProfile } from "../apps/local-host/src/release-profile.ts";
+import { releaseProfile } from "@molis-ai/molis-work-app-local-host";
 import { packBundledReleasePackages } from "../tooling/release/pack-bundled.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));

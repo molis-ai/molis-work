@@ -6,11 +6,13 @@
   "compatibility_date": "2026-09-19",
   "workers_dev": false,
   "preview_urls": false,
+  "ratelimits": [{"name": "SYNC_RATE_LIMIT", "namespace_id": "471982702", "simple": {"limit": 600, "period": 60}}],
   "routes": [{"pattern": "sync.test.molis.ai", "custom_domain": true}],
   "vars": {
     "AUTH_ORIGIN": "https://auth.test.molis.ai",
     "APPLICATION_ID": "molis-work-staging-app",
     "DEPLOYMENT_MODE": "cloud",
+    "SYNC_READ_AUTH": "signed",
     "SYNC_WRITE_MODE": "read-write"
   },
   // Enable hourly maintenance only after cloud Auth and attachment acceptance.

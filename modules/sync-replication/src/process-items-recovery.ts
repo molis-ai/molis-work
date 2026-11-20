@@ -5,6 +5,7 @@ import {homeSqlitePath} from '@molis-ai/molis-work-storage';
 import {openSyncDatabase} from './database.js';
 import {PROCESS_ITEMS_NAMESPACE} from './cutover.js';
 import {syncError} from './sync-errors.js';
+import {blobFiles} from './blob-files.js';
 
 /**
  * The private recovery file of a Home whose process items had not all reached the old stream when the account adopted them
@@ -66,13 +67,24 @@ export function readProcessItemsSyncEvidence(home:string):ProcessItemsSyncEviden
     db.exec('BEGIN');
     try{
       const one=(table:string,column:string)=>{const row=db.prepare(`SELECT ${column} AS value FROM ${table} WHERE namespace=?`).get(PROCESS_ITEMS_NAMESPACE);return row?Number(row.value):null;};
+      const protectedMode=one('sync_payload_modes','protected');
+      let parts=db.prepare('SELECT digest,part,checksum,bytes FROM sync_blob_parts WHERE namespace=? ORDER BY digest,part').all(PROCESS_ITEMS_NAMESPACE)
+        .map(row=>({digest:String(row.digest),part:Number(row.part),checksum:String(row.checksum),bytes:Buffer.from(row.bytes as Uint8Array).toString('base64')}));
+      if(protectedMode===0){
+        const files=blobFiles(home,PROCESS_ITEMS_NAMESPACE,()=>{});
+        const merged=new Map(parts.map(row=>[JSON.stringify([row.digest,row.part]),row]));
+        for(const digest of files.digests())for(const part of files.parts(digest)){
+          const file=files.read(digest,part);
+          if(file)merged.set(JSON.stringify([digest,part]),{digest,part,checksum:file.checksum,bytes:file.bytes.toString('base64')});
+        }
+        parts=[...merged.values()].sort((a,b)=>a.digest.localeCompare(b.digest)||a.part-b.part);
+      }
       return {
         failures:db.prepare('SELECT key,direction,event,reason,revision,automatic FROM sync_failures WHERE namespace=? ORDER BY key,direction').all(PROCESS_ITEMS_NAMESPACE)
           .map(row=>({key:String(row.key),direction:String(row.direction),event:row.event===null?null:String(row.event),reason:String(row.reason),revision:Number(row.revision),automatic:Number(row.automatic)})),
-        streamCursor:one('sync_stream_cursors','cursor'),partitionCursor:one('sync_partition_cursors','cursor'),protectedMode:one('sync_payload_modes','protected'),
+        streamCursor:one('sync_stream_cursors','cursor'),partitionCursor:one('sync_partition_cursors','cursor'),protectedMode,
         uploads:db.prepare('SELECT operation,digest FROM sync_blob_uploads WHERE namespace=? ORDER BY operation,digest').all(PROCESS_ITEMS_NAMESPACE).map(row=>({operation:String(row.operation),digest:String(row.digest)})),
-        parts:db.prepare('SELECT digest,part,checksum,bytes FROM sync_blob_parts WHERE namespace=? ORDER BY digest,part').all(PROCESS_ITEMS_NAMESPACE)
-          .map(row=>({digest:String(row.digest),part:Number(row.part),checksum:String(row.checksum),bytes:Buffer.from(row.bytes as Uint8Array).toString('base64')})),
+        parts,
       };
     }finally{db.exec('COMMIT');}
   }finally{db.close();}

@@ -1214,7 +1214,7 @@
     "database.schedule_project_database": 3,
     "database.search.text-index": 1,
     "database.server_database_baseline": 1,
-    "database.sync_store_baseline": 1,
+    "database.sync_store_baseline": 2,
     "database.todo_database": 1,
     "database.workflows_database": 1,
     "event.host.agent.continuation.ready": 1,

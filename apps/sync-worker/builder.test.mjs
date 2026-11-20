@@ -31,7 +31,7 @@ test('S-119 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per bu
  const targetProject=await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects().find(p=>p.project_id===project.project_id));assert.ok(targetProject);
  const targetDatabase=new LocalProjectDatabase(targetProject.database_path);t.after(()=>targetDatabase.close());const targetPrivate=open(targetDatabase),target=new AgentBuilderStore(targetPrivate);assert.ok(target.list().some(row=>row.id===created.id),JSON.stringify(clients.map(c=>c.status())));const copied=target.require(created.id);
  assert.deepEqual(readFileSync(join(copied.directory,'src','main.ts')),bytes);assert.equal(readFileSync(join(copied.directory,'tests','empty.ts')).length,0);assert.equal(copied.active,null);assert.equal(copied.phase,'draft');assert.equal(copied.revision,1);assert.equal(targetPrivate.get('plugin-builder:agent-studio:model'),null);
- assert.equal(collection.selection.schema_version,3);
+ assert.equal(collection.selection.schema_version,builderManifest.sync.collections.find(entry=>entry.id==='authoring').schema_version);
  const namespace=JSON.stringify([collection.selection.plugin_id,collection.selection.publisher_id,collection.selection.publisher_signature,collection.selection.collection_id,collection.selection.schema_version]);
  const saved=await cloud.db.prepare('SELECT value FROM sync_events WHERE namespace=? ORDER BY revision DESC LIMIT 1').bind(namespace).first();assert.equal(JSON.parse(saved.value).sync_content,1);
  const objects=(await cloud.bucket.list()).objects;assert.ok(objects.length>1);let raw=false;for(const object of objects){const body=Buffer.from(await(await cloud.bucket.get(object.key)).arrayBuffer());if(body.equals(bytes))raw=true;assert.doesNotMatch(body.toString('utf8'),/SOURCE_ONLY_MODEL|\/a\/plugin-builder/);}assert.equal(raw,true,'R2 contains exact original bytes, not base64-expanded file data');
@@ -43,6 +43,7 @@ test('S-119 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per bu
  await clients[0].run();await clients[1].run();assert.notEqual(clients[1].status().error,null);
  assert.equal(target.require(created.id).title,'Later original edit','no cached enablement admits hidden-project writes');
  await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'plugin-builder',actor_id:'alice'}));
+ clients[1].notifyLocalChange();
  await clients[1].run();assert.equal(clients[1].status().error,null);assert.equal(target.require(created.id).title,'Hidden target must wait');
  // The generic cloud legitimately stores opaque content; only the target owner may decide whether a design is valid.
  const rogueProject='project-invalid-design',key=JSON.stringify([rogueProject,BUILDER_CONTENT_REPLICA_ID,created.id]);

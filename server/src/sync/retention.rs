@@ -100,7 +100,8 @@ pub(crate) async fn purge(
         .ok_or(Failure(404, "SYNC_RECOVERY_MISSING"))?;
     require(head["revision"] == revision, 409, "SYNC_RETENTION_CONFLICT")?;
     if head["purged_at"].is_null() {
-        crate::maintenance::claim(db, space, namespace, key, revision, true).await?;
+        crate::maintenance::claim(db, space, namespace, key, revision).await?;
+        worker::console_log!("sync.trash_purged");
     }
     Ok(json!({"accepted":true}))
 }

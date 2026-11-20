@@ -68,11 +68,47 @@ for(const direction of ['upload','download'] as const)test('PCSYNC-13/27 bounded
     return Response.json({events:events.slice(after,Math.min(after+20,end)),more:end>after+20});
   }});t.after(()=>client.close());
   await client.run();assert.match(client.status().error??'',/本轮仍有内容待同步/);assert.equal(client.status().lastSuccess,null);assert.equal(client.status().progress.complete,false);
-  assert.equal(client.status().device.automatic,null);assert.equal(cursor,direction==='upload'?39:800);
-  assert.equal(uploaded,direction==='upload'?40:0);assert.equal(received,direction==='upload'?39:800);
+  assert.equal(client.status().device.automatic,null);assert.equal(cursor,direction==='upload'?40:800);
+  assert.equal(uploaded,direction==='upload'?40:0);assert.equal(received,direction==='upload'?40:800);
   const before=requests;await client.run();assert.equal(client.status().error,null);assert.ok(client.status().lastSuccess);assert.equal(client.status().progress.complete,true);
   assert.equal(client.status().collections[0].pending,0);assert.equal(cursor,direction==='upload'?41:1000);
   assert.ok(requests>before);assert.equal(client.status().device.automatic,null);
+});
+
+test('PCSYNC-OPT-07 incoming backlog cannot consume the upload budget',async t=>{
+  const home=mkdtempSync(join(tmpdir(),'sync-mixed-'));
+  t.after(()=>rmSync(home,{recursive:true,force:true}));
+  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
+  const selection={plugin_id:'io.example.records',publisher_id:'example',publisher_signature:'fixed',collection_id:'notes',schema_version:1};
+  const policy={spaceId:space.spaceId,revision:1,selections:[selection]};
+  const events=Array.from({length:1000},(_,i)=>({key:'remote-'+i,operationId:'remote-'+i,base:0,value:i,revision:i+1}));
+  let cursor=0,uploaded=0,firstUploadAt=0;
+  const client=new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',
+    authority:{signal:new AbortController().signal,assertCurrent(){},accessToken:async()=>'synthetic'},
+    registrations:[{selection,title:'Notes',async refresh(){},async prepare(){},
+      withReplica:run=>run({cursor:()=>cursor,next:()=>uploaded<20?{key:'local-'+uploaded,operationId:'local-'+uploaded,base:0,value:uploaded}:null,
+        acknowledge(){if(uploaded++===0)firstUploadAt=cursor;},receive(event){cursor=event.revision;},
+        counts:()=>({pending:20-uploaded,conflicts:0}),conflicts:()=>[],resolve(){}})}],
+    fetch:async(input,init)=>{
+      const url=new URL(String(input));
+      if(url.pathname==='/v1/round')return syncRoundResponse(policy,events.length);
+      if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes:0});
+      if(init?.method==='POST'){
+        const mutation=JSON.parse(String(init.body)).mutation;
+        const revision=events.length+1;events.push({...mutation,revision});
+        return Response.json({accepted:true,revision});
+      }
+      const after=Number(url.searchParams.get('after'));
+      return Response.json({events:events.slice(after,after+20),more:events.length>after+20});
+    }});
+  t.after(()=>client.close());
+  await client.run();
+  assert.equal(uploaded,20);
+  assert.equal(firstUploadAt,20,'an independent write is made while older downloads are still pending');
+  assert.equal(cursor,800,'the independent download budget still holds');
+  await client.run();
+  assert.equal(cursor,1020);
+  assert.equal(client.status().progress.complete,true);
 });
 
 for(const code of ['SYNC_READ_ONLY','SYNC_INVALID_WRITE_MODE'])test('PCSYNC-26/27 '+code+' is not quarantined as a corrupt original or acknowledged upload',async t=>{

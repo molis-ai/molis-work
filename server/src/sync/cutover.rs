@@ -912,11 +912,23 @@ async fn seed_blobs(
     require(req.method() == Method::Post, 405, "METHOD_NOT_ALLOWED")?;
     let value = body(req).await?;
     let reserving = path.ends_with("/reserve");
+    let has_manifest = !reserving
+        && value
+            .as_object()
+            .is_some_and(|object| object.contains_key("partsDigest"));
     let mut allowed = vec!["cutoverId", "expectedConsentRevision", "digest"];
     if reserving {
         allowed.push("size");
     }
+    if has_manifest {
+        allowed.push("partsDigest");
+    }
     fields(&value, &allowed)?;
+    let parts_digest = if has_manifest {
+        Some(crate::blobs::digest_field(&value, "partsDigest")?)
+    } else {
+        None
+    };
     let cutover = id(&value, "cutoverId")?;
     let digest = crate::blobs::digest(&value)?.to_owned();
     let consent = integer(&value, "expectedConsentRevision")?;
@@ -932,7 +944,7 @@ async fn seed_blobs(
             crate::blobs::reserve(db, space, &digest, size, &permit).await?
         }
         "/v1/process-items/cutover/seed-blobs/complete" => {
-            crate::blobs::complete(db, &bucket, space, &digest, &permit).await?
+            crate::blobs::complete(db, &bucket, space, &digest, parts_digest, &permit).await?
         }
         _ => return Err(Failure(404, "NOT_FOUND")),
     };

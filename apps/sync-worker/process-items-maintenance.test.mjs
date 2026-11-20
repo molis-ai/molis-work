@@ -15,20 +15,10 @@ import {openMolisWorkProjectCatalog,withMolisWorkProjectCatalog} from '@molis-ai
 import {createProcessItemReplication} from '@molis-ai/molis-work-module-artifacts';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {FILE_SNAPSHOT_SCHEMA_VERSION,FILE_SNAPSHOT_TYPE} from '@molis-ai/molis-work-contracts/modules/workspace-artifacts';
-import {cloudFixture,filesEraWriter} from './testing.mjs';
+import {cloudFixture,filesEraWriter,toOriginalProcessItemsLayout} from './testing.mjs';
 
 const N=JSON.stringify(['io.molis.work.artifacts','molis','official-artifacts-binding','process_items',1]);
 const FILES={plugin_id:'io.molis.work.files',plugin_version:'1.0.0',binding_signature:'official-files-binding'};
-
-/** What the old build's triggers left: the same writes recorded in the original journal, and no adopted journal at all. */
-function toOriginalLayout(path){
-  const db=new DatabaseSync(path);
-  try{
-    db.exec('INSERT INTO process_items_replica_changes(key) SELECT key FROM process_items_adopted_replica_changes ORDER BY seq');
-    for(const {name,sql} of db.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger' AND name LIKE 'process_items_sync_%'").all()){db.exec(`DROP TRIGGER ${name}`);db.exec(sql.replaceAll('process_items_adopted_replica_','process_items_replica_'));}
-    for(const {name} of db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'process_items_adopted_replica_%'").all())db.exec(`DROP TABLE ${name}`);
-  }finally{db.close();}
-}
 
 test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, adopted with each library held, joined, Files consents taken back, kept lines taken over',{timeout:180000},async t=>{
   const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-process-steps-'));
@@ -64,7 +54,7 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
     snapshot('files-local',1,'only here');
     filesEra.close();source.close();
   }
-  toOriginalLayout(project.database_path);
+  toOriginalProcessItemsLayout(project.database_path);
   // The old device kept the receipt of each upload as its head: it took part in the old stream, so its unsent lines need keeping.
   {const db=new DatabaseSync(project.database_path);try{for(const id of ['files-shared'])db.prepare('INSERT INTO process_items_replica_heads(key,revision) VALUES (?,1)').run(key(id));}finally{db.close();}}
   // Files' own agreement in the Home ledger, from before the retirement.
@@ -85,7 +75,7 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
   assert.equal(status.cutover.phase,'open');
   const old=status.projects.find(row=>row.project_id===project.project_id);
   assert.deepEqual([old.name,old.layout,old.unsettled.length>0,old.refused],['Old device','original',true,[]],'the old library needs only its unsent lines kept');
-  assert.deepEqual(status.projects.find(row=>row.project_id===quiet.project_id),{project_id:quiet.project_id,name:'Quiet',layout:'current',pending:0,unsettled:[],refused:[]});
+  assert.deepEqual(status.projects.find(row=>row.project_id===quiet.project_id),{project_id:quiet.project_id,name:'Quiet',layout:'current',pending:0,unsettled:[],refused:[],refusal_codes:[]});
   await assert.rejects(stepsA.capture(),/请先完成第一步/u);
   await assert.rejects(stepsA.adopt(),/请先完成第一步/u);
   const cutover=await stepsB.cutOver();assert.equal(cutover.phase,'complete');
@@ -112,7 +102,7 @@ test('BSH-14-D/F the sync settings steps: cut over, refused until kept, kept, ad
   assert.deepEqual(held,[project.project_id],'the quiet project is not closed for nothing');
   status=await stepsA.status();
   assert.equal(status.adopted,true);
-  assert.deepEqual(status.projects.find(row=>row.project_id===project.project_id),{project_id:project.project_id,name:'Old device',layout:'current',pending:0,unsettled:[],refused:[]});
+  assert.deepEqual(status.projects.find(row=>row.project_id===project.project_id),{project_id:project.project_id,name:'Old device',layout:'current',pending:0,unsettled:[],refused:[],refusal_codes:[]});
   assert.equal(ledger.consent(files.consent_id).revoked_at,'2026-11-12T00:00:00Z');
 
   // ④ after the stream is read up to its completion head: the shared snapshot is the same, the local one is a new write.

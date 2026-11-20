@@ -1,7 +1,68 @@
-use crate::protocol::{ApiResult, Failure, body, fields, integer, require, string};
+use crate::protocol::{ApiResult, Failure, body, event, fields, integer, require, string};
 use serde_json::{Value, json};
 use wasm_bindgen::JsValue;
 use worker::{D1Database, Request};
+
+const MAX_PAGE_EVENTS: usize = 20;
+const MAX_PAGE_BYTES: usize = 2 * 1024 * 1024;
+
+pub(crate) async fn page(
+    db: &D1Database,
+    space: &str,
+    namespace: &str,
+    after: i64,
+) -> ApiResult<Value> {
+    // Keep the selection guard in the read itself. Use a cumulative size estimate to avoid
+    // transferring a full page of large events out of D1 just to discard most of them.
+    let rows = db.prepare(
+        "WITH candidates AS (
+            SELECT revision,operation,key,base,value,attachments FROM sync_events
+            WHERE space=? AND namespace=? AND action<>'archive' AND revision>?
+              AND EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n
+                         WHERE p.space=sync_events.space AND n.value=sync_events.namespace)
+            ORDER BY revision LIMIT ?
+        ), sized AS (
+            SELECT *, row_number() OVER (ORDER BY revision) AS position,
+                sum(length(CAST(value AS BLOB))+length(CAST(attachments AS BLOB))
+                  +length(CAST(json_quote(key) AS BLOB))+length(CAST(json_quote(operation) AS BLOB))
+                  +128) OVER (ORDER BY revision) AS bytes
+            FROM candidates
+        )
+        SELECT revision,operation,key,base,
+               CASE WHEN position=1 OR (position<=? AND bytes<=?) THEN value END AS value,
+               CASE WHEN position=1 OR (position<=? AND bytes<=?) THEN attachments END AS attachments
+        FROM sized ORDER BY revision",
+    )
+    .bind(&[
+        space.into(),
+        namespace.into(),
+        JsValue::from_f64(after as f64),
+        JsValue::from_f64((MAX_PAGE_EVENTS + 1) as f64),
+        JsValue::from_f64(MAX_PAGE_EVENTS as f64),
+        JsValue::from_f64(MAX_PAGE_BYTES as f64),
+        JsValue::from_f64(MAX_PAGE_EVENTS as f64),
+        JsValue::from_f64(MAX_PAGE_BYTES as f64),
+    ])?
+    .all()
+    .await?
+    .results::<Value>()?;
+    let mut bytes = br#"{"events":[],"more":false}"#.len();
+    let mut events = Vec::new();
+    for row in &rows {
+        if row["value"].is_null() {
+            break;
+        }
+        let item = event(row)?;
+        let item_bytes = serde_json::to_vec(&item)?.len() + usize::from(!events.is_empty());
+        if !events.is_empty() && bytes + item_bytes > MAX_PAGE_BYTES {
+            break;
+        }
+        bytes += item_bytes;
+        events.push(item);
+    }
+    let more = events.len() < rows.len();
+    Ok(json!({"events":events,"more":more}))
+}
 
 pub(crate) async fn replay(
     db: &D1Database,
@@ -154,5 +215,55 @@ pub(crate) async fn upload_value(
     let revision = replay(db, space, namespace, m, &fingerprint)
         .await?
         .ok_or(Failure(503, "SYNC_UNAVAILABLE"))?;
+    if action == "write" && !m["value"].is_null() && base > 0 {
+        fold_continuous_edit(db, space, namespace, key, base, revision).await?;
+    }
     Ok(json!({"accepted":true,"revision":revision}))
+}
+
+/// Shorten intermediate continuous-edit retention to 24h and fold rapid middle drafts within a
+/// 5-minute editing burst. Pinned conflict branches, deleted tombstones, and the burst baseline
+/// keep full 30-day retention; receipts remain intact for idempotent replay.
+async fn fold_continuous_edit(
+    db: &D1Database,
+    space: &str,
+    namespace: &str,
+    key: &str,
+    superseded: i64,
+    current: i64,
+) -> ApiResult<()> {
+    let args = [
+        space.into(),
+        namespace.into(),
+        key.into(),
+        JsValue::from_f64(superseded as f64),
+        JsValue::from_f64(current as f64),
+    ];
+    db.batch(vec![
+        db.prepare(
+            "UPDATE sync_version_retention
+             SET retained_until = MIN(retained_until, (
+               SELECT e.created_at + 86400000 FROM sync_events e
+               WHERE e.space=?1 AND e.namespace=?2 AND e.key=?3 AND e.revision=?4
+             ))
+             WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4
+               AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=?1 AND p.namespace=?2 AND p.revision=?4)
+               AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=?1 AND h.namespace=?2 AND h.key=?3 AND h.revision=?5 AND h.deleted_at IS NULL)
+               AND EXISTS(SELECT 1 FROM sync_events e WHERE e.space=?1 AND e.namespace=?2 AND e.key=?3 AND e.revision=?4 AND e.action='write' AND e.value<>'null' AND e.created_at>=unixepoch()*1000-86400000)
+               AND EXISTS(SELECT 1 FROM sync_events older WHERE older.space=?1 AND older.namespace=?2 AND older.key=?3 AND older.revision<?4 AND older.action='write' AND older.value<>'null')",
+        )
+        .bind(&args)?,
+        db.prepare(
+            "DELETE FROM sync_events
+             WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4
+               AND action='write' AND value<>'null'
+               AND created_at>=unixepoch()*1000-300000
+               AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=?1 AND p.namespace=?2 AND p.revision=?4)
+               AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=?1 AND h.namespace=?2 AND h.key=?3 AND h.revision=?5 AND h.deleted_at IS NULL)
+               AND EXISTS(SELECT 1 FROM sync_events older WHERE older.space=?1 AND older.namespace=?2 AND older.key=?3 AND older.revision<?4 AND older.action='write' AND older.value<>'null' AND older.created_at>=unixepoch()*1000-300000)",
+        )
+        .bind(&args)?,
+    ])
+    .await?;
+    Ok(())
 }

@@ -6,8 +6,7 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
-import { configureLocalAccount } from "../apps/local-host/dist/active-release-profile.js";
-import { createPersonalSync } from "../apps/local-host/dist/personal-sync.js";
+import { configureLocalAccount, createPersonalSync } from "@molis-ai/molis-work-app-local-host";
 import { workSettings } from "../scripts/account-environments.mjs";
 import { syncRoundResponse } from "./fixtures/sync-round.js";
 

@@ -1,4 +1,7 @@
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { id, loadProperties, oneOf } from './environment-properties.mjs';
+import { isMainScript } from './script-paths.mjs';
 import { isLoopbackHostname } from '@molis-ai/molis-work-contracts/platform/loopback';
 
 const root = new URL('../', import.meta.url);
@@ -44,4 +47,10 @@ export function workSettings(name, configRoot = root, { publicOnly = false, inst
 
 export function workEnvironment(...args) {
   return workSettings(...args).account;
+}
+
+if (isMainScript(import.meta.url)) {
+  const [name, sourceDirectory] = process.argv.slice(2);
+  if (!name || !sourceDirectory) throw new Error('Usage: account-environments.mjs <env-name> <source-directory>');
+  process.stdout.write(JSON.stringify(workSettings(name, pathToFileURL(path.resolve(sourceDirectory) + '/'), { publicOnly: true, installed: true })));
 }

@@ -48,7 +48,7 @@ export interface SyncDocumentStorage {
   withReadLock?<R>(read:(current:string|null)=>R):R;
 }
 /** Trusted owner bindings. Declaring one never grants synchronization or execution authority. */
-export type BuiltinSyncBinding = ({ readonly content?: (context: {spaceId:string;authorize():void})=>SyncContentCodec; readonly scope:'home'|'home-with-projects'|'projects'; open(home:string,ownerId:string):{close():void;replica(context:AggregateReplicaContext):SyncReplicaAdapter} }
+export type BuiltinSyncBinding = ({ readonly content?: (context: {spaceId:string;authorize():void})=>SyncContentCodec; readonly scope:'home'|'projects'; open(home:string,ownerId:string):{close():void;replica(context:AggregateReplicaContext):SyncReplicaAdapter} }
   | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'home-store';readonly path:string;readonly owner:string}
   | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-fixed-versions';readonly store:'library'|'process'}
   | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'home-document';readonly path:string;open(home:string,context:{spaceId:string;storage:SyncDocumentStorage;authorize():void}):SyncReplicaAdapter}

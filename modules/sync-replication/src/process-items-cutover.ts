@@ -114,12 +114,15 @@ async function seedBlob(ports:ProcessItemsCutoverPorts,cutoverId:string,consent:
   const receipt=await ports.json<Receipt>(ROUTE+'/seed-blobs/reserve',{cutoverId,expectedConsentRevision:consent,digest:ref.digest,size:ref.size});ports.assert();
   if(receipt.digest!==ref.digest||receipt.size!==ref.size||!Array.isArray(receipt.parts))throw syncError('invalid','同步附件响应无效');
   if(receipt.ready)return;
-  for(let part=0;part<Math.ceil(ref.size/CHUNK);part++){
-    const bytes=blob.bytes.subarray(part*CHUNK,(part+1)*CHUNK),existing=receipt.parts.find(row=>row.part===part);
-    if(existing){if(existing.checksum!==hash(bytes))throw syncError('conflict','同步附件分块冲突');continue;}
+  const count=Math.ceil(ref.size/CHUNK),checksums=new Array<string>(count);
+  for(let part=0;part<count;part++){
+    const bytes=blob.bytes.subarray(part*CHUNK,(part+1)*CHUNK),checksum=hash(bytes),existing=receipt.parts.find(row=>row.part===part);
+    checksums[part]=checksum;
+    if(existing){if(existing.checksum!==checksum)throw syncError('conflict','同步附件分块冲突');continue;}
     await ports.binary(ROUTE+'/seed-blobs/chunk?'+new URLSearchParams({cutoverId,consentRevision:String(consent),digest:ref.digest,part:String(part)}),bytes);ports.assert();
   }
-  await ports.json(ROUTE+'/seed-blobs/complete',{cutoverId,expectedConsentRevision:consent,digest:ref.digest});ports.assert();
+  const partsDigest=createHash('sha256').update(`molis-blob-parts:v1\n${ref.size}\n${checksums.join('\n')}\n`).digest('hex');
+  await ports.json(ROUTE+'/seed-blobs/complete',{cutoverId,expectedConsentRevision:consent,digest:ref.digest,partsDigest});ports.assert();
 }
 
 /** After the seal the old stream's attachments are read only through the retained-read grant, part by part. */

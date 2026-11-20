@@ -5,6 +5,15 @@ export { openRuntimeProjectCopyDirectory, type RuntimeProjectCopyDirectory, type
 export { installMolisWorkHome } from "./installer/home.js";
 export { keepPreviousRelease, readRollbackHold, readRollbackPoint, rollbackErrors, rollbackHome, type RollbackPoint, type RollbackResult } from "./installer/home-rollback.js";
 export {openProjectCopyJournal} from './project-copy-journal.js';
+export {
+  listCopyableLocalProjects,
+  previewLocalProjectsCopy,
+  executeLocalProjectsCopy,
+  type CopyableLocalProject,
+  type LocalProjectsCopyContext,
+  type LocalProjectsCopyPreviewResult,
+  type LocalProjectsCopyExecuteResult,
+} from './personal-project-copy.js';
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
@@ -77,6 +86,8 @@ export { resolveConfiguredHome } from "./product-home.js";
 export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resident-start.js";
 export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
+export { connectorApplicationReferences, releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "./release-profile.js";
+export { configureLocalAccount } from "./active-release-profile.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 
 export { LocalProjectDatabase } from "./project-database.js";

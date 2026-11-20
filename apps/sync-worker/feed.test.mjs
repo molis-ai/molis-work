@@ -9,7 +9,8 @@ import {ensureStorageSpace,personalStorageSpace,createEvidenceContentStore,creat
 import {SignalsModule,SourcesModule,FeedModule,fromBetterSqlite} from '@molis-ai/molis-work-plugin-feed/store';
 import {feedLedgerPort} from '../../tests/fixtures/feed-ledger.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase,createDemoFeedApplication} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {createDemoFeedApplication} from '../../tests/fixtures/feed-assembly.ts';
 import {cloudFixture} from './testing.mjs';
 
 test('PCSYNC-01/11/12/15/22 Messages and exact evidence cross actual Host/Rust/D1/R2 without keys, listeners or automatic Inbox work',async t=>{
@@ -27,7 +28,7 @@ test('PCSYNC-01/11/12/15/22 Messages and exact evidence cross actual Host/Rust/D
  const result=feed.ingestItem({source:sources.query.get(p.project_id,'source'),externalId:'one',signal:{signal_id:signal.signal_id,revision:2},title:'Saved notification',summary:'Summary',occurredAt:at,attention:false});
  // The owner module provides the explicit material command; no Host SQL writes business facts.
  const {AttentionModule}=await import('@molis-ai/molis-work-module-attention-resumption'),{createContextLedger}=await import('@molis-ai/molis-work-module-context-ledger');
- const materialOwner=new FeedModule(fromBetterSqlite(source.db),new AttentionModule(source.db,{exists:()=>true}),{ledger:feedLedgerPort(createContextLedger(source.db,{authorize:()=>true}))}),item=materialOwner.query.list(p.project_id)[0];assert.ok(result);assert.ok(item);
+ const materialOwner=new FeedModule(fromBetterSqlite(source.db),new AttentionModule(source.db,{exists:()=>true}),{ledger:feedLedgerPort(createContextLedger(source.db,{authorize:()=>true}))}),item=materialOwner.query.list(p.project_id,{limit:10,offset:0})[0];assert.ok(result);assert.ok(item);
  materialOwner.commands.upsertMaterial({project_id:p.project_id,item_id:item.item_id,material_id:'material',canonical_url:'https://example.test/item',title:'Original',source_name:'Fixture',published_at:at,preview:'Saved preview',content_hash:'provider-fixed-hash',content_ref:ref,content_available:true,content_type:'text/markdown',character_count:text.length,captured_at:at,provenance:{fixture:true},selected_for_context:true,imported_at:at,updated_at:at});
  // The other device explicitly opens the known project before passive synchronization discovery.
  await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async c=>{await c.ensureSyncedProject({project_id:p.project_id,display_name:p.display_name,actor_id:'alice'},()=>{});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});});
@@ -37,7 +38,7 @@ test('PCSYNC-01/11/12/15/22 Messages and exact evidence cross actual Host/Rust/D
  const selected=['source_descriptions','messages'].map(id=>({selection:select(id)}));
  await clients[0].save({...clients[0].policy(),selections:selected.map(c=>c.selection)});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
  const restored=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restored);const target=new LocalProjectDatabase(restored.database_path);t.after(()=>target.close());
- const received=createDemoFeedApplication(target.db).snapshot(p.project_id);assert.equal(received.feed_items.length,1);assert.equal(received.feed_items[0].title,'Saved notification');assert.equal(received.feed_items[0].materials[0].content_ref,ref);assert.equal(stores[1].read(ref),text);assert.equal(new SignalsModule(fromBetterSqlite(target.db)).query.list(p.project_id)[0].revision,2);assert.equal(new SignalsModule(fromBetterSqlite(target.db)).events.list(p.project_id).length,2);
+ const destinationFeed=createDemoFeedApplication(target.db),received=destinationFeed.snapshot(p.project_id);assert.equal(received.feed_items.length,1);assert.equal(received.feed_items[0].title,'Saved notification');assert.equal(destinationFeed.getItem(p.project_id,item.item_id).materials[0].content_ref,ref);assert.equal(stores[1].read(ref),text);assert.equal(new SignalsModule(fromBetterSqlite(target.db)).query.list(p.project_id)[0].revision,2);assert.equal(new SignalsModule(fromBetterSqlite(target.db)).events.list(p.project_id).length,2);
  assert.equal(new AttentionModule(target.db,{exists:()=>false}).query.list(p.project_id).length,0,'sync does not admit messages into Inbox');assert.equal(new SourcesModule(fromBetterSqlite(target.db)).query.get(p.project_id,'source').enabled,false);
  assert.notEqual(createLazyFileSecretStore(homes[0]).get('system:feed:evidence-content-key:v1'),createLazyFileSecretStore(homes[1]).get('system:feed:evidence-content-key:v1'));
  for(const object of (await cloud.bucket.list()).objects){const bytes=Buffer.from(await(await cloud.bucket.get(object.key)).arrayBuffer());assert.doesNotMatch(bytes.toString('utf8'),/must-not-share-provider|must-not-share-connection|evidence-content-key/);}

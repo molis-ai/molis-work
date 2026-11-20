@@ -15,7 +15,7 @@ import {datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
 import {pptManifest} from '@molis-ai/molis-work-plugin-ppt';
 import {lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase,projectApprovalSyncSelection} from '@molis-ai/molis-work-app-local-host';
 import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
 import {applySql} from './testing.mjs';
 import {goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
@@ -23,7 +23,7 @@ import {goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async t=>{
   const {Miniflare,Response:RuntimeResponse,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const root=mkdtempSync(join(tmpdir(),'molis-rust-sync-'));
-  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'rust-isolated-test'},bindings:{DEPLOYMENT_MODE:'local',AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
+  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,ratelimits:{SYNC_RATE_LIMIT:{namespace_id:'471982706',simple:{limit:600,period:60}}},r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'rust-isolated-test'},bindings:{DEPLOYMENT_MODE:'local',AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
     assert.equal(new URL(request.url).origin,'http://127.0.0.1:8787');
     const token=request.headers.get('Authorization')?.replace('Bearer ','');
     if(!['alice','bob','wrong-app'].includes(token))return RuntimeResponse.json({error:'UNAUTHORIZED'},{status:401});
@@ -132,7 +132,7 @@ async function verifyGoalsTransport({homes,check,clients,runtimes}) {
     app.goals.commands.addRelation(project.project_id,{from_goal_id:'child',to_goal_id:'parent',type:'part_of',reason:'关系同步'},{actor_id:'alice',idempotency_key:'link'});
   }finally{store.close();}
   await sync[0].run();
-  await sync[0].save({...sync[0].policy(),selections:[selection]});
+  await sync[0].save({...sync[0].policy(),selections:[projectApprovalSyncSelection,selection]});
   await sync[0].run();await sync[1].run();
   for(const client of sync)assert.equal(client.status().error,null);
   const destination=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(p=>p.project_id===project.project_id));

@@ -2,7 +2,8 @@ import { configuredAccountEnvironment, configuredSyncOrigin, localEnvironmentNam
 import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.js';
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
-import { PersonalSync, resolveSyncEndpoint, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
+import { PersonalSync, resolveSyncEndpoint, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
+import type { AggregateReplicaContext } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import { builtinPluginByProjectKey } from './plugin-registry.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
@@ -23,15 +24,20 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
     : { origin: process.env.MOLIS_WORK_SYNC_ORIGIN, local: process.env.MOLIS_WORK_SYNC_LOCAL === '1' });
   if(!endpoint)return null;
   const check=()=>{lease.assertCurrent();assertActive();};
-  const goalsManifest=builtinPluginByProjectKey('goals')?.manifest;
   let children:readonly SyncRegistration[]=[],discovered:readonly SyncRegistration[]=[];
-  const hasGoal=(projectId:string,goalId:string)=>{
-    check();const collection=goalsManifest?.sync?.collections.find(row=>row.id==='project_goals');
-    if(!goalsManifest||!collection)return false;
-    const owner=discovered.find(row=>row.selection.plugin_id===goalsManifest.plugin_id&&row.selection.publisher_id===goalsManifest.publisher.publisher_id&&row.selection.publisher_signature===goalsManifest.publisher.signature&&row.selection.collection_id===collection.id&&row.selection.schema_version===collection.schema_version);
-    const result=owner?.hasReference?.(projectId,goalId)??false;check();return result;
+  const hasOwnerReference:NonNullable<AggregateReplicaContext['hasReference']>=(projectId,reference)=>{
+    check();
+    const manifest=builtinPluginByProjectKey(reference.owner)?.manifest;
+    if(!manifest)return false;
+    const declared=new Set(manifest.sync?.collections.map(collection=>syncNamespace({
+      plugin_id:manifest.plugin_id,publisher_id:manifest.publisher.publisher_id,publisher_signature:manifest.publisher.signature,
+      collection_id:collection.id,schema_version:collection.schema_version,
+    })));
+    const found=discovered.some(row=>declared.has(syncNamespace(row.selection))&&row.hasReference?.(projectId,reference.assetId,reference.version));
+    check();
+    return found;
   };
-  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog,hasGoal);
+  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog,hasOwnerReference);
   const plugins=createPersonalPluginRegistrations(home,space.spaceId,lease.userId,check,withCatalog,(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),(projectId,reference)=>artifacts.hasReference(projectId,reference));
   plugins.push(createPersonalCharacterRegistration(home,space.spaceId,lease.userId,check));
   for(const plugin of plugins)await plugin.refresh();

@@ -9,6 +9,7 @@ import {cloudFixture} from './testing.mjs';
 const PUBLIC={plugin_id:'io.molis.work.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'process_items',schema_version:1};
 const N=JSON.stringify(Object.values(PUBLIC));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const partsDigest=data=>{let m=`molis-blob-parts:v1\n${data.length}\n`;for(let i=0;i*4194304<data.length;i++)m+=hash(data.subarray(i*4194304,(i+1)*4194304))+'\n';return hash(Buffer.from(m));};
 const id=name=>(name+'-').padEnd(24,'0');
 
 async function account(t,options){
@@ -198,7 +199,7 @@ test('BSH-14-A/C new attachments a conversion made are reserved at begin, upload
   assert.equal((await seedChunk(current,ref,fresh.subarray(4194304),1)).status,200);
   const status=await a.send('/v1/process-items/cutover/seed-blobs/status?'+new URLSearchParams({cutoverId:planId,consentRevision:String(current.consentRevision),digest:ref.digest}));
   assert.equal(status.body.parts.length,2);assert.equal(status.body.ready,false);
-  assert.equal((await seedBlob(current,'complete',{digest:ref.digest})).status,200);
+  assert.equal((await seedBlob(current,'complete',{digest:ref.digest,partsDigest:partsDigest(fresh)})).status,200);
   assert.ok(Buffer.from(await (await seedChunk(current,ref,null,1)).arrayBuffer()).equals(fresh.subarray(4194304)),'the uploaded part reads back while seeding');
   for(const item of items){const result=await a.seed(current,item);assert.equal(result.status,200,JSON.stringify(result.body));}
   current=await a.status();assert.equal(current.reservedBytes,0);
@@ -268,7 +269,7 @@ test('BSH-14-E a seal stops an upload in flight; another collection completes th
   assert.equal((await a.send('/v1/blobs/reserve',{body:{namespace:a.f.namespace,...ref}})).status,200,'nothing referenced it, so it is not protected');
   assert.equal((await a.put(a.f.namespace,ref,data.subarray(0,4194304),0)).status,200,'the identical recorded part is shared');
   assert.equal((await a.put(a.f.namespace,ref,data.subarray(4194304),1)).status,200);
-  assert.equal((await a.send('/v1/blobs/complete',{body:{namespace:a.f.namespace,digest:ref.digest}})).status,200);
+  assert.equal((await a.send('/v1/blobs/complete',{body:{namespace:a.f.namespace,digest:ref.digest,partsDigest:partsDigest(data)}})).status,200);
   assert.equal((await a.write('own','own',{file:1},{namespace:a.f.namespace,policyRevision:sealed.body.policyRevision,attachments:[ref]})).status,200);
   const read=Buffer.concat([(await a.chunk(a.f.namespace,ref,0)).bytes,(await a.chunk(a.f.namespace,ref,1)).bytes]);assert.ok(read.equals(data));
   const row=await a.f.db.prepare('SELECT generation FROM sync_blobs WHERE digest=?').bind(ref.digest).first();

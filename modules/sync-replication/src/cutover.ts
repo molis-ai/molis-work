@@ -1,4 +1,4 @@
-import {openSyncDatabase} from './database.js';
+import {withSyncDatabase} from './database.js';
 import {syncError} from './sync-errors.js';
 
 /**
@@ -39,22 +39,20 @@ export const syncCutoverLane=(spaceId:string,id:string)=>JSON.stringify([spaceId
  * restart keeps it. Only a lane of this space counts; a value that is not exactly one lane is not an adoption.
  */
 export function adoptedSyncCutover(home:string,spaceId:string):string|null{
-  const db=openSyncDatabase(home);
-  try{
+  return withSyncDatabase(home,db=>{
     const found=db.prepare('SELECT namespace FROM sync_stream_cursors').all().map(row=>String(row.namespace)).flatMap(name=>{
       let value:unknown;try{value=JSON.parse(name);}catch{return [];}
       return Array.isArray(value)&&value.length===3&&value[0]===spaceId&&value[2]===LANE&&cutoverId(value[1])&&name===syncCutoverLane(spaceId,value[1])?[value[1] as string]:[];
     });
     if(found.length>1)throw syncError('conflict','本机记录了不止一次过程项采用，原件已保留');
     return found[0]??null;
-  }finally{db.close();}
+  });
 }
 export function markSyncCutoverAdopted(home:string,spaceId:string,id:string):void{
   if(!cutoverId(id))throw syncError('invalid','过程项同步切换状态无效，原件已保留');
   const adopted=adoptedSyncCutover(home,spaceId);
   if(adopted!==null&&adopted!==id)throw syncError('conflict','本机已采用另一次过程项切换，原件已保留');
-  const db=openSyncDatabase(home);
-  try{db.prepare('INSERT OR IGNORE INTO sync_stream_cursors VALUES (?,0)').run(syncCutoverLane(spaceId,id));}finally{db.close();}
+  withSyncDatabase(home,db=>db.prepare('INSERT OR IGNORE INTO sync_stream_cursors VALUES (?,0)').run(syncCutoverLane(spaceId,id)));
 }
 
 /** Why this Host is not moving process items right now, in the person's words. */

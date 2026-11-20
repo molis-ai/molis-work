@@ -7,8 +7,8 @@ import {join} from 'node:path';
 import {openTestSqlite} from '@molis-ai/molis-work-test-kit/sqlite';
 import {ArtifactsModule,createArtifactsSchema,createArtifactReplication,createArtifactSyncContent} from '@molis-ai/molis-work-module-artifacts';
 import {createSqliteReplica,initializeReplica,replicaSchemaSql,queueReplicaChange,ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {PersonalSync,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
+import {createProjectApprovalSyncRegistration,LocalProjectDatabase,projectApprovalSyncSelection} from '@molis-ai/molis-work-app-local-host';
 import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
 import {runtimeGoalSync,goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
@@ -26,9 +26,14 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
     const app=new GoalProjectApplication(store);
     for(let i=0;i<12;i++)app.goalEvents.createIntent({project_id:project.project_id,goal_id:'large-'+i,title:'Goal '+i,outcome:'完整工作内容🙂'.repeat(6000),actor_id:'runtime',actor_kind:'runtime',idempotency_key:'intent-'+i});
   }finally{store.close();}
-  const make=(home,transport=f.transport)=>{const runtime=runtimes[homes.indexOf(home)],client=new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:transport,registrations:[runtime.registration]});runtime.setPolicy(()=>client.policy());clients.push(client);return client;};
+  const make=(home,transport=f.transport)=>{
+    const runtime=runtimes[homes.indexOf(home)];
+    const approvals=createProjectApprovalSyncRegistration(home,space.spaceId,()=>{},runtime.withCatalog,runtime.readCatalog,()=>client.policy());
+    const client=new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:transport,registrations:[approvals,runtime.registration]});
+    runtime.setPolicy(()=>client.policy());clients.push(client);return client;
+  };
   let a=make(homes[0]),b=make(homes[1]);t.after(()=>{a.close();b.close();});
-  await a.save({spaceId:space.spaceId,revision:0,selections:[goalSyncSelection]});
+  await a.save({spaceId:space.spaceId,revision:0,selections:[projectApprovalSyncSelection,goalSyncSelection]});
   const finish=async(client,home)=>{
     for(let round=0;round<12;round++){
       await client.run();if(client.status().error===null)return client;
@@ -39,7 +44,7 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
     client.close();assert.fail('Goal transfer did not finish within bounded resumed cycles');
   };
   a=await finish(a,homes[0]);assert.equal(a.status().error,null);
-  const row=await f.db.prepare('SELECT value,attachments FROM sync_events').first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
+  const row=await f.db.prepare('SELECT value,attachments FROM sync_events WHERE namespace=?').bind(syncNamespace(goalSyncSelection)).first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
   b=await finish(b,homes[1]);assert.equal(b.status().error,null);
   const target=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects()[0]);
   const read=path=>{const db=new LocalProjectDatabase(path);try{return boardSnapshot(db,project.project_id);}finally{db.close();}};
@@ -53,20 +58,28 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
 });
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const partsDigest=bytes=>{
+  const chunk=4*1024*1024,checksums=[];
+  for(let part=0;part<Math.ceil(bytes.length/chunk);part++)checksums.push(hash(bytes.subarray(part*chunk,(part+1)*chunk)));
+  return hash(Buffer.from(`molis-blob-parts:v1\n${bytes.length}\n${checksums.join('\n')}\n`));
+};
 const ref=bytes=>({digest:hash(bytes),size:bytes.length});
 const query=(f,r,part=0)=>'/v1/blobs/chunk?'+new URLSearchParams({namespace:f.namespace,digest:r.digest,part:String(part)});
 const reserve=(f,r,user='alice')=>f.call('/v1/blobs/reserve',user,{namespace:f.namespace,...r});
-const complete=(f,r,user='alice')=>f.call('/v1/blobs/complete',user,{namespace:f.namespace,digest:r.digest});
+const complete=(f,r,user='alice',manifest)=>f.call('/v1/blobs/complete',user,{namespace:f.namespace,digest:r.digest,...(manifest?{partsDigest:manifest}:{})});
 const put=(f,r,bytes,part=0,user='alice')=>f.transport('https://sync.example.test'+query(f,r,part),{method:'PUT',headers:{Authorization:'Bearer '+user},body:bytes});
 
 test('PCSYNC-09/10/11 actual 100 MB of private content fills the shared quota without seeded usage', {timeout:60000},async t=>{
  const f=await cloudFixture(t);await f.enable();await f.enable('bob');
  const chunk=4*1024*1024,files=[];
  for(const fill of [71,72]){
-  const bytes=Buffer.alloc(49999500,fill),reference=ref(bytes);files.push(reference);
+  const bytes=Buffer.alloc(49999500,fill),reference=ref(bytes),manifest=partsDigest(bytes);files.push(reference);
   assert.equal((await reserve(f,reference)).status,200);
   for(let part=0;part<Math.ceil(bytes.length/chunk);part++)assert.equal((await put(f,reference,bytes.subarray(part*chunk,(part+1)*chunk),part)).status,200);
-  assert.equal((await complete(f,reference)).status,200);assert.equal((await complete(f,reference)).status,200,'completion replay does not charge again');
+  const started=performance.now();
+  assert.equal((await complete(f,reference,'alice',manifest)).status,200);
+  assert.ok(performance.now()-started<2000,'PCSYNC-OPT-04 50 MB complete must stay under 2s without re-reading R2 bytes');
+  assert.equal((await complete(f,reference,'alice',manifest)).status,200,'completion replay does not charge again');
  }
  const value={files},published=await f.write('full:files','files',value,{attachments:files});assert.equal(published.status,200);const revision=(await published.json()).revision;
  const before=(await(await f.call('/v1/quota')).json()).usedBytes;assert.equal(before,99999000+Buffer.byteLength(JSON.stringify(value)));
@@ -97,7 +110,9 @@ test('PCSYNC-01/09/11/12 private R2 parts resume, reserve once, and require a co
   assert.equal((await put(f,r,bytes.subarray(0,4*1024*1024))).status,200);
   assert.equal((await put(f,r,Buffer.alloc(4*1024*1024,72))).status,409,'a committed part cannot be replaced');
   assert.equal((await put(f,r,bytes.subarray(4*1024*1024),1)).status,200);
-  assert.equal((await complete(f,r)).status,200);assert.equal((await complete(f,r)).status,200);
+  assert.equal((await complete(f,r)).status,409,'PCSYNC-OPT-04 multi-part complete without partsDigest is rejected');
+  assert.equal((await complete(f,r,'alice','0'.repeat(64))).status,409,'PCSYNC-OPT-04 wrong partsDigest is rejected');
+  assert.equal((await complete(f,r,'alice',partsDigest(bytes))).status,200);assert.equal((await complete(f,r,'alice',partsDigest(bytes))).status,200);
   assert.equal((await f.call(query(f,r),'bob')).status,404,'knowledge of a digest gives no other account access');
   assert.equal((await complete(f,r,'bob')).status,404);
   assert.equal((await put(f,r,bytes.subarray(0,4*1024*1024),0,'bob')).status,404);

@@ -12,6 +12,7 @@ export function syncResponseMessage(code:unknown):string {
   if(code==='SYNC_INVALID_WRITE_MODE')return '同步服务配置无效，请联系管理员；本机原件和待同步内容已保留';
   if(code==='SYNC_QUOTA_EXCEEDED')return '个人空间云端容量已达 100 MB，内容仍保留在本机；可继续下载和同步删除';
   if(code==='SYNC_SCHEMA_MISMATCH')return '同步服务数据库版本不匹配，请联系管理员；本机数据未修改';
+  if(code==='SYNC_PURGE_DISABLED')return '永久清理暂未开放，保留内容仍计入云端容量。';
   return typeof code==='string'?code:'同步服务暂时不可用';
 }
 

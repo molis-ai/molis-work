@@ -2,7 +2,7 @@ import { workEnvironment } from "../../scripts/account-environments.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "../../apps/local-host/src/release-profile.ts";
+import { releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "@molis-ai/molis-work-app-local-host";
 
 const root = new URL("../../", import.meta.url);
 const read = file => readFileSync(new URL(file, root), "utf8");
@@ -129,7 +129,7 @@ export function publisherKeyReference(name) {
   return releaseProfile(name).publisherKeyRef;
 }
 
-export { connectorApplicationReferences } from "../../apps/local-host/src/release-profile.ts";
+export { connectorApplicationReferences } from "@molis-ai/molis-work-app-local-host";
 export { releaseMacOS };
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) run(process.argv.slice(2));

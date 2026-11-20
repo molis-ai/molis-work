@@ -18,7 +18,7 @@ const errors = defineErrorCodes("storage.evidence_content", { key_unavailable: "
  * remains, so new bodies are refused until the original key is back (BL-1065).
  */
 const keyMissing = () => errors.key_unavailable(
-  "保存正文的钥匙找不到了。已有的动态和研究正文原样保留；找回原钥匙之前，新的正文不会保存。找回方法见 docs/system/HOME-DATA.md#original-key-recovery。",
+  "保存正文的钥匙找不到了。已有的动态和研究正文原样保留；找回原钥匙之前，新的正文不会保存。请找回原来的钥匙后重启 Molis Work。",
 );
 
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";

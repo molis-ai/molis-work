@@ -103,17 +103,25 @@ function feedSource(t: TestContext, home: string, secrets: SecretStore) {
   return { service, source, fetched };
 }
 
-test("BL-1065: Feed sync with a lost key and research bodies pauses before fetching and says why", async t => {
+test("BL-1065: Feed sync with a lost key and research bodies pauses before fetching, says why and does not blame the source", async t => {
   const h = isolatedHome(t);
-  h.research().write("研究旧正文"); h.loseKey();
+  // The research body is saved by the real research port, so its directory is the one the Host actually uses.
+  assert.equal((await search(t, h.home, h.secrets).run()).length, 1);
+  h.loseKey();
   const before = homeStorageTree(h.home);
   const f = feedSource(t, h.home, h.secrets);
-  await assert.rejects(f.service.sync(f.source.source_id, { idempotencyKey: "bl1065-feed-0001" }), (error: Error & { code?: string }) => {
-    assert.equal(error.code, "feed.source_sync_interrupted");
-    assert.equal(error.message, "同步已暂停：保存正文的钥匙找不到了。已有内容原样保留；找回原钥匙并重启后再同步。");
-    return true;
-  });
-  assert.equal(f.service.feed.sources.get(DEMO_PROJECT_ID, f.source.source_id).last_error_code, SOURCE_PULL_EVIDENCE_KEY_MISSING);
+  for (const attempt of [1, 2, 3]) {
+    await assert.rejects(f.service.sync(f.source.source_id, { idempotencyKey: `bl1065-feed-000${attempt}` }), (error: Error & { code?: string }) => {
+      assert.equal(error.code, "feed.source_sync_interrupted");
+      assert.equal(error.message, "同步已暂停：保存正文的钥匙找不到了。已有内容原样保留；找回原钥匙并重启后再同步。");
+      return true;
+    });
+  }
+  const source = f.service.feed.sources.get(DEMO_PROJECT_ID, f.source.source_id);
+  assert.equal(source.last_error_code, SOURCE_PULL_EVIDENCE_KEY_MISSING);
+  assert.equal(source.status, "active", "a lost key is not the source's failure");
+  assert.deepEqual(f.service.feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault"), [],
+    "three paused syncs raise no fault asking to fix or retry the source");
   assert.deepEqual(f.fetched, [], "nothing fetched");
   assert.equal(h.key(), null);
   assert.deepEqual(homeStorageTree(h.home), before);

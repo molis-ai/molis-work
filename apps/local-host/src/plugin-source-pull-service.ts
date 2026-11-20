@@ -19,7 +19,7 @@ import type { IntegrationRegistry } from "./integration-registry.js";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-/** Raises `SOURCE_PULL_EVIDENCE_KEY_MISSING` (the public code Feed reads); `tests/security-invariants-evidence.test.ts` holds the two equal. */
+/** Raises `SOURCE_PULL_EVIDENCE_KEY_MISSING` (the public code Feed reads); `tests/security-invariants-evidence-shared-key.test.ts` asserts the code Feed records. */
 const sourcePullErrors = defineErrorCodes("host.source_pull", { evidence_key_missing: "unavailable" });
 
 /** The Manifest permissions that make the Host build `services.sourcePull` (`HOST_SERVICE_PERMISSIONS`). */

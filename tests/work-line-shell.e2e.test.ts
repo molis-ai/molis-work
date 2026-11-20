@@ -104,6 +104,16 @@ test("WLN-01 WLN-02 QEA-179: the line keeps its height while the input grows to 
   await waitFor("innerWidth === 1024");
   await rises(evaluate, waitFor, 1024);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");
+
+  // POLISH-73 at <= 560px height: craft-finish-bar's short-window padding-block must not add --bar-gap around the resting composer.
+  for (const [width, height] of [[1024, 500], [780, 493]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await waitFor(`innerWidth === ${width} && innerHeight === ${height}`);
+    const compact = await evaluate<Shell>(SHELL);
+    assert.equal(compact.row.height, 98, `${width}x${height}: foot stays 98px tall`);
+    assert.equal(compact.slot.height, 74, `${width}x${height}: resting input stays 74px tall`);
+    if (width >= 960) for (const block of compact.blocks) assert.deepEqual([block.top, block.bottom], [compact.slot.top, compact.slot.bottom], `${width}x${height}: wings align with input`);
+  }
 });
 
 test("WLN-04 WLN-06: the input takes the next request at once while the first is still worked on; a task that stops for the person makes its event wait, counts on the first place, puts it in the card stack and colours the mark, and opens nothing nor takes the keyboard", { timeout: 150_000 }, async t => {

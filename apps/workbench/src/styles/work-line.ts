@@ -43,8 +43,9 @@ ${SHELL}:is(body,.mw-catalog-bar-stage){--dock-min:98px;--foot-input:640px}
 /* The input at rest is two rows filling its 74px block (13th version): the words across the top, wrapping before the three
    counts in its top right; ＋, who it goes to, the scene controls, the microphone and send below. Writing grows it upwards in the
    composer's own rows. The doubled class outranks the bar's one-row rest (craft-finish-bar.ts) without touching it. */
-${SHELL} .work-line-slot{--bar-row:74px}
-${SHELL} .work-line-slot>.bar-center>.assistant-composer{padding-block:0}
+${SHELL} .work-line-slot{--bar-row:74px;--bar-gap:0px}
+/* Outrank craft-finish-bar's <=560px and craft-finish-pages's <=600px :has(> .mw-composer[data-rest]) padding-block rules (0,6,2): .work-line-row owns the 12px vertical padding. */
+${SHELL} .work-line-slot.work-line-slot.work-line-slot>.bar-center>.assistant-composer{padding-block:0}
 ${SHELL} .work-line-slot .mw-composer__box{border-radius:20px}
 ${REST_COMPOSER}{
   &>.mw-composer[data-rest]{

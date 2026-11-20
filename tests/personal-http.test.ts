@@ -297,7 +297,7 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
   }
 });
 
-test('account page works without cloud, never exposes credentials, and rejects cross-origin login',async()=>{
+test('AC-T5-03 and AC-T5-04: account page reports missing or invalid config and rejects cross-origin login',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-http-'));
   const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
   const old=names.map(name=>process.env[name]);names.forEach(name=>delete process.env[name]);
@@ -308,7 +308,25 @@ test('account page works without cloud, never exposes credentials, and rejects c
     const account=await fetch(`${origin}/account`,{redirect:'manual'});assert.equal(account.status,303);
     const html=await(await fetch(origin)).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);
     assert.doesNotMatch(html,/refresh_token|access_token/);
-    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,accountChanged:false,ready:false,switching:false});
+    const expectedStatus={configured:false,identity:null,accountChanged:false,ready:false,switching:false};
+    const status=await fetch(`${origin}/api/personal/status`);
+    assert.equal(status.status,200);
+    assert.deepEqual(await status.json(),{
+      ...expectedStatus,configReason:'missing_env',
+      configHint:'当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。',
+    });
+    for(const malformed of ['{bad-json-test-private-value','[]','{}','null']){
+      process.env.MOLIS_WORK_ACCOUNT_CONFIG=malformed;
+      const invalid=await fetch(`${origin}/api/personal/status`);
+      assert.equal(invalid.status,200);
+      const invalidStatus=await invalid.json();
+      assert.deepEqual(invalidStatus,{
+        ...expectedStatus,configReason:'invalid_json',
+        configHint:'账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。',
+      });
+      assert.equal(Object.values(invalidStatus).includes(malformed),false);
+    }
+    delete process.env.MOLIS_WORK_ACCOUNT_CONFIG;
     const rejected=await fetch(`${origin}/api/personal/login`,{method:'POST',headers:{Origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
     assert.equal(rejected.status,403);
   }finally{

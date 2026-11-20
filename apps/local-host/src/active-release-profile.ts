@@ -23,3 +23,18 @@ export function configuredAccountEnvironment(env: NodeJS.ProcessEnv = process.en
   const preset = releaseProfile(profile).accountEnvironment;
   return preset ? JSON.stringify(accountEnvironment(preset)) : undefined;
 }
+
+export function describeAccountConfigState(env: NodeJS.ProcessEnv = process.env):
+  { configured: true; reason: "ok" } | { configured: false; reason: "missing_env" | "invalid_json" } {
+  try {
+    const raw = configuredAccountEnvironment(env);
+    if (!raw?.trim()) return { configured: false, reason: "missing_env" };
+    const config: unknown = JSON.parse(raw);
+    if (config && typeof config === "object" && !Array.isArray(config) && Object.keys(config).length > 0) {
+      return { configured: true, reason: "ok" };
+    }
+  } catch {
+    // A diagnosis must never expose the configuration or a parser error that includes it.
+  }
+  return { configured: false, reason: "invalid_json" };
+}

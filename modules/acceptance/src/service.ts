@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { acceptanceErrors, type AcceptanceDecideRequest, type AcceptanceDeliverRequest, type AcceptanceEvidenceRef, type AcceptanceGap, type AcceptanceReadRequest, type AcceptanceReadResult, type AcceptanceReportInput,
   type AcceptanceReportRequest, type AcceptanceSetRequest, type AcceptanceSubject, type AcceptanceTier, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import type { SqliteBaselineDatabase } from "@molis-ai/molis-work-storage";
@@ -16,6 +17,10 @@ export interface AcceptanceEvidencePorts {
   checkRun(runId: string, callIds: readonly string[]): Promise<{ commands: ReadonlyArray<{ call_id: string; recorded: boolean; exit_code: number | null; timed_out: boolean; cancelled: boolean; changed_after: boolean }> } | "none">;
   /** The call was cancelled: a failed lookup is then the cancellation, not unreadable evidence. */
   stopped(): boolean;
+  /** Re-checks caller authority after async evidence lookups, immediately before committing to SQLite. */
+  beforeCommit?(): Promise<void>;
+  /** Synchronous authority fence checked inside the SQLite transaction and when a lookup throws due to caller revocation. */
+  assertCurrent?(): void;
 }
 
 interface Finding { tier: AcceptanceTier; gap: AcceptanceGap | null }
@@ -33,7 +38,13 @@ const sameSubject = (a: AcceptanceSubject["subject"], b: AcceptanceSubject["subj
 async function weigh(report: AcceptanceReportInput, delivery: DeliveryRow, caller: AcceptanceCaller, ports: AcceptanceEvidencePorts): Promise<Finding> {
   const evidence = report.evidence ?? [];
   if (!evidence.length) return SELF;
-  const lookup = async <T>(read: () => Promise<T>): Promise<T | "unreadable"> => { try { return await read(); } catch (error) { if (ports.stopped()) throw error; return "unreadable"; } };
+  const lookup = async <T>(read: () => Promise<T>): Promise<T | "unreadable"> => {
+    try { return await read(); } catch (error) {
+      if (ports.stopped()) throw error;
+      ports.assertCurrent?.();
+      return "unreadable";
+    }
+  };
   for (const reference of evidence) {
     if (reference.kind === "artifact_version" && await lookup(() => ports.artifactReadable(reference)) !== true) return gap("evidence_unreadable");
   }
@@ -91,11 +102,12 @@ export class AcceptanceService {
    * checked and decided for the earlier one stops counting; one no longer listed is withdrawn. Once something was delivered only the
    * person changes what was asked: an executor cannot move the bar it is measured against (PWA-146).
    */
-  set(caller: AcceptanceCaller, request: AcceptanceSetRequest): AcceptanceView {
+  set(caller: AcceptanceCaller, request: AcceptanceSetRequest, assertCurrent?: () => void): AcceptanceView {
     const subject = this.subject(request.subject), at = this.now();
     const listed = request.requirements.map(item => ({ requirement_id: item.id.trim(), statement: item.statement.trim(), expected: clean(item.expected), part: clean(item.part), requires_person: item.requires_person === true }));
     if (listed.some(item => !item.requirement_id || !item.statement) || new Set(listed.map(item => item.requirement_id)).size !== listed.length) throw acceptanceErrors.invalid("每项要求要有不重复的编号和一句说明");
     this.store.write(() => {
+      assertCurrent?.();
       this.scoped(caller);
       const subjectNo = this.store.subjectNo(subject, { at })!, rows = this.store.rows(subjectNo);
       if (rows.deliveries.length && !caller.person) throw acceptanceErrors.requirements_fixed("已经交付过，之后只有用户本人能改要求");
@@ -122,9 +134,17 @@ export class AcceptanceService {
     if (!version) throw acceptanceErrors.invalid("要写明交付的确切版本");
     let madeIn: string | null = null;
     if (request.made_in && caller.session) {
-      try { if (await ports.checkRun(request.made_in.run_id, []) !== "none") madeIn = request.made_in.run_id; } catch (error) { if (ports.stopped()) throw error; }
+      try { if (await ports.checkRun(request.made_in.run_id, []) !== "none") madeIn = request.made_in.run_id; } catch (error) {
+        if (ports.stopped()) throw error;
+        ports.assertCurrent?.();
+      }
     }
+    await ports.beforeCommit?.();
+    if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
+    ports.assertCurrent?.();
     this.store.write(() => {
+      if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
+      ports.assertCurrent?.();
       const subjectNo = this.known(caller, subject), rows = this.store.rows(subjectNo), last = rows.deliveries.at(-1);
       if (rows.deliveries.some(item => item.version === version)) throw acceptanceErrors.invalid("这个版本已经记过交付；返工后的版本要有自己的版本号");
       const ids = new Set(currentRequirements(rows.requirements).map(row => row.requirement_id));
@@ -156,7 +176,12 @@ export class AcceptanceService {
       const delivery = before.deliveries.find(item => item.version === report.checked.version.trim());
       findings.push(!delivery || (report.checked.subject && !sameSubject(report.checked.subject, subject.subject)) ? null : await weigh(report, delivery, caller, ports));
     }
+    await ports.beforeCommit?.();
+    if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
+    ports.assertCurrent?.();
     this.store.write(() => {
+      if (ports.stopped()) throw new ActionError("actions.cancelled", "请求已取消");
+      ports.assertCurrent?.();
       const subjectNo = this.known(caller, subject), rows = this.store.rows(subjectNo), current = currentRequirements(rows.requirements);
       request.reports.forEach((report, index) => {
         const requirement = current.find(row => row.requirement_id === report.requirement_id.trim());

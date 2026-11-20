@@ -85,7 +85,7 @@ export const CODING_POLISH_STYLES = `
 .coding-results-count[hidden] { display:none; }
 
 /* 6.5 Results: what changed comes first; the sections are the design system's segments; the run's own details fold at the foot. */
-.coding-results-index { display:flex; flex-wrap:nowrap; gap:2px; width:fit-content; max-width:calc(100% - 32px); margin:8px 12px 0 20px; padding:2px; overflow-x:auto; scrollbar-width:none; }
+.coding-results-index { display:flex; flex-wrap:nowrap; gap:2px; width:fit-content; max-width:calc(100% - 32px); margin:8px 12px 0 20px; padding:2px; overflow-x:auto; }
 .coding-results-index[hidden] { display:none; }
 .coding-results-index .mw-toggle { flex:none; min-height:24px; padding:0 8px; white-space:nowrap; }
 .coding-changed-head { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }

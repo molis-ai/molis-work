@@ -260,14 +260,6 @@ test("AC-T1-02 startup can warn on missing terminal tools or refuse strict mode"
       "native_toolchain_missing",
     ]);
 
-    const prebuilt = join(repoRoot, "node_modules", "node-pty", "prebuilds", "linux-x64");
-    await mkdir(prebuilt, { recursive: true });
-    await writeFile(join(prebuilt, "pty.node"), "");
-    assert.deepEqual(checkNativePtyPrereqs({
-      ...missingTools,
-      hasCommand: () => assert.fail("A prebuilt native module must bypass tool probes"),
-    }), { ok: true, mode: "prebuilt" });
-
     await mkdir(join(repoRoot, "scripts"));
     for (const name of ["start.mjs", "preflight-env.mjs", "script-paths.mjs"]) {
       await copyFile(join("scripts", name), join(repoRoot, "scripts", name));
@@ -276,6 +268,14 @@ test("AC-T1-02 startup can warn on missing terminal tools or refuse strict mode"
       cwd: repoRoot,
       env: { ...process.env, PATH: "" },
     }), { code: 1, stderr: /\[native_toolchain_missing\]/ });
+
+    const prebuilt = join(repoRoot, "node_modules", "node-pty", "prebuilds", "linux-x64");
+    await mkdir(prebuilt, { recursive: true });
+    await writeFile(join(prebuilt, "pty.node"), "");
+    assert.deepEqual(checkNativePtyPrereqs({
+      ...missingTools,
+      hasCommand: () => assert.fail("A prebuilt native module must bypass tool probes"),
+    }), { ok: true, mode: "prebuilt" });
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
   }

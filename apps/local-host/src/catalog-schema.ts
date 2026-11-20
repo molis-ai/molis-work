@@ -52,7 +52,7 @@ export function assertCatalogRequiredTables(storage: LocalSqliteStorage, databas
   if (missing.length === 0) return;
   const path = basename(dirname(databasePath)) === "projects" ? join("projects", basename(databasePath)) : basename(databasePath);
   throw catalogErrors.database_invalid(
-    `项目目录数据库（${path}）缺少必需数据表：${missing.join("、")}。已停止打开。请先备份原目录，再使用独立数据目录重新初始化。`,
+    `项目目录数据库（${path}）缺少必需数据表：${missing.join(", ")}。已停止打开。请先备份原目录，再使用独立数据目录重新初始化。`,
     { path, missing_tables: missing },
   );
 }

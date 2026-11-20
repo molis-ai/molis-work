@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-set-output-revision | 已完成并删除 | 2026-11-20：插件页面设输出目录（`UiPageWorkspaces.setOutput`）与打开说明文件时，外壳把确认框读到的目录 `revision` 随请求交给 Host（`apps/workbench/src/browser/plugin-frame/workspaces.ts`），Host 按它调 `projects.directories.set_output@1` / `set_instructions@1`，不再在写入请求里重读（`apps/local-host/src/plugin-page-workspaces.ts`）；期间别处改过目录就按 `actions.conflict` 拒绝，页面得到「项目的文件夹刚在别处改过」的提示，别处的选择保留，再问一次按最新目录确认即可。两窗口回归见 `tests/plugin-page-workspaces.e2e.test.ts`「BL-set-output-revision」 |
 | BL-375 | 已完成并删除 | 第 98 批（2026-11-19）：几个插件可以声明同一种过程项类型，每份记着平台写下的生产插件；接收方 `services.artifacts.listConsumable()` 取全部有权读取的，或按 `producer_plugin_id`、`artifact_type_id` 只取某一家、某一类；成果类型仍按 S-82 一个属主。开工前检查、合同与验收 BL375-01～07 见 [98.md](../specs/post-anticorruption-roadmap/reference/batches/98.md#batch-98-item-1-check) |
 | BL-feed-sql-driver-name、BL-feed-run-now-missed-again、BL-missed-runs-never-expire | 已完成并删除 | 第 95 批（2026-11-18）：Feed 连接工厂改名 `fromProjectConnection`；「现在做」把来源放回错过的那一刻并在错过记录上留决定，睡眠或重启后照做一次、不再问；Feed、定时任务、助理跟进错过的事都从 `due_at` 起留七天，到期没处理的自动跳过（一次性提醒与任务一并结束），运行面板与首页汇总一次，「知道了」记在 `run/expired-seen.json`；见 [95.md](../specs/post-anticorruption-roadmap/reference/batches/95.md) |
 | BL-schedule-update-task-lookup | 已完成并删除 | 第 96 批 96-1（2026-11-19）：`schedule.tasks.update@1` 按编号只读这一项（Schedule 端口 `getTask`），没写重复规则时保留原规则，别的项目、已归档的编号答「定时任务不存在」；见 [96.md](../specs/post-anticorruption-roadmap/reference/batches/96.md) |

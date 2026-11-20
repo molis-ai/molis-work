@@ -521,6 +521,7 @@
     "common.workspaces.click-drag-file-again": "Click or drag the file again",
     "common.workspaces.couldn-t-read-project-s-folders": "Couldn’t read the project’s folders",
     "common.workspaces.folder-no-longer-one-project-s-folders": "This folder is no longer one of the project’s folders",
+    "common.workspaces.folders-changed-elsewhere": "The project’s folders were just changed elsewhere, so nothing changed. Try again to confirm with the latest folders.",
     "common.workspaces.unable-link-workspace": "Unable to link project folder",
     "common.workspaces.workspace-operation-failed": "Project folder operation failed",
     "common.task-grants.cannot-display-this-right-now": "Cannot display this right now",

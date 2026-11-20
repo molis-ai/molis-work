@@ -106,4 +106,9 @@ export const CODING_POLISH_STYLES = `
 .coding-board-empty.mw-empty { padding:32px 8px; }
 .coding-board:has(.coding-board-empty) :is(.coding-board-columns,.coding-board-note) { display:none; }
 @media not ((hover:hover) and (pointer:fine)) { .coding-changed-file { min-height:44px; } .coding-head-more > summary { width:44px; height:44px; } }
+/* UIV-19: align Coding's conversation column with the window-centred bar input when the dialogue clears the directory. */
+.coding-dialogue { container:coding-dialogue / inline-size; }
+@container molis-coding (min-width:761px) {
+  .mw-layout-primitives .coding-dialogue > :is(.coding-turns,.coding-composer,[data-coding-report-reader]) { --coding-pad-start:clamp(12px, var(--mw-bar-left, 99999px) - 240px, 32px); padding-left:var(--coding-pad-start); padding-right:clamp(32px, 480px + 100cqi + var(--coding-pad-start) - var(--coding-reading) - 2 * var(--mw-bar-left, 99999px), max(32px, 100cqi - var(--coding-pad-start) - var(--coding-reading))); }
+}
 `;

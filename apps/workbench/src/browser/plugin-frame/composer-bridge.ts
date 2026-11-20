@@ -94,8 +94,8 @@ export type ComposerDown =
   | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice" | "chip"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-materials"; id: number; materials: ComposerMaterial[]; files?: ComposerFileFact[] }
-  /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */
-  | { type: "composer-column"; id: number; width: number };
+  /** How wide and where the bar's input stands over the page, so its conversation column aligns with it (`--mw-bar-column` / `--mw-bar-left`). */
+  | { type: "composer-column"; id: number; width: number; left?: number };
 
 /** A receiver the bar can take: the framed page in front, as the bar's registry (`molisBarReceivers`) lists it. */
 export interface BarReceiver {

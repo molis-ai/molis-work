@@ -272,12 +272,17 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       submit: (input, signal, acknowledge) => call(mine, "submit", input, signal, acknowledge).then(value => outcomeOf(value, key => call(mine, "check", key))),
     };
   };
-  let named = false, placed = "", width = 0;
-  // While the bar is this page's, the page hears how wide its input stands, and lines its conversation up with it.
-  const measure = new ResizeObserver(entries => {
-    const now = Math.round(entries.at(-1)?.target.getBoundingClientRect().width ?? 0);
-    if (now > 0 && now !== width && bound) { width = now; post({ type: "composer-column", id, width: now }); }
-  });
+  let named = false, placed = "", col = "";
+  // While the bar is this page's, the page hears where its input stands and how wide, so its conversation aligns with it (UIV-19).
+  const sendColumn = () => {
+    if (!bound || !field) return;
+    const input = field.closest<HTMLElement>(".mw-composer");
+    if (!input) return;
+    const at = input.getBoundingClientRect(), box = frame.getBoundingClientRect();
+    const w = Math.round(at.width), l = Math.round(at.left - box.left), key = `${w},${l}`;
+    if (w > 0 && key !== col) { col = key; post({ type: "composer-column", id, width: w, left: l }); }
+  };
+  const measure = new ResizeObserver(sendColumn);
   const apply = () => {
     const where = JSON.stringify(snapshot?.column ?? null);
     if (where !== placed) { placed = where; globalThis.molisWorkBarPlace?.(); }
@@ -307,11 +312,11 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);
-        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; lit = ""; width = 0; measure.disconnect();
+        bound = handle; field = handle ? box ?? null : null; retitle = updateWords; selected = owns; shown = ""; lit = ""; col = ""; measure.disconnect(); window.removeEventListener("resize", sendColumn);
         if (!handle) return;
         field?.addEventListener("input", typed);
         const input = field?.closest<HTMLElement>(".mw-composer");
-        if (input) measure.observe(input);
+        if (input) { measure.observe(input); measure.observe(frame); window.addEventListener("resize", sendColumn, { passive: true }); sendColumn(); }
         text = field?.value ?? ""; apply();
       },
     };
@@ -319,7 +324,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
   };
   const drop = () => {
     receipt = undefined; draftAdapter = undefined;
-    readiness.discard(); measure.disconnect();
+    readiness.discard(); measure.disconnect(); window.removeEventListener("resize", sendColumn);
     for (const pending of answers.values()) pending.reject(new Error("View closed"));
     answers.clear();
     if (receiver) { receivers.delete(receiver); receiver = null; watch(); changed(); }

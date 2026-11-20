@@ -183,8 +183,13 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (message.type === "composer-ready") { readiness.answer(message); return; }
       if (message.type === "composer-text") { mirror(message.text); return; }
       if (message.type === "composer-materials") { materials = message.materials; files = message.files ?? []; ai.onMaterials?.(); changed(); return; }
-      // The bar's input width: a page lines its conversation up with it through this one variable (§10.4).
-      if (message.type === "composer-column") { if (Number.isFinite(message.width) && message.width > 0) document.documentElement.style.setProperty("--mw-bar-column", Math.round(message.width) + "px"); return; }
+      // The bar's input width and left edge: a page lines its conversation up with it through these variables (§10.4, UIV-19).
+      if (message.type === "composer-column") {
+        const rootStyle = document.documentElement.style;
+        if (Number.isFinite(message.width) && message.width > 0) rootStyle.setProperty("--mw-bar-column", Math.round(message.width) + "px");
+        if (Number.isFinite(message.left)) rootStyle.setProperty("--mw-bar-left", Math.round(message.left!) + "px");
+        return;
+      }
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();

@@ -1,4 +1,5 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { modulesProjectsContract } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
 import { previewProjectCopy, executeProjectCopy, type ProjectCopyPreviewView, type ProjectCopyReceipt, type ProjectCopySource } from "@molis-ai/molis-work-service-placement";
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
@@ -77,7 +78,7 @@ function createProjectMetadataCopyOwner(
   targetSpaceId: string,
   authorize: () => void,
 ): ProjectCopySource {
-  const ownerId = "io.molis.work.module.projects.v1";
+  const ownerId = modulesProjectsContract.contractId;
   const kind = `${ownerId}:project`;
   const owner: ProjectCopyOwner = {
     kinds: Object.freeze([kind]),

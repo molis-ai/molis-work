@@ -204,7 +204,7 @@ test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction a
   // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
   const definition = createIssuesPlugin();
   assert.deepEqual(definition.methods, issuesSkills);
-  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@2`]);
+  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@3`]);
   assert.equal(method!.version, 2);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);
   assert.ok(method!.body.includes("issues.create"));

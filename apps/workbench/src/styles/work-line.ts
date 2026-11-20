@@ -48,8 +48,8 @@ ${SHELL} .work-line-slot>.bar-center>.assistant-composer{padding-block:0}
 ${SHELL} .work-line-slot .mw-composer__box{border-radius:20px}
 ${REST_COMPOSER}{
   &>.mw-composer[data-rest]{
-    &>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:6px 4px 4px}
-    & .mw-composer__text{grid-area:1/1/2/-1;padding:0 var(--counts-room,176px) 0 8px}
+    &>.mw-composer__box{grid-template-columns:auto var(--bar-receiver-track,auto) minmax(0,1fr) auto auto;grid-template-rows:auto auto;align-content:space-between;box-sizing:border-box;min-height:74px;padding:0 4px 4px}
+    & .mw-composer__text{grid-area:1/1/2/-1;padding:6px var(--counts-room,176px) 0 8px}
     & .mw-compose__anchor{grid-area:2/1}
     & .mw-composer__to{grid-area:2/2;anchor-name:--assistant-receiver}
     & :is(.mw-composer__more,.mw-composer__controls){grid-area:2/4}
@@ -84,8 +84,7 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 /* 办完, 在办, 接下来 inside the input's top right while the dialog is closed (POLISH-67, POLISH-74), then a hairline and the dialog's own row. */
 /* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
    chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
-.work-counts{position:absolute;position-anchor:--work-text;z-index:3;top:calc(anchor(top,6px) + var(--counts-top,0px));right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
-.work-line-slot:has(.mw-composer:not([data-rest])){--counts-top:6px}
+.work-counts{position:absolute;position-anchor:--work-text;z-index:3;top:calc(anchor(top,0px) + 6px);right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
 .work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:7px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
 .work-count[data-zero]{color:var(--faint)}
@@ -150,8 +149,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
   :is(.work-count,.work-stack-more,.work-stack-open){min-height:44px;min-width:44px;justify-content:center}
   .work-stack,.work-stack-card{height:auto;min-height:74px}
   .work-stack-card{padding:6px 12px 6px 14px}
-  .work-counts{top:calc(anchor(top,4px) + var(--counts-top,0px));height:44px}
-  .work-line-slot:has(.mw-composer:not([data-rest])){--counts-top:4px}
+  .work-counts{top:calc(anchor(top,0px) + 4px);height:44px}
   .work-counts>.work-reply-mini{height:44px}
   .work-counts>.work-reply-mini::before{top:12px;bottom:12px}
   .work-counts>.work-reply-mini :is(.work-task-mark,.mw-btn.mw-btn--icon-only){height:44px;min-height:44px;min-width:44px}

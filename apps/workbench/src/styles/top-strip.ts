@@ -22,7 +22,7 @@ const TOP = "html body .workbench-header[data-dock][data-dock][data-dock]";
 const HOVER = "var(--dur-hover) var(--ease-quint)";
 /** A pane's own strip, where the work area is split: each sheet carries its tabs. */
 const PANE = "html body.immersive-workbench:not([data-pane-embedded]) .tab-workspace[data-split] .tab-workspace-panes>.tab-pane";
-const SIDE_OPEN_TOP = "html:has(>body[data-side-open=true]) body .workbench-header[data-dock][data-dock][data-dock]";
+const SIDE_OPEN_TOP = "html body[data-side-open=true] .workbench-header[data-dock][data-dock][data-dock]";
 /** Shared declarations for an ear (top strip and split pane) and its focused accent line. */
 const EAR_BASE = "align-self:flex-end;box-sizing:border-box;height:var(--ear-rise);padding-bottom:var(--ear-foot);border-radius:10px 10px 0 0;background-color:var(--paper);box-shadow:none;color:var(--ink);font-weight:500;transform:none;filter:drop-shadow(0 -1px 1.5px color-mix(in srgb,var(--shadow-color) 9%,transparent))";
 const EAR_CORNERS = `&::before,&::after{content:"";display:block;position:absolute;bottom:0;width:10px;height:10px;pointer-events:none}&::before{right:100%;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--paper) 10px)}&::after{left:100%;background:radial-gradient(circle at 100% 0,transparent 9.5px,var(--paper) 10px)}`;

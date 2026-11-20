@@ -1,7 +1,7 @@
 // Golden Homes (specs/upgrade-continuity/golden-replay-design.md §2-§4): the dumper, the two scripts, and that each one refuses what it has to.
 // One generation in a temporary directory, compared with a second and replayed; the tampered copies then each have to fail at their own step.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
@@ -13,7 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { after, before, describe } from "node:test";
 import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
-import { CATALOG_VERSION_ACCESS, MEMORY_LEDGER_BASELINE, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
+import { CATALOG_VERSION_ACCESS, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { assertTemporaryHome, compareGoldens, filePayload, goldenEnvironment, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
@@ -30,6 +30,23 @@ function runWith(nodeArguments: string[], script: string, ...args: string[]): Ru
   return { status: result.status, stdout: result.stdout, output: `${result.stdout}${result.stderr}` };
 }
 const run = (script: string, ...args: string[]) => runWith([], script, ...args);
+function runWithAsync(nodeArguments: string[], script: string, args: string[], env: NodeJS.ProcessEnv = process.env): Promise<Run> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", ...nodeArguments, script, ...args], {
+      cwd: root, env, stdio: ["ignore", "pipe", "pipe"],
+    });
+    const out: Buffer[] = [], err: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
+    child.once("error", reject);
+    child.once("close", (status) => {
+      const stdout = Buffer.concat(out).toString("utf8");
+      const stderr = Buffer.concat(err).toString("utf8");
+      resolve({ status, stdout, output: `${stdout}${stderr}` });
+    });
+  });
+}
+const runAsync = (script: string, ...args: string[]) => runWithAsync([], script, args);
 const sha256 = (text: string | Buffer) => createHash("sha256").update(text).digest("hex");
 
 function scratch(t: { after(fn: () => void): void }): string {
@@ -350,7 +367,7 @@ describe("what the scripts refuse without generating anything", () => {
   });
 });
 
-describe("a generated golden Home", { concurrency: false }, () => {
+describe("a generated golden Home", { concurrency: 3 }, () => {
   let directory: string, golden: string;
   const manifest = (at = golden) => JSON.parse(readFileSync(path.join(at, "manifest.json"), "utf8"));
 
@@ -397,25 +414,24 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.equal(JSON.stringify(recorded).includes(realpathSync(tmpdir())), false);
   });
 
-  test("UPG2-02: generating it again on this commit gives the same bytes", () => {
-    const again = run(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden);
+  test("UPG2-02: generating it again on this commit gives the same bytes", async () => {
+    const again = await runAsync(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden);
     assert.equal(again.status, 0, again.output);
     assert.match(again.output, /identical/u);
   }, { timeout: 600_000 });
 
-  test("UPG2-02: a machine slow enough for the Host's rounds to come due gives the same bytes", () => {
-    const slow = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden], {
-      cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
-      env: { ...process.env, NODE_OPTIONS: `--import=${path.join(root, "tests/fixtures/long-periods-come-due.mjs")}` },
+  test("UPG2-02: a machine slow enough for the Host's rounds to come due gives the same bytes", async () => {
+    const slow = await runWithAsync([], GOLDEN_SCRIPT, ["check", "--version", VERSION, "--dir", golden], {
+      ...process.env, NODE_OPTIONS: `--import=${path.join(root, "tests/fixtures/long-periods-come-due.mjs")}`,
     });
-    assert.equal(slow.status, 0, `${slow.stdout}${slow.stderr}`);
+    assert.equal(slow.status, 0, slow.output);
     assert.match(slow.stdout, /identical/u);
   }, { timeout: 600_000 });
 
-  test("UPG2-02: `check` says which table differs, and does not say what is in it", () => {
+  test("UPG2-02: `check` says which table differs, and does not say what is in it", async () => {
     const parent = tampered("changed", sql => sql.replace(GENERATED_TEXT, "改过的金样内容"),
       entry => readFileSync(path.join(golden, `stores/${entry.path}.sql`), "utf8").includes(GENERATED_TEXT));
-    const result = run(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", path.join(parent, VERSION));
+    const result = await runAsync(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", path.join(parent, VERSION));
     assert.equal(result.status, 1);
     assert.match(result.output, /golden\.differs/u);
     assert.doesNotMatch(result.output, /改过的/u);
@@ -448,8 +464,8 @@ describe("a generated golden Home", { concurrency: false }, () => {
     assert.equal(dumped.includes('"manifest":"sha256:'), true);
   });
 
-  test("UPG2-01, UPG2-05, UPG2-06: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", () => {
-    const replayed = run(REPLAY_SCRIPT, "--dir", path.dirname(golden), "--json");
+  test("UPG2-01, UPG2-05, UPG2-06: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", async () => {
+    const replayed = await runAsync(REPLAY_SCRIPT, "--dir", path.dirname(golden), "--json");
     assert.equal(replayed.status, 0, replayed.output);
     const { results } = JSON.parse(replayed.stdout);
     assert.equal(results.length, 1);
@@ -472,76 +488,76 @@ describe("a generated golden Home", { concurrency: false }, () => {
     const parent = path.join(directory, "linux"), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
     writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify({ ...manifest(copy), third_party: thirdPartySample().id, home_library: homeLibrarySample().id }, null, 2)}\n`);
-    const replayed = runWith(["--import", PRETEND_LINUX], REPLAY_SCRIPT, "--dir", parent);
+    const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--dir", parent]);
     assert.equal(replayed.status, 0, replayed.output);
     assert.match(replayed.stdout, /third-party: not run on linux, not a pass, home library: not run on linux, not a pass/u);
   }, { timeout: 600_000 });
 
-  test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", () => {
+  test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", async () => {
     // A golden of a library at 999 records 999, so the replay's reading of the recorded versions lets it through to the upgrade.
     const parent = tampered("version", (sql, entry) => {
       assert.match(sql, /PRAGMA user_version=\d+;/u);
       entry.schema_version = 999;
       return sql.replace(/PRAGMA user_version=\d+;/u, "PRAGMA user_version=999;");
     }, entry => entry.path.endsWith("knowledge/knowledge.db"));
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
     const [line] = result.output.split("\n").filter(item => item.startsWith("FAIL"));
     assert.match(line ?? "", /^FAIL 9\.9\.9-dev\.1 upgrade \S+ \S+\.\S+$/u, result.output);
     assert.doesNotMatch(result.output, new RegExp(GENERATED_TEXT, "u"));
   }, { timeout: 600_000 });
 
-  test("UPG2-03: a recorded row that is gone fails the row check at that table, without its contents", () => {
+  test("UPG2-03: a recorded row that is gone fails the row check at that table, without its contents", async () => {
     const seeded = /^INSERT INTO "todo[^"]*"\(.*金样.*$/mu;
     const parent = tampered("rows", sql => {
       assert.match(sql, seeded);
       return sql.replace(seeded, "");
     }, entry => seeded.test(readFileSync(path.join(golden, `stores/${entry.path}.sql`), "utf8")));
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade \S+#todo\S* golden\.rows_decreased$/mu);
     assert.doesNotMatch(result.output, new RegExp(GENERATED_TEXT, "u"));
   }, { timeout: 600_000 });
 
-  test("UPG2-03: a knowledge card an upgrade lost is caught before any read, because the wait for the index would bring it back", () => {
+  test("UPG2-03: a knowledge card an upgrade lost is caught before any read, because the wait for the index would bring it back", async () => {
     const card = /^INSERT INTO "knowledge_cards"\(.*$/mu;
     const parent = tampered("card", sql => {
       assert.match(sql, card);
       return sql.replace(card, "");
     }, entry => entry.path === "knowledge/knowledge.db");
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade knowledge\/knowledge\.db#knowledge_cards golden\.rows_decreased$/mu);
   }, { timeout: 600_000 });
 
   // The sync library's baseline is version 1, so there is no older version with steps to test: 0 is the only version below it.
   for (const [found, code] of [[999, "store_too_new"], [0, "schema_version_mismatch"]] as const) {
-    test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, () => {
+    test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, async () => {
       const parent = tampered(`sync-${found}`, (sql, entry) => {
         assert.match(sql, /PRAGMA user_version=\d+;/u);
         entry.schema_version = found;
         return sql.replace(/PRAGMA user_version=\d+;/u, `PRAGMA user_version=${found};`);
       }, entry => entry.path.endsWith("/sync/sync.db"));
-      const result = run(REPLAY_SCRIPT, "--dir", parent);
+      const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
       assert.equal(result.status, 1);
       assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 structure \\S+ storage\\.${code}$`, "mu"), result.output);
     }, { timeout: 600_000 });
   }
 
-  test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", () => {
+  test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", async () => {
     const parent = path.join(directory, "digest"), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
     const [entry] = manifest(copy).stores;
     writeFileSync(path.join(copy, entry.payload), "-- damaged\n");
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 restore .* golden\.payload_digest_mismatch$/mu);
   });
 
-  test("UPG2-07 a golden going into the repository is refused on any Node but the locked one, and a manifest says which Node made it", () => {
+  test("UPG2-07 a golden going into the repository is refused on any Node but the locked one, and a manifest says which Node made it", async () => {
     assert.equal(manifest().node, process.version);
     const version = "9.9.8-dev.1", out = path.join(root, "tests/fixtures/golden-homes", version);
-    const refused = runWith(["--import", 'data:text/javascript,Object.defineProperty(process,"version",{value:"v1.2.3"})'], GOLDEN_SCRIPT, "create", "--version", version, "--without-third-party");
+    const refused = await runWithAsync(["--import", 'data:text/javascript,Object.defineProperty(process,"version",{value:"v1.2.3"})'], GOLDEN_SCRIPT, ["create", "--version", version, "--without-third-party"]);
     assert.equal(refused.status, 1, refused.output);
     assert.match(refused.output, /^FAIL 9\.9\.8-dev\.1 golden\.node_not_locked$/mu);
     assert.equal(existsSync(out), false);
@@ -554,17 +570,16 @@ describe("a generated golden Home", { concurrency: false }, () => {
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
     for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
-    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 2, "io.molis.work.goals": 5, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
-      "io.molis.work.schedule": 3 });
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
+      "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
-    const upgraded: Record<string, number> = {
-      "database.home.catalog": CATALOG_SCHEMA_VERSION,
-      "database.memory_ledger_baseline": MEMORY_LEDGER_BASELINE.version,
-      "format.model.preference": 2,
-      "format.shelf.catalog": 2,
-    };
-    for (const item of formats) assert.equal(item.version, upgraded[item.entry] ?? 1, `${item.entry} at ${item.path}`);
+    // MR19-11: compare the versions read from the captured files with the checked-in version registry.
+    const { versions } = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8")) as { versions: Record<string, number> };
+    for (const item of formats) {
+      assert.ok(Object.hasOwn(versions, item.entry), `unregistered format: ${item.entry}`);
+      assert.equal(item.version, versions[item.entry], `${item.entry} at ${item.path}`);
+    }
     assert.ok(formats.some(item => item.entry === "database.home.catalog" && item.path === `${account}/projects/catalog.db`), "the account Home's copy too");
     // The two the snapshot cannot hold, and the computer's two files the generation does not write yet (BL-golden-computer-settings).
     const absent = new Set(["format.home.installation", "database.search.text-index", "format.computer.settings", "format.computer.record"]);
@@ -584,15 +599,14 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }],
     ["a plugin's project tables raised", recorded => {
       const at = `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`, entry = recorded.stores.find(item => item.path === at);
-      // Batch 39 moved the project rules and decisions to the platform, giving newly generated Goals tables version 5.
-      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 5);
-      entry!.plugin_tables!["io.molis.work.goals"] = 6;
+      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 1);
+      entry!.plugin_tables!["io.molis.work.goals"] = 2;
       return `${at}#plugin_tables`;
     }],
     ["a format's version raised", recorded => {
       const item = recorded.formats.find(format => format.entry === "format.shelf.catalog" && format.path === "shelf/catalog.json");
-      assert.equal(item?.version, 2);
-      item!.version = 3;
+      assert.ok(item);
+      item.version += 1;
       return "shelf/catalog.json#format.shelf.catalog";
     }],
     ["a format added that the Home does not have", recorded => {
@@ -601,12 +615,12 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }],
   ];
   for (const [what, edit] of edits) {
-    test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, () => {
+    test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, async () => {
       const parent = path.join(directory, `recorded-${what.replaceAll(/\W+/gu, "-")}`), copy = path.join(parent, VERSION);
       cpSync(golden, copy, { recursive: true });
       const recorded = manifest(copy) as Manifest, where = edit(recorded);
       writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify(recorded, null, 2)}\n`);
-      const result = run(REPLAY_SCRIPT, "--dir", parent);
+      const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
       assert.equal(result.status, 1, result.output);
       assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 recorded-versions ${where.replaceAll(".", "\\.")} golden\\.recorded_version_mismatch$`, "mu"));
     }, { timeout: 600_000 });
@@ -614,14 +628,14 @@ describe("a generated golden Home", { concurrency: false }, () => {
 
   // Only what the manifest records is checked. The gates count held versions from `formats` alone, so a format left out makes them stricter,
   // never looser; a generator that leaves one out is caught where it generates (the UPG-01 test above, and `check`).
-  test("UPG-01: a manifest that leaves a format out still replays, since leaving one out claims nothing the gates could count", () => {
+  test("UPG-01: a manifest that leaves a format out still replays, since leaving one out claims nothing the gates could count", async () => {
     const parent = path.join(directory, "recorded-format-left-out"), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
     const recorded = manifest(copy) as Manifest, at = recorded.formats.findIndex(format => format.entry === "database.home.catalog" && format.path === "projects/catalog.db");
     assert.ok(at >= 0);
     recorded.formats.splice(at, 1);
     writeFileSync(path.join(copy, "manifest.json"), `${JSON.stringify(recorded, null, 2)}\n`);
-    const result = run(REPLAY_SCRIPT, "--dir", parent);
+    const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 0, result.output);
     assert.match(result.output, /^ok {3}9\.9\.9-dev\.1 /mu);
   }, { timeout: 600_000 });

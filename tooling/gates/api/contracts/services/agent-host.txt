@@ -2381,6 +2381,7 @@ export interface AgentSubagentWorkspace {
 export interface AgentSubagentsCapability {
     workspaces?: true;
     list(run: AgentRunRef): Promise<AgentSubagentView[]>;
+    listForRuns?(parents: readonly AgentRunRef[]): Promise<AgentSubagentView[]>;
     resultCandidates?(parentSessionIds: ReadonlySet<string>): readonly {
         parent_run: AgentRunRef;
         subagent_id: string;

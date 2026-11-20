@@ -13,6 +13,7 @@ import type {
   AgentCreateSessionRequest,
   AgentRunControl,
   AgentRunRef,
+  AgentSubagentView,
   AgentRunView,
   AgentRuntimeCapabilityMatrix,
   AgentSessionView,
@@ -157,7 +158,8 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability & {
+  subagents?: Omit<import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability, "listForRuns"> & {
+    listForRuns?(parents: readonly AgentRunRef[], readParent: (run: AgentRunRef) => Promise<unknown>): Promise<AgentSubagentView[]>;
     sessionOf(run: AgentRunRef, subagentId: string): string;
   };
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;

@@ -134,22 +134,6 @@ export const GOALS_TABLES_SQL = `
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
 `;
 
-/** The v2 rules that explicit maintenance moves into the platform library. */
-export const GOALS_V2_POLICY_SQL = `
-  CREATE TABLE policy_bindings (
-    policy_binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT REFERENCES goals(goal_id),
-    scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
-    policy_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('active', 'replaced', 'withdrawn')),
-    created_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
-`;
-
 /**
  * The board that names a project's current Goal, owned by Goals. The project is the library's `project_root` row, so the board points at
  * it and goes with it; the project's name is the Catalog's, never kept here.

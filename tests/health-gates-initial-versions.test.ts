@@ -224,36 +224,6 @@ test("UPG1-i-initial-12: the machine receipt stays out of the list, as design §
 
 const snapshotOf = (texts: Record<string, string>) => ({ files: Object.keys(texts), read: (file: string) => texts[file] ?? null });
 
-test("APR-19 project_goals@2 requires the real joint upgrade and a golden holding both old libraries in one project", () => {
-  const manifest = "plugins/native/goals/src/manifest.ts", key = "sync.collection.goals.project_goals";
-  const schema = "apps/local-host/src/project-database-schema.ts", upgrade = "apps/local-host/src/project-approval-upgrade.ts";
-  const golden = "tests/fixtures/golden-homes/0.1.1-dev.4/manifest.json";
-  const source = readFileSync(new URL(`../${schema}`, import.meta.url), "utf8");
-  const declarations = `const collections = [{ id: "project_goals", schema_version: /* @version ${key} */ 2 }];`;
-  const project = { path: "projects/p/molis-work.db", schema_version: 3, plugin_tables: { "io.molis.work.goals": 3 } };
-  const files = {
-    [manifest]: declarations, [schema]: source, [upgrade]: readFileSync(new URL(`../${upgrade}`, import.meta.url), "utf8"),
-    [golden]: JSON.stringify({ stores: [project] }), "tooling/versions.json": JSON.stringify({ versions: { [key]: 2 } }),
-  };
-  const check = (changes: Record<string, string> = {}) => {
-    const snapshot = snapshotOf({ ...files, ...changes });
-    return versionOriginProblems(snapshot, { chains: registeredUpgradeChains(snapshot) });
-  };
-  assert.deepEqual(check(), []);
-  for (const text of [
-    source.replace("{ from: 3,", "{ from: 2,"),
-    source.replace("run: transferProjectApprovals", "run: () => undefined"),
-    source.replace('from "./project-approval-upgrade.js"', 'from "./other.js"'),
-  ]) {
-    assert.notEqual(text, source);
-    assert.match(check({ [schema]: text }).join("\n"), /registered upgrade chain/);
-  }
-  assert.match(check({ [upgrade]: "" }).join("\n"), /registered upgrade chain/);
-  assert.match(check({ [golden]: JSON.stringify({ stores: [{ ...project, schema_version: 2 }, { ...project, plugin_tables: {} }] }) }).join("\n"), /no golden Home/);
-  assert.match(check({ [manifest]: declarations.replace(key, "sync.collection.other.project_goals") }).join("\n"), /expected 1/);
-  assert.match(check({ "plugins/native/feed/src/manifest.ts": declarations }).join("\n"), /expected 1/);
-});
-
 test("UPG1-i-initial-13: the half with no build passes on this repository as it stands", () => {
   const root = new URL("../", import.meta.url);
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0").filter(Boolean);

@@ -37,10 +37,11 @@ test("QEA-80: sync carries exact historical and current import warnings with the
   assert.deepEqual(restored, snapshot);
 });
 
-for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refuses and preserves an existing v${version} file`,t=>{
+for(const version of [1,2,3,4])test(`S-126 PCSYNC-12 the current sync store refuses and preserves a mismatched v${version} file`,t=>{
   const home=mkdtempSync(join(tmpdir(),'molis-sync-v1-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
-  const schema=readFileSync(new URL(version===1?'./fixtures/home-store-schemas/sync-v2.sql':`./fixtures/home-store-schemas/sync-v${version}.sql`,import.meta.url),'utf8'),old=openBaselineHomeSqlite(home,'sync',{version,schema});
+  const current=readFileSync(new URL('./fixtures/home-store-schemas/sync.sql',import.meta.url),'utf8');
+  const schema=version===1?`${current}; DROP TABLE sync_blob_parts;`:current,old=openBaselineHomeSqlite(home,'sync',{version,schema});
   old.prepare('INSERT INTO sync_policy VALUES(1,?)').run('{"preserved":true}');old.close();
   const path=join(home,'sync','sync.db'),before=readFileSync(path);
   assert.throws(()=>openBaselineHomeSqlite(home,'sync',SYNC_STORE_BASELINE),{code:version===1?'storage.schema_structure_mismatch':'storage.store_too_new'});assert.deepEqual(readFileSync(path),before);

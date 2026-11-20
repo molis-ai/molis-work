@@ -23,7 +23,7 @@ export interface ModelStandIn {
  * `throttledKey`: a key the stand-in answers with 429, the way a throttled or out-of-credit account is answered.
  * `tool`: asked on each foreground request; a tool it names is called instead of replying, so a round can ask a question.
  */
-export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string; tool?: () => { name: string; input: unknown } | undefined } = {}): Promise<ModelStandIn> {
+export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK", options: { throttledKey?: string; tool?: () => { name: string; input: unknown } | undefined; beforeReply?: (body: string) => Promise<void> } = {}): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [], bodies: string[] = [];
   let revoked = false;
   const server: Server = createServer(async (request, response) => {
@@ -46,6 +46,7 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK",
       response.end(JSON.stringify({ error: { message: "invalid api key" } }));
       return;
     }
+    if (aside === undefined) await options.beforeReply?.(body);
     const usage = { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 };
     if (payload.stream) {
       response.writeHead(200, { "content-type": "text/event-stream" });

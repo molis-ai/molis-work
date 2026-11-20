@@ -1,0 +1,25 @@
+{
+  "reason": "56-1 BL-attention-404-by-code：提醒脚本要分清「项目确已删除」和宿主临时 404。读取路径多比一个码；事件流收到 404 时读回答里的码，只有 catalog.project_not_found 才停读、放开流与共享锁，别的 404 照原节奏重连。已把脚本字符串里的说明全部移到模块注释（不下发），代码收成一行。对照 merge-base 3a6f2289a 的隔离构建实测工作台脚本 +100 B，没有新增资源。 工作台脚本随首屏下发，工作台默认与全部插件两页冷启动同为 +100 B，热启动不变。",
+  "review": "PR #2160（fix/56-1-attention-404-by-code）评审；本机 node scripts/gates/page-assets.mjs --base origin/main 实测 1362662 → 1362762（+100）。 CI 对照 main e68f0079f 实测 +107 B（构建时字符串复用随基点不同）；许可按实测向上取整到 100 B 作为上限，取 200 B。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 200
+  },
+  "pages": {
+    "workbench-default/zh": {
+      "cold": 200,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 200,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 200,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 200,
+      "warm": 0
+    }
+  }
+}

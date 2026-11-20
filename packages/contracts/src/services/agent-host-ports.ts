@@ -176,6 +176,8 @@ export interface AgentSubagentsCapability {
   /** Distinct child roots and their review/recovery bridge are actually wired. */
   workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
+  /** Children in the supplied parent order. Only parents with children need a full Run read. */
+  listForRuns?(parents: readonly AgentRunRef[]): Promise<AgentSubagentView[]>;
   /** Trusted Host lookup of settled attempt candidates for the caller's parent Sessions. Confirm each with the original Run view. */
   resultCandidates?(parentSessionIds: ReadonlySet<string>): readonly { parent_run: AgentRunRef; subagent_id: string; attempt_run_id: string }[];
   conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;

@@ -299,25 +299,6 @@ test("UPG1-i-store-11: this repository has the origin registered and passes as i
   assert.deepEqual(storeVersionProblems({ read: real, readBase: real }), []);
 });
 
-test("APR-19 Goals 4→5 must name the real project 3→4 transfer, including its installed writer", () => {
-  const projectSchema = "apps/local-host/src/project-database-schema.ts";
-  const actual = real(projectSchema)!;
-  const oldChecklist = realChecklist.replace(/(\| `projects\/<project_id>\/molis-work\.db#goals` \| )5 \|/, (_line, prefix: string) => prefix + "4 |");
-  assert.notEqual(oldChecklist, realChecklist);
-  assert.equal(checklistVersions(oldChecklist).get("`projects/<project_id>/molis-work.db#goals`"), 4);
-  const check = (specText = realSpec, source = actual) => storeVersionProblems({
-    read: (file: string) => file === SPEC ? specText : file === projectSchema ? source : real(file),
-    readBase: (file: string) => file === CHECKLIST ? oldChecklist : real(file),
-  }).join("\n");
-  assert.equal(check(), "");
-  const wrongStep = realSpec.replace(/^(\| `projects\/<project_id>\/molis-work\.db#goals` \| 4 → 5 \|.*#)3→4`/mu, (_line, prefix: string) => prefix + "4→5`");
-  assert.notEqual(wrongStep, realSpec);
-  assert.match(check(wrongStep), /points at the step 4→5/u);
-  const missingWriter = actual.replace("run: transferProjectApprovals", "run: anotherStep");
-  assert.notEqual(missingWriter, actual);
-  assert.match(check(realSpec, missingWriter), /needs the project library's verified approval transfer from 4/u);
-});
-
 test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot without its step, its pointer or by going down", () => {
   const rows = realRows();
   assert.ok(rows.length > 0);

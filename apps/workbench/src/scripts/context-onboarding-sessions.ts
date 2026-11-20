@@ -4,6 +4,10 @@
  * project has none and no permit yet, so they are read in the step after it is made.
  */
 export const CONTEXT_ONBOARDING_SESSIONS_PART = String.raw`
+  const contextPath = '/api/onboarding/context';
+  const params=new URLSearchParams(location.search), project=params.get('project');
+  const projectQuery=project?'?project='+encodeURIComponent(project):'';
+  const readConfig=()=>api(contextPath+projectQuery);
   const existing = () => Boolean(journey?.existing);
   const sessionsLater = () => !existing() && Boolean(source('sessions')?.selected);
   let sessionsState = null;

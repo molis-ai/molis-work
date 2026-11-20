@@ -369,6 +369,9 @@ function inferObservedPosture(records: readonly ObservationQueriedRecord[]): Eva
   return undefined;
 }
 
+/** Business outputs and the saved document body are both established delivery evidence roles. */
+export const isPluginDeliveryRole = (role: string): boolean => role === "output" || role === "body";
+
 type TextRubric = Pick<EvaluationEvaluatorRule, "rubric" | "evidence_source" | "required_facts" | "required_evidence_terms" | "forbidden_evidence_terms" | "allowed_variations">;
 
 /** Material and policy rubrics can inspect their selected inputs. Delivery rubrics need an identifiable output. */
@@ -387,8 +390,10 @@ function rubricTextEvidence(rule: TextRubric, stage: EvaluationExpectation["stag
     // A query or a pinned ID can narrow the records, but only the producing owner can attest delivery.
     let role = source?.role ?? selectedRole;
     if (stage === "delivery") {
-      if (record.owner.kind === "plugin") role ??= "output";
-      else if (record.owner.kind === "service" && record.owner.id === "agent" && record.fact === reply.fact) {
+      if (record.owner.kind === "plugin") {
+        role ??= "output";
+        if (!isPluginDeliveryRole(role)) continue;
+      } else if (record.owner.kind === "service" && record.owner.id === "agent" && record.fact === reply.fact) {
         if (role !== undefined && role !== reply.role) continue;
         role = reply.role;
       } else continue;

@@ -8,7 +8,6 @@ import type {
   AgentRunRef,
   AgentSubagentAttemptSummary,
   AgentSubagentRetrySource,
-  AgentSubagentsCapability,
   AgentSubagentView,
   AgentStartExecution,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -182,17 +181,31 @@ export function createPrologueSubagents(
     const provenance = await provenanceOf(run);
     return projectSubagentView(runtime, run, child, provenance, new Map(provenance.roles), defaultMaxTurns);
   };
-  const list: AgentSubagentsCapability["list"] = async run => {
+  const projectChildren = async (run: AgentRunRef, children: readonly SubagentHandle[]) => {
     const provenance = await provenanceOf(run), roles = new Map(provenance.roles);
     const result: AgentSubagentView[] = [];
-    for (const child of owned(run)) {
+    for (const child of children) {
       result.push((await projectSubagentView(runtime, run, child, provenance, roles, defaultMaxTurns)).view);
     }
     return result;
   };
 
   return {
-    list,
+    list: run => projectChildren(run, owned(run)),
+    async listForRuns(parents, readParent) {
+      const key = (sessionId: string, runId: string) => JSON.stringify([sessionId, runId]);
+      const groups = new Map(parents.map(parent => [key(parent.session_id, parent.run_id), { parent, children: [] as SubagentHandle[] }]));
+      for (const child of runtime.subagents.list()) {
+        groups.get(key(child.parentSession.id, child.parentRun.id))?.children.push(child);
+      }
+      const views: AgentSubagentView[] = [];
+      for (const { parent, children } of groups.values()) {
+        if (!children.length) continue;
+        await readParent(parent);
+        views.push(...await projectChildren(parent, children));
+      }
+      return views;
+    },
     sessionOf: (run, id) => childOf(run, id).session.id,
     resultCandidates: parentSessionIds => runtime.subagents.list().flatMap(child => {
       if (!parentSessionIds.has(child.parentSession.id)) return [];

@@ -6,7 +6,7 @@
 
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
-Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
+Molis Work 是本地优先的 Agent OS、人机与团队协作工作台及多插件能力基座。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳、同一个 Prologue AI 运行时及跨插件协作与治理服务（主线、可信决定、逐项认可、记忆、工作记录、外部会话等）；业务内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 现状暂为每个项目默认带的内置插件（拥有 Goal 的事实，第 44 批收口为普通可选插件）。
 
 Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `modules/goals`、`modules/governance-collaboration` 的代码已并入该包，S9-3），按[事件工作流需求书](../specs/archive/goal-event-workflow-cleanup/spec.md)收敛：事件是唯一工作协议；事件之前的 Claim/Run/Evidence/Review 历史连同表与展示已于 2026-10-05 删除（#268）。真实 Session／终端归 Work 与 Runtime Host。本索引的相关 owner 行已同步；早期迁移报告保留当时的实现和验收记录。
 
@@ -16,7 +16,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 问题 | 唯一权威来源 |
 | --- | --- |
-| 产品是什么（插件基座加多插件）、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
+| 产品是什么（Agent OS、协作工作台与多插件基座）、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
 | 安装、启动、维护与卸载 | [`docs/installation.md`](installation.md)（[English](installation.en.md)） |
 | CLI 命令、源码构建与日常开发 | [`docs/cli-and-development.md`](cli-and-development.md)（[English](cli-and-development.en.md)）；仓库执行约束见 [`AGENTS.md`](../AGENTS.md) |
 | 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；[`docs/design/`](design/README.md)是设计参考与原型 |

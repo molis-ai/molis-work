@@ -96,6 +96,8 @@
 
 **严重度：挡后续。** **建议批次：35-2**，先做附件合同子分支，助理迁移同批完成（前置 08、11、31 已合，33 在途，35 未开工）。
 
+**执行结果。** 第 35 批删除旧 PDF 解析器和旧图片写入，助理、Coding 和沙箱入口接入平台对话附件。合后复核补齐助理重启后回读原件与 Coding 一轮一次取图。见[第 35 批复核修复](../../specs/batch-35-audit-fixes/spec.md)。
+
 ## 7. 插件数据分段：同步、资产包、整份导出、业务导出各一份
 
 **证据。** 每个插件已经为个人同步手写一份自己数据的描述：15 个插件各有 `src/sync-binding.ts`（如 `plugins/native/pages/src/sync-binding.ts`），段声明在 `packages/contracts/src/platform/plugin-sync-sections.ts`。资产包另有格式（`apps/local-host/src/work-assets.ts`，带固定的 `goals` 字段，44-5 已列）；整份 Home 快照与恢复在宿主 `home-snapshot-*.ts`、`home-restore-*.ts`。路线书还排着两份：68-2「为每个生成插件交业务数据导出」（来源 `docs/product-operations/产品优化建议.md` C2「每个生成插件自带导出业务数据」），73-3「整份 Home 导出的段清单由各主人声明」。

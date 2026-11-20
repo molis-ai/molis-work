@@ -3,7 +3,7 @@ import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/service
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { say, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
-import type { ProjectDecisionHistory, ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { agentAuthorizationActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { authorizationOwnerTitles } from "./authorization-action-owners.js";
 import { authorizationSettingsControl } from "./authorization-settings-control.js";
@@ -16,15 +16,7 @@ import { projectRulesFromSettings } from "./project-review-entry.js";
 
 const historyLimit = 100;
 
-function projectDecisionSource(project: string, record: ProjectDecisionHistory | ProjectTrustedDecision): ReturnType<typeof reviewSourceSummary> {
-  if ("kind" in record) {
-    const original = record.original;
-    return { id: record.decision_id, project_id: project, title: String(original.conclusion ?? original.reason ?? record.decision_id),
-      phase: t.text("workbench.authorization.project-review-history"), decision: null,
-      source: t.text(original.authority_source === "web" || original.authority_source === "management"
-        ? "workbench.agent-review.source-person" : "workbench.agent-review.source-unrecorded"),
-      person: typeof original.actor_id === "string" ? original.actor_id : null, at: record.recorded_at, detail: null };
-  }
+function projectDecisionSource(project: string, record: ProjectTrustedDecision): ReturnType<typeof reviewSourceSummary> {
   const chosen = record.presentation?.choices.find(row => row.id === record.decision);
   return { id: record.decision_id, project_id: project, title: record.presentation?.summary ?? record.review.target.subject.id,
     phase: t.text("workbench.authorization.project-review-recorded"), decision: chosen ? say.text(chosen.label) : record.decision,

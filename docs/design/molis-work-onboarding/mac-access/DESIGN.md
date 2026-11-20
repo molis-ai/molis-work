@@ -35,7 +35,7 @@
 
 ### 生产验证范围
 
-本轮 finish review 结论为 **SHIP**，没有要求本轮修复的实质问题。五张有效截图覆盖[桌面清单](../../../../.impeccable/review/onboarding-mac-20260926/desktop-checklist.png)、[桌面预览](../../../../.impeccable/review/onboarding-mac-20260926/desktop-preview.png)、[窄屏深色预览](../../../../.impeccable/review/onboarding-mac-20260926/mobile-preview-dark.png)、[窄屏深色资料就绪](../../../../.impeccable/review/onboarding-mac-20260926/mobile-materials-ready-dark.png)和[桌面目录资料就绪](../../../../.impeccable/review/onboarding-mac-20260926/desktop-directory-materials-ready.png)。本轮截图对应 CSS 视口为桌面 1180×760、窄屏 390×844；浏览器缩放为 90%，工具输出图片像素尺寸不同。
+本轮 finish review 结论为 **SHIP**，没有要求本轮修复的实质问题。五张有效截图曾保存在 `.impeccable/review/onboarding-mac-20260926/`（`desktop-checklist.png`、`desktop-preview.png`、`mobile-preview-dark.png`、`mobile-materials-ready-dark.png`、`desktop-directory-materials-ready.png`，历史评审图已清理）。本轮截图对应 CSS 视口为桌面 1180×760、窄屏 390×844；浏览器缩放为 90%，工具输出图片像素尺寸不同。
 
 原生 AX 实操验证了 NSOpenPanel 中取消下载授权后继续授权自定义测试目录、最近 7 天元数据预览与排除、退出重开后的 bookmark 和排除项恢复，以及 PDF／DOCX／Markdown 读取和损坏 DOCX 跳过。最新采用路径在浏览器实际打开了包含 4 份文档的 Pages；原生最新完整路径重跑受启动健康检查延迟限制。本轮使用虚构资料与 mock 模型，不能据此宣称真实 AI 质量、可发布或用户本人验收通过。
 

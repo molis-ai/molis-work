@@ -73,6 +73,13 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
     assert.ok(before[0].host_tools?.includes('read-file'));assert.equal(before[0].host_tools?.includes('write'),false);
     const foreign=await adapter.createSession({...owner,directory,title:'Other'});
     await assert.rejects(adapter.subagents!.list({...handle.ref,session_id:foreign.session_id}),/不属于/);
+    // MR19-05: empty historical runs require no read, and a different session cannot borrow this parent's children.
+    const emptyHistory = Array.from({ length: 100 }, (_, n) => ({ ...handle.ref, run_id: `unused-${n}` }));
+    const parentReads = t.mock.method(adapter, "read");
+    assert.deepEqual(await adapter.subagents!.listForRuns!([...emptyHistory, handle.ref, { ...handle.ref, session_id: foreign.session_id }]), before);
+    assert.deepEqual(parentReads.mock.calls.map(call => call.arguments[0]), [handle.ref]);
+    parentReads.mock.restore();
+    assert.deepEqual(await adapter.subagents!.listForRuns!([{ ...handle.ref, session_id: foreign.session_id }]), []);
     await assert.rejects(adapter.subagents!.command!(handle.ref,'foreign',{kind:'stop',request_id:'stop-foreign',child_run:{session_id:'foreign',run_id:'foreign'}},{actor_id:'user',execution:{}}),{code:'agent.collaboration_unknown'});
     const forbidden=structuredClone(codingAgentManifest);forbidden.subagents!.roles[0]!.host_tools!.push('write');
     await assert.rejects(host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'must not start'},

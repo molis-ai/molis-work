@@ -18,7 +18,6 @@ ProjectsModule 用注入数据库在包内建立 repository 与 service，公开
 | [src/project-service.ts](src/project-service.ts) | 项目记录操作 |
 | [src/workspace.ts](src/workspace.ts) | 项目目录规则：输入/输出角色、默认输出目录、路径到行、来源对应 |
 | [src/workspace-repository.ts](src/workspace-repository.ts) | 成员表（`role_input`、`role_output`）与 `workspace_source_links` |
-| [src/catalog-upgrade.ts](src/catalog-upgrade.ts) | 目录库第 1 版到第 2 版的升级段 |
 | [src/project-output.ts](src/project-output.ts) | 默认输出目录：id 推导、建行、碰磁盘前的检查与删除 |
 | [src/material-recent.ts](src/material-recent.ts) | 项目库里的「最近用过」`material_recent_uses` |
 | [src/project-paths.ts](src/project-paths.ts) | 项目库/暂存目录的路径推导 |
@@ -35,7 +34,7 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 
 **最近用过。** 项目库的 `material_recent_uses`（`src/material-recent.ts` 的 `MaterialRecentUses`）按调用方（本人或插件 id）记引用的 `MaterialRef`，不记正文；项目随库删除时一起清。`materials.recent`、`materials.recent.record`、`materials.origins` 三个动作由宿主装配，出处每次现读，不在本模块。
 
-**升级。** 目录库与项目库都升到第 2 版：目录库 1→2 的段在本包 `catalog-upgrade.ts`（去掉方案 A 之前留下的写手工作树行、`is_default` 换成两个角色列、给每个没有输出的项目补默认输出目录；随 `CATALOG_UPGRADES` 登记在 `apps/local-host/src/project-catalog-contract.ts`）；项目库 1→2 的段在 `apps/local-host/src/project-database-schema.ts`（删 `project_browsing_settings`、加 `material_recent_uses`），其中的建表语句由本包 `material-recent.ts` 导出。低版本由启动升级过程升，较新的库拒绝。
+**升级。** 目录库与项目库当前均为第 1 版基线（预发 v1 重置后已收平历史开发期升级段；`material_recent_uses` 建表语句由本包 `material-recent.ts` 导出并直接写入项目库 v1 基线）。后续结构变更仍沿通用升级框架升级，较新的库拒绝。
 
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 

@@ -281,3 +281,33 @@ test("D0276 existing-only reads neither create a store nor initialize an empty f
   try { assert.equal(reader.prepare("SELECT id FROM notes").get()?.id, "kept"); assert.throws(() => reader.prepare("INSERT INTO notes VALUES (?)").run("refused")); }
   finally { reader.close(); }
 });
+
+test("RAC-427 platform env prefix, project database filename and security directory path stay on Molis Work names", async (t) => {
+  const { PROJECT_DATABASE_FILENAME, readProductEnv, resolveHomeSecurityDirectory, resolveMolisWorkHome, resolveProjectDatabaseFile, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
+  const { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  runWithMolisWorkHome("/tmp/pg097-home", () => {
+    assert.equal(resolveHomeSecurityDirectory(), join(realpathSync("/tmp"), "pg097-home", "feed"));
+  });
+  const previousNext = process.env.MOLIS_WORK_HOME;
+  const previousLegacy = process.env.GOALBOARD_HOME;
+  try {
+    delete process.env.MOLIS_WORK_HOME;
+    process.env.GOALBOARD_HOME = "/tmp/legacy-goalboard-home";
+    assert.equal(readProductEnv("HOME"), undefined);
+    process.env.MOLIS_WORK_HOME = "/tmp/molis-work-home";
+    assert.equal(readProductEnv("HOME"), "/tmp/molis-work-home");
+    assert.equal(resolveMolisWorkHome(), join(realpathSync("/tmp"), "molis-work-home"));
+  } finally {
+    if (previousNext == null) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = previousNext;
+    if (previousLegacy == null) delete process.env.GOALBOARD_HOME; else process.env.GOALBOARD_HOME = previousLegacy;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "molis-work-db-name-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const leftover = join(dir, "goalboard.db");
+  writeFileSync(leftover, "fixture");
+  assert.equal(resolveProjectDatabaseFile(dir), join(dir, PROJECT_DATABASE_FILENAME));
+  assert.equal(existsSync(leftover), true);
+  assert.equal(existsSync(join(dir, PROJECT_DATABASE_FILENAME)), false);
+});

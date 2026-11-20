@@ -33,7 +33,7 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
     readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
     readOriginalRange: (key, options) => readOriginalRange(home.directory, key, { offset: options.offset, length: options.length, revision: options.revision, signal: options.signal }),
     releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
-    attach: (owner, upload, options) => attachConversationFile(home.directory, owner, upload, { signal: options.signal, beforeEffect: options.beforeEffect }),
+    attach: (owner, upload, options) => attachConversationFile(home.directory, owner, upload, options),
     readAttachment: (owner, ref, request, options) => readConversationAttachment(home.directory, owner, ref, { ...request, signal: options.signal }),
   }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

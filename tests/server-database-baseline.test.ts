@@ -79,14 +79,14 @@ test("RAC-2717 a server database at another version in WAL mode is refused with 
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("UPG-01 IUI-21 the actual historical discussion v1 is refused with its database and WAL bytes kept", () => {
+test("UPG-01 IUI-21 a prior discussion v1 missing subjects_json is refused with its database and WAL bytes kept", () => {
   const directory = mkdtempSync(join(tmpdir(), "discussion-v1-refusal-")), file = join(directory, "server.sqlite");
   const writer = new DatabaseSync(file);
   try {
-    writer.exec(readFileSync(new URL("./fixtures/golden-homes/0.1.1-dev.1/stores/server/server.sqlite.sql", import.meta.url), "utf8"));
+    const oldSchema = readFileSync(new URL("./fixtures/server-database-schema.sql", import.meta.url), "utf8").replace(", subjects_json TEXT NOT NULL DEFAULT '[]'", "");
+    assert.equal(oldSchema.includes("subjects_json"), false);
+    writer.exec(oldSchema + "; PRAGMA user_version = 1;");
     assert.equal(writer.prepare("PRAGMA user_version").get()?.user_version, 1);
-    assert.equal(writer.prepare("SELECT count(*) AS count FROM im_messages").get()?.count, 1);
-    assert.equal(writer.prepare("SELECT count(*) AS count FROM im_receipts").get()?.count, 2);
     writer.exec("PRAGMA journal_mode = WAL; INSERT INTO mw_events(scope_kind,scope_id,kind,entity_id) VALUES ('probe','r','kind','e')");
     const wal = file + "-wal", before = readFileSync(file), beforeWal = readFileSync(wal);
     assert.throws(() => openServerDatabase(directory), { code: "im.database.structure_invalid" });

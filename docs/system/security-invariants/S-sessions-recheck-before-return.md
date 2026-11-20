@@ -2,6 +2,8 @@
 
 QEA-29 接续：本人归属建议在实际模型派发前也复核当前来源和目录范围；等待中撤回任何待发材料必须拒绝 `sessions.scope_changed`，不发模型、不写失败建议。命中缓存仍走当前范围尾检，不返回已撤回项。断言拒绝本身及恢复的测试在 `tests/sessions-service.test.ts`（关闭/收窄 × 开头读取/缓存返回）和 `tests/sessions-workbench.test.ts`（真实 HTTP 撤权、Host 派发计数与实际建议）。本人建议与项目 AI 读取开关仍按合同 §8.4 分别处理。
 
+第 35 批引导在模型派发和整理结果保存前调用 `sessions.history.authorize@1`。Sessions 核相同项目公开许可、来源、目录和会话归属版本。撤权再开启后旧结果仍被拒。引导保留此前已读材料供本人回看，重新整理时走现许可。真实 HTTP 拒绝测试见 `tests/context-onboarding-sessions.test.ts` 的 B35-R2。
+
 | ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
 | --- | --- | --- | --- | --- |
 | S-sessions-recheck-before-return | 所有会话列表、历史正文、工具内搜索、系统搜索来源与助理单轮读取在返回前逐条重查当前读取范围与连接状态（第 34 批，设计 `specs/sessions-rebuild/contract-design.md` §4、§7、§9.4）：① 本人关闭来源读取开关（`allowed: false`）或清空范围后，即使索引里仍有已发现的 `session_key`，`sessions.list@1` 不返回该来源会话，`sessions.history.read@1`、`sessions.tool.search@1` 立即拒 `sessions.not_allowed`（非本人拒 `sessions.not_found`），在途读取返回前发现范围或项目 AI 读取许可收窄立即拒 `sessions.scope_changed` 且不返回原文；② 本人为某来源选 `linked_projects` 或解除项目目录后，目录不在当前允许集合内的会话立即从列表隐藏且按 `session_key` 读取被拒 `sessions.not_found`（在途变化拒 `sessions.scope_changed`）；③ 远端／CLI 来源对应的连接器被停用、移除、切换为另一连接或当前账号指纹与绑定连接不一致时，读取原文/工具内搜索被拒（`sessions.needs_login`／`account_changed`），不跨账号返回正文；列表可能仍显示已缓存的标题/目录与本人决定，直到一次读取或刷新触发复核。 | `horizontal/sessions/src/runtime-view.ts`、`horizontal/sessions/src/session-queries.ts`、`horizontal/sessions/src/scope-commands.ts`、`horizontal/sessions/src/adapters/copilot-coding-agent.ts` | `tests/security-invariants-external-sessions.test.ts`「S-sessions-recheck-before-return 1: disabling a source or narrowing its directory scope immediately blocks list, history.read and tool.search」「S-sessions-recheck-before-return 2: disabling a connector or switching its account blocks cached remote reads」 | — |

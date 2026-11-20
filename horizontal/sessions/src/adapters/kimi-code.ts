@@ -1,7 +1,6 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterReadOutput,
   type AdapterSourceContext,
@@ -20,6 +19,8 @@ import {
   walkFilesUnderRoot,
   withFileTranscriptCache,
   type ParsedTranscriptResult,
+  discoveryCursor,
+  nextDiscoveryCursor,
 } from "./shared.js";
 
 const DISCOVERY_BATCH_SIZE = 50;
@@ -126,11 +127,12 @@ function metadataValues(metadata: Record<string, unknown> | null): {
 export const kimiCodeAdapter: ExternalSessionSourceAdapter = {
   entry_id: "kimi-code",
 
-  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
+  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal, alreadyRead: number): Promise<AdapterDiscoveryBatch> {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 4);
     const candidates = collectKimiSessions(walked.files);
-    const startOffset = cursor ? Math.max(0, Number.parseInt(cursor, 10) || 0) : 0;
+    const previous = discoveryCursor(cursor, alreadyRead);
+    const startOffset = previous.offset;
     const batch = candidates.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
@@ -178,15 +180,10 @@ export const kimiCodeAdapter: ExternalSessionSourceAdapter = {
       }
     }
 
-    if (startOffset === 0 && sessions.length === 0 && unsupportedVersionFiles > 0) {
-      throw sessionSourceFailure("version_mismatch", "Kimi Code 会话记录版本暂不支持解析", false);
-    }
-
-    const nextOffset = startOffset + batch.length;
     return {
       sessions,
       skipped_count: skippedCount,
-      next_cursor: nextOffset < candidates.length ? String(nextOffset) : null,
+      next_cursor: nextDiscoveryCursor(previous, batch.length, candidates.length, sessions.length, unsupportedVersionFiles, "Kimi Code"),
       total: candidates.length,
     };
   },

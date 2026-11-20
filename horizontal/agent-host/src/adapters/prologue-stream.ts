@@ -73,7 +73,7 @@ export type PrologueEvent =
       parts: readonly { index: number; tokens: number; form: "entry" | "excerpt" | "summary" }[] }
   | { type: "todo-changed"; items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }
   | { type: "circuit-tripped"; reason?: string; count?: number; why?: string }
-  | { type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
+  | { type: "run-recovered"; atMs: number; transcript: "durable-prefix"; questions?: ReadonlyArray<{ ref: { id: string; revision: number }; kind: string; prompt: string }>; operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }> }
   | { type: "completed" }
   | { type: "failed"; why?: string; error?: { code: string; safeMessage: string } }
   | { type: "cancelled" }
@@ -471,9 +471,7 @@ function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at:
   closeInterruptedPrologueStream(state, readCall);
   const labels = { completed: "已执行", failed: "执行失败（可能部分生效）", "not-dispatched": "未执行", unknown: "结果未知" };
   state.turns.push({ turn_id: `recovery-${state.turns.length + 1}`, kind: "notice", at,
-    sequence: state.next_sequence++, text: [recovered.transcript === "durable-prefix"
-      ? "中断轮次已结束，已保存的正文、工具过程和核实结果已保留，没有重复执行操作。未记录的末尾过程和完整用量仍未知；继续时需重新核对当前文件。"
-      : "中断轮次已结束，原任务与核实结果已保留，没有重复执行操作。流式过程与用量不完整；继续时需重新核对当前文件。",
+    sequence: state.next_sequence++, text: ["中断轮次已结束，已保存的正文、工具过程和核实结果已保留，没有重复执行操作。未记录的末尾过程和完整用量仍未知；继续时需重新核对当前文件。",
       ...recovered.operations.map(operation => `${labels[operation.outcome]}：${operation.summary}`)].join("\n") });
   for (const question of recovered.questions ?? []) {
     if (!state.awaiting_input.some(held => held.pending_id === question.ref.id && held.pending_revision === question.ref.revision)) {

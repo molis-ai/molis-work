@@ -16,14 +16,15 @@ import { fileUri, type LspClient } from "./lsp-client.js";
 export interface WriteCheckDeps {
   /** The server for a path, started on demand, and what it said it can do at its handshake. */
   clientFor(file: string): Promise<{ readonly client: LspClient; readonly languageId: string; readonly name: string; readonly capabilities: ServerCapabilities }>;
-  /** Forget what the round's open documents hold for this path, so the next read sends the disk text again. */
-  forget(file: string): void;
+  /** Close any document the symbol tool previously opened. Its next read takes text from disk again. */
+  closeDocument(file: string): void;
 }
 
 export interface ServerCapabilities {
   readonly documentFormattingProvider?: unknown;
   readonly documentRangeFormattingProvider?: unknown;
   readonly diagnosticProvider?: unknown;
+  readonly executeCommandProvider?: { readonly commands?: readonly string[] };
 }
 
 interface TextEditLike { readonly range: { readonly start: Position; readonly end: Position }; readonly newText: string }
@@ -33,6 +34,7 @@ interface DiagnosticLike { readonly range?: { readonly start?: Position }; reado
 const MAX_ERRORS = 20;
 const SETTLE_MS = 400;
 const WAIT_MS = 4_000;
+const TS_REQUEST = "typescript.tsserverRequest";
 /** gofmt and rustfmt are the language's own form, so the whole file is theirs; elsewhere only what the change touched is formatted. */
 const WHOLE_FILE = new Set(["go", "rust"]);
 
@@ -46,28 +48,87 @@ export async function checkProposedWrite(deps: WriteCheckDeps, input: { readonly
   }
   const { client, languageId, name, capabilities } = server;
   const uri = fileUri(input.absolute);
-  // The LSP document's revision: opened at 1, each later text a change one higher.
-  let revision = 1;
+  let revision = 0;
+  let newest: { errors: readonly DiagnosticLike[]; at: number } | undefined;
+  let updated: (() => void) | undefined;
+  const stop = client.onNotification((method, params) => {
+    const report = params as { uri?: string; version?: number; diagnostics?: readonly DiagnosticLike[] } | null;
+    if (method !== "textDocument/publishDiagnostics" || report?.uri !== uri || report.version !== revision || !Array.isArray(report.diagnostics)) return;
+    newest = { errors: report.diagnostics.filter(isError), at: performance.now() };
+    updated?.();
+  });
   const show = (text: string) => {
-    if (revision === 1) client.openDocument({ path: input.absolute, text, languageId }); else client.changeDocument({ path: input.absolute, text, version: revision });
-    revision += 1;
+    newest = undefined;
+    revision = revision ? client.changeDocument({ path: input.absolute, text }) : client.openDocument({ path: input.absolute, text, languageId });
+  };
+  const errorsFor = async (): Promise<readonly DiagnosticLike[]> => {
+    if (!client.alive) throw new Error("the language server stopped");
+    if (capabilities.diagnosticProvider) {
+      const report = await client.request<{ kind?: string; items?: readonly DiagnosticLike[] } | null>("textDocument/diagnostic", { textDocument: { uri } }, WAIT_MS);
+      if (report?.kind !== "full" || !Array.isArray(report.items)) throw new Error("the language server gave no diagnostics for this version");
+      return report.items.filter(isError);
+    }
+    if (/^(typescript|javascript)(react)?$/u.test(languageId) && capabilities.executeCommandProvider?.commands?.includes(TS_REQUEST)) {
+      return pullTypeScriptErrors(client, uri);
+    }
+    return new Promise((resolve, reject) => {
+      let settle: NodeJS.Timeout | undefined;
+      const finish = () => {
+        updated = undefined;
+        clearTimeout(settle);
+        clearTimeout(limit);
+        if (!client.alive) reject(new Error("the language server stopped"));
+        else if (newest) resolve(newest.errors);
+        else reject(new Error("the language server gave no diagnostics for this version"));
+      };
+      updated = () => {
+        if (!newest) return;
+        clearTimeout(settle);
+        settle = setTimeout(finish, Math.max(0, SETTLE_MS - (performance.now() - newest.at)));
+      };
+      const limit = setTimeout(finish, WAIT_MS);
+      updated();
+    });
   };
   try {
+    deps.closeDocument(input.absolute);
     // What the server already finds wrong in the file as it is, so only what the change brings is reported.
-    show(input.before ?? "");
-    const baseline = input.before === undefined ? [] : await errorsFor(client, uri, capabilities).catch(() => undefined);
+    let baseline: readonly DiagnosticLike[] | string = [];
+    if (input.before !== undefined) {
+      show(input.before);
+      baseline = await errorsFor().catch((error: unknown) => reasonOf(error, "the language server gave no diagnostics for the file as it is"));
+    }
     show(input.after);
     const formatted = await format(client, uri, languageId, input, capabilities, name);
     if (formatted.text !== input.after) show(formatted.text);
     // A server silent about the file as it is cannot say what the change brings: no second wait for an answer that cannot count.
-    const after = baseline === undefined ? "the language server gave no diagnostics for the file as it is"
-      : await errorsFor(client, uri, capabilities).catch((error: unknown) => reasonOf(error, "the language server gave no diagnostics in time"));
-    const diagnostics: AgentWriteChecks["diagnostics"] = typeof after === "string" ? { state: "unchecked", cause: causeOf(after), reason: after } : newErrors(baseline!, after, name);
+    const after = typeof baseline === "string" ? baseline
+      : await errorsFor().catch((error: unknown) => reasonOf(error, "the language server gave no diagnostics in time"));
+    const diagnostics: AgentWriteChecks["diagnostics"] = typeof after === "string" ? { state: "unchecked", cause: causeOf(after), reason: after } : newErrors(baseline as readonly DiagnosticLike[], after, name);
     return { text: formatted.text, checks: { diagnostics, formatting: formatted.fact } };
+  } catch (error) {
+    const reason = reasonOf(error, "the language server stopped");
+    return { text: input.after, checks: { diagnostics: { state: "unchecked", cause: causeOf(reason), reason }, formatting: { state: "failed", source: name, reason } } };
   } finally {
-    try { client.closeDocument({ path: input.absolute }); } catch { /* the server is gone */ }
-    deps.forget(input.absolute);
+    stop();
+    if (revision) try { client.closeDocument({ path: input.absolute }); } catch { /* the server is gone */ }
   }
+}
+
+/** TypeScript Language Server offers a synchronous pull through its advertised tsserver request. Its push has no version. */
+async function pullTypeScriptErrors(client: LspClient, uri: string): Promise<readonly DiagnosticLike[]> {
+  interface TypeScriptDiagnostic { readonly category: string; readonly code: number; readonly message: string; readonly startLocation?: { readonly line: number } }
+  const reports = await Promise.all(["syntacticDiagnosticsSync", "semanticDiagnosticsSync"].map(command =>
+    client.request<{ success?: boolean; body?: readonly TypeScriptDiagnostic[] }>("workspace/executeCommand", {
+      command: TS_REQUEST, arguments: [command, { file: uri, includeLinePosition: true }],
+    }, WAIT_MS)));
+  return reports.flatMap(report => {
+    if (report?.success !== true || !Array.isArray(report.body)) throw new Error("the language server gave no diagnostics for this version");
+    const diagnostics: readonly TypeScriptDiagnostic[] = report.body;
+    return diagnostics.filter(item => item.category === "error").map(item => ({
+      code: item.code, message: item.message, range: { start: { line: (item.startLocation?.line ?? 1) - 1, character: 0 } },
+    }));
+  });
 }
 
 async function format(client: LspClient, uri: string, languageId: string, input: { readonly before: string | undefined; readonly after: string }, capabilities: ServerCapabilities, name: string): Promise<{ readonly text: string; readonly fact: AgentWriteChecks["formatting"] }> {
@@ -87,26 +148,6 @@ async function format(client: LspClient, uri: string, languageId: string, input:
   } catch (error) {
     return { text: input.after, fact: { state: "failed", source: name, reason: reasonOf(error, "the formatter failed") } };
   }
-}
-
-/** The server's errors for the document as it stands: pulled when it can be asked, else the next publication it pushes. */
-async function errorsFor(client: LspClient, uri: string, capabilities: ServerCapabilities): Promise<readonly DiagnosticLike[]> {
-  if (capabilities.diagnosticProvider) {
-    const report = await client.request<{ readonly items?: readonly DiagnosticLike[] } | null>("textDocument/diagnostic", { textDocument: { uri } }, WAIT_MS);
-    return (report?.items ?? []).filter(isError);
-  }
-  return new Promise((resolve, reject) => {
-    let latest: readonly DiagnosticLike[] | undefined, settle: NodeJS.Timeout | undefined;
-    const done = (fn: () => void) => { stop(); clearTimeout(settle); clearTimeout(limit); fn(); };
-    // Servers publish more than once while they work: the last word within a short quiet spell is the answer.
-    const stop = client.onNotification((method, params) => {
-      const published = params as { readonly uri?: string; readonly diagnostics?: readonly DiagnosticLike[] };
-      if (method !== "textDocument/publishDiagnostics" || published.uri !== uri) return;
-      latest = (published.diagnostics ?? []).filter(isError);
-      clearTimeout(settle); settle = setTimeout(() => done(() => resolve(latest!)), SETTLE_MS);
-    });
-    const limit = setTimeout(() => done(() => latest ? resolve(latest) : reject(new Error("the language server gave no diagnostics in time"))), WAIT_MS);
-  });
 }
 
 const isError = (one: DiagnosticLike) => one.severity === undefined || one.severity === 1;
@@ -160,5 +201,5 @@ export function applyEdits(text: string, edits: readonly TextEditLike[]): string
 
 /** The cause a reason names, by the words this module and the code intelligence it uses write. */
 const causeOf = (reason: string): AgentWriteCheckCause => /no language server is configured|no language server answers/u.test(reason) ? "no-server"
-  : /not on this machine|could not start|ENOENT|Unknown binary/u.test(reason) ? "missing" : /no diagnostics/u.test(reason) ? "silent" : "failed";
+  : /not on this machine|no .* is installed/u.test(reason) ? "missing" : /no diagnostics/u.test(reason) ? "silent" : "failed";
 const reasonOf = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message.slice(0, 300) : fallback;

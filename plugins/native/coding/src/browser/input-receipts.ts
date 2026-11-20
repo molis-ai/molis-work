@@ -8,6 +8,7 @@ export interface Sent {
   readonly id: string;
   readonly run: string;
   readonly text: string;
+  readonly command?: true;
   readonly mode: string;
   readonly key: string;
   readonly materials: readonly CodingPickedMaterial[];
@@ -41,7 +42,7 @@ export interface InputReceipts {
   /** The button of a step added for a supplement, to the receipt Coding's conversation drew; null when it drew none. */
   from(node: StepNode | undefined, first?: () => void): Node | null;
   /** Sends words to a round under way; resolves to what the person is told. */
-  steer(id: string, run: string, text: string, mode: string, materials?: readonly CodingPickedMaterial[], acknowledge?: () => void): Promise<string>;
+  steer(id: string, run: string, text: string, mode: string, materials?: readonly CodingPickedMaterial[], acknowledge?: () => void, commandPrompt?: true): Promise<string>;
   act(id: string, run: string): ReceiptActions;
   /** Normal owner reads may prove a lost response succeeded, including an input waiting for the next Run. */
   observe(id: string, keys: readonly (string | undefined)[]): void;
@@ -104,7 +105,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     if (initial === original) initial = undefined;
     return result;
   };
-  const supplement = (id: string, body: { run_id: string; text: string; key: string; mode?: string; about?: string; materials?: readonly CodingPickedMaterial[] }) =>
+  const supplement = (id: string, body: { run_id: string; text: string; key: string; mode?: string; about?: string; materials?: readonly CodingPickedMaterial[]; command_prompt?: true }) =>
     api<{ receipt: Receipt }>(control(id), "POST", { kind: "steer", ...body, original_input: { input_id: body.key.slice(5), text: body.text, use: "supplement" } });
   const send = async (sent: Sent) => {
     // A refusal of this retry cannot disprove acceptance of an earlier attempt with the same identity.
@@ -114,7 +115,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     refresh();
     const writing = sent.mode === "interrupt" ? find(".coding-turn.is-writing") : null;
     try {
-      const { receipt } = await supplement(sent.id, { run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode, ...(sent.materials.length ? { materials: sent.materials } : {}) });
+      const { receipt } = await supplement(sent.id, { run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode, command_prompt: sent.command, ...(sent.materials.length ? { materials: sent.materials } : {}) });
       if (item === sent) item = null;
       if (writing && receipt.delivered === "run" && !receipt.replayed) {
         writing.classList.add("is-dropped");
@@ -146,9 +147,10 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
       const one = node?.origins?.[0];
       return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "origin") : null;
     },
-    steer(id, run, text, mode, materials = [], acknowledge) {
-      const again = item?.lost && item.id === id && item.run === run && item.text === text && item.mode === mode && JSON.stringify(item.materials) === JSON.stringify(materials);
-      return send({ id, run, text, mode, materials, acknowledge, key: again ? item!.key : "send." + crypto.randomUUID(), lost: Boolean(again) });
+    steer(id, run, text, mode, materials = [], acknowledge, command) {
+      const again = item?.lost && item.id === id && item.run === run && item.text === text && item.mode === mode
+        && item.command === command && JSON.stringify(item.materials) === JSON.stringify(materials);
+      return send({ id, run, text, mode, materials, command, acknowledge, key: again ? item!.key : "send." + crypto.randomUUID(), lost: !!again });
     },
     act(id, run) {
       const path = control(id), lost = (error: unknown): never => {

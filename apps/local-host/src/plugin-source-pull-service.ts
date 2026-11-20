@@ -56,7 +56,7 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {
       // The Home's evidence key is lost while bodies sealed with it remain (BL-1065): stop before fetching what could not be kept.
-      if (content.keyStatus() === "missing") {
+      if (content.sealingStatus() === "missing") {
         throw sourcePullErrors.evidence_key_missing("保存正文的钥匙找不到了。已有的内容原样保留；找回原钥匙之前，同步先暂停，不会取新内容。");
       }
       const intent = buildSourcePullIntent(request);

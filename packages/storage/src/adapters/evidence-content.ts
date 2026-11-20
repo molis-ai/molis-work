@@ -49,7 +49,7 @@ export interface EvidenceContentStore {
   write(markdown: string): { contentRef: string };
   read(contentRef: string): string;
   /** Asked before work that would save bodies, so it can stop and say why instead of fetching what it could not keep. */
-  keyStatus(): EvidenceContentKeyStatus;
+  sealingStatus(): EvidenceContentKeyStatus;
   has(contentRef: string): boolean;
   inspect(contentRefs: readonly string[]): {
     referenced: number;
@@ -84,7 +84,7 @@ export function createEvidenceContentStore(options: {
     return key.length === 32 ? key : null;
   };
 
-  const keyStatus = (): EvidenceContentKeyStatus => readKey()
+  const sealingStatus = (): EvidenceContentKeyStatus => readKey()
     ? "ready"
     : keySharingRoots(root).some(hasBlobFile) ? "missing" : "creatable";
 
@@ -145,7 +145,7 @@ export function createEvidenceContentStore(options: {
       return { contentRef };
     },
     read,
-    keyStatus,
+    sealingStatus,
     has(contentRef) {
       try {
         read(contentRef);

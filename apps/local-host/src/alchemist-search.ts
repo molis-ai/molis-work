@@ -47,7 +47,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
       input.signal?.throwIfAborted();
       // The Home's evidence key is lost while Feed or research bodies sealed with it remain (BL-1065): say so before any search is spent.
-      if (runtime.content.keyStatus() === "missing") {
+      if (runtime.content.sealingStatus() === "missing") {
         throw Object.assign(new Error("保存研究资料的钥匙找不到了。之前的动态和研究正文都原样保留；找回原钥匙之前，新的研究资料不会保存，所以这次研究先不搜索。"),
           { code: "alchemist.research_evidence_key_missing" });
       }

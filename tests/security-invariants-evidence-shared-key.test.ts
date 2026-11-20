@@ -38,7 +38,7 @@ test("S-12 BL-1065: a lost evidence key with bodies in any directory it seals pa
     h.loseKey();
     const before = homeStorageTree(h.home);
     for (const store of [h.research(), h.research("project-b"), h.feed()]) {
-      assert.equal(store.keyStatus(), "missing");
+      assert.equal(store.sealingStatus(), "missing");
       assert.throws(() => store.write("新的正文"), KEY_MISSING);
     }
     assert.throws(() => h.feed().read(old.contentRef), KEY_MISSING, "the old body still says the key is missing, not that it is damaged");
@@ -52,7 +52,7 @@ test("S-12 BL-1065: a lost evidence key with bodies in any directory it seals pa
     h.loseKey();
     const before = homeStorageTree(h.home);
     for (const store of [h.feed(), h.research("project-new"), h.research()]) {
-      assert.equal(store.keyStatus(), "missing");
+      assert.equal(store.sealingStatus(), "missing");
       assert.throws(() => store.write("新的正文"), KEY_MISSING);
     }
     assert.throws(() => h.research().read(old.contentRef), KEY_MISSING);
@@ -62,7 +62,7 @@ test("S-12 BL-1065: a lost evidence key with bodies in any directory it seals pa
 
   await t.test("both empty: the first save creates the key", t => {
     const h = isolatedHome(t);
-    assert.equal(h.feed().keyStatus(), "creatable"); assert.equal(h.research().keyStatus(), "creatable");
+    assert.equal(h.feed().sealingStatus(), "creatable"); assert.equal(h.research().sealingStatus(), "creatable");
     const first = h.research().write("首次保存的研究正文");
     assert.ok(h.key(), "the first save made the key");
     const second = h.feed().write("之后保存的动态正文");
@@ -73,7 +73,7 @@ test("S-12 BL-1065: a lost evidence key with bodies in any directory it seals pa
   await t.test("original key present: both sides read and write", t => {
     const h = isolatedHome(t);
     const feedBody = h.feed().write("动态正文"), researchBody = h.research().write("研究正文"), key = h.key();
-    assert.equal(h.feed().keyStatus(), "ready"); assert.equal(h.research().keyStatus(), "ready");
+    assert.equal(h.feed().sealingStatus(), "ready"); assert.equal(h.research().sealingStatus(), "ready");
     assert.equal(h.feed().read(feedBody.contentRef), "动态正文"); assert.equal(h.research().read(researchBody.contentRef), "研究正文");
     assert.equal(h.research().read(h.research().write("第二份研究正文").contentRef), "第二份研究正文");
     assert.equal(h.key(), key, "the same key throughout");

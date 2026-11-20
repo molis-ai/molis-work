@@ -9,7 +9,7 @@ import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/pla
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromProjectConnection, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { sourceContentReplicationDefinition } from '@molis-ai/molis-work-plugin-feed/store';
 import {createProjectReplicaSection,replicaTransaction} from '@molis-ai/molis-work-storage';
@@ -233,7 +233,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "rebound",
       return replacement;
     };
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
-    const signals = new SignalsModule(fromBetterSqlite(store.db)), actions = new ActionService();
+    const signals = new SignalsModule(fromProjectConnection(store.db)), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: FEED_SOURCE_ACTIONS,
       handlers: createFeedSourceHandlers(DEMO_PROJECT_ID, { feed: () => feed, sources: () => sources, connectorSync: () => connectorSync }) });
     const context: ActionCallContext = { ...caller, validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };

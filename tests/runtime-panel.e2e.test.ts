@@ -24,8 +24,11 @@ const OVERVIEW = {
   gaps: [{ from: at(-8), to: at(-1), cause: "sleep" }],
   upcoming: [run("u1", 1), run("u2", 2, { needs: ["model"], waiting: true }), run("u3", 3), run("u4", 4), run("u5", 5), run("u6", 6), run("u7", 30)],
   missed: [missed("m1", -3), missed("followup:a:1", -2, "assistant", null)],
+  expired: { count: 0, through: at(0), sources: [] },
   unavailable_sources: [],
 };
+/** BL-missed-runs-never-expire: three missed runs went seven days without a decision since the person was last told. */
+const EXPIRED = { count: 3, through: at(0), sources: [{ title: "定时任务", count: 2 }, { title: "Feed 来源", count: 1 }] };
 
 /** The desktop, faked: every command is recorded; the overview can be swapped or taken away (the Host stopped answering). */
 const FAKE_DESKTOP = `(() => {
@@ -37,6 +40,7 @@ const FAKE_DESKTOP = `(() => {
     calls.push([command, args ?? null]);
     if (command === "runtime_overview") { if (!overview) throw new Error("not answering"); return JSON.stringify(overview); }
     if (command === "runtime_decide") { overview = { ...overview, missed: overview.missed.filter(row => row.run_id !== args.run_id) }; return JSON.stringify({ state: "started" }); }
+    if (command === "runtime_expired_seen") { overview = { ...overview, expired: { count: 0, through: args.through, sources: [] } }; return JSON.stringify({ seen_through: args.through }); }
     if (command === "runtime_settings_get") return settings;
     if (command === "runtime_settings_set") {
       if (refuseNextSet) { refuseNextSet = false; throw "系统没有改成"; }
@@ -49,7 +53,7 @@ const FAKE_DESKTOP = `(() => {
 /** The Home page's two runtime routes, answered here; every other request goes to the Host. */
 const STUB_HOME_ROUTES = `(() => {
   if (location.pathname !== "/") return;
-  const posted = []; let overview = ${JSON.stringify({ ...OVERVIEW, missed: [missed("m1", -3)] })};
+  const posted = []; let overview = ${JSON.stringify({ ...OVERVIEW, missed: [missed("m1", -3)], expired: EXPIRED })};
   globalThis.__posted = posted;
   const original = globalThis.fetch.bind(globalThis);
   globalThis.fetch = async (input, init) => {
@@ -60,6 +64,11 @@ const STUB_HOME_ROUTES = `(() => {
       const body = JSON.parse(init.body); posted.push({ body, key: new Headers(init.headers).get("x-molis-work-idempotency-key") });
       overview = { ...overview, missed: overview.missed.filter(row => row.run_id !== body.run_id) };
       return answer({ state: "skipped" });
+    }
+    if (url.pathname === "/api/runtime/expired/seen") {
+      const body = JSON.parse(init.body); posted.push({ body, key: new Headers(init.headers).get("x-molis-work-idempotency-key") });
+      overview = { ...overview, expired: { count: 0, through: body.through, sources: [] } };
+      return answer({ seen_through: body.through });
     }
     return original(input, init);
   };
@@ -96,6 +105,19 @@ test("RES-09 RES-10 RES-11 the capsule's 运行, the quit confirmation, the Home
     "a Home owner's run has no project");
   assert.equal(await evaluate(`document.querySelector('${panel} .runtime-panel__notice[data-tone=success] strong')?.textContent`), await text("all-handled"));
   assert.deepEqual(await evaluate(`${calls("runtime_missed_dot")}.at(-1)[1]`), { missed: false }, "and the dot goes");
+
+  // BL-missed-runs-never-expire: the runs skipped on their own are said once, by owner, until 「知道了」; then not again.
+  await evaluate(`globalThis.__setOverview(${JSON.stringify({ ...OVERVIEW, missed: [], expired: EXPIRED })}); document.dispatchEvent(new Event("visibilitychange"))`);
+  await waitFor(`document.querySelector('${panel} [data-runtime-expired]')`);
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-runtime-expired] > strong').textContent`), await text("expired", { count: 3 }));
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-runtime-expired] .runtime-panel__copy strong').textContent`),
+    `${await text("expired-source", { title: "定时任务", count: 2 })} · ${await text("expired-source", { title: "Feed 来源", count: 1 })}`, "which owners skipped how many");
+  await evaluate(`document.querySelector('${panel} [data-runtime-expired-seen]').click()`);
+  await waitFor(`!document.querySelector('${panel} [data-runtime-expired]')`);
+  assert.deepEqual(await evaluate(`${calls("runtime_expired_seen")}.at(-1)[1]`), { through: EXPIRED.through }, "知道了 sends back the moment that summary was made");
+  await evaluate(`document.dispatchEvent(new Event("visibilitychange"))`);
+  await waitFor(`${calls("runtime_overview")}.length > 0 && !document.querySelector('${panel} [data-runtime-expired]')`);
+  assert.equal(await evaluate(`!!document.querySelector('${panel} [data-runtime-expired]')`), false, "read again, it is not said twice");
 
   // PWA-137: a Host that stops answering is never shown as running.
   await evaluate(`globalThis.__setOverview(null); document.dispatchEvent(new Event("visibilitychange"))`);
@@ -141,6 +163,12 @@ test("RES-09 RES-10 RES-11 the capsule's 运行, the quit confirmation, the Home
   await waitFor(`document.querySelector('[data-runtime-panel] .mw-alert--success')`);
   assert.deepEqual(await evaluate(`globalThis.__posted.map(entry => entry.body)`), [{ scope_project_id: "p1", provider_id: "schedule", run_id: "m1", decision: "skip" }]);
   assert.equal(await evaluate(`typeof globalThis.__posted[0].key === "string" && globalThis.__posted[0].key.length > 0`), true, "sent as every page's writes are, with a one-time key");
+  // BL-missed-runs-never-expire: the Home says the same summary in the catalog's alert, and 「知道了」 goes to the Host's route.
+  assert.equal(await evaluate(`document.querySelector('[data-runtime-panel] [data-runtime-expired] > strong').textContent`), await text("expired", { count: 3 }));
+  assert.equal(await evaluate(`document.querySelector('[data-runtime-expired-seen]').className.includes('mw-btn--secondary')`), true, "知道了 is a quiet button");
+  await evaluate(`document.querySelector('[data-runtime-expired-seen]').click()`);
+  await waitFor(`!document.querySelector('[data-runtime-panel] [data-runtime-expired]')`);
+  assert.deepEqual(await evaluate(`globalThis.__posted.at(-1).body`), { through: EXPIRED.through });
 
   // ---- RES-11: 设置 › 运行 is the desktop's ----
   await navigate(() => command("Page.navigate", { url: `${origin}/settings/running` }, sessionId));

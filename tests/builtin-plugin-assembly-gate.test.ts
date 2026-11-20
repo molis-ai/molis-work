@@ -166,23 +166,16 @@ test("the lists name exactly what exists: no id, route file or Runtime plugin is
  * the Host's Settings.
  * Shelf left with S4: its actions, model calls and routes are the plugin's Runtime instances (S2, S3), and the demo puts its sample
  * back through `shelf.sample.seed` instead of opening Shelf's files in the Host.
- * Goals joined on 2026-10-25 (PG-094 S9-3～S12, the coordinator's ruling on the review of #1295): it is a Runtime plugin now (its project half
- * is a supervisor entry, its Home half a dual-instance `runtime`), and the Host still has code written for it: the callers that bind a
- * person's act to its registered actions (`goal-callers.ts`, `web-goals-read.ts`, `feed-goal-promotion.ts`) and the page layer that takes
- * `goalsActions`, `goalsManifest` and the route matchers from its package (`web-view.ts`, `web-request.ts`, `web-planning.ts`,
- * `web-panel.ts`; the workbench takes its styles, scripts and dictionaries). What is left to remove is BL-386 (the route rewrite and the
- * clients), PG-031's remaining imports, W6-01 and W5-06 (specs/archive/repository-anti-corruption/privileges.md, PG-094). Goals leaves when
- * that code is gone; no other plugin joins.
+ * Goals left with batch 44 audit fixes: `goal-callers.ts` was removed, management actions come from plugin registrations (`management_actions`),
+ * and the Host carries zero Goals-specific callers or hybrid assembly files.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>(["goals"]);
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>();
 
 /**
- * Host files written for a Runtime plugin that do not start with its id: a rename must not hide them from the check below
- * (`goals-actions.ts` became `goal-callers.ts` in S12, and the name rule alone no longer saw it). A new entry needs the same ruling.
+ * Host files written for a Runtime plugin that do not start with its id: a rename must not hide them from the check below.
+ * Empty now that every Runtime plugin is assembled solely from its declarations.
  */
-const HOST_FILES_NAMED_FOR: ReadonlyMap<string, readonly string[]> = new Map([
-  ["goals", ["goal-callers.ts"]],
-]);
+const HOST_FILES_NAMED_FOR: ReadonlyMap<string, readonly string[]> = new Map();
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();

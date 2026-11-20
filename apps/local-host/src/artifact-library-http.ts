@@ -36,8 +36,8 @@ export interface ArtifactHttpContext {
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
-  /** Whether this project has a Goal to take a version as its input; a project without Goals (RAC-400) does not offer 「作为 Goal 的输入」. */
-  readonly goalsAvailable?: () => Promise<boolean>;
+  /** Optional override for whether an input-target plugin is available; when omitted, discovered from active `placement_relation` actions. */
+  readonly inputTargetAvailable?: () => Promise<boolean>;
   readonly readArtifactDisplay: ReadArtifactDisplay;
   readonly controlToken: string;
   readonly desktopShell: boolean;
@@ -96,7 +96,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
 
-export async function renderGoalArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
+export async function renderProjectArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
   const words = await readArtifactDisplay(embeds.flatMap(({ view }) => view.selected ? [view.selected] : []));
   return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, importedDocumentWarnings, typeTitle: version => words(version)?.title });
@@ -261,7 +261,11 @@ export function createLocalArtifactHttp() {
       const referrers = linked && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = linked ? { ...linked, referrers } : undefined;
-      const goalInput = !links || !context.goalsAvailable || await context.goalsAvailable();
+      const goalInput = !links
+        ? true
+        : context.inputTargetAvailable
+          ? await context.inputTargetAvailable()
+          : (await context.actions.discover().catch(() => [])).some(view => view.availability.available && view.action.placement_relation?.role === "bind");
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];

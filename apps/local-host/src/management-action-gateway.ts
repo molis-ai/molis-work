@@ -5,7 +5,7 @@ import { withCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
-import { bindGoalsManagementActions, managementActionDefinition } from "./goal-callers.js";
+import { bindManagementActions, managementActionDefinition } from "./management-actions.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
@@ -37,7 +37,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     const project = catalogManagementProject(home, body.database_path);
     if (!project || project.project_id !== body.project_id) throw new ActionError("actions.scope_mismatch", "管理调用的项目数据库不属于当前 Home");
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const actions = bindGoalsManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
+    const actions = bindManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
     await withCallId(body.call_id, async () => {
       try {
         if (review && body.evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");

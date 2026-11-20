@@ -7,9 +7,8 @@ import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { builtinPluginByManifestId, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
-import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
+import { bindLocalWebActions, bindWebEntryActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginEpoch } from "./project-catalog.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
@@ -41,11 +40,6 @@ export interface ProjectRequestContext extends WebRequestContext {
   readonly shownPluginsFresh: (projectId: string) => Promise<string[]>;
   /** The rendered selector keeps the revision of the same membership it displays. */
   readonly shownPluginSelection: (projectId: string, withRevision: boolean) => Promise<{ shown: string[]; revision?: string }>;
-  /**
-   * Whether Goals is in this project, by its plugin list (RAC-400). Pages ask this, not a refusal's code: in a project with Goals, a Goals read
-   * the policy refuses (any code) is that refusal, shown; only a project without Goals reads as one with none.
-   */
-  readonly goalsHere: () => Promise<boolean>;
 }
 
 /** The same request inside the project's open runtime: the stores, and the ports the project's surfaces are given. */
@@ -53,7 +47,7 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly store: MolisWorkProjectRuntime["store"];
   /** Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants. */
   readonly homeActions: ReturnType<typeof bindLocalWebActions>;
-  readonly goalActions: ReturnType<typeof bindGoalsWebActions>;
+  readonly webEntryActions: ReturnType<typeof bindWebEntryActions>;
   readonly pluginServices: ProjectPluginServices;
   readonly pluginPorts: ProjectPluginSurfacePorts;
   readonly readWebView: () => Promise<MolisWorkWebView>;
@@ -90,9 +84,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
       : await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
     return { shown: withExternal(plugins, hidden) };
   };
-  const goalsHere = async () => !options.project
-    || (await observeProjectPluginMembership(composition, homeDirectory, options.projectId, directory)).plugins.includes("goals");
-  return { ...context, options, hostReference, userActions, goalsHere,
+  return { ...context, options, hostReference, userActions,
     shownPlugins: async projectId => (await selection(projectId, false)).shown,
     shownPluginsFresh: async projectId => (await selection(projectId, false, true)).shown,
     shownPluginSelection: selection,

@@ -4,7 +4,7 @@ import { PROJECT_SECTIONS_INLINE_ENCODING } from '@molis-ai/molis-work-storage';
 import { replicaError } from './project-replication-errors.js';
 
 /** The other value of the sections' `format`: the content went out in chunks. Not a later version of the inline encoding. */
-const GOAL_CONTENT_CHUNKED_ENCODING = { format: 2 } as const;
+const CHUNKED_CONTENT_ENCODING = { format: 2 } as const;
 
 const PART_BYTES = 1024 * 1024;
 const MAX_BYTES = 100000000;
@@ -17,8 +17,8 @@ function exact(value: Record<string, unknown>, keys: string[]): void {
   if (Object.keys(value).length !== keys.length || keys.some(key => !Object.hasOwn(value, key))) throw replicaError('replica_invalid');
 }
 
-/** Goal owner composition: project identity stays visible; the complete fact unit is restored before applying. */
-export function createProjectGoalContent(spaceId: string, projectId: (key: string) => string, check: () => void): SyncContentCodec {
+/** Journal-backed project section codec: project identity stays visible; the complete fact unit is restored before applying. */
+export function createProjectChunkedContent(spaceId: string, projectId: (key: string) => string, check: () => void): SyncContentCodec {
   const envelope = (key: string, input: unknown) => {
     check();
     const value = record(input), project = record(value.project);
@@ -40,7 +40,7 @@ export function createProjectGoalContent(spaceId: string, projectId: (key: strin
         parts.push(ref); blobs.set(ref.digest, { ...ref, bytes: chunk });
       }
       check();
-      return { value: { ...GOAL_CONTENT_CHUNKED_ENCODING, spaceId, project, content: { size: bytes.length, digest: hash(bytes), parts } }, blobs: [...blobs.values()] };
+      return { value: { ...CHUNKED_CONTENT_ENCODING, spaceId, project, content: { size: bytes.length, digest: hash(bytes), parts } }, blobs: [...blobs.values()] };
     },
     async decode(key, input, read) {
       const { value, project } = envelope(key, input);
@@ -50,7 +50,7 @@ export function createProjectGoalContent(spaceId: string, projectId: (key: strin
         return input;
       }
       exact(value, ['format', 'spaceId', 'project', 'content']);
-      if (value.format !== GOAL_CONTENT_CHUNKED_ENCODING.format) throw replicaError('replica_invalid');
+      if (value.format !== CHUNKED_CONTENT_ENCODING.format) throw replicaError('replica_invalid');
       const content = record(value.content);
       exact(content, ['size', 'digest', 'parts']);
       if (!Number.isSafeInteger(content.size) || Number(content.size) <= 64 * 1024 || Number(content.size) > MAX_BYTES || typeof content.digest !== 'string' || !/^[a-f0-9]{64}$/.test(content.digest) || !Array.isArray(content.parts) || content.parts.length !== Math.ceil(Number(content.size) / PART_BYTES)) throw replicaError('replica_invalid');

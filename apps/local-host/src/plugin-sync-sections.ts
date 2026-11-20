@@ -5,7 +5,7 @@ import type { PluginSyncBinding, SyncSectionsDefinition } from '@molis-ai/molis-
 import type { ProjectReplicaDefinition, ProjectReplicaRows, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { relationEdgesReplicationDefinition, relationEdgesTriggerCondition, CONTEXT_LEDGER_SCHEMA } from '@molis-ai/molis-work-module-context-ledger';
 import { LOCAL_JOURNAL_SCHEMA_SQL, PROJECT_SECTIONS_INLINE_ENCODING, createProjectReplicaSection, createProjectReplicaJournal, mapReplicaSequences, createSqliteReplica, replicaMarkSql } from '@molis-ai/molis-work-storage';
-import { createProjectGoalContent } from './project-goal-content.js';
+import { createProjectChunkedContent } from './project-chunked-content.js';
 import { pluginSyncAuthority } from './plugin-sync-authority.js';
 import { createProjectEvidenceContent } from './project-replication-content.js';
 import { replicaError } from './project-replication-errors.js';
@@ -84,7 +84,7 @@ export function createPluginSectionsBinding(port:Port,collectionId:string,defini
   };
   const authority=()=>{port.assertActive();grants();const context=pluginSyncAuthority(port.home,identity);context.authorize();return context;};
   const authorize=()=>{authority();grants();};
-  const codec=()=>{const context=authority();return definition.journal?createProjectGoalContent(context.spaceId,key=>{const value:unknown=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!==definition.kind||value[0]!==value[2]||typeof value[0]!=='string')throw replicaError('replica_key_invalid');return value[0];},authorize):createProjectEvidenceContent(port.home,parts,definition.kind,context.spaceId,authorize);};
+  const codec=()=>{const context=authority();return definition.journal?createProjectChunkedContent(context.spaceId,key=>{const value:unknown=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!==definition.kind||value[0]!==value[2]||typeof value[0]!=='string')throw replicaError('replica_key_invalid');return value[0];},authorize):createProjectEvidenceContent(port.home,parts,definition.kind,context.spaceId,authorize);};
   return {collection_id:collectionId,replica:adapter(collectionId,(db,context)=>{
     const check=context.authorize;const guarded={...context,authorize(){grants();check();grants();}};
     guarded.authorize();

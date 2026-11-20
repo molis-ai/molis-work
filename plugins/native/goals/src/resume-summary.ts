@@ -16,16 +16,46 @@ const rank = (goal: GoalEventDirectoryItem): number => {
   if (goal.work_status === "cancelled") return 3;
   return 4;
 };
-const itemOf = (goal: GoalEventDirectoryItem): ResumeItem => ({ subject: { kind: "goal", id: goal.goal_id }, title: goal.title, next_hint: goal.next_hint,
-  status_label: STATUS[goal.work_status], open: { surface: "goals", id: goal.goal_id } });
+const itemOf = (goal: GoalEventDirectoryItem, detail?: string | null): ResumeItem => ({
+  subject: { kind: "goal", id: goal.goal_id },
+  title: goal.title,
+  next_hint: goal.next_hint,
+  status_label: STATUS[goal.work_status],
+  open: { surface: "goals", id: goal.goal_id },
+  ...(detail ? { detail } : {}),
+});
 
 /** The summary over the project's first page of Goals, plus the focused one when it is a Goal that page left out. */
-export function goalsResumeSummary(directory: readonly GoalEventDirectoryItem[], focus: ActionSubject | undefined, read: (goalId: string) => GoalEventDirectoryItem | null): ResumeSummary {
+export function goalsResumeSummary(
+  directory: readonly GoalEventDirectoryItem[],
+  focus: ActionSubject | undefined,
+  read: (goalId: string) => GoalEventDirectoryItem | null,
+  readDetail?: (goalId: string) => string | null,
+): ResumeSummary {
   const goals = [...directory];
   const focusId = focus?.kind === "goal" ? focus.id.trim() : "";
   if (focusId && !goals.some(goal => goal.goal_id === focusId)) { const item = read(focusId); if (item) goals.push(item); }
   const ordered = goals.sort((left, right) => rank(left) - rank(right) || right.updated_at.localeCompare(left.updated_at) || left.goal_id.localeCompare(right.goal_id));
   const focused = ordered.find(goal => goal.goal_id === focusId) ?? ordered[0] ?? null;
-  return { title: "目标", focus: focused ? itemOf(focused) : null,
-    next: ordered.filter(goal => goal.goal_id !== focused?.goal_id && goal.work_status !== "completed").slice(0, 5).map(itemOf) };
+  const activeBrief = goals.filter(goal => goal.work_status === "open").sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] ?? focused;
+  const focusDetail = activeBrief && readDetail ? readDetail(activeBrief.goal_id) : null;
+  const live = goals.filter(goal => goal.work_status !== "cancelled");
+  const done = live.filter(goal => goal.work_status === "completed").length;
+  return {
+    title: "目标",
+    focus: focused ? itemOf(focused, focused.goal_id === activeBrief?.goal_id ? focusDetail : (readDetail ? readDetail(focused.goal_id) : null)) : null,
+    next: ordered.filter(goal => goal.goal_id !== focused?.goal_id && goal.work_status !== "completed").slice(0, 5).map(goal => itemOf(goal)),
+    progress: {
+      total: live.length,
+      done,
+      items: goals.map(goal => ({
+        id: goal.goal_id,
+        title: goal.title,
+        status: goal.work_status,
+        next_hint: goal.next_hint,
+        pending_decision_count: goal.pending_decision_count,
+        updated_at: goal.updated_at,
+      })),
+    },
+  };
 }

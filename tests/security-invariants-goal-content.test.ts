@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { GoalProjectApplication } from './fixtures/goal-application.js';
 import { runtimeGoalSync, goalWire } from './fixtures/runtime-goal-sync.js';
-import { createProjectGoalContent } from '@molis-ai/molis-work-app-local-host';
+import { createProjectChunkedContent } from '@molis-ai/molis-work-app-local-host';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
 import type { SyncBlobReference, ProjectReplicaRows, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -16,7 +16,7 @@ function fixture(t: TestContext) {
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
   ensureStorageSpace(home, space); let active = true;
-  const codec = createProjectGoalContent(space.spaceId, key => { const value=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!=='project_goals'||value[0]!==value[2])throw new Error('INVALID_KEY');return value[0]; }, () => { if (!active) throw new Error('REVOKED'); });
+  const codec = createProjectChunkedContent(space.spaceId, key => { const value=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!=='project_goals'||value[0]!==value[2])throw new Error('INVALID_KEY');return value[0]; }, () => { if (!active) throw new Error('REVOKED'); });
   const key = JSON.stringify(['project', 'project_goals', 'project']);
   const value = { format: 1, spaceId: space.spaceId, project: { id: 'project', title: '目标' }, facts: { goals: { text: '中文🙂'.repeat(300000) } }, journal: { events: [] } };
   const encoded = codec.encode(key, value);

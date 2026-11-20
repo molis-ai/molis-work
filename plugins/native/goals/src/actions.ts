@@ -153,8 +153,17 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
       try { return readGoal(goalId) && events.readDirectoryItem(projectId, goalId) ? events.readState(projectId, goalId).goal_event_cursor : null; } catch { return null; }
     } }) }) },
-    bindActionHandler(goalsActions.resumeSummary, input => goalsResumeSummary(events.listGoals({ project_id: projectId, limit: 100 }).goals,
-      input.focus, goalId => events.readDirectoryItem(projectId, goalId))),
+    bindActionHandler(goalsActions.resumeSummary, input => goalsResumeSummary(
+      events.listGoals({ project_id: projectId, limit: 100 }).goals,
+      input.focus,
+      goalId => events.readDirectoryItem(projectId, goalId),
+      goalId => {
+        try {
+          const state = events.readState(projectId, goalId);
+          return state.progress_summary && !state.progress_summary.stale ? state.progress_summary.summary : state.intent.why;
+        } catch { return null; }
+      },
+    )),
     // Synchronous on purpose: the handler runs inside the plugin's database window, which refuses a body that returns a promise.
     { ...goalsActions.searchEntries, handle: (_caller, input) => {
       const entries: SearchEntry[] = [];

@@ -1,4 +1,6 @@
+import type { IncomingMessage } from "node:http";
 import { inDirectoryPass } from "@molis-ai/molis-work-kernel";
+import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { ActionError, bindActionClient, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -306,6 +308,15 @@ async function invokeWithLocalWebAuthority<Input, Output>(client: ActionClient, 
   // A stage read's assertAuthority already opens with the same owner fence.
   caller.assert_authority_current?.(definition);
   return result;
+}
+
+/**
+ * The person at this machine's page, for one request, after origin and control-token checks: carries the request's
+ * authority snapshot and web-entry provenance (`entryUserAction`), never branching on plugin or action name.
+ */
+export function bindWebEntryActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference, request: IncomingMessage): BoundActionClient {
+  const message = webEntryMessage(request);
+  return bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS, { user_action: () => entryUserAction("web", reference.project_id, message) });
 }
 
 function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, builtinPermissions: readonly string[],

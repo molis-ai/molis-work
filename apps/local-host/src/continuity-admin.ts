@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { CONTINUITY_ACTIONS, memberClientId } from "@molis-ai/molis-work-server";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { changeMcpClientCredential } from "./mcp-client-credentials.js";
-import { registeredHostAction } from "./goal-callers.js";
+import { registeredHostAction } from "./plugin-registry.js";
 
 /** Local administrator operation. Delegates to the existing protected Host grant owner. Never a mobile endpoint. */
 export async function configureMemberActions(input:{hostUrl:string;homeDirectory:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {

@@ -78,7 +78,7 @@ test("a shared workspace type is one entry: its id and its schema version cannot
 test("an encoding discriminator is not a version, so moving a version cannot make it collide", () => {
   for (const key of ["format.artifact.portable", "encoding.artifact.blobs", "format.project.sections", "encoding.project-goals.chunks"]) assert.ok(!entries.includes(key), key);
   const exceptions: Array<{ file?: string; name?: string }> = JSON.parse(readFileSync(new URL("../tooling/gates/version-exceptions.json", import.meta.url), "utf8"));
-  for (const file of ["modules/artifacts/src/fixed-version-replication-shape.ts", "modules/artifacts/src/sync-content.ts", "packages/storage/src/project-replica-content.ts", "apps/local-host/src/project-goal-content.ts"]) {
+  for (const file of ["modules/artifacts/src/fixed-version-replication-shape.ts", "modules/artifacts/src/sync-content.ts", "packages/storage/src/project-replica-content.ts", "apps/local-host/src/project-chunked-content.ts"]) {
     assert.ok(exceptions.some(entry => entry.file === file && entry.name === "format"), `${file} states why`);
     assert.ok(!source(file).includes("@version"), `${file} has no entry to move`);
   }

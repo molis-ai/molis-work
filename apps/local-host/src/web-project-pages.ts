@@ -12,7 +12,7 @@ import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-s
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-library-http.js";
+import { renderProjectArtifactContext } from "./artifact-library-http.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, type MolisWorkWebView, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -100,7 +100,7 @@ async function readSubjectArtifactContext(subjectId: string, actions: BoundActio
   try {
     const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: subjectId, supported_types: declaredArtifactTypes() }));
     const delivered = embeds.filter(embed => embed.relationship === "output");
-    html = await renderGoalArtifactContext(delivered, readArtifactDisplay);
+    html = await renderProjectArtifactContext(delivered, readArtifactDisplay);
     outputs = delivered.length;
     inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {
       const selected = embed.view.selected;
@@ -257,5 +257,3 @@ export function createLocalProjectPagesHttp(ports: {
 
   return { settings, fragments, page };
 }
-
-export { createLocalProjectPagesHttp as createLocalGoalsReadHttp };

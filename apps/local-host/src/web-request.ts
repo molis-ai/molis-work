@@ -11,7 +11,7 @@ import { modelRoundLocale } from "./reply-language.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
+import { bindLocalWebAction, bindLocalWebActions, bindWebEntryActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { readArtifactDisplayFor } from "./artifact-display-words.js";
@@ -54,7 +54,6 @@ import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, 
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { bindGoalsWebActions } from "./goal-callers.js";
 import { handleProjectReviewHttp } from "./project-review-entry.js";
 import {
   agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
@@ -190,11 +189,11 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const { localHost, hostReference, options } = context;
   const { store, artifacts, processItems } = runtime;
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
-  const goalActions = bindGoalsWebActions(localHost, hostReference, context.request);
+  const webEntryActions = bindWebEntryActions(localHost, hostReference, context.request);
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
-  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts, readArtifactDisplay: readArtifactDisplayFor({ store, localHost, hostReference }) };
+  const withoutView = { ...context, store, homeActions, webEntryActions, pluginServices, pluginPorts, readArtifactDisplay: readArtifactDisplayFor({ store, localHost, hostReference }) };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -238,9 +237,9 @@ const ownerRead = (owner: RuntimeStageOwner) => ({ manifest: owner.entry.manifes
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
 
 /** The project settings pages, the platform's guidance among them (contract-design §9). */
-const goalsSettingsRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, store, serverOptions }) =>
-    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, store, serverOptions.homeDirectory) },
+const projectSettingsRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+  { id: "project-settings", handle: ({ request, response, url, readWebView, controlToken, webEntryActions, composition, store, serverOptions }) =>
+    composition.projectPagesHttp.settings(request, response, url, readWebView, controlToken, webEntryActions, store, serverOptions.homeDirectory) },
 ];
 
 /** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */
@@ -263,10 +262,10 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 ];
 
-/** Goals' and 成果's own HTTP and pages; the Goal page is tried last, before the 404. */
-const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+/** Project shell pages and 成果's own HTTP; the project page is tried last, before the 404. */
+const projectPagesAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -274,11 +273,10 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
-    goalsAvailable: goalsHere,
     readArtifactDisplay,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
-  { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
+  { id: "project-page", handle: context => context.composition.projectPagesHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, { withMembershipRevision: true }), context.controlToken,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
@@ -293,9 +291,9 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   workspaceMembershipRoute,
-  ...goalsSettingsRoutes,
+  ...projectSettingsRoutes,
   ...projectProbeRoutes,
-  { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, projectWebView(context, { scope: "page" }),
+  { id: "project-fragments", handle: context => context.composition.projectPagesHttp.fragments(context.request, context.response, context.url, projectWebView(context, { scope: "page" }),
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
   { id: "project-approvals", handle: ({ request, response, url, localHost, hostReference, serverOptions }) =>
@@ -318,6 +316,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
       } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
-  ...goalsAndArtifactRoutes,
+  ...projectPagesAndArtifactRoutes,
   projectNotFoundRoute,
 ];

@@ -620,10 +620,10 @@
     "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
-    "file": "apps/local-host/src/project-goal-content.ts",
+    "file": "apps/local-host/src/project-chunked-content.ts",
     "name": "format",
     "values": { "2": 1 },
-    "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的 Goal 内容分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
+    "reason": "项目内容同步的两个编码判别值（内联 1、分块 2）：超过 64 KB 的插件日志分块，其余内联；不是版本。放进版本表，内联升版就和分块相撞。"
   },
   {
     "file": "apps/workbench/src/artifacts/browser-ui.ts",

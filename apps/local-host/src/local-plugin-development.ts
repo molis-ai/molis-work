@@ -7,7 +7,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@moli
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, refuseUnusableDevelopmentLanguage, runPluginDevelopment } from "./plugin-development.js";
-import { bindGoalsManagementActions, refusePayloadIdentity, registeredHostAction } from "./goal-callers.js";
+import { refusePayloadIdentity } from "./management-actions.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { installHostUiText } from "./ui-text-provider.js";
@@ -81,17 +81,6 @@ export async function runLocalPluginDevelopment(input: {
 }
 
 
-/** The development project's board through the Goals action, as the management entry; a board Goals already made at its start is left as it is. */
-async function ensureBoard(host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<void> {
-  const initialize = registeredHostAction("goals.board.initialize");
-  if (!initialize) return;
-  try {
-    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(initialize, { idempotency_key: "plugin-development-board" });
-  } catch (error) {
-    if (!(error instanceof ActionError && ["goals.board.exists", "actions.missing", "actions.plugin_disabled"].includes(error.code))) throw error;
-  }
-}
-
 /** Host function for the isolated developer door; it is never a plugin capability. */
 export async function developInPrivateHost(host: MolisWorkLocalHost, reference: LocalHostProjectReference, input: PluginDevelopmentInput): Promise<PluginDevelopmentResult> {
   if (!developmentHosts.has(host)) throw new ActionError("actions.forbidden", "Plugin 开发只在为开发建的隔离宿主里运行，不在普通或真实 Home 的宿主里运行");
@@ -102,9 +91,8 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
   refusePayloadIdentity(request, ["audit_actor_id"]);
   return host.withProject(reference, async runtime => {
     if (request.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
-    // The development project has no catalog to give it a root row, so it is made here; the board is Goals' to make (its start does, or this call).
+    // The development project has no catalog to give it a root row, so it is made here; any plugin initializes its own tables when started.
     writeProjectRoot(runtime.store.db, runtime.project_id, new Date().toISOString());
-    await ensureBoard(host, reference);
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       projectLibrary: typeof runtime.store.db.name === "string" ? { db: runtime.store.db, path: runtime.store.db.name } : null,

@@ -1,5 +1,5 @@
 import { MANAGEMENT_GOAL_ACTIONS, platformMcpTools, type McpToolDefinition } from "@molis-ai/molis-work-app-mcp";
-import { requireManagementDefinition } from "./goal-callers.js";
+import { requireManagementDefinition } from "./management-actions.js";
 
 /**
  * One of the three Goals actions the management tools call, as the Goals that ships with the Host defines it (its description and input

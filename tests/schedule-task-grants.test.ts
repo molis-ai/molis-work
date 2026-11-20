@@ -79,7 +79,7 @@ test("PWA-148 the reminders query returns this project's reminders only, never a
   const unused = () => { throw new Error("unused"); };
   const ports: ScheduleActionPorts = { listJobs: () => [job("j-reminder", { reminder }), job("j-wakeup")] as never, listTasks: () => [],
     listOperations: () => [{ id: "op1", input: { token: "operation-input-secret" } }] as never, setEnabled: unused, recoverReminder: unused,
-    createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused };
+    getTask: unused, createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused };
   const handler = createScheduleActionHandlers("p1", ports).find(item => item.capability_id === scheduleActions.reminders.capability_id)!;
   const call = (project_id: string) => handler.handle({ actor_id: "agent", project_id, audience: "agent", permissions: ["schedule:read"] } as never, {});
   const output = await call("p1");
@@ -207,7 +207,7 @@ test("PWA-149 a due round asks the platform once and starts the role its grants 
 /** Schedule's own task actions over a library, with `archived` going to the platform as the Runtime binds it. */
 function taskHandlers(db: SqliteDatabase, grants: ReturnType<typeof createScheduleTaskGrants>) {
   const unused = () => { throw new Error("unused"); };
-  const ports: ScheduleActionPorts = { listJobs: () => [], setEnabled: unused, recoverReminder: unused, listTasks: () => [], createTask: unused, updateTask: unused, setTaskEnabled: unused, openTask: unused,
+  const ports: ScheduleActionPorts = { listJobs: () => [], setEnabled: unused, recoverReminder: unused, listTasks: () => [], getTask: unused, createTask: unused, updateTask: unused, setTaskEnabled: unused, openTask: unused,
     archiveTask: taskId => { db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0 WHERE task_id = ?").run(taskId); },
     archived: taskId => grants.archived(taskId) };
   const archive = createScheduleActionHandlers("p1", ports).find(handler => handler.capability_id === scheduleActions.archiveTask.capability_id)!;

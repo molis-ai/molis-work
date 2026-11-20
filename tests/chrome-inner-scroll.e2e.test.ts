@@ -120,8 +120,9 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   // Soft Workbench Home (prototype layout): the whole home column scrolls in [data-home-scroll]; the day's events are one section of it.
+  // From 960px the project corner lives in [data-top-corner-toggle] while the right-end [data-workspace-chrome] is hidden (POLISH-04/05).
   await expectContained(".immersive-titlebar", "[data-work-surface=home] [data-home-scroll]");
-  await expectContained("[data-workspace-chrome]", "[data-work-surface=home] [data-home-scroll]");
+  await expectContained("[data-top-corner-toggle]", "[data-work-surface=home] [data-home-scroll]");
   await expectContained(".workbench-bar", "[data-work-surface=home] [data-home-scroll]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
@@ -142,19 +143,19 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   // The guarded point checks the actual Feed control and its Host frame after the menu closes.
   await feed.point('[data-feed-source-header] [data-feed-add-toggle]');
   await expectContained(".immersive-titlebar", ".feed-stage-tree", feed);
-  await expectContained("[data-workspace-chrome]", ".feed-stage-tree", feed);
+  await expectContained("[data-top-corner-toggle]", ".feed-stage-tree", feed);
   await expectContained(".workbench-bar", ".feed-stage-tree", feed);
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-artifact-directory]");
-  await expectContained("[data-workspace-chrome]", "[data-artifact-directory]");
+  await expectContained("[data-top-corner-toggle]", "[data-artifact-directory]");
   await expectContained(".workbench-bar", "[data-artifact-directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-goal-stage-list]");
-  await expectContained("[data-workspace-chrome]", "[data-goal-stage-list]");
+  await expectContained("[data-top-corner-toggle]", "[data-goal-stage-list]");
   await expectContained(".workbench-bar", "[data-goal-stage-list]");
 
   await click('[data-work-surface-open="market"]');

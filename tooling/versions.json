@@ -1239,7 +1239,7 @@
     "database.connectors_baseline": 1,
     "database.context_onboarding_baseline": 1,
     "database.conversation_attachments_baseline": 1,
-    "database.dataset_database": 1,
+    "database.dataset_database": 2,
     "database.directory_grants_baseline": 1,
     "database.evaluation_baseline": 1,
     "database.external_sessions_database": 1,

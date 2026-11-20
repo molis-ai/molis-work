@@ -18,10 +18,9 @@ const BASELINE_V1 = { version: 1, schema: V1, upgrades: [] };
 
 function fixtureSource(root: string, version: string, marker = version): string {
   const source = join(root, `source-${version}-${marker}`);
-  for (const directory of ["dist/cli", "dist/mcp", "dist/web", "skills/goal-advance", "skills/molis-plugin-dev", "node_modules"]) mkdirSync(join(source, directory), { recursive: true });
+  for (const directory of ["dist/cli", "dist/mcp", "dist/web", "skills/molis-plugin-dev", "node_modules"]) mkdirSync(join(source, directory), { recursive: true });
   writeFileSync(join(source, "package.json"), JSON.stringify({ name: "fixture-molis-work", version, type: "module" }));
   for (const entry of ["cli/main", "mcp/server", "web/server"]) writeFileSync(join(source, "dist", `${entry}.js`), `console.log(${JSON.stringify(`${entry}:${marker}`)});\n`);
-  writeFileSync(join(source, "skills", "goal-advance", "SKILL.md"), "# Fixture Skill\n");
   writeFileSync(join(source, "skills", "molis-plugin-dev", "SKILL.md"), "# Fixture Plugin Dev Skill\n");
   return source;
 }

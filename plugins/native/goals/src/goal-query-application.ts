@@ -1,7 +1,4 @@
-import type {
-  GoalsQueryApi,
-  ProjectGuidanceView,
-} from "./contract/goals.js";
+import type { GoalsQueryApi } from "./contract/goals.js";
 
 import type { GoalContractView } from "./goal-entry-contract.js";
 import type { GoalPolicy, GoalRecord } from "./contract/goals.js";
@@ -19,10 +16,6 @@ export class GoalReadApplication {
     private readonly goals: GoalsQueryApi,
     private readonly ports: GoalReadApplicationPorts,
   ) {}
-
-  readProjectGuidance(projectId: string): ProjectGuidanceView {
-    return this.goals.readProjectGuidance(projectId);
-  }
 
   listTrashedGoals(projectId: string): GoalRecord[] {
     return this.goals.listTrashedGoals(projectId);
@@ -50,7 +43,6 @@ export class GoalReadApplication {
       relations: goalFacts.relations,
       resolved_policy: goalFacts.resolved_policy,
       goal_tree_proposals: this.ports.goalTreeProposals(projectId, goalId),
-      project_guidance: goalFacts.project_guidance,
     };
   }
 }

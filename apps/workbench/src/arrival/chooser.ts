@@ -102,7 +102,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const entry = last ?? personal;
     const subtitle = last && arrival.opened[last.project_id]
       ? uiText.text("workbench.chooser.last-name-when", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : uiText.text("workbench.chooser.welcome-molis-work");
-    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>${renderRuntimePanel("home")}
+    const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>${renderRuntimePanel()}
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${uiText("workbench.chooser.search-projects")}" aria-label="${uiText("workbench.chooser.search-projects")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
       ${renderButton({ variant: "secondary", icon: "search", label: uiText("workbench.chooser.search-personal"), className: "chooser-personal-search", attrs: { "data-global-search-open": "", "aria-haspopup": "dialog" } })}
       <p class="ob-error" role="alert" data-chooser-search-error hidden></p>

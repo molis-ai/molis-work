@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, defineWorkflowContentActions, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -22,13 +22,15 @@ const station = defineWorkflowContentActions({ id: "authored-notes", title: "署
   read_permissions: ["authored:read"], write_permissions: ["authored:write"] });
 
 /** A project with a workflow from a station whose blank content is authored by a Session, into a plain step; the client holds every grant the run needs. */
-async function fixture() {
+async function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-session-nested-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "署名", actor_id: "user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "user" });
   catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
+  t.after(async () => { await host.close(); rmSync(directory, { recursive: true, force: true }); });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const authors: string[] = [];
   const create: ActionDefinition<{ title: string }, { plugin: string; item_id: string; title: string }> =
@@ -43,7 +45,7 @@ async function fixture() {
       definitions, handlers: [
         { ...station.list, handle: () => [] },
         { ...station.read, handle: () => ({ title: "笔记", body: "正文" }) },
-        { ...create, handle: (caller, input) => { authors.push(caller.audit_actor_id ?? caller.actor_id); return { plugin: "authored-notes", item_id: `note-${authors.length}`, title: (input as { title: string }).title }; } },
+        { ...create, handle: (caller, input) => { authors.push(caller.audit_actor_id ?? caller.actor_id); return { subject: { kind: "authored_note", id: `note-${authors.length}` }, title: (input as { title: string }).title }; } },
         { ...sink, handle: () => ({ ok: true }) },
       ] });
   });
@@ -54,33 +56,32 @@ async function fixture() {
     { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { title: { from: "title" } } } }],
     links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
   // The station's actions are registered on this Host, which is bound to this Home: it serves the access settings the grants go through.
-  const served = await serveTestHost(null, { home: homeDirectory, host });
+  const served = await serveTestHost(t, { home: homeDirectory, host });
   await grantGoalsMcp(served, project, CLIENT, [...definitions, w.start]);
   const server = (nativeRuntimeSessionId?: string) => new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
-  return { workflow, authors, server, person,
-    done: async () => { await served.close(); await host.close(); rmSync(directory, { recursive: true, force: true }); } };
+  return { workflow, authors, server, person };
 }
 
-test("a Runtime without a stable Session cannot start a workflow whose first station creates session-authored content", async () => {
-  const f = await fixture();
+test("a Runtime without a stable Session cannot start a workflow whose first station creates session-authored content", async (t) => {
+  const f = await fixture(t);
   const mcp = f.server();
   try {
     await assert.rejects(mcp.callTool(START, { id: f.workflow.workflow_id }),
       (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid" && /稳定 Session/.test(error.message));
     assert.deepEqual(f.authors, [], "the station's create never ran");
     assert.equal((await f.person.invoke(w.get, { id: f.workflow.workflow_id })).instances.length, 0, "no run was started");
-  } finally { await mcp.close(); await f.done(); }
+  } finally { await mcp.close(); }
 });
 
-test("with a stable Session the same workflow starts and the station's content is the Session's", async () => {
-  const f = await fixture();
+test("with a stable Session the same workflow starts and the station's content is the Session's", async (t) => {
+  const f = await fixture(t);
   const mcp = f.server("native-session");
   try {
     const started = JSON.parse(await mcp.callTool(START, { id: f.workflow.workflow_id })) as { instance: { instance_id: string } };
     assert.ok(started.instance.instance_id);
     assert.equal((await f.person.invoke(w.get, { id: f.workflow.workflow_id })).instances.length, 1);
     assert.deepEqual(f.authors, [`${CLIENT}:native-session`]);
-  } finally { await mcp.close(); await f.done(); }
+  } finally { await mcp.close(); }
 });

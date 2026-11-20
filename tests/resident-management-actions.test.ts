@@ -1,3 +1,8 @@
+import { cliEntryProbe, REACHED_THE_PLATFORM } from "./fixtures/cli-entry-probe.js";
+import { proposeChildGoal } from "./fixtures/project-review-entry.js";
+import { managementGoals } from "./goal-management-caller.js";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { createStandaloneProject } from "./fixtures/standalone-project.js";
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -14,7 +19,6 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { grantMcpAction, revokeMcpAction, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import type { McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { FORGED_CALL, residentManagement } from "./fixtures/resident-management.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
 
 function oneRecord(host: Awaited<ReturnType<typeof residentManagement>>["host"], project: string, id: unknown, capability: string) {
   assert.equal(typeof id, "string"); assert.notEqual(id, FORGED_CALL);
@@ -26,11 +30,11 @@ function oneRecord(host: Awaited<ReturnType<typeof residentManagement>>["host"],
 test("W3-07-7-03 CLI and management MCP reuse the resident project and its actual operation number, including a database alias", async t => {
   const operations: Array<string | undefined> = [], discoveries: Array<string | undefined> = [];
   const actionAvailability: NonNullable<MolisWorkLocalHostOptions["actionAvailability"]> = (_caller, action) => {
-    if (action.capability_id === "goals.snapshot.read") operations.push(currentCallId());
+    if (action.capability_id === "goals.tree.review") operations.push(currentCallId());
     return { available: true };
   };
   actionAvailability.snapshotForDiscovery = () => (_caller, action) => {
-    if (action.capability_id === "goals.snapshot.read") discoveries.push(currentCallId());
+    if (action.capability_id === "goals.tree.review") discoveries.push(currentCallId());
     return { available: true };
   };
   const env = await residentManagement(t, { actionAvailability });
@@ -40,10 +44,14 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", null, { homeDirectory: env.home, runtimeContext: { runtime_id: "management-test", stable_work_context_id: "resident-test", host_declares_stable: true } }, fallbackHost, env.origin);
   t.after(async () => { await mcp.close(); await fallbackHost.close(); });
   // This resident fixture has already selected one Home; installation login/attachment is covered by account-process-connection.
+  // The CLI reads a review of a Goals proposal (its Goals commands were removed, PEQ-15): the platform asks Goals' `goals.tree.review`.
+  const draft = await proposeChildGoal(managementGoals(env.host.actionClient(env.reference), env.project.project_id), "resident");
+  operations.length = 0;
   const cli = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./fixtures/home-snapshot-selected-cli.ts", import.meta.url)),
-    env.home, "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
+    env.home, "review-request", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, ...draft })],
     { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: env.origin }, timeout: 10_000 });
-  assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => boardSnapshot(runtime.store, env.project.project_id)));
+  const read = JSON.parse(cli.stdout) as ReviewRequest;
+  assert.equal((read.reference as { owner: { project_id: string } }).owner.project_id, env.project.project_id, "the resident read the review in the alias's project");
   // A directory refresh is allowed after the CLI completes and has no operation of its own.
   const beforeRefresh = operations.slice(), discoveryCount = discoveries.length;
   await env.host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user",
@@ -51,10 +59,11 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   assert.ok(discoveries.length > discoveryCount); assert.equal(discoveries.at(-1), undefined);
   assert.deepEqual(operations, beforeRefresh, "directory sampling cannot replace the actual CLI operation number");
   const uniqueOperations = [...new Set(operations)];
-  assert.equal(uniqueOperations.length, 1, "only this CLI invokes the snapshot action");
+  assert.equal(uniqueOperations.length, 1, "the review read is this CLI's one operation");
   const cliId = uniqueOperations[0]; assert.ok(typeof cliId === "string");
   assert.notEqual(cliId, FORGED_CALL); assert.match(cliId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/);
-  assert.deepEqual(env.host.callLog!.find(cliId), [], "a successful snapshot read has no durable invocation row");
+  assert.deepEqual(env.host.callLog!.find(cliId).map(row => [row.capability_id, row.ok, row.actor_id]), [["project.approvals.request.read", true, LOCAL_PERSON_ACTOR_ID]],
+    "the review read is settled once, as the platform's review action: the owner's own query under it leaves no row");
   const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] } };
   const initialize = listed.result.tools.find(tool => tool.name === "molis_work_v1_initialize");
   assert.ok(initialize, "management discovery does not require a Runtime gateway grant");
@@ -83,23 +92,25 @@ test("W3-07-7-01 a stopped resident and a standalone database retain the origina
   t.mock.method(console, "log", () => undefined);
   // Closed before the fixture removes the Home it runs in (the Home's plugins write their stop records there).
   try {
-    await runV1Cli(["snapshot", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id })],
-      { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost });
+    await assert.rejects(runV1Cli(cliEntryProbe(env.project.database_path, env.project.project_id),
+      { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost }), REACHED_THE_PLATFORM);
     assert.deepEqual(fallbackOpened, [env.reference.storage_key]);
     const standalone = join(env.home, "standalone.db");
-    await runV1Cli(["init", "--db", standalone, "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
-      { homeDirectory: env.home, actionServiceUrl: "invalid-address", localHost: fallbackHost });
+    await createStandaloneProject(standalone, "standalone");
+    await assert.rejects(runV1Cli(cliEntryProbe(standalone, "standalone"),
+      { homeDirectory: env.home, actionServiceUrl: "invalid-address", localHost: fallbackHost }), REACHED_THE_PLATFORM);
     assert.deepEqual(fallbackOpened, [env.reference.storage_key, standalone]);
   } finally { await fallbackHost.close(); }
 });
 
 test("W3-07-7-01 an online refusal preserves its code and details and never opens a fallback project", async t => {
-  const env = await residentManagement(t, { actionAvailability: (_caller, action) => action.capability_id === "goals.snapshot.read"
+  const env = await residentManagement(t, { actionAvailability: (_caller, action) => action.capability_id === "goals.tree.review"
     ? { available: false, code: "goals.test_refused", reason: "常驻入口拒绝" } : { available: true } });
   const opened: string[] = [];
   const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => opened.push(ref.storage_key) });
   t.after(() => fallbackHost.close());
-  await assert.rejects(runV1Cli(["snapshot", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id })],
+  const draft = await proposeChildGoal(managementGoals(env.host.actionClient(env.reference), env.project.project_id), "refused");
+  await assert.rejects(runV1Cli(["review-request", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id, ...draft })],
     { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost }), { code: "goals.test_refused", message: "常驻入口拒绝" });
   assert.deepEqual(opened, []);
 });

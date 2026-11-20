@@ -198,6 +198,15 @@ export declare const SURFACE_PLACES: readonly SurfacePlace[];
 
 export type SurfaceActivity = "browsing" | "selecting" | "editing" | "comparing" | "completed";
 
+export interface SurfaceBelongsTo {
+    readonly plugin_id: string;
+    readonly kind: string;
+    readonly id: string;
+    readonly title: string;
+    readonly state?: string;
+    readonly noun?: string;
+}
+
 export interface SurfaceFocus {
     readonly context_id: string;
     readonly plugin_id: string;
@@ -216,11 +225,7 @@ export interface SurfaceFocus {
         readonly after?: string;
     };
     readonly unsaved?: boolean;
-    readonly goal?: {
-        readonly id: string;
-        readonly title: string;
-        readonly state?: string;
-    };
+    readonly belongs_to?: SurfaceBelongsTo;
     readonly place?: SurfacePlace;
     readonly side_tab?: string;
     readonly screen?: SurfaceScreenAnchor;

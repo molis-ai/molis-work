@@ -36,14 +36,15 @@ test("RAC-756 a rule moves out only when every selector names the plugin's own c
 
 const packs = pluginWorkbenchPacks();
 const framed = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && pack.clientFactory);
+const onDemand = (pack: BuiltinPluginWorkbenchPack) => Boolean(pack.stylesheet && (pack.clientFactory || pack.pageClients));
 
-test("RAC-757 a framed plugin's sheet is split with nothing lost; a plugin the shell draws keeps its whole sheet in the shared one", () => {
+test("RAC-757 a plugin with its own client or pageClients splits its sheet with nothing lost; other shell plugins keep theirs in the shared one", () => {
   const shared = pluginWorkbenchStyles(packs, "beneath-shell") + pluginWorkbenchStyles(packs);
   let moved = 0;
   for (const pack of packs.filter((one) => one.stylesheet)) {
     const id = pack.project_plugin_id, own = pluginOnDemandStylesheet(id, packs);
-    if (!framed(pack)) {
-      assert.equal(own, null, `${id} has no frame of its own, so its sheet cannot be loaded on demand`);
+    if (!onDemand(pack)) {
+      assert.equal(own, null, `${id} has no frame or shell-linked client of its own, so its sheet cannot be loaded on demand`);
       assert.ok(shared.includes(pack.stylesheet!), `${id} keeps its whole sheet in the shared one`);
       continue;
     }
@@ -226,7 +227,7 @@ test("RAC-763 Shelf's whole sheet is its own page asset, linked by its frame and
   assert.deepEqual([...(shelf.stylesheetShared ?? [])], [], "nothing of Shelf's page is drawn outside its own package");
   assert.doesNotMatch(normal(pluginWorkbenchStyles(packs)), /\.shelf-|\[data-shelf/u, "the shared sheet carries none of them");
   assert.equal(pluginSettingsStyleLinks(SHELF_SETTINGS_CONTRIBUTION, packs), link("shelf"), "the settings page the shell draws links the same sheet");
-  assert.equal(pluginSettingsStyleLinks("io.molis.work.native.goals.proposal", packs), "", "a page with no sheet of its own adds nothing");
+  assert.equal(pluginSettingsStyleLinks("io.molis.work.native.diff.ui.v1", packs), "", "a page with no sheet of its own adds nothing");
   assert.equal(pluginSettingsStyleLinks("no.such.contribution", packs), "", "so does an unknown page");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "shelf", "Shelf")), `${link("shelf")}<p>x</p>`, "the frame links it first");
   // The host's own rules may name a Shelf class (the stage chrome craft draws); the Shelf sheet's rules must not be in either sheet.
@@ -364,5 +365,26 @@ test("RAC-2850 RAC-2851 Characters carries styles inside each extracted section 
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet()]) {
     assert.doesNotMatch(sheet, /\.characters-(?:terminal|project-link|page|dialog|steps)|\.roles-(?:page|drawer|row)/u);
   }
+});
+
+test("PEQ-08 Goals styles live in plugins/native/goals as an on-demand sheet linked only when Goals is enabled", async () => {
+  const { existsSync } = await import("node:fs");
+  const { createLocalHostWorkbenchRenderer } = await import("@molis-ai/molis-work-app-local-host");
+  const { desktopWorkbenchRendererPorts } = await import("@molis-ai/molis-work-app-desktop");
+  const { renderMolisWorkArrivalStylesheet } = await import("./workbench-renderer-fixture.js");
+  assert.equal(existsSync(new URL("../apps/workbench/src/styles/goal-canvas.ts", import.meta.url)), false, "PEQ-08: goal-canvas.ts stays deleted");
+  assert.equal(existsSync(new URL("../packages/design-system/src/styles/momentum.ts", import.meta.url)), false, "PEQ-08: momentum.ts stays deleted");
+  const goalsSheet = pluginOnDemandStylesheet("goals", packs);
+  assert.ok(goalsSheet && goalsSheet.includes(".goal-canvas-shell") && goalsSheet.includes(".goal-node-workspace"), "PEQ-08: goals.css holds Goals rules");
+  for (const shared of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkSettingsStylesheet(), renderMolisWorkArrivalStylesheet()]) {
+    assert.equal(shared.includes(".goal-canvas-shell"), false, "PEQ-08: shared sheets exclude Goals canvas rules");
+    assert.equal(shared.includes(".goal-node-workspace"), false, "PEQ-08: shared sheets exclude Goals workspace rules");
+  }
+  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+  const baseView = { project: { project_id: "p1", display_name: "Demo" }, projects: [], route_prefix: "/projects/p1", demo: false };
+  const withoutGoals = renderer.renderMolisWorkWeb({ ...baseView, shown_plugins: ["schedule"] }, "tok", false);
+  const withGoals = renderer.renderMolisWorkWeb({ ...baseView, shown_plugins: ["goals", "schedule"] }, "tok", false);
+  assert.doesNotMatch(withoutGoals, /data-plugin-shell-style="goals"|molis-work-plugins\/goals\.css/, "PEQ-08: projects without Goals do not link goals.css");
+  assert.match(withGoals, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/goals\.css" data-plugin-shell-style="goals">/, "PEQ-08: projects with Goals link goals.css on demand");
 });
 

@@ -5,7 +5,7 @@ import { ActionError, retainActionAuthority, defineActionUsagesAction, reference
 import {
   applyFunctionRule, linkReadiness, parseChain, withPendingLinks,
   isActionStation, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
-  type Workflow, type WorkflowChain, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation,
+  type Workflow, type WorkflowChain, type WorkflowInstance, type WorkflowStepItem, type WorkflowLink, type WorkflowPayload, type WorkflowStation,
 } from "./model.js";
 import type { WorkflowSummary, WorkflowsStore, WorkflowsStores } from "./store.js";
 import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.js";
@@ -35,10 +35,10 @@ export interface WorkflowContentPorts {
   stations(): Promise<readonly WorkflowStationInfo[]>;
   resolveStation(station: WorkflowChain["stations"][number]): Promise<WorkflowChain["stations"][number]>;
   listStartItems(plugin: string): Promise<readonly WorkflowStartItem[]>;
-  createBlank(plugin: string, title: string, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
-  read(item: WorkflowItemRef, content?: WorkflowContentBinding): Promise<WorkflowPayload>;
+  createBlank(plugin: string, title: string, content?: WorkflowContentBinding): Promise<WorkflowStepItem>;
+  read(item: WorkflowStepItem, content?: WorkflowContentBinding): Promise<WorkflowPayload>;
   /** Receivers return the same item for the same request id: a workflow's is the one for an instance and a step (`workflowRequestId`). */
-  receive(plugin: string, payload: WorkflowPayload, requestId: string, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
+  receive(plugin: string, payload: WorkflowPayload, requestId: string, content?: WorkflowContentBinding): Promise<WorkflowStepItem>;
 }
 
 /** Other registered actions, reached as the call's original caller (a step's action, a judgment rule on a link). */
@@ -193,7 +193,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       if (current.stations.length < 2) throw workflowsErrors.invalid("流程至少要有两站才能开始");
       const first = current.stations[0]!;
       const itemId = input.item_id?.trim();
-      let item: WorkflowItemRef;
+      let item: WorkflowStepItem;
       if (itemId) {
         item = { plugin: first.plugin, item_id: itemId, title: (await content.read({ plugin: first.plugin, item_id: itemId, title: "" }, first.content)).title };
       } else {

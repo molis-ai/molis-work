@@ -26,7 +26,7 @@ test("PG094-07 a project's runtime and its plugin platform write through one pai
   const home = await mkdtemp(join(tmpdir(), "goals-application-factory-"));
   await writeFile(join(home, "note.txt"), "固定\n");
   const molisHome = join(home, "molis-home");
-  const { projectId, reference, workspace } = await catalogProject(molisHome, { plugins: ["diff"], output: await realpath(home) });
+  const { projectId, reference, workspace } = await catalogProject(molisHome, { plugins: ["goals", "diff"], output: await realpath(home) });
   // The runtime's pair keeps the Host's clock; a second pair inside the platform would stamp the machine's time instead.
   const fixed = new Date("2031-02-03T04:05:06.000Z");
   const folders = catalogPorts(molisHome);

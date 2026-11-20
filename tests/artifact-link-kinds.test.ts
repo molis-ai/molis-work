@@ -20,11 +20,12 @@ test("RAC-419: the 成果库 module and plugin source name no Goal link kind and
   assert.deepEqual(offenders, []);
 });
 
-test("RAC-420: the link kinds are the ones Goals' Manifest declares, each as the module Goals writes its edges as", () => {
+test("RAC-420: the link kinds are the ones Goals' Manifest declares, each with Goals as its owner and Goals' surface to open on", () => {
   const kinds = artifactLinkKinds(sources());
   // The declaring Plugin rides along, so 「被谁引用」 lists each edge under the Plugin that owns its kind (BL-646).
   const goals = goalsManifest.plugin_id;
-  assert.deepEqual([...kinds].map(([kind, value]) => [kind, value.role, value.proposal, value.module, value.plugin_id, value.plugin_title]).sort(), [
+  // Batch 44 C6: an edge is matched on the plugin that declared its kind (its object end is that plugin's), not on a module name.
+  assert.deepEqual([...kinds].map(([kind, value]) => [kind, value.role, value.proposal, value.surface, value.plugin_id, value.plugin_title]).sort(), [
     ["goal.input", "input", false, "goals", goals, "Goals"], ["goal.input.proposal", "input", true, "goals", goals, "Goals"],
     ["goal.output", "output", false, "goals", goals, "Goals"], ["goal.output.proposal", "output", true, "goals", goals, "Goals"],
   ]);
@@ -37,7 +38,7 @@ test("RAC-421: a second Plugin declaring a kind Goals owns is named as a problem
   const other = { plugin_id: "example.other", name: "Other", surface: "other", actions: [], artifacts: { produces: [], consumes: [], links: [{ kind: "goal.input", role: "input" as const }] } };
   assert.deepEqual(linkKindProblems([goals]), []);
   assert.deepEqual(linkKindProblems([goals, other]), ["链接种类 goal.input 已由 io.molis.work.goals 声明，example.other 不能再声明"]);
-  assert.equal(artifactLinkKinds([goals, other]).get("goal.input")?.module, "goals", "the first owner keeps the kind");
+  assert.equal(artifactLinkKinds([goals, other]).get("goal.input")?.plugin_id, goalsManifest.plugin_id, "the first owner keeps the kind");
   const twice = structuredClone(goalsManifest);
   twice.artifacts.links = [...twice.artifacts.links!, { kind: "goal.input", role: "input" }];
   assert.throws(() => parsePluginManifest(twice), /声明了不止一次/);

@@ -14,7 +14,7 @@ export interface ContextLedgerOptions {
 function sameScope(a: ContextScope, b: ContextScope): boolean { return a.kind === b.kind && a.id === b.id; }
 export function sameRef(a: ObjectRef, b: ObjectRef): boolean {
   return a.module === b.module && a.id === b.id && a.version === b.version && (a.revision ?? null) === (b.revision ?? null) && sameScope(a.scope, b.scope)
-    && (a.project_id ?? null) === (b.project_id ?? null) && a.object_type === b.object_type;
+    && (a.project_id ?? null) === (b.project_id ?? null) && a.object_type === b.object_type && (a.plugin_id ?? null) === (b.plugin_id ?? null);
 }
 
 /** Shared owner validation before a caller namespaces keys or issues SQL. */
@@ -104,7 +104,7 @@ export class ContextLedgerService implements ContextLedgerApi, ContextLedgerRela
   private checkRef(access: ContextAccess, ref: ObjectRef): void {
     if (!sameScope(access.scope, ref.scope)) throw ledgerErrors.scope_mismatch("跨分区引用不能进入同一关系记录");
     if (!ref.id.trim() || (ref.version !== null && (!Number.isSafeInteger(ref.version) || ref.version < 1))
-      || (ref.module === "artifacts" && ref.version === null)) {
+      || (ref.module === "artifacts" && ref.version === null) || (ref.plugin_id !== undefined && (ref.module !== "plugins" || !ref.plugin_id.trim()))) {
       throw ledgerErrors.invalid_reference("对象引用必须具有有效身份；成果必须指定精确版本");
     }
   }

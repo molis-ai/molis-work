@@ -90,8 +90,10 @@ function formsFor(ports: DirectoryPorts, record: PluginInstanceRecord, scope: Su
   stage: Route | undefined) {
   const signedForms: SignedForm[] = [];
   const forms = (manifest?.presentation?.overview?.start ?? []).flatMap(declaration => {
-    const open = declaration.open;
-    if (!open || stage?.view_id !== open.view_id) return [];
+    // The form a starting point opens is its action's own (contract-design §2.4): the overview names the action, the intake says how it starts.
+    const intake = manifest?.actions?.find(item => item.capability_id === declaration.capability_id && item.version === declaration.version)?.action.intake;
+    const open = intake && "start" in intake ? intake.start?.open : undefined;
+    if (!open || !stage || stage.view_id !== open.view_id) return [];
     let action: ExactActionReference | undefined;
     if (stage.kind === "package") {
       const form = pluginPagesFor(ports.homeDirectory).installedStartForm(record.plugin_id, scope === "home" ? null : ports.reference.project_id,

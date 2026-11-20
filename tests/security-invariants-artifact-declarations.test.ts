@@ -93,7 +93,7 @@ const twoProjects = async (t: TestContext) => {
 /** The production restore creates its catalog identity; every later call opens a new, unsupervised target connection. */
 async function restoreTarget(t: TestContext) {
   const home = bareHome(t);
-  const bundle = { format: "molis-work-assets", version: 1, source_project_id: "historical-source", title: "恢复", goals: [], artifacts: [], dependencies: [], notes: [] };
+  const bundle = { format: "molis-work-assets", version: 1, source_project_id: "historical-source", title: "恢复", sections: [], artifacts: [], dependencies: [], notes: [] };
   const created = await restoreWorkAssets(bundle, home);
   const target = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(created.project_id));
   const p = project(t, home, { file: target.database_path, projectId: target.project_id });
@@ -110,7 +110,7 @@ test("D0002-01 S-81 a work-assets bundle cannot authorize team sharing, before a
   const parent = bareHome(t), home = join(parent, "refused-team-restore");
   const asset = { ...restored("source", OTHER, "example.note", "team-forgery"), owner_actor_id: "forged-owner", scope: "team_project",
     team_share_authorized: true, actor_id: "forged-actor", availability: "available", lifecycle_state: "active", supersedes_version: null };
-  const bundle = { format: "molis-work-assets", version: 1, source_project_id: "source", title: "恢复", goals: [], artifacts: [asset], dependencies: [], notes: [] };
+  const bundle = { format: "molis-work-assets", version: 1, source_project_id: "source", title: "恢复", sections: [], artifacts: [asset], dependencies: [], notes: [] };
   await assert.rejects(() => restoreWorkAssets(bundle, home), { code: "actions.forbidden" });
   assert.ok(!readdirSync(parent).includes("refused-team-restore"), "a forged team scope creates neither catalog nor recovery identity");
 });
@@ -238,7 +238,7 @@ test("RAC-415 the registry follows an installed Plugin's Manifest through enable
   assert.deepEqual(report.failed, []);
   assert.equal(types().includes("example.note"), true, "installed and in effect: its type is declared");
   assert.equal(artifactTypeDeclarations().get("example.note")?.plugin_id, PRODUCER);
-  assert.equal(artifactLinkKinds().get("example.note.ref")?.module, PRODUCER, "its link kind is read from its Manifest");
+  assert.equal(artifactLinkKinds().get("example.note.ref")?.plugin_id, PRODUCER, "its link kind is read from its Manifest");
 
   p.supervisor.revoke(PRODUCER);
   assert.equal(types().includes("example.note"), false, "disabled: nothing it declares is read");

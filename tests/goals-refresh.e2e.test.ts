@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
@@ -37,7 +38,14 @@ async function showFrame(b: NonNullable<Awaited<ReturnType<typeof openGoalBrowse
 }
 
 test("QEA-113 QEA-114 QEA-161 QEA-172 QEA-199 PG094-TITLE-01 BL-140 ASC-41 T01-GRAPH-REFRESH-01 Goal refresh across surfaces", { timeout: 240_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user");
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => {
+      const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+      try {
+        for (const project of catalog.listProjects()) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "browser-test" });
+      } finally { catalog.close(); }
+    },
+  });
   if (!browser) return;
   const b = browser;
 

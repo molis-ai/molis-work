@@ -29,7 +29,7 @@ const proposalInput = (prefix: string) => ({ summary: "Create a parent and child
 // R3-03: owner codes preserve atomic writes, authority refusals, replay and restart.
 test("tree actions preserve proposals, protected authority, atomic materialization, old receipts and restart", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-tree-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Tree", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   // A plugin that holds every Goals permission, started by the Host (S-15).
@@ -180,7 +180,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
 
 test("Web tree approval reaches action policy, preserves trusted provenance and leaves conflicts atomic", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-tree-http-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree HTTP", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Tree HTTP", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let denied = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>

@@ -126,7 +126,7 @@ test("Workbench routes call only the selected owner with exact inputs and retain
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {
   const served = await openTestHome(t);
   const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
-  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Document routes", actor_id: "test" }));
+  const project = await withHostCatalog({ homeDirectory: served.home }, async catalog => { const created = await catalog.createProject({ display_name: "Document routes", actor_id: "test" }); catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "test" }); return created; });
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const origin = served.origin;
@@ -140,7 +140,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     ["/api/board/refresh?view=bad", 400, "Goal 正文集合无效"],
     ["/api/board/momentum?view=trash", 400, "Goal 推进态势集合无效"],
     ["/api/goals/V1/document", 200, null],
-    ["/api/goals/%/document?view=bad", 404, "Goal 内容不存在"],
+    ["/api/goals/%/document?view=bad", 404, "页面内容不存在"],
     ["/api/goals/V1/document?view=", 400, "Goal 正文集合无效"],
     ["/api/goals/missing/document", 404, { error: "找不到这个 Goal: missing", code: "goals.not_found" }],
     ["/api/goals/V1/document?offset=-1", 200, null],
@@ -149,8 +149,8 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     ["/api/plugins/io.molis.work.goals/goals/V1/records", 404, "页面或接口不存在"],
     ["/api/plugins/io.molis.work.goals/goals/V1/quick-record", 404, "页面或接口不存在"],
     ["/api/goals/V1/panels/completion", 404, "页面或接口不存在"],
-    ["/goals/%", 404, "Goal 页面不存在"], ["/archive/goals/%", 404, "Goal 页面不存在"],
-    ["/trash/goals/%", 404, "Goal 页面不存在"], ["/goals/missing", 404, "找不到这个 Goal: missing"],
+    ["/goals/%", 404, "页面不存在"], ["/archive/goals/%", 404, "页面不存在"],
+    ["/trash/goals/%", 404, "页面不存在"], ["/goals/missing", 404, "找不到这个 Goal: missing"],
   ];
   for (const [path, expected, error] of cases) {
     const response = await fetchProject(origin + path);
@@ -216,7 +216,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   assert.equal(wrongCollection.status, 404);
   assert.deepEqual(await wrongCollection.json(), { error: "找不到这个 Goal: CORE" });
   assert.deepEqual(await (await fetchProject(origin + "/api/board")).json(), beforeReads);
-  const empty = await served.createProject("Refresh without a selection");
+  const empty = await served.createProject("Refresh without a selection", ["goals"]);
   const emptyOrigin = `${origin}/projects/${empty.project_id}`;
   const emptyBefore = await (await globalThis.fetch(emptyOrigin + "/api/board")).json();
   for (const collection of ["current", "archive", "trash"] as const) await checkRefresh(emptyOrigin, empty.project_id, collection);

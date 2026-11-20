@@ -173,33 +173,14 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .frame-goal-heading h1 { font-size: 15px; line-height: 1.3; font-weight: var(--weight-title, 600); }
   body.immersive-workbench .frame-goal-summary > p { margin: 4px 0 8px; font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   body.immersive-workbench .frame-goal-actions { gap: 8px; }
-  body.immersive-workbench .goal-node-toolbar,
   body.immersive-workbench .plugin-stage-detail-bar { min-height: 32px; padding: 4px 12px; gap: 8px; }
-  body.immersive-workbench .goal-node-heading h1 { font-size: 13px; line-height: 1.3; }
-  body.immersive-workbench .goal-node-toolbar button:not([data-tui-empty-add]),
-  body.immersive-workbench .goal-details-toggle,
   body.immersive-workbench .plugin-stage-back { height: 26px; width: 26px; }
-  body.immersive-workbench .goal-workspace-hero { padding: 8px 12px; }
-  body.immersive-workbench .goal-info-popover > summary { min-height: 28px; padding: 4px 12px; }
   body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
   body.immersive-workbench .inbox-reference-detail > .plugin-stage-detail-bar { min-height: 32px; }
   body.immersive-workbench .plugin-stage-detail-bar[data-stage-back-only] { min-height: 32px; height: 32px; padding: 4px 12px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { padding: 8px 16px; }
-  body.immersive-workbench .goal-event-document .goal-header { padding: 8px 16px 8px; }
-  body.immersive-workbench .goal-event-document .goal-title-heading h1 { font-size: 15px; line-height: 1.3; }
-  body.immersive-workbench .goal-event-document .goal-overview { padding: 8px 12px; margin: 0 16px 8px; }
-  body.immersive-workbench .goal-event-document .goal-layout { margin: 0 16px 8px; }
-  body.immersive-workbench .goal-event-document .stream-toolbar,
-  body.immersive-workbench .goal-event-document .detail-toolbar { height: 32px; padding: 0 12px; }
-  body.immersive-workbench .goal-event-document .timeline-entry { min-height: 36px; padding: 4px 8px; }
-  body.immersive-workbench .goal-event-document .event h2 { font-size: 15px; margin: 0 0 8px; }
-  body.immersive-workbench .goal-event-document .event-sheet,
-  body.immersive-workbench .goal-event-document .reader-content,
-  body.immersive-workbench .goal-event-document .event-form { padding: 12px 16px 24px; }
-  body.immersive-workbench .goal-event-document .event p { line-height: 1.6; }
   body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 32px; }
-  body.immersive-workbench .form-actions > button,
-  body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 32px; }
+  body.immersive-workbench .form-actions > button { min-height: 32px; }
   body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
   body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
   body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) :is(.dialog-body, .feed-task-dialog-body) { padding: 12px 16px; }
@@ -237,8 +218,6 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .tree-pane .mw-dir-row { height: 44px; min-height: 44px; }
     body.immersive-workbench .tree-pane .settings-directory-nav .mw-dir-row { height: 44px; min-height: 44px; }
     body.immersive-workbench .frame-goal-actions button { min-height: 44px; }
-    body.immersive-workbench .goal-node-toolbar button,
-    body.immersive-workbench .goal-details-toggle,
     body.immersive-workbench .plugin-stage-back { width: 44px; height: 44px; min-height: 44px; }
     body.immersive-workbench .feed-stage-entry {
       height: auto; min-height: 44px;
@@ -250,8 +229,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .feed-stage-search { height: 44px; }
     body.immersive-workbench .feed-stage-search input { font-size: 16px; }
     body.immersive-workbench .feed-reader-footer .feed-detail-actions button { min-height: 44px; }
-    body.immersive-workbench .form-actions > button,
-    body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
+    body.immersive-workbench .form-actions > button { min-height: 44px; }
     body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; }
     body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
   }

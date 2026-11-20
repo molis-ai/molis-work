@@ -127,6 +127,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
+      picker: () => {
+        const toggle = document.querySelector("[data-plugin-picker-toggle]");
+        const popover = document.querySelector("[data-plugin-picker-popover]");
+        if (toggle) { if (popover?.hidden !== false) toggle.click(); }
+        else tabWorkspace?.setExclusive("market");
+      },
       lead: { adopt: (box, target) => tabWorkspace?.adoptHomeLead(box, target) ?? null, release: (node) => tabWorkspace?.releaseHomeLead(node) },
       offers: (offerHost) => positionOffers({ ...offerHost, records: workRecords }),
       projectKey: state.project?.project_id || "",
@@ -355,17 +361,25 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     if (selected && tuiPane) {
       try {
-        tuiPane.setAttribute("data-goal-id", selected);
+        tuiPane.setAttribute("data-tui-plugin-id", "io.molis.work.goals");
+        tuiPane.setAttribute("data-tui-subject-kind", "goal");
+        tuiPane.setAttribute("data-tui-subject-id", selected);
         const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
-        document.dispatchEvent(new CustomEvent("molis-work:goal-changed", { detail: {
-          goalId: selected,
-          goalTitle: selectedItem?.goal.title || selected,
+        document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
+          pluginId: "io.molis.work.goals",
+          subjectKind: "goal",
+          subjectId: selected,
+          title: selectedItem?.goal.title || selected,
           status: selectedItem?.status || "",
           statusLabel: selectedItem?.status_label || "",
           statusMeaning: selectedItem?.status_meaning || "",
           statusIconMarkup: selectedItem?.status_icon || "",
-          parentReadOnly: Boolean(selectedItem?.is_compound_parent),
-          children: selectedItem?.children || [],
+          readOnly: selectedItem?.terminal_read_only || null,
+        } }));
+        document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
+          plugin: "goals",
+          itemId: selected,
+          title: selectedItem?.goal.title || selected,
         } }));
       } catch {}
     }

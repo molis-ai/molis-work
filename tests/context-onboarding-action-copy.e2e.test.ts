@@ -7,7 +7,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-type Reference = { source_id: string; text: { sha256: string }; documents?: string[] };
+type Reference = { source_id: string; text: { sha256: string }; parts?: { open: { surface: string; id: string } }[] };
 type Journey = {
   phase: string;
   needs_model: boolean;
@@ -15,7 +15,7 @@ type Journey = {
   sources: { selected: boolean; references?: Reference[] }[];
   summary?: { title: string; references: Reference[] };
   project_id: string;
-  document_id: string;
+  summary_open?: { surface: string; id: string } | null;
 };
 type AXTree = { nodes: { ignored: boolean; role?: { value: string }; name?: { value: string } }[] };
 
@@ -178,11 +178,11 @@ test("ACTCOPY-01 ACTCOPY-02: first-use retry names the missing model, keeps the 
   await waitFor("location.pathname.startsWith('/projects/')");
   const adopted = await journey();
   assert.equal(adopted.phase, "complete");
-  assert.ok(adopted.document_id);
+  assert.ok(adopted.summary_open?.id);
   const projects = await web.get<{ projects: { project_id: string; display_name: string }[] }>("/api/settings/projects");
   assert.equal(projects.projects.find(project => project.project_id === adopted.project_id)?.display_name, projectName);
   const pages = `/projects/${adopted.project_id}/api/plugins/io.molis.work.pages/pages/`;
-  const imported = adopted.summary?.references[0]?.documents?.[0];
+  const imported = adopted.summary?.references[0]?.parts?.[0]?.open.id;
   assert.ok(imported);
   const saved = await web.get<unknown>(pages + imported);
   assert.match(JSON.stringify(saved), /The launch is on Friday\./u);

@@ -4,7 +4,7 @@ export type TerminalTranslate = (zh: string, vars?: Record<string, string | numb
 export type TerminalStatusTone = "idle" | "busy" | "live" | "error";
 export type TerminalStatus = (text: string, tone?: TerminalStatusTone, state?: StateRingState) => void;
 
-/** The Goal terminal pane's parts, as the Goals page renders them (`renderTerminalPane`). */
+/** The platform work-terminal pane's parts, as `renderTerminalPane` draws them. */
 export interface TerminalPaneElements {
   readonly pane: HTMLElement;
   readonly tabsEl: HTMLElement;
@@ -13,8 +13,10 @@ export interface TerminalPaneElements {
   readonly statusEl: HTMLElement | null;
   readonly ownerTitleEl: HTMLElement | null;
   readonly ownerStatusEl: HTMLElement | null;
-  readonly parentGuardEl: HTMLElement | null;
-  readonly childChoicesEl: HTMLElement | null;
+  readonly readOnlyGuardEl: HTMLElement | null;
+  readonly readOnlyHeadingEl: HTMLElement | null;
+  readonly readOnlySummaryEl: HTMLElement | null;
+  readonly readOnlyChoicesEl: HTMLElement | null;
   readonly menu: HTMLFormElement;
   readonly advanceBtn: HTMLButtonElement;
   readonly copyBtn: HTMLButtonElement | null;
@@ -33,8 +35,10 @@ export function queryTerminalPane(pane: HTMLElement): TerminalPaneElements {
     statusEl: pane.querySelector<HTMLElement>("[data-tui-status]"),
     ownerTitleEl: pane.querySelector<HTMLElement>("[data-tui-owner-title]"),
     ownerStatusEl: pane.querySelector<HTMLElement>("[data-tui-owner-status]"),
-    parentGuardEl: pane.querySelector<HTMLElement>("[data-tui-parent-guard]"),
-    childChoicesEl: pane.querySelector<HTMLElement>("[data-tui-child-choices]"),
+    readOnlyGuardEl: pane.querySelector<HTMLElement>("[data-tui-read-only-guard]"),
+    readOnlyHeadingEl: pane.querySelector<HTMLElement>("[data-tui-read-only-heading]"),
+    readOnlySummaryEl: pane.querySelector<HTMLElement>("[data-tui-read-only-summary]"),
+    readOnlyChoicesEl: pane.querySelector<HTMLElement>("[data-tui-read-only-choices]"),
     menu: pane.querySelector("[data-tui-menu]") as HTMLFormElement,
     advanceBtn: pane.querySelector("[data-tui-advance]") as HTMLButtonElement,
     copyBtn: pane.querySelector<HTMLButtonElement>("[data-tui-copy]"),

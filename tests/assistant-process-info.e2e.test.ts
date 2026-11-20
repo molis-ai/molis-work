@@ -38,7 +38,7 @@ function turn(text: string, tool?: { name: string; input: unknown }): string {
   return events.join("");
 }
 
-const read = (capability_id: string, input: unknown = {}) => ({ name: "read-capability", input: { capability_id, version: 1, provider_id: "io.molis.work.goals", input } });
+const read = (capability_id: string, input: unknown = {}, provider_id = "io.molis.work.goals") => ({ name: "read-capability", input: { capability_id, version: 1, provider_id, input } });
 const P = "[data-assistant-panel] .assistant-round";
 const LINES = `${P} [data-entry^="a:"]`;
 const GROUP = `${P} > details.assistant-steps`;
@@ -276,11 +276,11 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   let revoke = async () => { throw new Error("the real permission owner is not ready"); };
   const original = "将背景改为：" + corrected + "\n把旧规矩改存到项目长期说明，并停用记忆副本。";
   const guidance = { kind: "constraint", content: rule, reason: "项目持续约定", confirmation_summary: rule, user_confirmed: true, idempotency_key: "browser-original-rule" };
-  const change = (input: unknown) => ({ name: "change-capability", input: { capability_id: "goals.guidance.add", version: 1, provider_id: "io.molis.work.goals", input } });
+  const change = (input: unknown) => ({ name: "change-capability", input: { capability_id: "projects.guidance.add", version: 1, provider_id: "system.project-guidance", input } });
   const steps: Array<(body: Record<string, unknown>) => string | Promise<string>> = [
     () => turn("", { name: "list-memories", input: {} }),
     body => { assert.ok(JSON.stringify(body.messages).includes(oldId)); return turn("", { name: "remember", input: { text: corrected, scope: "project", said: original, replaces: oldId, kind: "fact" } }); },
-    body => { assert.equal(typeof toolField(body.messages, "candidate_id"), "string"); return turn("", read("goals.guidance.read")); },
+    body => { assert.equal(typeof toolField(body.messages, "candidate_id"), "string"); return turn("", read("projects.guidance.read", {}, "system.project-guidance")); },
     () => turn("", change(guidance)),
     async body => { assert.equal(toolField(body.messages, "created"), true); await revoke(); atWithdrawal = requests;
       return turn("", { name: "forget-memory", input: { memory_id: wrongId } }); },
@@ -362,12 +362,12 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   const currentKey = JSON.stringify(`molis.assistant.current:${projectId}`);
   await waitFor(`Boolean(localStorage.getItem(${currentKey}))`);
   const workId = await evaluate<string>(`localStorage.getItem(${currentKey})`), workPath = `/projects/${projectId}/api/assistant/works/${workId}`;
-  const waiting = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.reviews.length ? view : undefined; }, "the actual Goals write is held for the person");
+  const waiting = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.reviews.length ? view : undefined; }, "the actual guidance write is held for the person");
   await web.post(workPath + "/reviews/" + waiting.reviews[0]!.review_id, { decision: "approve", version: waiting.reviews[0]!.version });
   const failed = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.work.state === "failed" ? view : undefined; }, "revoked Memory stops the real Work");
   const failedRound = failed.rounds.at(-1)!; assert.match(failedRound.stop_reason ?? "", /没有读取记忆的权限.*已完成的修改都保留/);
-  const guidanceCard = failed.cards.find(card => card.run_id === failedRound.run_id && card.capability_id === "goals.guidance.add" && card.status === "done");
-  assert.ok(guidanceCard?.presentation, "the completed Goals write has its own result card before any later model answer");
+  const guidanceCard = failed.cards.find(card => card.run_id === failedRound.run_id && card.capability_id === "projects.guidance.add" && card.status === "done");
+  assert.ok(guidanceCard?.presentation, "the completed guidance write has its own result card before any later model answer");
   assert.deepEqual(guidanceCard.presentation, { summary: "项目长期说明已保存", text: rule,
     link: { label: "查看项目说明", href: `/projects/${projectId}/settings/guidance` } });
   const guidanceLink = '[data-assistant-panel] [data-card=' + JSON.stringify(guidanceCard.card_id) + '] a[data-ix-press="open"]';
@@ -385,7 +385,7 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   const receiptLines = await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(failureSelector + ' [data-entry^="a:"]')})].map(node => (node.matches('details') ? node.querySelector(':scope > summary') : node).textContent)`);
   assert.ok(receiptLines.some(line => line.includes("建议记住（等你认可）")));
   assert.ok(receiptLines.some(line => line.includes("停用一条记忆") && line.includes("没有完成")));
-  assert.ok(receiptLines.some(line => line.includes("已修改 Goals")));
+  assert.ok(receiptLines.some(line => line.includes("已修改 项目长期说明")), "the change is named by its owner, the platform's guidance (batch 44)");
   assert.ok(receiptLines.every(line => !/已记下|已删除|已停用/.test(line)), "returned false and a candidate cannot appear as a saved/disabled success");
   const failedStep = failureSelector + ' [data-entry^="a:"][data-state="failed"]';
   // The shared 0fr → 1fr disclosure clips during opening. Reach the real control only once its body contains it.
@@ -418,10 +418,10 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   assert.ok(kept.items.some(item => item.text === corrected && item.state === "active"), "the actual pending card accepts through its owner");
   steps.push(() => turn("", { name: "list-memories", input: {} }), () => turn("", change(guidance)),
     body => { assert.equal(toolField(body.messages, "replayed"), true); return turn("", { name: "forget-memory", input: { memory_id: wrongId } }); },
-    body => { assert.equal(toolField(body.messages, "forgotten"), true); return turn("已停用旧记忆；规则在 Goals，背景已由你认可。"); });
+    body => { assert.equal(toolField(body.messages, "forgotten"), true); return turn("已停用旧记忆；规则在项目长期说明，背景已由你认可。"); });
   await send("权限已恢复，按原请求继续，停用那条旧记忆。");
   // Business replay retains the original key, but each new call still needs this person's current approval.
-  const retryWaiting = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.reviews.length ? view : undefined; }, "the repeated Goals request waits for a fresh review");
+  const retryWaiting = await untilSetup(async () => { const view = await web.get<AssistantWorkView>(workPath); return view.reviews.length ? view : undefined; }, "the repeated guidance request waits for a fresh review");
   assert.equal(retryWaiting.reviews.length, 1);
   const retryReview = retryWaiting.reviews[0]!;
   assert.notEqual(retryReview.review_id, waiting.reviews[0]!.review_id);

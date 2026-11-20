@@ -2,7 +2,6 @@ import type { GoalsCommandContext } from "./command-support.js";
 import type { GoalEventStateCore } from "./event-state-host.js";
 import type {
   GoalEventDecisionRequestView,
-  GoalEventRequirementStatus,
   GoalEventUnmetReason,
   GoalEventWorkStatus,
   GoalRecord,
@@ -12,9 +11,8 @@ import {
   decisionCommitsToCurrentAgreement,
   decisionHasEffect,
   pendingBlocksCompletion,
-  requirementOnlySelfReported,
-  requirementRejected,
 } from "./event-state-authorization.js";
+import type { GoalRequirementTerm } from "./event-facts-requirements.js";
 import { agreementView } from "./event-state-owner-records.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
 import type { AppliedDecisionWithRound } from "./event-state-decision-records.js";
@@ -27,7 +25,8 @@ export interface GoalEventCompletionContext {
 export function completionUnmetReasons(input: {
   goal: GoalRecord;
   result: string | null;
-  requirements: GoalEventRequirementStatus[];
+  /** The Goal's requirements as the platform had them when the closure was submitted (§10.3). */
+  requirements: GoalRequirementTerm[];
   agreement: ReturnType<typeof agreementView>;
   blockingConcerns: Array<{ concern_id: string; title: string }>;
   pendingDecisions: GoalEventDecisionRequestView[];
@@ -48,9 +47,10 @@ export function completionUnmetReasons(input: {
       message: "完成需要本 Goal 的明确结果，空结果只能保存未成立的收尾报告",
     });
   }
+  // Whether each requirement is met is the platform's acceptance (contract-design §10.3): checked by the platform, or accepted by the person.
   for (const requirement of input.requirements) {
-    if (requirement.currently_satisfied) continue;
-    if (requirementRejected(requirement)) {
+    if (requirement.satisfied) continue;
+    if (requirement.returned) {
       reasons.push({
         code: "goals.event_closure.requirement_rejected",
         message: `你没有认可要求「${requirement.statement}」`,
@@ -61,24 +61,14 @@ export function completionUnmetReasons(input: {
     if (requirement.human_decision_required) {
       reasons.push({
         code: "goals.event_closure.human_decision_required",
-        message: `要求「${requirement.statement}」需要仍然有效的可信用户结论`,
-        requirement_id: requirement.requirement_id,
-      });
-      continue;
-    }
-    if (requirementOnlySelfReported(requirement)) {
-      reasons.push({
-        code: "goals.event_closure.requirement_self_reported",
-        message: requirement.conclusion_superseded
-          ? `要求「${requirement.statement}」你认可的是另一版，现在这一版只有报告者自己说满足，需要你再认可`
-          : `要求「${requirement.statement}」只有报告者自己说满足，需要你认可`,
+        message: `要求「${requirement.statement}」要你在要求栏认可`,
         requirement_id: requirement.requirement_id,
       });
       continue;
     }
     reasons.push({
       code: "goals.event_closure.requirement_unsupported",
-      message: `要求「${requirement.statement}」尚未得到当前结果支持`,
+      message: `要求「${requirement.statement}」还没有核验通过，也没有你的认可`,
       requirement_id: requirement.requirement_id,
     });
   }
@@ -106,12 +96,10 @@ export function completionUnmetReasons(input: {
     });
   }
   for (const pending of input.pendingDecisions) {
-    if (!pendingBlocksCompletion(pending, input.requirements)) continue;
+    if (!pendingBlocksCompletion(pending)) continue;
     reasons.push({
       code: "goals.event_closure.pending_decision",
-      message: pending.purpose === "requirement_acceptance"
-        ? `还有针对当前要求的待验收决定：「${pending.question}」`
-        : `还有针对完成动作的待决定：「${pending.question}」`,
+      message: `还有针对完成动作的待决定：「${pending.question}」`,
       request_id: pending.request_id,
     });
   }
@@ -148,7 +136,7 @@ export function syncClosedState(
  * whoever clicks complete is not it either: the closure itself is no decision.
  */
 function hasCurrentHumanApproval(
-  requirements: GoalEventRequirementStatus[],
+  requirements: GoalRequirementTerm[],
   outcome: string,
   decisions: AppliedDecisionWithRound[],
 ): boolean {

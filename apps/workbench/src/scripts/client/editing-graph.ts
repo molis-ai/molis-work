@@ -34,7 +34,18 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       return true;
     };
 
-    const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
+    const showToast = (message, error = false, action = null) => {
+      molisWorkRequest.toast(toast, typeof message === "string" ? undefined : message, typeof message === "string" ? message : undefined, { ms: action ? 6000 : 2200 });
+      toast.dataset.mwState = error ? "failed" : "done";
+      toast.classList.toggle("is-error", error);
+      if (action && action.label && typeof action.onClick === "function") {
+        const button = document.createElement("button");
+        button.type = "button"; button.className = "mw-toast__action"; button.dataset.toastAction = ""; button.textContent = action.label;
+        button.addEventListener("click", () => { toast.classList.remove("is-visible"); toast.style.pointerEvents = ""; action.onClick(); }, { once: true });
+        toast.append(button);
+        toast.style.pointerEvents = "auto";
+      }
+    };
 
     const goalPageBase = () => route(trashView ? "/trash/goals/" : archiveView ? "/archive/goals/" : "/goals/");
     const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");

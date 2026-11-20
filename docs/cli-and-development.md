@@ -83,7 +83,7 @@ packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
 plugins/official-integrations/
                              官方 Manifest、Provider Adapter 与安装 package
 apps/workbench/              工作台外壳：底栏、插件选择、按 Manifest 派生的导航与插件页面接线
-apps/desktop/                AP4 Desktop Shell、Panel、Capsule 与 Tauri native adapter
+apps/desktop/                AP4 Desktop Shell、Panel、菜单栏与 Tauri native adapter
 apps/cli/                    当前管理命令的解析、Host调用与输出
 apps/mcp/                    平台 MCP schema、协议、项目工具分发；插件贡献由 Host 从 Manifest 合成
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
@@ -105,7 +105,6 @@ apps/desktop/launchers/cli/main.ts              CLI 启动入口；命令归 app
 apps/desktop/src-tauri/      macOS App 的 Cargo/Tauri 配置；Rust 入口在 apps/desktop/adapters/tauri
 examples/seed-demo.mts       调用产品 demo 生命周期的开发脚本
 docs/screenshots/            README 产品截图
-skills/goal-advance/         Runtime 工作协议
 skills/molis-plugin-dev/     插件开发 Skill（随安装发布，不自动挂 Runtime）
 tests/goal-events-state.test.ts
                              当前要求、决定、完成与继续的状态转换

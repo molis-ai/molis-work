@@ -1,11 +1,11 @@
 import { FeedReads } from "./application-reads.js";
 import type { FeedItemPage } from "./contract/feed-page.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionEntryRecord, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType } from "./projection.js";
 
 import { callAttention } from "./application-errors.js";
-import { feedErrors } from "./contract/feed.js";
+import { feedErrors, type FeedAttentionReason } from "./contract/feed.js";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { FeedCapture } from "./application-capture.js";
@@ -109,7 +109,7 @@ export class FeedApplication {
   ensureInboxEntryForFeedItem(
     projectId: string,
     itemId: string,
-    reason: Extract<InboxEntryReason, "manual" | "source_rule">,
+    reason: FeedAttentionReason,
     detail: Record<string, unknown> = {},
   ): { entry: InboxEntryRecord; created: boolean } {
     this.assertNotIgnored(projectId, itemId);
@@ -166,7 +166,7 @@ export class FeedApplication {
     author?: string | null;
     occurredAt: string;
     attention?: false | {
-      reason: Extract<InboxEntryReason, "manual" | "source_rule">;
+      reason: FeedAttentionReason;
       detail?: Record<string, unknown>;
     };
     material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
@@ -281,6 +281,6 @@ function isFeedEntry(entry: AttentionEntryRecord): boolean {
 }
 
 function requireFeedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
-  if (!isFeedEntry(entry)) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
+  if (!isFeedEntry(entry)) throw feedErrors.entry_not_found("找不到这个 Inbox Entry");
   return entry;
 }

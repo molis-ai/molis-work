@@ -1,150 +1,39 @@
 import { goalErrors } from "./errors.js";
-import type {
-  GoalEventExtraRequirementInput,
-  GoalEventRequirementRevisionInput,
-  GoalEventRequirementStatus,
-  GoalRecord,
-} from "../contract/goals.js";
-import type { GoalsCommandContext } from "./command-support.js";
-import type { GoalEventFactsConfig } from "./event-facts-config.js";
+import type { GoalAcceptanceReading, GoalRequirementLink } from "../contract/goals.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";
-import { requirementSatisfaction } from "./event-state-authorization.js";
-import { GoalEventStateRepository } from "./event-state-repository.js";
 
-export function readCurrentGoalEventRequirements(
-  context: GoalsCommandContext,
-  records: GoalEventFactsRepository,
-  projectId: string,
-  goalId: string,
-): GoalEventRequirementStatus[] {
-  const goal = context.requireGoal(projectId, goalId);
-  const bindings = records.requirements.listBindings(projectId, goalId);
-  const extra = records.requirements.listExtraRequirements(projectId, goalId);
-  const latest = new Map<string, GoalEventRequirementStatus["current_report"]>();
-  const conclusions = new GoalEventStateRepository(context.repository.db).outcomes.latestConclusions(projectId, goalId);
-  // The latest report against each requirement (contradicts or unknown): an acceptance older than it no longer stands (user 2026-11-05).
-  const lastWithdrawing = new Map<string, number>();
-  for (const row of records.workEvents.listLatestJudgments(projectId, goalId)) {
-    if ((row.verdict === "contradicts" || row.verdict === "unknown") && !lastWithdrawing.has(row.requirement_id)) {
-      lastWithdrawing.set(row.requirement_id, row.journal_seq);
-    }
-    if (latest.has(row.requirement_id)) continue;
-    latest.set(row.requirement_id, {
-      event_id: row.event_id,
-      actor_id: row.actor_id,
-      actor_kind: row.actor_kind,
-      verdict: row.verdict,
-      received_at: row.received_at,
-      journal_seq: row.journal_seq,
-      basis: row.basis,
-      tier: row.tier,
-      gap: row.gap,
-      substitutes_human_decision: false,
-    });
-  }
-  const boundByRequirement = new Map<string, string[]>();
-  for (const binding of bindings) {
-    boundByRequirement.set(binding.requirement_id, [...(boundByRequirement.get(binding.requirement_id) ?? []), binding.type_id]);
-  }
-  for (const requirement of extra) {
-    if (requirement.bound_type_id) {
-      const current = boundByRequirement.get(requirement.requirement_id) ?? [];
-      if (!current.includes(requirement.bound_type_id)) current.push(requirement.bound_type_id);
-      boundByRequirement.set(requirement.requirement_id, current);
-    }
-  }
-  const extras = extra.filter((requirement) => requirement.current_status === "active").map((requirement) => {
-    const report = latest.get(requirement.requirement_id) ?? null;
-    const conclusion = conclusions.get(requirement.requirement_id) ?? null;
-    const source = requirement.source;
-    const originKind = source?.kind === "imported_acceptance_criterion" || source?.kind === "imported_human_approval" || source?.kind === "create_input"
-      ? source.kind
-      : "goal_event_requirement" as const;
-    return {
-      requirement_id: requirement.requirement_id,
-      revision: requirement.revision,
-      goal_id: goal.goal_id,
-      statement: requirement.statement,
-      origin: {
-        kind: originKind,
-        config_version: requirement.created_in_config_version,
-        ...(source?.kind === "imported_acceptance_criterion"
-          ? { decision_method: source.decision_method as GoalEventRequirementStatus["origin"]["decision_method"], pass_condition: source.pass_condition }
-          : {}),
-        ...(source?.kind === "imported_human_approval" ? { policy_binding_ids: source.policy_binding_ids } : {}),
-      },
-      bound_type_ids: boundByRequirement.get(requirement.requirement_id) ?? [],
-      human_decision_required: requirement.human_decision_required,
-      current_report: report && report.journal_seq > requirement.support_valid_after_seq ? report : null,
-      user_conclusion: conclusion && conclusion.journal_seq > requirement.support_valid_after_seq ? conclusion : null,
-    };
-  });
-  const deliverables = context.deliverables?.(projectId, goalId) ?? null;
-  return extras.map((item) => {
-    const satisfaction = requirementSatisfaction(item, lastWithdrawing.get(item.requirement_id) ?? null, deliverables);
-    return { ...item, currently_satisfied: satisfaction.satisfied_by !== null, ...satisfaction };
-  });
+/**
+ * One current requirement of a Goal as a command weighs it: what the platform's acceptance says of it (its words, whether it needs the
+ * person, whether it is satisfied) and the event types Goals bound to it. The platform lists every current requirement, those the person
+ * added on the requirement column too; Goals adds only the bindings (contract-design §10.3).
+ */
+export interface GoalRequirementTerm {
+  requirement_id: string;
+  statement: string;
+  human_decision_required: boolean;
+  bound_type_ids: string[];
+  satisfied: boolean;
+  /** The person's word on it on the platform: `returned` when they turned it down. */
+  returned: boolean;
 }
 
-export function applyGoalEventAgreementChange(
-  context: GoalsCommandContext,
-  records: GoalEventFactsRepository,
-  configWrites: GoalEventFactsConfig,
-  input: {
-    actor_id: string;
-    new_requirements: GoalEventExtraRequirementInput[];
-    revise_requirements: GoalEventRequirementRevisionInput[];
-    retire_requirement_ids: string[];
-    expire_requirement_ids: string[];
-    journal_seq: number;
-  },
-  goal: GoalRecord,
-): void {
-  const at = context.now().toISOString();
-  const configVersion = records.config.getConfig(goal.project_id, goal.goal_id)?.current_version ?? 0;
-  configWrites.applyRequirements(goal, input.new_requirements, input.actor_id, [], configVersion, at);
-  const touched = new Set<string>();
-  for (const revision of input.revise_requirements) {
-    const existing = records.requirements.getExtraRequirement(revision.requirement_id);
-    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
-      throw goalErrors["goals.event_requirement.not_current"](`不能修订不在当前约定中的要求: ${revision.requirement_id}`);
-    }
-    records.requirements.updateRequirementCurrent({
-      requirementId: revision.requirement_id,
-      statement: revision.statement ?? existing.statement,
-      humanDecisionRequired: revision.human_decision_required ?? existing.human_decision_required,
-      currentStatus: existing.current_status,
-      revision: existing.revision + 1,
-      supportValidAfterSeq: input.journal_seq,
-    });
-    touched.add(revision.requirement_id);
-  }
-  for (const requirementId of input.retire_requirement_ids) {
-    const existing = records.requirements.getExtraRequirement(requirementId);
-    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) {
-      throw goalErrors["goals.event_requirement.not_current"](`不能退休不在当前约定中的要求: ${requirementId}`);
-    }
-    records.requirements.updateRequirementCurrent({
-      requirementId,
-      statement: existing.statement,
-      humanDecisionRequired: existing.human_decision_required,
-      currentStatus: "retired",
-      revision: existing.revision + 1,
-      supportValidAfterSeq: input.journal_seq,
-    });
-    touched.add(requirementId);
-  }
-  for (const requirementId of input.expire_requirement_ids) {
-    if (touched.has(requirementId)) continue;
-    const existing = records.requirements.getExtraRequirement(requirementId);
-    if (!existing || existing.project_id !== goal.project_id || existing.goal_id !== goal.goal_id) continue;
-    records.requirements.updateRequirementCurrent({
-      requirementId,
-      statement: existing.statement,
-      humanDecisionRequired: existing.human_decision_required,
-      currentStatus: existing.current_status,
-      revision: existing.revision,
-      supportValidAfterSeq: input.journal_seq,
-    });
-  }
+export function readGoalRequirementLinks(records: GoalEventFactsRepository, projectId: string, goalId: string): GoalRequirementLink[] {
+  return records.requirements.listLinks(projectId, goalId);
+}
+
+/**
+ * The Goal's requirements as the reading Goals' own handler took just before the command, with Goals' bindings. A command that needs
+ * them and was given no reading is refused: it cannot know what it would commit to.
+ */
+export function goalRequirementTerms(records: GoalEventFactsRepository, projectId: string, goalId: string, reading: GoalAcceptanceReading | undefined): GoalRequirementTerm[] {
+  if (!reading) throw goalErrors["goals.event_requirement.unread"]("读不到这个 Goal 在平台上的要求，没有记下任何东西");
+  const bindings = records.requirements.listBindings(projectId, goalId);
+  return reading.requirements.map((item) => ({
+    requirement_id: item.id,
+    statement: item.statement,
+    human_decision_required: item.requires_person,
+    bound_type_ids: bindings.filter((binding) => binding.requirement_id === item.id).map((binding) => binding.type_id).sort(),
+    satisfied: item.satisfied,
+    returned: item.person === "returned",
+  }));
 }

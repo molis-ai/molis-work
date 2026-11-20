@@ -19,7 +19,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
   // Feed's page routes are the project's Runtime plugin's (FI-7), so the project is one in the catalog that has Feed, Inbox and Schedule.
   const { project_id: projectId, database_path: databasePath } = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const { project_id } = await catalog.createProject({ display_name: "读取", actor_id: "test" });
-    for (const plugin_id of ["feed", "inbox", "schedule"]) if (!catalog.listProjectPlugins(project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id, plugin_id, actor_id: "test" });
+    for (const plugin_id of ["goals", "feed", "inbox", "schedule"]) if (!catalog.listProjectPlugins(project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id, plugin_id, actor_id: "test" });
     return catalog.getProject(project_id);
   });
   const disabled = new Set<string>();
@@ -41,8 +41,8 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
     await actions.invoke(scheduleActions.createTask, { title: "原任务", instructions: "查阅原材料", time: "10:00" });
     const cache = new Map(), options = { databasePath, projectId, homeDirectory: home };
-    const view = async () => ({ ...await cachedMolisWorkWebView(cache, runtime.store, options, actions),
-      stage_data: await declaredStageData(["feed", "inbox"], () => actions) });
+    const view = async () => ({ ...cachedMolisWorkWebView(cache, options),
+      stage_data: await declaredStageData(["goals", "feed", "inbox"], () => actions) });
     // Schedule's stage reads its own data (`stage_data`), as the person and with only that read's permissions (T-133).
     const scheduleTasks = async () => ((await declaredStageData(["schedule"], action => bindActionClient(host.actionClient(reference),
       () => ({ ...caller, permissions: [...action.action.permissions] })))).schedule as { tasks: unknown[] } | undefined)?.tasks.length ?? 0;
@@ -80,7 +80,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
 
     disabled.add("io.molis.work.feed"); disabled.add("io.molis.work.schedule");
     const revoked = await view();
-    assert.strictEqual(revoked.goals, first.goals, "the authorized Goals cache is still warm");
+    assert.deepEqual(revoked.stage_data.goals, first.stage_data.goals, "Goals retains its own authority");
     assert.equal(revoked.stage_data.feed, undefined);
     assert.equal("feed_connector_auth" in revoked, false); assert.equal(await scheduleTasks(), 0);
     assert.equal(revoked.stage_data.inbox.entries.length, 1, "Inbox retains its own authority");
@@ -91,11 +91,11 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     disabled.add("io.molis.work.inbox"); assert.equal((await view()).stage_data.inbox, undefined);
     disabled.clear();
     const recovered = await view();
-    assert.strictEqual(recovered.goals, first.goals);
+    assert.deepEqual(recovered.stage_data.goals, first.stage_data.goals);
     assert.equal(recovered.stage_data.feed.snapshot.feed_items.length, 1);
     feed.ingestItem({ source, externalId: "two", title: "没有 Goals 事件的新材料", summary: "摘要", occurredAt: new Date().toISOString(), attention: false });
     const restored = await view();
-    assert.ok(restored.snapshot.cursor >= first.snapshot.cursor);
+    assert.deepEqual(restored.stage_data.goals, first.stage_data.goals);
     assert.equal(restored.stage_data.feed.snapshot.feed_items.length, 2); assert.equal(restored.stage_data.inbox.entries.length, 1);
     assert.equal(await scheduleTasks(), 1);
     assert.equal((await fetch(`${base}/api/plugins/io.molis.work.feed/snapshot`)).status, 200);

@@ -3,7 +3,7 @@ import { ledgerDatabase } from "./context-ledger-database.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  PLACEMENT_PROVIDER_ID, placementActions, placementGoalActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
+  PLACEMENT_PROVIDER_ID, placementActions, placementAttachActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
@@ -44,7 +44,7 @@ export interface PlacementHost {
 /** The placement store's one current schema (repository-anti-corruption §4.1): the context ledger's tables and the titles last seen. */
 export const PLACEMENT_BASELINE: SqliteBaseline = { version: /* @version database.placement_baseline */ 1, schema: `${CONTEXT_LEDGER_SCHEMA}
   CREATE TABLE placement_titles (kind TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (kind, id));
-` };
+`, upgrades: [] };
 
 export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const db = openHomeSqliteDatabase(ports.homeDirectory, PLACEMENT_HOME_STORE.path);
@@ -91,12 +91,12 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     { ...placementActions.move, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string }; return forCall(caller).move(value.object, value.to_project_id); } },
     { ...placementActions.copy, handle: (caller, input) => { const value = input as { object: PlacedObject; to_project_id: string; request_id: string }; return forCall(caller).copy(value.object, value.to_project_id, value.request_id); } },
     { ...placementActions.convert, handle: (caller, input) => forCall(caller).convert(input as PlacementConvertRequest) },
-    { ...placementGoalActions.goals, handle: async (caller, input) => ({ goals: await forCall(caller).goals((input as { project_id: string }).project_id) }) },
-    { ...placementGoalActions.bindGoal, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; goal_id: string; read_revision?: string }; return forCall(caller).bindGoal(value.object, value.project_id, value.goal_id, value.read_revision); } },
-    { ...placementGoalActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
+    { ...placementAttachActions.targets, handle: async (caller, input) => { const value = input as { project_id: string; object: PlacedObject }; return { kinds: await forCall(caller).attachTargets(value.project_id, value.object) }; } },
+    { ...placementAttachActions.attach, handle: (caller, input) => { const value = input as { object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }; return forCall(caller).attach(value.object, value.project_id, value.target, value.read_revision); } },
+    { ...placementAttachActions.create, handle: (caller, input) => forCall(caller).create(input as PlacementCreateRequest) },
   ];
   const dispose = ports.registry.registerProvider({ provider: { provider_id: PLACEMENT_PROVIDER_ID, title: "放置", kind: "system" },
-    definitions: [...Object.values(placementActions), ...Object.values(placementGoalActions)], handlers });
+    definitions: [...Object.values(placementActions), ...Object.values(placementAttachActions)], handlers });
   return { service,
     relationsFor: (projectId, candidates) => {
       if (closed) throw new ActionError("actions.expired", "原放置服务已关闭");

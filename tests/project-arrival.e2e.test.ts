@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
@@ -27,6 +27,8 @@ async function openChooser(t: TestContext) {
   const { homeDirectory, projectId } = browser;
   const others: string[] = [];
   for (const name of ["Coding 开发沙盒", LONG_NAME, "Footballnia"]) others.push((await createProject(browser.web, name)).project_id);
+  // PEQ-02: Goals is off on new projects by default; enable it on the first empty project so the chooser tests the "no goals yet" brief wording.
+  await addProjectPlugin(browser.web, others[0]!, "goals");
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   const memory = { schema_version: 1, last_project_id: projectId!, projects: {
     [projectId!]: { last_opened_at: hoursAgo(2), description: "把目录交互的每一步都在真实浏览器里走一遍，确认它们顺手。" },

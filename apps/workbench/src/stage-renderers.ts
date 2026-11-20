@@ -2,10 +2,10 @@ import type { StagePageModel, StagePagePrimitives } from "@molis-ai/molis-work-c
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { declaredStageContributionId, stageDataAction, viewContributionId } from "./declared-stages.js";
+import { declaredStageContributionId, stageDataAction } from "./declared-stages.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import { createRendererHelpers, type RendererLocale } from "./renderer-helpers.js";
-import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
+import { createArtifactReferenceRenderer, mountContributionsOf, renderWorkbenchContribution } from "./ui-composition.js";
 import { renderTerminalPane } from "./terminal/pane.js";
 import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
@@ -66,17 +66,6 @@ export function createWorkbenchStageRenderers(ports: {
     return view.plugin_stage_views ? "" : renderWorkbenchContribution(contributionId, surface, model);
   }
 
-  function declaredSettingsSurface<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string {
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === pluginId);
-    if (!entry) return "";
-    // The plugin's settings page when it has one; otherwise the contribution of its registration that declares this surface for the
-    // settings slot (a plugin may draw part of a project's settings without a row of its own in the settings directory).
-    const settings = entry.manifest.ui.views?.find(item => item.slot === "settings");
-    const contributionId = settings ? viewContributionId(entry.manifest, settings) : entry.workbench.contributions.find(item =>
-      item.descriptor.surfaces?.some(declared => declared.surface_id === surface && declared.target_slot_id === WORKBENCH_UI_SLOTS.settings.slot_id))?.descriptor.contribution_id;
-    return contributionId ? renderWorkbenchContribution(contributionId, surface, model(sharedStageModel(pluginId, view))) : "";
-  }
-
   /**
    * `GET /api/stage/<plugin>` for a plugin whose stage declares its data (`stage_data`): its stage drawn again from a fresh view, the same
    * `workbench` surface the page mounted. Undefined for any other plugin, so the Host has no stage to offer for it. No plugin is named here.
@@ -90,7 +79,6 @@ export function createWorkbenchStageRenderers(ports: {
 
   return {
     declaredPageSurface,
-    declaredSettingsSurface,
     declaredStageModel,
     declaredStageFragment,
     stageFragmentModel,

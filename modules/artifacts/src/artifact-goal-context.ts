@@ -19,8 +19,10 @@ export function readGoalArtifactEmbeds(input: {
   linkKinds?: ArtifactLinkKinds;
 }): GoalArtifactEmbed[] {
   const scope = { kind: "personal" as const, id: input.projectId };
-  const modules = new Set([...input.linkKinds?.values() ?? []].filter(kind => !kind.proposal).map(kind => kind.module));
-  const edges = [...modules].flatMap(module => input.ledger.list({ actor_id: "plugin:artifacts", scope }, { source: { module: module as "goals", id: input.goalId, version: null, scope } }));
+  // By each declared kind: the object's kind is its owner's word, so the edges are matched on the declaring plugin and the id.
+  const edges = [...input.linkKinds?.entries() ?? []].filter(([, kind]) => !kind.proposal).flatMap(([type, kind]) =>
+    input.ledger.list({ actor_id: "plugin:artifacts", scope }, { type })
+      .filter(edge => edge.source.module === "plugins" && edge.source.plugin_id === kind.plugin_id && edge.source.id === input.goalId));
   return edges.flatMap((edge): GoalArtifactEmbed[] => {
     const kind = linkKindOf(input.linkKinds, edge);
     if (!kind || kind.proposal || edge.target.module !== "artifacts" || (edge.target.project_id != null && edge.target.project_id !== input.projectId)) return [];

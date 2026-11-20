@@ -2,7 +2,7 @@ import {renderSyncIndicator} from './sync-indicator.js';
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderLineHead, renderWorkLine } from "./work-line-parts.js";
@@ -44,20 +44,19 @@ function pluginLink(
   const plugin = { ...rawPlugin, label: escapeHtml(rawPlugin.label) };
   // A plugin installed at run time has a stage and no directory panel to open.
   const directory = rawPlugin.chosen === false || DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
-  const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
   const aria = plugin.id === "home"
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${uiText("workbench.immersive-shell.switch-plugin-name", { name: rawPlugin.label })}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
   // One line under the name says what the person gets there (the switcher shows it; the Dock does not).
   const hint = plugin.hint ? `<small class="plugin-rail-hint">${escapeHtml(plugin.hint)}</small>` : "";
-  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${hint}${suffix}</button>`;
+  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${hint}${suffix}</button>`;
 }
 
 function currentListPlugin(directory: string): string {
-  if (directory === "sources") return "feed";
-  if (directory === "root" || directory === "market" || directory === "home") return "";
-  return directory;
+  const canonical = resolveSurfaceAlias(directory);
+  if (canonical === "root" || canonical === "market" || canonical === "home") return "";
+  return canonical;
 }
 
 function islandPlugins(directory: PluginDirectory, enabled: readonly string[]) {

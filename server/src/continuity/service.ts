@@ -168,7 +168,8 @@ export class ContinuityService {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
       const artifacts = await this.artifacts(bound,scope,role !== "owner");
       const goals = await this.goals(bound,scope.goal_ids); validate();
-      return {format:"molis-work-assets",version:/* @version format.asset.bundle */1,source_project_id:projectId,title:scope.title,goals,
+      const sections = goals.length ? [{ plugin_id: "io.molis.work.goals", section_id: "project_goals", schema_version: /* @version format.asset.bundle */ 1, title: "目标接续摘要", items: goals }] : [];
+      return {format:"molis-work-assets",version:/* @version format.asset.bundle */1,source_project_id:projectId,title:scope.title,sections,
         artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,artifact_type_id:a.artifact_type_id,schema_version:a.schema_version,
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},
           content:a.content_kind === "inline" ? {kind:"inline",payload:a.payload} : {kind:"reference",content_ref:`unavailable://${encodeURIComponent(a.artifact_id)}/${a.version}`,digest:a.content_digest,size_bytes:a.size_bytes,available:false},

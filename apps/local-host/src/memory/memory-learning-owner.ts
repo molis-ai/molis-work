@@ -90,7 +90,7 @@ export function pluginMemoryLearning(input: {
       || session.owner.plugin_id !== owner.plugin_id || session.owner.install_id !== owner.install_id) return null;
     const run = await adapter.read({ session_id: payload.session_id, run_id: payload.run_id });
     if (run.phase !== "completed" || run.ref.session_id !== payload.session_id || run.ref.run_id !== payload.run_id
-      || !run.class_restrictions || run.memory_scene !== "coding" || run.frozen.continued_from) return null;
+      || !run.class_restrictions || !run.memory_scene || run.memory_scene === "assistant" || run.frozen.continued_from) return null;
     const sources = memoryInputSnapshots(owner.actor_id, [run]);
     if (!sources.length || sources.length > 6 || sources.some(source => source.text.length > 1500)) return null;
     const caller: MemoryCaller = { actor_id: owner.actor_id, project_id: owner.project_id, plugin_id: owner.plugin_id, consumer: "agent",

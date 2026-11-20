@@ -145,6 +145,10 @@ function referenceProblems(key: string, a: ActionBody): string[] {
       || (ref.provider_id !== undefined && !isId(ref.provider_id))))) {
     problems.push(`能力 ${key} 的能力依赖无效`);
   }
+  if (a.required_roles !== undefined && (!Array.isArray(a.required_roles)
+    || a.required_roles.some(role => !isRecord(role) || !isId(role.input_type) || !isId(role.output_type)))) {
+    problems.push(`能力 ${key} 的角色依赖无效`);
+  }
   return problems;
 }
 

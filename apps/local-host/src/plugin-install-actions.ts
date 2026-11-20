@@ -70,7 +70,7 @@ export const pluginInstallActions = {
       bundled: { type: "object", properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 64 } }, required: ["plugin_id", "version"], additionalProperties: false } },
     oneOf: [{ required: ["bundle"] }, { required: ["bundled"] }], additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
-      preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
+      preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
       agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt", "body", "total_chars", "truncated"], properties: {
         kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
@@ -90,7 +90,7 @@ export const pluginInstallActions = {
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins", "refused"], properties: {
       plugins: { type: "array", items: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "name", "summary", "runtime_scope", "publisher"], properties: {
-        plugin_id: text, version: text, name: text, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] },
+        plugin_id: text, version: text, name: text, summary: { type: ["string", "null"] }, runtime_scope: { enum: ["home", "project"] }, dual_instance: { const: true },
         publisher: { type: "object", additionalProperties: false, required: ["publisher_id", "key_id", "pinned_label", "revoked"], properties: {
           publisher_id: text, key_id: { type: "string" }, pinned_label: { type: ["string", "null"] }, revoked: { type: "boolean" } } },
         signed_here: { const: true } } } },

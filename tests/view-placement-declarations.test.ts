@@ -1,6 +1,7 @@
-// Where a plugin is listed, made new and started from is its Manifest's (W5-06 2b): a view names its rail `group`, what it
-// `creates` and its project home `start`, and a settings view its `icon`. The SDK refuses a declaration the workbench could
-// not honour; the workbench reads the declarations and keeps only the group names and their order.
+// Where a plugin is listed, made new and started from is its Manifest's (W5-06 2b): a view names its rail `group` and a settings
+// view its `icon`; what it makes new is a station's `create: { title }` and where it starts an intake's `start` (contract-design
+// §2.3, §2.4), placed on its first navigator or island view. The SDK refuses a declaration the workbench could not honour; the
+// workbench reads the declarations and keeps only the group names and their order.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -20,8 +21,12 @@ const pluginIdOf = (projectPluginId: string): string => BUILTIN_PLUGIN_CATALOG.f
 
 const STATION = { id: "notes", title: "Notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [] };
 const creating = defineWorkflowContentActions({ ...STATION, create: true });
-const listing = defineWorkflowContentActions(STATION);
 const CREATES = [creating.list, creating.read, creating.receive, creating.create];
+/** The same station when it makes a blank one in words: its `create` carries the blank intake a person starts from (contract-design §2.3). */
+const worded = defineWorkflowContentActions({ ...STATION, create: { title: "笔记" } });
+const WORDED = [worded.list, worded.read, worded.receive, worded.create!];
+const started = (start: unknown) => [worded.list, worded.read, worded.receive, { ...worded.create!, action: { ...worded.create!.action, intake: { ...worded.create!.action.intake!, start } } }];
+const START_INVALID = "能力 notes.content.create@1 的创建入口声明无效：需要稳定的 id、对象种类、名称、动词、说明与一到三条示例（不收文字时可以没有），起点要有名称与提示，字段都有长度上限";
 const GROUPS = `（${UI_VIEW_GROUPS.join("、")}）`;
 const HUES = `（${UI_VIEW_HUES.join("、")}）`;
 
@@ -48,8 +53,8 @@ test("SH1303-02 public Manifest parsing retains colour names and refuses non-str
 
 const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
   { rule: "a view that declares none of them", manifest: placed(), expected: "" },
-  { rule: "a navigator view that declares all of them", manifest: placed({ group: "make", creates: { station: "notes", title: "笔记" }, start: { title: "写一条笔记", hint: "先写下来。", icon: "note" } }), expected: "" },
-  { rule: "an island view with a group and a start", manifest: placed({ slot: "island", group: "personal", start: { title: "记下来", hint: "以后再整理。" } }), expected: "" },
+  { rule: "a navigator view with a group over a station that makes a blank one with a start", manifest: placed({ group: "make" }, started({ title: "写一条笔记", hint: "先写下来。", icon: "note" })), expected: "" },
+  { rule: "an island view with a group", manifest: placed({ slot: "island", group: "personal" }, WORDED), expected: "" },
   // icon
   { rule: "an icon that is not a name", manifest: placed({ icon: 3 }), expected: "视图 main 的 icon 必须是图标名" },
   { rule: "a blank icon", manifest: placed({ icon: " " }), expected: "视图 main 的 icon 必须是图标名" },
@@ -64,23 +69,17 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
   { rule: "a group on a stage view", manifest: placed({ slot: "stage", group: "make" }), expected: "视图 main 的 group 只用于 navigator 或 island 视图" },
   { rule: "an unknown group on a settings view", manifest: placed({ slot: "settings", group: "tools" }),
     expected: `视图 main 的 group 只用于 navigator 或 island 视图；视图 main 的 group tools 不是工作台的分组${GROUPS}` },
-  // creates
-  { rule: "creates on a settings view", manifest: placed({ slot: "settings", creates: { station: "notes", title: "笔记" } }), expected: "视图 main 的 creates 只用于 navigator 或 island 视图" },
-  { rule: "creates without a title", manifest: placed({ creates: { station: "notes" } }), expected: "视图 main 的 creates 必须写明 station 与 title" },
-  { rule: "creates without a station", manifest: placed({ creates: { title: "笔记" } }), expected: "视图 main 的 creates 必须写明 station 与 title" },
-  { rule: "creates that is not an object", manifest: placed({ creates: "notes" }), expected: "视图 main 的 creates 必须写明 station 与 title" },
-  { rule: "creates naming a station the Manifest does not have", manifest: placed({ creates: { station: "drafts", title: "草稿" } }),
-    expected: "视图 main 的 creates 指向 drafts，本 Manifest 没有这个能新建的工作流内容站" },
-  { rule: "creates naming a station that cannot create", manifest: placed({ creates: { station: "notes", title: "笔记" } }, [listing.list, listing.read, listing.receive]),
-    expected: "视图 main 的 creates 指向 notes，本 Manifest 没有这个能新建的工作流内容站" },
-  { rule: "creates in a Manifest without actions", manifest: { ...placed({ creates: { station: "notes", title: "笔记" } }), actions: undefined },
-    expected: "视图 main 的 creates 指向 notes，本 Manifest 没有这个能新建的工作流内容站" },
-  // start
-  { rule: "start on a side view", manifest: placed({ slot: "side", start: { title: "写", hint: "先写下来。" } }), expected: "视图 main 的 start 只用于 navigator 或 island 视图" },
-  { rule: "start without a hint", manifest: placed({ start: { title: "写" } }), expected: "视图 main 的 start 必须写明 title 与 hint" },
-  { rule: "start with a blank title", manifest: placed({ start: { title: " ", hint: "先写下来。" } }), expected: "视图 main 的 start 必须写明 title 与 hint" },
-  { rule: "start that is not an object", manifest: placed({ start: true }), expected: "视图 main 的 start 必须写明 title 与 hint" },
-  { rule: "a start icon that is not a name", manifest: placed({ start: { title: "写", hint: "先写下来。", icon: 1 } }), expected: "视图 main 的 start.icon 必须是图标名" },
+  // creates and start (contract-design §2.3, §2.4): what a project makes new is the station's `create: { title }`, a blank intake, and where
+  // it starts is that intake's `start`. A view that still says either is refused and told where it goes now.
+  { rule: "creates on a view", manifest: placed({ creates: { station: "notes", title: "笔记" } }, WORDED),
+    expected: "视图 main 不再声明 creates：能新建的种类写在内容站的 create: { title }（contract-design §2.3、§2.4）" },
+  { rule: "start on a view", manifest: placed({ slot: "island", start: { title: "记下来", hint: "以后再整理。" } }, WORDED),
+    expected: "视图 main 不再声明 start：起点写在创建入口的 intake.start（contract-design §2.3、§2.4）" },
+  { rule: "a station that makes a blank one in words", manifest: placed({}, WORDED), expected: "" },
+  { rule: "start without a hint", manifest: placed({}, started({ title: "写" })), expected: START_INVALID },
+  { rule: "start with a blank title", manifest: placed({}, started({ title: " ", hint: "先写下来。" })), expected: START_INVALID },
+  { rule: "start that is not an object", manifest: placed({}, started(true)), expected: START_INVALID },
+  { rule: "a start icon that is not a name", manifest: placed({}, started({ title: "写", hint: "先写下来。", icon: 1 })), expected: START_INVALID },
 ];
 
 for (const { rule, manifest, expected } of RULES) {
@@ -310,7 +309,7 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 
 // ---- making new and starting --------------------------------------------------------------------------------------------
 
-test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, directory views by order, then islands", () => {
+test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the stations whose create has words, directory views by order, then islands", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
     { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档", label: "文档" },
@@ -322,10 +321,12 @@ test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views tha
   assert.deepEqual(creatableKinds(["goals"]), []);
 });
 
-test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the views that declare them, in the same order", () => {
+test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the intakes that declare a start, in the same order", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(homeStarts(all), [
     { id: "goals", plugin_id: pluginIdOf("goals"), title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
+    // Coding's blank session intake declares a start (contract-design §2.4); homeStarts has no product caller, so nothing visible changes.
+    { id: "coding", plugin_id: pluginIdOf("coding"), title: "新建编码会话", hint: "新建一个编码会话；第一轮任务开始前不会调用模型", glyph: "code" },
     { id: "pages", plugin_id: pluginIdOf("pages"), title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
     { id: "lingguang", plugin_id: pluginIdOf("lingguang"), title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
   ]);

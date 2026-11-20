@@ -54,7 +54,11 @@ export type AcceptanceCheckKind = "engineering" | "hands_on";
  * command that did not end well.
  */
 export type AcceptanceGap = "evidence_missing" | "evidence_stale" | "wrong_object" | "evidence_unreadable" | "check_failed";
-/** The platform's own finding when the report arrives; no input carries it (`ReviewEvidence["tier"]` without the person's). */
+/**
+ * The platform's own finding when the report arrives; no input carries it (`ReviewEvidence["tier"]` without the person's). `machine_checked`:
+ * commands the platform ran in the round that made the version; `peer_reviewed`: a session the platform knows, other than the one that made
+ * the version, checked that version against readable evidence (contract-design §10.9 question 2).
+ */
 export type AcceptanceTier = Exclude<ReviewEvidence["tier"], "person_accepted">;
 
 export interface AcceptanceReportInput {
@@ -81,8 +85,12 @@ export interface AcceptanceCheck {
   reported_at: string;
 }
 
+/** Where a decision's standing comes from: always the platform's trusted-decision entry. */
+export type AcceptanceDecisionOrigin = "trusted_decision";
+
 export interface AcceptancePersonDecision {
   decision_id: string;
+  origin: AcceptanceDecisionOrigin;
   decision: "accepted" | "returned";
   note: string | null;
   requirement_version: number;
@@ -119,6 +127,8 @@ export interface AcceptanceRequirementState {
   gap: AcceptanceGap | "self_only" | "contradicted" | null;
   person: "accepted" | "returned" | "pending" | "not_needed";
   decision: AcceptancePersonDecision | null;
+  /** A decision synced from another device whose trusted-decision record has not arrived here yet: it does not count until it does. */
+  awaiting_voucher: boolean;
   satisfied: boolean;
   history: AcceptanceHistoryEntry[];
 }
@@ -205,7 +215,7 @@ const metadata = { scope: "project" as const, scheduling: "concurrent" as const,
 export const acceptanceActions = {
   set: { capability_id: "acceptance.requirements.set", version: /* @version action.acceptance.requirements.set */ 1, operation: "command", action: { ...metadata,
     title: "写下交付要满足的各项要求", description: "把一件工作要满足的要求逐项挂到它的对象上：每项一句话说明、可选的预期与所指的部分、是否要用户本人认可。同一个 id 的说明变了算这条要求的新版本，之前的核验和认可不再算数；没再列出的要求撤下。第一次交付之后只有用户本人能改要求。",
-    kind: "operation", effect: "write", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_REPORT_PERMISSION],
+    kind: "operation", effect: "write", audiences: ["user", "agent", "workflow", "plugin"], permissions: [ACCEPTANCE_REPORT_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceSetRequest>()({ type: "object", properties: { subject: SUBJECT, requirements: { type: "array", minItems: 1, maxItems: ACCEPTANCE_REQUIREMENT_MAX, items: REQUIREMENT } },
       required: ["subject", "requirements"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceSetRequest, AcceptanceView>,
   deliver: { capability_id: "acceptance.deliveries.record", version: /* @version action.acceptance.deliveries.record */ 1, operation: "command", action: { ...metadata,
@@ -220,7 +230,7 @@ export const acceptanceActions = {
       required: ["subject", "reports"], additionalProperties: false } as const), output_schema: VIEW } } as ActionDefinition<AcceptanceReportRequest, AcceptanceView>,
   read: { capability_id: "acceptance.read", version: /* @version action.acceptance.read */ 1, operation: "query", action: { ...metadata,
     title: "逐项看要求、证据与认可", description: "读取一件或几件工作（subjects，至多 32 个）的各项要求此刻的状态：所核版本、方法、证据与可信层级、缺口、用户的认可或退回、各轮的记录，以及执行、核验、认可三个各自的进度。按所问的顺序返回 views；没挂要求的对象返回空的一份。只读。",
-    kind: "query", effect: "read", audiences: ["user", "agent", "workflow"], permissions: [ACCEPTANCE_READ_PERMISSION],
+    kind: "query", effect: "read", audiences: ["user", "agent", "workflow", "plugin"], permissions: [ACCEPTANCE_READ_PERMISSION],
     input_schema: inputSchemaFor<AcceptanceReadRequest>()({ type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: ACCEPTANCE_READ_MAX, items: SUBJECT } }, required: ["subjects"], additionalProperties: false } as const),
     output_schema: { type: "object", properties: { views: { type: "array", items: VIEW } }, required: ["views"], additionalProperties: false } } } as ActionDefinition<AcceptanceReadRequest, AcceptanceReadResult>,
   review: { capability_id: "acceptance.review", version: /* @version action.acceptance.review */ 1, operation: "query", action: { ...metadata, subject_kinds: [...ACCEPTANCE_REVIEW_SUBJECT_KINDS],

@@ -154,6 +154,7 @@ test('PCSYNC-20 recycle refuses active work and fences Runtime and PTY starts un
   const project=await catalog.createProject({display_name:'生命周期保护',actor_id:'test-user'});
   const panel=await catalog.commit(()=>catalog.terminalPanels.insert({panel_id:'plugin-reserved-terminal',install_id:'fixture-install',project_id:project.project_id,
     actor_id:'test-user',key:'reserved',subject:'goal',runtime:'command',launch_command:'/bin/cat',launch_args:[],title:'cat'},home));
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test-user" });
   await linkTerminalFolder(catalog,project.project_id,home);addTerminalGoal(project,'goal');
   const reference=molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id});
   let endWork!:()=>void,started!:()=>void;
@@ -206,22 +207,28 @@ test('PCSYNC-20 recycle refuses active work and fences Runtime and PTY starts un
  * Host refuses to delete the project while it runs, whichever door asks, and the record goes with the project once it is closed. */
 async function residentHostWithTerminal(t: TestContext, home: string, project: { project_id: string; database_path: string }, directory: string) {
   const { localHost, origin, token, stop } = await residentHost(t, home);
+  let socket: WebSocket | undefined;
+  t.after(async () => {
+    socket?.terminate();
+    await stop();
+  });
   const folder = join(directory, "workspace");
   await mkdir(folder, { recursive: true });
   const withCatalog = localHost.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog;
   const canonical = await realpath(folder);
-  await withCatalog({ homeDirectory: home }, catalog => linkTerminalFolder(catalog, project.project_id, canonical));
+  await withCatalog({ homeDirectory: home }, async catalog => {
+    if (!catalog.projectPluginMembership(project.project_id).plugins.includes("goals")) {
+      catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "test-user" });
+    }
+    await linkTerminalFolder(catalog, project.project_id, canonical);
+  });
   addTerminalGoal(project, "goal-terminal");
   const opened = await fetch(origin + goalTerminalsPath(project.project_id, "goal-terminal"), { method: "POST",
     headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
     body: JSON.stringify({ key: "deletion", command: "/bin/cat" }) });
   assert.equal(opened.status, 200, await opened.clone().text());
   const panel = { panel_id: (await opened.json() as { panel_id: string }).panel_id };
-  const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty");
-  t.after(async () => {
-    socket.terminate();
-    await stop();
-  });
+  socket = new WebSocket(origin.replace("http:", "ws:") + "/pty");
   await once(socket, "open");
   const message = (value: Record<string, unknown>, type: string) => {
     const received = new Promise<Record<string, unknown>>((resolve, reject) => {

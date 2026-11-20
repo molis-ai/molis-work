@@ -51,7 +51,7 @@ export type FragmentIntent = (typeof FRAGMENT_INTENTS)[number]["id"];
  * - `result`: produces something to read (an answer, a comparison); nothing on the page changes;
  * - `replace`: proposes new text for the selected range; applied only after the person accepts the preview;
  * - `insert_after`: proposes text placed after the selection; same acceptance;
- * - `record`: creates or links a record elsewhere (a Goal, a relation, a note); its parameters are shown first.
+ * - `record`: creates or links a record elsewhere (another plugin's record, a relation, a note); its parameters are shown first.
  */
 export type FragmentApply = "result" | "replace" | "insert_after" | "record";
 
@@ -71,8 +71,8 @@ export interface FragmentOffersInput {
     readonly granularity: FragmentGranularity;
     readonly targets: readonly FragmentTarget[];
     readonly heading_path?: readonly string[];
-    /** The Goal the object belongs to, when the surface knows it. */
-    readonly goal?: { readonly id: string; readonly title: string };
+    /** What the object belongs to, when the surface knows it: another object, any plugin's (`SurfaceFocus.belongs_to`). */
+    readonly belongs_to?: { readonly plugin_id: string; readonly kind: string; readonly id: string; readonly title: string };
   };
   readonly request_id: string;
 }
@@ -102,8 +102,8 @@ export interface FragmentOfferChoice {
   readonly action: Pick<ActionReference, "capability_id" | "version">;
   readonly granularities?: readonly FragmentGranularity[];
   readonly roles?: readonly FragmentRole[];
-  /** Offered only when the surface knows this about the object: `goal`, the Goal it belongs to. */
-  readonly requires?: readonly "goal"[];
+  /** Offered only when the object belongs to an object of one of these kinds (`belongs_to.kind`); omitted, whatever it belongs to. */
+  readonly belongs_to?: readonly string[];
   /** Offered only while the thing in hand is in one of these places (left, right panel, Assistant panel); omitted, anywhere. */
   readonly places?: readonly SurfacePlace[];
 }
@@ -127,7 +127,8 @@ export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
         granularity: { enum: [...FRAGMENT_GRANULARITIES] },
         targets: { type: "array", minItems: 1, maxItems: 8, items: TARGET_SCHEMA },
         heading_path: { type: "array", maxItems: 6, items: { type: "string", maxLength: 200 } },
-        goal: { type: "object", properties: { id, title: { type: "string", maxLength: 200 } }, required: ["id", "title"], additionalProperties: false },
+        belongs_to: { type: "object", properties: { plugin_id: { ...id, maxLength: 120 }, kind: { ...id, maxLength: 120 }, id: { ...id, maxLength: 200 }, title: { type: "string", maxLength: 200 } },
+          required: ["plugin_id", "kind", "id", "title"], additionalProperties: false },
       },
       required: ["object", "granularity", "targets"], additionalProperties: false,
     },

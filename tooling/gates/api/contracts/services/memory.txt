@@ -24,6 +24,10 @@ export declare const MEMORY_RECALL_PERMISSION = "memory:recall";
 
 export declare const MEMORY_SCENES: readonly ["coding", "assistant", "common"];
 
+export declare const MEMORY_SESSION_BINDING_INPUT_TYPE = "molis.memory.session-binding.v1.request";
+
+export declare const MEMORY_SESSION_BINDING_OUTPUT_TYPE = "molis.memory.session-binding.v1.result";
+
 export declare const MEMORY_SOURCES: readonly MemorySource[];
 
 export declare const MEMORY_WRITE_PERMISSION = "memory:write";
@@ -529,6 +533,8 @@ export interface MemoryPair {
 
 export type MemoryPendingOperation = MemoryScopedPendingOperation | import("services/memory-session").MemorySessionPendingOperation;
 
+export type MemoryPluginScene = "coding" | "common";
+
 export interface MemoryPrefs {
     enabled: boolean;
     task_recall: boolean;
@@ -678,6 +684,8 @@ export interface MemoryRevisionView extends MemoryRevision {
     expires_at: string | null;
     snapshot_available: boolean;
 }
+
+export type MemoryScene = (typeof MEMORY_SCENES)[number];
 
 export type MemoryScope = "personal" | "project" | "character";
 
@@ -901,6 +909,14 @@ export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPr
 
 export declare function isMemoryClassRestrictions(value: unknown): value is MemoryClassRestriction[];
 
+export declare function isMemorySessionBindingAction(view: {
+    readonly operation: string;
+    readonly action: {
+        readonly input_type?: string;
+        readonly output_type?: string;
+    };
+}): boolean;
+
 export declare const memoryActions: {
     page: ActionDefinition<import("services/memory-queries").MemoryPageRequest, import("services/memory-queries").MemoryPageResponse>;
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
@@ -1027,6 +1043,11 @@ export declare const memoryLearningActions: {
 };
 
 export declare const memoryPreferenceMarkerPrefix: (profile: string) => string;
+
+export declare function memorySceneOfCaller(caller: {
+    readonly current_scene?: string;
+    readonly consumer?: string;
+}): string;
 
 export declare const servicesMemoryContract: {
     readonly contractId: "io.molis.work.service.memory.v1";

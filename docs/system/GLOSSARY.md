@@ -25,7 +25,6 @@
 | 可信决定 | 本人经受保护入口提交、由平台记录到项目库 `project_review_decisions` 的不可变决定；记录决定、对象版本、选项、原入口与本人出处 | 审批来源里的本人决定 | 审批记录（指一般审查时）、平台批准（不准确） |
 | 受保护入口 | Host 为可信决定签发的唯一入口：Web `/api/project-approvals/*`、CLI `review-request`／`review-decide`、管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide`、验收卡 `/api/acceptance/decide`；身份与 `ActionUserAction` 只从入口上下文取，代码统一到 `decideProjectReview` | 无（内部） | 审批页（页面不是入口本身）、管理入口（只说传输时） |
 | 批准来源 | 一条决定或授权是谁给的：本人决定、沿用授权、自动策略、AI 代批；界面按这个区分，不把 AI 代批算真人票 | 审批来源 | 审批方式、来源（裸写） |
-| 提交意向（commit intent） | `<Home>/acceptance/commit-intents/<decision_id>.json` 的既存原子文件（新认可已改为两库单次提交）：验收结果已提交、平台决定尚未落到项目库时保留完整决定记录，Host 下次启动/读取按同一 `decision_id` 幂等恢复 | 无（内部） | 待提交记录、outbox（代码口语） |
 | 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」、「能力 › 调用记录」和经共用请求助手显示的错误详情里已出现：装了助手的内联页面，和工作台主程序里已迁到助手的部分（设置一组、项目设置）；工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的错误详情还没有，随 W3-10-2～4、W5-04） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 运行状态（界面） | 菜单栏「运行」面板说的在运行／等着／没在运行：宿主与后台任务此刻的状态 | 在运行、等着、没在运行（菜单栏「运行」、设置 › 运行） | 包运行状态（`docs/SSOT-MATRIX.md` 里指包的运行方式时，必须写全「包运行状态」） |
@@ -67,8 +66,8 @@
 | 当前约定（Goal 的） | 一条 Goal 现在要遵守的约定与要求，是 Goals 记下的、带版本的事实，每次修改是一条事件；Runtime 放宽或替换已有约定要引用本人授权；Goal 按它收尾 | 当前约定 | 把助理侧栏 AI 自称采纳的约束也叫它（那是「AI 记下的约定」） |
 | AI 记下的约定 | 助理侧栏列出的、AI 在处理说明里自称采纳为约束、目标或完成条件的补充；只是 AI 的自称，Molis 没有核对，不可编辑，要改就从那条补充发更正（`specs/ai-input-receipts/spec.md` §9.2、D41） | AI 记下的约定（英文 What the AI noted as agreed；2026-10-19 起，此前叫「当前约定」） | 当前约定（指它时）、已生效的约定 |
 | 处理说明（acknowledge） | AI 对一条补充、笔记、要求或本人的决定说「我读到了，我这样处理」；是 AI 的自称，不证明已经照做，Molis 没有核对。落点分两处：`acknowledge-inputs` 是运行时的系统工具，说明落在运行账里，说的是对话里的补充；`goals.events.acknowledge` 是 Goals 的动作，说明落在 Goal 时间线上，说的是 `gevt-` 记录（笔记、要求、本人的决定），只给 MCP 与助理、Agent 调用（`specs/ai-input-receipts/spec.md` §8.4、RCPT-376～383） | 处理说明（时间线上的类型名同；英文 How it will be handled） | 回执（读到状态才叫读到回执）、确认 |
-| 常开插件 | Manifest 声明 `always_on: true`、同意账本里有一行有效同意、且已装并开着的插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，服务端拒绝把它从项目移除、停用或卸载；撤回同意后它就是普通插件（`docs/system/SECURITY-INVARIANTS.md` S-34，ac-trust T3）。随宿主发布的插件由宿主代为同意。现在是 Goals 和 Shelf（Shelf 是右栏的第一格）。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
-| 双实例插件 | 同一个 `plugin_id`、同一份 Manifest，既作 Home 实例由 Home 监督器装配，又作项目实例由项目启动名单在每个项目里装配；两半的 `install_id` 与提供方相同，动作、路由各归一半，记录各在自己的库里。只有宿主自己的启动名单能这样标：目录条目的 `runtime.dual_instance`（代码），夹具写在 Home 那一半的同名选项上；Manifest、安装记录和项目那一半都说不了（`docs/system/SECURITY-INVARIANTS.md` S-15，`docs/platform/PLUGIN-DEVELOPMENT.md`「双实例插件」）。Home 实例、项目实例分别指它的两半 | 无（用户看到的是一个插件） | 拆插件、两个插件（它不拆 id）；部分兑现、`partial`（那是 Runtime 对一次启动放宽的范围，`RedemptionScope`，不是这个标记） |
+| 常开插件 | Manifest 声明 `always_on: true`、同意账本里有一行有效同意、且已装并开着的插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，服务端拒绝把它从项目移除、停用或卸载；撤回同意后它就是普通插件（`docs/system/SECURITY-INVARIANTS.md` S-34，ac-trust T3）。随宿主发布的插件由宿主代为同意。现在只有 Shelf（Shelf 是右栏的第一格；Goals 第 44 批 PEQ-12 起不再声明 `always_on`，新项目不默认安装且可移除）。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
+| 双实例插件 | 同一个 `plugin_id`、同一份 Manifest，既作 Home 实例由 Home 监督器装配，又作项目实例由项目监督器在每个项目里装配；两半的 `install_id` 与提供方相同，动作、路由各归一半，记录各在自己的库里。内置插件由目录条目或 Manifest `runtime.dual_instance: true` 声明，第 44 批（PEQ-06）起对签名第三方插件开放同等声明，沿用相同的安装信任、授权与沙箱边界（`docs/system/SECURITY-INVARIANTS.md` S-15，`docs/platform/PLUGIN-DEVELOPMENT.md`「双实例插件」）。Home 实例、项目实例分别指它的两半 | 无（用户看到的是一个插件） | 拆插件、两个插件（它不拆 id）；部分兑现、`partial`（那是 Runtime 对一次启动放宽的范围，`RedemptionScope`，不是这个标记） |
 | 随激活作业 | 插件这次激活保留、Manifest `background.jobs` 声明过的后台作业（`services.background.keep`）：属于安装，不属于登记它的调用，只有安装自己的授权；单次调用取消、撤权不停它，插件停止、项目关闭或删除、Home 关闭就停，不落盘、不重放（`docs/system/SECURITY-INVARIANTS.md` S-52，`docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」） | 无 | 后台作业（裸写，见 2.5）、activations 表（Coding 旧写法） |
 | 宿主事件 | 宿主自己发出、插件按 Manifest 声明订阅的事件（X-6），`host.` 前缀；投递方式由类型表固定：定向的只投给事件上记着的那个安装，广播的投给持有登记权限的每个订阅安装；即时、不落库、不重投，订阅不写来源插件（S-54） | 无（用户看不见） | 插件事件（指它时；插件事件由运行中的插件发、落项目库）、领域事件（X-6 的另一种来源，还没有订阅口） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
@@ -87,7 +86,7 @@
 | 顾虑（Concern） | Goals 里对当前 Goal 的一条具体问题，走要求—证据—认可；可以引用一条风险（`cited_subjects`），但不复制风险字段或状态 | 问题与风险（Goal 页面） | 风险（指它时）、Goal 风险 |
 | 复查（Review） | 风险详情里按需安排的一次性 Schedule 对象任务；到点由后台助理读一轮，结果留在 Schedule，风险插件不调 AI、不自动改处置 | 复查 | 自动跟踪、定时复查 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
-| 可承接上手材料（`onboarding.takes`） | 插件在 Manifest 里声明自己能接上手交来的材料，并点名自己的一个项目动作来接；第 12 批只支持 `kind: "code_root"`（本人选的代码根目录＋固定版本材料），Coding 是第一个声明者；平台按声明找承接者，不按插件名写名单。这个声明是过渡形状，第 44 批 44-1 收进统一的「能接收什么」声明 | 上手承接、交给插件 | 不要叫「交给 Coding」（只有第一个声明者）；不是权限声明 |
+| 可承接上手材料（`intake`） | 插件在动作的 `intake` 里声明自己能承接上手或交付材料（`platform/item-intake`，如 `code_root`、`documents`、`items` 等，第 44 批 44-1 收拢原第 12 批过渡字段 `onboarding.takes`）；平台按声明发现承接者，不按插件名写名单 | 上手承接、交给插件 | 不要叫「交给 Coding」；原过渡字段 `onboarding.takes` 已收拢 |
 | 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`blueprint`（场景包）、`requires`、`upgrade_compatibility`、界面文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包和场景包都用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
 | 场景包（blueprint） | 内容包的场景正文，定义起步步骤，以及角色、Skill、能力、账号、设置和内容建议。默认正文在 `blueprint.json`，Manifest 的 `blueprint.locales` 列出随包译文。 | 场景包 | 场景套组；场景方案、方案（不再用） |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
@@ -215,7 +214,7 @@
 
 - 定义：能运行 Agent 或与用户对话的 AI 环境。本机有两类：Home 唯一的 Prologue Runtime（内置），以及外部 AI 工具。`horizontal/agent-host` 注册 Runtime 并记录各自的能力矩阵，`horizontal/runtime-host` 启动、恢复外部 Runtime 的进程和终端。产品对 Runtime 保持中立（`PRODUCT.md`）。
 - 另外两个东西也带 Runtime，写的时候必须加限定：**Plugin Runtime**（`packages/plugin-runtime`，插件的安装、授权、隔离和生命周期；「Runtime 插件」指经它装配的插件，对比构建期装配的插件：还没迁到 Plugin Runtime、由宿主构建期手写接线的内置插件，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`，只许减少；规则见 `AGENTS.md` 硬约束）；**项目运行对象**（`MolisWorkProjectRuntime`，`apps/local-host/src/project-host.ts`，宿主为一个已打开的项目装起来的存储和协调对象）。
-- 裸写「Runtime」只指本条的 AI Runtime（`skills/goal-advance/SKILL.md` 与 `docs/runtime.md` 都是这个用法）。
+- 裸写「Runtime」只指本条的 AI Runtime（`docs/runtime.md` 与 `docs/mcp.md` 都是这个用法）。
 
 **外部工具、产品入口**
 
@@ -246,7 +245,7 @@
 **Skill**
 
 - 定义：一份按需读取的文字做法，有名称、适用说明和正文，可声明它会用到的工具；它不授予任何权限，权限仍来自动作授权。同一种东西有三处载体：
-  1. 仓库的 `skills/<名>/SKILL.md`，给外部编码 Runtime 和插件创作台用（`goal-advance` 随安装发进用户的 Runtime，创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
+  1. 仓库的 `skills/<名>/SKILL.md`，给开发工具和插件创作台用（随安装发布，不挂进用户的 Runtime，第 44 批删除了 `goal-advance`；创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
   2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；别的来源（内容包、从本机导入）都进同一个技能目录（`system.skills`）。Coding 旧的项目目录安装（`agent.skills.discover`、`agent.skills.install`）已在第 09 批删掉。起跑时只接受精确的 id 与版本。
   3. Character 里导入的 Skill 快照（`import_snapshot.skills`），每轮选用其中几个。
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。

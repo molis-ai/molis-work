@@ -274,14 +274,14 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const access = { actor_id: "fixture-goal-owner", scope };
   for (const [key, type, version] of [["input", "goal.input", 1], ["output", "goal.output", 2], ["missing", "goal.output", 99]] as const) {
     ledger.commands.put(access, { key, type, cause: "Explicit fixture association",
-      source: { module: "goals", id: "V1", version: null, scope },
+      source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "V1", version: null, scope },
       target: { module: "artifacts", id: artifactId, version, scope } });
   }
   ledger.commands.put(access, { key: "unrelated", type: "goal.output", cause: "Another Goal's result",
-    source: { module: "goals", id: "PLATFORM", version: null, scope },
+    source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "PLATFORM", version: null, scope },
     target: { module: "artifacts", id: "not-for-V1", version: 1, scope } });
   ledger.commands.put(access, { key: "foreign", type: "goal.input", cause: "Explicit foreign namespace",
-    source: { module: "goals", id: "V1", version: null, scope },
+    source: { module: "plugins", plugin_id: "io.molis.work.goals", object_type: "goal", id: "V1", version: null, scope },
     target: { module: "artifacts", id: artifactId, version: 1, scope, project_id: "foreign-project" } });
   const before = boardSnapshot(store, DEMO_PROJECT_ID);
   const beforeEdges = ledger.query.list(access);

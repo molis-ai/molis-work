@@ -7,6 +7,12 @@
     "plugin-builder": 4
   },
   "prefixes": {
+    "feed": [
+      "source-"
+    ],
+    "goals": [
+      "goal-"
+    ],
     "plugin-builder": [
       "as-",
       "pb-"

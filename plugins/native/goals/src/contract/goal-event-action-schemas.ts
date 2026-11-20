@@ -2,8 +2,8 @@ import { nullableSchema as nullable, arraySchema as array, objectSchema } from "
 export { nullable, array };
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventAcknowledgementCategories, goalEventAcknowledgementTreatments, goalEventClosureKinds, goalEventConcernStatuses, GOAL_CONCERN_CITED_SUBJECT_LIMIT, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
-  goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventBasisGaps, goalEventBasisTiers, goalEventSatisfactionGrounds, GOAL_EVENT_EVIDENCE_MAX, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
-  goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
+  goalEventDecisionRequestStatuses, goalEventFieldFormats, goalEventNewDecisionEffectKinds, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
+  goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventWorkStatuses,
   goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "./goals.js";
 
 export const text = { type: "string" };
@@ -18,7 +18,6 @@ export const recordedReviewStatus: ActionSchema = enumeration(goalDecompositionR
 const strings = array(text), maybeText = nullable(text), maybeCount = nullable(count);
 const actorKind = enumeration(["user", "runtime", null]);
 const workStatus = enumeration(goalEventWorkStatuses), concernStatus = enumeration(goalEventConcernStatuses);
-const verdict = enumeration(goalEventJudgmentVerdicts);
 const requirementSource: ActionSchema = { anyOf: [object({ kind: { const: "create_input" } }),
   object({ kind: { const: "imported_acceptance_criterion" }, decision_method: recordedDecisionMethod, pass_condition: text }),
   object({ kind: { const: "imported_human_approval" }, policy_binding_ids: strings })] };
@@ -28,12 +27,13 @@ const field = object({ field_id: text, name: text, purpose: text, format: enumer
   ["field_id", "name", "purpose", "format", "required"]);
 export const eventType = object({ type_id: text, version: count, name: text, purpose: text, semantic_family: enumeration(goalEventSemanticFamilies),
   source: typeSource, fields: array(field) }, ["type_id", "version", "name", "purpose", "source", "fields"]);
+/** A requirement a configuration recorded before batch 44 (its payload's `extra_requirements`); a configuration now records none. */
 const extraRequirement = object({ requirement_id: text, statement: text, bound_type_id: text, created_in_config_version: count, actor_id: text,
   source: requirementSource, human_decision_required: boolean, current_status: enumeration(goalEventRequirementCurrentStatuses), revision: count,
   support_valid_after_seq: count }, ["requirement_id", "statement", "created_in_config_version", "actor_id", "human_decision_required", "current_status", "revision", "support_valid_after_seq"]);
 const requirementInput = object({ requirement_id: text, statement: text, bound_type_id: text, human_decision_required: boolean, source: requirementSource }, ["requirement_id", "statement"]);
 export const binding = object({ type_id: text, requirement_id: text });
-const configFields = { types: array(eventType), extra_requirements: array(extraRequirement), requirement_bindings: array(binding) };
+const configFields = { types: array(eventType), requirement_bindings: array(binding) };
 export const goalConfigSchema = object({ project_id: text, goal_id: text, version: count, ...configFields, updated_at: maybeText, updated_by: maybeText });
 export const scope = object({ requirement_ids: strings, event_ids: strings, concern_ids: strings, action: maybeText });
 export const artifactSource = object({ artifact_id: text, version: count, title: text, origin: object({ plugin_id: text, item_id: text }) });
@@ -45,12 +45,18 @@ export const citedSubjects = { ...array(object({ kind: text, id: text })), maxIt
 export const concern = object({ concern_id: text, event_id: text, title: text, statement: text, scope, blocks_closure: boolean, status: concernStatus,
   resolution_reason: maybeText, resolution_event_id: maybeText, cited_decision_id: maybeText, cited_subjects: citedSubjects, previous_status: nullable(concernStatus), created_at: text, updated_at: text });
 export const option = object({ option_id: text, label: text, impact: text });
+/** An effect as recorded: a decision made before batch 44 may hold `accept_requirements` or `reject_requirements`. */
 export const effect = object({ kind: enumeration(goalEventDecisionEffectKinds), action: maybeText }, ["kind"]);
+/** An effect a new decision may name: accepting or returning a requirement is the platform's (`acceptance.decide@1`). */
+export const effectInput = object({ kind: enumeration(goalEventNewDecisionEffectKinds), action: maybeText }, ["kind"]);
+/** An agreement change as recorded: one recorded before batch 44 may also have changed requirements. */
 export const change = object({ outcome: text, new_requirements: array(requirementInput),
   revise_requirements: array(object({ requirement_id: text, statement: text, human_decision_required: boolean }, ["requirement_id"])), retire_requirement_ids: strings }, []);
+/** An agreement change a caller asks for: a new outcome; the requirements are changed in the platform's requirement column. */
+export const changeInput = object({ outcome: text }, []);
 const commitment = object({ outcome: text, requirements: array(object({ requirement_id: text, statement: text, human_decision_required: boolean, bound_type_ids: strings })) });
 const requestFields = { request_id: text, question: text, options: array(option), scope, purpose: enumeration(goalEventDecisionPurposes), proposed_change: nullable(change) };
-export const decisionRequest = object({ ...requestFields, event_id: text, commitment: nullable(commitment), status: enumeration(["pending", "decided"]), created_at: text });
+export const decisionRequest = object({ ...requestFields, event_id: text, commitment: nullable(commitment), status: enumeration(goalEventDecisionRequestStatuses), created_at: text });
 const decisionFields = { decision_id: text, governance_decision_id: text, request_id: maybeText, selected_option_id: maybeText, conclusion: text,
   accepts_requirements: boolean, effects: array(effect), scope, authorized_change: nullable(change) };
 export const decision = object({ ...decisionFields, commitment, config_version: maybeCount, agreement_version: maybeCount, actor_id: text,
@@ -59,35 +65,20 @@ export const reason = object({ code: text, message: text, requirement_id: text, 
 const closureFields = { kind: enumeration(goalEventClosureKinds), result: maybeText, reason: text, completion_applied: boolean,
   expected_config_version: count, expected_agreement_version: count, unmet_reasons: array(reason) };
 export const closure = object({ ...closureFields, closure_id: text, event_id: text, recorded: { const: true }, config_version: maybeCount, agreement_version: maybeCount,
-  superseded: boolean, superseded_reason: maybeText, recorded_at: text });
-const checked = object({ artifact_id: identifier, version: { type: "integer", minimum: 1 } });
-const said = { type: "string", minLength: 1, maxLength: 500 };
-const evidence = { type: "array", maxItems: GOAL_EVENT_EVIDENCE_MAX, items: { oneOf: [
-  object({ kind: { const: "artifact_version" }, artifact_id: identifier, version: { type: "integer", minimum: 1 } }),
-  object({ kind: { const: "command_receipt" }, run_id: { ...identifier, maxLength: 500 }, call_id: { ...identifier, maxLength: 500 } })] } };
-const basisFields = { checked, method: said, observed: said, evidence };
-/** What a reporter may say of one requirement: nothing here lets it state how far its own word is backed. */
-export const judgmentInput = object({ requirement_id: text, verdict, basis: object(basisFields, ["checked", "method", "observed"]) }, ["requirement_id", "verdict"]);
-const basis = nullable(object(basisFields));
-const tier = enumeration(goalEventBasisTiers), gap = enumeration([...goalEventBasisGaps, null]);
-export const judgment = object({ requirement_id: text, verdict, basis, tier, gap });
-const requirementReport = object({ event_id: text, actor_id: text, actor_kind: actorKind, verdict, received_at: text, journal_seq: count,
-  basis, tier, gap, substitutes_human_decision: { const: false } });
-const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count, checked: nullable(checked) });
-const requirement = object({ requirement_id: text, revision: count, goal_id: text, statement: text,
-  origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
-    decision_method: recordedDecisionMethod, pass_condition: text, config_version: count,
-    policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,
-  current_report: nullable(requirementReport), user_conclusion: nullable(conclusion), currently_satisfied: boolean,
-  satisfied_by: enumeration([...goalEventSatisfactionGrounds, null]), conclusion_superseded: boolean });
+  superseded: boolean, superseded_reason: maybeText, recorded_at: text, acceptance_round: maybeCount });
+/** A requirement Goals hung on the Goal's platform acceptance: where it came from and its bound types; its words and state are the platform's. */
+const requirement = object({ requirement_id: text,
+  origin: nullable(object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
+    decision_method: recordedDecisionMethod, pass_condition: text, config_version: count, policy_binding_ids: strings }, ["kind"])),
+  bound_type_ids: strings, created_in_config_version: count, created_at: text });
+const acceptanceSubject = object({ provider_id: text, subject: object({ kind: text, id: text }) });
 
 export const agreement = object({ version: count, outcome: text, has_minimum_result_agreement: boolean, missing: strings, updated_at: maybeText, updated_by: maybeText });
 
 export const goalStateSchema = object({ project_id: text, goal_id: text,
   intent: object({ title: text, why: text, business_logic: text, source_kind: enumeration([...goalIntentSourceKinds, null]) }),
-  config: goalConfigSchema, requirements: array(requirement), latest_reports: array(object({ event_id: text, title: text, type_id: maybeText,
-    type_version: maybeCount, received_at: text, journal_seq: count, judgments: array(judgment) })),
-  gaps: array(object({ requirement_id: text, statement: text, current_verdict: nullable(verdict), human_decision_required: boolean })),
+  config: goalConfigSchema, requirements: array(requirement), acceptance_subject: acceptanceSubject, latest_reports: array(object({ event_id: text, title: text, type_id: maybeText,
+    type_version: maybeCount, received_at: text, journal_seq: count })),
   observed_event_cursor: count, goal_event_cursor: count, event_list_next_cursor: maybeCount,
   owner: nullable(object({ kind: { const: "event_work" }, adopted_at: text, adopted_by: text, source: enumeration(["intent", "configuration", "continue"]) })),
   work_status: workStatus,
@@ -120,11 +111,11 @@ const systemPayload: ActionSchema = { anyOf: [
     note: text, read_cursor: count, by: acknowledgementBy }),
 ] };
 const eventBase = { event_id: text, project_id: text, goal_id: text, title: text, actor_id: text, actor_kind: actorKind, received_at: text,
-  journal_seq: count, config_version: maybeCount, judgments: array(judgment) };
+  journal_seq: count, config_version: maybeCount };
 export const goalReportEventSchema = object({ ...eventBase, kind: { const: "report" }, type: nullable(eventType), payload: { type: "object", additionalProperties: text } });
 // Always one event object, so tools return it as is rather than under `result`.
 export const goalEventSchema: ActionSchema = { type: "object", anyOf: [
-  object({ ...eventBase, kind: { const: "configuration" }, type: { type: "null" }, payload: object({ config_version: count, ...configFields }) }),
+  object({ ...eventBase, kind: { const: "configuration" }, type: { type: "null" }, payload: object({ config_version: count, ...configFields, extra_requirements: array(extraRequirement) }) }),
   goalReportEventSchema,
   object({ ...eventBase, kind: { const: "system" }, type: { type: "null" }, payload: systemPayload }),
 ] };
@@ -134,7 +125,7 @@ const timelineFields = { event_id: text, journal_seq: count, received_at: text, 
 export const goalTimelineSchema = object({ items: array(object({ ...timelineFields, system_operation: maybeText, lane: enumeration(["result", "decision", "problem", "other"]) },
   Object.keys(timelineFields))), next_cursor: maybeCount, observed_event_cursor: count });
 export const goalDirectoryItemSchema = object({ goal_id: text, title: text, work_status: workStatus, completion_effect: boolean, can_record: boolean, next_hint: text,
-  unmet_requirement_count: count, pending_decision_count: count, blocking_concern_count: count, updated_at: text });
+  pending_decision_count: count, blocking_concern_count: count, updated_at: text });
 const historyFields = { item_id: text, source: enumeration(["event_work", "journal"]),
   original_id: text, event_id: maybeText, journal_seq: count, received_at: text, title: text, type_label: text,
   lane: enumeration(["result", "decision", "problem", "other"]), actor_id: text, actor_kind: actorKind, status_label: maybeText };

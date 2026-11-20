@@ -62,7 +62,6 @@
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
 | 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级，高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
-| 要求与认可 | `acceptance/acceptance.db` | 1 | `user_version` | `modules/acceptance/src/schema.ts#ACCEPTANCE_BASELINE` | 低版本升级，高版本拒绝（第 32 批新建，从版本 1 起） |
 | 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝 |
 | 端到端评测 | `evaluation/evaluation.db` | 1 | `user_version` | `horizontal/evaluation/src/schema.ts#EVALUATION_BASELINE` | 低版本升级，高版本拒绝（只停工作记录／评测设置面，不挡 Home） |
 | 外部会话 | `external-sessions/external-sessions.db` | 1 | `user_version` | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE` | 低版本升级，高版本拒绝（第 34 批新建，从版本 1 起） |

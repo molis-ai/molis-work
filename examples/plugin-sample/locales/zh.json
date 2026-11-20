@@ -3,9 +3,16 @@
   "owner": "io.molis.work.example.notes",
   "locale": "zh",
   "messages": {
+    "notes.attach.noun": "示例便笺",
+    "notes.clear.choice": "清空",
     "notes.main.saved": "已保存的结果：{count}",
     "notes.main.saved-count": "已保存 {count} 个结果",
     "notes.main.source": "来源：{name}",
-    "notes.main.title": "本地插件样例"
+    "notes.main.title": "本地插件样例",
+    "notes.settings.greeting": "问候语",
+    "notes.settings.greeting-summary": "示例在页面上显示的那句话",
+    "notes.start.hint": "在示例里新建一张空白便笺",
+    "notes.start.noun": "示例便笺",
+    "notes.start.title": "新建示例便笺"
   }
 }

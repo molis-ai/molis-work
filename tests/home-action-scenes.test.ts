@@ -80,11 +80,11 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     assert.equal(feed.getInboxEntry(reference.project_id, entry.entry_id).status, "open");
     const cache = new Map();
     const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
-    const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
+    const view = cachedMolisWorkWebView(cache, viewOptions);
     assert.equal("feed" in view, false, "the cached platform WebView holds no Feed aggregate or second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
-    await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
+    cachedMolisWorkWebView(cache, viewOptions);
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, [], "warming the unrelated board cache cannot bypass recommendation authority");
     denied = undefined;
     await actions.invoke(homeActions.writeJudgment, { function_key: "system_pick_home_dock" });
@@ -231,7 +231,7 @@ test("BCC-07 Home judgment resolves a formally installed plugin's own subjects a
         const row = project.store.db.prepare("SELECT * FROM fixture_home_judgment_notes WHERE id = ?").get((input as { subject_id: string }).subject_id) as { id: string; revision: number; content: string } | undefined;
         if (!row) throw new ActionError("actions.subject_unavailable", "笔记已不存在");
         onRead?.();
-        return subjectContext({ subject: { kind: subject.kind, id: row.id }, revision: String(row.revision), title: "插件自有笔记", content: row.content, goal_ids: [] });
+        return subjectContext({ subject: { kind: subject.kind, id: row.id }, revision: String(row.revision), title: "插件自有笔记", content: row.content });
       } }, { ...events, handle: () => ({ source: { surface: "notes", title: "笔记", icon: "note" }, events: [{ event_id: "own-note", subject, occurred_at: now,
         placement: "occurred", category: "personal", title: "插件自有笔记", summary: "", content: "插件私有记录的原始正文", facts: [], needs_attention: true, open: null }] }) }] }; } });
     const repository = new SqlitePluginRuntimeRepository(project.store.db);

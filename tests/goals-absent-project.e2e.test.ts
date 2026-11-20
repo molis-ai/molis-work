@@ -31,6 +31,19 @@ test("RAC-400 a project without Goals opens on its home, offers no Goals and ope
   assert.match(page.tile ?? "", /is-available/, "Goals is one to add, not one the project has");
   assert.equal(page.open, 0, "the link opened no dialog");
   assert.equal(page.goalNodes, 0, "an absent owner supplies no Goal data, canvas or dialogs");
+  // PEQ-07 (First Screen A): Project Home empty state offers primary "添加插件" opening the + picker and assistant hint, with zero Goal words.
+  await b.waitFor("Boolean(document.querySelector('[data-home-control=\"picker\"]'))");
+  const homeStart = await b.evaluate<{ text: string; primary: boolean; hint: string }>(`(() => {
+    const start = document.querySelector('[data-home-group="start"]');
+    const btn = start?.querySelector('[data-home-control="picker"]');
+    return { text: start?.textContent || '', primary: Boolean(btn?.classList.contains('mw-btn--primary')), hint: start?.querySelector('.home-start__hint')?.textContent || '' };
+  })()`);
+  assert.equal(homeStart.primary, true, "PEQ-07: primary indigo 添加插件 button");
+  assert.ok(homeStart.hint.length > 0, "PEQ-07: quiet assistant hint beside the primary button");
+  assert.doesNotMatch(homeStart.text, /goal|目标/i, "PEQ-07: zero Goal wording on Project Home when Goals is absent");
+  await b.click('[data-home-control="picker"]');
+  await b.waitFor("document.querySelector('[data-plugin-picker-popover]')?.hidden === false");
+  await b.click('[data-plugin-picker-toggle]');
   assert.equal((await b.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project.project_id)!.plugins.includes("goals"), false);
   assert.deepEqual(page.errors, [], "the page's program did not fail");
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${project.project_id}/` }, b.sessionId));
@@ -61,13 +74,24 @@ test("RAC-400 Goals added again from the plugin list to a project without it ope
   await b.evaluate("document.querySelector('[data-create-dialog][open]')?.close(); true");
   await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true");
   await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-confirming')");
+  assert.match(await b.evaluate<string>("document.querySelector('[data-plugin-tile=\"goals\"] .plugin-rail-confirm')?.textContent || ''"), /数据保留/, "PEQ-02: confirmation line explains data is kept");
   await b.navigate(() => b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true"));
   await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-available') && document.body.dataset.desktopSurface === 'home'");
+  await b.waitFor("Boolean(document.querySelector('[data-toast] [data-toast-action]'))");
+  const removeReceipt = await b.evaluate<{ toast: string; retained: string }>(`({
+    toast: document.querySelector('[data-toast]')?.textContent || '',
+    retained: document.querySelector('[data-plugin-tile="goals"] [data-plugin-retained]')?.textContent || '',
+  })`);
+  assert.match(removeReceipt.toast, /已移除.*数据保留/, "PEQ-02: remove toast confirms data retention");
+  assert.match(removeReceipt.retained, /数据已保留/, "PEQ-02: removed tile shows Data kept badge");
   assert.equal((await b.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project.project_id)!.plugins.includes("goals"), false);
   assert.equal(await b.evaluate("document.querySelectorAll('#molis-work-data, [data-goal-canvas-shell], [data-goal-frame-surface], [data-create-dialog], [data-goal-trash-dialog]').length"), 0);
   assert.deepEqual(await b.evaluate("window.__errors"), [], "taking Goals away also keeps the platform page usable");
-  await b.navigate(() => b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true"));
+  // PEQ-02: clicking Undo on the remove toast adds Goals back and displays the re-add receipt.
+  await b.navigate(() => b.evaluate("document.querySelector('[data-toast] [data-toast-action]').click(); true"));
   await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-kept')");
+  await b.waitFor("/已加回/.test(document.querySelector('[data-toast]')?.textContent || '')");
+  assert.equal(await b.evaluate("Boolean(document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-retained]'))"), false, "PEQ-02: Data kept badge clears on re-add");
   await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] > .plugin-rail-item').click(); true");
   await b.waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('#molis-work-data'))");
   assert.equal((await b.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project.project_id)!.plugins.includes("goals"), true);

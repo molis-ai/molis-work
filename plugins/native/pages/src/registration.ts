@@ -16,6 +16,7 @@ export const registration: PluginRegistration = {
     stylesheet: PAGES_STYLES,
     clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
     clientAssets: ["/assets/molis-work-pages-editor.js"],
+    clientAssetSpecifiers: { "/assets/molis-work-pages-editor.js": "@molis-ai/molis-work-plugin-pages/editor" },
     searchRow: { selector: "button[data-page-id]", idDataset: "pageId" },
   },
 };

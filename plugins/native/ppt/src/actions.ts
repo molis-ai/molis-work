@@ -5,7 +5,7 @@ import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
+import { PPT_ARTIFACT_TYPE_ID, PPT_ARTIFACT_SCHEMA_VERSION, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
 import type { promotePpt } from "./promote.js";
 import type { PptStore, PptStores } from "./store.js";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -40,7 +40,7 @@ export const pptActions = {
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", /* @version action.ppt.artifacts.compare */ 1, "演示稿", read),
   /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
-  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", /* @version action.ppt.artifacts.continue */ 1, "演示稿", write),
+  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", /* @version action.ppt.artifacts.continue */ 1, "演示稿", write, { item_kind: PPT_SUBJECT_KIND, artifact_types: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION }] }),
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", /* @version action.ppt.list */ 1, "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", /* @version action.ppt.get */ 1, "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
@@ -59,9 +59,9 @@ export const pptActions = {
   outlineAi: define<OutlineInput, { presentation: PptRecord; slide_count: number }>("outline_ai", /* @version action.ppt.outline_ai */ 1, "AI 整理成大纲",
     "让当前文字模型把一段文字或一篇 Pages 文档整理成幻灯片大纲，再按标题分页；演示稿已满 40 页又不替换时，不调用模型；模型失败、返回空或演示稿已变化时不写入", "command",
     outlineInput, object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
-  outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", /* @version action.ppt.outline_pages */ 1, "可做成大纲的文档",
-    "列出当前项目里可以拿来生成大纲的 Pages 文档（以调用者自己的权限读取）；Pages 未启用或无权读取时返回空列表与原因", "query", object({}),
-    object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), [...read, "pages:read"]),
+  outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }>; unavailable_reason: string | null }>("outline_pages", /* @version action.ppt.outline_pages */ 1, "可做成大纲的文档",
+    "列出当前项目里已装的文档内容站中可拿来生成大纲的文档（以调用者自己的权限按角色发现读取）；无可用内容站或无权读取时返回空列表与原因", "query", object({}),
+    object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), read),
   move: defineObjectMoveAction("ppt.placement.move", /* @version action.ppt.placement.move */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   copy: defineObjectCopyAction("ppt.placement.copy", /* @version action.ppt.placement.copy */ 1, [PPT_SUBJECT_KIND], "演示稿", write),
   searchEntries: pptSearchActions.entries,
@@ -105,7 +105,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const outlineSource = async (input: OutlineInput, caller: ActionCallContext): Promise<string> => {
     if ((input.text === undefined) === (input.page_id === undefined)) throw pptErrors.invalid("请给出一段文字，或选一篇文档");
     if (input.text !== undefined) return input.text;
-    if (!ports.readPage) throw new ActionError("actions.connection_required", "Pages 不可用，无法读取文档");
+    if (!ports.readPage) throw new ActionError("actions.connection_required", "当前项目没有可用的文档内容站，无法读取文档");
     const page = await ports.readPage(input.page_id!, caller);
     const body = page.body.trim();
     return /^#\s/u.test(body) ? body : `# ${page.title}\n\n${body}`;

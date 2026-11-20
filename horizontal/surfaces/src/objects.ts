@@ -117,10 +117,9 @@ function pickCandidates(read: ComposeRead, sources: readonly ObjectSource[], rou
   return { candidates, disabled, unproved };
 }
 
+/** Decisions first, then acceptance, then failures: what the owner declared the entry's reason asks, else what the object's status maps to. */
 function attentionRank(entry: AttentionSurfaceEntry, object: PresentationObject | undefined, status: string | undefined): number {
-  if (entry.reason === "goal_decision") return 0;
-  if (entry.reason === "source_fault" || entry.reason === "artifact_out_failed") return 2;
-  const category = status === undefined ? undefined : object?.status?.map[status]?.attention;
+  const category = entry.attention ?? (status === undefined ? undefined : object?.status?.map[status]?.attention);
   return category === "needs_decision" ? 0 : category === "needs_acceptance" ? 1 : category === "failed" ? 2 : 3;
 }
 

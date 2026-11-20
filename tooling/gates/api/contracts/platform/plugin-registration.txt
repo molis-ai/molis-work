@@ -15,7 +15,8 @@ export interface AggregateReplicaContext {
         title: string;
     };
     hasReference?(projectId: string, reference: {
-        owner: 'goals' | 'artifacts';
+        owner: string;
+        collectionId?: string;
         assetId: string;
         version?: number;
     }): boolean;
@@ -27,7 +28,8 @@ export type BuiltinSyncBinding = ({
         spaceId: string;
         authorize(): void;
     }) => SyncContentCodec;
-    readonly scope: 'home' | 'projects';
+    readonly scope: 'home' | 'home-with-projects' | 'projects';
+    readonly keyPrefix?: string;
     open(home: string, ownerId: string): {
         close(): void;
         replica(context: AggregateReplicaContext): SyncReplicaAdapter;
@@ -120,6 +122,24 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
+export interface PluginApprovalOutcome {
+    readonly kind: string;
+    readonly id: string;
+    readonly digest: string;
+}
+
+export interface PluginApprovalOutcomesBinding {
+    readonly collection_id: string;
+    readonly subject_kinds: readonly string[];
+    readOutcome(db: {
+        prepare(sql: string): {
+            all(...params: string[]): unknown[];
+        };
+    }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
+    outcomesFromFacts(facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
+    assertHistory(previous: ReadonlyMap<string, PluginApprovalOutcome>, incoming: ReadonlyMap<string, PluginApprovalOutcome>, facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): void;
+}
+
 export interface PluginBoardSpecimen {
     readonly id: string;
     readonly title: string;
@@ -144,6 +164,7 @@ export type PluginDistributionVerifier = (release: {
 
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
+    readonly approval_outcomes?: PluginApprovalOutcomesBinding;
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;
@@ -188,10 +209,14 @@ export interface PluginWorkbenchRegistration {
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];
+    readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
     readonly settingsClient?: string;
     readonly settingsStylesheet?: string;
     readonly pageClients?: Readonly<Record<string, string>>;
     readonly searchRow?: PluginSearchRow;
+    readonly surfaceAliases?: readonly string[];
+    readonly searchRecordKinds?: readonly string[];
+    readonly reopenRecord?: false;
     readonly recordRow?: PluginSearchRow;
     readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];
 }

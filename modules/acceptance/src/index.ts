@@ -1,6 +1,4 @@
-export { ACCEPTANCE_HOME_STORE } from "./schema.js";
-export { acceptanceProjectData, purgeAcceptanceProject } from "./store.js";
-export { decideAcceptanceInTransaction, openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "./service.js";
-export { acceptanceView } from "./state.js";
-export { AcceptanceCommitIntents } from "./intents.js";
-export type { CommitIntentRow } from "./intents.js";
+export { ACCEPTANCE_JOURNAL, ACCEPTANCE_SCHEMA_SQL } from "./schema.js";
+export { openAcceptance, type AcceptanceCaller, type AcceptanceEvidencePorts, type AcceptanceService } from "./service.js";
+export { acceptanceView, type DecisionVoucher } from "./state.js";
+export { acceptanceReplica, acceptanceSyncKey } from "./replica.js";

@@ -3,7 +3,7 @@ import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { renderMaterialsStage } from "./materials-stage.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
-import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
+import { pluginSurfaceClients, deferredSurfaceClients, pluginShellStyleLinks } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -157,7 +157,7 @@ function renderMolisWorkWeb(
   controlToken = "",
   desktopShell = false,
 ): string {
-  const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
+  const enabledPlugins = shownPagePlugins(view);
   const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
     model: pluginId => stageModel(pluginId, view) });
   const page = view.page_stage ?? declared.page, parts = page?.parts;
@@ -184,7 +184,7 @@ function renderMolisWorkWeb(
   const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface
     && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
     ? initialDesktopSurface : "root";
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, desktopShell)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, desktopShell)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface({ ...primitives, projectDeletionLabels: owners.projectDeletionLabels }, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(enabledPlugins, view, directory);
@@ -207,7 +207,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     title,
     head_before_title_html: controlTokenMeta(controlToken) + projectedPageText(view),
     head_html: `<script>${THEME_BOOTSTRAP_SCRIPT};${homeToolKeysScript()};${widthPreference}</script>
-  <link rel="stylesheet" href="__WORKBENCH_CSS__">${appearanceHead(appearance)}`,
+  <link rel="stylesheet" href="__WORKBENCH_CSS__">${pluginShellStyleLinks(enabledPlugins)}${appearanceHead(appearance)}`,
     body_attributes: {
       class: "immersive-workbench",
       ...Object.fromEntries(Object.entries(parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),

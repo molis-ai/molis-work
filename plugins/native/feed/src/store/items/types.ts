@@ -1,4 +1,5 @@
-import type { AttentionCommands, AttentionQuery } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionCommands, AttentionEntryRecord, AttentionQuery } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { FeedAttentionReason } from "../../contract/feed.js";
 import type { ContextEdge, ContextEdgeInput, ContextEdgeQuery } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
 /**
@@ -7,7 +8,10 @@ import type { ContextEdge, ContextEdgeInput, ContextEdgeQuery } from "@molis-ai/
  */
 export interface FeedAttentionPort {
   readonly query: Pick<AttentionQuery, "list" | "get" | "findForSubject">;
-  readonly commands: Pick<AttentionCommands, "create" | "ensureFeedItem" | "setStatus" | "deleteSubject">;
+  readonly commands: Pick<AttentionCommands, "create" | "setStatus" | "deleteSubject"> & {
+    /** An entry about one of Feed's own items, for one of the reasons Feed declares for items it puts in the Inbox itself. */
+    ensureFeedItem(projectId: string, itemId: string, reason: FeedAttentionReason, detail?: Record<string, unknown>): { entry: AttentionEntryRecord; created: boolean };
+  };
 }
 
 /** The project journal's record of an item change; the journal keeps its own event names. */

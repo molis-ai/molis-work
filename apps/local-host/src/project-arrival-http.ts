@@ -3,9 +3,11 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import os from "node:os";
 import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { goalsHostActions } from "./goal-callers.js";
+import { registeredHostAction } from "./goal-callers.js";
+import { lookingForArea } from "./web-view.js";
 import { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
 import type { WorkEventView, WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { homeActions } from "./home-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -116,18 +118,20 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const actions = bindLocalWebActions(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
     const arrival = readProjectArrival(homeDirectory);
     const remembered = arrival.projects[project.project_id];
+    const listAction = registeredHostAction<{ limit: number }, { goals: ReadonlyArray<BriefGoal> }>("goals.list");
+    const stateAction = registeredHostAction<{ goal_id: string }, { progress_summary?: { stale?: boolean; summary: string } | null; intent: { why: string } }>("goals.state.read");
     const [goals, events, guidance] = await Promise.all([
-      settle(actions.invoke(goalsHostActions.list, { limit: 100 })),
+      listAction ? settle(lookingForArea(() => actions.invoke(listAction, { limit: 100 }))) : Promise.resolve({ ok: false as const }),
       settle(actions.invoke(homeActions.events, eventWindow(now))),
       // The introduction the person accepted at creation is kept here; a project made another way may carry long-term notes instead.
-      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(goalsHostActions.guidanceRead, {})),
+      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(projectGuidanceActions.read, {})),
     ]);
     const goalList: BriefGoal[] | null = goals.ok ? goals.value.goals.map(goal => ({ goal_id: goal.goal_id, title: goal.title, work_status: goal.work_status, next_hint: goal.next_hint,
       pending_decision_count: goal.pending_decision_count, updated_at: goal.updated_at })) : null;
     const eventList: BriefEvent[] | null = events.ok ? events.value.events.map(briefEvent) : null;
     // One more reading, for the goal in play only: where it stands, in the words its own record keeps.
     const current = goalList && !personal ? currentBriefGoal(goalList) : null;
-    const state = current ? await settle(actions.invoke(goalsHostActions.state, { goal_id: current.goal_id })) : null;
+    const state = current && stateAction ? await settle(lookingForArea(() => actions.invoke(stateAction, { goal_id: current.goal_id }))) : null;
     const detail = state?.ok ? (state.value.progress_summary && !state.value.progress_summary.stale ? state.value.progress_summary.summary : state.value.intent.why) : null;
     const context = guidance.ok ? guidance.value.entries.find(entry => entry.active && entry.kind === "context") : undefined;
     const input: ProjectBriefInput = {

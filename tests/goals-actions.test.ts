@@ -10,6 +10,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
@@ -27,7 +28,7 @@ const LAUNCHER_TIMEOUT = 120_000;
 
 test("Goals actions keep the runtime author; the management caller and the first-run door record the local person and refuse a supplied actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-actions-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false, creates = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_caller, view) => {
@@ -101,7 +102,7 @@ async function openGoalsMcp(t: TestContext) {
     active = `after ${name}`; activeStarted = Date.now(); return result;
   };
   const home = await mkdtemp(join(tmpdir(), "goals-actions-mcp-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "MCP Goals", actor_id: "user" }));
+  const project = await withCatalog({ homeDirectory: home }, async c => { const created = await c.createProject({ display_name: "MCP Goals", actor_id: "user" }); c.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" }); return created; });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "runtime:goals-actions", project_id: project.project_id, audience: "mcp", permissions: [] };
@@ -143,7 +144,8 @@ async function openGoalsMcp(t: TestContext) {
     assert.deepEqual(views.map(view => view.capability_id).sort(), declaredForMcp.map(action => action.capability_id).sort());
     assert.equal(views.some(view => view.capability_id === goalsActions.decide.capability_id), false);
     // Every Goals action the declaration offers a model's client (the assertion above), saved through the access settings.
-    await step("Host grant Goals actions", () => grantGoalsMcp(served, project, caller.actor_id));
+    // The project's guidance is the platform's (batch 44); the client holds its actions beside Goals'.
+    await step("Host grant Goals actions", () => grantGoalsMcp(served, project, caller.actor_id, Object.values(projectGuidanceActions)));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), true);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(goalsActions.decide)), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.decide), arguments: { goal_id: "forged", idempotency_key: "forged",
@@ -264,26 +266,26 @@ test("official MCP launcher: guidance, live planning and user-owned configuratio
   const context = await openGoalsMcp(t);
   const { home, sdk, host, ref, project, caller, served, input, views, sessionActor, invokePlanning } = context;
   try {
-    const guidance = await invokePlanning(goalsActions.guidanceAdd, { kind: "constraint", content: "保留用户原始文件。", reason: "数据边界",
+    const guidance = await invokePlanning(projectGuidanceActions.add, { kind: "constraint", content: "保留用户原始文件。", reason: "数据边界",
       confirmation_summary: "已向用户展示精确原文并确认", user_confirmed: true, idempotency_key: "public-guidance" });
     assert.equal(guidance.entry.created_by, sessionActor);
-    assert.match((await invokePlanning(goalsActions.guidanceRead, {})).runtime_prompt_prefix, /保留用户原始文件/);
+    assert.match((await invokePlanning(projectGuidanceActions.read, {})).runtime_prompt_prefix, /保留用户原始文件/);
     const guidanceUpdate = { guidance_id: guidance.entry.guidance_id, action: "edit" as const, kind: "constraint" as const,
       content: "保留用户原始文件和备份。", reason: "补充备份边界", confirmation_summary: "用户同意修改", user_confirmed: true, idempotency_key: "mcp-guidance-edit" };
-    const mcpGuidance = await sdk.callTool({ name: "molis_work_v1_action_goals.guidance.update__v1", arguments: guidanceUpdate });
+    const mcpGuidance = await sdk.callTool({ name: molisWorkActionToolName(projectGuidanceActions.update), arguments: guidanceUpdate });
     assert.equal(mcpGuidance.isError, false, JSON.stringify(mcpGuidance));
-    const afterGuidance = await invokePlanning(goalsActions.guidanceRead, {});
+    const afterGuidance = await invokePlanning(projectGuidanceActions.read, {});
     assert.equal(afterGuidance.entries[0]?.revision, 2);
     assert.equal(afterGuidance.entries[0]?.updated_by, "runtime:goals-actions:goals-actions-session");
     assert.match(afterGuidance.runtime_prompt_prefix, /保留用户原始文件和备份/);
-    await invokePlanning(goalsActions.guidanceUpdate, { ...guidanceUpdate, action: "deactivate", idempotency_key: "public-guidance-off" });
-    assert.equal((await invokePlanning(goalsActions.guidanceRead, {})).entries.length, 0);
-    const guidanceGrant = views.find(view => view.capability_id === goalsActions.guidanceUpdate.capability_id)!;
+    await invokePlanning(projectGuidanceActions.update, { ...guidanceUpdate, action: "deactivate", idempotency_key: "public-guidance-off" });
+    assert.equal((await invokePlanning(projectGuidanceActions.read, {})).entries.length, 0);
+    const guidanceGrant = (await host.inspectActions(caller, ref)).find(view => view.capability_id === projectGuidanceActions.update.capability_id)!;
     await served.revoke(caller.actor_id, project.project_id, [guidanceGrant]);
     const toolsAfterRevoke = (await sdk.listTools()).tools;
-    assert.equal(toolsAfterRevoke.some(tool => tool.name === "molis_work_v1_action_goals.guidance.update__v1"), false);
-    assert.equal((await sdk.callTool({ name: "molis_work_v1_action_goals.guidance.update__v1", arguments: { ...guidanceUpdate, action: "restore", idempotency_key: "denied-guidance" } })).isError, true);
-    assert.equal((await invokePlanning(goalsActions.guidanceRead, {})).inactive_entries[0]?.revision, 3);
+    assert.equal(toolsAfterRevoke.some(tool => tool.name === molisWorkActionToolName(projectGuidanceActions.update)), false);
+    assert.equal((await sdk.callTool({ name: molisWorkActionToolName(projectGuidanceActions.update), arguments: { ...guidanceUpdate, action: "restore", idempotency_key: "denied-guidance" } })).isError, true);
+    assert.equal((await invokePlanning(projectGuidanceActions.read, {})).inactive_entries[0]?.revision, 3);
     assert.deepEqual((await invokePlanning(goalsActions.planningImpact, { changed_goal_ids: [input.goal_id] })).changed_goal_ids, [input.goal_id]);
     assert.deepEqual((await invokePlanning(goalsActions.planningGraph, {})).issues, []);
     const user: ActionCallContext = { actor_id: "local-user", actor_kind: "user", audience: "user", project_id: project.project_id,
@@ -323,7 +325,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       requirement_bindings: [{ type_id: "work", requirement_id: "delivered" }] });
     assert.equal(configured.config.version, 1);
     const reported = await invokeWork(goalsActions.report, { idempotency_key: "public-report", events: [{ type_id: "work", type_version: 1,
-      title: "外部真实交付", fields: { body: "标准 MCP 保存的报告正文" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+      title: "外部真实交付", fields: { body: "标准 MCP 保存的报告正文" } }] });
     assert.equal(reported.events[0]!.actor_id, sessionActor);
     const progressed = await invokeWork(goalsActions.progress, { idempotency_key: "public-progress", based_on_cursor: reported.goal_event_cursor, summary: "报告已交付" });
     assert.equal(progressed.progress_summary.summary, "报告已交付");
@@ -352,11 +354,8 @@ test("official MCP launcher: work records and tree proposals retain provenance a
       expected_config_version: current.config.version, expected_agreement_version: agreed.agreement.version });
     assert.equal(closed.work_status, "cancelled");
     assert.equal((await invokeWork(goalsActions.resume, { idempotency_key: "public-resume", reason: "继续实际工作" })).work_status, "open");
-    // The MCP session's supports report is its own word (PWA-144): the real user accepts the requirement through the protected entry.
-    await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.recordTrustedDecision({
-      project_id: project.project_id, goal_id: input.goal_id, idempotency_key: "real-user-accept", authority: hostEventDecisionAuthority("web", project.project_id, "real-user", "real-user-accept"),
-      conclusion: "交付正文已核对", accepts_requirements: true, scope: { requirement_ids: ["delivered"] },
-    }));
+    // The MCP session's report is its own word (PWA-144): the person accepts the requirement on the platform.
+    await host.withProject(ref, runtime => goalApplicationOf(runtime).decide(project.project_id, input.goal_id, ["delivered"]));
     const finalState = await invokeWork(goalsActions.state, {});
     const completed = await invokeWork(goalsActions.close, { kind: "complete", result: "用户可查看完整报告", reason: "完成交付", idempotency_key: "public-complete",
       expected_config_version: finalState.config.version, expected_agreement_version: finalState.agreement.version });

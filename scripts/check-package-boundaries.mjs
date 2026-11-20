@@ -6,6 +6,7 @@ import { sqliteDriverFindings } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
+import { checkPlatformNoPluginPackageImports } from "./gates/platform-plugin-imports.mjs";
 
 import {
   evaluateImportBoundary,
@@ -431,7 +432,6 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkCoordinatorStaysDeleted(repositoryRoot));
   const requiredOwnerFiles = [
     "plugins/native/goals/src/module/goal-commands.ts",
-    "plugins/native/goals/src/module/guidance-commands.ts",
     "plugins/native/goals/src/module/lifecycle-archive.ts",
     "plugins/native/goals/src/module/lifecycle-commands.ts",
     "plugins/native/goals/src/module/planning/engine.ts",
@@ -442,6 +442,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/goal-query-application.ts",
   ];
   for (const relativePath of [
+    "plugins/native/goals/src/module/guidance-commands.ts",
     "plugins/native/goals/src/module/risk-commands.ts",
     "plugins/native/goals/src/module/lifecycle-completion.ts",
     "plugins/native/goals/src/module/lifecycle-reasons.ts",
@@ -577,6 +578,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
   }
   errors.push(...checkStandaloneManagementPort(read("apps/local-host/src/management-action-client.ts")));
+  errors.push(...checkStandaloneReviewPort(read("apps/local-host/src/management-action-client.ts")));
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
     mcp: { dispatcher: read("apps/mcp/src/tool-dispatch.ts"), host: read("apps/local-host/src/mcp-v1-tool.ts") },
@@ -595,7 +597,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
   // consume public operation ports instead of owning Store, SQL or Module rules.
-  for (const file of ["create", "policy-guidance", "lifecycle", "events", "relations"]) {
+  for (const file of ["create", "lifecycle", "events", "relations"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     const source = read(nativePath);
     errors.push(...checkGoalStorageOwnership(source).map(error => `${nativePath}: ${error}`));
@@ -603,7 +605,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${nativePath}: Native Goal requests must consume public operation ports without Host or Module implementations`);
     }
   }
-  for (const file of ["draft", "risk-impact", "verification", "input", "decisions"]) {
+  for (const file of ["draft", "policy-guidance", "risk-impact", "verification", "input", "decisions"]) {
     const nativePath = `plugins/native/goals/src/http/${file}.ts`;
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);
@@ -1149,7 +1151,6 @@ export const ENTRY_SOURCE_FILE = /\.(?:tsx?|jsx?|[cm][tj]s)$/u;
  * How the platform's entries call a Goals action (PG-031, tightened by PG-111): by the id and version Goals registers it under,
  * out of a table the dispatcher declares itself, never by a descriptor taken from a Goals contract. The table's name in each dispatcher.
  */
-const CLI_GOALS_TABLE = "GOALS";
 const MCP_GOALS_TABLE = "MANAGEMENT_GOAL_ACTIONS";
 /** The modules the CLI dispatcher may reach: the action contract and its own protocol file. */
 const PROJECT_REVIEW_CONTRACT = "@molis-ai/molis-work-contracts/services/project-approvals";
@@ -1205,6 +1206,35 @@ export function checkStandaloneManagementPort(source) {
     [file.fileName + ": standalone management must keep the same project, original signal, protected review entry and source checks"];
 }
 
+/**
+ * The command line's port (batch 44, H6): the standalone entry and the resident narrowing both refuse any reference that is not one of the
+ * platform's review operations, and evidence from the caller, before anything runs; the standalone entry calls only the protected review
+ * entry on the bound project with the original signal, and binds no Goals port.
+ */
+export function checkStandaloneReviewPort(source) {
+  const file = ts.createSourceFile("apps/local-host/src/management-action-client.ts", source, ts.ScriptTarget.Latest, true);
+  const compact = node => node?.getText(file).replace(/\s+/gu, "");
+  const fn = name => file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  const invokeBody = declaration => {
+    const [only] = declaration?.body?.statements ?? [];
+    const returned = only && ts.isReturnStatement(only) && only.expression && ts.isObjectLiteralExpression(only.expression) ? only.expression : undefined;
+    const invoke = returned?.properties.find(item => ts.isMethodDeclaration(item) && compact(item.name) === "invoke");
+    return declaration?.body?.statements.length === 1 && returned?.properties.length === 2 ? invoke?.body?.statements.map(compact) : undefined;
+  };
+  const require = fn("requireReview")?.body?.statements.map(compact) ?? [];
+  const standalone = fn("bindStandaloneReviewActions"), narrowed = fn("reviewOnly");
+  const valid = require.length === 4 && require[0] === "constname=reviewOperation(reference);"
+    && require[1].startsWith('if(!name)thrownewActionError("actions.forbidden",')
+    && require[2].startsWith('if(evidence!==undefined)thrownewActionError("actions.input_invalid",') && require[3] === "returnname;"
+    && standalone?.parameters.map(parameter => compact(parameter.name)).join(",") === "host,project,signal"
+    && JSON.stringify(invokeBody(standalone)) === JSON.stringify(["constname=requireReview(reference,evidence);",
+      "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;"])
+    && narrowed?.parameters.length === 1
+    && JSON.stringify(invokeBody(narrowed)) === JSON.stringify(["requireReview(reference,evidence);", "returnawaitport.invoke<Output>(reference,input);"])
+    && !/bindGoalsManagementActions/u.test(compact(standalone) ?? "") && !/bindGoalsManagementActions/u.test(compact(narrowed) ?? "");
+  return valid ? [] : [file.fileName + ": the command line's port must refuse everything but the platform's review operations before it runs, and bind no Goals port"];
+}
+
 function importsTrustedReviewActions(file) {
   return file.statements.some(statement => ts.isImportDeclaration(statement)
     && ts.isStringLiteralLike(statement.moduleSpecifier) && statement.moduleSpecifier.text === PROJECT_REVIEW_CONTRACT
@@ -1258,9 +1288,9 @@ function blockHasManagementBinding(node) {
 /**
  * The transport entries reach Goals through the platform, not through a Host client of their own, and name no Goals contract. `entries`: no
  * file of the CLI or MCP package references a Goals contract or the Goals package under any syntax. `cli`: the dispatcher is handed the
- * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, calls each Goals action
- * by a `GOALS.<name>` entry of the id-and-version table it declares, holds no Host client under any spelling and reads the snapshot through
- * Goals' own action; `cli-project.ts` builds that port with
+ * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, invokes only the
+ * platform's protected review actions (it names no plugin action: PEQ-15, batch 44) and holds no Host client under any spelling;
+ * `cli-project.ts` builds that port with
  * `bindStandaloneManagementActions(host, reference, signal)`, over the bound project and original signal, and hands the dispatcher what it returned.
  * `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
@@ -1286,8 +1316,7 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
       errors.push(`${dispatcherPath}: imports ${specifier} (${kind}); the CLI dispatcher reaches only the action contract and its protocol file, and takes no Goals descriptor from any Goals contract`);
     }
   }
-  const names = new Set(), held = new Set(), called = new Set();
-  let snapshot = false;
+  const names = new Set(), held = new Set();
   const visit = node => {
     if (ts.isIdentifier(node)) {
       names.add(node.text);
@@ -1296,21 +1325,16 @@ export function checkGoalTransportCallers({ cli, mcp, entries }) {
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) held.add(node.argumentExpression.text);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0];
-      if (action && ts.isPropertyAccessExpression(action) && ts.isIdentifier(action.expression) && action.expression.text === CLI_GOALS_TABLE) {
-        called.add(action.name.text);
-        if (action.name.text === "snapshot") snapshot = true;
-      } else if (action?.getText(dispatcher) !== "trustedReviewActions.read" && action?.getText(dispatcher) !== "trustedReviewActions.decide")
-        errors.push(`${dispatcherPath}: invoke must name a Goals action of the ${CLI_GOALS_TABLE} table or a platform review action`);
+      if (action?.getText(dispatcher) !== "trustedReviewActions.read" && action?.getText(dispatcher) !== "trustedReviewActions.decide")
+        errors.push(`${dispatcherPath}: invoke must name a platform review action; the CLI names no plugin's action (PEQ-15)`);
     }
     ts.forEachChild(node, visit);
   };
   visit(dispatcher);
-  if (!tableDeclared(dispatcher, CLI_GOALS_TABLE)) errors.push(`${dispatcherPath}: declare the ${CLI_GOALS_TABLE} table of Goals action ids and versions the commands call`);
   if (!names.has("CliManagementActions")) errors.push(`${dispatcherPath}: the CLI dispatcher must take the management port the Host builds (CliManagementActions)`);
   for (const name of held) {
     errors.push(`${dispatcherPath}: ${name} is how the Host opens a project or reaches Goals; the CLI calls Goals' actions through the management port and holds no Host client (LocalHostProjectClient, client, withProject, withScope, actionClient, coordinator.goals)`);
   }
-  if (!snapshot) errors.push(`${dispatcherPath}: the CLI snapshot must be read through ${CLI_GOALS_TABLE}.snapshot`);
 
   errors.push(...checkTrustedReviewRoutes(dispatcher, "cli"));
   errors.push(...checkGoalsManagementWiring(cli.project, "cli"));
@@ -1790,6 +1814,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     }),
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
+    ...checkPlatformNoPluginPackageImports(repositoryRoot, packages).map((message) => `[peq-03-platform-plugin-import] ${message}`),
     ...dependencyGraph.errors,
     ...checkLayerExceptionsInUse(sourceImports.edges, dependencyGraph.edges),
     ...rootSource.map((message) => `[root-source] ${message}`),

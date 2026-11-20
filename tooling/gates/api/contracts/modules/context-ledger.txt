@@ -106,14 +106,17 @@ export interface ContextScope {
 }
 
 export interface ObjectRef {
-    module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins" | "agent-host";
+    module: "artifacts" | "private-work-context" | "projects" | "assistant" | "plugins" | "agent-host";
     id: string;
     version: number | null;
     revision?: string;
     scope: ContextScope;
     project_id?: string | null;
     object_type?: string;
+    plugin_id?: string;
 }
+
+export declare const RELATION_EDGES_REPLICA_ID = "relation_edges";
 
 export declare const modulesContextLedgerContract: {
     readonly contractId: "io.molis.work.module.context-ledger.v1";

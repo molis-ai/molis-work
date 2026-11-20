@@ -2,10 +2,10 @@ import { goalPluginActions } from "./contract/goal-actions.js";
 
 export { goalProgressResultSchema } from "./contract/goal-actions.js";
 import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
+import { goalEventClosureKinds, goalEventConcernActions, goalEventNewDecisionPurposes, type GoalAcceptanceReading, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
-import { goalAction as action, goalActor, usingServices } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, judgmentInput, agreement, citedSubjects } from "./contract/goal-actions.js";
+import { goalAction as action, goalActor } from "./action-contract.js";
+import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, changeInput, decisionRequest, decision, reason, closure, agreement, citedSubjects } from "./contract/goal-actions.js";
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };
@@ -13,7 +13,7 @@ const base = { goal_id: identifier, idempotency_key: identifier };
 const required = Object.keys(base);
 const partialScope = { ...scope, required: [] };
 const mutation = { event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } };
-const changeProperties = change.properties as Record<string, ActionSchema>;
+const changeProperties = changeInput.properties as Record<string, ActionSchema>;
 const stateProperties = goalStateSchema.properties as Record<string, ActionSchema>;
 
 /** Work operations retain the original domain's transaction and user-decision checks. */
@@ -23,20 +23,19 @@ export const goalsEventActions = {
       types: array({ ...eventType, properties: { ...eventType.properties as Record<string, ActionSchema>, version }, required: ["type_id", "version", "name", "purpose", "fields"] }),
       requirement_bindings: array(binding) }, [...required, "expected_version"]),
     object({ config: goalConfigSchema, event_id: text, observed_event_cursor: count, replayed: boolean })),
-  // Concurrent: before anything is saved, Goals asks the 成果库 and the platform about what a judgment's basis cites, as the caller.
-  report: usingServices(action<BusinessInput<ReportGoalEventsInput>, ReportGoalEventsResult>("goals.events.report", /* @version action.goals.events.report */ 1, "报告目标工作", "按已登记类型一次保存多条工作事实，可附进展；整批校验后保存，报告不代替用户决定或收尾。判断可附依据（核对的确切交付版本、方法、观察、证据引用），可信层级由 Goals 核对后给出", "command",
+  report: (action<BusinessInput<ReportGoalEventsInput>, ReportGoalEventsResult>("goals.events.report", /* @version action.goals.events.report */ 1, "报告目标工作", "按已登记类型一次保存多条工作事实，可附进展；整批校验后保存，报告不代替用户决定或收尾。判断可附依据（核对的确切交付版本、方法、观察、证据引用），可信层级由 Goals 核对后给出", "command",
     object({ ...base, events: { type: "array", minItems: 1, items: object({ type_id: identifier, type_version: version, title: identifier,
-      fields: { type: "object", additionalProperties: text }, judgments: array(judgmentInput) }, ["type_id", "type_version", "title", "fields"]) },
+      fields: { type: "object", additionalProperties: text } }, ["type_id", "type_version", "title", "fields"]) },
       progress: object({ summary: identifier, next_step: text, next_actor: text }, ["summary"]) }, [...required, "events"]),
     object({ events: array(goalReportEventSchema), observed_event_cursor: count, replayed: boolean, goal_event_cursor: count,
-      work_status: stateProperties.work_status!, gaps: stateProperties.gaps!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean })), []),
+      work_status: stateProperties.work_status!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean }))),
   progress: goalPluginActions.progress,
   concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", /* @version action.goals.concerns.apply */ 1, "处理目标问题", "提出问题须填标题、说明和影响范围，可引用它所关于的对象（如一条风险，只记种类与 id）；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
     object({ ...base, action: enumeration(goalEventConcernActions), concern_id: text, title: text, statement: text, scope: partialScope,
       blocks_closure: boolean, reason: text, supporting_event_ids: array(text), cited_decision_id: text, cited_subjects: citedSubjects }, [...required, "action"]),
     object({ ...mutation, concern })),
   requestDecision: action<BusinessInput<RequestGoalDecisionInput>, GoalEventDecisionRequestResult>("goals.decisions.request", /* @version action.goals.decisions.request */ 1, "请求目标决定", "提出问题、至少两个选项及各自影响，等待用户作出决定；请求本身不表示批准", "command",
-    object({ ...base, question: identifier, options: { ...array(option), minItems: 2 }, purpose: enumeration(goalEventDecisionPurposes), proposed_change: change, scope: partialScope },
+    object({ ...base, question: identifier, options: { ...array(option), minItems: 2 }, purpose: enumeration(goalEventNewDecisionPurposes), proposed_change: changeInput, scope: partialScope },
       [...required, "question", "options", "purpose"]), object({ ...mutation, decision_request: decisionRequest })),
   citeDecision: action<BusinessInput<CiteGoalDecisionInput>, GoalEventDecisionResult>("goals.decisions.cite", /* @version action.goals.decisions.cite */ 1, "引用已有决定", "引用当前目标中已保存的可信决定；业务层核对适用范围和当前有效性，不能借引用生成新批准", "command",
     object({ ...base, decision_id: identifier, scope: partialScope }, [...required, "decision_id"]), object({ ...mutation, decision })),
@@ -51,21 +50,25 @@ export const goalsEventActions = {
     object({ ...base, reason: identifier }, [...required, "reason"]), object({ ...mutation, work_status: { const: "open" } })),
 } as const;
 
-/** What Goals worked out about a report's evidence before its window opened. The plugin hands it to the handler itself, beside the call's input and never inside it. */
-export type GoalReportTrust = NonNullable<ReportGoalEventsInput["trusted"]>;
+/**
+ * The commands that stand on the Goal's requirements as the platform has them: Goals reads them (`acceptance.read@1`, as itself) before
+ * the call's window opens and hands the reading to the handler as its third argument, beside the call's input and never inside it.
+ */
+export const GOALS_ACCEPTANCE_READERS = ["goals.events.configure", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set",
+  "goals.closure.submit", "goals.decisions.record"] as const;
 
+// `acceptance` is never the caller's: whatever the input held under that name is replaced by what Goals itself read for this very call
+// (the third argument, which only the plugin's own wrapper supplies; the platform calls a handler with two).
 export function createGoalsEventActionHandlers(events: GoalEventApplication, projectId: string): ActionHandlerBinding[] {
   return [
-    { ...goalsEventActions.configure, handle: (caller, input) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, project_id: projectId, ...goalActor(caller) }) },
-    // `trusted` is never the caller's: whatever the input held under that name is replaced by what Goals itself worked out for this very
-    // call (the third argument, which only the plugin's own wrapper supplies; the platform calls a handler with two).
-    { ...goalsEventActions.report, handle: (caller, input, trusted?: GoalReportTrust) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller), trusted }) },
+    { ...goalsEventActions.configure, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
+    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller) }) },
     { ...goalsEventActions.progress, handle: (caller, input) => events.recordProgress({ ...input as BusinessInput<RecordGoalProgressSummaryInput>, project_id: projectId, ...goalActor(caller) }) },
-    { ...goalsEventActions.concern, handle: (caller, input) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, project_id: projectId, ...goalActor(caller) }) },
-    { ...goalsEventActions.requestDecision, handle: (caller, input) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },
-    { ...goalsEventActions.citeDecision, handle: (caller, input) => events.citeDecision({ ...input as BusinessInput<CiteGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },
-    { ...goalsEventActions.agree, handle: (caller, input) => events.setAgreement({ ...input as BusinessInput<SetGoalEventAgreementInput>, project_id: projectId, ...goalActor(caller) }) },
-    { ...goalsEventActions.close, handle: (caller, input) => events.submitClosure({ ...input as BusinessInput<SubmitGoalEventClosureInput>, project_id: projectId, ...goalActor(caller) }) },
+    { ...goalsEventActions.concern, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
+    { ...goalsEventActions.requestDecision, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
+    { ...goalsEventActions.citeDecision, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.citeDecision({ ...input as BusinessInput<CiteGoalDecisionInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
+    { ...goalsEventActions.agree, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.setAgreement({ ...input as BusinessInput<SetGoalEventAgreementInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
+    { ...goalsEventActions.close, handle: (caller, input, acceptance?: GoalAcceptanceReading) => events.submitClosure({ ...input as BusinessInput<SubmitGoalEventClosureInput>, project_id: projectId, ...goalActor(caller), acceptance }) },
     { ...goalsEventActions.resume, handle: (caller, input) => events.resumeWork({ ...input as BusinessInput<ResumeGoalEventWorkInput>, project_id: projectId, ...goalActor(caller) }) },
   ];
 }

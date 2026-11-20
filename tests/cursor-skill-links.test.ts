@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 // specs/archive/repository-anti-corruption §4.14 (W1-12): .cursor/skills linked molis-plugin-dev and molis-prologue-ai but not
-// goal-advance, so Cursor never saw the Skill the product installs for every Runtime. Every Skill under skills/ is linked.
+// goal-advance (deleted in batch 44), so Cursor never saw a Skill under skills/. Every Skill under skills/ is linked.
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("every Skill under skills/ is linked from .cursor/skills, and every link points at one", () => {

@@ -1,22 +1,16 @@
 import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, WORK_GOAL_PROMOTION_PROTOCOL, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import type { FeedGoalPromotionInput, promoteFeedItemToGoal } from "./goal-promotion.js";
+import { findGoalPromotionProvider, type FeedGoalPromotionInput, type promoteFeedItemToGoal } from "./goal-promotion.js";
 import type { FeedItemRecord } from "./projection.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const revision = { type: "integer", minimum: 1 };
 const item = { type: "object", properties: { item_id: { type: "string" }, revision: { type: "integer" }, disposition: { type: "string" } }, required: ["item_id", "revision"] };
 const itemResult: ActionSchema = { type: "object", properties: { item }, required: ["item"] };
-/** Promotion writes through these Goals actions, so it is unavailable wherever they are: a project without Goals cannot promote. */
-const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = [
-  { capability_id: "goals.directory.read", version: /* @version action.goals.directory.read */ 1, provider_id: "io.molis.work.goals" },
-  { capability_id: "goals.create", version: /* @version action.goals.create */ 1, provider_id: "io.molis.work.goals" },
-  { capability_id: "goals.inputs.confirm", version: /* @version action.goals.inputs.confirm */ 1, provider_id: "io.molis.work.goals" },
-];
-/** What an item action declares beyond the common shape: that it may run beside the queue, the actions it depends on, and that its records are a Session's (as Goals' own commands are). */
-interface ItemActionExtras { scheduling?: "concurrent"; required_actions?: ActionReference[]; authorship?: "session" }
+/** What an item action declares beyond the common shape: that it may run beside the queue, the actions it depends on, and that its records are a Session's. */
+interface ItemActionExtras { scheduling?: "concurrent"; required_actions?: ActionReference[]; required_roles?: readonly { readonly input_type: string; readonly output_type: string }[]; authorship?: "session" }
 function define<Input, Output>(suffix: string, version: number, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], extras: ItemActionExtras = {}): ActionDefinition<Input, Output> {
   return createActionDefinition<Input, Output>(`feed.items.${suffix}`, "command", { title, description, ...extras,
     audiences: ["user", "agent", "workflow", "mcp"], permissions,
@@ -44,14 +38,14 @@ export const feedItemActions = {
   promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", /* @version action.feed.items.promote */ 1, "转为目标", "用这条消息新建一个目标并作为它的参考输入（由你本人操作时直接确认，由助理、AI、自动流程或外部工具操作时记为待你确认）；若已有有效关联目标则直接复用",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" } }, required: ["item", "goal_id", "created"] },
-    ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }),
+    ["feed:read", "feed:write", "goals:read", "goals:write"], { authorship: "session", required_roles: Object.values(WORK_GOAL_PROMOTION_PROTOCOL) }),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
 
-/** Whether a directory listing offers Feed's promotion as runnable now. The offers and the reader's button both ask this one question. */
+/** Whether a directory listing offers Feed's promotion as runnable now (requires both Feed's promote action and an available goal-promotion provider, Audit #10, PEQ-01). */
 export function promoteOffered(views: readonly ActionView[]): boolean {
   return views.some(view => view.capability_id === feedItemActions.promote.capability_id && view.version === feedItemActions.promote.version
-    && view.provider.plugin_id === FEED_PLUGIN_ID && view.availability.available);
+    && view.provider.plugin_id === FEED_PLUGIN_ID && view.availability.available) && findGoalPromotionProvider(views) !== null;
 }
 
 export interface FeedItemActionPorts {

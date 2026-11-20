@@ -190,15 +190,18 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     const required = name && pluginOnDemandStylesheet(name, packs) ? `/assets/molis-work-plugins/${name}.css` : null;
     const missing = `${name}: missing declared plugin stylesheet ${required}`;
     const readOwn = async () => {
-      const links = isolated ? await children[name]!.evaluate<string[]>(`[...document.querySelectorAll('link[rel=stylesheet]')].map(link=>link.getAttribute('href')).filter(href=>href&&href.includes('/assets/molis-work-plugins/'))`) : [];
+      const links = isolated
+        ? await children[name]!.evaluate<string[]>(`[...document.querySelectorAll('link[rel=stylesheet]')].map(link=>link.getAttribute('href')).filter(href=>href&&href.includes('/assets/molis-work-plugins/'))`)
+        : required
+          ? await evaluate<string[]>(`[...document.querySelectorAll('link[rel=stylesheet][data-plugin-shell-style]')].map(link=>link.getAttribute('href')).filter(href=>href&&href.includes('/assets/molis-work-plugins/'))`)
+          : [];
       if (required) {
-        assert.ok(isolated, `${name}: the declared plugin stylesheet requires its real frame`);
         assert.ok(links.some(href => new URL(href, origin).pathname === required), missing);
       }
       return links;
     };
     const own = await readOwn();
-    if (required && !missingSheetRejected) {
+    if (required && isolated && !missingSheetRejected) {
       // PG070-N2-02: remove one real link; shared shell rules must not conceal the missing plugin sheet.
       const frame = children[name]!, href = own.find(href => new URL(href, origin).pathname === required)!;
       const ownerRules = await evaluate<{ count: number }>(HOVER_RULES);

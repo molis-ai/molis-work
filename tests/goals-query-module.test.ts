@@ -73,16 +73,6 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
       reason: "子 Goal 只能加强规则",
       created_by: "user-1",
     });
-    goals.commands.addProjectGuidance({
-      project_id: "board-query",
-      actor_id: "user-1",
-      kind: "quality_bar",
-      content: "查询迁移保持结果无损。",
-      reason: "供所有 Goal 使用",
-      confirmation_summary: "用户确认无损查询",
-      user_confirmed: true,
-      idempotency_key: "guidance",
-    });
     store.db.prepare("UPDATE goals SET archived_at = ?, archived_by = ? WHERE goal_id = ?")
       .run("2026-09-02T00:00:00.000Z", "user-1", "goal-parent");
     store.db.prepare("UPDATE goals SET trashed_at = ?, trashed_by = ? WHERE goal_id = ?")
@@ -97,7 +87,6 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     assert.deepEqual(snapshot.board, legacySnapshot.board);
     assert.deepEqual(snapshot.goals, legacySnapshot.goals);
     assert.deepEqual(snapshot.relations, legacySnapshot.relations);
-    assert.deepEqual(snapshot.project_guidance, legacySnapshot.project_guidance);
 
     assert.deepEqual(
       goals.query.listGoals("board-query", {
@@ -122,13 +111,12 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
       promised_outputs: [],
       acceptance_criteria: [],
     }]);
-    assert.match(detail.project_guidance[0]?.content ?? "", /结果无损/u);
+    assert.equal("project_guidance" in detail, false, "a Goal's facts no longer carry the project's guidance (batch 44: the platform's)");
 
     const compatibility = coordinator.readGoalContract("board-query", "goal-child");
     assert.deepEqual(compatibility.goal, detail.goal);
     assert.deepEqual(compatibility.relations, detail.relations);
     assert.deepEqual(compatibility.resolved_policy, detail.resolved_policy);
-    assert.deepEqual(compatibility.project_guidance, detail.project_guidance);
 
     assert.equal(goals.query.getGoal("another-board", "goal-child"), null);
     assert.throws(

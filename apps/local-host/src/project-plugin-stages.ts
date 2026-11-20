@@ -6,7 +6,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionError, actionEffect, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isFrozenRegisteredManifest, type PluginRuntime, type PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
-import { optionalPluginQuery } from "./web-view.js";
+import { lookingForArea, optionalPluginQuery, type MolisWorkWebView } from "./web-view.js";
 import type { UiContribution, UiRenderRequest, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
@@ -310,14 +310,26 @@ export async function pinOwnerRead(owner: RuntimeStageOwner, action: ActionDefin
   return { client, pinned: { ...action, provider_id: matches[0]!.provider.provider_id } };
 }
 
+/** Request-local stage-read refusals associated with a web view without changing its JSON payload. */
+const stageReadErrors = new WeakMap<MolisWorkWebView, Readonly<Record<string, ActionError>>>();
+
+export function setStageErrors(view: MolisWorkWebView, errors: Readonly<Record<string, ActionError>>): MolisWorkWebView {
+  if (Object.keys(errors).length > 0) stageReadErrors.set(view, errors);
+  return view;
+}
+
+export function stageErrorsOf(view: MolisWorkWebView): Readonly<Record<string, ActionError>> | undefined {
+  return stageReadErrors.get(view);
+}
+
 /** Invoke exactly this actual owner's declaration and pin the provider of its selected half. */
 export async function readRuntimeStageOwner(owner: RuntimeStageOwner, bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient,
-  input: Readonly<Record<string, string>>, object = false): Promise<unknown> {
+  input: Readonly<Record<string, string>>, object = false, optional = !object): Promise<unknown> {
   owner.assertCurrent();
   const manifest = owner.entry.manifest, action = object ? stageObjectAction(manifest) : stageDataAction(manifest);
   if (!action) { if (object) throw new ActionError("actions.missing", "插件未声明对象读取"); return undefined; }
   const { client, pinned } = await pinOwnerRead(owner, action, bind);
-  const result = object ? await client.invoke(pinned, input) : await optionalPluginQuery(client, pinned, input);
+  const result = optional ? await optionalPluginQuery(client, pinned, input) : await lookingForArea(() => client.invoke(pinned, input));
   owner.assertCurrent();
   return result;
 }
@@ -333,7 +345,7 @@ export function shownRuntimeOwners(state: ProjectPluginState, shown: readonly st
 /** Choose once, read once, and keep only request-local guarded view references for later synchronous rendering. */
 export async function readRuntimeStageData(state: ProjectPluginState, shown: readonly string[], home: HomeStageHalves | undefined,
   bind: (action: ActionDefinition, owner: RuntimeStageOwner) => BoundActionClient, requests: Readonly<Record<string, Readonly<Record<string, string>>>> = {}) {
-  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, PreparedStageView | null> = {};
+  const showing = new Set(shown), data: Record<string, unknown> = {}, views: Record<string, PreparedStageView | null> = {}, errors: Record<string, ActionError> = {};
   const entries = [...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => showing.has(entry.project_plugin_id)),
     ...(home?.entries ?? []).filter(entry => showing.has(entry.project_plugin_id) && !builtinPluginByProjectKey(entry.project_plugin_id))];
   for (const entry of entries) {
@@ -345,7 +357,7 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     try { stageSurfaceDescriptors(owner.entry.manifest, owner.view); }
     catch (error) { hostLog.warn("plugins", "stage_surface_invalid", error, { plugin_id: entry.manifest.plugin_id }); continue; }
     try {
-      const result = await readRuntimeStageOwner(owner, bind, requests[entry.project_plugin_id] ?? {});
+      const result = await readRuntimeStageOwner(owner, bind, requests[entry.project_plugin_id] ?? {}, false, false);
       owner.assertCurrent();
       if (result === undefined && stageDataAction(owner.entry.manifest)) continue;
       if (result !== undefined) data[entry.project_plugin_id] = result;
@@ -361,10 +373,11 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
           return reader ? projectTextPacks(reader, language, owner.entry.manifest.ui.locales?.available.includes(language) === true) : [];
         } } : {}) };
     } catch (error) {
-      if (!(error instanceof ActionError) || !["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.provider_changed"].includes(error.code)) throw error;
+      if (!(error instanceof ActionError) || !["actions.forbidden", "actions.plugin_disabled", "actions.missing", "actions.provider_changed", "actions.input_invalid"].includes(error.code)) throw error;
+      errors[entry.project_plugin_id] = error;
     }
   }
-  return { data, views };
+  return { data, views, errors };
 }
 
 /** Rank the project home cards by the shell's rail (ui-host's one placement rule), with one directory entry per shell key. */

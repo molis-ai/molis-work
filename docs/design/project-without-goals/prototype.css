@@ -1,0 +1,126 @@
+/* Layout only. Tokens and controls come from the repository's shared component kit. */
+* { box-sizing: border-box; }
+/* The kit carries no font role; this mirrors the system-sans baseline (packages/design-system/resources/fonts/system-sans.json). */
+body { margin: 0; background: var(--surface); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif; font-size: 14px; }
+button, input { font-family: inherit; }
+button, a, input { -webkit-tap-highlight-color: transparent; }
+svg.glyph { width: var(--icon-md); height: var(--icon-md); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+/* The kit's bare icons inside its own controls take their stroke from the page (as in the batch 39 specimen). */
+.mw-btn svg, .mw-empty svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+
+.demo-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.demo-controls .demo-label { color: var(--muted); font-size: 12px; margin-right: auto; }
+.demo-options { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.demo-options .mw-toggle-group { flex-wrap: wrap; max-width: 100%; }
+
+/* The workbench frame, as the project page draws it: tabs on top, one canvas, the project chip and input below. */
+.wb { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; min-height: calc(100vh - 53px); padding: 0 8px 8px; }
+.wb-top { display: flex; align-items: center; gap: 8px; height: 44px; position: relative; }
+.wb-tabs { display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-control); background: var(--nav-bg); min-width: 0; }
+.wb-tab { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: calc(var(--radius-control) - 2px); background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; }
+.wb-tab[aria-current="page"] { background: var(--paper); color: var(--ink); box-shadow: var(--surface-shadow); }
+.wb-tab .glyph { width: 14px; height: 14px; }
+.wb-tab.icon-only { padding: 0 7px; }
+.wb-add { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); }
+.wb-add[aria-expanded="true"] { background: var(--nav-active); }
+.wb-add .glyph { width: 14px; height: 14px; }
+.wb-me { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--paper); font-size: 12px; }
+.wb-canvas { position: relative; background: var(--paper); border-radius: var(--radius-surface); box-shadow: var(--surface-shadow); overflow: clip; min-height: 560px; }
+.wb-bottom { display: flex; align-items: center; gap: 12px; padding-top: 8px; }
+.wb-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--radius-control); background: var(--paper); border: 1px solid var(--line); font-size: 12px; white-space: nowrap; }
+.wb-input { flex: 1; max-width: 560px; margin: 0 auto; height: 34px; display: flex; align-items: center; padding: 0 14px; border-radius: 17px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Project home */
+.home { max-width: 1040px; margin: 0 auto; padding: 56px 64px 48px; }
+.eyebrow { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.home h1 { margin: 0; font-size: 28px; line-height: 1.25; font-weight: 600; letter-spacing: -.02em; }
+.lede { margin: 14px 0 0; max-width: 34em; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.start { margin-top: 28px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.start .quiet { font-size: 12px; color: var(--muted); }
+.inline-feedback { margin-top: 20px; max-width: 520px; }
+.packs { margin-top: 36px; }
+.packs h2, .cards h2 { margin: 0 0 12px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.pack-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.pack { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-control); display: grid; gap: 10px; align-content: start; }
+.pack strong { font-size: 14px; font-weight: 500; }
+.pack p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.55; }
+.pack .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.pack .mw-btn { justify-self: start; }
+.cards { margin-top: 36px; }
+.card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.plugin-card { border-radius: var(--radius-control); background: var(--surface-soft); overflow: hidden; }
+.plugin-card header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-weight: 500; font-size: 14px; }
+.plugin-card .rows { background: var(--paper); margin: 0 1px 1px; border-radius: 0 0 var(--radius-control) var(--radius-control); padding: 6px 14px 12px; }
+.plugin-card .row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.plugin-card .row:last-child { border-bottom: 0; }
+.plugin-card .row span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.is-arriving { animation: arrive var(--dur-enter, 240ms) var(--ease-quint, ease-out); }
+@keyframes arrive { from { opacity: 0; transform: translateY(4px); } }
+
+/* A plugin's identity colour: the same hue whether it is in the project or not (removing and adding back keeps it). */
+.ident { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+.ident .glyph { width: 15px; height: 15px; }
+.hue-indigo { color: var(--hue-indigo); background: var(--hue-indigo-soft); }
+.hue-green { color: var(--hue-green); background: var(--hue-green-soft); }
+.hue-orange { color: var(--hue-orange); background: var(--hue-orange-soft); }
+.hue-cyan { color: var(--hue-cyan); background: var(--hue-cyan-soft); }
+.hue-pink { color: var(--hue-pink); background: var(--hue-pink-soft); }
+.hue-steel { color: var(--hue-steel); background: var(--hue-steel-soft); }
+.hue-purple { color: var(--hue-purple); background: var(--hue-purple-soft); }
+.hue-brown { color: var(--hue-brown); background: var(--hue-brown-soft); }
+
+/* Schedule's own page, the first installed plugin (scheme C) */
+.plugin-page { padding: 24px 32px; }
+.plugin-page .mw-alert { margin-bottom: 40px; }
+.plugin-page .mw-empty { margin: 60px auto 0; max-width: 420px; }
+
+/* The plugin menu that the + opens: search, groups of tiles; each tile carries its own add, pin and remove. */
+.menu { position: absolute; z-index: 20; top: 40px; left: 0; width: min(760px, calc(100vw - 16px)); max-height: 560px; overflow: auto; padding: 12px; border-radius: var(--radius-surface); background: var(--popover, var(--paper)); box-shadow: var(--shadow); }
+.menu-search { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.menu-search .mw-input { flex: 1; }
+.menu h3 { margin: 12px 6px 4px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; }
+.tile { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px; border-radius: var(--radius-control); }
+.tile:hover, .tile.is-hot { background: var(--nav-hover); }
+.tile .ident { grid-row: 1 / span 2; grid-column: 1; }
+.tile b { font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile small { font-size: 11px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; }
+.tile .ops { grid-row: 1 / span 2; grid-column: 3; display: flex; gap: 2px; }
+.tile .ops .mw-btn { width: 28px; height: 28px; }
+.tile.is-available b { color: var(--muted); }
+.tile.is-available .ident { opacity: .72; }
+.tile.is-confirming { background: var(--hue-orange-soft); }
+.tile.is-confirming small { color: var(--hue-orange); white-space: normal; }
+.tile .kept { grid-column: 2; grid-row: 3; justify-self: start; margin-top: 2px; }
+.tile .kept .mw-badge { font-size: 11px; }
+.ask { position: absolute; z-index: 30; top: calc(100% + 4px); left: 8px; width: 320px; padding: 16px; border-radius: var(--radius-surface); background: var(--popover, var(--paper)); box-shadow: var(--shadow); display: grid; gap: 12px; }
+.ask strong { font-size: 14px; font-weight: 600; }
+.ask dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; font-size: 12px; line-height: 1.55; }
+.ask dt { color: var(--muted); }
+.ask dd { margin: 0; }
+.ask .buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.menu:has(.ask) { overflow: visible; }
+.dim { opacity: .55; }
+
+.toast-dock { position: fixed; z-index: 50; left: 50%; bottom: 56px; transform: translateX(-50%); display: grid; gap: 8px; width: max-content; max-width: calc(100vw - 32px); }
+
+@media (max-width: 1100px) {
+  .home { padding: 44px 40px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .wb { padding: 0 6px 6px; }
+  .wb-tab .label { display: none; }
+  .wb-tab { padding: 0 8px; }
+  .home { padding: 28px 20px 32px; }
+  .home h1 { font-size: 24px; }
+  .start .mw-btn { min-height: 44px; }
+  .pack-list, .card-grid { grid-template-columns: minmax(0, 1fr); }
+  .plugin-page { padding: 16px; }
+  .menu { position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: 100%; max-height: 78vh; border-radius: var(--radius-surface) var(--radius-surface) 0 0; }
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .tile .ops .mw-btn { width: 44px; height: 44px; }
+  .ask { position: static; width: auto; margin: 4px 0 8px; grid-column: 1 / -1; }
+  .wb-chip .label { display: none; }
+  .toast-dock { bottom: 64px; }
+}

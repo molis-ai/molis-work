@@ -72,6 +72,9 @@ export class ContextLedgerRepository {
       if (!ref) continue;
       conditions.push(`json_extract(${column}, '$.module') = ? AND json_extract(${column}, '$.id') = ?`);
       values.push(ref.module, ref.id);
+      // A plugin's object is one kind of one plugin's: ids of two kinds, or of two plugins, may be the same.
+      if (ref.object_type !== undefined) { conditions.push(`json_extract(${column}, '$.object_type') = ?`); values.push(ref.object_type); }
+      if (ref.plugin_id !== undefined) { conditions.push(`json_extract(${column}, '$.plugin_id') = ?`); values.push(ref.plugin_id); }
     }
     return this.selectLatest(scope, conditions, values, query.include_removed === true);
   }

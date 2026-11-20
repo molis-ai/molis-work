@@ -30,7 +30,7 @@ test("RAC-2205 a failing spawned assertion stops the real PTY child instead of l
   writeFileSync(join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH), "RAC-2205 fake control token\n");
   const http = createServer((request, response) => {
     request.resume();
-    if (request.method !== "POST" || !/\/goals\/[^/]+\/terminals$/u.test(request.url ?? "")) { response.writeHead(404).end(); return; }
+    if (request.method !== "POST" || !/\/api\/work-terminals\/io\.molis\.work\.goals\/goal\/[^/]+$/u.test(request.url ?? "")) { response.writeHead(404).end(); return; }
     const child = spawn(process.execPath, ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile], { cwd: home, stdio: "ignore" });
     children.push(child);
     response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ panel_id: "fake-panel", key: "shutdown", started: true }));

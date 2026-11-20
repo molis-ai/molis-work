@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-native-language"
+description = "Let the main window publish its interface language so the menu-bar item's menu follows it."
+commands.allow = ["native_set_locale"]

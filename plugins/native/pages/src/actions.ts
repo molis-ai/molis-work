@@ -1,14 +1,14 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
-import { ActionError, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ActionError, DOCUMENT_GENERATION_PROTOCOL, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
 import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 import { pagesErrors } from "./error.js";
-import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -18,6 +18,7 @@ import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/
 import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
 import { convertImportContent } from "./import-content.js";
+import { importOnboardingDocuments, pagesOnboardingDocuments } from "./onboarding-documents.js";
 import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
@@ -93,7 +94,9 @@ const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I,
  */
 const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJECT_KIND, title: "文档", verb: "存为文档", material_field: "markdown",
   describe: "能独立成篇、以后还要改的内容：一段完整的说明、方案或纪要；一句话的事、要跟进的事、一闪而过的想法不放这里",
-  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 } } as const;
+  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: /* @version action.pages.intake.offers */ 1 },
+  // The project home's starting point (contract-design §2.4), on the same entry.
+  start: { title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", icon: "file", title_text: { key: "pages.directory.start-title" }, hint_text: { key: "pages.directory.start-hint" } } } as const;
 export const pagesActions = {
   presentation: pagesPresentationValues,
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
@@ -116,7 +119,10 @@ export const pagesActions = {
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", /* @version action.pages.artifacts.compare */ 1, "文档", [...read]),
   /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
   // Continuing from an imported file parses it, which is a material read inside the action itself.
-  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ]), { scheduling: "concurrent" }),
+  artifactContinue: withAction(defineArtifactContinueAction("pages.artifacts.continue", /* @version action.pages.artifacts.continue */ 1, "文档", [...read, ...write, MATERIALS_READ], { item_kind: PAGES_SUBJECT_KIND,
+    // Its own documents, and the imported files it can read (artifact-positioning A3, A4b; PG-079).
+    artifact_types: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }, ...IMPORTED_DOCUMENT_READ_TYPES],
+    file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }), { scheduling: "concurrent" }),
   /** 「被谁引用」 (artifact-positioning 五.1): documents whose text links to a version in the 成果库. */
   artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", /* @version action.pages.artifacts.referrers */ 1, "文档", read),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
@@ -124,7 +130,7 @@ export const pagesActions = {
   copy: defineObjectCopyAction("pages.placement.copy", /* @version action.pages.placement.copy */ 1, [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", /* @version action.pages.list */ 1, "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", /* @version action.pages.templates */ 1, "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
-  get: define<{ id: string }, { document: PagesRecord }>("get", /* @version action.pages.get */ 1, "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read),
+  get: withAction(define<{ id: string }, { document: PagesRecord }>("get", /* @version action.pages.get */ 1, "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read), DOCUMENT_GENERATION_PROTOCOL["document.get"]),
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
   // Only the call that made it can take it back: a retry under the same request id returns the document as it is now (maybe edited
   // since) and carries no `created_version`, so the undo, which reads it, is not offered there.
@@ -154,10 +160,10 @@ export const pagesActions = {
    */
   bodyFromMarkdown: withAction(define<{ markdown: string }, { body: PagesBody }>("documents.body_from_markdown", /* @version action.pages.documents.body_from_markdown */ 1, "Markdown 转文档正文", "把 Markdown 转成 Pages 的文档正文；只转换，不读取也不写入任何文档。转换结果超过一篇文档能存的大小时返回 pages.body_too_large", "query",
     object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"], subject_kinds: [] }),
-  generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", /* @version action.pages.generations.list */ 1, "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read),
-  generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", /* @version action.pages.generations.get */ 1, "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
-  generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", /* @version action.pages.generate */ 1, "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
-    object({ ...requestIdentity, inputs: { ...array(snapshot), minItems: 1, maxItems: 20 }, title: { ...fields.title, minLength: 1, pattern: "\\S" }, instructions: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" } }), object({ document: page, replayed: { type: "boolean" } }), [...read, ...write, "model:invoke"], { cost: "metered" }, "concurrent"),
+  generations: withAction(define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", /* @version action.pages.generations.list */ 1, "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read), DOCUMENT_GENERATION_PROTOCOL["generations.list"]),
+  generation: withAction(define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", /* @version action.pages.generations.get */ 1, "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read), DOCUMENT_GENERATION_PROTOCOL["generations.get"]),
+  generate: withAction(define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", /* @version action.pages.generate */ 1, "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
+    object({ ...requestIdentity, inputs: { ...array(snapshot), minItems: 1, maxItems: 20 }, title: { ...fields.title, minLength: 1, pattern: "\\S" }, instructions: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" } }), object({ document: page, replayed: { type: "boolean" } }), [...read, ...write, "model:invoke"], { cost: "metered" }, "concurrent"), DOCUMENT_GENERATION_PROTOCOL.generate),
   // Only proposes text: nothing in the document changes until the person applies it through `update`.
   ai: readOnly(define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", /* @version action.pages.ai */ 1, "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
     object({ id, command: { enum: PAGES_AI_COMMANDS.map(command => command.id) }, text: { type: "string", minLength: 1, maxLength: 180000, pattern: "\\S" }, style: { enum: ["concise", "expand", "formal", "casual"] }, expected_version: version }, ["id", "command", "text"]),
@@ -172,7 +178,7 @@ function bodyFromMarkdown(markdown: string): PagesBody {
   if (JSON.stringify(body).length > MAX_BODY_CHARS) throw pagesErrors.body_too_large("转换后的正文超过一篇文档能存的大小");
   return body;
 }
-export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions)];
+export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions), pagesOnboardingDocuments];
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts extends PagesStores {
   /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
@@ -224,7 +230,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       try { document = store.get(input.subject_id, project(caller)); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
-        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], open: { surface: "pages", id: document.id } }, input);
+        content: actionFieldValue("body", document.body), attached_to: document.goal_id ? [{ kind: "goal", id: document.goal_id }] : [], open: { surface: "pages", id: document.id } }, input);
     })),
     bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.read(store => store.list(project(caller)).map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
@@ -308,6 +314,8 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       .map(document => ({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, title: document.title || "未命名文档", open: { surface: "pages", id: document.id } })) }))),
     bind(pagesActions.bodyFromMarkdown, ({ markdown }) => ({ body: bodyFromMarkdown(markdown) })),
     bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
+    bind(pagesOnboardingDocuments, (input, caller) => importOnboardingDocuments(input, { convert: bodyFromMarkdown,
+      importPart: async (request_id, request_hash, document) => (await ports.write(caller, store => store.importDocuments({ project_id: project(caller), request_id, request_hash, documents: [document] })))[0]! })),
     bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {

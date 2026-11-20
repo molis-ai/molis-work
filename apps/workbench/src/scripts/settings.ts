@@ -134,7 +134,6 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix
       || scope.dataset?.routePrefix
       || document.body.dataset.routePrefix || "";
-    const goalsPluginApi = "/api/plugins/io.molis.work.goals";
     const state = JSON.parse(dataNode.textContent || "{}");
     const entries = [...(state.entries || []), ...(state.inactive_entries || [])];
     const fields = form.querySelector("[data-guidance-editor-fields]");
@@ -260,8 +259,8 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       submit.textContent = globalThis.t.text("workbench.settings.saving");
       try {
         const isAdd = mode === "add";
-        await molisWorkRequest(routePrefix + goalsPluginApi + "/project-guidance" + (isAdd ? "" : "/" + encodeURIComponent(guidanceId)), {
-          method: isAdd ? "POST" : "PATCH",
+        await molisWorkRequest(routePrefix + "/api/project-guidance" + (isAdd ? "" : "/" + encodeURIComponent(guidanceId)), {
+          method: "POST",
           body: {
             action: isAdd ? undefined : mode,
             kind: isAdd || mode === "edit" ? kindInput.value : undefined,

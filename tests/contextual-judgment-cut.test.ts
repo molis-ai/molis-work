@@ -34,9 +34,9 @@ test("RAC-2020 a selected part is cut at 2000 units without leaving half a chara
 test("RAC-2021 a name, title or heading is cut at 120 units without leaving half a character, at every place it is read", () => {
   const places = (text: string) => {
     const state = judgmentState(
-      focus({ object: { kind: text, id: "d1", title: text }, goal: { id: "g1", title: text }, surroundings: { heading_path: [text] }, place: "side", side_tab: text }),
+      focus({ object: { kind: text, id: "d1", title: text }, belongs_to: { plugin_id: "io.example.owner", kind: "goal", id: "g1", title: text, noun: "目标" }, surroundings: { heading_path: [text] }, place: "side", side_tab: text }),
       { landing: landing({ object: { kind: text, id: "d1", title: text }, surroundings: { heading_path: [text] } }) }).text;
-    return [lineOf(state, "【对象】"), lineOf(state, "【所在位置】"), lineOf(state, "【当前目标】"), lineOf(state, "【手上的东西在】右栏 · "), lineOf(state, "【落点】"), lineOf(state, "【落点所在位置】")];
+    return [lineOf(state, "【对象】"), lineOf(state, "【所在位置】"), lineOf(state, "【所属对象】目标 · "), lineOf(state, "【手上的东西在】右栏 · "), lineOf(state, "【落点】"), lineOf(state, "【落点所在位置】")];
   };
   for (const half of [PAIR, "\u{10000}", "\u{10FFFF}"]) {
     const cut = a(119) + "…";
@@ -50,11 +50,11 @@ test("RAC-2021 a name, title or heading is cut at 120 units without leaving half
 
 test("RAC-2022 the text around, a recent action, a preference, the Goal's state and what a landing would replace are cut without leaving half a character", () => {
   const state = judgmentState(
-    focus({ surroundings: { heading_path: [], before: a(299) + PAIR, after: a(299) + PAIR }, goal: { id: "g1", title: "目标", state: a(39) + PAIR } }),
+    focus({ surroundings: { heading_path: [], before: a(299) + PAIR, after: a(299) + PAIR }, belongs_to: { plugin_id: "io.example.owner", kind: "goal", id: "g1", title: "目标", state: a(39) + PAIR, noun: "目标" } }),
     { recent: [a(39) + PAIR, a(39) + PAIR, a(39) + PAIR, a(39) + PAIR], memory: [{ kind: "preference", text: a(159) + PAIR }], landing: landing({ targets: [{ kind: "text_range", text: a(1999) + PAIR, anchor: 4, head: 7 }], surroundings: { heading_path: [], before: a(299) + PAIR, after: a(299) + PAIR } }) });
   assert.equal(lineOf(state.text, "【前文】"), a(299) + "…");
   assert.equal(lineOf(state.text, "【后文】"), a(299) + "…");
-  assert.equal(lineOf(state.text, "【当前目标】"), "目标（" + a(39) + "…）");
+  assert.equal(lineOf(state.text, "【所属对象】目标 · "), "目标（" + a(39) + "…）");
   assert.equal(lineOf(state.text, "【最近操作】"), [a(39) + "…", a(39) + "…", a(39) + "…"].join("；"), "three recent actions are read, each cut");
   assert.equal(lineOf(state.text, "【用户偏好与约定】"), a(159) + "…");
   assert.equal(lineOf(state.text, "【落点处的文字】"), a(1999) + "…");
@@ -64,7 +64,7 @@ test("RAC-2022 the text around, a recent action, a preference, the Goal's state 
 
 test("RAC-2023 no part of the judgment ends in half a character; a half the page itself sent within the limit is left as it came", () => {
   const everywhere = (text: string, long: string) => judgmentState(
-    focus({ object: { kind: text, id: "d1", title: text }, targets: [{ kind: "text_range", role: "paragraph", text: long }], goal: { id: "g1", title: text, state: text },
+    focus({ object: { kind: text, id: "d1", title: text }, targets: [{ kind: "text_range", role: "paragraph", text: long }], belongs_to: { plugin_id: "io.example.owner", kind: "goal", id: "g1", title: text, state: text },
       surroundings: { heading_path: [text], before: long, after: long }, place: "side", side_tab: text }),
     { recent: [text], memory: [{ kind: "preference", text }], landing: landing({ object: { kind: text, id: "d1", title: text }, targets: [{ kind: "text_range", text: long, anchor: 1, head: 2 }], surroundings: { heading_path: [text], before: long, after: long } }) });
   for (const half of [PAIR, "\u{10000}", "\u{10FFFF}"]) {

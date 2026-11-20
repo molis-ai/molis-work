@@ -11,6 +11,9 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { goalsManifest, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
+import { openAcceptance, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
+import { ACCEPTANCE_PROVIDER_ID, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
+import type { GoalAcceptanceReading, GoalHungRequirement } from "@molis-ai/molis-work-plugin-goals/contract";
 import {
   createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, GovernanceEventDecisions, GovernanceProvenance, readMolisWorkSnapshot,
   type GoalsApplication,
@@ -102,6 +105,63 @@ export class GoalProjectApplication {
   readonly goalDecisionAttention: GoalsApplication["goalDecisionAttention"];
   readonly projectOpened: GoalsApplication["projectOpened"];
 
+  /**
+   * The platform's acceptance of each project's Goals, over this same library (contract-design §10). As the plugin does, a command
+   * that stands on the requirements is handed the platform's reading when the test gave none, and what a new Goal hung is set on
+   * the platform once its write has returned. A test drives the acceptance itself (delivering, reporting, deciding) through it.
+   */
+  acceptanceOf(projectId: string): AcceptanceService {
+    let service = this.acceptances.get(projectId);
+    // As the Host opens it (`acceptance-library.ts`): a person's decision counts once this library holds its trusted-decision record.
+    if (!service) this.acceptances.set(projectId, service = openAcceptance(this.store.db, projectId, { now: () => this.clock().toISOString(),
+      vouched: id => projectReviewDecisions(this.store.db, projectId).findCommitted(id) !== null }));
+    return service;
+  }
+  /** The platform's view of a Goal's requirements. */
+  acceptanceView(projectId: string, goalId: string): AcceptanceView {
+    return this.acceptanceOf(projectId).read(acceptanceCaller(projectId), { subjects: [goalSubject(goalId)] }).views[0]!;
+  }
+  /** The Goal's requirements as listed on the platform, replacing the list (Goals hanging them before a delivery, the person after). */
+  setRequirements(projectId: string, goalId: string, requirements: ReadonlyArray<{ requirement_id: string; statement: string; human_decision_required?: boolean }>, person = false): AcceptanceView {
+    return this.acceptanceOf(projectId).set(person ? personCaller(projectId) : acceptanceCaller(projectId), { subject: goalSubject(goalId), requirements: requirements.map(item => ({
+      id: item.requirement_id, statement: item.statement, requires_person: item.human_decision_required === true })) });
+  }
+  /**
+   * One more delivered version of the Goal, touching every current requirement. With no evidence to look up (no `made_in`) the
+   * platform writes it before its first wait, so it is done when this returns; the round is read back to be sure.
+   */
+  deliver(projectId: string, goalId: string): AcceptanceView {
+    const before = this.acceptanceView(projectId, goalId);
+    const pending = this.acceptanceOf(projectId).deliver(acceptanceCaller(projectId), { subject: goalSubject(goalId), version: `v${before.round + 1}`,
+      ...(before.round > 0 ? { touches: before.requirements.map(requirement => requirement.id) } : {}) }, NO_EVIDENCE);
+    pending.catch(() => undefined);
+    const after = this.acceptanceView(projectId, goalId);
+    if (after.round !== before.round + 1) throw new Error("the delivery was not recorded");
+    return after;
+  }
+  /** The person accepts (or returns) the named requirements on the delivery they stand on; a Goal with none delivered gets its first. */
+  decide(projectId: string, goalId: string, accepts: readonly string[], returns: readonly string[] = []): AcceptanceView {
+    const view = this.acceptanceView(projectId, goalId).round ? this.acceptanceView(projectId, goalId) : this.deliver(projectId, goalId);
+    const version = (id: string) => {
+      const requirement = view.requirements.find(item => item.id === id);
+      if (!requirement) throw new Error(`requirement ${id} is not listed on the platform`);
+      return { id, version: requirement.version };
+    };
+    // The version the person looked at: the latest delivered, whatever it is called (a moved Goal's keep Goals' names).
+    const input = { subject: goalSubject(goalId), version: view.version!, accepts: accepts.map(version), returns: returns.map(id => ({ ...version(id), note: "还不行" })) };
+    // The item decisions and the platform's trusted-decision record commit together, as `acceptance.decide@1` does behind the protected entry.
+    const decisionId = randomUUID(), at = this.clock().toISOString();
+    return this.store.db.transaction(() => this.acceptanceOf(projectId).decide(personCaller(projectId), input, decisionId, () => {
+      const owner = { scope: "project", project_id: projectId, provider_id: ACCEPTANCE_PROVIDER_ID } as const, key = `fixture-acceptance:${decisionId}`;
+      projectReviewDecisions(this.store.db, projectId).commit({ reference: { owner: { kind: "trusted-decision", ...owner }, id: key, version: input.version }, choice_id: "apply", request_key: key },
+        { actor_id: "web-user", source: { kind: "person", actor_id: "web-user", entry: { source: "web", conversation_ref: "fixture", message_ref: key } } },
+        input, { publisher_signature: `system:${ACCEPTANCE_PROVIDER_ID}`, review: { target: { owner: { kind: "system", ...owner }, subject: goalSubject(goalId).subject, version: input.version }, requirements: [] } },
+        at, () => undefined, decisionId);
+    })).immediate();
+  }
+  private readonly acceptances = new Map<string, AcceptanceService>();
+  private readonly hanging: Array<{ project_id: string; goal_id: string; requirements: GoalHungRequirement[] }> = [];
+
   /** Each Goal's confirmed deliverables, as the plugin reads them from the Context Ledger; a test sets what the person confirmed. */
   readonly confirmedDeliverables = new Map<string, Array<{ artifact_id: string; version: number }>>();
 
@@ -132,10 +192,26 @@ export class GoalProjectApplication {
       { exists: (projectId, subjectType, subjectId) => subjectType === "goal_decision" && this.goalsModule.query.getGoal(projectId, subjectId) !== null },
       { eventSink: event => { this.store.appendEvent({ eventId: `event-${randomUUID()}`, projectId: event.project_id, actorId: LOCAL_PERSON_ACTOR_ID,
         objectType: "inbox_entry", objectId: event.entry_id, type: event.type, reason: event.reason, payload: event.payload, at: event.at }); } });
-    const application = createGoalsApplication({ goals: { ...this.goals, query: goalsModule.query, events: goalsModule.events }, governance: this.governance, attention, clock: this.clock });
+    const application = createGoalsApplication({ goals: { ...this.goals, query: goalsModule.query, events: goalsModule.events }, governance: this.governance, attention, clock: this.clock,
+      requirementsHung: (goal, requirements) => { this.hanging.push({ project_id: goal.project_id, goal_id: goal.goal_id, requirements }); } });
     this.goalEvents = application.goalEvents;
+    const createIntent = application.goalEvents.createIntent.bind(application.goalEvents);
+    this.goalEvents.createIntent = input => {
+      this.hanging.length = 0;
+      const result = createIntent(input);
+      for (const hung of this.hanging.splice(0)) this.hang(hung.project_id, hung.goal_id, hung.requirements);
+      return result;
+    };
+    // The commands that stand on the requirements, each given the platform's reading as the plugin's before-hook gives it.
+    const wrap = <I extends { project_id: string; goal_id: string; acceptance?: GoalAcceptanceReading }, R>(fn: (input: I) => R) => (input: I): R => fn(this.withReading(input));
+    this.goalEvents.configure = wrap(application.goalEvents.configure.bind(application.goalEvents));
+    this.goalEvents.applyConcern = wrap(application.goalEvents.applyConcern.bind(application.goalEvents));
+    this.goalEvents.requestDecision = wrap(application.goalEvents.requestDecision.bind(application.goalEvents));
+    this.goalEvents.citeDecision = wrap(application.goalEvents.citeDecision.bind(application.goalEvents));
+    this.goalEvents.setAgreement = wrap(application.goalEvents.setAgreement.bind(application.goalEvents));
+    this.goalEvents.submitClosure = wrap(application.goalEvents.submitClosure.bind(application.goalEvents));
     const record = application.goalEvents.recordTrustedDecision.bind(application.goalEvents);
-    this.goalEvents.recordTrustedDecision = input => approvals.event(input.project_id, () => record(input));
+    this.goalEvents.recordTrustedDecision = input => approvals.event(input.project_id, () => record(this.withReading(input)));
     this.goalQueries = application.goalQueries;
     this.goalTree = application.goalTree;
     this.goalTreeSubmission = application.goalTreeSubmission;
@@ -144,6 +220,28 @@ export class GoalProjectApplication {
       input.authority, input, () => application.goalTreeDecision.decideGoalTreeProposal(input)) } as GoalsApplication["goalTreeDecision"];
     this.goalDecisionAttention = application.goalDecisionAttention;
     this.projectOpened = projectId => { this.ensureBoard(projectId); application.projectOpened(projectId); };
+  }
+
+  /** The input with the platform's reading of its Goal, unless the test gave one (or a Goal the platform cannot read). */
+  private withReading<T extends { project_id: string; goal_id: string; acceptance?: GoalAcceptanceReading }>(input: T): T {
+    if (input.acceptance !== undefined || typeof input.goal_id !== "string") return input;
+    const view = this.acceptanceView(input.project_id, input.goal_id);
+    return { ...input, acceptance: { round: view.round, complete: view.complete,
+      requirements: view.requirements.map(({ id, statement, requires_person, person, satisfied }) => ({ id, statement, requires_person, person, satisfied })) } };
+  }
+
+  /** What a new Goal hung goes to the platform, as the plugin sends it after the write: the platform's list plus the ones it lacks. */
+  private hang(projectId: string, goalId: string, hung: readonly GoalHungRequirement[]): void {
+    const view = this.acceptanceView(projectId, goalId);
+    if (view.round > 0) return;
+    const listed = new Set(view.requirements.map(requirement => requirement.id));
+    const missing = hung.filter(requirement => !listed.has(requirement.requirement_id));
+    if (!missing.length) return;
+    this.acceptanceOf(projectId).set(acceptanceCaller(projectId), { subject: goalSubject(goalId), requirements: [
+      ...view.requirements.map(({ id, statement, expected, part, requires_person }) => ({ id, statement, requires_person,
+        ...(expected !== null ? { expected } : {}), ...(part !== null ? { part } : {}) })),
+      ...missing.map(requirement => ({ id: requirement.requirement_id, statement: requirement.statement, requires_person: requirement.human_decision_required })),
+    ] });
   }
 
   /** The board of a project whose library has its root row alone, made under the key and for the person creating the project used to give it. */
@@ -183,6 +281,15 @@ export class GoalProjectApplication {
   getResolvedGoalPolicy(input: { project_id: string; goal_id: string }) { return this.goalQueries.getResolvedGoalPolicy(input); }
   readGoalContract(projectId: string, goalId: string) { return this.goalQueries.readGoalContract(projectId, goalId); }
 }
+
+/** A Goal as the platform's acceptance names it: Goals provides it (contract-design §10.3). */
+export const goalSubject = (goalId: string) => ({ provider_id: GOALS_PLUGIN_ID, subject: { kind: "goal", id: goalId } });
+/** Goals itself, reading and hanging its Goals' requirements; not the person. */
+export const acceptanceCaller = (projectId: string) => ({ project_id: projectId, actor_id: GOALS_PLUGIN_ID, person: false, session: null });
+/** The person, in the platform's requirement column. */
+export const personCaller = (projectId: string) => ({ project_id: projectId, actor_id: "web-user", person: true, session: null });
+/** Nothing to look up: a delivery or report with no cited evidence. */
+const NO_EVIDENCE = { artifactReadable: async () => false, checkRun: async () => "none" as const, stopped: () => false };
 
 const applications = new WeakMap<LocalProjectDatabase, GoalProjectApplication>();
 /** The project's journal as Goals writes it in a plugin: this plugin's names on its events and receipts, and its own events' cursor (the platform's `projectJournalBinding`). */

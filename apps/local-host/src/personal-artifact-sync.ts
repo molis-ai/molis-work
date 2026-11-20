@@ -4,7 +4,6 @@ import {
   createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, createArtifactSyncContent,
 } from '@molis-ai/molis-work-module-artifacts';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
-import type { AggregateReplicaContext } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import { defineErrorCodes, objectLink } from '@molis-ai/molis-work-contracts/platform/actions';
 import { createSqliteReplica, namespacedReplicaDatabase, ensureStorageSpace, readDatabaseSpace } from '@molis-ai/molis-work-storage';
 import { partitionedReplica, type SyncRegistration, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
@@ -17,7 +16,6 @@ import type { LocalWebCatalogRunner } from './web-project-settings.js';
 const errors = defineErrorCodes('host', { version_sync_scope: 'forbidden', version_sync_invalid: 'invalid', version_sync_unavailable: 'unavailable' });
 const fixedVersionBindings = () => PLATFORM_SYNC_COLLECTIONS.filter(row => row.owner === 'artifacts');
 type FixedVersionBinding = ReturnType<typeof fixedVersionBindings>[number];
-type ResolveReference = NonNullable<AggregateReplicaContext['hasReference']>;
 function libraryBinding(): FixedVersionBinding {
   const matches = fixedVersionBindings().filter(row => row.store === 'library');
   if (matches.length !== 1) throw errors.version_sync_invalid('成果固定版本同步目录必须只有一个 owner');
@@ -42,11 +40,13 @@ function assertSystemMaterialsProducer(item: PortableProcessItem): void {
   }
 }
 
+type PluginSyncReferenceLookup = (projectId: string, reference: { owner: string; collectionId?: string; assetId: string; version?: number }) => boolean;
+
 /** Both fixed stores come from the same plugin catalog, with different journals and explicit opt-in collections. */
-export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, resolveReference?: ResolveReference) {
+export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, hasPluginReference?: PluginSyncReferenceLookup) {
   const bindings = fixedVersionBindings().map(binding => ({
     store: binding.store,
-    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding, resolveReference),
+    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding, hasPluginReference),
   }));
   const artifacts = bindings.find(binding => binding.store === 'library');
   if (!artifacts) throw errors.version_sync_invalid('成果同步 owner 未登记');
@@ -57,7 +57,7 @@ export function createPersonalArtifactRegistration(home: string, spaceId: string
   return createVersionRegistration(home, spaceId, userId, check, withCatalog, libraryBinding());
 }
 
-function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding, resolveReference?: ResolveReference) {
+function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding, hasPluginReference?: PluginSyncReferenceLookup) {
   check();
   const space = ensureStorageSpace(home), library = declared.store === 'library';
   if (space.kind !== 'personal' || space.spaceId !== spaceId || space.ownerUserId !== userId) throw errors.version_sync_scope('固定版本同步空间不匹配');
@@ -133,11 +133,11 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
   };
   return {
     registration,
-    hasReference(projectId: string, reference: { owner: 'goals' | 'artifacts'; assetId: string; version?: number }): boolean {
+    hasReference(projectId: string, reference: { owner: string; collectionId?: string; assetId: string; version?: number }): boolean {
       check(); const project = projects.get(projectId);
       if (!project || reference.owner === 'artifacts' && !project.enabled) return false;
-      if(reference.owner!=='artifacts'){const found=resolveReference?.(projectId,reference)??false;check();return found;}
-      return withProject(projectId, store => reference.version !== undefined && !!openProjectVersionStores(store).artifacts.query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}));
+      if (reference.owner !== 'artifacts') { const found = hasPluginReference?.(projectId, reference) ?? false; check(); return found; }
+      return withProject(projectId, store => reference.version !== undefined && !!openProjectVersionStores(store).artifacts.query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), true);
     },
   };
 }

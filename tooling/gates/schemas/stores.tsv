@@ -3,7 +3,6 @@
 # SQLite reports after running the creation statements; upgrades is the `from` of each step, or -. scripts/gates/store-schemas.mjs fails a
 # row whose structure changed while its version stayed.
 store	owner	version	structure	upgrades
-acceptance/acceptance.db	modules/acceptance	1	4ef2c09436f61dfb	-
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
 agent-definitions/agent-definitions.db	apps/local-host	1	abe1e1d1ffb9dfb9	-
 alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-
@@ -36,10 +35,10 @@ plugin-libraries/plugin-libraries.db	apps/local-host	1	3f1e077abbfc48cb	-
 plugin-originals/plugin-originals.db	apps/local-host	1	3ad6632f1b839415	-
 plugin-runtime/plugin-runtime.db	apps/local-host	1	e69c29d592801ef1	-
 ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
-projects/*/molis-work.db	apps/local-host	1	82350291393c9ed7	-
+projects/*/molis-work.db	apps/local-host	1	1aa01fa380885255	-
 projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
-projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	56d3b509c0d75dc4	-
+projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
 projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	d1c505276d1b2bda	-
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-

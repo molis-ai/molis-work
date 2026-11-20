@@ -287,6 +287,8 @@ export interface UiPageRouteDeclaration {
   /** The route's name in this Manifest: lowercase letters, digits and hyphens. The plugin tells its routes apart by it. */
   readonly route_id: string;
   readonly path: string;
+  /** Full workbench page (default), HTML fragment rendered by the route's surface, or refresh document wrapping it. */
+  readonly kind?: "page" | "fragment" | "refresh_document";
   readonly query?: readonly string[];
   /** Bounded declaration constants, disjoint from path/query names; the request cannot override them. */
   readonly params?: Readonly<Record<string, string>>;
@@ -309,15 +311,34 @@ export interface StagePagePublisher {
   publish(parts: StagePagePresentation): void;
 }
 
-/** The existing terminal pane's presentation model; routes are supplied by the content owner. */
+/** One navigation choice shown inside the terminal pane's read-only notice (e.g. a child item to open instead). */
+export interface StageTerminalChoice {
+  readonly href: string;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly action_label: string;
+}
+
+/** Why the currently selected object cannot drive a terminal directly, in the owning plugin's words. */
+export interface StageTerminalReadOnlyGuard {
+  readonly reason: string;
+  readonly heading: string;
+  readonly summary: string;
+  readonly empty_summary: string;
+  readonly add_disabled_title: string;
+  readonly empty_choices_text: string;
+  readonly choices: readonly StageTerminalChoice[];
+}
+
+/** The platform work terminal pane's presentation model; routes are the platform's own `/api/work-terminals/:pluginId/:kind/:id`. */
 export interface StageTerminalPaneModel {
-  selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
-  children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
-  cliAvailability: Record<string, boolean>;
-  promptRoute: string;
-  terminalsRoute: string;
-  text: (value: string, vars?: Record<string, string | number>) => string;
-  icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+  readonly plugin_id: string;
+  readonly subject_kind: string;
+  readonly selected?: { readonly id: string; readonly title: string; readonly status_html?: string };
+  readonly read_only?: StageTerminalReadOnlyGuard;
+  readonly cliAvailability: Record<string, boolean>;
+  readonly text: (value: string, vars?: Record<string, string | number>) => string;
+  readonly icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
 /** Existing shell drawing services, bound to this stage's owner and the current page. No execution authority. */

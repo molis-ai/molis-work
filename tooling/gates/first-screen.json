@@ -73,7 +73,7 @@
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/board/refresh?view=current&goal_id=V1", "owner": "goals", "baseOnly": true},
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/contextual/surfaces", "owner": "local-host"},
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/placement/related?project_id=<project>", "owner": "placement"},
-  {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/plugins/io.molis.work.goals/goals/V1/terminals", "owner": "goals"},
+  {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/plugins/io.molis.work.goals/goals/V1/terminals", "owner": "goals", "baseOnly": true},
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/plugins/io.molis.work.issues/list", "owner": "issues"},
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/plugins/runtime/updates", "owner": "plugin-runtime"},
   {"page": "workbench-demo", "locale": "both", "entry": "/projects/<project>/api/project-settings/runtime", "owner": "local-host"},

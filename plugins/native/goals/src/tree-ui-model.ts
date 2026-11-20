@@ -24,6 +24,6 @@ export interface GoalsTreeUiPrimitives {
   icon(name: "link" | "chevron-down" | "chevron-right" | "target" | "list" | "workflow" | "search" | "filter" | "plus" | "tree" | "archive" | "trash" | "back"): string;
   renderStatus(status: GoalPresentationState): string;
   renderActionStatus(status: GoalDisplayStatus): string;
-  renderVisibleGoalStatus(item: GoalsTreeItem): string;
+  renderVisibleGoalStatus(item: GoalsTreeItem & { status_label?: string }): string;
   displayStatuses: readonly GoalDisplayStatus[];
 }

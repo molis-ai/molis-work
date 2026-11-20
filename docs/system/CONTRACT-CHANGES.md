@@ -80,7 +80,7 @@
 | `packages/plugin-sdk` 的出口 | `packages/plugin-sdk/src` | 同上，快照是 `tooling/gates/api/plugin-sdk/index.txt` |
 | 动作（能力）的身份、输入输出 schema | `packages/contracts/src/platform/actions.ts`；各插件 Manifest 的动作声明；规则见 `specs/action-architecture/spec.md` §3 | 每个能力定义的 `version`；被固定的引用写成 `capability_id@version` 加提供方。形状记在动作合同快照 `tooling/gates/actions/`，`pnpm test:contracts` 对照，有意改用 `pnpm actions:update`（第 3 节第 6 条） |
 | 插件 Manifest 的格式与升级声明 | 类型在 `packages/contracts/src/platform/plugin-manifest.ts`（经 `platform/plugin` 子路径导出），校验与版本比较在 `packages/plugin-sdk/src/manifest.ts`（成果类型的声明检查在同包的 `artifact-declarations.ts`）；用法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」 | Manifest `version`（SemVer）；`upgrade_compatibility.compatible_from_versions` / `migratable_from_versions`。内置插件的 `version` 跟产品版本，只在发布 PR 里改（`docs/releases/POLICY.md`）：别的 PR 改 Manifest 的形状升的是能力 `version` 或合同里的其他版本字段，不动它 |
-| MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md`；`skills/goal-advance` | 工具名即身份；Skill 与手册随它改 |
+| MCP 工具名与参数 | `apps/mcp`；`docs/mcp.md` | 工具名即身份；手册随它改 |
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
 
@@ -129,9 +129,9 @@
 | 导入文档固定成果 `artifact.io.molis.work.document` 写 2、历史读 1（用户 2026-11-17 批准，QF-15） | 新导入把警告写成翻译键和参数，导入回执由可信 owner 绑定工作台词包。已固定的 schema 1 按原文字展示，原 payload、digest、版本、时间、原件与同步引用原样保存。本人的显式重导可以追加现行版本。预览、下载和继续认 1、2，未知结构拒绝。仅此固定格式准由起点 1 进到 2，无数据原地迁移。项目库和同步 envelope 维持当前版本 | Artifacts 拥有固定数据，导入源提供警告语义，Workbench 按界面语言展示。历史读取保留到没有该格式的固定版本与精确引用为止。复验见[QEA-79/80](../../specs/quality-experience-audit/spec.md#第三十四批导入警告按显示语言呈现固定版本保留原文qf-15) |
 | 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点（2026-11-19 发布前清理复位至全量 v1）；段的跑法和范围检查对所有插件同一份。已装签名包由明确确认的版本切换驱动，读取旧库只供校验，SQL 由独立有界进程执行，库版本、归属账本、安装行和批准记录一起提交（第 26 批 U4） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
 | 第 15 批 Builder 两种格式的限定同版扩展（用户 2026-11-09 批准） | 仅 `format.builder.saved-state`、`format.builder.portable` 保持 1，允许本次可选 `ui.slots`、组件 `surfaceSlot` 引用及 `surface-slot` kind。旧无挂载位数据仍是当前合法子集；原数据、历史发行物和签名包不改写，不迁移、不读时转换。未知字段、非法引用／组件、签名不符及错误版本严格拒绝且原内容不变。例外不涉及真实 Home，不扩大到其他格式或后续结构变化，也不放宽门禁 | Builder 持久化 owner 与 SDK 共用声明校验；具体接线和正反例见[公共来源与呈现 §7](../../specs/shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。这是本次字段加法的准确授权记录，后续变更重新按第 3 节第 4 条处理 |
-
 第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
+第 44 批插件同等地位收口（2026-11-19 合并 main #2163 后，用户批准选项 A 随发布前 v1 清理一并拍平）：项目指导（`guidance_entries`、`guidance_revisions`）、要求与认可（`acceptance_*`、移出原独立 Home 库 `acceptance/acceptance.db`）和去掉闭合 CHECK 的 `inbox_entries` 直接落入项目库 v1 基线；Goals 私有库去掉指导与旧要求/判断/结论表、改留 `goal_requirement_links` 与 `goal_event_closures.acceptance_round`，随 `project_goals` 同步集合一起拍平为 v1；放置库（`placement.attached_in`）、上手旅程库（平台形状 `drafts` 与 `summary_open`）与外部 Runtime 接入收据（去掉 `skill_path`/`skill_target`）均保持 v1、零迁移段、零读时兼容。PEQ-03 平台禁止 import 插件包门禁的迁移例外为空（Goals 同步决定摘要经 `PluginRegistration.approval_outcomes` 通用登记接入）。`projects/*/molis-work.db` 与 `projects/*/molis-work.db#io.molis.work.goals` 的同版 v1 结构变更按确切 `(from → to)` 哈希对登记在 `tooling/gates/schemas/same-version-exceptions.json`，并在干净 v1 基线上重新生成唯一 `0.1.0` 金样。
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
@@ -152,7 +152,6 @@
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 
-PCSYNC-OPT-14 移除内置同步登记中未使用的 `home-with-projects` 类型。现有登记继续使用各自的集合和项目归属。宿主通过登记的插件、发布者签名、集合及版本匹配关联引用的 owner。
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |

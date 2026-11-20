@@ -1,6 +1,7 @@
 import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentUploadRequest } from '../services/materials.js';
 import type { MaterialRef } from './project-materials.js';
 import type { ActionSchema } from './action-schema.js';
+import type { IntakeStart } from './item-intake.js';
 import type { PresentationDeclaration } from './presentation-declaration.js';
 import type { PluginLocalesDeclaration, TextRef, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
 
@@ -104,11 +105,23 @@ interface SandboxOperationFields {
   examples: SandboxOperationExample[];
 }
 
+/**
+ * A starting point for making one of the package's objects from nothing (contract-design §2.4, batch 44): the SDK projects it into a blank
+ * intake (`accepts: []`) on this command's action, `intake_id` the operation's id and `item_kind` the kind it creates. `title` is also the
+ * intake's name and button words (at most 40), `hint` its description. `open`, when given, opens that form on the package's stage instead
+ * of calling the command at once; the overview's `start` names this operation's action.
+ */
+export interface SandboxOperationStart extends IntakeStart {
+  readonly item_kind: string;
+}
+
 export interface SandboxDataOperation extends SandboxOperationFields {
   kind: 'query' | 'command';
   input: SandboxSchema;
   output: SandboxSchema;
   read_protocol?: never;
+  /** Only on a command. */
+  start?: SandboxOperationStart;
   /** The package's own read-only review query and the kinds of objects it can review. */
   trusted_review?: { readonly reader: string; readonly subject_kinds: readonly string[];
     readonly row: import("../services/project-approvals.js").TrustedReviewRow };
@@ -135,6 +148,7 @@ export interface SandboxReadOperation extends SandboxOperationFields {
   output: ActionSchema;
   background_job?: never;
   trusted_review?: never;
+  start?: never;
 }
 
 export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;

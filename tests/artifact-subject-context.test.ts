@@ -10,6 +10,7 @@ import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
 import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-module-artifacts";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
 const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };
@@ -70,7 +71,7 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.deepEqual(context.subject, subject());
   assert.equal(context.title, "第一版原文");
   assert.equal(context.truncated, false);
-  assert.deepEqual(context.goal_ids, []);
+  assert.equal(context.attached_to, undefined, "an artifact no plugin links to is attached to nothing");
   assert.equal("session_id" in context, false, "the subject context has no Session field; payload locators are not trusted relations");
   const body = JSON.parse(context.content);
   assert.equal(body.version, 1);
@@ -133,15 +134,17 @@ test("Artifact subject uses only exact explicit Goal relations and marks bounded
   f.publish({ version: 2 });
   const scope = { kind: "personal" as const, id: projectId };
   const access = { actor_id: caller.actor_id, scope };
+  // Goals' edges come from its own objects (batch 44 C6): the plugin, and the kind of object a Goal is.
+  const goal = { module: "plugins", plugin_id: GOALS_PLUGIN_ID, object_type: "goal" } as const;
   const edge = (key: string, version: number, type = "goal.input") => f.ledger.commands.put(access, { key, type, cause: "explicit test relation",
-    source: { module: "goals", id: key, version: null, scope }, target: { module: "artifacts", id: first.artifact_id, version, scope } });
+    source: { ...goal, id: key, version: null, scope }, target: { module: "artifacts", id: first.artifact_id, version, scope } });
   edge("related-goal", 1); edge("later-version-goal", 2); edge("unrelated-edge-type", 1, "context.reference");
   edge("removed-goal", 1); f.ledger.commands.remove(access, "removed-goal", "removed");
   for (const namespace of [projectId, "foreign-project"]) f.ledger.commands.put(access, { key: namespace, type: "goal.output", cause: "explicit namespaced relation",
-    source: { module: "goals", id: namespace, version: null, scope, project_id: namespace },
+    source: { ...goal, id: namespace, version: null, scope, project_id: namespace },
     target: { module: "artifacts", id: first.artifact_id, version: first.version, scope, project_id: namespace } });
   const result = await resolveActionSubject(f.actions, caller, subject());
-  assert.deepEqual(result.context.goal_ids, [projectId, "related-goal"]);
+  assert.deepEqual(result.context.attached_to, [projectId, "related-goal"].map(id => ({ kind: "goal", id })));
   f.ledger.commands.remove(access, "related-goal", "removed");
   assert.notEqual((await resolveActionSubject(f.actions, caller, subject())).context.revision, result.context.revision);
   const long = f.publish({ artifact_id: "long", content: { kind: "inline", payload: "x".repeat(40000) } });

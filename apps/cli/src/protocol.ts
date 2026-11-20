@@ -23,24 +23,15 @@ export function printCliLine(text: string): void {
   console.log(text);
 }
 
-export function cliGoalUrl(goalPath: string, baseUrl: string): string {
-  try {
-    return new URL(goalPath, baseUrl).toString();
-  } catch {
-    throw new Error(`无效的 Molis Work Web 地址: ${baseUrl}`);
-  }
-}
-
 export function printV1Help(): void {
   console.log(`molis-work v1 <operation> --db PATH --json '{...}'
 
-The management entry for Goals and for project approvals from registered plugins.
+The management entry for project approvals from registered plugins.
 
 Operations:
-  init | snapshot | goal-tree-propose | goal-tree-read | goal-tree-check | review-request | review-decide
-  active-goal
+  review-request | review-decide
 
 Complex payloads may use --file payload.json instead of --json.
---db PATH is required. It names the project's SQLite file. There is no default path: without --db nothing is created or opened.`);
+--db PATH is required. It names an existing project's SQLite file. There is no default path: without --db nothing is opened.`);
   console.log("\nInstall Molis Work itself: molis-work install [--home PATH]");
 }

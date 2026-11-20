@@ -1,4 +1,4 @@
-import { FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, ITEM_DECLARATION_LIMITS, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   SURFACE_LANDING_POSITIONS, SURFACE_PLACES, type ContextualJudgeRequest, type SurfaceActivity, type SurfaceFocus, type SurfaceFocusTarget,
   type SurfaceLanding, type SurfaceLandingPosition, type SurfacePlace,
@@ -92,7 +92,7 @@ function readPlace(focus: Record<string, unknown>): { place?: SurfacePlace; side
 }
 
 /** A page's claim about what the person has in hand, bounded before anything else reads it. */
-export function readJudgeRequest(body: Record<string, unknown>): Omit<ContextualJudgeRequest, "pane_id"> {
+export function readJudgeRequest(body: Record<string, unknown>, ownerOf?: (kind: string) => string | undefined): Omit<ContextualJudgeRequest, "pane_id"> {
   const raw = body.focus;
   if (!raw || typeof raw !== "object") throw invalid("focus");
   const focus = raw as Record<string, unknown>;
@@ -102,15 +102,19 @@ export function readJudgeRequest(body: Record<string, unknown>): Omit<Contextual
   if (!GRANULARITIES.has(granularity)) throw invalid("focus.granularity");
   const targets = readTargets(focus.targets, "focus.targets", MAX_TARGETS);
   const surroundings = readSurroundings(focus.surroundings);
-  const goal = focus.goal && typeof focus.goal === "object" ? focus.goal as Record<string, unknown> : null;
+  const owner = focus.belongs_to && typeof focus.belongs_to === "object" ? focus.belongs_to as Record<string, unknown> : null;
+  const ownerPlugin = owner && typeof owner.plugin_id === "string" && owner.plugin_id
+    ? owner.plugin_id
+    : owner && typeof owner.kind === "string" ? ownerOf?.(owner.kind) : undefined;
   return {
     focus: {
       context_id: readString(focus.context_id, "focus.context_id", 240), plugin_id: readString(focus.plugin_id, "focus.plugin_id", 120),
       activity: activity as SurfaceActivity, granularity: granularity as SurfaceFocus["granularity"], object: readRef(focus.object, "focus.object"), targets,
       ...(surroundings ? { surroundings } : {}),
       ...(focus.unsaved === true ? { unsaved: true } : {}),
-      ...(goal && typeof goal.id === "string" && typeof goal.title === "string" ? { goal: { id: cutHead(goal.id, 200), title: cutHead(goal.title, 200),
-        ...(typeof goal.state === "string" ? { state: cutHead(goal.state, 40) } : {}) } } : {}),
+      ...(owner && ownerPlugin && typeof owner.kind === "string" && typeof owner.id === "string" && typeof owner.title === "string"
+        ? { belongs_to: { plugin_id: cutHead(ownerPlugin, 120), kind: cutHead(owner.kind, 120), id: cutHead(owner.id, 200), title: cutHead(owner.title, 200),
+          ...(typeof owner.state === "string" ? { state: cutHead(owner.state, 40) } : {}), ...(typeof owner.noun === "string" ? { noun: cutHead(owner.noun, 40) } : {}) } } : {}),
       ...readPlace(focus),
     },
     ...(body.landing !== undefined ? { landing: readLanding(body.landing) } : {}),
@@ -131,5 +135,5 @@ export function readEntry(body: Record<string, unknown>): { readonly capability_
   if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw invalid("action.version");
   return { capability_id: readString(reference.capability_id, "action.capability_id", 200), version,
     ...(reference.provider_id !== undefined ? { provider_id: readString(reference.provider_id, "action.provider_id", 200) } : {}),
-    intake_id: readString(body.intake_id, "intake_id", 40) };
+    intake_id: readString(body.intake_id, "intake_id", ITEM_DECLARATION_LIMITS.id) };
 }

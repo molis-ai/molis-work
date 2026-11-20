@@ -72,7 +72,9 @@ export async function prepareHandoff(scope: HandoffScope, caller: ActionExecutio
     const edited = { title: [...(input.title ?? "").trim()].slice(0, 200).join(""), body: (input.body ?? "").trim() };
     if (!edited.title || !edited.body) throw workflowsErrors.invalid("交过去的内容需要标题和正文");
     const unchanged = edited.title === handed.title.trim() && edited.body === handed.body.trim();
-    output = { ...handed, ...edited, feed_item_id: unchanged ? handed.feed_item_id ?? null : null };
+    // Edited content is no longer the object it was read from; unchanged, the receiver may still take that object itself.
+    const { source_ref, ...rest } = handed;
+    output = { ...rest, ...edited, ...(unchanged && source_ref ? { source_ref } : {}) };
     actor = "person";
   } else if (link.kind === "judgment") {
     // The rule only decides whether this content goes on; what goes on is the step's own content.

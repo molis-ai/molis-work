@@ -58,7 +58,8 @@ function overview(name: string, plugin: SurfacePlugin, objects: PresentationObje
 }
 
 function entry(plugin: SurfacePlugin, object: ActionSubject, reason: AttentionSurfaceEntry["reason"] = "manual", revision = 1): AttentionSurfaceEntry {
-  return { owner_plugin_id: plugin.plugin_id, subject: object, reason, entered_at: at, revision };
+  // C8: the category is what the owner declared the reason asks (`attention.subjects[].reasons`); Attention's listing carries it here.
+  return { owner_plugin_id: plugin.plugin_id, subject: object, reason, ...(reason === "goal_decision" ? { attention: "needs_decision" as const } : {}), entered_at: at, revision };
 }
 
 function harness(plugins: SurfacePlugin[], views: ActionView[], changes: Partial<SurfaceComposePorts> = {}, homeChanges: Partial<SurfaceHomePorts> = {}) {
@@ -157,11 +158,14 @@ test("SCS-08 SCS-11 SCS-12 SSC-18 cards preserve exact starts and restore routes
   const withRequired = { type: "object", properties: { title: { type: "string" } }, additionalProperties: false, allOf: [{ required: ["title"] }] } as const;
   const required = ownedView(ready, command("notes.required", withRequired));
   const startForm = { view_id: "stage", panel: "create-dialog" };
-  const form = ownedView(ready, command("notes.create", withRequired));
+  // The form a start opens is its action's own intake.start.open (contract-design §2.4); the overview only names the action.
+  const created = command("notes.create", withRequired);
+  const form = ownedView(ready, { ...created, action: { ...created.action, intake: { intake_id: "notes.create", item_kind: "note", title: "Note", verb: "New note",
+    describe: "Start a blank note", accepts: [], examples: [], start: { title: "New note", hint: "Write a note", open: startForm } } } });
   const irreversible = command("notes.remove");
   const invoke = ownedView(ready, { ...irreversible, action: { ...irreversible.action, external: true } });
   ready.home = { ...ready.home, forms: [{ ...startForm, action: exact(form) }] };
-  const readReady = overview("notes", ready, [], { note: { key: "notes.home.note" }, start: [target(required), { ...target(form), open: startForm }, target(invoke)] });
+  const readReady = overview("notes", ready, [], { note: { key: "notes.home.note" }, start: [target(required), target(form), target(invoke)] });
   const readDuo = overview("duo", duoProject);
   const readBoth = [overview("both", bothProject), overview("both", bothHome)];
   const readCalls: string[] = [];

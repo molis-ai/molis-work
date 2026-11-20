@@ -1,6 +1,9 @@
 import { bindActionHandler, inputSchemaFor } from "./action-input.js";
 import { closedObjectSchema as object } from "./closed-object-schema.js";
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
+import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
+import type { ActionIntake } from "./item-intake.js";
+import type { TextRef } from "./ui-text.js";
 
 /** Content handoffs are one explicit workflow protocol, not a claim that every action returns text. */
 export type WorkflowContentRole = "list" | "read" | "receive" | "create";
@@ -22,12 +25,15 @@ export interface WorkflowPayload {
   readonly body: string;
   readonly url?: string | null;
   readonly source?: string | null;
-  readonly feed_item_id?: string | null;
+  /** The object the content was read from, when the receiver may take that object itself instead of a copy (an Inbox entry for a Feed item). */
+  readonly source_ref?: ActionSubject;
 }
-export interface WorkflowItemRef { readonly plugin: string; readonly item_id: string; readonly title: string }
+/** What a station made or received: its object (`kind` is the station's `subject_kind`) and its title. */
+export interface WorkflowItemRef { readonly subject: ActionSubject; readonly title: string }
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
-/** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
- * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
+/** The version each role of the protocol is at now; a station declares every role at this version (the platform refuses another).
+ * Until the first external install (contract phase one, `docs/system/CONTRACT-CHANGES.md` §3) a role changes shape at its current number;
+ * after it, only by raising its own number here, so a saved reference to an older one stays pinned and reports why. */
 export const WORKFLOW_CONTENT_VERSIONS = { list: /* @version protocol.workflow-content.list */ 1, read: /* @version protocol.workflow-content.read */ 1, receive: /* @version protocol.workflow-content.receive */ 1, create: /* @version protocol.workflow-content.create */ 1 } as const;
 
 /** The version each role's output format is at, maintained apart from the role's protocol number above. */
@@ -43,10 +49,10 @@ export interface WorkflowReceiveInput extends WorkflowPayload {
 const text = { type: "string" } as const;
 const nullableText = { type: ["string", "null"] } as const;
 // The outputs stay erased: only the inputs are compared, and the exported type keeps no literal.
-const item: ActionSchema = object({ plugin: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, item_id: { type: "string", minLength: 1 }, title: text });
+const item: ActionSchema = object({ subject: ACTION_SUBJECT_SCHEMA, title: text });
 const startItem: ActionSchema = object({ item_id: { type: "string", minLength: 1 }, title: text, caption: text, at: nullableText });
 const requestId = { type: "string", minLength: 1, maxLength: 160 } as const;
-const payloadProperties = { title: text, body: text, url: nullableText, source: nullableText, feed_item_id: nullableText } as const;
+const payloadProperties = { title: text, body: text, url: nullableText, source: nullableText, source_ref: ACTION_SUBJECT_SCHEMA } as const;
 const payload: ActionSchema = object(payloadProperties, ["title", "body"]);
 export const WORKFLOW_CONTENT_SCHEMAS = {
   list: { input: inputSchemaFor<Record<string, never>>()(object({})), output: { type: "array", items: startItem } },
@@ -63,7 +69,12 @@ export interface WorkflowContentActions {
 }
 /** A station that only starts a run (the 成果库: its versions are read, never written by a workflow). */
 export type WorkflowSourceContentActions = Omit<WorkflowContentActions, "receive">;
-interface WorkflowStationSpec { id: string; title: string; icon: string; create?: boolean; subject_kind: string;
+/**
+ * `create`: the station makes a blank one. `true` for a workflow only; with words (`{ title, title_text }`), it is also one of the kinds a
+ * person makes new from a Goal (「从目标新建…」), so its `create` carries a blank intake (contract-design §2.3).
+ */
+export type WorkflowStationCreate = boolean | { readonly title: string; readonly title_text?: TextRef };
+interface WorkflowStationSpec { id: string; title: string; icon: string; create?: WorkflowStationCreate; subject_kind: string;
   read_permissions: readonly string[]; write_permissions: readonly string[];
   /** `concurrent` for a station whose receive waits for a model (the next-step judgment) after saving: it then runs beside the project's queue. */
   receive_scheduling?: "concurrent" }
@@ -81,8 +92,21 @@ function roleStation(station: WorkflowStationSpec & { receive?: boolean }, role:
   return { id: station.id, title: station.title, icon: station.icon, role, protocol: /* @version protocol.workflow-content */ 1, ...(station.receive === false ? { receives: false as const } : {}) };
 }
 
+/**
+ * The intake a role declares (contract-design §2.3): `receive` takes a workflow's hand-in (`<station>.receive`), and a `create` with words is
+ * a blank one a person makes (`<station>.create`). The author declares the station once; these come with it.
+ */
+function roleIntake(station: WorkflowStationSpec, role: WorkflowContentRole): ActionIntake | undefined {
+  if (role === "receive") return { intake_id: `${station.id}.receive`, item_kind: station.subject_kind, accepts: [{ kind: "handoff" }] };
+  if (role !== "create" || typeof station.create !== "object") return undefined;
+  const { title, title_text } = station.create;
+  return { intake_id: `${station.id}.create`, item_kind: station.subject_kind, title, ...(title_text ? { title_text } : {}), verb: "新建",
+    describe: `新建一份空白的${title}`, accepts: [], examples: [] };
+}
+
 /** One role of one station, at the role's current version. Every station gets its roles from here, so a version moves for all of them at once. */
 function defineRole<I, O>(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): ActionDefinition<I, O> {
+  const intake = roleIntake(station, role);
   const query = isQueryRole(role);
   return {
     capability_id: `${station.id}.content.${role}`, version: WORKFLOW_CONTENT_VERSIONS[role], operation: query ? "query" : "command",
@@ -92,7 +116,7 @@ function defineRole<I, O>(station: WorkflowStationSpec & { receive?: boolean }, 
       audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.subject_kind],
       permissions: query ? station.read_permissions : station.write_permissions,
       input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,
-      ...roleTypes(role), workflow_content: roleStation(station, role),
+      ...roleTypes(role), workflow_content: roleStation(station, role), ...(intake ? { intake } : {}),
     },
   };
 }

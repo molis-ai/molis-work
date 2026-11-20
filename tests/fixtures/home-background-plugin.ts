@@ -4,9 +4,10 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, defineBackgroundTasksAction, defineTaskServesAction, defineWorkEventsAction, type ActionExecutionContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineBackgroundTasksAction, defineSubjectContextAction, defineTaskServesAction, defineWorkEventsAction, subjectContext, type ActionExecutionContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { startProjectPlugins } from "./plugin-callers.js";
 
 /*
@@ -18,7 +19,12 @@ import { startProjectPlugins } from "./plugin-callers.js";
 export const BACKGROUND_PLUGIN_ID = "io.molis.work.example.homebg";
 const READ = "homebg:read";
 
-export function backgroundPlugin(answer: (projectId: string) => unknown) {
+/**
+ * `reader`: the plugin also reads its own tasks back (`homebg_task`), so a caller other than the plugin can show it reads the task.
+ * `relay`: the plugin also hands a requirement list on to the platform as itself (`homebg.relay.set`), so a test can show what a
+ * plugin's onward call does not carry (S-acceptance-subject-owner).
+ */
+export function backgroundPlugin(answer: (projectId: string) => unknown, { reader = false, relay = false }: { reader?: boolean; relay?: boolean } = {}) {
   const state = { answer, calls: [] as Array<{ project: string | null; query_only: boolean }>, stops: [] as Array<{ project: string | null; job: string }>,
     stop: (async job => ({ stopped: job })) as (job: string) => Promise<unknown>,
     // The answers it was given to what its tasks ask (specs/work-line §4.4), as the plugin's own action received them.
@@ -41,12 +47,18 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
     input_schema: { type: "object" as const, properties: { job: { type: "string" as const }, verdict: { type: "string" as const }, note: { type: "string" as const } }, required: ["job", "verdict"], additionalProperties: false },
     output_schema: { type: "object" as const } } };
   const events = defineWorkEventsAction("homebg.events", 1, ["homebg_item"], "示例事件", [READ]);
+  const read = defineSubjectContextAction("homebg.task.read", 1, "homebg_task", "示例任务", [READ]);
+  const relaySet = { capability_id: "homebg.relay.set", version: 1, operation: "command" as const, action: { title: "转交要求", description: "把一份要求原样交给平台。", kind: "operation" as const,
+    scope: "project" as const, effect: "write" as const, audiences: ["agent" as const], permissions: [READ], subject_kinds: [],
+    input_schema: { type: "object" as const }, output_schema: { type: "object" as const } } };
   const relation = (["list", "bind", "release", "create"] as const).map(role => defineTaskServesAction(role, `homebg.serves.${role}`, 1, ["homebg_task"], `示例任务的去处（${role}）`, [READ]));
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-background" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared, stop, answering, events, ...relation] },
-  async start() {
+    permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" },
+      ...(relay ? [{ permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "把要求交给平台" }] : [])],
+    capabilities: { provides: [], consumes: relay ? [acceptanceActions.set.capability_id] : [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    actions: [declared, stop, answering, events, ...relation, ...(reader ? [read] : []), ...(relay ? [relaySet] : [])] },
+  async start(context: PluginStartContext) {
     return { kind: "app", views: [], actions: [{ ...declared, async handle(caller: ActionExecutionContext) {
       state.calls.push({ project: caller.project_id ?? null, query_only: caller.query_only === true });
       return await state.answer(caller.project_id ?? "");
@@ -69,7 +81,12 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
       if (role === "release") state.serves.set(task.id, []);
       if (role === "create") state.serves.set(task.id, [{ kind: "homebg_item", id: `from-${task.id}` }]);
       return (state.servesAnswer?.(role) ?? { serves: state.serves.get(task.id)! }) as never;
-    } }))] };
+    } })), ...(reader ? [{ ...read, async handle(_caller: ActionExecutionContext, input: unknown) {
+      const id = (input as { subject_id: string }).subject_id;
+      return subjectContext({ subject: { kind: "homebg_task", id }, revision: "1", title: `任务 ${id}`, content: "示例任务的正文" });
+    } }] : []), ...(relay ? [{ ...relaySet, async handle(caller: ActionExecutionContext, input: unknown) {
+      return await context.services!.actions!.invoke(acceptanceActions.set, input as never, caller) as never;
+    } }] : [])] };
   } };
   return { definition, state };
 }

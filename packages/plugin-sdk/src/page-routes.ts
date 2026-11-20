@@ -59,6 +59,10 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
       if (seen.has(id)) { problems.push(`页面路由重复：${id}`); continue; }
       const segments = declaredSegments(route.path);
       if (typeof segments === "string") { problems.push(`页面路由 ${id} 的 ${segments}`); continue; }
+      if (route.kind !== undefined && route.kind !== "page" && route.kind !== "fragment" && route.kind !== "refresh_document") {
+        problems.push(`页面路由 ${id} 的 kind 只能是 page、fragment 或 refresh_document`);
+        continue;
+      }
       const query: unknown = route.query ?? [];
       if (!Array.isArray(query) || query.length > PAGE_ROUTE_LIMITS.query || query.some(name => typeof name !== "string" || !PARAM_NAME.test(name))) {
         problems.push(`页面路由 ${id} 的 query 必须是最多 ${PAGE_ROUTE_LIMITS.query} 个参数名（小写字母、数字、下划线）`);
@@ -98,6 +102,7 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
 /** What a declared route matched: its name and the parameters it declares that the request carried; a parameter that could not be read is `rejected`. */
 export interface PageRouteMatch {
   readonly route_id: string;
+  readonly kind: "page" | "fragment" | "refresh_document";
   readonly params: Readonly<Record<string, string>>;
   /** The first declared parameter that was refused, and why: its path segment is not valid percent-encoding, or it is longer than the limit. */
   readonly rejected?: { readonly param: string; readonly reason: "encoding" | "too_long" };
@@ -131,7 +136,7 @@ export function matchPageRoute(routes: readonly UiPageRouteDeclaration[], pathna
     };
     segments.forEach((segment, index) => { if (typeof segment !== "string") take(segment.param, () => decodeURIComponent(actual[index]!)); });
     for (const name of route.query ?? []) take(name, () => query.get(name));
-    return { route_id: route.route_id, params: Object.freeze(params), ...(outcome.rejected ? { rejected: outcome.rejected } : {}) };
+    return { route_id: route.route_id, kind: route.kind ?? "page", params: Object.freeze(params), ...(outcome.rejected ? { rejected: outcome.rejected } : {}) };
   }
   return null;
 }

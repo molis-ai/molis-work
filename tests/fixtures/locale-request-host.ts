@@ -12,9 +12,12 @@ const [home, phase] = process.argv.slice(2);
 assert.ok(home && (phase === "create" || phase === "replay"));
 const receiptPath = join(home, "locale-test-receipt.json");
 const previous = phase === "replay" ? JSON.parse(await readFile(receiptPath, "utf8")) as { project_id: string; receipt: ReportGoalEventsResult } : null;
-const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => previous
-  ? catalog.getProject(previous.project_id)
-  : catalog.createProject({ display_name: "Locale retry", actor_id: LOCAL_PERSON_ACTOR_ID }));
+const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+  if (previous) return catalog.getProject(previous.project_id);
+  const created = await catalog.createProject({ display_name: "Locale retry", actor_id: LOCAL_PERSON_ACTOR_ID });
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID });
+  return created;
+});
 const project_id = project.project_id;
 const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
 const reference = molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path });

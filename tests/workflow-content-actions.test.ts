@@ -40,7 +40,7 @@ async function fixture(run: (f: {
     }, async start() {
       const create = (title: string, body: string, project: string | null) => {
         const id = db.prepare("INSERT INTO drafts (project, title, body) VALUES (?, ?, ?)").run(project, title, body).lastInsertRowid;
-        return { plugin: "unknown-drafts", item_id: String(id), title };
+        return { subject: { kind: "unknown_draft", id: String(id) }, title };
       };
       return { kind: "app", actions: bindWorkflowContentHandlers(actions, {
         list: context => db.prepare("SELECT CAST(id AS TEXT) AS item_id, title, '草稿' AS caption, NULL AS at FROM drafts WHERE project = ? ORDER BY id").all(context.project_id) as never,
@@ -172,14 +172,14 @@ test("W4-6-01 receive is v1 with a flat input and a required request id; the oth
   assert.equal(stations.receive.action.output_type, "molis.workflow.content.receive.output.v1");
   assert.deepEqual(stations.list.action.input_type, "molis.workflow.content.list.input.v1");
   const schema = stations.receive.action.input_schema as { properties: Record<string, { minLength?: number; maxLength?: number } | undefined>; required: string[]; additionalProperties: boolean };
-  assert.deepEqual(Object.keys(schema.properties).sort(), ["body", "feed_item_id", "request_id", "source", "title", "url"]);
+  assert.deepEqual(Object.keys(schema.properties).sort(), ["body", "request_id", "source", "source_ref", "title", "url"]);
   assert.deepEqual([...schema.required].sort(), ["body", "request_id", "title"]);
   assert.deepEqual([schema.properties.request_id?.minLength, schema.properties.request_id?.maxLength], [1, 160]);
   assert.equal(schema.additionalProperties, false);
 
   const service = new ActionService();
   const register = (definition: ActionDefinition) => () => service.registerProvider({ provider: { provider_id: "old-shape", title: "old", kind: "plugin" },
-    definitions: [definition], handlers: [{ ...definition, handle: () => ({ plugin: "unknown-drafts", item_id: "1", title: "x" }) }] });
+    definitions: [definition], handlers: [{ ...definition, handle: () => ({ subject: { kind: "unknown_draft", id: "1" }, title: "x" }) }] });
   const oldShape: ActionDefinition = { ...stations.receive, version: 1, action: { ...stations.receive.action, input_type: "molis.workflow.content.receive.input.v1",
     input_schema: { type: "object", properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } }, required: ["payload", "context"], additionalProperties: false } } };
   assert.throws(register(oldShape), /没有兑现工作流内容协议 receive v1 的输入合同/);
@@ -197,10 +197,10 @@ test("content protocol rejects lying schemas and preserves provider identity at 
     definitions: [definition], handlers: [{ ...definition, handle: () => "not content" }] }), /没有兑现工作流内容协议/);
   let writes = 0;
   const dispose = service.registerProvider({ provider: { provider_id: "original", title: "original", kind: "plugin" },
-    definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { plugin: "unknown-drafts", item_id: "1", title: "x" }; } }] });
+    definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { subject: { kind: "unknown_draft", id: "1" }, title: "x" }; } }] });
   dispose();
   service.registerProvider({ provider: { provider_id: "replacement", title: "replacement", kind: "plugin" },
-    definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { plugin: "unknown-drafts", item_id: "2", title: "x" }; } }] });
+    definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { subject: { kind: "unknown_draft", id: "2" }, title: "x" }; } }] });
   await assert.rejects(service.invoke(caller, { ...declarations.receive, provider_id: "original" }, { title: "x", body: "x", request_id: "workflow:one:1" }), { code: "actions.provider_changed" });
   assert.equal(writes, 0);
 });

@@ -10,13 +10,15 @@ import { codingActions } from "./route-entry.js";
 import { requireProjectRuntime, runtimeDirectory } from "./runtime-choice.js";
 
 /**
- * Coding takes the person's code folder from onboarding (batch12-design §7.4, decision 43②): the platform finds it by the Manifest's
- * `onboarding.takes` and calls this as the person, once the folder is the project's output. Only the person can call it.
+ * Coding takes the person's code folder from onboarding (batch12-design §7.4, decision 43②): the platform finds it by
+ * its intake (`accepts: [{ kind: "code_root" }]`) and calls this as the person, once the folder is the project's output. Only the person can call it.
  */
 export const codingOnboardingTake = createActionDefinition<InferActionInput<typeof ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA>, OnboardingTakeResult>("coding.onboarding.take", "command", {
   title: "从上手接手代码文件夹", description: "上手时把本人选的代码文件夹交给 Coding：新建一个会话，这一轮带来的材料放进它的下一轮",
   audiences: ["user"], permissions: ["storage:private"], subject_kinds: ["coding_session"],
   input_schema: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output_schema: ONBOARDING_TAKE_RESULT_SCHEMA,
+  // The platform finds the taker of a code folder by this (contract-design §2.3), naming no plugin.
+  intake: { intake_id: "code_root", item_kind: "coding_session", accepts: [{ kind: "code_root" }] },
 }, /* @version action.coding.onboarding.take */ 1);
 
 const onboardingErrors = defineErrorCodes("coding", { onboarding_root_mismatch: "conflict" });

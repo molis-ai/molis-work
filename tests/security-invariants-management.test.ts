@@ -1,3 +1,6 @@
+import { proposeChildGoal } from "./fixtures/project-review-entry.js";
+import { managementGoals } from "./goal-management-caller.js";
+import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { symlink } from "node:fs/promises";
@@ -70,17 +73,24 @@ for (const mode of ["cancel", "disconnect"] as const) {
     let armed = false, release!: () => void, reached!: () => void, signal: AbortSignal | undefined;
     const held = new Promise<void>(done => { release = done; }), entered = new Promise<void>(done => { reached = done; });
     const env = await residentManagement(t, { actionAvailability: (caller, action) => {
-      if (armed && action.capability_id === "goals.board.initialize") {
+      if (armed && action.capability_id === "goals.tree.decide") {
         armed = false; signal = caller.signal; reached(); return held.then(() => ({ available: true as const }));
       }
       return { available: true };
     } });
+    // A review of a Goals proposal, read first; the decision on it is what waits (the CLI's Goals commands were removed, PEQ-15).
+    const draft = await proposeChildGoal(managementGoals(env.host.actionClient(env.reference), env.project.project_id), mode);
+    const lines: string[] = []; const printing = t.mock.method(console, "log", (line: string) => { lines.push(line); });
+    await runV1Cli(["review-request", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id, ...draft })],
+      { homeDirectory: env.home, actionServiceUrl: env.origin });
+    printing.mock.restore();
+    const reference = (JSON.parse(lines.at(-1)!) as ReviewRequest).reference;
     const original = await env.facts(), opened: string[] = [];
     const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => opened.push(ref.storage_key) });
     t.after(async () => { release(); await fallbackHost.close(); });
     const controller = new AbortController(); armed = true;
-    const operation = runV1Cli(["init", "--db", env.project.database_path, "--json", JSON.stringify({
-      project_id: env.project.project_id, idempotency_key: mode })],
+    const operation = runV1Cli(["review-decide", "--db", env.project.database_path, "--json", JSON.stringify({ project_id: env.project.project_id,
+      reference, choice_id: "apply", request_key: draft.draft.idempotency_key })],
       { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost, signal: controller.signal });
     const rejected = assert.rejects(operation, { code: mode === "cancel" ? "actions.cancelled" : "actions.delivery_unknown" });
     await entered; assert.ok(signal);
@@ -89,7 +99,12 @@ for (const mode of ["cancel", "disconnect"] as const) {
     else env.server.closeAllConnections();
     await rejected; await aborted; release();
     for (let attempt = 0; attempt < 100 && !env.host.callLog!.list(env.project.project_id).some(row => row.code === "actions.cancelled"); attempt++) await delay(10);
-    assert.ok(env.host.callLog!.list(env.project.project_id).some(row => row.code === "actions.cancelled"), "the Host settled the actual cancelled operation");
+    // The person's decision is settled as the platform's review action (S-07, batch 44): cancelled before the owner's command ran, it leaves
+    // its diagnostic row; the owner's command, never dispatched, leaves none and changes nothing.
+    const cancelled = env.host.callLog!.list(env.project.project_id).filter(row => row.code === "actions.cancelled");
+    assert.deepEqual(cancelled.map(row => [row.capability_id, row.actor_id, row.ok]), [["project.approvals.request.decide", LOCAL_PERSON_ACTOR_ID, false]],
+      "the Host settled the actual cancelled operation");
+    assert.equal(env.host.callLog!.list(env.project.project_id).some(row => row.capability_id === "goals.tree.decide"), false, "the owner's command never ran");
     assert.deepEqual(await env.facts(), original); assert.deepEqual(opened, []);
   });
 }

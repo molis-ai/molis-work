@@ -208,3 +208,25 @@ test("CD-03 PEQ-04: Goals opens to other plugins only the actions another plugin
   const note = goalsManifest.actions?.find(action => action.capability_id === "goals.note");
   assert.deepEqual(note?.action.audiences, ["user", "agent", "workflow", "mcp"]);
 });
+
+test("PEQ-04: platform contracts contain zero retired plugin-specific fields, events, or provider literals", () => {
+  const banned = [
+    { label: "goal_ids", pattern: /\bgoal_ids\b/u },
+    { label: "placement.goal_in", pattern: /\bplacement\.goal_in\b/u },
+    { label: "goal-acceptance", pattern: /\bgoal-acceptance\b/u },
+    { label: "work-mode-changed", pattern: /\bwork-mode-changed\b/u },
+    { label: "io.molis.work.coding.", pattern: /io\.molis\.work\.coding\./u },
+    { label: "io.molis.work.git.", pattern: /io\.molis\.work\.git\./u },
+    { label: "molis.goal.promote.", pattern: /molis\.goal\.promote\./u },
+  ];
+  const files = tracked("packages/contracts/src");
+  assert.ok(files.length > 20, "scans packages/contracts/src");
+  const hits: string[] = [];
+  for (const file of files) {
+    const text = source(file);
+    for (const rule of banned) {
+      if (rule.pattern.test(text)) hits.push(`${file}: ${rule.label}`);
+    }
+  }
+  assert.deepEqual(hits, [], `PEQ-04 retired plugin-specific literals re-entered packages/contracts/src:\n${hits.join("\n")}`);
+});

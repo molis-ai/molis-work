@@ -2,7 +2,7 @@
 // that owner's own actions and settings entries, an installed third-party plugin. The exceptions are recorded in the manifest's `imports`: the Goal
 // event history, which has no write action and comes from its existing dump, and the libraries that can only be there empty. The ledger of plugin
 // libraries is empty only in a Home without the signed sample: an account Home, and a generation that could not run the sandbox.
-import { readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { goldenFailure } from "./failure.mjs";
@@ -25,6 +25,33 @@ const GOAL_HISTORY_KIND = "approved-completed";
 const GOAL_HISTORY_PROJECT = "goalboard-v1-demo";
 const CORPUS = path.join(root, "tests/fixtures/replay-plugins/corpus.json");
 const EMPTY_HOME_LIBRARIES = ["plugin-directories", "plugin-libraries", "plugin-originals"];
+const SAMPLE_USER_HOME = "/golden-user-home";
+const RUNTIME_RECEIPT_SAMPLE = "runtime-integrations/codex.json";
+
+/**
+ * A fixed-value Runtime integration receipt for the golden Home (`format.runtime.integration.receipt` v1). Only an installed Home writes one:
+ * connecting needs the installed launcher, and a golden Home is made by running a Host, not by installing one. What the connection would write
+ * names this machine's user home and fingerprints an entry holding the Home's own path, so no two generations could agree on it. The sample keeps
+ * the owner's fields with fixed values (without the retired `goal-advance` Skill link); recorded in the manifest's `imports`.
+ */
+export function runtimeReceiptSample() {
+  const versions = JSON.parse(readFileSync(path.join(root, "tooling/versions.json"), "utf8")).versions;
+  const version = versions["format.runtime.integration.receipt"], owner = `molis-work-runtime-integration-v${versions["type.molis-work-runtime-integration"]}`;
+  if (version !== 1) throw goldenFailure("golden.runtime_receipt_sample_unknown", RUNTIME_RECEIPT_SAMPLE);
+  return {
+    schema_version: version,
+    owner,
+    runtime_id: "codex",
+    config_path: `${SAMPLE_USER_HOME}/.codex/config.toml`,
+    config_entry_fingerprint: "0".repeat(64),
+    connected_at: "2026-01-15T09:00:00.000Z",
+  };
+}
+
+function writeRuntimeReceiptSample(home) {
+  mkdirSync(path.join(home, "runtime-integrations"), { recursive: true, mode: 0o700 });
+  writeFileSync(path.join(home, RUNTIME_RECEIPT_SAMPLE), `${JSON.stringify(runtimeReceiptSample(), null, 2)}\n`, { mode: 0o600 });
+}
 
 /** A generation explicitly reconciles the cards once. Automatic model jobs would record uses and change the cards between steps. */
 export function holdAutomaticKnowledgeOrganization() {
@@ -183,6 +210,7 @@ export async function populateHome(home, { step, label, withThirdParty, account 
     await cardsInOneOrder(home, account, projects, named, seed);
     await createEmptyLibraries(home, projects);
     if (account) createAccountSyncLibrary(home);
+    else writeRuntimeReceiptSample(home);
     return Object.fromEntries(Object.entries(projects).map(([role, project]) => [role, { project_id: project.project_id, database: path.relative(session.home, project.database_path) }]));
   } catch (error) {
     await session.close().catch(() => undefined);

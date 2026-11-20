@@ -299,10 +299,20 @@ test("PEQ-03 platform directories never import native plugin packages outside ge
       { file: "apps/local-host/src/web-project-pages.ts", source: 'import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\n' },
       { file: "packages/design-system/src/index.ts", source: 'import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";\n' },
       { file: "apps/local-host/src/plugin-registry.generated.ts", source: 'import { goalsActions } from "@molis-ai/molis-work-plugin-goals";\n' },
+      { file: "server/src/index.ts", source: 'import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";\n' },
+      { file: "apps/workbench/src/scripts/client/bootstrap.ts", source: 'import x from "../../../../../plugins/native/goals/src/index.js";\n' },
+      { file: "horizontal/observation/src/index.ts", source: 'const m = await import("@molis-ai/molis-work-plugin-goals");\n' },
+      { file: "modules/projects/src/index.ts", source: 'const c = require("@molis-ai/molis-work-plugin-feed");\n' },
+      { file: "server/src/routes.ts", source: 'const d = await import(`@molis-ai/molis-work-plugin-${name}`);\n' },
     ],
   });
-  assert.equal(disallowed.length, 3, disallowed.join("\n"));
+  assert.equal(disallowed.length, 8, disallowed.join("\n"));
   assert.match(disallowed[0]!, /web-project-pages\.ts.*PEQ-03/);
   assert.match(disallowed[1]!, /design-system\/src\/index\.ts.*PEQ-03/);
   assert.match(disallowed[2]!, /generated registry may only import.*\/registration/);
+  assert.match(disallowed[3]!, /server\/src\/index\.ts.*PEQ-03/);
+  assert.match(disallowed[4]!, /bootstrap\.ts.*plugins\/native\/goals.*PEQ-03/);
+  assert.match(disallowed[5]!, /observation\/src\/index\.ts.*PEQ-03/);
+  assert.match(disallowed[6]!, /projects\/src\/index\.ts.*PEQ-03/);
+  assert.match(disallowed[7]!, /server\/src\/routes\.ts.*dynamically import.*PEQ-03/);
 });

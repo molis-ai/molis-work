@@ -294,7 +294,7 @@ export async function executeDiscoveryJob(params: {
 
   try {
     while (!isCancelled()) {
-      const batch = await adapter.discoverPage(adapterContext, cursor, signal);
+      const batch = await adapter.discoverPage(adapterContext, cursor, signal, counters.progressRead);
       if (isCancelled()) return;
 
       const identifiedByPath = new Map<string, SessionDirectoryIdentity | null>();

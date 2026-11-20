@@ -9,6 +9,12 @@ export const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
 /** What a plugin holds to read a research library repository through the platform (`services.sourcePull.repository`). */
 export const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
 
+/**
+ * The code `pull` refuses with, before it fetches anything, while the key that seals the Home's evidence bodies is lost and bodies
+ * sealed with it remain (BL-1065): the bodies already kept stay as they are and nothing new is saved until the original key is back.
+ */
+export const SOURCE_PULL_EVIDENCE_KEY_MISSING = "host.source_pull.evidence_key_missing";
+
 /** What a Home instance holds to delete the evidence bodies nothing refers to (`services.evidenceCollector`, S-98 provisional). */
 export const PLUGIN_EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
 
@@ -204,8 +210,18 @@ export interface PluginConnectorSourceClient {
   pull(request: ConnectorPullRequest, options?: { readonly signal?: AbortSignal }): Promise<ConnectorPullReceipt>;
   /** The integration's adapter on one raw event. Pure: it reads no account. */
   adapt(request: { readonly slot_id: string; readonly integration_id: string; readonly record_key: string; readonly event: ConnectorRawEvent }): Promise<ConnectorSignalDraft>;
-  /** For services the Manifest declares a slot for: whether the Home has a connected account of each. Only a boolean. */
-  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, { readonly bound: boolean }>>>;
+  /** For services the Manifest declares a slot for: whether the Home has a connected account of each, whether it can be pulled, and its name. */
+  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, PluginConnectorAccountState>>>;
+}
+
+/**
+ * What a plugin may know about a service it declares a slot for (BL-917): nothing about any account but whether one is connected; whether
+ * the Home has a source integration of the service, so it can be pulled at all; and the service's name as the person reads it.
+ */
+export interface PluginConnectorAccountState {
+  readonly bound: boolean;
+  readonly pullable: boolean;
+  readonly title: string;
 }
 
 export interface SourcePullOptions {
@@ -226,6 +242,7 @@ export interface SourcePullOptions {
 export interface PluginSourcePullClient {
   /** The request's fingerprint. Fetches nothing and writes nothing: the plugin compares it with a stored pull to see whether the source changed under the same key. */
   plan?(request: SourcePullRequest): Promise<{ readonly intent_fingerprint: string }>;
+  /** Refused with `SOURCE_PULL_EVIDENCE_KEY_MISSING`, before anything is fetched, while the Home's evidence key is lost. */
   pull?(request: SourcePullRequest, options: SourcePullOptions): Promise<SourcePullResult>;
   /** The decrypted body of an evidence reference of the Home's evidence store, or `null` when there is none. */
   readonly evidence?: { read(content_ref: string): Promise<string | null> };

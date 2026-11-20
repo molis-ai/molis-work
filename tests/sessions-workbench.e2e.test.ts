@@ -1,3 +1,4 @@
+// QEA-109: keep the real search, paging, cancellation and scope paths when the input limit moves into the Host-rendered control.
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -7,11 +8,13 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { sessionSourceFailure } from "@molis-ai/molis-work-service-sessions";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import type { SessionsPorts } from "@molis-ai/molis-work-service-sessions";
+import type { ExternalSessionListOutput, ExternalSessionScopeView } from "@molis-ai/molis-work-contracts/services/sessions";
 
 // SRB-01..SRB-16: Real Chrome E2E verification of the Workbench Sessions surface, Read Scope Sheet (both tabs + overlay),
 // Unfiled view, Droid search bar, Project Settings tool-brought folder confirmation, and Assistant untrusted context strip.
 
-async function setupSessionsBrowser(t: TestContext, sessionsOptions: Record<string, unknown> = {}) {
+async function setupSessionsBrowser(t: TestContext, options: { ports?: Partial<SessionsPorts>; olderSessions?: number } = {}) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Sessions Workbench E2E"); return null; }
   const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-e2e-"));
@@ -35,11 +38,18 @@ async function setupSessionsBrowser(t: TestContext, sessionsOptions: Record<stri
     path.join(claudeDir, "sess-unfiled.jsonl"),
     `${JSON.stringify({ sessionId: "sess-unfiled", cwd: unfiledDir, timestamp: "2026-11-12T11:00:00Z", message: { role: "user", content: "Investigate standalone spike" } })}\n`,
   );
+  for (let index = 0; index < (options.olderSessions ?? 0); index++) {
+    const sessionId = `archive-${index}`, title = index === 0 ? "ArchiveNeedleOldest" : `Archive item ${index}`;
+    await writeFile(path.join(claudeDir, `${sessionId}.jsonl`), [
+      JSON.stringify({ sessionId, cwd: alphaDir, timestamp: new Date(Date.UTC(2026, 10, 11, 0, index)).toISOString(), message: { role: "user", content: title } }),
+      JSON.stringify({ sessionId, cwd: alphaDir, timestamp: new Date(Date.UTC(2026, 10, 11, 0, index, 1)).toISOString(), message: { role: "assistant", content: `Body of ${title}` } }),
+    ].join("\n") + "\n");
+  }
 
   // `node:test` executes `t.after` callbacks in registration (FIFO) order: close Chrome first, then Host/HTTP, then remove temp dir.
   let harness: ChromeHarness | undefined;
   t.after(async () => { await harness?.close(); });
-  const home = await serveHomeRuntime(t, { sessions: { homeRoot: userHome, env: {}, ...sessionsOptions } });
+  const home = await serveHomeRuntime(t, { sessions: { homeRoot: userHome, env: {}, ports: options.ports } });
   t.after(() => rm(rawRoot, { recursive: true, force: true }));
 
   const alpha = await home.project("Alpha");
@@ -112,6 +122,289 @@ async function setupSessionsBrowser(t: TestContext, sessionsOptions: Record<stri
   return { home, alpha, beta, harness: cdp, sessionId, evaluate, waitFor, goto };
 }
 
+for (const entry of ["paging", "list-search", "system-search"] as const) {
+  test(`QEA-30: ${entry} opens a real session older than the first 50 rows`, { timeout: 120_000 }, async t => {
+    const ctx = await setupSessionsBrowser(t, { olderSessions: 50 });
+    if (!ctx) return;
+    const { home, alpha, evaluate, waitFor, goto } = ctx;
+    const scope = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+    const saved = await home.request("/api/sessions/scope", { method: "POST", body: { expected_revision: scope.scope_revision,
+      sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] } });
+    assert.equal(saved.status, 200);
+    await home.host.sessions!.service.waitForDiscoveryIdle();
+    const first = await (await home.request(`/projects/${alpha.project_id}/api/sessions/list?view=project`)).json() as ExternalSessionListOutput;
+    assert.equal(first.sessions.length, 50);
+    assert.ok(first.next_cursor);
+    assert.equal(first.sessions.some(row => row.title === "ArchiveNeedleOldest"), false);
+    await goto(`/projects/${alpha.project_id}/?openPlugin=${entry === "system-search" ? "goals" : "sessions"}`, 1440, 900, "en");
+    if (entry === "system-search") {
+      await evaluate("document.querySelector('[data-global-search-open]').click()");
+      await waitFor("Boolean(document.querySelector('[data-global-search-dialog][open]'))");
+      await evaluate(`(() => { const input = document.querySelector('[data-global-search]'); input.value = 'ArchiveNeedleOldest'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await waitFor(`Array.from(document.querySelectorAll('[data-global-search-hit]')).some(row => row.textContent.includes('ArchiveNeedleOldest'))`);
+      await evaluate(`Array.from(document.querySelectorAll('[data-global-search-hit]')).find(row => row.textContent.includes('ArchiveNeedleOldest')).click()`);
+    } else {
+      await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 50");
+      if (entry === "paging") {
+        assert.ok(await evaluate("Boolean(document.querySelector('[data-sessions-page=next]:not(:disabled)'))"));
+        await evaluate("document.querySelector('[data-sessions-page=next]').click()");
+      } else await evaluate(`(() => { const input = document.querySelector('[data-sessions-search]'); input.value = 'archiveneedleoldest'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await waitFor(`document.querySelector('[data-sessions-body]')?.textContent.includes('ArchiveNeedleOldest') && document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1`);
+      await evaluate("document.querySelector('[data-sessions-body] [data-session-key]').click()");
+    }
+    await waitFor(`document.querySelector('[data-sessions-detail]')?.textContent.includes('Body of ArchiveNeedleOldest')`);
+    if (entry === "paging") {
+      await evaluate("document.querySelector('[data-sessions-page=previous]').click()");
+      await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 50");
+      assert.equal(await evaluate("document.querySelector('[data-sessions-detail]').textContent.includes('Body of ArchiveNeedleOldest')"), true,
+        "moving between list pages must not revoke an independently authorized selection");
+    }
+  });
+}
+
+test("QEA-32: cloud scope A to B to save and off sends one account and reuses owner discovery", { timeout: 120_000 }, async t => {
+  const ctx = await setupSessionsBrowser(t, { ports: { connections: {
+    choices: () => ({ choices: [{ connection_id: "account-a", display_name: "Account A", account_label: "alice" },
+      { connection_id: "account-b", display_name: "Account B", account_label: "bob" }], connect_service_id: "github" }),
+    current: id => id === "account-a" || id === "account-b" ? { enabled: true } : null,
+    request: async () => ({ status: 404, headers: {}, body: "" }),
+    command: async () => ({ exit_code: 0, stderr: "", stdout: "[]" }),
+  } } });
+  if (!ctx) return;
+  const { home, alpha, evaluate, waitFor, goto } = ctx;
+  await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "en");
+  await waitFor(`Boolean(document.querySelector('[data-work-surface="sessions"]:not([hidden]) [data-sessions-body]'))`);
+  await evaluate(`(() => { const original = window.fetch.bind(window); window.__extraDiscovery = 0; window.fetch = (input, init) => {
+    if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/discovery')) window.__extraDiscovery++;
+    return original(input, init);
+  }; })()`);
+  for (const [account, allowed] of [["account-a", true], ["account-b", true], ["account-b", true], ["account-b", false]] as const) {
+    await evaluate(`document.querySelector('[data-work-surface="sessions"] [data-sessions-open-scope="tools"]').click()`);
+    await waitFor(`Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-scope-conn="copilot-coding-agent"]'))`);
+    await evaluate(`(() => {
+      document.querySelector('[data-scope-conn="copilot-coding-agent"]').value = ${JSON.stringify(account)};
+      const check = document.querySelector('[data-scope-allow="copilot-coding-agent"]');
+      if (check.checked !== ${allowed}) check.click();
+      document.querySelector('[data-sessions-scope-save]').click();
+    })()`);
+    await waitFor("!document.querySelector('[data-sessions-scope-sheet]').open");
+    const current = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+    const cloud = current.sources.filter(row => row.entry_id === "copilot-coding-agent");
+    assert.equal(cloud.find(row => row.connection_id === account)?.allowed, allowed);
+    assert.equal(cloud.filter(row => row.allowed).length, allowed ? 1 : 0);
+    if (account === "account-b") assert.equal(cloud.find(row => row.connection_id === "account-a")?.allowed, false);
+  }
+  assert.equal(await evaluate("window.__extraDiscovery"), 0, "scopeSet already schedules widened sources; UI must not rescan all sources");
+});
+
+for (const change of ["scope", "query"] as const) {
+  test(`QEA-30 QEA-31: a real late Droid search receipt cannot survive ${change} change`, { timeout: 120_000 }, async t => {
+    const ctx = await setupSessionsBrowser(t, { ports: { commands: { run: async () => ({ exit_code: 0, stderr: "",
+      stdout: JSON.stringify([{ id: "droid-private", title: "Droid withdrawn hit", updated_at: "2026-11-12T12:00:00Z" }]) }) } } });
+    if (!ctx) return;
+    const { home, alpha, evaluate, waitFor, goto } = ctx;
+    const scope = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+    assert.equal((await home.request("/api/sessions/scope", { method: "POST", body: { expected_revision: scope.scope_revision,
+      sources: ["claude-code", "droid"].map(entry_id => ({ entry_id, allowed: true, directories: { mode: "all" } })) } })).status, 200);
+    await home.host.sessions!.service.waitForDiscoveryIdle();
+    await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "en");
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1");
+    await evaluate(`document.querySelector('[data-sessions-view="all"]').click()`);
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 3");
+    await evaluate(`(() => {
+      const select = document.querySelector('[data-sessions-tool-filter]'); select.value = 'droid'; select.dispatchEvent(new Event('change', { bubbles: true }));
+      const input = document.querySelector('[data-sessions-search]'); input.value = 'private body phrase'; input.dispatchEvent(new Event('input', { bubbles: true }));
+      const original = window.fetch.bind(window); window.__droidReceived = false;
+      window.fetch = async (input, init) => {
+        const response = await original(input, init);
+        if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/tool-search')) {
+          window.fetch = original;
+          if (!response.ok) throw new Error('Expected successful actual tool search');
+          const body = await response.text();
+          window.__droidReceived = true;
+          await new Promise(resolve => { window.__releaseDroid = resolve; });
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    await waitFor("document.querySelector('[data-sessions-droid-bar]').hidden === false");
+    await evaluate("document.querySelector('[data-sessions-droid-run]').click()");
+    await waitFor("window.__droidReceived === true");
+    if (change === "scope") {
+      await evaluate(`document.querySelector('[data-work-surface="sessions"] [data-sessions-open-scope="tools"]').click()`);
+      await waitFor(`Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-scope-allow="droid"]'))`);
+      await evaluate(`(() => { document.querySelector('[data-scope-allow="droid"]').click(); document.querySelector('[data-sessions-scope-save]').click(); })()`);
+      await waitFor("!document.querySelector('[data-sessions-scope-sheet]').open");
+    } else {
+      await evaluate(`(() => {
+        const select = document.querySelector('[data-sessions-tool-filter]'); select.value = 'claude-code'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        const input = document.querySelector('[data-sessions-search]'); input.value = 'Fix contrast'; input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await waitFor(`document.querySelector('[data-sessions-body]').textContent.includes('Fix contrast')`);
+    }
+    await evaluate("window.__releaseDroid(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate("document.querySelector('[data-sessions-body]').textContent.includes('Droid withdrawn hit')"), false);
+    const current = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+    assert.equal(current.sources.find(row => row.entry_id === "claude-code")?.allowed, true, "another allowed source stays available");
+  });
+}
+
+test("QEA-30: failed new-query read cannot reuse an older page cursor, and late query success cannot replace recovery", { timeout: 120_000 }, async t => {
+  const ctx = await setupSessionsBrowser(t, { olderSessions: 101 });
+  if (!ctx) return;
+  const { home, alpha, evaluate, waitFor, goto } = ctx;
+  const scope = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+  assert.equal((await home.request("/api/sessions/scope", { method: "POST", body: { expected_revision: scope.scope_revision,
+    sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] } })).status, 200);
+  await home.host.sessions!.service.waitForDiscoveryIdle();
+  await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "en");
+  await waitFor("Boolean(document.querySelector('[data-sessions-page=next]:not(:disabled)'))");
+  await evaluate("document.querySelector('[data-sessions-page=next]').click()");
+  await waitFor("Boolean(document.querySelector('[data-sessions-page=previous]:not(:disabled)')) && Boolean(document.querySelector('[data-sessions-page=next]:not(:disabled)'))");
+  await evaluate(`(() => {
+    const original = window.fetch.bind(window); window.__queryFailed = false;
+    window.fetch = async (input, init) => {
+      if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/list')) {
+        window.fetch = original; window.__queryFailed = true;
+        return Response.json({ error: 'Fixture list temporarily unavailable' }, { status: 503 });
+      }
+      return original(input, init);
+    };
+    const input = document.querySelector('[data-sessions-search]'); input.value = 'Archive'; input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await waitFor("window.__queryFailed === true");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-page]:not(:disabled)'))"), false, "old query cursors are unavailable even after failure");
+  await evaluate(`(() => {
+    const original = window.fetch.bind(window); window.__listReceived = false;
+    window.fetch = async (input, init) => {
+      const response = await original(input, init);
+      if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/list')) {
+        window.fetch = original;
+        if (!response.ok) throw new Error('Expected recovered list response');
+        const body = await response.text(); window.__listReceived = true;
+        await new Promise(resolve => { window.__releaseList = resolve; });
+        return new Response(body, { status: response.status, headers: response.headers });
+      }
+      return response;
+    };
+    const input = document.querySelector('[data-sessions-search]'); input.value = 'Archive '; input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await waitFor("window.__listReceived === true");
+  await evaluate(`(() => { const input = document.querySelector('[data-sessions-search]'); input.value = 'Fix contrast'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1 && document.querySelector('[data-sessions-body]').textContent.includes('Fix contrast')");
+  await evaluate("window.__releaseList(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("document.querySelectorAll('[data-sessions-body] [data-session-key]').length"), 1);
+  assert.equal(await evaluate("document.querySelector('[data-sessions-body]').textContent.includes('Fix contrast')"), true);
+});
+
+for (const stage of ["displayed", "late-response"] as const) {
+  test(`QEA-31: saving a narrower scope clears ${stage} transcript and assistant context; reopening recovers`, { timeout: 120_000 }, async t => {
+    const ctx = await setupSessionsBrowser(t);
+    if (!ctx) return;
+    const { alpha, evaluate, waitFor, goto } = ctx;
+    await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 1440, 900, "en");
+    const setAllowed = async (allowed: boolean) => {
+      await evaluate(`document.querySelector('[data-work-surface="sessions"] [data-sessions-open-scope="tools"]').click()`);
+      await waitFor(`Boolean(document.querySelector('[data-sessions-scope-sheet][open] [data-scope-allow="claude-code"]'))`);
+      await evaluate(`(() => {
+        const box = document.querySelector('[data-scope-allow="claude-code"]');
+        if (box.checked !== ${allowed}) box.click();
+        document.querySelector('[data-sessions-scope-save]').click();
+      })()`);
+      await waitFor("!document.querySelector('[data-sessions-scope-sheet]').open");
+    };
+    await waitFor(`Boolean(document.querySelector('[data-work-surface="sessions"]:not([hidden]) [data-sessions-body]'))`);
+    await setAllowed(true);
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1");
+    if (stage === "late-response") {
+      await evaluate(`(() => {
+        const original = window.fetch.bind(window);
+        window.__historyReceived = false;
+        window.fetch = async (input, init) => {
+          const response = await original(input, init);
+          if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/history')) {
+            window.fetch = original;
+            if (!response.ok) throw new Error('Expected a real successful history receipt');
+            window.__historyReceived = true;
+            await new Promise(resolve => { window.__releaseHistory = resolve; });
+          }
+          return response;
+        };
+      })()`);
+    }
+    await evaluate("document.querySelector('[data-sessions-body] [data-session-key]').click()");
+    if (stage === "late-response") await waitFor("window.__historyReceived === true");
+    else {
+      await waitFor(`Boolean(document.querySelector('[data-sessions-detail] .mw-transcript'))`);
+      await evaluate(`(() => { const original = window.fetch.bind(window); window.__currentHistoryReads = 0; window.fetch = (input, init) => {
+        if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/history')) window.__currentHistoryReads++;
+        return original(input, init);
+      }; })()`);
+      await setAllowed(true);
+      await waitFor(`document.querySelector('[data-sessions-detail]')?.textContent.includes('Updated contrast token cleanly')`);
+      assert.equal(await evaluate("window.__currentHistoryReads"), 1, "a still-authorized selection is re-read after saving scope");
+    }
+    await setAllowed(false);
+    if (stage === "late-response") await evaluate("window.__releaseHistory(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 0");
+    assert.deepEqual(await evaluate(`(() => {
+      const pane = document.querySelector('[data-sessions-detail]');
+      return { visibleTranscript: !pane.hidden && Boolean(pane.querySelector('.mw-transcript')),
+        context: pane.getAttribute('data-assistant-context'), retainsBody: pane.textContent.includes('Updated contrast token cleanly') };
+    })()`), { visibleTranscript: false, context: null, retainsBody: false });
+    await setAllowed(true);
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1");
+    await evaluate("document.querySelector('[data-sessions-body] [data-session-key]').click()");
+    await waitFor(`document.querySelector('[data-sessions-detail]')?.textContent.includes('Updated contrast token cleanly')`);
+    assert.ok(await evaluate("Boolean(document.querySelector('[data-sessions-detail][data-assistant-context]'))"));
+  });
+}
+
+for (const outcome of ["back", "failure"] as const) {
+  test(`QEA-31: mobile history ${outcome} returns to a usable list without accepting a late transcript`, { timeout: 120_000 }, async t => {
+    const ctx = await setupSessionsBrowser(t);
+    if (!ctx) return;
+    const { home, alpha, evaluate, waitFor, goto } = ctx;
+    const scope = await (await home.request("/api/sessions/scope")).json() as ExternalSessionScopeView;
+    await home.request("/api/sessions/scope", { method: "POST", body: { expected_revision: scope.scope_revision,
+      sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] } });
+    await home.host.sessions!.service.waitForDiscoveryIdle();
+    await goto(`/projects/${alpha.project_id}/?openPlugin=sessions`, 390, 844, "en");
+    await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1");
+    await evaluate(`(() => {
+      const original = window.fetch.bind(window); window.__historyReceived = false;
+      window.fetch = async (input, init) => {
+        const response = await original(input, init);
+        if (new URL(input instanceof Request ? input.url : String(input), location.href).pathname.endsWith('/api/sessions/history')) {
+          window.fetch = original;
+          if (!response.ok) throw new Error('Expected a real successful history receipt');
+          const body = await response.text(); window.__historyReceived = true;
+          await new Promise(resolve => { window.__releaseHistory = resolve; });
+          return ${outcome === "failure" ? "Response.json({ message: 'Transport unavailable' }, { status: 503 })" : "new Response(body, { status: response.status, headers: response.headers })"};
+        }
+        return response;
+      };
+      document.querySelector('[data-sessions-body] [data-session-key]').click();
+    })()`);
+    await waitFor("window.__historyReceived === true");
+    if (outcome === "back") {
+      assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-back]')?.checkVisibility())"), true,
+        "a waiting person can return before the response arrives");
+      assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail][data-assistant-context]'))"), false);
+      await evaluate("document.querySelector('[data-sessions-back]').click()");
+    }
+    await evaluate("window.__releaseHistory(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await waitFor("document.querySelector('[data-work-surface=\"sessions\"]').dataset.expanded === 'false'");
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail] .mw-transcript'))"), false);
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail][data-assistant-context]'))"), false);
+    assert.equal(await evaluate("document.querySelector('[data-sessions-body] [data-session-key]').checkVisibility()"), true);
+    await evaluate("document.querySelector('[data-sessions-body] [data-session-key]').click()");
+    await waitFor("document.querySelector('[data-sessions-detail]')?.textContent.includes('Updated contrast token cleanly')");
+  });
+}
+
 test("SRB-01 SRB-02 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sheet -> transcript, search highlight, Droid bar, mobile 390px, and English locale", { timeout: 180_000 }, async (t) => {
   const ctx = await setupSessionsBrowser(t);
   if (!ctx) return;
@@ -179,6 +472,8 @@ test("SRB-01 SRB-02 SRB-08 SRB-12: Sessions surface empty-scope -> Read Scope Sh
   })()`);
 
   // Responsive widths (1440, 1024, 390) + mobile back button + light/dark themes: zero horizontal overflow.
+  // QEA-30: the reset tool filter is an owner query, not a synchronous filter of the first page.
+  await waitFor("document.querySelectorAll('[data-sessions-body] [data-session-key]').length === 1");
   for (const theme of ["light", "dark"] as const) {
     await harness.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]] as const) {
@@ -223,7 +518,7 @@ test("SRB-11 SRB-14 SRB-15 SRB-16: Unfiled filing, AI permit sheet + overlay ret
   await evaluate("document.querySelector('[data-sessions-view=\"unfiled\"]').click()");
   await waitFor("document.querySelectorAll('[data-unfiled-card]').length === 1");
   const unfiledText = await evaluate<string>("document.querySelector('[data-sessions-body]').textContent || ''");
-  assert.match(unfiledText, /AI 归属建议仅向你已配置的模型发送标题、脱敏目录、开头几句/u);
+  assert.match(unfiledText, /请求 AI 推荐归属时，只会把对话标题、脱敏路径、开头几句/u);
   await evaluate(`(() => {
     const sel = document.querySelector('[data-unfiled-select]');
     sel.value = ${JSON.stringify(beta.project_id)};

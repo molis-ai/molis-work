@@ -298,3 +298,65 @@ fi
     assert.throws(() => readFileSync(otherMarker), { code: "ENOENT" });
   });
 });
+
+
+test("ONB-22/29 Shelf writes only the declared device group, restores inheritance, and keeps its saved receipt after a manual edit", async () => {
+  const { bindSettingsHandlers } = await import("@molis-ai/molis-work-plugin-sdk");
+  const { shelfManifest } = await import("@molis-ai/molis-work-plugin-shelf");
+  const { shelfErrors } = await import("@molis-ai/molis-work-module-shelf");
+  await withHome(async home => {
+    const store = openTestShelfStore(home, { disabled: true }, {}, shelfTestAi());
+    const declaration = shelfManifest.settings_entries!;
+    const ref = (id: string) => shelfManifest.actions!.find(action => action.capability_id === id)!;
+    const { read, write } = bindSettingsHandlers({ read: ref(declaration.read.capability_id), write: ref(declaration.write.capability_id) } as import("@molis-ai/molis-work-plugin-sdk").SettingsActions,
+      declaration, { owner_id:"shelf-install-1", errors:{setting_invalid:shelfErrors.invalid,setting_conflict:shelfErrors.conflict},
+        read: (_scope, keys) => store.preferences.read(keys), withWriteTransaction:(scope, run)=>store.preferences.withWriteTransaction(scope, run) });
+    const caller = { actor_id:"user", audience:"user", project_id:null, beforeEffect:async()=>{} } as import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext;
+    const defaults=defaultShelfDeviceSettings();
+    const proposals = {
+      "shelf.hotkeys": {...defaults.hotkeys, toggle:{...defaults.hotkeys.toggle,key_code:14}},
+      "shelf.panel_keys": {...defaults.panel_keys, hide:{...defaults.panel_keys.hide,code:"KeyH"}},
+      "shelf.action_bar": {shortcuts:[{id:"note",name:"Note",kinds:["text"],prompt:"Make a note"}],action_order:[...defaults.action_order,"shortcut:note"],hidden_actions:[defaults.action_order[0]]},
+      "shelf.drop_wheel":false,"shelf.engine":"custom:local","shelf.model":{provider_id:"test",model_id:"test-model"},
+    };
+    await store.saveSettings({custom_runtimes:[{id:"local",title:"Local",executable:"/local/fake-tool",kind:"tui"}]});
+    const result = async (key: string) => ((await read.handle(caller,{keys:[key]})) as import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues).values[0]!;
+    for(const [key, value] of Object.entries(proposals)) {
+      const initial=await result(key);
+      assert.equal(initial.state==="ok" && initial.source,"provider_default",key);
+      const request={key,layer:"personal",expected_revision:initial.revision,request_id:"choose-"+key,change:{set:value}};
+      await write.handle(caller,request);
+      const current=await result(key);
+      assert.ok(current.state==="ok");assert.deepEqual(current.value,value,key);
+      const restored=await write.handle(caller,{...request,request_id:"undo-"+key,expected_revision:current.revision,change:{inherit:true}});
+      const fallback=await result(key);
+      assert.ok(fallback.state==="ok");assert.equal(fallback.source,"provider_default",key);
+      assert.deepEqual(fallback.value,initial.state==="ok" && initial.value,key);
+      assert.deepEqual(restored,{values:[fallback]});
+      assert.deepEqual(await write.handle(caller,request),{values:[current]});
+      assert.deepEqual(await result(key),fallback);
+    }
+    const catalog=join(home,"shelf","catalog.json"), before=readFileSync(catalog,"utf8");
+    for(const [key,value] of [["shelf.engine","custom:missing"],["shelf.model",{provider_id:"missing",model_id:"no-model"}],["shelf.action_bar",{custom_runtimes:[]}]] as const) {
+      const current=await result(key);
+      await assert.rejects(async () => write.handle(caller,{key,layer:"personal",expected_revision:current.revision,request_id:"invalid",change:{set:value}}),{code:"shelf.invalid"});
+    }
+    assert.equal(readFileSync(catalog,"utf8"),before);
+    assert.equal(store.settings().custom_runtimes[0]?.executable,"/local/fake-tool");
+    // SPC-04/07: recovering an old terminal selection does not reinstall or start the removed tool.
+    await store.saveSettings({engine:"custom:local"});
+    await store.saveSettings({custom_runtimes:[]});
+    const offline = await result("shelf.engine");
+    assert.ok(offline.state === "ok" && offline.value_unavailable);
+    const replace = {key:"shelf.engine",layer:"personal",expected_revision:offline.revision,request_id:"replace-tool",
+      change:{set:"auto"},recovery:{previous:{set:"custom:local"}}};
+    await write.handle(caller,replace);
+    const selected = await result("shelf.engine");
+    await write.handle(caller,{...replace,request_id:"restore-tool",expected_revision:selected.revision,
+      change:{set:"custom:local"},recovery:{undo_of:"replace-tool"}});
+    const restored = await result("shelf.engine");
+    assert.ok(restored.state === "ok" && restored.value_unavailable);
+    assert.equal(restored.value,"custom:local");
+    assert.deepEqual(store.settings().custom_runtimes,[]);
+  });
+});

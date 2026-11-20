@@ -9,12 +9,12 @@ import { answerPending, readPendingQuestion, childQuestionScope } from "./prolog
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type SubagentHandle } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
-import { createPrologueDocuments } from "./prologue-documents.js";
+import { createPrologueImageIntake } from "./prologue-images.js";
 import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { workPaths } from "./prologue-project-work.js";
@@ -45,10 +45,11 @@ import type { ReviewDecisionStore } from "../review-decisions.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, storageGuard: StorageGuard, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>, modelRequests: RoundState["modelRequests"], starts: ContinuationStarts) {
   return createRuntime({
     app: options.app,
     host,
+    storageGuard,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),
     ...(memoryAccess.sources ? { memorySources: memoryAccess.sources } : {}),
@@ -65,7 +66,6 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     // Each request a round's loop sends, as the runtime handed it to the Host, for the round's work record (observation, batch 28).
     onModelRequest: request => { for (const listen of modelRequests) { try { listen(request); } catch { /* a listener's fault stays its own */ } } },
     slots: {
-      ...(options.documentParsers?.length ? { "document-parser": { implementation: "molis-host-document-parsers", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: options.documentParsers } } : {}),
       ...(memoryAccess.extractor ? { "memory-extractor": { implementation: "molis-host-memory-extractor", version: /* @version protocol.prologue.implementation.node-port */ "1.0.0", impl: memoryAccess.extractor } } : {}),
     },
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
@@ -646,7 +646,10 @@ function nodeSubagentsPort(deps: PortDeps): NonNullable<PrologueRuntimePort["sub
     async subscribe(run, changed) {
       const listen = (parentRunId: string) => { if (parentRunId === run.run_id) changed(); };
       deps.state.subagentListeners.add(listen);
-      return () => { deps.state.subagentListeners.delete(listen); };
+      const stopSdk = deps.runtime.subagents.subscribe(event => {
+        if (event.handle.parentRun.id === run.run_id) changed();
+      });
+      return () => { deps.state.subagentListeners.delete(listen); stopSdk(); };
     },
     command: async (run, id, input, control) => {
       const child = deps.runtime.subagents.list().find(one => one.ref.id === id && one.parentRun.id === run.run_id && one.parentSession.id === run.session_id);
@@ -695,7 +698,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     },
     background: deps.waitsPort.background,
     projectWork: projectWorkPort(deps),
-    documents: createPrologueDocuments(runtime, deps.options.storageRoot),
+    images: createPrologueImageIntake(runtime, deps.options.storageRoot),
     memory: deps.platformMemory.capability,
     schedule: deps.schedule.port(runtime, deps.index, deps.effects),
     recovery: deps.recovery.port,
@@ -703,7 +706,6 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     workspaceNone: true,
     workspaceBusiness: true,
     inlineMethods: true,
-    imageAttachments: true,
     compaction: true,
     ...(deps.checkpoints ? { checkpoints: deps.checkpoints } : {}),
     async saveRunTiming(run, timing) {

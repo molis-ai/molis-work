@@ -656,6 +656,7 @@ export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_p
 export interface ActionProvider {
     readonly provider_id: string;
     readonly title: string;
+    readonly title_text?: OwnedTextRef;
     readonly kind: "system" | "plugin" | "mcp";
     readonly project_id?: string;
     readonly plugin_id?: string;
@@ -703,6 +704,7 @@ export interface ActionResultView {
     readonly link?: {
         readonly label: string;
         readonly href_template: string;
+        readonly home_href_template?: string;
     };
     readonly pending_connection?: {
         readonly authorization_pointer: string;
@@ -1301,7 +1303,7 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                                                 readonly type: "object";
                                                 readonly properties: {
                                                     readonly kind: {
-                                                        readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                                        readonly const: "agent-review";
                                                     };
                                                     readonly project_id: {
                                                         readonly type: "string";
@@ -1557,7 +1559,7 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
                         readonly type: "object";
                         readonly properties: {
                             readonly kind: {
-                                readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                readonly const: "agent-review";
                             };
                             readonly project_id: {
                                 readonly type: "string";
@@ -1899,7 +1901,7 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                                     readonly type: "object";
                                     readonly properties: {
                                         readonly kind: {
-                                            readonly enum: readonly ["agent-review", "goal-acceptance"];
+                                            readonly const: "agent-review";
                                         };
                                         readonly project_id: {
                                             readonly type: "string";
@@ -3684,7 +3686,7 @@ export interface PluginArtifactClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
-    listConsumable(): PluginConsumableVersion[];
+    listConsumable(filter?: PluginConsumableFilter): PluginConsumableVersion[];
     join?<T>(transaction: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
@@ -3758,11 +3760,17 @@ export interface PluginBackgroundExecution<T> {
     cancel(): void;
 }
 
+export interface PluginConsumableFilter {
+    artifact_type_id?: string;
+    producer_plugin_id?: string;
+}
+
 export interface PluginConsumableVersion extends ArtifactReference {
     kind: "artifact" | "process_item";
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
+    producer_plugin_id: string;
 }
 
 export interface PluginContextLedgerClient {
@@ -4526,7 +4534,6 @@ export interface PluginManifest {
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     state_machines?: readonly import("platform/plugin-state-machines").StateMachineDeclaration[];
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
-    model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
     runtime?: PluginRuntimeDeclaration;
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
@@ -4576,6 +4583,8 @@ export interface PluginMaterialsClient {
     readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
+    attach?(upload: MaterialUpload, request?: ConversationAttachmentUploadRequest): Promise<ConversationAttachment>;
+    readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }
 
 export interface PluginMethodDeclaration extends AgentSkillDeclaration {
@@ -4594,7 +4603,7 @@ export type PluginModelAvailability = ActionAvailability & {
 
 export interface PluginModelChoice extends PluginModelSelection {
     readonly label: string;
-    readonly vision: boolean;
+    readonly vision?: boolean;
     readonly reasoning_effort: boolean;
 }
 
@@ -4607,7 +4616,13 @@ export interface PluginModelClient {
 
 export interface PluginModelConfigurationClient {
     selection(): PluginModelSelection | undefined;
-    read(): Promise<PluginModelConfigurationView>;
+    readonly preferences?: {
+        read(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsReadInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
+        write(input: import("@molis-ai/molis-work-contracts/platform/settings").SettingsWriteInput): Promise<import("@molis-ai/molis-work-contracts/platform/settings").SettingsValues>;
+    };
+    read(options?: {
+        preference_revision: true;
+    }): Promise<PluginModelConfigurationView>;
     save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }
 
@@ -4636,6 +4651,7 @@ export interface PluginModelConfigurationInput {
 
 export interface PluginModelConfigurationView {
     readonly configured: boolean;
+    readonly preference_revision?: string;
     readonly providers: readonly {
         readonly id: string;
         readonly provider_id: string;
@@ -4952,8 +4968,7 @@ export interface PluginProjectDatabase extends PluginDatabase {
         read(history?: boolean): ProjectApprovalRules;
     };
     readonly approvalHistory?: {
-        read(id: string): ProjectTrustedDecision | ProjectDecisionHistory | null;
-        transferred(subject: ProjectDecisionHistory["subject"]): readonly ProjectDecisionHistory[];
+        read(id: string): ProjectTrustedDecision | null;
     };
     transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginProjectDatabaseTransaction) => T): Promise<T>;
 }
@@ -5607,8 +5622,12 @@ export declare const RUNS_OVERVIEW_SCHEMA: {
                 readonly additionalProperties: false;
             };
         };
+        readonly expired: {
+            readonly type: "integer";
+            readonly minimum: 0;
+        };
     };
-    readonly required: readonly ["source", "upcoming", "missed"];
+    readonly required: readonly ["source", "upcoming", "missed", "expired"];
     readonly additionalProperties: false;
 };
 
@@ -5627,8 +5646,17 @@ export declare const RUNS_WINDOW_SCHEMA: {
             readonly type: "string";
             readonly minLength: 1;
         };
+        readonly expired_after: {
+            readonly anyOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly format: "date-time";
+                readonly type: "string";
+                readonly minLength: 1;
+            }];
+        };
     };
-    readonly required: readonly ["now", "upcoming_until"];
+    readonly required: readonly ["now", "upcoming_until", "expired_after"];
     readonly additionalProperties: false;
 };
 
@@ -5665,6 +5693,8 @@ export declare const RUN_DECISION_SCHEMA: {
 
 export declare const RUN_MISSED_GRACE_MS: number;
 
+export declare const RUN_MISSED_KEPT_MS: number;
+
 export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
@@ -5688,6 +5718,12 @@ export type RunDecisionChoice = "run_now" | "skip";
 
 export type RunNeed = "network" | "model";
 
+export interface RunsExpiryBounds {
+    listed_after: string;
+    counted_after: string | null;
+    told_at: string | null;
+}
+
 export interface RunsOverview {
     source: {
         surface: string;
@@ -5695,6 +5731,7 @@ export interface RunsOverview {
     };
     upcoming: ScheduledRun[];
     missed: MissedRun[];
+    expired: number;
 }
 
 export type RunsOwnerScope = "project" | "home";
@@ -5702,6 +5739,7 @@ export type RunsOwnerScope = "project" | "home";
 export interface RunsWindow {
     now: string;
     upcoming_until: string;
+    expired_after: string | null;
 }
 
 export declare const SANDBOX_PACKAGE_FILES: {
@@ -8168,7 +8206,16 @@ export declare function resolveActionSubject(client: ActionClient, caller: Actio
 
 export declare function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference, beforeEffect?: () => Promise<void>): Context;
 
+export declare function runExpiredUntold(run: {
+    due_at: string;
+    missed_at: string;
+}, bounds: RunsExpiryBounds): boolean;
+
+export declare function runHasExpired(dueAt: string | number, now: number): boolean;
+
 export declare function runIsMissed(dueAt: string | number, now: number): boolean;
+
+export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
 

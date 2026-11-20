@@ -1,5 +1,7 @@
 # 本地 Plugin 开发
 
+统一输入`ComposerOutcome.failed`可声明`feedback: "page"`，表示调用页面已经完整显示该失败和恢复操作；平台保留未受理草稿及材料，继续标记unreadable，不重复错误/通用重试。没有恢复区域时保留普通failed；未知结果仍用unknown，不能返回sent或空错误冒充处理。工作台框桥与直接composer相同，Coding长期材料恢复卡为实际采用方。
+
 同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@1` 和 `images.jobs.start@1` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v1；按主线统一起点，调用方须核对现行形状。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
 
 个人内容的来源设备不是撤销权限边界。Todo 接收时将历史修订与当前项一起映射到目标高水位，保留版本间隙，按修订而非设备时钟排列历史；用户可经正常动作撤销其他设备的最新修改，但后续编辑、重复撤销、旧页面版本及作用域越界仍拒绝。规则不改变库和传输格式，回归见 `tests/todo-replication.test.ts`。
@@ -96,11 +98,11 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 再次运行同一条 dev 命令，新进程会从开发数据库恢复私人计数并生成下一版本；已产生的 Artifact 保留。空 grant 字符串 `""` 会触发缺权限拒绝。缺少显式源码执行选项不会执行插件。版本不兼容在加载入口前拒绝。开发代码可以访问进程和文件系统，Host grant 只限制提供给插件的 API，不能阻止任意 JS 自行执行其他操作。
 
-状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库（拒绝时错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 [BL-plugin-cli-dev-uncoded-errors](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)）；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
+状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库，也不写进任何东西，报 `host.plugin_development_directory_occupied`（`details.state_directory` 是被拒的目录）；标记不是这个版本认得的报 `host.plugin_development_directory_unsupported`。漏写 `--allow-unsigned-development` 报 `plugin.unsigned_development_required`，不建目录。这些失败都是退出码 1、stderr 一行 `{"developed":false,"code":…,"message":…}`；Manifest 真写错时才是 `plugin.manifest_invalid` 一类的码；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
 
 ## 界面文字与语言文件
 
-插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
+插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量，以及界面文案、Manifest 权限理由与动作 `title`/`description` 的写作准则（面向零 AI 基础用户的白话精准表达、黑话禁用、符号与英文 Sentence case）统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
 
 **开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
 
@@ -135,6 +137,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - `ui`：注册 Manifest 声明的自身 contribution，由 UI Host 检查挂载格式，停止后撤销。`invalidate()` 让自己已打开的页面重新读取（页面用 `scope.watchRevision` 看着），只要 Manifest 声明了 `ui.views`，不要权限；停用以后再调被拒（PG-061，见 [UI-PLATFORM](UI-PLATFORM.md#原生客户端生命周期)）。
 
 这些是公开 Contract，不向作者开放 Store、SQL 或其他模块内部路径。缺权限、停用的旧上下文和未声明的类型/界面贡献都会被实际 owner 拒绝。本样例不请求网络、不自动 Team 分享；分享仍是用户明确选择的业务操作。
+
+子任务浮窗使用 [SDK 对话适配](../../packages/plugin-sdk/README.md#子任务浮窗对话)。如果等待入口已经返回完整对话，适配器可直接用该投影绘制首屏和更新。尝试额度由 Agent Host 投影是否可增加，页面沿原命令和精确执行引用提交。
 
 嵌入式测试使用 `@molis-ai/molis-work-app-local-host` 的公共 `runPluginDevelopment(input, options)`：输入是已授权的源码目录、项目、grants（`PluginDevelopmentInput` 没有操作者字段）；options 注入操作者 `actor_id`（嵌入的调用方自己传：这个函数既不固定它，也不读 `input` 里的身份）、真实 Artifact owner、UiHost、Plugin Runtime repository、私有存储工厂，以及 `actions: { registry, client, project_id }`。registry/client 必须来自同一 Host：分别使用 `host.actionRegistry(reference)` 和 `host.syncActionClient(reference)`；项目已打开后才可同步调用。独立测试可显式共享一个 ActionService，不在生产创建临时注册表兜底。它与应用命令使用同一安装/运行/卸载实现，返回 `PluginDevelopmentResult`，不要求导入仓库测试文件。数据库装配属于应用 Host，不属于 SDK 或 CLI。CLI 的 `PluginCliHost.runDevelopment` 是具名的注入接口，不是任意方法总线。命令行的开发入口（`runLocalPluginDevelopment`）复用 Host 函数 `developInPrivateHost`，在本次私有 Host 打开的 reference 中运行。操作者固定为 `local-plugin-developer`，输入中的 `actor_id`、`actor_kind` 或 `audit_actor_id` 在加载代码前拒绝；项目必须匹配 reference。旧开发 typed ID 已删除，插件的 consumes 声明、身份参数或复制的描述符均不能恢复入口。开发状态仍必须带当前 marker，普通非空目录拒绝，只有本次创建的 Host 由本次调用关闭。
 
@@ -326,6 +330,8 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ### 舞台的数据
 
+舞台业务事实只由声明的动作结果 `StagePageModel.data` 提供；`context` 只含平台位置与展示上下文，不再提供 `client_data` 转发其他插件事实。需要其他 owner 的内容时，由实际消费者通过公开读取合同取得，不能要求整页壳先读一遍再代传。
+
 打开舞台的那个 view（`stage` view，没有就是第一个 `navigator` view）可用 `stage_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询，规则与 `settings_data` 相同。宿主按页面上的这个人、只带这个动作自己的权限调用，结果交给舞台的 `StagePageModel.data`；整页与原地重画（`GET /api/stage/<project_plugin_id>`）走同一条路。插件不在或被拒时没有 `data`，其他失败照常报错。当前只对内置目录兑现（T-133）。
 
 ## 状态与状态机
@@ -449,7 +455,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
 - Host 适配器经 `resolveModelPrompt` 取有效正文；插件不分内置还是安装的，都把指令放在自己定义的 `instructions`（`PluginDefinition.instructions`），运行时由 Host 登记，调用只能发送定义里带的指令（PG-051）。`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 只列平台自己的：Host 的 `system:*` 题面、插件创作台（平台能力，PG-051 Q2）与仍由 Host 承载的炼金术士。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
-- Runtime 插件调模型用 `context.services.model`（沙箱执行的包不直接拿它，经 broker 的 `sdk.model` 用同一份：合同里声明 `effects.model`，请求只写自己登记的指令 id 和这次的数据，不带提示词文字，PG-017 P1、S-66；生成的插件还没有接上这条路，见 `specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md` §4；装进 Home 的签名包另可在合同里写 `effects.modelSettings: ["read", "save"]` 选自己用的模型（`sdk.model.settings.read()` 只见供应商名与模型，`save({ provider_id, model_id })` 只能在人已启用的里选，不能写地址、连接或接口格式），写 `effects.imageGeneration: ["read", "bind", "generate"]`（要带 `networkDomains`）用 `sdk.imageGeneration`：连接要人先在图片设置里用在同一个 https 来源上，包只能绑定、生成，不能第一个钉住地址；生成结果最多 4 张、合计 ≤ 360 KiB，调用按计量算；Manifest 的权限行由 effects 派生，包里不写 `model_configuration`、`image_generation`，项目里的实例不提供，BL-491、S-60），不写宿主绑定文件：Manifest 声明 `model:invoke`（只列模型、问能不能用、不发请求的插件声明只读的 `model:read`，它只开 `choices()` 与 `availability()`）；`complete()` 只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
+- Runtime 插件调模型用 `context.services.model`（沙箱执行的包不直接拿它，经 broker 的 `sdk.model` 用同一份：合同里声明 `effects.model`，请求只写自己登记的指令 id 和这次的数据，不带提示词文字，PG-017 P1、S-66；生成的插件还没有接上这条路，见 `specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md` §4；装进 Home 的签名包另可在合同里写 `effects.modelSettings: ["read", "save"]` 选自己用的模型（`sdk.model.settings.read()` 只见供应商名与模型，`save({ provider_id, model_id })` 只能在人已启用的里选，不能写地址、连接或接口格式），写 `effects.imageGeneration: ["read", "bind", "generate"]`（要带 `networkDomains`）用 `sdk.imageGeneration`：连接要人先在图片设置里用在同一个 https 来源上，包只能绑定、生成，不能第一个钉住地址；生成结果最多 4 张、合计 ≤ 360 KiB，调用按计量算；Manifest 的权限行由 effects 派生，包里不写 `settings_entries.model_configuration`、`image_generation`，项目里的实例不提供，BL-491、S-60），不写宿主绑定文件：Manifest 声明 `model:invoke`（只列模型、问能不能用、不发请求的插件声明只读的 `model:read`，它只开 `choices()` 与 `availability()`）；`complete()` 只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
 - `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 50 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
@@ -749,7 +755,9 @@ await caller.beforeEffect(); // 写业务记录之前
 
 ## Home 消费者的模型配置、生图与项目清理
 
-插件在自己的 Manifest 里声明 `model_configuration` 与 `image_generation`（PG-102，和 `databases.home`、`owner_files` 一样写在 Manifest、不写在宿主条目上；`storage:private`、`model:invoke` 和声明里的权限都要在 Manifest 的 permissions 里），分别得到 `services.model.configuration` 与 `services.imageGeneration`。服务只给宿主启动名单上的那个 definition 对象：声明了却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明它们被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+插件在自己的 Manifest 里声明 `settings_entries.model_configuration` 与 `image_generation`（PG-102，和 `databases.home`、`owner_files` 一样写在 Manifest、不写在宿主条目上；`storage:private`、`model:invoke` 和声明里的权限都要在 Manifest 的 permissions 里），分别得到 `services.model.configuration` 与 `services.imageGeneration`。服务只给宿主启动名单上的那个 definition 对象：声明了却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明它们被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+
+`settings_entries.model_configuration.key` 指向同一声明里可写个人层的模型选择。插件的标准设置动作把输入交给 `services.model.configuration.preferences.read/write`，用于选取已配置的模型及恢复继承。原 `actions.read/save` 提供连接管理界面，沿用本人设置权限。
 
 生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自 Manifest 的声明；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
 

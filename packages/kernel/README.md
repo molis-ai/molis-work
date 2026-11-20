@@ -76,7 +76,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
-  - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。调用者自己的授权检查（不带引用的 `assert_authority_current`，委托调用者的这一项会沿原调用逐层往上查）也按这一轮算：各行的可用性在轮内只问它一次，只留通过的，拒绝每行照抛；带引用的检查、调用和它的 `beforeEffect` 与最后一次检查都照旧现问（`action-service.ts` 的 `rowCaller`）。`allowed_actions` 名单在轮内第二次被问到时建索引，轮外照旧逐条比对。
+  - 一次同步目录是一轮（`directory-pass.ts`）：提供方自身状态及经 `rememberInDirectoryPass` 读的设置在轮内各读一次，轮外（含每次调用）现读，读失败不留存，轮内一次写（`forgetInDirectoryPass`）让同一轮后面的读重新读；不能把轮内结果带到调用或下一次目录。调用者自己的授权检查（不带引用的 `assert_authority_current`，委托调用者的这一项会沿原调用逐层往上查）也按这一轮算：各行的可用性在轮内只问它一次，只留通过的，拒绝每行照抛；带引用的检查、调用和它的 `beforeEffect` 与最后一次检查都照旧现问（`action-service.ts` 的 `rowCaller`）。`allowed_actions` 名单在轮内第二个不同能力/版本/提供方被问到时建索引；仅重复复核同一目标时仍逐条匹配，不保存允许答案；轮外照旧逐条比对。
   - 场景读回调只能查询；绑定与成功/失败消费获得 `ActionSceneExecutionContext.beforeEffect`，原场景和判断被替换、原调用者撤权或取消、回调结束后都拒绝写入。嵌套调用不能移除只读约束，付费查询也不在只读范围内（`tests/security-invariants-plugin-scenes.test.ts`）。
   - 已认证舞台只可通过自身实际绑定读取 Host 发出的 `stage_scene_metadata` 精确引用。独立 metadata availability 只改变声明的可见性判据及依赖递归，所有回调仍接原窄 caller；普通发现、执行与 retained authority 不读取它。精确引用命中后的纯可见性检查临时使用目标声明的权限，不将它们写回 caller 或交给回调。`usages` 返回前复核来源、目标注册与当前授权，并重读绑定版本；不同入口派发删除该字段。回归见 `tests/security-invariants-plugin-scene-client.test.ts` 的 FULL17，不能把快照解释成最终多舞台 HTML 响应的原子保障。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
@@ -125,3 +125,5 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 ## 选中资料的派发边界
 
 选中资料的 state capture 只允许 query + subject-state 协议及同提供方、安装、项目的精确 reader/source。Kernel 自己保留三项实际注册；严格校验输出与 query 尾检之后才交出 current。current 同步读取前后复核原授权，结束 handler 不延长 beforeEffect。
+
+已知场景的 `discoverScenes` / `usages` 可由可信 Host 传场景引用，在 availability/bindings 回调前选择；普通固定结果兼容性现读原判断及实际依赖，只有 `subject-offers` 消费者查询完整推荐目录。声明选择不保留执行资格，等待后的绑定、注册、授权及取消检查不变；舞台元数据仍走专用权限投影。回归：QEA-90/91、`tests/action-service.test.ts`、`tests/inbox-action-scenes.test.ts` 与原场景拒绝测试。

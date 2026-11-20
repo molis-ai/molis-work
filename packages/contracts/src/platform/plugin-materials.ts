@@ -1,4 +1,5 @@
-import type { MaterialDocumentBatch, MaterialDocumentOptions, MaterialExtraction, MaterialExtractionOptions, MaterialSource, MaterialSourceContent, MaterialUpload } from "../services/materials.js";
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, ConversationAttachmentUploadRequest, MaterialDocumentBatch, MaterialDocumentOptions, MaterialExtraction, MaterialExtractionOptions, MaterialSource, MaterialSourceContent, MaterialUpload } from "../services/materials.js";
+import type { MaterialRef } from "./project-materials.js";
 
 export type { MaterialSourceContent } from "../services/materials.js";
 
@@ -84,4 +85,12 @@ export interface PluginMaterialsClient {
   readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
   /** Present for materials:original. Forgets one registration (the plugin's record was deleted). */
   releaseOriginal?(record_key: string): Promise<void>;
+  /**
+   * Present for materials:read. Keeps a file the person brought into this plugin's conversation as a conversation attachment of this
+   * installation in this project (`ConversationAttachment`): a picture the model can be shown, or a document whose text the platform
+   * reads once (PDF, Office, text, a picture's words, a recording). The same bytes attached again are the same attachment.
+   */
+  attach?(upload: MaterialUpload, request?: ConversationAttachmentUploadRequest): Promise<ConversationAttachment>;
+  /** Present for materials:read. Reads back one of this installation's attachments in this project; another's is `not_found`. */
+  readAttachment?(ref: MaterialRef, request: ConversationAttachmentRequest): Promise<ConversationAttachmentContent>;
 }

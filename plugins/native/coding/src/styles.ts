@@ -27,12 +27,11 @@ export const CODING_STYLES = `
 .coding-directory { height:100%; min-height:0; }
 .coding-directory .mw-dir__body { min-height:0; }
 .coding-directory .mw-dir__add { flex:none; margin-top:8px; }
-[data-coding-workbench]:not([data-coding-detail=true]) .coding-dialogue,
-[data-coding-workbench]:not([data-coding-detail=true]) .coding-tools { display:none; }
-[data-coding-detail=true] .coding-start { display:none; }
+[data-coding-workbench]:not([data-coding-detail=true],[data-companion-open=true]) :is(.coding-dialogue,.coding-tools) { display:none; }
+:is([data-coding-detail=true],[data-companion-open=true]) .coding-start { display:none; }
 /* Each face owns the directory column: the session list and its search only show on the sessions face. */
 .coding-directory:not([data-coding-current-face=sessions]) :is(.coding-query,[data-coding-sessions],[data-coding-new],[data-coding-search-toggle]) { display:none; }
-[data-coding-tools][data-companion-open=true]>:not([data-git-results]):not(.coding-tool-tabs) { display:none; }
+[data-companion-open=true] [data-coding-tools]>:not([data-git-results]):not(.coding-tool-tabs) { display:none; }
 .coding-face-panel { display:flex; flex-direction:column; gap:8px; min-height:0; padding:0 4px; }
 .coding-face-panel[hidden] { display:none; }
 .coding-face-meta, .coding-face-note { margin:0; padding:0 4px; font-size:11px; line-height:16px; }
@@ -334,7 +333,7 @@ ${CODING_FOOTNOTE_STYLES}
 [data-coding-results=true] .coding-tools { display:block; }
 .coding-tool-tabs { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; min-height:56px; padding:12px 12px 12px 24px; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
 .coding-tools-title { flex:1 1 auto; margin:0; font-size:15px; font-weight:600; color:var(--ink); }
-[data-coding-tools][data-companion-open=true] .coding-tools-title { visibility:hidden; }
+[data-companion-open=true] .coding-tools-title { visibility:hidden; }
 .coding-tool-tabs .coding-results-close { flex:none; width:28px; height:28px; min-height:28px; padding:0; justify-content:center; order:9; }
 /* The index under the panel's title: one chip per section on show. */
 .coding-results-index { display:flex; flex-wrap:wrap; gap:4px; padding:8px 12px 0 20px; }
@@ -361,11 +360,11 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-dialogue .coding-jump { position:relative; z-index:3; align-self:center; flex:none; gap:8px; height:30px; min-height:30px; margin:-48px auto 12px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--ink); font-size:12px; box-shadow: var(--lift-2); }
 .coding-dialogue .coding-jump svg { width:14px; height:14px; }
 @media (prefers-reduced-motion:no-preference) { .coding-dialogue .coding-jump:not([hidden]) { animation:craft-rise var(--dur-move) var(--ease-quint) both; } }
-.coding-stage:has([data-companion-open=true]) { grid-template-columns:minmax(0,1fr); }
-.coding-stage > .coding-dialogue:has(~ [data-companion-open=true]) { display:none; }
-/* No :has() here is anchored on a box that holds the conversation or a change with something after it (".x:has(…) .y"): the
-   browser restyles all of such a box on every node put in it. The change reader marks the tools (data-coding-reading). */
-.coding-stage>[data-coding-tools]:is([data-companion-open=true],[data-coding-reading]) { display:block; }
+[data-companion-open=true] .coding-stage { grid-template-columns:minmax(0,1fr); }
+[data-companion-open=true] .coding-stage > .coding-dialogue { display:none; }
+/* Visibility flags avoid restyling the transcript as messages are appended. */
+[data-companion-open=true] .coding-stage > [data-coding-tools],
+.coding-stage > [data-coding-tools][data-coding-reading] { display:block; }
 /* Changes open beside the conversation, so reading a diff never loses the thread that produced it. */
 .coding-stage:has([data-coding-change-reader]:not([hidden])) { grid-template-columns:minmax(360px,.9fr) minmax(480px,1.1fr); }
 .coding-stage > [data-coding-tools][data-coding-reading] > .coding-tool-tabs { display:none; }
@@ -377,8 +376,8 @@ ${CODING_FOOTNOTE_STYLES}
 }
 @container molis-coding (max-width:760px) {
   .coding-layout { grid-template-columns:minmax(0,1fr); }
-  [data-coding-workbench]:not([data-coding-detail=true]) .coding-stage { display:none; }
-  [data-coding-detail=true] .coding-directory { display:none; }
+  [data-coding-workbench]:not([data-coding-detail=true],[data-companion-open=true]) .coding-stage { display:none; }
+  :is([data-coding-detail=true],[data-companion-open=true]) .coding-directory { display:none; }
   .coding-directory-back { display:inline-flex; }
   .mw-layout-primitives .coding-directory { width:100%; }
   .mw-layout-primitives .coding-dialogue-head { padding:16px 16px 8px; }
@@ -410,6 +409,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-activity { max-width:var(--coding-reading); margin:-12px auto 24px; }
 .coding-activity > summary { display:flex; align-items:center; }
 .coding-tools-summary { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.coding-code-intel > .mw-rec-list { margin-top:8px; }
 .coding-tools-summary > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-tools-summary svg, .coding-tool svg, .coding-run-card svg, .coding-live svg { width:14px; height:14px; flex:none; }
 .coding-tools-summary.is-live > span:last-child { background:linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation: none; }
@@ -622,14 +622,22 @@ ${CODING_FOOTNOTE_STYLES}
 .mw-dir-row.coding-session-row { height:44px; min-height:44px; align-items:center; padding-block:0; }
 @media (hover:hover) and (pointer:fine) { .mw-dir-row.coding-session-row { height:32px; min-height:32px; } }
 .mw-dir-row.coding-session-row .mw-dir-row__icon { margin-top:0; }
-.mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:none; align-items:center; column-gap:8px; }
+.mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(min(4em,40%),1fr) minmax(0,auto) auto; grid-template-rows:none; align-items:center; column-gap:8px; }
 .mw-dir-row.coding-session-row .mw-dir-row__headline { display:contents; }
-.mw-dir-row.coding-session-row .coding-session-state { order:1; height:20px; padding:0 7px 0 5px; border-radius:6px; background:color-mix(in srgb,currentColor 10%,transparent); color:var(--muted); font-size:11px; line-height:20px; }
+.mw-dir-row.coding-session-row .coding-session-state { order:1; display:block; min-width:0; height:20px; padding:0 7px 0 5px; overflow:hidden; border-radius:6px; background:color-mix(in srgb,currentColor 10%,transparent); color:var(--muted); font-size:11px; line-height:20px; text-overflow:ellipsis; white-space:nowrap; }
 .mw-dir-row.coding-session-row .coding-session-time { order:2; }
 .mw-dir-row.coding-session-row .coding-session-state[data-state=running] { color:var(--blue); }
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
 .mw-dir-row.coding-session-row .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
 .mw-dir-row.coding-session-row .coding-session-state[data-state=done] { color:var(--green); }
+/* The name comes first: it keeps four letters' room and the state gives way before it does. In a column too narrow for the
+   name beside the state in words, a state that asks nothing of the person keeps only its ring (the word stays in the row for a
+   reader, and is the chip's title); one that needs the person keeps its word, cut at its end when even that has no room. */
+.coding-session-group { container:coding-sessions/inline-size; }
+@container coding-sessions (max-width:320px) {
+  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) { --ring-size:13px; gap:0; padding:0 3px; font-size:0; }
+  .mw-dir-row.coding-session-row .coding-session-state[data-mw-state]:not([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval],[data-state=failed],[data-state=reconcile-required]) > .mw-state-ring { margin:0; }
+}
 
 /* Streaming caret: sits after the last line the model has written so far. */
 .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:4px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }

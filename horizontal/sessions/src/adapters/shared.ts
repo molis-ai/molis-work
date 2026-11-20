@@ -7,12 +7,31 @@ import {
   sessionsErrors,
   type ExternalSessionActivity,
   type ExternalSessionEntry,
-  type ExternalSessionHistoryInput,
 } from "@molis-ai/molis-work-contracts/services/sessions";
 import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, type ExternalToolEntry } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { cutCharacters, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { readSessionSourceFailure, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
+import { readSessionSourceFailure, sessionSourceFailure, type AdapterHistoryInput, type AdapterReadOutput, type SessionDirectoryEntry, type SessionsPorts } from "../ports.js";
+
+export function discoveryCursor(cursor: string | null, alreadyRead: number): { offset: number; seenSessions: number; seenUnsupported: number } {
+  if (!cursor) return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
+  const [rawOffset, rawSeen, rawUnsupported] = cursor.split(":");
+  return {
+    offset: Math.max(0, Number.parseInt(rawOffset ?? "0", 10) || 0),
+    seenSessions: rawSeen === undefined ? alreadyRead : Math.max(0, Number.parseInt(rawSeen, 10) || 0),
+    seenUnsupported: Math.max(0, Number.parseInt(rawUnsupported ?? "0", 10) || 0),
+  };
+}
+
+/** Carry the totals across persisted pages, including empty pages in a mixed-format directory. */
+export function nextDiscoveryCursor(previous: ReturnType<typeof discoveryCursor>, pageSize: number, total: number,
+  sessions: number, unsupported: number, source: string): string | null {
+  const nextOffset = previous.offset + pageSize;
+  const totalSessions = previous.seenSessions + sessions, totalUnsupported = previous.seenUnsupported + unsupported;
+  if (nextOffset < total) return `${nextOffset}:${totalSessions}:${totalUnsupported}`;
+  if (!totalSessions && totalUnsupported) throw sessionSourceFailure("version_mismatch", `${source} 会话记录版本暂不支持解析`, false);
+  return null;
+}
 
 export function isValidNativeId(value: string): boolean;
 export function isValidNativeId(value: unknown): value is string;
@@ -103,9 +122,9 @@ export interface ParsedTranscriptResult {
 
 export function paginateAndSearchTranscript(
   parsed: ParsedTranscriptResult,
-  input: Omit<ExternalSessionHistoryInput, "session_key">,
+  input: AdapterHistoryInput,
 ): AdapterReadOutput {
-  const allEntries = parsed.entries;
+  const allEntries = input.opening ? parsed.entries.filter(entry => entry.role === "you").slice(0, input.limit) : parsed.entries;
   if (allEntries.length === 0) {
     if (parsed.partial_stop) {
       if (parsed.partial_stop.code === "sessions.version_unreadable") {

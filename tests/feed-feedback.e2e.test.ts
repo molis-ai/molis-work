@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test, { type TestContext } from "node:test";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
-import { createSourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { createTestSourcePull } from "./fixtures/source-pull.js";
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { fromBetterSqlite, listListenerRuns } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromProjectConnection, listListenerRuns } from "@molis-ai/molis-work-plugin-feed/store";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
@@ -62,7 +62,7 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
   const feed = createLocalFeedApplication(store.db);
   const snapshot = () => feed.snapshot(projectId);
   // The directory's `runs` is the latest run of each source (a bounded read since #2026); this source's whole pull history is read here.
-  const pullHistory = () => listListenerRuns(fromBetterSqlite(store.db), projectId).filter(run => run.source_id === id)
+  const pullHistory = () => listListenerRuns(fromProjectConnection(store.db), projectId).filter(run => run.source_id === id)
     .map(run => ({ ...run, receipt: run.connector_receipt }));
   const pulls: Array<{ status: number; etag: string | null }> = [];
   let foreignRequests = 0;
@@ -125,8 +125,8 @@ test("B27-FF01 B27-FF02 Feed tells a refused, malformed, and interrupted pull ap
     await shot(b, "pull-" + reply);
   }
   const interrupted = createLocalFeedSourceService(store.db, projectId, db => {
-    const runtime = createSourcePullRuntime({ db });
-    runtime.intelligenceCollect.executeExact = async () => { throw new Error("fixture: lost collector result"); };
+    const runtime = createTestSourcePull({ db });
+    runtime.pull = async () => { throw new Error("fixture: lost collector result"); };
     return runtime;
   });
   const interruptedCall = await interrupted.sync(id, { idempotencyKey: "fixture-interrupted-pull" }).catch((error: unknown) => error);

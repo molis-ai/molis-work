@@ -134,7 +134,7 @@
     "jelly.model.connection": "Account connection",
     "jelly.model.custom": "Custom model",
     "jelly.model.custom-required": "Enter a service URL and model ID",
-    "jelly.model.manage-keys": "Manage API keys in Connectors",
+    "jelly.model.manage-keys": "Manage API keys in Service connections",
     "jelly.model.model-id": "Model ID",
     "jelly.model.none": "No models available yet.",
     "jelly.model.not-configured": "Configure a model to break text into tasks. Splitting line by line needs no model.",

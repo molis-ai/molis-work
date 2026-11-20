@@ -1,6 +1,5 @@
 import { sessionsErrors } from "@molis-ai/molis-work-contracts/services/sessions";
 import {
-  sessionSourceFailure,
   type AdapterDiscoveryBatch,
   type AdapterReadOutput,
   type AdapterSourceContext,
@@ -15,6 +14,8 @@ import {
   readJsonlLines,
   walkFilesUnderRoot,
   withFileTranscriptCache,
+  discoveryCursor,
+  nextDiscoveryCursor,
 } from "./shared.js";
 
 const DISCOVERY_BATCH_SIZE = 50;
@@ -28,24 +29,15 @@ function isClaudeSessionJsonl(relative: string, fileName: string): { candidate: 
   return { candidate: true, stem: fileName.slice(0, -".jsonl".length) };
 }
 
-function parseClaudeCursor(cursor: string | null): { offset: number; seenSessions: number; seenUnsupported: number } {
-  if (!cursor) return { offset: 0, seenSessions: 0, seenUnsupported: 0 };
-  const [rawOffset, rawSeen, rawUnsupported] = cursor.split(":");
-  return {
-    offset: Math.max(0, Number.parseInt(rawOffset ?? "0", 10) || 0),
-    seenSessions: Math.max(0, Number.parseInt(rawSeen ?? "0", 10) || 0),
-    seenUnsupported: Math.max(0, Number.parseInt(rawUnsupported ?? "0", 10) || 0),
-  };
-}
-
 export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
   entry_id: "claude-code",
 
-  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal): Promise<AdapterDiscoveryBatch> {
+  async discoverPage(context: AdapterSourceContext, cursor: string | null, signal: AbortSignal, alreadyRead: number): Promise<AdapterDiscoveryBatch> {
     if (!context.root) return { sessions: [], skipped_count: 0, next_cursor: null, total: 0 };
     const walked = await walkFilesUnderRoot(context.ports, context.root, signal, 3);
     const jsonlFiles = walked.files.filter(item => isClaudeSessionJsonl(item.relative, item.entry.name).candidate);
-    const { offset: startOffset, seenSessions, seenUnsupported } = parseClaudeCursor(cursor);
+    const previous = discoveryCursor(cursor, alreadyRead);
+    const startOffset = previous.offset;
     const batchFiles = jsonlFiles.slice(startOffset, startOffset + DISCOVERY_BATCH_SIZE);
 
     let skippedCount = startOffset === 0 ? walked.skipped : 0;
@@ -86,17 +78,10 @@ export const claudeCodeAdapter: ExternalSessionSourceAdapter = {
       }
     }
 
-    const nextOffset = startOffset + batchFiles.length;
-    const totalSessions = seenSessions + sessions.length;
-    const totalUnsupported = seenUnsupported + unsupportedVersionFiles;
-    if (nextOffset >= jsonlFiles.length && totalSessions === 0 && totalUnsupported > 0) {
-      throw sessionSourceFailure("version_mismatch", "Claude Code 会话记录版本暂不支持解析", false);
-    }
-
     return {
       sessions,
       skipped_count: skippedCount,
-      next_cursor: nextOffset < jsonlFiles.length ? `${nextOffset}:${totalSessions}:${totalUnsupported}` : null,
+      next_cursor: nextDiscoveryCursor(previous, batchFiles.length, jsonlFiles.length, sessions.length, unsupportedVersionFiles, "Claude Code"),
       total: jsonlFiles.length,
     };
   },

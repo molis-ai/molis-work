@@ -1,9 +1,11 @@
+import { roundImages } from "./routes-images.js";
 import { memoryLearningActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { codingMemorySources } from "./memory-learning.js";
 import { parseExactActionReferences, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { characterVersionMatchesSelection } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSessionView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -147,26 +149,30 @@ async function roundCodeRevision(a: CodingActivation, beforeWrite: CodingBeforeW
  * both again at start). Read here so a round's own steps stay apart from this resolution.
  */
 async function roundCharacter(context: PluginStartContext, record: CodingSessionRecord, body: Record<string, unknown>, execution: CodingExecution, beforeWrite: CodingBeforeWrite,
-  ranBefore: () => Promise<boolean>) {
+  priorSession: () => Promise<AgentSessionView | null>) {
   const saved = savedCharacter(context, record.session_id), control = codingActionControl(beforeWrite);
   if (body.character === undefined && saved === "unreadable") throw codingFailure("coding.server.character-reference");
   let character = body.character === undefined ? (saved && saved !== "unreadable" ? saved.ref : null) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly ExactActionReference[] | null | undefined;
-  const limited = async () => limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
+  let limits: Promise<boolean> | undefined;
+  const limited = () => limits ??= codingActions(context, beforeWrite).invoke(agent.listRuntimes, []).then(list => limitsCharacters(list, record.runtime_id));
   // A session never chosen for takes the role a new task gets (project default, else the person's) at its first round, once; where the
   // Runtime has not verified a role's tool limits it takes none. Either way the session keeps what it got. A session that has already
   // run without a role (the round after an answer to a parked one, a session from before roles) goes on without one.
   // Kept only once the round has started, beside its other records (`pinCharacter`): a caller refused before that leaves nothing.
   let pinCharacter: (() => void) | undefined;
-  if (body.character === undefined && saved === undefined && !await ranBefore()) {
+  if (body.character === undefined && saved === undefined && !(await priorSession())?.runs.length) {
     const effective = await execution.characters.effective(control), taken = effective && await limited() ? effective : null;
     pinCharacter = () => saveCharacter(context, record.session_id, taken);
     character = taken?.ref ?? null;
   }
   if (character) {
     if (!await limited()) throw codingFailure("coding.server.character-unverified");
-    characterTools = await execution.characters.actionTools(character, control);
+    const previous = (await priorSession())?.latest_run?.frozen.character;
+    // Host resolves and checks the fixed version at admission. Use that same snapshot to prepare a continuation's tools.
+    characterTools = previous && characterVersionMatchesSelection(previous.version, character)
+      ? previous.action_tools : await execution.characters.actionTools(character, control);
   }
   return { character, character_skill_ids, characterTools, pinCharacter };
 }
@@ -199,6 +205,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A round woken by the activation's own loop (an answer arrived, a wait ended) answers to that loop's job (wake-loop.ts).
   api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
+  // Pictures the person added in the composer: references to this installation's attachments, which the Agent Host reads again.
+  const image_materials = roundImages(body.images);
   const savedInput=execution.sessions.inputs.read(projectId,record.session_id);
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const original_input = originalForStart(body, beforeWrite), continued_from = continuedOriginal(body, record.runtime_session_id);
@@ -208,7 +216,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw codingFailure("coding.server.plan-confirm-first");
   const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
   // 「请 AI 重新问」: the Host writes the round's words; the page names only the question.
-  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000);
+  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true);
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -253,11 +261,10 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const availability = roles.find((entry) => entry.role_id === role);
   if (!availability?.available) throw availability?.reason ? new Error(availability.reason) : codingFailure("coding.server.role-unavailable");
   // The session's earlier rounds, listed once: whether it has run decides if it takes a default role, and the rounds are read below.
-  let listed: Promise<AgentSessionView["runs"]> | undefined;
-  const runsOf = (session: { runtime_id: string; session_id: string }) => codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]).then(read => read.runs);
-  const priorRuns = () => listed ??= record.runtime_session_id ? runsOf({ runtime_id: record.runtime_id, session_id: record.runtime_session_id }) : Promise.resolve([]);
-  const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite,
-    async () => (await priorRuns()).length > 0);
+  let listed: Promise<AgentSessionView | null> | undefined;
+  const readSession = (session: { runtime_id: string; session_id: string }) => codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
+  const priorSession = () => listed ??= record.runtime_session_id ? readSession({ runtime_id: record.runtime_id, session_id: record.runtime_session_id }) : Promise.resolve(null);
+  const { character, character_skill_ids, characterTools, pinCharacter } = await roundCharacter(context, record, body, execution, beforeWrite, priorSession);
   const chosenActions = body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools);
   const chosenSkills = skillSelection(body.skills ?? []);
   const { action_tools, materials: roundMaterials } = await roundActions(context,
@@ -277,7 +284,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
   // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
   let earlier: AgentRunView[] | undefined;
-  const earlierRuns = async () => earlier ??= await Promise.all((record.runtime_session_id ? await priorRuns() : await runsOf(session)).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
+  const earlierRuns = async () => earlier ??= await Promise.all(((await priorSession() ?? await readSession(session)).runs)
+    .map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
   let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
   // A session given its runtime session before it ran (a delegation's letters need one) still starts with its first round.
   const firstRound = !record.runtime_session_id || !(await earlierRuns()).length;
@@ -293,7 +301,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
         tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
     });
   const codeRevision = await roundCodeRevision(a, beforeWrite, workspace.workspace_id, tree);
-  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  const start = async (mode: "session" | "digest") => codingActions(a.context, beforeWrite).invoke(agent.startRun, [record.runtime_id, { session, directory, task: mode === "digest" ? (await digestFor()).text : task, ...(original_input ? { original_input } : {}), ...(continued_from ? { continued_from } : {}), role_id: role, text_materials, ...(image_materials.length ? { image_materials } : {}), character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
     ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
     ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
     // A round that waited for other work takes over the item it waited as.
@@ -334,7 +342,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, ...(tree ? { worktree_id: tree.worktree_id } : {}),
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000, body.command_prompt === true) }));
     receipted = true;
     return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };

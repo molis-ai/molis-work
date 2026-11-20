@@ -1023,14 +1023,31 @@ fn shelf_hotkey_status() -> ShelfHotkeyStatus {
 }
 
 #[tauri::command]
-fn shelf_apply_hotkeys(
-    toggle: shelf_hotkeys::HotKeyChordDto,
-    capture: shelf_hotkeys::HotKeyChordDto,
-    files: shelf_hotkeys::HotKeyChordDto,
+fn shelf_sync_device_preferences(
+    settings: Option<shelf_hotkeys::DevicePreferences>,
+) -> Result<(), String> {
+    let (chords, wheel) = match settings {
+        Some(settings) => (settings.hotkeys.chords()?, settings.drop_wheel_enabled),
+        None => (shelf_hotkeys::default_chords(), true),
+    };
+    if chords
+        != (
+            shelf_hotkeys::current_toggle(),
+            shelf_hotkeys::current_capture(),
+            shelf_hotkeys::current_files(),
+        )
+    {
+        apply_shelf_chords(chords.0, chords.1, chords.2)?;
+    }
+    shelf_http::set_drop_wheel_enabled(wheel);
+    Ok(())
+}
+
+fn apply_shelf_chords(
+    toggle: shelf_hotkeys::HotKeyChord,
+    capture: shelf_hotkeys::HotKeyChord,
+    files: shelf_hotkeys::HotKeyChord,
 ) -> Result<ShelfHotkeyStatus, String> {
-    let toggle = shelf_hotkeys::HotKeyChord::from(toggle);
-    let capture = shelf_hotkeys::HotKeyChord::from(capture);
-    let files = shelf_hotkeys::HotKeyChord::from(files);
     #[cfg(target_os = "macos")]
     shelf_hotkeys_macos::apply(toggle, capture, files)?;
     #[cfg(not(target_os = "macos"))]
@@ -1186,6 +1203,7 @@ fn main() {
       capsule_open_main,
       runtime::runtime_overview,
       runtime::runtime_decide,
+      runtime::runtime_expired_seen,
       runtime::runtime_missed_dot,
       runtime::runtime_quit_confirmed,
       runtime::runtime_open,
@@ -1208,7 +1226,7 @@ fn main() {
       files_open,
       shelf_setup_status,
       shelf_hotkey_status,
-      shelf_apply_hotkeys
+      shelf_sync_device_preferences
       ];
       handle(invoke)
     })
@@ -1629,6 +1647,7 @@ mod tests {
         for command in [
             "runtime_overview",
             "runtime_decide",
+            "runtime_expired_seen",
             "runtime_missed_dot",
             "runtime_settings_set",
             "rollback_to_previous",

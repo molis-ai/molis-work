@@ -18,7 +18,7 @@
 | 层 | 负责 | 不负责 |
 | --- | --- | --- |
 | 业务插件 / 模块（Pages、灵光、Coding…） | 用户意图、提示词正文、输入材料的选取、结果怎样写回自己的数据、失败时保留什么 | 选模型、拿密钥、直连供应商、构造 Runtime |
-| Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`，自己的代码用 `hostCompleteText`、`resolvePrologueInference`；模型选择与凭据解析；项目/调用者身份；动作授权与调用记录 | 业务提示词、插件数据 |
+| Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`。宿主用 `hostTextGeneration` 或 `resolvePrologueInference` 承接推理。由 Host 解析模型、凭据、调用者身份及项目，记录动作授权与调用 | 业务提示词、插件数据 |
 | Agent Host（`horizontal/agent-host`） | 唯一直接依赖 `@prologue/sdk` 的包：有界推理、Agent 轮次、角色冻结、目录授权、审查队列、预算、MCP 接入、任务板、子代理、检查点、后台命令 | 业务含义、审批决定本身 |
 | Prologue SDK（`vendor/prologue-sdk/*.tgz`，源码在 `molis-ai/prologue`） | 协议适配、流式事件、用量回执、取消、超时、会话/运行持久化、工具循环 | 产品身份、权限政策、界面 |
 
@@ -28,8 +28,8 @@
 
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
-| 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主自己的代码：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；Runtime 插件用 `context.services.model`（第 4 节），构建期插件仍是 Host 注入的端口（见本表下方）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
-| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：Coding 或助理只交角色的稳定引用，一轮开始时由 Agent 宿主钉住它当时的版本带上 |
+| 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主用 `hostTextGeneration` 获取文字、结构、进度与执行回执（`apps/local-host/src/host-complete-text.ts`）。Runtime 插件用 `context.services.model`（第 4 节），构建期插件由 Host 注入端口（见本表下方）。图片和 TypeSafe 判断使用 `resolvePrologueInference(home)` 的 `generateImages` 与 `evaluateTypeSafe` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
+| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create` / `agent.run.start` / `agent.run.wait` / `agent.run.control`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（`plugins/native/schedule/src/runtime-wakeups.ts` 经 Runtime 的 `services.agents.run`）。Coding 或助理向 `modules/characters` 的宿主提供方取角色稳定引用。Agent 宿主在一轮开始时固定当时的版本 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
 宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（只剩用户批过的两个例外 Alchemist、插件创作台，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
@@ -46,7 +46,7 @@
 页面 → 插件 HTTP 路由（只转发）
   → 动作 pages.ai（plugins/native/pages/src/actions.ts，声明 model:invoke 与 scheduling: "concurrent"）
   → Plugin Runtime 的 services.model（plugins/native/pages/src/plugin.ts 接成 complete）：未配置模型时报 actions.connection_required
-  → hostCompleteText（apps/local-host/src/host-complete-text.ts）：固定这次的供应商与模型、读凭据快照、每次派发前复查配置与凭据、120 秒上限
+  → hostTextGeneration（apps/local-host/src/host-complete-text.ts）：固定这次的供应商、模型和凭据快照，派发前复核，返回原执行回执与结果校验
   → resolvePrologueInference(home)（apps/local-host/src/prologue-inference-host.ts）：取该 Home 唯一的推理绑定，由 system-agent-service.ts 装配
   → createPrologueInference（horizontal/agent-host/src/adapters/prologue-inference.ts）：临时会话、借助 SDK collectRun 收集结果、取消与超时
   → Prologue Runtime → 供应商
@@ -196,7 +196,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 ## 5. 模型、凭据、上下文
 
-- 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
+- 模型来自设置里的 `catalog.models` 与服务连接。发现阶段只读元数据，执行前才解密。派发前与返回后核对本次供应商、模型和凭据。宿主消费者在最后一次异步等待（例如动作授权或引导的并行待办）完成后，调用原结果的 `validateResult()` 再交付或同步写入。修改模型或连接时以 `actions.configuration_changed` 拒绝旧结果。`hostCompleteText` 仍是公开的纯文字便利函数。
 - 产品里只有模型目录配置模型；没配时提示去设置。密钥库里目录之外的旧凭据（`model:text:api_key`）不读。
 - 环境变量只给开发与测试用，且仅在 Home 的模型目录为空时生效。已有目录记录或明确选择时，它不能绕过停用。
   - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimax.cn/anthropic`（与设置页的 MiniMax 模板同一个国内地址，宿主里只写一次：`apps/local-host/src/model-provider-templates.ts` 的 `MINIMAX_ANTHROPIC_BASE_URL`；MiniMax 文档已迁到 platform.minimax.cn，其 Anthropic 兼容页写的就是这个地址，2026-10-10 核对），模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
@@ -210,9 +210,9 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 ### 原图输入
 
-可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
+可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。只有模型设置里标了 `vision: false` 的模型拒绝带图；没标注的照发，并在说明里告诉模型看不到就直说、不要猜（决定 51③，`UNMARKED_IMAGES_NOTE`，Agent 起跑与单次补全同一口径）；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
 
-Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 50 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
+Agent Host 的一轮只收图片引用（`image_materials` 的 `attachment: MaterialRef`），字节由调用方自己的对话附件读取器取回（平台对话附件服务，[S-conversation-attachments](../system/security-invariants/S-conversation-attachments.md)），重启后照样能发。按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 5 MiB，一轮最多 6 张（`RUN_IMAGES_MAX`），还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
 
 读取前、异步等待后及网络派出前保留原授权检查，成功、失败、取消都撤销附件并销毁 Host 暂存字节，输入原件不变。取消可先释放调用方，关闭执行 owner 仍等待资源清理。任务材料如何选择、PDF/目录如何组织、结果何时写入仍归消费者；SDK 支持附件并不代表某个插件已完成迁移。真实协议和字节回归见 `tests/prologue-inference-images.test.ts`，模型视觉声明与变更见 `tests/host-configured-text.test.ts`。
 

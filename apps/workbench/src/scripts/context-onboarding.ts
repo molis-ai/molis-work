@@ -1,5 +1,5 @@
 import { codeRootFile, contextFileSkip, contextSkipRuleName } from "@molis-ai/molis-work-contracts/services/materials"; import { objectLinkAt } from "@molis-ai/molis-work-contracts/platform/object-link";
-import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js";
+import { CONTEXT_ONBOARDING_BLANK_NAME_PART } from "./context-onboarding-blank-name.js"; import { CONTEXT_ONBOARDING_RECOVERY_PART } from "./context-onboarding-recovery.js"; import { CONTEXT_ONBOARDING_TAKE_PART } from "./context-onboarding-take.js"; import { CONTEXT_ONBOARDING_SESSIONS_PART } from "./context-onboarding-sessions.js";
 // The arrival frame draws the existing Home journey: sources, scope, reading and naming.
 // Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
@@ -14,9 +14,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const firstRun = document.body.dataset.onboardingMode === 'first_run';
   const directories = ['downloads','documents','desktop','custom'];
   const contextFileSkip = ${contextFileSkip.toString()}, contextSkipRuleName = ${contextSkipRuleName.toString()}, codeRootFile = ${codeRootFile.toString()}, objectLinkAt = ${objectLinkAt.toString()};
-  const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat'];
-  const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
-  const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
+  const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat','sessions'];
+  const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",sessions:"workbench.context-onboarding.sessions",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
+  const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message',sessions:'history'};
   const grants = {}, uploads = new Map();
   let preparing = '', readingLocal = '', uploading = null, counting = null, reviewFiles = false, folded = new Set();
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
@@ -28,17 +28,16 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null, takeNotice = '';
-  let blankName = '', goingBack = false;
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:globalThis.t.text("workbench.context-onboarding.request-failed-try-again")});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
   const keepFailure = err => err && typeof err==='object' && 'callId' in err ? err : String(err?.message||err);
-  const endpoint = suffix => '/api/onboarding/context/' + journey.id + (suffix ? '/' + suffix : '');
+  const endpoint = suffix => contextPath+'/'+journey.id+(suffix?'/'+suffix:'');
   const source = kind => journey.sources.find(s => s.kind === kind);
   const connected = () => (config.connections || []).filter(c => c.state === 'connected');
-  const picked = () => journey.sources.filter(s => s.selected);
+${CONTEXT_ONBOARDING_SESSIONS_PART}
   const stagedReady = s => included(s).length > 0 && included(s).every(f => Boolean(s.staged_digests?.[f.path]));
-  const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
+  const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='sessions' ? Boolean(existing() && sessionsState?.allowed && sessionsState.readable > 0) : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? "workbench.context-onboarding.staged" : directory(s) ? (grants[s.kind]?.state==='ready'?"workbench.context-onboarding.authorized":grants[s.kind]?.state==='unavailable'?"workbench.context-onboarding.reauthorization-required":"workbench.context-onboarding.awaiting-authorization") : ready(s)?"workbench.context-onboarding.added":s.kind==='gmail'?(config.gmail_configured?"workbench.context-onboarding.awaiting-connection":"workbench.context-onboarding.unavailable-now"):"workbench.context-onboarding.awaiting-material";
   const startLabel = () => busy ? (counting && !counting.saving ? (counting.nativeDir ? globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}) : globalThis.t.text("workbench.context-onboarding.counting-done-total", counting)) : preparing?readText("workbench.context-onboarding.preparing"):uploading?globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading):readingLocal?readText("workbench.context-onboarding.reading-now"):readText("workbench.context-onboarding.saving")) : readText("workbench.context-onboarding.confirm-scope");
@@ -125,9 +124,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     {id:'browser', kinds:['browser'], icon:'globe', name:readText("workbench.context-onboarding.browser-content"), caption:readText("workbench.context-onboarding.browser-source-hint")},
     {id:'chat', kinds:['chat'], icon:'message', name:readText("workbench.context-onboarding.chat-history"), caption:readText("workbench.context-onboarding.chat-source-hint")},
     {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
+    {id:'sessions', kinds:['sessions'], icon:'history', name:readText("workbench.context-onboarding.sessions"), caption:readText(existing() ? "workbench.context-onboarding.sessions-hint" : "workbench.context-onboarding.sessions-hint-new")},
   ];
   const sourcesOf = row => row.kinds.map(kind => source(kind)).filter(Boolean);
-  const countOf = s => ((s.references?.length || 0) + (s.held_secrets?.length || 0)) || (s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'gmail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
+  const countOf = s => ((s.references?.length || 0) + (s.held_secrets?.length || 0)) || (s.kind === 'sessions' ? (existing() ? sessionsState?.readable || 0 : 0) : s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'gmail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
   const rowCount = row => sourcesOf(row).filter(s => s.selected && ready(s)).reduce((sum, s) => sum + countOf(s), 0);
   function gmailCaption() {
     const s = source('gmail');
@@ -148,6 +148,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     return rows.every(s => (s.days ?? 30) === first) ? first : null;
   };
   function rowConfig(row) {
+    if (row.id === 'sessions') return sessionsConfig();
     if (row.id === 'folder') {
       const days = folderDays();
       const place = kind => {
@@ -171,6 +172,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   // What a row says on its right is what pressing it does, until something is in: then how much.
   function rowWord(row) {
+    if (row.id === 'sessions' && sessionsLater()) return readText("workbench.context-onboarding.sessions-later");
     const n = rowCount(row);
     if (n) return globalThis.t.text("workbench.context-onboarding.added-n", {n});
     if (row.id === 'gmail' && !config.gmail_configured && !connected().length) return globalThis.t.text("workbench.context-onboarding.unavailable-now");
@@ -178,7 +180,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   // What pressing the row does, drawn as the button it acts as (the row is the one control): 添加, or the green count once added.
   function rowAct(row) {
-    const n = rowCount(row), quiet = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+    const n = rowCount(row) || (row.id === 'sessions' && sessionsLater() ? 1 : 0), quiet = row.id === 'gmail' && !config.gmail_configured && !connected().length;
     return '<span class="ob-source__act' + (n ? ' is-added' : quiet ? ' is-quiet' : ' mw-btn mw-btn--secondary mw-btn--sm') + '">' + (quiet ? '' : glyph(n ? 'check' : 'plus')) + '<span>' + esc(rowWord(row)) + '</span></span>';
   }
   function sourceList() {
@@ -193,6 +195,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function groupFor(s) {
     const kind = s.kind, add = {attrs:{'data-group':kind}, remove:{label:readText("workbench.context-onboarding.remove-source", { name: readText(names[kind]) }), attrs:{'data-remove':kind}}};
     if (!s.metadata && s.references?.length) return fileGroup({...add, icon:sourceIcons[kind], title:globalThis.t.text(names[kind]), caption:globalThis.t.text("workbench.context-onboarding.n-n-stored-snapshot-will-be-reused", {n:s.references.length}), rows:[]});
+    if (kind === 'sessions') return fileGroup({...add, icon:'history', title:readText(names.sessions), caption:sessionsWhy(), rows:[]});
     if (kind === 'gmail') return fileGroup({...add, icon:'mail', title:'Gmail', caption:gmailCaption(), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.emails-last-n-n", {n:s.days || 30}) + '.eml', size:'≤ 20', chip:kindChip('x.eml')})]});
     if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:globalThis.t.text("workbench.context-onboarding.page-text"), caption:(s.url || globalThis.t.text("workbench.context-onboarding.pasted-text")), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.page-text-n-n", {n:(s.text || '').length.toLocaleString()}) + '.txt', size:size(bytes)})]}); }
     const files = (s.metadata?.files || (s.files || []).map(f => ({path:f.path, size:0}))), listed = included(s).length ? included(s) : files;
@@ -202,10 +205,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : '', ...(s.metadata?.files?.some(x => x.path === f.path) ? { detail: { label: globalThis.t.text("workbench.context-onboarding.details"), attrs: { 'data-detail-kind': 'file', 'data-detail-source': s.kind, 'data-detail-index': String(s.metadata.files.findIndex(x => x.path === f.path)) } } } : {})})), note:[more > 0 ? globalThis.t.text("workbench.context-onboarding.n-more-files-included", {n:more}) : '', s.metadata?.skipped ? globalThis.t.text("workbench.context-onboarding.n-n-left-out-time-type-access", {n:s.metadata.skipped}) : ''].filter(Boolean).join(' ')});
   }
   function materialsPane() {
-    const groups = picked().filter(ready);
-    if (!groups.length) return '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + globalThis.t.text("workbench.context-onboarding.pick-source-its-materials-line-up-here") + '</p>';
+    const groups = picked().filter(ready), later = sessionsLater() ? note(readText("workbench.context-onboarding.sessions-new-note"), 'history') : '';
+    if (!groups.length) return later || '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + globalThis.t.text("workbench.context-onboarding.pick-source-its-materials-line-up-here") + '</p>';
     const total = selectionTotal();
-    return stageHead(globalThis.t.text("workbench.context-onboarding.bringing"), globalThis.t.text("workbench.context-onboarding.files-count-groups-groups-size-text-not-read", {count:total.count, groups:groups.length, size:size(total.bytes)})) + groups.map(groupFor).join('');
+    return stageHead(globalThis.t.text("workbench.context-onboarding.bringing"), globalThis.t.text("workbench.context-onboarding.files-count-groups-groups-size-text-not-read", {count:total.count, groups:groups.length, size:size(total.bytes)})) + groups.map(groupFor).join('') + later;
   }
   function resumeNotice() {
     return config.resume && config.resume.id !== journey.id ? '<p class="ob-resume cx-resume">' + glyph('history') + '<span>' + globalThis.t.text("workbench.context-onboarding.have-unfinished-import-last-time") + (config.resume.title ? ' · ' + esc(config.resume.title) : '') + '</span>' + btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.continue-where-left-off"), attrs:{'data-action':'resume'}}) + '</p>' : '';
@@ -213,18 +216,19 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const docState = s => s.error ? 'failed' : s.references?.length ? 'done' : ready(s) ? 'ready' : 'pending';
 ${CONTEXT_ONBOARDING_RECOVERY_PART}
   function sourcesView() {
+    const sceneHref = route((existing() ? '/projects/' + encodeURIComponent(journey.project_id) : '') + '/onboarding?scene');
     const total = selectionTotal(), any = picked().filter(ready), pausedDir = pausedNativeDir();
     const countUi = counting && !counting.saving
       ? note(globalThis.t.text("workbench.context-onboarding.counting-chosen-files-they-appear-right-when-count"), 'clock') + (counting.nativeDir ? note(globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}), 'folder') : meter(counting.done, counting.total, globalThis.t.text("workbench.context-onboarding.count"), globalThis.t.text("workbench.context-onboarding.seen-done-total-keeping-kept-size", {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)}))) + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.stop-counting"), attrs:{'data-action':'stop-scan'}}) + '</div>'
       : counting && counting.saving ? note(globalThis.t.text("workbench.context-onboarding.list-large-being-saved"), 'clock')
       : (pausedScan || pausedDir) ? (pausedDir ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '') + '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:readText("workbench.context-onboarding.continue-counting"), attrs:{'data-action':'continue-scan', ...(pausedDir && !pausedScan ? {'data-continue-dir': pausedDir.kind} : {})}}) + '</div>'
       : (partialRestoredKinds.size > 0 || picked().some(s => s.metadata?.truncated && !s.references?.length)) ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '';
-    const left = question(globalThis.t.text("workbench.context-onboarding.bring-existing-materials"), globalThis.t.text("workbench.context-onboarding.files-pages-chats-become-new-project-s-background")) + resumeNotice()
+    const left = (existing() ? question(readText("workbench.context-onboarding.continue-from-tools"), globalThis.t.text("workbench.context-onboarding.continue-from-tools-sub", {project:journey.project_title || ''})) : question(globalThis.t.text("workbench.context-onboarding.bring-existing-materials"), globalThis.t.text("workbench.context-onboarding.files-pages-chats-become-new-project-s-background"))) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + globalThis.t.text("workbench.context-onboarding.materials-already-read-kept-starting-again-replaces-current") + '</span></p>' : '')
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + globalThis.t.text("workbench.context-onboarding.finish-google-authorization-browser-continues-afterwards") + '</span>' + btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-gmail-continue"), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
       + errorLine(error) + sourceList() + '<div class="ob-notes">' + countUi + note(globalThis.t.text("workbench.context-onboarding.adding-records-only-names-sizes-text-read-when"), 'shield') + note(globalThis.t.text("workbench.context-onboarding.no-limit-how-many-how-large-large-folder"), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'sources', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
-      bar:{start:exitButton() + stepsBar('sources'), center:'', end:secondary("workbench.context-onboarding.skip",'blank') + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
+      bar:{start:exitButton() + stepsBar('sources'), center:'<a class="mw-btn mw-btn--ghost" href="' + sceneHref + '">' + esc(readText("workbench.scene.title")) + '</a>', end:(existing() ? '' : secondary("workbench.context-onboarding.skip",'blank')) + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
   /* ───────── Scope: the person's last word on what is read ───────── */
   const previewReady = s => ready(s) && (!directory(s)||Boolean(s.references?.length||s.metadata));
@@ -234,20 +238,21 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
       if(s.metadata){const files=included(s);count+=files.length;bytes+=files.reduce((n,f)=>n+f.size,0);}
       else if(s.references?.length){count+=s.references.length;bytes+=s.references.reduce((n,r)=>n+(r.original?.size_bytes||0),0);}
       else if(s.kind==='browser'&&s.text?.trim()){count++;bytes+=new TextEncoder().encode(s.text).length;}
+      else if(s.kind==='sessions'){count+=sessionsState?.readable||0;}
     }
     return {count,bytes};
   }
   // No count or size limit (user 2026-10-22); past this much, the page says the files are read in a queue it may leave.
   const QUEUED = {count: 50, bytes: 50000000};
   function missingBlock(s) {
-    const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.choose-authorize"), attrs:{'data-authorize':s.kind}}) : s.kind === 'gmail' ? btn({variant:'secondary', size:'sm', label:globalThis.t.text(connected().length ? "workbench.context-onboarding.choose-existing-account" : "workbench.context-onboarding.connect-google"), attrs:{'data-action':connected().length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.add-content"), attrs:{'data-add':s.kind}});
-    return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + globalThis.t.text(names[s.kind]) + '</strong><small>' + esc(s.error || globalThis.t.text(directory(s) ? "workbench.context-onboarding.authorization-isn-t-finished-can-choose-directory-again" : s.kind === 'gmail' ? "workbench.context-onboarding.once-account-connected-mail-chosen-period-read-when" : "workbench.context-onboarding.add-some-content-first-after-refresh-files-chosen")) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-time"), attrs:{'data-skip':s.kind}}) + '</div></section>';
+    const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.choose-authorize"), attrs:{'data-authorize':s.kind}}) : s.kind === 'sessions' ? (sessionsState && !sessionsState.error && !sessionsState.allowed ? permitButton() : '') : s.kind === 'gmail' ? btn({variant:'secondary', size:'sm', label:globalThis.t.text(connected().length ? "workbench.context-onboarding.choose-existing-account" : "workbench.context-onboarding.connect-google"), attrs:{'data-action':connected().length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.add-content"), attrs:{'data-add':s.kind}});
+    return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + globalThis.t.text(names[s.kind]) + '</strong><small>' + esc(s.error || (s.kind === 'sessions' ? sessionsWhy() : '') || globalThis.t.text(directory(s) ? "workbench.context-onboarding.authorization-isn-t-finished-can-choose-directory-again" : s.kind === 'gmail' ? "workbench.context-onboarding.once-account-connected-mail-chosen-period-read-when" : "workbench.context-onboarding.add-some-content-first-after-refresh-files-chosen")) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-time"), attrs:{'data-skip':s.kind}}) + '</div></section>';
   }
   function scopeGroup(s) {
     if (!previewReady(s)) return missingBlock(s);
     const add = {attrs:{'data-group':s.kind}};
     if (!s.metadata && (s.references?.length || s.held_secrets?.length)) return fileGroup({...add, icon:sourceIcons[s.kind], title:globalThis.t.text(names[s.kind]), caption:globalThis.t.text("workbench.context-onboarding.stored-text-reused-changing-range-reads-again"), rows:[]});
-    if (!s.metadata) return fileGroup({...add, icon:sourceIcons[s.kind], title:globalThis.t.text(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : globalThis.t.text("workbench.context-onboarding.added-content-processed-once-start"), rows:[]});
+    if (!s.metadata) return fileGroup({...add, icon:sourceIcons[s.kind], title:globalThis.t.text(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : s.kind === 'sessions' ? sessionsWhy() : globalThis.t.text("workbench.context-onboarding.added-content-processed-once-start"), rows:[]});
     const items = s.metadata.files, selected = included(s), folders = [...new Set(items.filter(f=>f.path.includes('/')).map(f=>f.path.slice(0,f.path.indexOf('/'))))];
     const limit = scopeVisible[s.kind] || 200, shownItems = items.slice(0, limit);
     const rows = folders.map(folder => fileRow({name:folder + '/', chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph('folder') + '</span>', size:globalThis.t.text("workbench.context-onboarding.include-subfolders"), check:{checked:!(s.excluded||[]).includes(folder), attrs:{id:'cx-d-' + s.kind + '-' + folders.indexOf(folder), 'data-folder':s.kind, 'data-path':folder}}}))
@@ -347,13 +352,13 @@ ${CONTEXT_ONBOARDING_TAKE_PART}
   }
   function review() {
     const s=journey.summary, draftsHtml = drafts(), picks = todoPicked ? todoPicked.size : 0;
-    const left = question(globalThis.t.text("workbench.context-onboarding.name-new-project"), globalThis.t.text("workbench.context-onboarding.project-suggestion-was-drawn-materials-name-summary-can")) + errorLine(error||journey.error) + lateNotice()
-      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + globalThis.t.text("workbench.context-onboarding.project-name") + '</label><input id="cx-project-title" class="mw-input ob-name__input" data-plain-field value="' + esc(s.title) + '"></div>'
+    const left = (existing() ? question(readText("workbench.context-onboarding.name-summary-existing"), globalThis.t.text("workbench.context-onboarding.summary-goes-into-project", {project:journey.project_title || ''})) : question(globalThis.t.text("workbench.context-onboarding.name-new-project"), globalThis.t.text("workbench.context-onboarding.project-suggestion-was-drawn-materials-name-summary-can"))) + errorLine(error||journey.error) + lateNotice()
+      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + globalThis.t.text(existing() ? "workbench.context-onboarding.summary-title" : "workbench.context-onboarding.project-name") + '</label><input id="cx-project-title" class="mw-input ob-name__input" data-plain-field value="' + esc(s.title) + '"></div>'
       + '<div class="ob-name"><div class="cx-actions"><span class="ob-label">' + globalThis.t.text("workbench.context-onboarding.work-summary") + '</span>' + btn({variant:'ghost', size:'sm', label:globalThis.t.text(editing ? "workbench.context-onboarding.done-editing" : "workbench.context-onboarding.edit-summary"), attrs:{'data-action':'edit'}}) + '</div>'
       + (editing ? '<textarea id="cx-summary-editor" class="mw-textarea cx-summary-editor" rows="10" maxlength="100000" aria-label="' + globalThis.t.text("workbench.context-onboarding.edit-summary") + '">' + esc(s.body) + '</textarea>' : '<div class="cx-summary">' + markdown(s.body) + '</div>') + '</div>'
       + '<p class="ob-note">' + glyph('note') + '<span>' + globalThis.t.text("workbench.context-onboarding.sources-sources-materials-n", {sources:picked().length, n:s.references.length}) + '</span></p>'
       + (s.references.length ? collapsible(globalThis.t.text("workbench.context-onboarding.based-these-materials-n", {n:s.references.length}), '<div class="cx-sources">' + s.references.map(r=>'<button type="button" class="cx-reference" data-cite="'+r.label+'"><span>'+globalThis.t.text("workbench.context-onboarding.label-version-version",{label:r.label,version:r.version})+'</span>'+esc(r.title)+'</button>').join('') + picked().filter(x=>x.error).map(x=>'<p class="cx-source-meta">'+globalThis.t.text(names[x.kind])+': '+esc(x.error)+'</p>').join('') + picked().map(issues).join('') + '</div>') : '')
-      + verificationPanel() + takeChoice() + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
+      + verificationPanel() + (existing() ? '' : takeChoice()) + '<div>' + btn({variant:'ghost', size:'md', icon:'undo', label:globalThis.t.text("workbench.context-onboarding.adjust-sources-redo"), attrs:{'data-action':'restart'}}) + '</div>';
     const right = briefPreview(s.title, s.body, {title:readText("workbench.context-onboarding.next-todo-drafts"), body:draftsHtml || '<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.no-todo-drafts") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now-n-n", {n:s.references.length}));
     return {kind:'onboard', view:'review', step:'start', left, right,
       bar:{start:exitButton() + stepsBar('start'), center:barStatus({glyph:'check', title:todoPicked ? globalThis.t.text("workbench.context-onboarding.project-suggestion-ready-n-n", {n:picks}) : globalThis.t.text("workbench.context-onboarding.project-suggestion-ready"), caption:globalThis.t.text(todoPicked&&todoPicked.size?"workbench.context-onboarding.summary-source-snapshot-todos-checked-saved-together-project":"workbench.context-onboarding.summary-snapshot-its-sources-saved-project")}),
@@ -382,7 +387,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if (!journey && !loadError) return {kind:'onboard', view:'loading', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="loading"><div class="ob-error-page"><h1 id="ob-title" tabindex="-1">' + globalThis.t.text("workbench.context-onboarding.start-what-re-working") + '</h1><p role="status">' + globalThis.t.text("workbench.context-onboarding.checking-available-sources") + '</p></div></div></div>', bar:{start:exitButton(), center:'', end:''}};
     if (!journey) return {kind:'onboard', view:'error', step:'', html:'<div class="stage-single"><div class="stage-sheet" data-ob-view="error"><div class="ob-error-page">' + empty({icon:'circle-alert', title:globalThis.t.text("workbench.context-onboarding.onboarding-can-t-open-right-now"), body:failureText(loadError), action:btn({variant:'secondary', size:'md', label:globalThis.t.text("workbench.context-onboarding.reload"), attrs:{'data-action':'reload'}})}) + '</div></div></div>', bar:{start:exitButton(), center:'', end:''}};
     if (journey.take_result?.not_taken) return takeNotTaken();
-    if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'sources', left:question(globalThis.t.text("workbench.context-onboarding.continue-work"), journey.error), right:'<div class="ob-preview">' + empty({icon:'folder', title:globalThis.t.text("workbench.context-onboarding.materials-need-be-chosen-again"), body:globalThis.t.text("workbench.context-onboarding.last-time-s-materials-can-t-be-reused")}) + '</div>', bar:{start:exitButton() + stepsBar('sources'), center:'', end:primary("workbench.context-onboarding.choose-materials-again",'new-journey')}};
+    if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'sources', left:question(globalThis.t.text("workbench.context-onboarding.continue-work"), journey.error) + (error ? errorLine(error) : ''), right:'<div class="ob-preview">' + empty({icon:'folder', title:globalThis.t.text("workbench.context-onboarding.materials-need-be-chosen-again"), body:globalThis.t.text("workbench.context-onboarding.last-time-s-materials-can-t-be-reused")}) + '</div>', bar:{start:exitButton() + stepsBar('sources'), center:'', end:primary("workbench.context-onboarding.choose-materials-again",'new-journey')}};
     if (journey.adoption) return savingProject();
     if (blank) return blankForm();
     const modelApi = globalThis.molisWorkOnboardingModel;
@@ -419,6 +424,8 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const model = view(), moved = lastView !== null && model.view !== lastView, index = stepIndex(model.step), wasOpening = lastView === 'opening';
     frame.dataset.screen = model.kind;
     if (model.view === 'opening' && wasOpening) { paintBar(model.bar, false); return; }
+    // A welcome question on screen is not drawn again (start-up can end after it was answered): redrawing would take the person's place and focus.
+    if (model.kind === 'welcome' && model.view === lastView && !focus && !part) { paintBar(model.bar, false); return; }
     const forward = index >= lastIndex;
     const paint = () => {
       if (token !== paintGeneration) return;
@@ -451,7 +458,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   globalThis.molisWorkOnboardingDraw = { readText, esc, btn, choice, question, note, stageHead, stepsBar, exitButton, primary, secondary, barStatus };
   globalThis.molisWorkOnboardingModelHost = {
     render,
-    reload: async () => { try { config = await api('/api/onboarding/context'); } catch { /* the file step keeps the model line it had */ } },
+    reload: async () => { try { config = await readConfig(); } catch { /* the file step keeps the model line it had */ } },
     modelLabel: () => config.model || '',
     scopeDeltaHtml: () => scopeDeltaCard(),
     staleSummaryHtml: () => staleSummaryCard(),
@@ -509,7 +516,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   function save() {
     clearTimeout(inputTimer);
     const id=journey.id, sources=journey.sources.map(({references,issues,error,skipped,held_secrets,reused_references,reading,...s})=>JSON.parse(JSON.stringify(s))),autoStart=journey.auto_start===true,previewed=journey.previewed===true;
-    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api('/api/onboarding/context/'+id+'/selection',{sources,auto_start:autoStart,previewed});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
+    const next=saveQueue.catch(()=>{}).then(async()=>{const saved=await api(contextPath+'/'+id+'/selection',{sources,auto_start:autoStart,previewed});if(journey&&journey.id===id){journey.scope_delta=saved.scope_delta;journey.stale_summary=saved.stale_summary;journey.summary=saved.summary;for(const ss of saved.sources){const cur=source(ss.kind);if(cur){cur.references=ss.references;cur.reused_references=ss.reused_references;cur.held_secrets=ss.held_secrets;cur.staged_digests=ss.staged_digests;}}}return saved;});
     saveQueue=next; return next;
   }
   function preserveEdits() {
@@ -541,7 +548,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     try {
       const latest=await api(endpoint());
       if(latest.oauth_status==='pending'){authTimer=setTimeout(pollAuthorization,1800);return;}
-      journey=latest;config=await api('/api/onboarding/context');
+      journey=latest;config=await readConfig();
       if(latest.oauth_status==='connected'){error='';if(journey.auto_start&&journey.phase==='selecting')await prepare();else if(journey.phase==='reading'||journey.phase==='adopting')await poll();}
       else error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-try-again-use");
       render();
@@ -602,16 +609,17 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const oldId=journey?.id, previous=journey?.sources || [];
     if(oldId)await clearJourneyUploads(oldId);
     uploads.clear();pausedScan=null;
-    journey=await api('/api/onboarding/context',{id:crypto.randomUUID()});
+    journey=await api(contextPath,{id:crypto.randomUUID(),project_id:project||undefined});
+    if(journey.existing)journey=await api(endpoint());
     journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
-    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();render();
+    const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';todoPicked=null;await save();
   }
   async function reopen() {
     await saveQueue;journey=await api(endpoint('reopen'),{});journey.previewed=false;blank=false;error='';editing=false;todoPicked=null;render();
   }
   function saveDraft() {
     const id=journey.id, draft={title:journey.summary.title,body:journey.summary.body};
-    const next=saveQueue.catch(()=>{}).then(()=>api('/api/onboarding/context/'+id+'/draft',draft));saveQueue=next;return next;
+    const next=saveQueue.catch(()=>{}).then(()=>api(contextPath+'/'+id+'/draft',draft));saveQueue=next;return next;
   }
   async function adopt(isBlank=false) {
     preserveEdits();await saveQueue;
@@ -619,7 +627,9 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
     journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[],...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
     blank=false;
-    if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}else location.assign(projectLocation());}else{error=journey.error||globalThis.t.text("workbench.context-onboarding.saving-didn-t-finish-try-again");render();}
+    if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}
+      else if(sessionsNext())location.assign(route('/onboarding?project='+encodeURIComponent(journey.project_id)+'&sessions=1'));
+      else location.assign(projectLocation());}else{error=journey.error||globalThis.t.text("workbench.context-onboarding.saving-didn-t-finish-try-again");render();}
   }
   /** A source taken out of the list: nothing about it stays selected, read or remembered. */
   async function removeSource(kind) {
@@ -680,6 +690,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
     if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
     if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
+    if(await sessionsAct(b))return;
     if(b.dataset.pick){
       const kind=b.dataset.pick, s=source(kind);
       busy=true; error=''; render();
@@ -744,7 +755,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(action==='take-continue'){location.assign(projectLocation());return;}
     busy=true;error='';b.disabled=true;
     try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
-    catch(err){error=keepFailure(err);}finally{busy=false;render();}
+    catch(err){error=keepFailure(err);}finally{busy=false;b.disabled=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
   document.addEventListener('keydown', e => {
@@ -765,7 +776,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   let otherTabs = null;
   try { otherTabs = new BroadcastChannel('molis-work:model-ready'); } catch (unavailable) { otherTabs = null; }
   if (otherTabs) otherTabs.onmessage = () => {
-    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
+    readConfig().then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
 
   /* ───────── Start ───────── */
@@ -774,13 +785,14 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     const cold = (() => { try { if (sessionStorage.getItem('molis-work:arrived')) return false; sessionStorage.setItem('molis-work:arrived', '1'); return true; } catch { return true; } })();
     const mark = document.querySelector('.arrival-titlebar [data-wordmark]');
     if (introStep !== 'opening') { if (cold) arrival.typeWordmark(mark, {pace:'quick', delay:250}); else arrival.settleWordmark(mark); }
-    config=await api('/api/onboarding/context');await refreshGrants();
-    const url=new URL(location.href), id=url.searchParams.get('journey');
-    if(id)journey=await api('/api/onboarding/context/'+encodeURIComponent(id));else await restart();
+    config=await readConfig();await refreshGrants();
+    const id=params.get('journey');
+    if(id)journey=await api(contextPath+'/'+encodeURIComponent(id)+projectQuery);else await restart();
     if(journey.phase==='selecting'){journey.sources=kinds.map(kind=>journey.sources.find(s=>s.kind===kind)||({kind,selected:false,days:30}));await restoreUploadFiles();}
+    await refreshSessions();if(journey.phase==='selecting'&&journey.existing&&params.get('sessions')==='1'){expanded='sessions';await useSessions();}
     if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
-    if(url.searchParams.get('start')==='blank'||url.searchParams.get('name')){blank=true;blankName=(url.searchParams.get('name')||'').trim();}
-    const oauth=url.searchParams.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
+    if(params.get('start')==='blank'||params.get('name')){blank=true;blankName=(params.get('name')||'').trim();}
+    const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
     render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)authTimer=setTimeout(pollAuthorization,1000);if(journey.phase==='complete'){if(journey.take_result?.not_taken){takeNotice=journey.take_result.not_taken;render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
   }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();

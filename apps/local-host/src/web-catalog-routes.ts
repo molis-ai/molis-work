@@ -12,6 +12,7 @@ import { pagePluginDirectory } from "./plugin-directory.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { runningHomePluginText } from "./running-plugin-text.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
+import { handleWebSearchSettingsHttp } from "./web-search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleObservationShellHttp } from "./observation-shell-entry.js";
 import { handleObservationHttp } from "./observation-http.js";
@@ -40,6 +41,7 @@ import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { dispatchWebRoutes, type WebRoute } from "./web-route-table.js";
 import { handlePluginSettingsPage, handleSettingsPage } from "./web-catalog-settings.js";
+import { handleBlueprintHttp } from "./blueprint-http.js";
 import type { SetProjectPluginFromWeb } from "./web-project-settings.js";
 
 /** What every catalog request carries: the request, and the Host's parts a page of the catalog (no project open) is built from. */
@@ -98,7 +100,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     return arrivalHttp(request, response, url, serverOptions.homeDirectory);
   } },
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
-  { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
+  { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url,
+    signal => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
   { id: "sessions", handle: ({ request, response, url, localHost }) => handleSessionsHttp(request, response, url, (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal }), false) },
   // Outside a project the unified input lists the Home sources only (S-composer-source-call).
   { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
@@ -113,6 +116,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) },
+  { id: "blueprints", handle: ({ request, response, url, serverOptions, localHost, controlToken, composition }) =>
+    handleBlueprintHttp(request, response, url, localHost, controlToken, composition, undefined, serverOptions.assertAccountCurrent) },
   { id: "onboarding", handle: ({ request, response, url, serverOptions, projects, localHost, controlToken, composition }) => composition.handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken) },
   { id: "desktop-capsule", handle: ({ request, response, url, projects, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/desktop/capsule")) return false;
@@ -133,6 +138,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "connector-connections", handle: async ({ request, response, url, serverOptions, localHost, composition }) =>
     await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, homeActions(localHost))
       || await handlePluginSlotsHttp(request, response, url, localHost, settingsProjectReference(composition.projectSettings, serverOptions.homeDirectory)) },
+  { id: "web-search-settings", handle: ({ request, response, url, localHost, serverOptions }) => handleWebSearchSettingsHttp(request, response, url, localHost, serverOptions.assertAccountCurrent) },
   { id: "connector-methods", handle: ({ request, response, url, serverOptions, localHost }) => handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost) },
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog, serverOptions.assertAccountCurrent) },

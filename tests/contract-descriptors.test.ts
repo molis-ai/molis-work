@@ -8,24 +8,15 @@ import { servicesHomeContract } from "@molis-ai/molis-work-contracts/services/ho
 import { servicesSessionsContract } from "@molis-ai/molis-work-contracts/services/sessions";
 import { servicesSurfaceCompositionContract } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
-// The contracts whose provider is a later batch (scene/page, scenes, Sessions). Each says so in its descriptor, so a reader
-// (and the interface) can tell a declared contract from a running service; and the scene owner's refusals are declared once, because
-// callers and the future system.blueprints provider have to tell them apart (specs/scene-and-page-contract/spec.md, error model).
-
-const later: ReadonlyArray<[string, ContractDescriptor]> = [
-  ["services/home", servicesHomeContract],
-  ["services/blueprints", servicesBlueprintsContract],
-];
+const later: ReadonlyArray<[string, ContractDescriptor]> = [["services/home", servicesHomeContract]];
 const root = join(import.meta.dirname, "..");
 
-// Batch 15 implemented the composition service (`system.surfaces` in horizontal/surfaces) and Batch 34 implemented external session history (`system.sessions` in horizontal/sessions): both contracts are partial, not contract-only.
-test("the composition contract says its provider runs now, and names an SSOT that exists", () => {
-  assert.equal(servicesSurfaceCompositionContract.kind, "service");
-  assert.equal(servicesSurfaceCompositionContract.maturity, "partial");
-  assert.ok(existsSync(join(root, servicesSurfaceCompositionContract.ssot)));
-  assert.equal(servicesSessionsContract.kind, "service");
-  assert.equal(servicesSessionsContract.maturity, "partial");
-  assert.ok(existsSync(join(root, servicesSessionsContract.ssot)));
+test("composition, external sessions and scene adoption identify their running providers and SSOT", () => {
+  for (const contract of [servicesSurfaceCompositionContract, servicesSessionsContract, servicesBlueprintsContract]) {
+    assert.equal(contract.kind, "service");
+    assert.equal(contract.maturity, "partial");
+    assert.ok(existsSync(join(root, contract.ssot)), contract.ssot);
+  }
 });
 
 test("the contract-first services say so in their descriptor, and each names an SSOT that exists", () => {

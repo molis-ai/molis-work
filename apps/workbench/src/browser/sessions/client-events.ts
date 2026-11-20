@@ -28,6 +28,8 @@ export interface SessionsSurfaceMutable {
 
 export interface SessionsClientActions {
   loadList(withSuggest?: boolean): Promise<void>;
+  loadPage(page: "next" | "previous"): Promise<void>;
+  searchTool(): Promise<void>;
   paintList(): void;
   openSession(sessionKey: string, query?: string): Promise<void>;
   clearDetail(): void;
@@ -40,20 +42,9 @@ export interface SessionsClientActions {
   toast(msg: string, isError?: boolean): void;
 }
 
-function triggerDroidSearch(ctx: SessionsSurfaceMutable, act: SessionsClientActions): void {
-  const src = ctx.sources.find((s) => s.entry_id === ctx.toolFilter && s.location_key);
-  const q = ctx.searchQuery.trim();
-  if (!src?.location_key || !q) return;
-  void sessionsApi.toolSearch({ entry_id: src.entry_id, location_key: src.location_key, query: q }).then((res) => {
-    ctx.droidRows = res.sessions;
-    ctx.droidHint.textContent = res.skipped_count > 0
-      ? uiText.text("workbench.sessions.droid-skipped", { count: res.skipped_count })
-      : uiText.text("workbench.sessions.droid-matched", { count: res.sessions.length });
-    act.paintList();
-  });
-}
-
 function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActions, target: HTMLElement): void {
+  const page = target.closest<HTMLElement>("[data-sessions-page]")?.dataset.sessionsPage;
+  if (page === "next" || page === "previous") { void act.loadPage(page); return; }
   const viewBtn = target.closest<HTMLElement>("[data-sessions-view]");
   if (viewBtn?.dataset.sessionsView) {
     ctx.view = viewBtn.dataset.sessionsView as SessionsViewMode;
@@ -65,7 +56,7 @@ function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActi
     void sessionsApi.discoveryRun({}).then(() => { act.kickPoller(); return act.loadList(); });
     return;
   }
-  if (target.closest("[data-sessions-droid-run]")) { triggerDroidSearch(ctx, act); return; }
+  if (target.closest("[data-sessions-droid-run]")) { void act.searchTool(); return; }
   const fileBtn = target.closest<HTMLElement>("[data-unfiled-file]");
   if (fileBtn?.dataset.unfiledFile) {
     const key = fileBtn.dataset.unfiledFile;
@@ -83,7 +74,7 @@ function handleSurfaceClick(ctx: SessionsSurfaceMutable, act: SessionsClientActi
   }
   const rowBtn = target.closest<HTMLElement>("[data-session-key]");
   if (rowBtn?.dataset.sessionKey) { void act.openSession(rowBtn.dataset.sessionKey); return; }
-  if (target.closest("[data-sessions-back]")) { ctx.root.dataset.expanded = "false"; return; }
+  if (target.closest("[data-sessions-back]")) { act.clearDetail(); return; }
   handleDetailClick(ctx, act, target);
 }
 
@@ -142,7 +133,7 @@ export function bindSessionsClientEvents(ctx: SessionsSurfaceMutable, act: Sessi
     }
     if (event.key === "Enter" && target === ctx.searchInput && !ctx.root.querySelector<HTMLElement>("[data-sessions-droid-bar]")?.hidden) {
       event.preventDefault();
-      triggerDroidSearch(ctx, act);
+      void act.searchTool();
       return;
     }
     const tabBtn = target.closest<HTMLButtonElement>("[data-sessions-view]");
@@ -158,8 +149,8 @@ export function bindSessionsClientEvents(ctx: SessionsSurfaceMutable, act: Sessi
 
   ctx.searchInput.addEventListener("input", () => {
     ctx.searchQuery = ctx.searchInput.value;
-    if (!ctx.searchQuery.trim()) ctx.droidRows = null;
-    act.paintList();
+    ctx.droidRows = null;
+    void act.loadList();
   });
 
   ctx.attrDialog.querySelector("[data-sessions-attr-cancel]")?.addEventListener("click", () => ctx.attrDialog.close());

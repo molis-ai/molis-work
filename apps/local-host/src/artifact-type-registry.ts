@@ -1,4 +1,5 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { ArtifactConsumerType } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -146,13 +147,16 @@ export function artifactProducerSources(): readonly ArtifactProducerSource[] {
   ];
 }
 
-/** For each 成果 type, the plugins that declare they can continue from it. */
-export function artifactContinuers(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ReadonlyMap<string, readonly ArtifactContinuer[]> {
-  const continuers = new Map<string, ArtifactContinuer[]>();
+/** The plugins that can continue from this exact type and schema. */
+export function artifactContinuers(version: ArtifactConsumerType, sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ArtifactContinuer[] {
+  const continuers: ArtifactContinuer[] = [];
   for (const source of sources) for (const type of [...source.artifacts.produces, ...source.artifacts.consumes]) {
+    if (type.artifact_type_id !== version.artifact_type_id || type.schema_version !== version.schema_version) continue;
     const declared = type.continue, action = declared ? source.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
+    if (!action) continue;
     const file = "file" in type ? type.file : undefined;
-    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: source.plugin_id, plugin_title: source.name, action, ...(file ? { file } : {}) }]);
+    continuers.push({ plugin_id: source.plugin_id, plugin_title: source.name, action, ...(file ? { file } : {}) });
+    break;
   }
   return continuers;
 }

@@ -55,11 +55,11 @@ test("context distinguishes local satisfaction, historical parent coverage and c
   assert.match(coverage, /部分覆盖/);
   assert.match(coverage, /历史父子 Contract 覆盖/);
   const progress = renderer.renderChildProgress(parent, model);
-  assert.match(progress, /已完成 1 \/ 1 个子 Goal/);
-  assert.match(progress, /子 Goal 完成不会自动完成父 Goal/);
+  assert.match(progress, /已完成 1 \/ 1 个子目标/);
+  assert.match(progress, /子目标全部做完后仍需确认收尾上级目标/);
   assert.match(progress, /href="\/goals\/child"/);
   const childHtml = renderer.renderContractCoverage(child, model);
-  assert.match(childHtml, /不自动等于父 Goal 已经完成/);
+  assert.match(childHtml, /不代表上级目标已经全部做完/);
   assert.match(childHtml, /Full product · 尚有缺口/);
   parent.goal.decomposition_review = null;
   assert.match(renderer.renderContractCoverage(parent, model), /未记录父子 Contract 覆盖（历史数据）/);

@@ -1,4 +1,4 @@
-import { AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
+import { AUTOMATION_OFFERS_FILE, AUTOMATION_OFFERS_PATH, AUTOMATION_PREFERENCES_PATH, AUTOMATION_PREFERENCES_FILE } from "@molis-ai/molis-work-service-automation-recommender";
 import { basename, dirname, join, relative } from "node:path";
 import { readdirSync } from "node:fs";
 import { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH, UI_LOCALE_FILE } from "@molis-ai/molis-work-service-appearance";
@@ -13,18 +13,18 @@ import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
 import { COMPUTER_SETTINGS_FILE } from "./computer/computer-settings.js";
 import { MCP_TOOL_PREFERENCE_FILE } from "./mcp-settings-store.js";
+import { sandboxModelDeclaration } from "./sandbox-model-settings.js";
+import { isSandboxOwnerSegment } from "./plugin-sandbox-owner-files.js";
 import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
-import { artifactRowLibraryDeclarations } from "./artifact-row-library-declarations.js";
-import { assertArtifactDatabaseFiles } from "./artifact-row-storage-policy.js";
+import { assertSqliteDatabaseFiles } from "@molis-ai/molis-work-storage";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
-import { builtinPluginByProjectKey, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { isGoalsApprovalSource } from "./goal-callers.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
@@ -37,8 +37,7 @@ const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects
 export function projectDatabases(home: string, space?: StorageSpace): readonly string[] {
   const file = join(home, CATALOG);
   if (!entryAt(file)) return [];
-  const guarded = artifactRowLibraryDeclarations().length > 0;
-  if (guarded) assertArtifactDatabaseFiles(file);
+  assertSqliteDatabaseFiles(file);
   const paths = readUpgradeStore(file, db => {
     if (CATALOG_VERSION_ACCESS.read(db) > CATALOG_BASELINE.version) return [];
     assertCatalogOwner(catalogOwner(db), file);
@@ -47,7 +46,7 @@ export function projectDatabases(home: string, space?: StorageSpace): readonly s
     }
     return listProjectDatabasePaths(db, join(home, "projects"));
   });
-  if (guarded) for (const path of paths) assertArtifactDatabaseFiles(path);
+  for (const path of paths) assertSqliteDatabaseFiles(path);
   return paths.map(path => relative(home, path));
 }
 
@@ -121,8 +120,7 @@ export function pluginTablesDescriptor(manifest: PluginManifest, library: Plugin
     tables: {
       version: declaration.version,
       read: file => readUpgradeStore(file, db => (USER_VERSION_ACCESS.read(db) > library.version ? undefined : pluginProjectTablesVersion(db, manifest.plugin_id))),
-      problem: found => manifest.plugin_id === builtinPluginByProjectKey("goals")?.manifest.plugin_id && isGoalsApprovalSource(found)
-        ? undefined : upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
+      problem: found => upgradeStepsProblem({ version: declaration.version, schema: declaration.schema, upgrades: declaration.upgrades ?? [] }, found),
       upgrade: file => {
         const db = openSqliteConnection(file);
         try {
@@ -143,9 +141,19 @@ function computerRecords(home: string): readonly string[] {
   return readdirSync(join(home, records)).filter(name => COMPUTER_RECORD_ID.test(name)).sort().map(name => join(records, name, "record.json"));
 }
 
+/** The Host owns this reserved path, even for disabled installations or uninstalls which kept their data. */
+function installedModelPreferences(home: string): string[] {
+  const root = join(home, "plugin-files");
+  if (!entryAt(root)?.isDirectory()) return [];
+  return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory() && isSandboxOwnerSegment(entry.name))
+    .map(entry => sandboxModelDeclaration(entry.name).preference)
+    .map(({ store_name, file_name }) => join(store_name, file_name)).sort();
+}
+const installedPreference = sandboxModelDeclaration("*").preference;
 /** The JSON files of §2.6. `config/installation.json` and `release.json` are not here: the installer upgrades them when it reads them. */
 const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_PREFERENCES_PATH, file: AUTOMATION_PREFERENCES_FILE },
+  { owner: "horizontal/automation-recommender", block: { kind: "projects" }, pattern: AUTOMATION_OFFERS_PATH, file: AUTOMATION_OFFERS_FILE },
   { owner: "horizontal/appearance", block: { kind: "setting", page: "appearance" }, pattern: APPEARANCE_STATE_PATH, file: APPEARANCE_STATE_FILE },
   { owner: "apps/local-host", block: { kind: "setting", page: "access" }, pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", block: HOME_BLOCK, pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
@@ -156,6 +164,8 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", block: { kind: "setting", page: "assistant" }, pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },
   { owner: "modules/shelf", block: { kind: "shelf" }, pattern: join("shelf", "catalog.json"), file: SHELF_CATALOG_FILE },
   { owner: "packages/storage", block: HOME_BLOCK, pattern: join("feed", "secrets.json"), file: SECRET_STORE_FILE },
+  { owner: "apps/local-host", block: { kind: "setting", page: "models" }, pattern: join(installedPreference.store_name, installedPreference.file_name),
+    file: MODEL_PREFERENCE_FILE, paths: installedModelPreferences },
   ...platformModelPreferences().map(({ owner, path }) => ({ owner, block: { kind: "plugin", plugin_id: owner } as const, pattern: path, file: MODEL_PREFERENCE_FILE })),
 ];
 

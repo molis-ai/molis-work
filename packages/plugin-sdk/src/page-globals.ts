@@ -185,13 +185,27 @@ export interface ComposerCommonOptions {
   /** This page's own `/` commands. */
   commands?: readonly ComposerCommand[];
   /**
+   * How the `/` menu groups them (Coding A2): `groups` in order, each command under the one its `group` names, the page's commands with
+   * none first; a group with no command says its `empty` line while nothing is typed after `/`. `note` closes the menu.
+   */
+  commandMenu?: ComposerCommandMenu;
+  /**
+   * The command the next send is made from (Coding A2), drawn as a chip at the start of the box: what is typed after it is its argument.
+   * `prompt` is the whole prompt that will be sent, drawn folded under the box; `remove` takes the command off. Null draws none.
+   */
+  chip?: () => ComposerChip | null;
+  /**
    * What `@` names in this page's own text (Coding: a workspace's files and their definitions), in place of the system search: the
    * words after `@` (no space, at most 200 characters) are looked up after a pause, and choosing one puts its `insert` in their place.
    * A rejection's message is said in the menu. The page's own references: no other plugin reaches them.
    */
   mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
-  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
-  /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
+  /**
+   * Files the person brings. With `pictures` the strip is one row of previews that scrolls sideways (Coding A3): `label` names the row,
+   * `open` ("打开 {name}") names a preview's button, which opens the picture in the board's dialog, and `close` names its close.
+   */
+  attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>; pictures?: { label: string; open: string; close: string } };
+  /** Called after what the strip carries (`ComposerHandle.materials()`) or its files (`files()`) changed, for a page that names it elsewhere too. */
   onMaterials?(): void;
   /** Whether the registered sources are listed in `+`; by default when `kind` is `ai`. */
   sources?: boolean;
@@ -206,8 +220,12 @@ export interface ComposerCommonOptions {
   required?: () => string | null;
   /** A line above the box saying what holds for the next send (a read-only mode, say), with at most one way out; null draws none. Never stops a send: that is `required`. */
   notice?: () => ComposerNotice | null;
-  /** `signal` aborts when the instance is mounted again or let go; late outcomes settle only the original draft and sent selections. */
-  submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+  /**
+   * `signal` aborts when the instance is mounted again or let go. If the reply was lost but the target later proves receipt,
+   * call `acknowledge`: it settles this invocation's original draft/selections only. A newer submission supersedes it,
+   * even when it reuses request_id. This is a success notification, not permission to resend or an unknown-outcome check.
+   */
+  submit(input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void): Promise<ComposerOutcome>;
 }
 
 /** A draft its owner already keeps (the Assistant per work, Coding per session); the composer keeps no second persistent copy. Reuse the adapter object for the same draft within this document to retain its selected attachments. */
@@ -237,7 +255,21 @@ export type ComposerControl =
  * is for what goes with the next send: it is offered under `/` only (switching the way of working, opening a panel). `icon` leads its
  * row, as a source's does.
  */
-export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false; run(): void }
+export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false;
+  /** The `commandMenu` group it is listed under. */
+  group?: string;
+  /** A short warning beside it (「读不了」); its `hint` says why. It is still listed, and choosing it still runs. */
+  warning?: string;
+  run(): void }
+
+/** The `/` menu's groups and closing line (`commandMenu`). */
+export interface ComposerCommandMenu { groups?: readonly { label: string; empty?: string }[]; note?: string }
+
+/**
+ * The command chip at the start of the box (`chip`): its `/name`, where it is from, how to take it off, and the prompt it makes.
+ * `name` is without its slash; `source` is where it is from, in the reader's words; `remove.label` names the command (「去掉 /补测试」).
+ */
+export interface ComposerChip { name: string; source: string; remove: { label: string; run(): void }; prompt?: { label: string; text: string } }
 
 /** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
 export interface ComposerMention { title: string; hint?: string; insert: string }
@@ -247,7 +279,9 @@ export interface ComposerMention { title: string; hint?: string; insert: string 
  * `readonly`: the next send changes nothing, and the box's outline takes the read-only colour; `info`: a plain line. The text is the
  * page's own words; the platform escapes it.
  */
-export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void } }
+export interface ComposerNotice { text: string; tone: "readonly" | "info"; icon?: PluginIconName; action?: { label: string; run(): void };
+  /** A lesser second way out beside `action` (「不带图发」 beside 「换成能看图的模型」), drawn quieter after it; only with an `action`. */
+  also?: { label: string; run(): void } }
 /** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
 export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
 
@@ -255,7 +289,7 @@ export interface ComposerPause { label: string; title: string; busy?: boolean; r
  * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
  * ×); an upload that rejects could not be read this time, and its row offers 重试 beside × (VUX-18).
  */
-export type ComposerAttachmentState = { state: "attached"; ref: string; title: string } | { state: "failed"; reason: string };
+export type ComposerAttachmentState = { state: "attached"; ref: string; title: string; /** Its size and state in a few words, shown under it (「240 KB · 已存一份」). */ meta?: string } | { state: "failed"; reason: string };
 
 export interface ComposerSubmission {
   text: string;
@@ -277,26 +311,43 @@ export interface ComposerSubmission {
  * `unknown`: the page cannot tell yet whether it went; `check` asks the target. A failure may name the materials the target could
  * not read (by their place in `materials`): the strip says why beside each, they stay, and the next send waits until the person
  * removes them (never sent without them unasked).
+ * `feedback: "page"` means the calling page already shows this failure and its recovery actions. The input keeps the unsent
+ * draft and materials, including unreadable rows, but does not repeat the error or offer a generic retry. Never use it for an
+ * unknown outcome or a failure the page has not explained.
  */
 export type ComposerOutcome =
   | { state: "sent"; receipt?: AgentSteerReceipt }
-  | { state: "failed"; message: string; unreadable?: readonly { index: number; reason: string }[] }
+  | { state: "failed"; message: string; feedback?: "page"; unreadable?: readonly { index: number; reason: string }[] }
   | { state: "unknown"; check(): Promise<"sent" | "not-sent" | "unknown"> };
+
+/** What the page can tell of a file on the strip; a `File` is one. Across a frame it is these, not the file. */
+export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModified">;
 
 export interface ComposerHandle {
   /** Wait for this input program to mount. A load failure rejects; another call retries. Closed or inactive mounts reject. Draft reads settle separately. */
   ready(): Promise<void>;
-  setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  setRunning(running: boolean): void; focus(): void; insert(text: string): void;
+  /**
+   * Draws the page's options again. By default the bar's start too (its controls and commands; a `/` menu being typed in is drawn
+   * again with it); `"lines"` only the lines read on every draw — the notice, the status line and the command chip with its prompt —
+   * so a menu that is open stays as it is (the chip's prompt following what is typed).
+   */
+  refresh(what?: "lines"): void;
   /**
    * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the
    * text, ＋, the controls and send wait, and the status line says `reason`; null lets go. A send already on its way is the composer's
    * own state, not a hold.
    */
   hold(reason: string | null): void;
-  /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
-  attach(files: readonly File[]): void;
-  /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */
+  /**
+   * Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`.
+   * Rows for the files in `replacing` go first: a picture the page shrank takes the place of the one that was too large.
+   */
+  attach(files: readonly File[], replacing?: readonly ComposerFileFact[]): void;
+  /** Read rows in strip order; none until loaded. A framed receiver sees only its own attachments here: parent source references arrive in submit after the person sends. */
   materials(): readonly ComposerMaterial[];
+  /** The files on the strip now, read or not (a row the page refused included): a note about one goes once its row is gone. */
+  files(): readonly ComposerFileFact[];
   destroy(): void;
 }
 
@@ -304,6 +355,8 @@ declare global {
   interface Window {
     /** `window.molisComposer(root, options)`: the unified input in `root`; mounting the same root again lets the last one go first. */
     molisComposer?: (root: HTMLElement, options: ComposerOptions) => ComposerHandle;
+    /** `window.molisPicture(opener, picture)`: one picture larger in the board's dialog, named by its title; closing it gives focus back to `opener`. */
+    molisPicture?: (opener: HTMLElement, picture: { src: string; title: string; close?: string }) => void;
     /** `window.molisMediaZoom(viewport, image, options)`: zoom about the point looked at, and bounded panning, for one image. */
     molisMediaZoom?: (viewport: HTMLElement, image: HTMLImageElement, options?: MediaZoomOptions) => MediaZoom;
     /** `window.molisDropZone(zone, mark, accepts, reason)`: `mark(true)` while a drag `accepts` takes (files, unless said) is over the

@@ -144,6 +144,7 @@
     "@molis-ai/molis-work-service-agent-host": "workspace:*",
     "@molis-ai/molis-work-service-appearance": "workspace:*",
     "@molis-ai/molis-work-service-automation-recommender": "workspace:*",
+    "@molis-ai/molis-work-service-blueprints": "workspace:*",
     "@molis-ai/molis-work-service-connector-host": "workspace:*",
     "@molis-ai/molis-work-service-evaluation": "workspace:*",
     "@molis-ai/molis-work-service-kit": "workspace:*",

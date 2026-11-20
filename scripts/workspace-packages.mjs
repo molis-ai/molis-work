@@ -209,6 +209,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-agent-host",
       "@molis-ai/molis-work-service-appearance",
       "@molis-ai/molis-work-service-automation-recommender",
+      "@molis-ai/molis-work-service-blueprints",
       "@molis-ai/molis-work-service-connector-host",
       "@molis-ai/molis-work-service-runtime-host",
       "@molis-ai/molis-work-service-scheduler",
@@ -428,7 +429,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ],
     extraDependencies: {
-      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz"
+      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz"
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
@@ -467,6 +468,10 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-storage"
     ]
   }),
+  entry("horizontal/blueprints", "@molis-ai/molis-work-contracts/services/blueprints", {
+    maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk", "@molis-ai/molis-work-storage"],
+  }),
   entry("horizontal/project-approvals", "@molis-ai/molis-work-contracts/services/project-approvals", {
     maturity: "slice",
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk", "@molis-ai/molis-work-storage"],
@@ -485,6 +490,7 @@ export const WORKSPACE_PACKAGES = [
     ]
   }),
   entry("horizontal/memory", "@molis-ai/molis-work-contracts/services/memory", {
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     maturity: "production",
     capabilities: [
       "memory.recall.v1",
@@ -604,25 +610,8 @@ export const WORKSPACE_PACKAGES = [
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
   }),
-  entry("plugins/official-integrations/web-query", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "experimental",
-    capabilities: [
-      "connector.web-query.v1",
-      "signal-adapter.web-query.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
-    ]
-  }),
   entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "production",
-    capabilities: [
-      "connector.youtube.v1",
-      "signal-adapter.youtube.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
-    ]
+    maturity: "production"
   }),
   entry("tooling/plugin-cli", "@molis-ai/molis-work-contracts/platform/tooling", {
     maturity: "production",

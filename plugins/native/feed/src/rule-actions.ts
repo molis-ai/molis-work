@@ -1,6 +1,6 @@
 import { objectSchema, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { feedCaptureContent } from "./scenes.js";
-import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedOutRuleRecord } from "./projection.js";
 import type { FeedHydrate } from "./item-hydration.js";
@@ -58,7 +58,6 @@ export interface FeedRuleJudgmentSelection {
 export type FeedRuleCommit = <T>(caller: ActionExecutionContext, body: () => T) => Promise<T>;
 
 export function createFeedRuleHandlers(feed: FeedApplication, projectId: string, hydrate: FeedHydrate, judgments?: FeedRuleJudgmentSelection, commit?: FeedRuleCommit): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
   const select = async (next: FeedOutRuleRecord, patch: Partial<FeedOutRuleWrite>, caller: ActionCallContext, current?: FeedOutRuleRecord) => {
     const changed = "judgment" in patch;
     if (next.enabled && next.admission === "inbox" && (!current || changed || "match" in patch || "admission" in patch || patch.enabled === true)

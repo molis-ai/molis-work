@@ -1,6 +1,7 @@
+import { clearResultSelection, currentResult, selectResult, type DiffResult, type ResultSelection } from "./result-selection.js";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { active, diffState, request, reveal, sayRefusal, showReviews } from "./page.js";
+import { diffState, request, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults } from "./results.js";
 import type { DiffAnswer, HtmlAnswer, Selected } from "./types.js";
@@ -18,15 +19,14 @@ function title(page: GitPage, item: Selected): void {
 }
 
 /** Shows the diff that was read and kept, with the action that stages or unstages it. */
-export async function fixed(page: GitPage, item: Selected, serial: number, epoch: number): Promise<void> {
+export async function fixed(page: GitPage, item: Selected, selection: ResultSelection & DiffResult): Promise<void> {
   const { q, action, diffNotice } = page;
   const value = await diffState<HtmlAnswer>(page, item.reference);
-  if (serial !== page.ticket || !active(page, epoch)) return;
+  if (!currentResult(page, selection)) return;
   title(page, item);
   setContentHtml(q("[data-git-diff]"), value.html || "");
   diffNotice.textContent = uiText.text("git.diff.as-read", { version: item.reference.version });
-  page.resultPanel.hidden = true;
-  page.displayed = item;
+  selection.item = item;
   action.hidden = false;
   action.textContent = item.side === "index" ? uiText.text("git.diff.unstage") : uiText.text("git.diff.stage");
   await showReviews(page);
@@ -34,89 +34,91 @@ export async function fixed(page: GitPage, item: Selected, serial: number, epoch
 
 /** Opens one changed file's diff in the result panel. */
 export async function open(page: GitPage, path: string[], side: string, button: HTMLElement | null): Promise<void> {
-  const { q, result, action, diffNotice } = page;
+  const { q, result, diffNotice } = page;
   page.opener = button || page.opener;
   page.list.querySelectorAll<HTMLElement>("[data-git-path]").forEach((row) => row.classList.toggle("is-selected", row.dataset.gitPath === JSON.stringify([path, side])));
-  const serial = ++page.ticket, epoch = page.generation, id = page.workspace;
-  page.displayed = null;
-  action.hidden = true;
-  reveal(page, button || page.opener);
+  const id = page.workspace;
+  const selection = selectResult<DiffResult>(page, { kind: "diff", item: null, preparation: { phase: "ready" } }, button || page.opener);
   result.setAttribute("aria-busy", "true");
   q("[data-git-title]").textContent = path.join("/");
   q("[data-git-scope]").textContent = "";
-  q("[data-git-diff]").replaceChildren();
   diffNotice.textContent = uiText.text("git.diff.reading");
   try {
     const value = await request<DiffAnswer>(page, "/diff", "POST", { workspace_id: id, path, side });
-    if (serial !== page.ticket || !active(page, epoch)) return;
+    if (!currentResult(page, selection)) return;
     if (value.result.outcome !== "diff") { diffNotice.textContent = (value.result.message ?? ""); return; }
     page.selected = value.selected;
     page.reopen.hidden = false;
-    await fixed(page, value.selected, serial, epoch);
+    await fixed(page, value.selected, selection);
   } catch (error) {
-    if (serial === page.ticket && active(page, epoch)) diffNotice.textContent = (messageOf(error));
+    if (currentResult(page, selection)) diffNotice.textContent = (messageOf(error));
   } finally {
-    if (serial === page.ticket && active(page, epoch)) result.setAttribute("aria-busy", "false");
+    if (currentResult(page, selection)) result.setAttribute("aria-busy", "false");
   }
 }
 
 /** Asks the Host to review staging or unstaging the open file. */
 async function prepareIndex(page: GitPage): Promise<void> {
-  const { action, diffNotice } = page, item = page.displayed;
-  if (!item || page.preparing) return;
-  const epoch = page.generation;
-  page.preparing = true;
+  const { action, diffNotice } = page, selection = page.resultSelection;
+  if (selection?.kind !== "diff" || !selection.item || selection.preparation.phase === "waiting") return;
+  if (selection.preparation.phase === "review") { await displayIndexReview(page, selection); return; }
+  const item = selection.item;
+  const operationId = selection.preparation.operationId ?? crypto.randomUUID();
+  selection.preparation = { phase: "waiting", operationId };
   action.disabled = true;
   diffNotice.textContent = uiText.text("git.index.preparing");
   try {
-    await request(page, "/prepare-index", "POST", { workspace_id: item.workspace_id, path: item.path, revision: item.revision, action: item.side === "index" ? "unstage" : "stage", operation_id: crypto.randomUUID() });
-    if (!active(page, epoch)) return;
+    const answer = await request<{ review_id: string }>(page, "/prepare-index", "POST", { workspace_id: item.workspace_id, path: item.path, revision: item.revision, action: item.side === "index" ? "unstage" : "stage", operation_id: operationId });
+    if (!currentResult(page, selection)) return;
+    selection.preparation = { phase: "review", operationId, reviewId: answer.review_id };
     action.hidden = true;
     diffNotice.textContent = uiText.text("git.index.review");
-    await showReviews(page);
   } catch (error) {
-    if (active(page, epoch)) sayRefusal(page, diffNotice, error, item.workspace_id, () => { diffNotice.textContent = ""; void prepareIndex(page); });
+    selection.preparation = { phase: "ready", operationId };
+    if (currentResult(page, selection)) sayRefusal(page, diffNotice, error, item.workspace_id, () => { if (currentResult(page, selection)) { diffNotice.textContent = ""; void prepareIndex(page); } });
   } finally {
-    page.preparing = false;
-    if (page.lifetime.alive) action.disabled = false;
+    if (currentResult(page, selection)) action.disabled = false;
   }
+  if (currentResult(page, selection) && selection.preparation.phase === "review") await displayIndexReview(page, selection);
+}
+
+/** A known review only needs its presentation reread; a failed read never creates another operation. */
+async function displayIndexReview(page: GitPage, selection: ResultSelection & DiffResult): Promise<void> {
+  page.action.disabled = true;
+  try {
+    await showReviews(page);
+    if (currentResult(page, selection)) { page.action.hidden = true; page.diffNotice.textContent = uiText.text("git.index.review"); }
+  } catch (error) {
+    if (currentResult(page, selection)) {
+      page.diffNotice.textContent = messageOf(error);
+      page.action.hidden = false; page.action.textContent = uiText.text("common.control.retry");
+    }
+  } finally { if (currentResult(page, selection)) page.action.disabled = false; }
 }
 
 /** The history panel: the results of the reviews decided here, and keeping them. */
 async function openHistory(page: GitPage): Promise<void> {
   const { q, history } = page;
   if (!page.workspace || history.disabled) return;
-  const epoch = page.generation;
-  page.ticket++;
-  page.displayed = null;
-  page.action.hidden = true;
-  reveal(page, history);
+  const selection = selectResult(page, { kind: "history" }, history);
   q("[data-git-title]").textContent = uiText.text("git.history.title");
   q("[data-git-scope]").textContent = uiText.text("git.history.scope");
-  q("[data-git-diff]").replaceChildren();
-  page.diffNotice.textContent = "";
-  page.resultPanel.hidden = false;
   await showReviews(page);
-  if (active(page, epoch)) await loadResults(page);
+  if (currentResult(page, selection)) await loadResults(page);
 }
 
 /** Shows the diff the Host last kept, again. */
 async function reopenSelected(page: GitPage): Promise<void> {
   const { reopen } = page, item = page.selected;
   if (!item) return;
-  reveal(page, reopen);
-  const serial = ++page.ticket, epoch = page.generation;
-  try { await fixed(page, item, serial, epoch); }
-  catch (error) { if (serial === page.ticket && active(page, epoch)) page.diffNotice.textContent = (messageOf(error)); }
+  const selection = selectResult<DiffResult>(page, { kind: "diff", item: null, preparation: { phase: "ready" } }, reopen);
+  try { await fixed(page, item, selection); }
+  catch (error) { if (currentResult(page, selection)) page.diffNotice.textContent = (messageOf(error)); }
 }
 
 function closeResult(page: GitPage): void {
-  const { result, list, refreshButton } = page;
-  page.ticket++;
-  result.setAttribute("aria-busy", "false");
-  result.hidden = true;
-  result.classList.remove("is-arriving");
-  page.host.closeResult();
+  const { list, refreshButton } = page;
+  clearResultSelection(page);
   if (page.opener?.isConnected) page.opener.focus({ preventScroll: true });
   else (list.querySelector<HTMLElement>(".is-selected") || refreshButton).focus({ preventScroll: true });
 }

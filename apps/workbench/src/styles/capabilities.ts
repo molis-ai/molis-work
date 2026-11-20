@@ -58,39 +58,24 @@ export const CAPABILITIES_STYLES = `
   .capability-empty h2 { font-size: 15px; color: var(--ink); font-weight: 500; }
   .capability-back { display: none; }
   .capability-unavailable { padding: 12px; background: var(--rail); border-radius: 6px; }
-  .capability-history article { padding: 24px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .capability-history article { padding: 16px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .mw-settings-section__rows > .capability-history > article:last-child { border-bottom: 0; }
   .capability-history article header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
   .capability-history :is(p, time) { color: var(--muted); font-size: 12px; }
   :is(.capabilities-page, .settings-stage) :is(a, input, select, summary, button):focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   .mcp-access { margin-bottom: 32px; }
   [data-mcp-settings] .settings-heading a { color: var(--ink-soft); text-underline-offset: 3px; }
   [data-mcp-settings] .settings-heading a:hover { color: var(--ink); }
-  .mcp-access-context, .mcp-access-count { color: var(--muted); font-size: 13px; line-height: 1.6; }
-  .mcp-access-scope { padding-bottom: 12px; }
-  .mcp-access-search { padding: 16px 0; border-top: 1px solid var(--line); }
+  .mcp-access-search { margin: 0; }
   .mcp-access [hidden] { display: none !important; }
-  .mcp-access-row { display: flex; align-items: start; justify-content: space-between; gap: 24px; padding: 24px 0; border-bottom: 1px solid var(--line); }
-  .mcp-access-copy { flex: 1; min-width: 0; }
-  .mcp-access-copy h3 { margin: 0 0 8px; color: var(--ink); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
-  .mcp-access-copy p { margin: 8px 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); max-width: 70ch; overflow-wrap: anywhere; }
-  .mcp-access-origin { font-size: 12px; color: var(--muted); }
-  .mcp-access-copy .mcp-access-state { margin-top: 12px; color: var(--muted); }
-  .mcp-access-copy .mcp-access-state:is([data-status="enabled"],[data-status="public"]) { color: var(--green); }
-  .mcp-access-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: end; }
-  :is(.capabilities-page, .settings-stage) .mcp-access-actions button { min-height: 36px; white-space: nowrap; }
-  .mcp-access-row summary { padding: 12px 0; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
-  .mcp-access-row dl { margin: 0; padding: 12px; background: var(--rail); font-size: 12px; }
-  .mcp-access-row dt { color: var(--muted); margin-bottom: 4px; }
-  .mcp-access-row dd { margin: 0 0 12px; overflow-wrap: anywhere; }
-  .mcp-access-row dd:last-child { margin-bottom: 0; }
+  .mcp-access-row .mw-object-row__state { max-width: 45%; white-space: normal; overflow-wrap: anywhere; }
+  .mcp-access-row .mw-object-row__action { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+  .mcp-access-row .mw-object-row__action button { white-space: nowrap; }
   .mcp-access-feedback { color: var(--ink-soft); line-height: 1.6; overflow-wrap: anywhere; }
   .mcp-access-feedback[role="alert"] { color: var(--red); }
   @media (max-width: 760px) {
     :is(.capabilities-page, .settings-stage) .mcp-access :is(button,input) { min-height: 44px; }
-    .mcp-access-row { flex-direction: column; gap: 12px; }
-    .mcp-access-actions { align-self: end; }
     .mcp-access-row :is(summary,button) { min-height: 44px; }
-    .mcp-access .capability-filters label { flex-basis: 100%; }
 
     .functions-system-editor .feed-stage-entry :is(.plugin-stage-fact, .plugin-stage-meta) { display: none; }
     .capabilities-page .settings-shell { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr) !important; }

@@ -24,7 +24,7 @@ export function directorySection(): string {
     trailing: renderButton({ label: "任务配置", variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
   }) + renderDirectoryRow({
     title: "runtime / 本地会话",
-    caption: "本地 Runtime",
+    caption: "电脑上的 AI 工具",
     status: "可查看",
     statusTone: "idle",
     statusIcon: "ready",

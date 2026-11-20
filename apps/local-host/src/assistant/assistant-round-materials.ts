@@ -1,10 +1,10 @@
 import { choosableRoles, roleKey } from "./assistant-characters.js";
-import { format } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
-import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
 import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
@@ -12,14 +12,13 @@ import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
 import { assistantErrors } from "./assistant-errors.js";
-import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { PersonActions } from "./assistant-executor.js";
 import { landingMaterials } from "./assistant-landing.js";
-import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionMaterial, isExternalSessionObject } from "./assistant-external-sessions.js";
+import { formatExternalSessionObjectBackground, formatExternalSessionReferenceText, formatPageContextLines, formatSentMaterialBlock, isExternalSessionObject } from "./assistant-external-sessions.js";
 import { readPickedPiece } from "./assistant-send-materials.js";
 import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
-import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
+import { belongsElsewhere, whereNow, type AssistantServicePorts, type RoundMaterials } from "./assistant-service-shared.js";
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
@@ -32,24 +31,43 @@ function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
   return `skill\0${skillRefKey("skill" in method ? method.skill.ref : method.ref)}`;
 }
 
-/** Bytes per image, within what the model providers take; how many per Send is in assistant-send-materials.ts. */
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-/** How much of a material text the person gets back to look at (what a round may give the model). */
-const MATERIAL_PREVIEW_CHARS = 20_000;
-
-/** PNG, JPEG, GIF or WebP, by the bytes themselves. */
-function looksLikeImage(bytes: Buffer): boolean {
-  const head = bytes.subarray(0, 12).toString("latin1");
-  return head.startsWith("\x89PNG\r\n\x1a\n") || bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff || head.startsWith("GIF8") || head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
-}
-
 /** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
 function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: string): AgentTextMaterial[] {
   const size = 18_000;
   const parts = Math.max(1, Math.ceil(text.length / size));
   return Array.from({ length: parts }, (_, index) => ({ material_id: parts === 1 ? id : `${id}.${index + 1}`,
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
+}
+
+/**
+ * What the person chose with “/”: each body goes with this round, said as their choice. The Skills they chose are this round's named
+ * list, read together in one catalog read; role material is read from its signed installation.
+ */
+async function chooseAssistantMethods(reads: Pick<AssistantWorkReads, "readRole" | "readSkills">, work: StoredWork, materials: AssistantMaterial[]): Promise<{ chosen: AssistantMaterial[]; handoffs: MethodHandoff[]; categories: Set<string> }> {
+  const handoffs: MethodHandoff[] = [], categories = new Set<string>();
+  if (!materials.some(item => item.kind === "method")) return { chosen: [...materials], handoffs, categories };
+  // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
+  const handedOver = work.executor.kind === "plugin";
+  const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
+  const names = new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" && item.method.name ? [[skillRefKey(item.method.ref), item.method.name] as const] : []));
+  const read = refs.length ? await reads.readSkills(work, refs, names, categories) : undefined;
+  if (read) handoffs.push(read.handoff);
+  const out: AssistantMaterial[] = [];
+  for (const material of materials) {
+    const chosen = material.kind === "method" ? material.method : undefined;
+    if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
+    if (chosen.kind === "skill") {
+      const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
+      out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },
+        text: `用户为这一轮选定的方法「${skill.name}」（v${skill.ref.version}）。这一轮按它的步骤做：\n${skill.body}` });
+      continue;
+    }
+    const role = await reads.readRole(work, chosen);
+    handoffs.push(role.handoff);
+    out.push({ ...material, title: "角色资料", method: { kind: "role", method_id: role.method_id, version: role.version, name: role.name, plugin_title: role.plugin_title,
+      default_ref: role.default_ref, installation: role.installation, effective: role.effective, user_revision: role.user_revision }, text: signedRoleData(role) });
+  }
+  return { chosen: out, handoffs, categories };
 }
 
 type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readRole" | "readSkills"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
@@ -62,8 +80,9 @@ type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "re
 export class AssistantRoundMaterials {
   constructor(private readonly store: Pick<AssistantStore, "cards" | "confirmAlways" | "delegatedBy" | "get" | "relations" | "rounds" | "undos" | "unsettled">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantRoundMaterialsLinks) {}
 
-  /** Images this person brought while this runtime lives: a Send may only name one of these. */
-  readonly images = new Map<string, { revision: number; media_type: string }>();
+  chosenMethods(work: StoredWork, materials: AssistantMaterial[]) {
+    return chooseAssistantMethods(this.link, work, materials);
+  }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean,
@@ -85,7 +104,7 @@ export class AssistantRoundMaterials {
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
-    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${say.text(card.outcome).slice(0, 300)}）` : ""}`).join("\n")));
     // Changes the person took back since (the base says what follows from that).
     const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
     if (undone.length) {
@@ -268,100 +287,5 @@ export class AssistantRoundMaterials {
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
     }
     return out;
-  }
-
-  /**
-   * What the person chose with “/”: each body goes with this round, said as their choice. The Skills they chose are this round's named
-   * list, read together in one catalog read; role material is read from its signed installation.
-   */
-  async chosenMethods(work: StoredWork, materials: AssistantMaterial[], handoffs: MethodHandoff[] = []): Promise<AssistantMaterial[]> {
-    // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
-    const handedOver = work.executor.kind === "plugin";
-    const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
-    const names = new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" && item.method.name ? [[skillRefKey(item.method.ref), item.method.name] as const] : []));
-    const read = refs.length ? await this.link.readSkills(work, refs, names) : undefined;
-    if (read) handoffs.push(read.handoff);
-    const out: AssistantMaterial[] = [];
-    for (const material of materials) {
-      const chosen = material.kind === "method" ? material.method : undefined;
-      if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
-      if (chosen.kind === "skill") {
-        const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
-        out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },
-          text: `用户为这一轮选定的方法「${skill.name}」（v${skill.ref.version}）。这一轮按它的步骤做：\n${skill.body}` });
-        continue;
-      }
-      const role = await this.link.readRole(work, chosen);
-      handoffs.push(role.handoff);
-      out.push({ ...material, title: "角色资料", method: { kind: "role", method_id: role.method_id, version: role.version, name: role.name, plugin_title: role.plugin_title,
-        default_ref: role.default_ref, installation: role.installation, effective: role.effective, user_revision: role.user_revision }, text: signedRoleData(role) });
-    }
-    return out;
-  }
-
-  /**
-   * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials;
-   * a picture (PNG, JPEG, GIF, WebP) is taken in by the runtime instead, for the model to see in the round it goes with.
-   * What cannot be read says why (scanned, encrypted, damaged); nothing is guessed.
-   */
-  async readAttachment(input: { name: string; data: string }): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
-    const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
-    if (!name || typeof input.data !== "string" || !input.data) throw assistantErrors.invalid("没有收到文件");
-    const bytes = Buffer.from(input.data, "base64");
-    if (bytes.byteLength > 8 * 1024 * 1024) throw assistantErrors.invalid("文件超过 8 MB，请只带需要的部分");
-    const documents = (await this.ports.host()).adapter(RUNTIME).documents;
-    if (!documents) throw assistantErrors.unsupported("当前运行时不能读取这类文件");
-    if (looksLikeImage(bytes) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(name)) return this.takeImage(name, bytes, documents);
-    let parsed: { text: string; truncated: boolean; pages?: number };
-    try { parsed = await documents.parse({ bytes: new Uint8Array(bytes), name }); }
-    catch (error) {
-      const code = (error as { code?: string }).code ?? "";
-      throw assistantErrors.invalid(code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件、PDF 和图片" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
-    }
-    return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (parsed.pages ? `（${parsed.pages} 页${parsed.truncated ? "，只取了前面一部分" : ""}）` : ""),
-      text: parsed.text, explicit: true, ...(parsed.pages ? { pages: parsed.pages } : {}), ...(parsed.truncated ? { truncated: true } : {}) };
-  }
-
-  /** A picture the person brings: taken in by the runtime (its bytes stay there) and named by reference in the Send. */
-  private async takeImage(name: string, bytes: Buffer, documents: AgentDocumentCapability): Promise<AssistantMaterial> {
-    if (!looksLikeImage(bytes)) throw assistantErrors.invalid("只能带 PNG、JPEG、GIF 或 WebP 图片");
-    if (bytes.byteLength > MAX_IMAGE_BYTES) throw assistantErrors.invalid("图片超过 5 MB，请压缩或截取需要的部分");
-    if (!documents.intakeImage) throw assistantErrors.unsupported("当前运行时还不能接收图片");
-    let taken: Awaited<ReturnType<NonNullable<AgentDocumentCapability["intakeImage"]>>>;
-    try { taken = await documents.intakeImage({ bytes: new Uint8Array(bytes), name }); }
-    catch (error) { throw assistantErrors.invalid((error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "")); }
-    this.images.set(taken.resource.id, { revision: taken.resource.revision, media_type: taken.media_type });
-    return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
-      image: { resource_id: taken.resource.id, revision: taken.resource.revision, media_type: taken.media_type, byte_length: taken.byte_length } };
-  }
-
-  /** One material a round of this work brought, with its text (bounded), for the person to look at again. */
-  material(workId: string, materialId: string): AssistantMaterialText {
-    const work = this.store.get(this.actorId, workId);
-    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
-    if (!found) throw assistantErrors.not_found("这项工作里没有这份材料");
-    const text = typeof found.text === "string" ? found.text
-      : isExternalSessionMaterial(found) ? "（外部会话内容仅在发送当轮提供给模型，不在助理记录中留存原文）" : undefined;
-    // A page brought from the browser says where it came from on its first line.
-    const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
-    return { material_id: found.material_id, kind: found.kind, title: found.title,
-      ...(text !== undefined ? { text: text.slice(0, MATERIAL_PREVIEW_CHARS), ...(text.length > MATERIAL_PREVIEW_CHARS ? { truncated: true } : {}) } : {}),
-      ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
-  }
-
-  /** A picture a work carried, read back for the side panel; gone once the app restarted (the runtime keeps no copy). */
-  async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
-    const work = this.store.get(this.actorId, workId);
-    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
-    if (!found?.image) throw assistantErrors.not_found("这项工作里没有这张图片");
-    const gone = assistantErrors.expired("这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
-    if (!this.holdsImage(found.image)) throw gone;
-    const bytes = await (await this.ports.host()).adapter(RUNTIME).documents?.readImage?.({ id: found.image.resource_id, revision: found.image.revision });
-    if (!bytes) throw gone;
-    return { media_type: found.image.media_type, data: Buffer.from(bytes).toString("base64") };
-  }
-
-  holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
-    return this.images.get(image.resource_id)?.revision === image.revision;
   }
 }

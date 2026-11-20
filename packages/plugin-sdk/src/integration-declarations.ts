@@ -11,11 +11,11 @@ import { tryOwnedTextRef } from "./ui/text-ref.js";
 const SERVICE_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const INTEGRATION_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const DOCUMENT_SOURCE = /^[a-z][a-z0-9-]{0,63}$/u;
-const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm", "social"]);
+const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm", "social", "search"]);
 const AUTH_KINDS = new Set(["oauth", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
-const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins"]);
+const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins", "categories", "project_hints"]);
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
@@ -72,6 +72,38 @@ function serviceProblems(value: unknown, seen: Set<string>, word: WordCheck): st
   if (value.outbound_note !== undefined && !word(value.outbound_note)) problems.push(`连接服务 ${id} 的 outbound_note 必须是非空文字`);
   if (value.setup_links !== undefined) problems.push(...linkProblems(id, value.setup_links, word));
   if (value.origins !== undefined) problems.push(...originProblems(id, value.origins));
+  if (value.categories !== undefined) problems.push(...categoryProblems(id, value.categories));
+  if (value.project_hints !== undefined) problems.push(...projectHintProblems(id, value.project_hints));
+  return problems;
+}
+
+const CATEGORY = /^[a-z][a-z0-9-]{0,47}$/u;
+const MAX_CATEGORIES = 8;
+const MAX_HINTS = 16;
+const HINT_KEYS = new Set(["git_hosts", "files", "dependencies"]);
+const HINT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._@+-]+(?:\/[A-Za-z0-9._@+-]+)*\/?$/u;
+const HINT_DEPENDENCY = /^(?:@[a-z0-9][a-z0-9._-]*\/(?:\*|[a-z0-9][a-z0-9._-]*)|[a-z0-9][a-z0-9._-]*)$/u;
+
+/** The same words a skill's `connector_categories` takes, so one names the other exactly. */
+function categoryProblems(id: string, value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_CATEGORIES || value.some(entry => typeof entry !== "string" || !CATEGORY.test(entry))
+    || new Set(value).size !== value.length) return [`连接服务 ${id} 的 categories 必须是 1 到 ${MAX_CATEGORIES} 个不重复的小写类别（如 project-tracker）`];
+  return [];
+}
+
+/** Hints are matched as written: a public host name, a relative path inside the project, a package name. */
+function projectHintProblems(id: string, value: unknown): string[] {
+  if (!isRecord(value) || Object.keys(value).length === 0 || Object.keys(value).some(key => !HINT_KEYS.has(key))) return [`连接服务 ${id} 的 project_hints 只能写 git_hosts、files、dependencies`];
+  const problems: string[] = [];
+  const list = (key: string, valid: (entry: string) => boolean, what: string) => {
+    const entries = value[key];
+    if (entries === undefined) return;
+    if (!Array.isArray(entries) || entries.length === 0 || entries.length > MAX_HINTS || entries.some(entry => typeof entry !== "string" || !valid(entry))
+      || new Set(entries).size !== entries.length) problems.push(`连接服务 ${id} 的 project_hints.${key} 必须是 1 到 ${MAX_HINTS} 个不重复的${what}`);
+  };
+  list("git_hosts", host => HOST_NAME.test(host) && !LOCAL_SUFFIX.test(host), "公开主机名");
+  list("files", file => file.length <= 128 && HINT_FILE.test(file), "项目里的相对路径");
+  list("dependencies", name => name.length <= 128 && HINT_DEPENDENCY.test(name), "包名");
   return problems;
 }
 

@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerDelivery, ComposerMention, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerDelivery, ComposerFileFact, ComposerMention, ComposerSubmission } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
@@ -19,7 +19,7 @@ export type BridgedControl =
   | { kind: "select"; id: string; label: string; options: { value: string; label: string; disabled?: boolean }[]; value: string; disabled?: boolean }
   | { kind: "toggle"; id: string; label: string; on: boolean; disabled?: boolean }
   | { kind: "button"; id: string; label: string; title?: string; disabled?: boolean };
-export interface BridgedCommand { slash: string; label: string; hint?: string; keywords?: string[]; icon?: string; add?: false }
+export interface BridgedCommand { slash: string; label: string; hint?: string; keywords?: string[]; icon?: string; add?: false; group?: string; warning?: string }
 
 export interface ComposerSnapshot {
   entry: string;
@@ -33,15 +33,19 @@ export interface ComposerSnapshot {
   stop: boolean;
   controls: BridgedControl[];
   commands: BridgedCommand[];
+  /** How the `/` menu groups them, and its closing line. */
+  commandMenu: { groups: { label: string; empty?: string }[]; note?: string } | null;
+  /** The command chip, without its function: its × comes back as `composer-act` `chip`. */
+  chip: { name: string; source: string; remove: { label: string }; prompt?: { label: string; text: string } } | null;
   mentions: boolean;
-  attachments: { accept?: string } | null;
+  attachments: { accept?: string; pictures?: { label: string; open: string; close: string } } | null;
   sources: boolean;
   /** The page's own object; its owner is always the frame's plugin, whatever the page says. */
   near: ActionSubject | null;
   voice?: string;
   required: string | null;
   /** The page's line above the box, without its function: its button is pressed with `composer-act` `notice`. */
-  notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null } | null;
+  notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null; also?: { label: string } | null } | null;
   submitKeys: boolean;
   draft: boolean;
   /** Where the page's conversation stands across its frame (the box around the root it gave), so the bar lines up with it. */
@@ -53,7 +57,7 @@ export interface ComposerSnapshot {
 /** An outcome as it crosses: `unknown` names the page's check by a number the parent asks with. */
 export type BridgedOutcome =
   | { state: "sent"; receipt?: unknown }
-  | { state: "failed"; message: string; unreadable?: { index: number; reason: string }[] }
+  | { state: "failed"; message: string; feedback?: "page"; unreadable?: { index: number; reason: string }[] }
   | { state: "unknown"; check: number };
 
 export type ComposerCalls = {
@@ -75,19 +79,21 @@ export type ComposerUp =
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-focus"; id: number }
   | { type: "composer-insert"; id: number; text: string }
-  | { type: "composer-attach"; id: number; files: File[] }
+  | { type: "composer-attach"; id: number; files: File[]; replacing?: ComposerFileFact[] }
   /** The page pressed its own send (a way back from settings finishing the send the person began): the bar's send, if it is front. */
   | { type: "composer-send"; id: number }
+  /** The target's late receipt for one earlier submit call; grants no send or access to another selection. */
+  | { type: "composer-acknowledge"; id: number; call: number }
   | { type: "composer-destroy"; id: number }
   | { type: "composer-answer"; id: number; call: number; value?: unknown; error?: string };
 export type ComposerDown =
   | { type: "composer-ready"; id: number; call: number; ready: boolean }
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
-  /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, or (`notice`) the button of the line above the box. */
-  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice"; key: string; value?: string }
+  /** A control changed, a command chosen, (`receiver`) another of the page's receivers picked in 「发给」 by the id the page gave, (`notice`) the button of the line above the box, or (`chip`) the command chip's ×. */
+  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver" | "notice" | "chip"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
-  | { type: "composer-materials"; id: number; materials: ComposerMaterial[] }
+  | { type: "composer-materials"; id: number; materials: ComposerMaterial[]; files?: ComposerFileFact[] }
   /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */
   | { type: "composer-column"; id: number; width: number };
 

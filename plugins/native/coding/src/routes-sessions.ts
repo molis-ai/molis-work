@@ -2,7 +2,7 @@ import { changeCodingSessionLifecycle } from "./session-lifecycle.js";
 import { codingSessionEntry, codingSessionSubject } from "./session-source.js";
 import { readCodingSessions } from "./session-observation.js";
 import { characterSelection, characterSkillSelection, saveCharacter } from "./characters.js";
-import { materialSelection, savedMaterials } from "./materials.js";
+import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -20,7 +20,7 @@ import { projectDirectories, projectFolders } from "./project-folders.js";
 import { inspectCodingEnvironment } from "./environment-prep.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, agentTextMaterialContent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
@@ -93,7 +93,11 @@ async function readWorkspaceEnvironment(
   const cacheKey = `${target.workspace_id}:${hasRunningSession ? "live" : "idle"}`;
   const cached = a.environmentChecks.get(cacheKey);
   if (cached && Date.now() - cached.at < 15_000) return cached.value;
-  const pending = inspectCodingEnvironment(a.context, target.workspace_id, target.canonical_path, hasRunningSession, beforeWrite).catch(() => null);
+  const forgetFailed = () => { if (a.environmentChecks.get(cacheKey)?.value === pending) a.environmentChecks.delete(cacheKey); };
+  const pending = inspectCodingEnvironment(a.context, target.workspace_id, target.canonical_path, hasRunningSession, beforeWrite).then(value => {
+    if (value?.status === "unavailable") forgetFailed();
+    return value;
+  }, error => { forgetFailed(); throw error; });
   a.environmentChecks.set(cacheKey, { at: Date.now(), value: pending });
   return pending;
 }
@@ -274,6 +278,10 @@ const ROUTES: RouteMaker[] = [
           const { directory, overlaps } = await overlapsFor(a, api!, execution, record, body, beforeWrite);
           const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
           if (!target) throw codingError(codingSessionErrors.wait_target_gone, "coding.server.wait-target-gone");
+          // A wait is already a business write. Refuse unreadable selections before creating its Session or queue item;
+          // the queued round reads these same references again with its authority when it can actually start.
+          const materials = materialSelection(body.materials ?? savedMaterials(context, record.session_id));
+          await resolveMaterials(context, materials, codingActionControl(beforeWrite));
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
             : await codingActions(context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
           if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
@@ -283,7 +291,7 @@ const ROUTES: RouteMaker[] = [
           const { wait_for: _dropped, ...sent } = body;
           // What the person chose goes with the queued round now (materials-ui-contract §2): an explicit choice as sent, else the draft as
           // it is; each piece is read by its reference when the round starts.
-          const rest = { ...sent, materials: body.materials === undefined || body.materials === null ? savedMaterials(context, record.session_id) : materialSelection(body.materials) };
+          const rest = { ...sent, materials };
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await codingActions(context, beforeWrite).invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, item.work_id);
@@ -350,7 +358,13 @@ const ROUTES: RouteMaker[] = [
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
       if (!run) throw codingError(codingRunErrors.run_not_found, "coding.server.run-not-found");
       const control = await runControl(body, async () => execution.models.list());
-      if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
+      if (control.kind === "steer") {
+        const materials = await resolveMaterials(context, control.materials, codingActionControl(beforeWrite));
+        const supplied = [control.send.text, ...materials.map(material => `【附带材料，数据】\n${agentTextMaterialContent(material)}`)].join("\n\n");
+        // The runtime owns original text and delivery. Reject a whole oversize supplement before its input write, never truncate it.
+        const supplement = text(supplied, "coding.field.supplement", 100_000, body.command_prompt === true);
+        return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send, text: supplement }, codingActionControl(beforeWrite)) };
+      }
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await codingActions(context, beforeWrite).invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(view.phase)) throw codingError(codingRunErrors.round_ended, "coding.server.round-ended");

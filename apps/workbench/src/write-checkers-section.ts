@@ -49,5 +49,5 @@ export function renderWriteCheckersSection(_L: Say): string {
     ].join(""),
     footer: `<p class="form-error" data-wc="error" role="alert" hidden></p>${cancel()}${renderButton({ variant: "primary", size: "md", type: "submit", label: uiText.text("common.control.save") })}`,
   });
-  return `<section class="settings-section" data-say="${say}" data-write-checkers><h2>${uiText("workbench.write-checkers-section.after-write-checks")}</h2><p class="mw-field__hint">${uiText("workbench.write-checkers-section.after-agent-writes-file-first-checker-here-that")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p>${editor}${group}${row}${remove}</section>`;
+  return `<section class="settings-section mw-settings-section" data-say="${say}" data-write-checkers><header class="mw-settings-section__head"><h2>${uiText("workbench.write-checkers-section.after-write-checks")}</h2></header><div class="mw-settings-section__rows"><p class="mw-settings-section__note">${uiText("workbench.write-checkers-section.after-agent-writes-file-first-checker-here-that")}</p><div data-wc="list"></div><p data-wc="status" role="status" aria-live="polite"></p></div>${editor}${group}${row}${remove}</section>`;
 }

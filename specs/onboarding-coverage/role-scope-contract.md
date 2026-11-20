@@ -1,12 +1,12 @@
 # 第 36 批提前交付的角色层次公开合同
 
-状态：公共类型、闭合 schema 与原型停用切片已实现并通过定向验证（2026-11-08），待本提前片统一回归和 PR 合入。设计 `69750d13e3` 已经公共合同台 Astra/high 合审；实现 `53af297097` 已经本批 Astra/high 七条评审。第 20 批可按现有公开入口消费本合同，角色服务、持久化与执行生效仍由第 36 批后续验收。
+状态：提前合同已随 [#1995](https://github.com/molis-ai/molis-work/pull/1995) 合入 `6e44827749`，供第 20 批消费。角色服务、持久化与执行生效随 [#2111](https://github.com/molis-ai/molis-work/pull/2111) 合入 `bdfcc36454`。本文保留提前片的设计记录，现行调用与持久化见[角色服务设计稿](role-service-design.md)，本人实物验收仍见 [BL-b36-roles-acceptance](../backlog/BL-b36-roles-acceptance.md)。
 
 本片依据 [Onboarding §3.9、§3.11、§3.12 和 §10](spec.md#10-决策记录)、[角色作用范围原型](../../docs/design/role-scope/README.md)及[第 36 批第 1 项](../post-anticorruption-roadmap/reference/batches/36.md#batch-36-item-1)。用户已选方案 C。第 20 批 P-2b 依赖本片的项目成员、版本、来源和回读形状。P-2a 模板内容、P-3b 场景包静态校验可独立进行。第 36 批后续角色服务的第 13 批前置照原安排，主线事项照自己的前置推进。
 
 ## 1. 角色、成员和固定版本
 
-从现有 `@molis-ai/molis-work-contracts/modules/characters` 导出。Characters 拥有个人原件、项目成员、角色默认及固定版本。`CharacterDraft` 仍是个人可编辑稿，其 `revision` 用来比较草稿编辑。`CharacterContent` 仍是已发布成果的正文。现行项目发布有真实 `ArtifactReference`，由成果库持有，发布记录包含项目、操作者和版本。个人工作可只有 Characters 的固定版本引用。现行 `AgentFrozenCharacter` 仍消费项目发布物。第 36 批服务阶段再接角色解析与执行冻结，继续使用同一个 Prologue 运行时。
+从 `@molis-ai/molis-work-contracts/modules/characters` 导出。Characters 拥有个人原件、项目成员、角色默认及固定版本。`CharacterDraft.revision` 用来核对草稿编辑。`CharacterContent` 是可单独发布的固定成果正文，发布记录归成果库。`AgentFrozenCharacter` 由 Host 按 Characters 的版本引用冻结，用同一个 Prologue 运行时执行。
 
 ```ts
 type PersonalCharacterRef = { kind: "personal"; character_id: string };

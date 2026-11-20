@@ -79,7 +79,7 @@ test("PWA-148 the reminders query returns this project's reminders only, never a
   const unused = () => { throw new Error("unused"); };
   const ports: ScheduleActionPorts = { listJobs: () => [job("j-reminder", { reminder }), job("j-wakeup")] as never, listTasks: () => [],
     listOperations: () => [{ id: "op1", input: { token: "operation-input-secret" } }] as never, setEnabled: unused, recoverReminder: unused,
-    createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused };
+    getTask: unused, createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused };
   const handler = createScheduleActionHandlers("p1", ports).find(item => item.capability_id === scheduleActions.reminders.capability_id)!;
   const call = (project_id: string) => handler.handle({ actor_id: "agent", project_id, audience: "agent", permissions: ["schedule:read"] } as never, {});
   const output = await call("p1");
@@ -207,7 +207,7 @@ test("PWA-149 a due round asks the platform once and starts the role its grants 
 /** Schedule's own task actions over a library, with `archived` going to the platform as the Runtime binds it. */
 function taskHandlers(db: SqliteDatabase, grants: ReturnType<typeof createScheduleTaskGrants>) {
   const unused = () => { throw new Error("unused"); };
-  const ports: ScheduleActionPorts = { listJobs: () => [], setEnabled: unused, recoverReminder: unused, listTasks: () => [], createTask: unused, updateTask: unused, setTaskEnabled: unused, openTask: unused,
+  const ports: ScheduleActionPorts = { listJobs: () => [], setEnabled: unused, recoverReminder: unused, listTasks: () => [], getTask: unused, createTask: unused, updateTask: unused, setTaskEnabled: unused, openTask: unused,
     archiveTask: taskId => { db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0 WHERE task_id = ?").run(taskId); },
     archived: taskId => grants.archived(taskId) };
   const archive = createScheduleActionHandlers("p1", ports).find(handler => handler.capability_id === scheduleActions.archiveTask.capability_id)!;
@@ -297,7 +297,9 @@ async function reconcileHealthFixture() {
   let work: ((control: PluginJobControl) => Promise<void>) | undefined, running: Promise<unknown> | undefined;
   const check = () => { controller.signal.throwIfAborted(); if (!authority) throw new Error("authority withdrawn"); };
   const unused = () => { throw new Error("unexpected service call"); };
-  const writer = { register: unused, cancel: unused, setEnabled: unused };
+  // A task set for its next time gets a job; what it is matters to nothing here.
+  let jobs = 0, told = 0;
+  const writer = { register: () => ({ job_id: `job-${++jobs}` }), cancel: unused, setEnabled: unused };
   const actions = { dependencies: {}, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
     if (definition.capability_id === agentTaskGrantActions.clear.capability_id) await onClear?.();
     return fake.actions.invoke(definition, input);
@@ -307,7 +309,7 @@ async function reconcileHealthFixture() {
     actions, project_database: db,
     scheduler: { list: () => [], get: () => null, isExecuting: () => false,
       join: (_transaction: object, write: (value: typeof writer) => unknown) => write(writer) },
-    installations: { list: () => [], get: () => undefined }, notifications: { deliver: unused },
+    installations: { list: () => [], get: () => undefined }, notifications: { deliver: unused }, ui: { invalidate: () => { told++; } },
     background: { keep: (job: string, callback: (control: PluginJobControl) => Promise<void>) => {
       assert.equal(job, "schedule-reconcile"); work = callback; return { done: Promise.resolve(), cancel: unused };
     } },
@@ -324,7 +326,12 @@ async function reconcileHealthFixture() {
       await setTimeout(5);
     }
   };
-  return { fake, health, waitFor,
+  return { fake, health, waitFor, db, told: () => told, archiveAction: archive!,
+    action: (capability: string) => started.actions!.find(item => item.capability_id === capability)!,
+    /** An enabled task without a job: every pass sets it for its next time (the fixture's scheduler forgets jobs). */
+    live() {
+      db.raw.prepare("INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES ('sct_live','live','read',9,0,1,1,0,0,NULL,NULL,NULL,'2026-11-01','2026-11-01')").run();
+    },
     async archive() {
       db.raw.prepare("INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES ('sct_owed','owed','read',8,0,1,1,0,0,NULL,NULL,NULL,'2026-11-01','2026-11-01')").run();
       fake.state.refuse = true;
@@ -374,3 +381,39 @@ for (const interruption of ["cancel", "revoke"] as const) {
     } finally { retry?.release(); await f.close(); }
   });
 }
+
+test("BL-schedule-view-refresh-followups a pass that set a task for its next time tells the open page even when its grant clean-up did not go through; a revoked pass tells nothing", async () => {
+  const f = await reconcileHealthFixture();
+  let retry: ReturnType<typeof f.holdClear> | undefined;
+  try {
+    await f.archive();
+    assert.equal(f.told(), 1, "the archive, a command, told the open page");
+    f.live(); f.start();
+    await f.waitFor(async () => !(await f.health()).ok && f.told() >= 2);
+    assert.equal((await f.health()).message, "授权清理尚未完成，稍后重试", "the clean-up was refused in the pass that told the page");
+    // The clean-up is held in a later pass that has set the task for its next time; the job loses its authority meanwhile.
+    retry = f.holdClear(); f.fake.state.refuse = false;
+    await f.waitFor(() => retry!.reached());
+    const before = f.told();
+    f.revoke(); retry.release(); await f.close();
+    assert.equal(f.told(), before, "a pass that lost its authority does not tell the page");
+  } finally { retry?.release(); await f.close(); }
+});
+
+test("BL-schedule-view-refresh-followups a command through Schedule's actions tells the open page only while its caller still holds its authority", async () => {
+  const f = await reconcileHealthFixture();
+  try {
+    f.live();
+    const person = { actor_id: "person", project_id: "p1", audience: "user", permissions: [], beforeEffect: async () => {} } as never;
+    await f.action(scheduleActions.openTask.capability_id).handle(person, { task_id: "sct_live" });
+    assert.equal(f.told(), 0, "marking a task read tells no page: the person opened it on the page that would read");
+    const call = (assert_authority_current?: () => void) => f.archiveAction.handle({ actor_id: "person", project_id: "p1", audience: "user", permissions: [], beforeEffect: async () => {},
+      ...(assert_authority_current ? { assert_authority_current } : {}) } as never, { task_id: "sct_live" });
+    let revoked = false;
+    await call(() => { if (revoked) throw new Error("authority withdrawn"); });
+    assert.equal(f.told(), 1, "an archive by the Assistant or MCP tells the open page");
+    revoked = true;
+    await call(() => { if (revoked) throw new Error("authority withdrawn"); }).catch(() => undefined);
+    assert.equal(f.told(), 1, "a call whose authority is gone tells nothing");
+  } finally { await f.close(); }
+});

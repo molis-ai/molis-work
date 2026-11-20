@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { knowledgeManageActions } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions } from "@molis-ai/molis-work-service-knowledge";
-import { clearKnowledgeProject, openKnowledgeCards } from "@molis-ai/molis-work-storage";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, type KnowledgeCatalogSnapshot, type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece } from "@molis-ai/molis-work-service-knowledge";
+import { KNOWLEDGE_CARDS_STORE, clearKnowledgeProject, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
 // specs/project-knowledge K1: cards and outlines organized from each piece, kept apart from what the person wrote on them.
@@ -24,13 +27,24 @@ async function fixture(t: import("node:test").TestContext, options: { quota?: { 
     return { title: `${input.title}（整理）`, brief: `讲的是${input.title}。`, keywords: ["内测通行证", input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) };
   });
   let model = true;
-  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId).map(piece => options.contentTokens ? { ...piece, revision: `content-v1:${piece.revision}` } : piece), ...(options.sourceState ? { sourceState: options.sourceState } : {}), writer: () => model ? writer : null,
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => settled(knowledgeCatalog(f.index, projectId).map(piece => options.contentTokens ? { ...piece, revision: `content-v1:${piece.revision}` } : piece)), ...(options.sourceState ? { sourceState: options.sourceState } : {}), writer: () => model ? writer : null,
     ...(options.quota ? { quota: options.quota } : {}), clock: () => new Date("2026-10-19T08:00:00Z") });
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards });
   // The catalog is what search indexed: a search by the owner brings project a's sources into the index.
   const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); };
   return { ...f, cards, organizer, knowledge, manage: new KnowledgeCards(cards, organizer), written, indexAll, noModel: () => { model = false; } };
 }
+/** Each card's own row in the Home's card library, by subject: a card removed and written again gets a new one. */
+function cardRows(home: string): Record<string, number> {
+  const file = readdirSync(join(home, KNOWLEDGE_CARDS_STORE)).find(name => name.endsWith(".db") || name.endsWith(".sqlite"));
+  assert.ok(file, "the card library");
+  const db = new DatabaseSync(join(home, KNOWLEDGE_CARDS_STORE, file), { readOnly: true });
+  try { return Object.fromEntries((db.prepare("SELECT kind, object_id, card_id FROM knowledge_cards ORDER BY card_id").all() as Array<{ kind: string; object_id: string; card_id: number }>)
+    .map(row => [`${row.kind}:${row.object_id}`, row.card_id])); }
+  finally { db.close(); }
+}
+/** A catalog read straight off the index: what it holds was listed by complete passes, so no source is still being listed. */
+const settled = (pieces: KnowledgePiece[]): KnowledgeCatalogSnapshot => ({ pieces, unsettled: new Set() });
 const card = (f: { cards: ReturnType<typeof openKnowledgeCards> }, id: string, kind = id.startsWith("p") ? "page" : "goal") => f.cards.get("a", { kind, id })!;
 
 // K01-01: an FTS commit must not turn a successful quota write into an exception and a repeated charge.
@@ -227,7 +241,7 @@ test("PMAT-08 a piece kept back from agents is neither found nor read, and the r
   }
   for (const call of [() => f.knowledge.read(f.access(agent()), { subject: { kind: "page", id: "p1" } }),
     () => f.knowledge.outline(f.access(agent()), { subject: { kind: "page", id: "p1" } })]) {
-    await assert.rejects(call, (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded" && error.message.includes("不给 Agent 用"));
+    await assert.rejects(call, (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded" && error.message.includes("不让 AI 读取"));
   }
   const grep = await f.knowledge.grep(f.access(agent()), { pattern: "试用", subjects: [{ kind: "page", id: "p1" }] });
   assert.deepEqual(grep.unread.map(item => item.subject.id), ["p1"]);
@@ -284,6 +298,56 @@ test("PMAT-07 a card the person edited stays when its piece leaves the catalog, 
   assert.deepEqual(f.cards.list("a"), []);
 });
 
+// BL-knowledge-restore-partial-catalog (73-3): a Home restore leaves the search index empty, and its sources come back one pass at a
+// time. A source not completely listed yet says nothing about what left it: every card it lists keeps its row, organized text, the
+// person's edits and exclusion, and costs no organizing again. Once its listing is complete, a piece its owner really removed still goes.
+test("BL-knowledge-restore-partial-catalog cards survive an emptied and partly listed catalog; a complete one still clears what was removed", async t => {
+  const f = await fixture(t);
+  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async project => {
+    const snapshot = await f.search.indexedCatalog(f.access(owner));
+    return { pieces: knowledgeCatalog(snapshot, project), unsettled: new Set(snapshot.unsettled()) };
+  }, writer: () => async input => { f.written.push(input); return { title: `${input.title}（整理）`, brief: `讲的是${input.title}。`, keywords: ["整理"] }; },
+    clock: () => new Date("2026-10-19T08:00:00Z") });
+  t.after(() => organizer.close());
+  const manage = new KnowledgeCards(f.cards, organizer);
+  await f.indexAll();
+  await organizer.kick("a");
+  manage.edit(owner, { subject: { kind: "page", id: "p1" }, brief: "本人写的简介" });
+  manage.exclude(owner, { subject: { kind: "goal", id: "g2" }, excluded: true });
+  const rows = () => cardRows(f.home);
+  const before = { cards: f.cards.list("a"), rows: rows(), quota: organizer.quota("a"), written: f.written.length };
+  assert.deepEqual(before.cards.map(item => [item.subject.id, item.state]).sort(), [["g1", "ready"], ["g2", "ready"], ["g3", "listed"], ["p1", "ready"]]);
+  assert.equal(before.written, 3);
+
+  // Restore: the index holds nothing, though every owner still lists its pieces.
+  for (const source of f.index.sources().filter(record => record.project_id === "a")) f.index.removeSource(source.source_key);
+  await organizer.reconcile("a");
+  assert.deepEqual(f.cards.list("a"), before.cards, "an empty catalog removes no card and marks none missing");
+
+  // Partly listed: pages finishes its pass, goals fails its first one.
+  const listGoals = f.goals.values.bind(f.goals);
+  f.goals.values = () => { throw new Error("goals still opening"); };
+  await f.search.query(f.access(owner), { query: "试用", scope: "project" });
+  const states = new Map(f.index.sources().filter(record => record.project_id === "a").map(record => [record.provider_id, record.state]));
+  assert.deepEqual([states.get("pages"), states.get("goals")], ["ready", "failed"]);
+  await organizer.kick("a");
+  assert.deepEqual(f.cards.list("a"), before.cards, "a partly listed catalog keeps every card as it was");
+  assert.deepEqual([rows(), organizer.quota("a"), f.written.length], [before.rows, before.quota, before.written], "same rows, nothing organized again");
+
+  // Complete again: the same cards, nothing organized again.
+  f.goals.values = listGoals;
+  await f.search.rebuild(f.access(owner), { scope: "project" });
+  await organizer.kick("a");
+  assert.deepEqual([f.cards.list("a"), rows(), organizer.quota("a"), f.written.length], [before.cards, before.rows, before.quota, before.written]);
+
+  // A complete catalog still clears what the owner removed: the untouched card goes, the edited and excluded ones wait as missing.
+  f.goals.delete("g1"); f.goals.delete("g2"); f.pages.delete("p1");
+  await f.search.rebuild(f.access(owner), { scope: "project" });
+  await organizer.reconcile("a");
+  assert.equal(f.cards.get("a", { kind: "goal", id: "g1" }), null, "a piece its owner removed goes once its source is listed completely");
+  assert.deepEqual([card(f, "g2").state, card(f, "g2").excluded, card(f, "p1").state, card(f, "p1").brief], ["missing", true, "missing", "本人写的简介"]);
+});
+
 test("PMAT-01 managing cards is the person's own: user-only actions under knowledge:manage", () => {
   const definitions = Object.values(knowledgeManageActions);
   assert.deepEqual(inspectActionDeclarations(definitions, undefined), []);
@@ -316,7 +380,7 @@ test("A4-K opaque organized material is preserved failed until the person's exis
   const f = await fixture(t); f.goals.clear(); await f.indexAll(); await f.organizer.kick("a");
   const original = card(f, "p1"), sent: KnowledgeDraftInput[] = [];
   const adopted = new KnowledgeOrganizer({ store: f.cards,
-    catalog: async project => knowledgeCatalog(f.index, project).map(piece => ({ ...piece, revision: `content-v1:${piece.revision}` })),
+    catalog: async project => settled(knowledgeCatalog(f.index, project).map(piece => ({ ...piece, revision: `content-v1:${piece.revision}` }))),
     sourceState: async () => "active", writer: () => async input => { sent.push(input); return { title: input.title, brief: "本人重新整理" }; } });
   t.after(() => adopted.close());
   await adopted.kick("a");
@@ -349,8 +413,8 @@ for (const outcome of ["draft", "failure"] as const) {
     let current = true;
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     const organizer = new KnowledgeOrganizer({ store: f.cards,
-      catalog: async project => knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
-        assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "source withdrawn"); } })),
+      catalog: async project => settled(knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
+        assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "source withdrawn"); } }))),
       writer: () => async () => { entered.resolve(); await release.promise; if (outcome === "failure") throw new Error("late model error"); return { title: "late draft", brief: "late body" }; },
     });
     t.after(async () => { release.resolve(); await organizer.close(); });
@@ -364,8 +428,8 @@ test("D0244-06 source withdrawal during model preparation is checked again at ac
   const f = await fixture(t); await f.indexAll();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let current = true, sent = 0;
   const organizer = new KnowledgeOrganizer({ store: f.cards,
-    catalog: async project => knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
-      assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "withdrawn before dispatch"); } })),
+    catalog: async project => settled(knowledgeCatalog(f.index, project).filter(piece => piece.subject.kind === "page").map(piece => ({ ...piece,
+      assertCurrent: () => { if (!current) throw new ActionError("actions.forbidden", "withdrawn before dispatch"); } }))),
     writer: () => async (_input, _signal, beforeDispatch) => { entered.resolve(); await release.promise; beforeDispatch?.(); sent++; return { title: "late", brief: "late" }; },
   });
   t.after(async () => { release.resolve(); await organizer.close(); });

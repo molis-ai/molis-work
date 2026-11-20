@@ -133,24 +133,6 @@ export interface AgentMemoryUseReceipt {
   contexts: NonNullable<AgentMemoryRecallFact["contexts"]>;
 }
 
-/** A document parser the App supplies to the runtime (the SDK ships none): bounded text, or a failure — never empty text. */
-export interface AgentDocumentParser {
-  mediaTypes: readonly string[];
-  parse(input: { bytes: Uint8Array; mediaType: string; maxChars: number }): Promise<{ text: string; pages?: number }>;
-}
-
-/** Documents the person brings, read through the runtime's own resources and parsers (Prologue `parseResource`). */
-export interface AgentDocumentCapability {
-  parse(input: { bytes: Uint8Array; name: string }): Promise<{ text: string; truncated: boolean; pages?: number }>;
-  /**
-   * An image taken in by the runtime (PNG, JPEG, GIF or WebP, recognised by its bytes) so a Run can show it to the
-   * model. The reference holds while this runtime process lives.
-   */
-  intakeImage?(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string; byte_length: number }>;
-  /** An image taken in earlier, read back for the person to look at again; null once this runtime no longer holds it. */
-  readImage?(resource: { id: string; revision: number }): Promise<Uint8Array | null>;
-}
-
 /** Trusted per-call control, retained through each SDK storage commit. Never persisted or model input. */
 export interface AgentMemoryExecutionControl {
   beforeEffect(): void | Promise<void>;

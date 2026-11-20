@@ -16,7 +16,7 @@ const optionTag = (html: string, field: string, value: string) => html.slice(htm
 const say = pageText("zh");
 
 test("SAI-07: Assistant renders empty peer notices in its page language", () => {
-  for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this subtask"]]] as const) {
+  for (const [locale, words] of [["zh", ["收到一条会话更新", "有人向这项子任务补充了输入"]], ["en", ["Conversation update received", "A person added input to this sub-task"]]] as const) {
     const shown = view("completed");
     shown.rounds[0]!.turns = [
       { turn_id: "peer", kind: "notice", text: "", notice: "peer-update", at: null },
@@ -140,10 +140,10 @@ test("AC-23: an open card is the shared operation card: the fields the person ma
 });
 
 test("AC-23: a card that ran or went stale says how it stands; a stale one only offers to be prepared again", () => {
-  const done = assistantCardHtml({ ...card("done"), outcome: "「报销」" }, say);
+  const done = assistantCardHtml({ ...card("done"), outcome: { literal: "「报销」" } }, say);
   assert.match(done, /data-ix-status role="status">已完成：「报销」/);
   assert.doesNotMatch(done, /data-ix-action="run"/);
-  const stale = assistantCardHtml({ ...card("stale"), outcome: "数据在建议之后变化了" }, say);
+  const stale = assistantCardHtml({ ...card("stale"), outcome: { literal: "数据在建议之后变化了" } }, say);
   assert.match(stale, /data-ix-status role="status" data-tone="waiting">已失效：数据在建议之后变化了/);
   assert.match(stale, /data-ix-recovery[\s\S]*data-ix-action="redo"/);
   assert.doesNotMatch(stale, /data-ix-action="(run|dismiss)"/);

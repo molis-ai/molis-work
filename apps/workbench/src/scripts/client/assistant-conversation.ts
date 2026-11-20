@@ -91,14 +91,35 @@ ${ASSISTANT_REVIEW_PART}
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
+    let approved = null;
     const client = drawn(node, card.html, { onAction: async (id, button) => {
+      const confirmation = node.querySelector("[data-assistant-adoption-confirm]");
+      if (id === "run" && confirmation) {
+        approved = client.read();
+        const rows = confirmation.querySelectorAll("[data-ix-summary] dd");
+        for (const [index, field] of card.fields.entries()) {
+          const choices = approved[field.key];
+          const options = (field.options || []).filter(option => choices.includes(option.value));
+          rows[index].textContent = options.map(option => option.description && field.key === "adopt" ? option.label + " · " + option.description : option.label).join(globalThis.t.text("common.list.separator"))
+            || globalThis.t.text("workbench.automation-adoption.review-none");
+        }
+        node.firstElementChild.hidden = true; confirmation.hidden = false;
+        confirmation.querySelector("[data-ix-preview]").focus();
+        return;
+      }
+      if (id === "edit-adoption") {
+        approved = null; confirmation.hidden = true; node.firstElementChild.hidden = false;
+        node.querySelector("[data-ix-action='run']").focus();
+        return;
+      }
+      const run = id === "run" || id === "confirm-adoption";
       // Keyboard use keeps its place: after the card redraws, focus lands on it rather than the page.
       const hadFocus = node.contains(document.activeElement), neighbour = node.nextElementSibling || node.previousElementSibling;
       const lock = (on) => node.querySelectorAll("[data-ix-action]").forEach((one) => { one.disabled = on; });
       lock(true);
       try {
         // "redo" only asks: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
-        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + id, "POST", id === "run" ? { revision: card.revision, values: client.read() } : {});
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/" + (run ? "run" : id), "POST", run ? { revision: card.revision, values: approved || client.read() } : {});
         if (id === "redo") { await reload(); poll(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
@@ -126,33 +147,25 @@ ${ASSISTANT_REVIEW_PART}
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
-  /**
-   * Words the work keeps but the view leaves out (a page handed over from the side panel's browser, a pasted text, a
-   * selection): read back when clicked and shown in the side panel as they were given, with the page they came from.
-   */
+  // A material preview is scoped to the work that was open when requested.
   const readBack = (material, title) => {
-    const workId = view && view.work && view.work.work_id;
-    if (!workId || !material.material_id || !sidePanelHere() || !["text", "file", "selection"].includes(material.kind)) return null;
+    if (material.expired || !sidePanelHere()) return null;
+    if (material.kind === "file" && material.text) return () => sidePreview({ preview: { title, media_type: "text/plain", text: material.text } });
+    const workId = view?.work?.work_id, pictured = material.kind === "image";
+    if (!workId || !material.material_id || !["text", "file", "selection", "image"].includes(material.kind)) return null;
+    const path = "/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id);
     return async () => {
       try {
-        const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
-        if (typeof full.text !== "string") { host.showToast?.(globalThis.t.text("workbench.assistant-conversation.material-has-no-text-preview")); return; }
-        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
+        const { image, material: full } = await api(pictured ? path + "/image" : path);
+        if (view?.work?.work_id !== workId) return;
+        if (image) return sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
+        if (typeof full.text !== "string") return host.showToast?.(readText("workbench.assistant-conversation.material-has-no-text-preview"));
+        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: full.truncated, source_url: full.url,
+          url: full.original_available ? host.route("/api/assistant" + path + "/original") : undefined } });
       } catch (error) { host.showToast?.(error, true); }
     };
   };
-  /** A picture the work carried, shown in the side panel; one the app no longer holds (it restarted) is marked, not offered. */
-  const readImage = (material, title) => {
-    const workId = view && view.work && view.work.work_id;
-    if (!workId || material.kind !== "image" || !material.material_id || material.expired || !sidePanelHere()) return null;
-    return async () => {
-      try {
-        const { image } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id) + "/image");
-        sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
-      } catch (error) { host.showToast?.(error, true); }
-    };
-  };
-  const EXPIRED_IMAGE = "workbench.assistant-conversation.images-not-kept-after-app-restarts-add-image";
+  const EXPIRED_IMAGE = "workbench.assistant-conversation.image-no-longer-kept-add-again";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
@@ -160,10 +173,7 @@ ${ASSISTANT_REVIEW_PART}
       : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
     const surf = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
     const named = material.object && surf ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface:surf, id: material.object.id } } : null;
-    // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
-    const open = named ? () => showObject(named)
-      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
-      : readBack(material, title) || readImage(material, title);
+    const open = named ? () => showObject(named) : readBack(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", globalThis.t.text("workbench.assistant-conversation.open-named", { title })); }
     chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? globalThis.t.text("workbench.assistant-conversation.draft") : "") + (material.expired ? globalThis.t.text("workbench.assistant-conversation.no-longer-valid") : "")));
@@ -230,8 +240,12 @@ ${ASSISTANT_REVIEW_PART}
         const kind = turn.kind === "user" ? (round.written_by === "host" && !turn.steer ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
         // A reply is the Assistant's own object: what the person selects in it is in hand, named by the work it belongs to.
-        const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
-        if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
+        if (kind === "assistant") {
+          const replyId = work.work_id + ":" + round.run_id + ":" + turn.turn_id;
+          if (bubble.dataset.replyId !== replyId) bubble.dataset.replyId = replyId;
+          const reply = JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: replyId, title: work.title } });
+          if (bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
+        }
         if (bubble.dataset.text !== turn.text) {
           const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
           if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden, grow: growCode }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;

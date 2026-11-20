@@ -1,7 +1,7 @@
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
-import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, RESEARCH_EVIDENCE_DIRECTORY, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_STUDIO_BASELINE, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 export { ALCHEMIST_STUDIO_BASELINE };
 export {assertStudioProjectIdentity} from "@molis-ai/molis-work-plugin-alchemist";
@@ -38,7 +38,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
         const secretStore = options.secretStore ?? createFileSecretStore();
         return createSearchEvidenceRuntime({ db: storage.db, secretStore, assertCurrent,
           beforeDispatch: async () => { await currentCall().beforeDispatch?.(); assertCurrent(); },
-          content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, "search-content") }) });
+          content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, RESEARCH_EVIDENCE_DIRECTORY) }) });
       });
     } catch (error) { storage.close(); throw error; }
   })();
@@ -46,6 +46,11 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const active = new Set<Promise<Awaited<ReturnType<AlchemistAiPort["search"]>>>>();
   const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
       input.signal?.throwIfAborted();
+      // The Home's evidence key is lost while Feed or research bodies sealed with it remain (BL-1065): say so before any search is spent.
+      if (runtime.content.sealingStatus() === "missing") {
+        throw Object.assign(new Error("保存研究资料的钥匙找不到了。之前的动态和研究正文都原样保留；找回原钥匙之前，新的研究资料不会保存，所以这次研究先不搜索。"),
+          { code: "alchemist.research_evidence_key_missing" });
+      }
       await input.beforeDispatch?.();
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];

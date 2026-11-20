@@ -28,7 +28,7 @@ test("Memory's scope and stale preview keep their owner codes; Assistant managem
   const scope = await answer(home, "/api/memory/items", { scope: "project", text: "周报先写风险" });
   assert.deepEqual([scope.status, scope.body.code], [403, "memory.scope"]);
   assert.match(String(scope.body.error), /没有项目/);
-  const missing = await answer(home, "/api/assistant/memories", { action: "disable", memory_id: "not-kept" });
+  const missing = await answer(home, "/api/assistant/memories", { action: "disable", memory_id: "not-kept", expected_version: 1 });
   assert.deepEqual([missing.status, missing.body.code], [404, "memory.not_found"]);
   // The panel names the version it saw (B9: Memory's own `memory.candidates.accept`); without one the request itself is wrong.
   const unversioned = await answer(home, "/api/assistant/memory-candidates/not-proposed/accept", {});
@@ -52,6 +52,11 @@ test("Memory's scope and stale preview keep their owner codes; Assistant managem
 
   const prompt = await answer(home, "/api/agent-definitions/prompt?key=not-registered");
   assert.deepEqual([prompt.status, prompt.body.code], [404, "agent_definitions.not_found"]);
+  const daily = (await answer(home, "/api/assistant/usage")).body.daily_tokens;
+  const oldBudget = await answer(home, "/api/assistant/budget", { daily_tokens: 5000 });
+  assert.deepEqual([oldBudget.status, oldBudget.body.code], [400, "assistant.setting_invalid"]);
+  assert.match(String(oldBudget.body.error), /\/api\/assistant\/preferences/);
+  assert.equal((await answer(home, "/api/assistant/usage")).body.daily_tokens, daily);
   for (const path of ["/api/assistant/budget", "/api/memory/items", "/api/agent-definitions/prompt"]) {
     const malformed = await answer(home, path, "{");
     assert.deepEqual([malformed.status, malformed.body.code, malformed.body.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);

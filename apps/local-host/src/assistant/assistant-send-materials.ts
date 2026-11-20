@@ -3,13 +3,15 @@ import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/p
 import type { AssistantMaterial, AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { SignedAgentReference } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { CONVERSATION_ATTACHMENT_LIMITS, CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import { assistantErrors } from "./assistant-errors.js";
 
 /** What one Send may carry beside its words: how many materials, how much text in all, and how many images. */
 const MAX_MATERIALS = 20;
-const MAX_MATERIAL_TEXT = 100_000;
+export const MAX_MATERIAL_TEXT = 100_000;
+export const MAX_ATTACHMENT_TEXT = 60_000;
 /** Images per Send, within what the model providers take. */
-const MAX_IMAGES = 6;
+const MAX_IMAGES = CONVERSATION_ATTACHMENT_LIMITS.round_images;
 
 /** A search hit, or a piece of project knowledge (its kind and id, as the knowledge picker gives them). */
 function pickedReference(value: unknown): AssistantMaterial["reference"] | null {
@@ -73,15 +75,23 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
         text: `用户指定这一轮用这个能力：「${capability.title}」（capability_id ${capability.capability_id}，version ${capability.version}，provider_id ${capability.provider_id}）。先用 find-capabilities 核对它的参数再用；会改变数据的照常请用户确认；它现在不可用就如实说明，不要换别的能力。` };
     }
-    // An image the person added: only the reference the runtime gave when it took the picture in.
+    // An image the person added: only the reference the platform gave when it kept the picture as a conversation attachment.
     if (item.kind === "image") {
       const image = item.image;
-      if (!image || typeof image.resource_id !== "string" || !Number.isSafeInteger(image.revision) || typeof image.media_type !== "string" || !Number.isSafeInteger(image.byte_length)) {
+      if (!image || typeof image.media_type !== "string" || !Number.isSafeInteger(image.byte_length)) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
+      try { assertMaterialRef(image.attachment); } catch { throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`); }
+      if (image.attachment.subject.kind !== CONVERSATION_ATTACHMENT_SUBJECT_KIND) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "image" as const, title: item.title.slice(0, 200), explicit: true,
+        image: { attachment: structuredClone(image.attachment), media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
+        text: "这张图片随本轮一起发给你，只在这一轮能看到（之后的轮次看不到原图）。看不到图片内容就直接说看不到，不要猜测图里有什么。" };
+    }
+    if (item.file_attachment !== undefined) {
+      const ref = item.file_attachment;
+      try { assertMaterialRef(ref); } catch { throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`); }
+      if (item.kind !== "file" || ref.subject.kind !== CONVERSATION_ATTACHMENT_SUBJECT_KIND || ref.pin.mode !== "current" || ref.range) {
         throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       }
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "image" as const, title: item.title.slice(0, 200), explicit: true,
-        image: { resource_id: image.resource_id.slice(0, 200), revision: image.revision, media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
-        text: "这张图片随本轮一起发给你，只在这一轮能看到（之后的轮次看不到原图）。看不到图片内容就直接说看不到，不要猜测图里有什么。" };
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "file" as const, title: item.title.slice(0, 200), explicit: true, file_attachment: structuredClone(ref) };
     }
     // Picked with “@” or from project knowledge: the page's words about it are only a snippet; the Host reads the object before the round.
     if (item.reference !== undefined) {
@@ -101,14 +111,11 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
   });
 }
 
-/** Each image is one this Host took in and still holds, at the revision the page names: the Host has restarted otherwise. */
-export function checkHeldImages(materials: readonly AssistantMaterial[], held: ReadonlyMap<string, { revision: number }>): void {
+/** Each image is one the Assistant attached and the platform still keeps; another caller's, or one removed, is refused by name. */
+export function checkHeldImages(materials: readonly AssistantMaterial[], holds: (image: NonNullable<AssistantMaterial["image"]>) => boolean): void {
   const images = materials.filter(item => item.kind === "image");
   if (images.length > MAX_IMAGES) throw assistantErrors.invalid(`一次最多带 ${MAX_IMAGES} 张图片`);
-  for (const image of images) {
-    const kept = held.get(image.image!.resource_id);
-    if (!kept || kept.revision !== image.image!.revision) throw assistantErrors.invalid(`图片「${image.title}」已失效（应用重启过），请重新添加`);
-  }
+  for (const image of images) if (!holds(image.image!)) throw assistantErrors.invalid(`图片「${image.title}」已不在了，请重新添加`);
 }
 
 /**

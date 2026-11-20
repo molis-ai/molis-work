@@ -1,5 +1,6 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { IMPORTED_DOCUMENT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions } from "./artifact-actions.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_TITLE } from "./artifact-provider.js";
@@ -16,7 +17,7 @@ export const ARTIFACTS_HOST_PRODUCER: {
   readonly actions: readonly ActionDefinition[];
 } = {
   plugin_id: ARTIFACTS_PLUGIN_ID, name: ARTIFACTS_PROVIDER_TITLE,
-  produces: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: /* @version artifact.io.molis.work.document */ 1, title: "导入的文件",
+  produces: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: IMPORTED_DOCUMENT_SCHEMA_VERSION, title: "导入的文件",
     preview: { capability_id: artifactsActions.preview.capability_id, version: artifactsActions.preview.version } }],
   actions: [artifactsActions.preview],
 };

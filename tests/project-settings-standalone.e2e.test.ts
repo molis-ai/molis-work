@@ -182,26 +182,29 @@ test("settings serve complete category pages; the project gear opens them in the
       labelFromStart: labelBox.x - navBox.x,
     };
   })()`);
-  assert.ok(rhythm.titleSize >= 26 && rhythm.titleSize <= 30, "settings title stays near 28px, got " + rhythm.titleSize);
+  // POLISH-29 (specs/screen-polish/p5-settings.md): the settings title is the 24px step and a category row is 32px high.
+  assert.equal(rhythm.titleSize, 24, "settings title is 24px, got " + rhythm.titleSize);
   assert.equal(rhythm.cardRadius, "12px");
   assert.ok(rhythm.rowPadding >= 9 && rhythm.rowPadding <= 12, "setting rows stay compact like Codex, got " + rhythm.rowPadding);
-  assert.ok(rhythm.navHeight >= 34 && rhythm.navHeight <= 40, "category rows stay near 36px, got " + rhythm.navHeight);
+  assert.equal(rhythm.navHeight, 32, "category rows are 32px high, got " + rhythm.navHeight);
   assert.equal(rhythm.navBar, "none");
   assert.equal(rhythm.hasIcon, true);
   assert.equal(rhythm.controlRight, true);
   assert.ok(rhythm.iconLabelGap >= 0 && rhythm.iconLabelGap <= 16, "category label sits next to its icon, gap " + rhythm.iconLabelGap);
   assert.ok(rhythm.labelFromStart < 48, "category label stays on the left, inset " + rhythm.labelFromStart);
-  const columnAlignment = async (paneSelector: string, docSelector: string) => evaluate<{ offset: number; width: number; pane: number }>(`(() => {
+  // POLISH-29: the text column is at most 760px and its left edge stays put — the same inset from the pane on every page,
+  // not centred in whatever width the pane happens to have.
+  const columnAlignment = async (paneSelector: string, docSelector: string) => evaluate<{ inset: number; width: number; pane: number }>(`(() => {
     const pane = document.querySelector(${JSON.stringify(paneSelector)});
     const doc = pane?.querySelector(${JSON.stringify(docSelector)});
     const p = pane.getBoundingClientRect();
     const d = doc.getBoundingClientRect();
-    return { offset: (d.left + d.width / 2) - (p.left + p.width / 2), width: d.width, pane: p.width };
+    return { inset: d.left - p.left, width: d.width, pane: p.width };
   })()`);
   const workbenchColumn = await columnAlignment("[data-work-surface=project-settings] .settings-content", ".project-settings-page, .settings-document");
-  assert.ok(workbenchColumn.pane > 900, "desktop settings pane is wide enough to show centering, got " + workbenchColumn.pane);
+  assert.ok(workbenchColumn.pane > 900, "desktop settings pane is wider than the column, got " + workbenchColumn.pane);
   assert.ok(workbenchColumn.width <= 762, "settings column stays at most 760px, got " + workbenchColumn.width);
-  assert.ok(Math.abs(workbenchColumn.offset) <= 24, "workbench settings column is centered, offset " + workbenchColumn.offset);
+  assert.ok(workbenchColumn.inset >= 24 && workbenchColumn.inset <= 56, "workbench settings column starts at the pane's padding, inset " + workbenchColumn.inset);
   for (const [category, selector] of [["workspaces", "[data-directories-add]"], ["guidance", "[data-guidance-form]"], ["general", "[data-project-rename]"]]) {
     await click(`[data-directory-panel=project-settings] [data-settings-section="${category}"]`);
     // Each category is a page the server renders from the whole project view: 1–3 s here, longer when the machine is
@@ -230,17 +233,17 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.equal(await evaluate("location.search"), "");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   const projectPage = await columnAlignment("[data-work-surface=project-settings] .settings-content", ".project-settings-page, .settings-document");
-  assert.ok(projectPage.pane > 900, "directly opened project settings pane is wide enough to show centering, got " + projectPage.pane);
+  assert.ok(projectPage.pane > 900, "directly opened project settings pane is wider than the column, got " + projectPage.pane);
   assert.ok(projectPage.width <= 762, "directly opened project settings column stays at most 760px, got " + projectPage.width);
-  assert.ok(Math.abs(projectPage.offset) <= 24, "directly opened project settings column is centered, offset " + projectPage.offset);
+  assert.ok(Math.abs(projectPage.inset - workbenchColumn.inset) <= 1, "directly opened project settings column keeps the same left edge, inset " + projectPage.inset);
   await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance" }, sessionId));
   await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && !!document.querySelector('[data-work-surface=settings] [data-settings-panel=appearance]')", 15_000);
   assert.equal(await evaluate("location.pathname"), prefix + "/", "a global settings address opens in the last opened project");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   const globalPage = await columnAlignment("[data-work-surface=settings] .settings-content", ".settings-document, [data-settings-panel]");
-  assert.ok(globalPage.pane > 900, "global settings pane is wide enough to show centering, got " + globalPage.pane);
+  assert.ok(globalPage.pane > 900, "global settings pane is wider than the column, got " + globalPage.pane);
   assert.ok(globalPage.width <= 762, "global settings column stays at most 760px, got " + globalPage.width);
-  assert.ok(Math.abs(globalPage.offset) <= 24, "global settings column is centered, offset " + globalPage.offset);
+  assert.ok(Math.abs(globalPage.inset - workbenchColumn.inset) <= 1, "global settings column keeps the same left edge, inset " + globalPage.inset);
 });
 
 test("work planning is in neither project settings nor the Goal list (batch 41-2: the methods are Skills of the catalog)", { timeout: 60_000 }, async t => {
@@ -444,15 +447,18 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
   await surface.waitFor("document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
   const defaults = defaultShelfHotKeys().toggle;
-  const shelfRoot = "/api/plugins/io.molis.work.shelf/settings";
-  await b.web.post(shelfRoot, { hotkeys: { toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } });
+  const prefs = "/api/plugins/io.molis.work.shelf/preferences/", key = "shelf.hotkeys";
+  const { values: [initial] } = await b.web.post<{ values: {revision: string; value: ReturnType<typeof defaultShelfHotKeys>}[] }>(prefs + "read", { keys: [key] });
+  await b.web.post(prefs + "write", { key, layer: "personal", expected_revision: initial!.revision, request_id: "seed-shortcuts",
+    change: { set: { ...initial!.value, toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } } });
   surface = await settingsSurface(b, "/settings/shelf?project=" + b.projectId, mode === "B");
   const shelfApi = await surface.evaluate<string>("(document.body.dataset.routePrefix || '') + '/api/plugins/io.molis.work.shelf/settings'");
   assert.equal(await surface.evaluate("typeof globalThis.__TAURI__?.core?.invoke"), "undefined", "the fixture cannot change desktop hotkeys");
   const reset = '[data-shelf-hotkey-slot="toggle"] [data-shelf-hotkey-reset]';
   await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===false`);
   await surface.click(reset); await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===true`);
-  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi.replace(/settings$/, "preferences/write"), surface.frameId).length, 1);
+  assert.equal(traffic.posts(shelfApi, surface.frameId).length, 0, "the settings page used the same owner action as a scene");
   const shelf = await b.web.get<{ hotkeys: { toggle: typeof defaults } }>(shelfApi);
   assert.deepEqual(shelf.hotkeys.toggle, defaults);
   await settingsShot(b, mode + "-shelf");

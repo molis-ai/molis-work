@@ -1,4 +1,4 @@
-import { forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
+import { forgetAutomationOffers, forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { memoryErrors, purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
 import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observation";
+import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
 import { MAINLINE_HOME_STORE, openMainlineDatabase, purgeMainlineProject } from "@molis-ai/molis-work-service-mainline";
 import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
@@ -25,6 +26,7 @@ import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-word
 import { registeredBuiltinText } from "./ui-text-provider.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
+import { forgetProjectAttachments } from "./material-attachments.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
 import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
@@ -149,13 +151,16 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
+    // What the person brought into the project's conversations (pictures, documents): the platform's own copy of them goes with the project.
+    { id: "conversation-attachments", label: null, clear: projectId => forgetProjectAttachments(home, projectId) },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
     { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); forgetOrphanedInstallationBindings(home); } },
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
     // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
     { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId, "project_deleted"); } },
-    { id: "automation-recommendations", label: null, clear: projectId => forgetAutomationPreferences(home, projectId) },
+    { id: "automation-recommendations", label: null, clear: projectId => { forgetAutomationPreferences(home, projectId); forgetAutomationOffers(home, projectId); } },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
+    { id: "blueprints", label: null, clear: projectId => new AdoptionStore(home).clearProject(projectId) },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
     { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).

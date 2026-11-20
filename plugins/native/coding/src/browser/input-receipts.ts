@@ -1,14 +1,18 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StepNode } from "./shapes.js";
 import type { PagePorts, ReceiptLinks } from "./types.js";
+import type { CodingPickedMaterial } from "../materials.js";
 
 /** A supplement on its way to a round: the key it keeps until the Host answers, and the bubble that shows it. */
 export interface Sent {
   readonly id: string;
   readonly run: string;
   readonly text: string;
+  readonly command?: true;
   readonly mode: string;
   readonly key: string;
+  readonly materials: readonly CodingPickedMaterial[];
+  readonly acknowledge?: () => void;
   /** The answer was lost (the connection dropped, or the reply could not be read), so the same words go again under the same key. */
   lost: boolean;
   node?: HTMLElement;
@@ -38,8 +42,10 @@ export interface InputReceipts {
   /** The button of a step added for a supplement, to the receipt Coding's conversation drew; null when it drew none. */
   from(node: StepNode | undefined, first?: () => void): Node | null;
   /** Sends words to a round under way; resolves to what the person is told. */
-  steer(id: string, run: string, text: string, mode: string): Promise<string>;
+  steer(id: string, run: string, text: string, mode: string, materials?: readonly CodingPickedMaterial[], acknowledge?: () => void, commandPrompt?: true): Promise<string>;
   act(id: string, run: string): ReceiptActions;
+  /** Normal owner reads may prove a lost response succeeded, including an input waiting for the next Run. */
+  observe(id: string, keys: readonly (string | undefined)[]): void;
   /** The bubble a supplement shows while on its way; null when none is. */
   bubble(id: string, run: BubbleRun): HTMLElement | null;
 }
@@ -99,15 +105,17 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     if (initial === original) initial = undefined;
     return result;
   };
-  const supplement = (id: string, body: { run_id: string; text: string; key: string; mode?: string; about?: string }) =>
+  const supplement = (id: string, body: { run_id: string; text: string; key: string; mode?: string; about?: string; materials?: readonly CodingPickedMaterial[]; command_prompt?: true }) =>
     api<{ receipt: Receipt }>(control(id), "POST", { kind: "steer", ...body, original_input: { input_id: body.key.slice(5), text: body.text, use: "supplement" } });
   const send = async (sent: Sent) => {
+    // A refusal of this retry cannot disprove acceptance of an earlier attempt with the same identity.
+    const previouslyLost = sent.lost;
     sent.lost = false;
     item = sent;
     refresh();
     const writing = sent.mode === "interrupt" ? find(".coding-turn.is-writing") : null;
     try {
-      const { receipt } = await supplement(sent.id, { run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode });
+      const { receipt } = await supplement(sent.id, { run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode, command_prompt: sent.command, ...(sent.materials.length ? { materials: sent.materials } : {}) });
       if (item === sent) item = null;
       if (writing && receipt.delivered === "run" && !receipt.replayed) {
         writing.classList.add("is-dropped");
@@ -115,9 +123,9 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
       }
       return receipt.replayed ? AGAIN : receipt.delivered === "queued" && sent.mode !== "after-run" ? uiText.text("coding.sent.just-ended") : SENT[sent.mode] ?? "";
     } catch (error) {
-      if (unsure(error)) {
+      if (unsure(error) || previouslyLost) {
         sent.lost = true;
-        throw new Error(uiText.text("coding.sent.unconfirmed"));
+        throw new Error(uiText.text(previouslyLost && !unsure(error) ? "coding.sent.unconfirmed-retry" : "coding.sent.unconfirmed"));
       }
       if (item === sent) item = null;
       throw error;
@@ -125,15 +133,24 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
       refresh();
     }
   };
+  const observe = (id: string, keys: readonly (string | undefined)[]) => {
+    if (item?.id !== id || !item.lost || !keys.includes(item.key)) return;
+    const sent = item;
+    item = null;
+    sent.acknowledge?.();
+    landed(sent, AGAIN);
+  };
   return {
     start,
+    observe,
     from(node, first) {
       const one = node?.origins?.[0];
       return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "origin") : null;
     },
-    steer(id, run, text, mode) {
-      const again = item?.lost && item.id === id && item.text === text && item.mode === mode;
-      return send({ id, run, text, mode, key: again ? item!.key : "send." + crypto.randomUUID(), lost: false });
+    steer(id, run, text, mode, materials = [], acknowledge, command) {
+      const again = item?.lost && item.id === id && item.run === run && item.text === text && item.mode === mode
+        && item.command === command && JSON.stringify(item.materials) === JSON.stringify(materials);
+      return send({ id, run, text, mode, materials, command, acknowledge, key: again ? item!.key : "send." + crypto.randomUUID(), lost: !!again });
     },
     act(id, run) {
       const path = control(id), lost = (error: unknown): never => {
@@ -147,13 +164,8 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
       };
     },
     bubble(id, run) {
+      observe(id, run.turns.map(turn => turn.steer?.key));
       if (item?.id !== id) return null;
-      if (item.lost && run.turns.some(turn => turn.steer?.key === item?.key)) {
-        const sent = item;
-        item = null;
-        landed(sent, AGAIN);
-        return null;
-      }
       const mark = item.lost ? "1" : "0";
       if (item.node?.dataset.lost !== mark) {
         const node = item.node = document.createElement("article");

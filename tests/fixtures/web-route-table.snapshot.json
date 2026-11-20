@@ -119,6 +119,7 @@
       "labels",
       "last_upkeep",
       "pairs",
+      "preference_setting",
       "prefs",
       "project_id",
       "scanned",
@@ -254,11 +255,13 @@
   "GET /projects/no-such-project/api/board": {
     "status": 404,
     "type": "application/json",
+    "code": "catalog.project_not_found",
     "error": "找不到这个 Molis Work 项目"
   },
   "GET /projects/no-such-project/ (page)": {
     "status": 404,
     "type": "application/json",
+    "code": "catalog.project_not_found",
     "error": "找不到这个 Molis Work 项目"
   },
   "GET <project>/ (page)": {
@@ -465,7 +468,6 @@
       "developer_mode",
       "events",
       "goals",
-      "inbox_judgment",
       "input_bindings",
       "plugin_directory",
       "plugin_overlays",
@@ -721,6 +723,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "action_bar_revision",
       "ai",
       "clipboard",
       "current_clip_id",
@@ -755,6 +758,7 @@
       "labels",
       "last_upkeep",
       "pairs",
+      "preference_setting",
       "prefs",
       "project_id",
       "scanned",
@@ -945,7 +949,7 @@
   "GET <project>/archive (page)": {
     "status": 200,
     "type": "text/html",
-    "title": "已归档 Goal · Molis Work"
+    "title": "已归档目标 · Molis Work"
   },
   "GET <project>/goals/no-such-goal (page)": {
     "status": 404,
@@ -988,7 +992,6 @@
       "developer_mode",
       "events",
       "goals",
-      "inbox_judgment",
       "input_bindings",
       "plugin_directory",
       "plugin_overlays",

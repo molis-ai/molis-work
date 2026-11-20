@@ -1,6 +1,7 @@
 import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentRequest, ConversationAttachmentUploadRequest, MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
@@ -42,8 +43,18 @@ export interface PluginMaterialsPort {
   claimOriginal?(key: PluginOriginalFileKey, path: string, options: PluginMaterialsDispatch): Promise<void>;
   readOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & { readonly maxBytes?: number }): Promise<Uint8Array>;
   releaseOriginal?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch): Promise<void>;
+  /** Keeps a file the person brought into this installation's conversation, as its attachment in its project (`ConversationAttachment`). */
+  attach?(owner: PluginAttachmentOwner, upload: MaterialUpload, options: PluginMaterialsDispatch & Pick<ConversationAttachmentUploadRequest, "expected_kind">): Promise<ConversationAttachment>;
+  /** One of this installation's attachments in its project, read back; any other is not found. */
+  readAttachment?(owner: PluginAttachmentOwner, ref: MaterialRef, request: ConversationAttachmentRequest, options: PluginMaterialsDispatch): Promise<ConversationAttachmentContent>;
   /** One part of the registered file, with the file's size and an opaque revision (PluginOriginalRangeRequest); the Host checks the bounds. */
   readOriginalRange?(key: PluginOriginalFileKey, options: PluginMaterialsDispatch & Pick<PluginOriginalRangeRequest, "offset" | "length" | "revision">): Promise<PluginOriginalRangeContent>;
+}
+/** Whose conversation attachments these are: the plugin's installation and the project its activation runs in (`null`: the Home). */
+export interface PluginAttachmentOwner {
+  readonly plugin_id: string;
+  readonly install_id: string;
+  readonly project_id: string | null;
 }
 export interface PluginMaterialsGate extends PluginInstance {
   /** The project this activation runs in, from the Host's start list; `null` for a Home-level activation. */
@@ -95,6 +106,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
   }
   const originalKey = (record_key: unknown): PluginOriginalFileKey => ({ plugin_id: manifest.plugin_id, install_id: gate.install_id, project_id: gate.project_id, record_key: originalRecordKey(record_key) });
   const original = declared("materials:original") ? port : undefined;
+  const attachmentOwner = (): PluginAttachmentOwner => ({ plugin_id: manifest.plugin_id, install_id: gate.install_id, project_id: gate.project_id });
   return Object.freeze({
     ...(declared("materials:read") ? { extract: (source: MaterialSource, request: PluginMaterialRequest = {}) =>
       run("materials:read", request, options => port.extract(source, options)),
@@ -105,6 +117,11 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
       gate.assertActive(); gate.requireGrant("materials:read");
       return port.imageTextAvailable!();
     } } : {}),
+    // A conversation attachment is this installation's, in this project: the owner comes from the activation, never from an argument.
+    ...(declared("materials:read") && port.attach ? { attach: (upload: MaterialUpload, request: ConversationAttachmentUploadRequest = {}) =>
+      run("materials:read", { signal: request.signal }, options => port.attach!(attachmentOwner(), upload, { ...options, expected_kind: request.expected_kind })) } : {}),
+    ...(declared("materials:read") && port.readAttachment ? { readAttachment: (ref: MaterialRef, request: ConversationAttachmentRequest) =>
+      run("materials:read", { signal: request?.signal }, options => port.readAttachment!(attachmentOwner(), ref, { as: request?.as === "image" ? "image" : "text" }, options)) } : {}),
     ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains"> = {}) =>
       run("materials:fetch", request, options => port.readSource(url, options)) } : {}),
     ...(declared("materials:fetch_local") && port.readLocalPage ? { readLocalPage: (url: string, request: PluginLocalPageRequest = {}) =>

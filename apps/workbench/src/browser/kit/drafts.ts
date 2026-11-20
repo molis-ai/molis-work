@@ -40,7 +40,10 @@ export const fieldsOf = (fields: SkillAuthoredFields): Fields => ({ ...blank(), 
 export const sentFields = (fields: Fields): SkillAuthoredFields => ({ name: fields.name, description: fields.description, applies_to: fields.applies_to, body: fields.body,
   ...(fields.when_not_to_use.trim() ? { when_not_to_use: fields.when_not_to_use } : {}), ...(fields.argument_hint.trim() ? { argument_hint: fields.argument_hint } : {}) });
 
-export type SaveState = "saved" | "saving" | "failed";
+export type SaveState =
+  | { kind: "saved" | "saving" }
+  | { kind: "failed" | "latest-failed"; message: string }
+  | { kind: "conflict"; latest: SkillDraft };
 export type Side = "try" | "compare";
 export type Tab = "edit" | Side;
 export type CaseForm = SkillCaseFields & { case_id?: string };
@@ -50,17 +53,17 @@ export interface Workshop {
   draft: SkillDraft;
   fields: Fields;
   replacements: Record<string, string>;
+  /** Snapshot of the wording fields with placeholders unexpanded, kept while editing placeholders so typing never rewrites unrelated text. */
+  placeholderBase?: Record<"description" | "when_not_to_use" | "body", string>;
   /** The Skill or source it was opened from, by name, for the heading. */
   name: string;
   /** The version the draft becomes when adopted (absent: a new Skill). */
   next?: number;
   save: SaveState;
-  saveFailure?: string;
-  savedAt?: string;
   /** Narrow: the one column shown; wide: the side column's tab. */
   tab: Tab;
   side: Side;
-  compare: "how" | "out";
+  compare: "how" | "out" | "draft";
   /** The replayed result compared with the known answer. */
   out?: { consumer: SkillTrialConsumer; side: "base" | "draft" };
   ask: string;
@@ -73,7 +76,7 @@ export interface Workshop {
   runFailureCode?: string;
   caseForm?: CaseForm;
   caseErrors: Partial<Record<keyof SkillCaseFields, string>>;
-  confirm?: boolean;
+  confirm?: boolean | number;
   adopting?: boolean;
   adoptFailure?: string;
   errors: Partial<Record<keyof SkillAuthoredFields, string>>;
@@ -85,7 +88,7 @@ export interface Workshop {
 }
 
 export function workshopOf(draft: SkillDraft, name: string, next: number | undefined, here: boolean): Workshop {
-  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: "saved", savedAt: draft.updated_at,
+  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: { kind: "saved" },
     tab: "edit", side: "try", compare: "how", ask: "", caseErrors: {}, errors: {}, ...draft.target.kind === "custom" && here ? { turnOffSource: true } : {} };
 }
 
@@ -104,15 +107,28 @@ export function placeholdersOf(w: Workshop): string[] {
   const found = skillPlaceholders([original?.description ?? "", original?.when_not_to_use ?? "", original?.body ?? "", w.fields.description, w.fields.when_not_to_use, w.fields.body].join("\n"));
   return [...new Set([...Object.keys(w.replacements), ...found])];
 }
-/** Every replaced placeholder written out in the fields: the person types their own word, the draft says it everywhere. */
+const WORDING_KEYS = ["description", "when_not_to_use", "body"] as const;
+const replaceAll = (text: string, pairs: ReadonlyArray<readonly [string, string]>): string => {
+  const map = new Map<string, string>();
+  for (const [from, to] of pairs) if (from && !map.has(from)) map.set(from, to);
+  if (!map.size) return text;
+  const pattern = new RegExp([...map.keys()].sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|"), "gu");
+  return text.replace(pattern, match => map.get(match) ?? match);
+};
+/** Every replaced placeholder written out in the fields: renders from a placeholder template so keystroke-by-keystroke typing never touches unrelated text. */
 export function applyReplacements(w: Workshop, placeholder: string, value: string): void {
-  const before = w.replacements[placeholder], replace = (text: string) => {
-    let next = before ? text.split(before).join(placeholder) : text;
-    if (value.trim()) next = next.split(placeholder).join(value.trim());
-    return next;
-  };
-  for (const key of ["description", "when_not_to_use", "body"] as const) w.fields[key] = replace(w.fields[key]);
-  if (value.trim()) w.replacements[placeholder] = value.trim(); else delete w.replacements[placeholder];
+  if (!w.placeholderBase) {
+    const inverse = Object.entries(w.replacements).filter(([, own]) => Boolean(own)).map(([ph, own]) => [own, ph] as const);
+    w.placeholderBase = {
+      description: replaceAll(w.fields.description, inverse),
+      when_not_to_use: replaceAll(w.fields.when_not_to_use, inverse),
+      body: replaceAll(w.fields.body, inverse),
+    };
+  }
+  const trimmed = value.trim();
+  if (trimmed) w.replacements[placeholder] = trimmed; else delete w.replacements[placeholder];
+  const forward = Object.entries(w.replacements).filter(([, own]) => Boolean(own));
+  for (const key of WORDING_KEYS) w.fields[key] = replaceAll(w.placeholderBase[key], forward);
 }
 
 export const failureOf = (cause: unknown) => cause as UiRequestFailure;

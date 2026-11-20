@@ -14,6 +14,7 @@ import { isSubjectReader, type ActionSubjectContext, type ActionView, type WorkE
 import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
+import { storedCharacter } from "./assistant-characters.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
@@ -26,7 +27,7 @@ import { RUNTIME, sessionRef, belongsElsewhere, HANDOVER_MARK, whereNow, type As
 import { stateOf, spokenTurns, roundDiagnostics, stopInWords, presentActivity, type CapabilityTitles } from "./assistant-present.js";
 import type { AssistantDispatch } from "./assistant-dispatch.js";
 import type { AssistantOutcomes } from "./assistant-outcomes.js";
-import type { AssistantRoundMaterials } from "./assistant-round-materials.js";
+import type { AssistantMaterialAccess } from "./assistant-attachments.js";
 import { workTitle } from "./assistant-work-title.js";
 import { stepReview } from "./assistant-step-gate.js";
 
@@ -37,7 +38,7 @@ const roleMethod = (role: SignedRoleView, installation: SignedAgentInstallation)
 const sameSigned = (left: SignedAgentReference, right: SignedAgentReference) => left.kind === right.kind && left.entry_id === right.entry_id
   && left.source.plugin_id === right.source.plugin_id && left.source.plugin_version === right.source.plugin_version && left.source.publisher_signature === right.source.publisher_signature;
 
-export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles" | "rememberTitle" | "rememberedTitle"> & Pick<AssistantDispatch, "executorOf"> & Pick<AssistantRoundMaterials, "holdsImage"> & { continuations: Pick<AssistantContinuations, "state">; delegations: Pick<AssistantDelegations, "shown"> };
+export type AssistantWorkReadsLinks = Pick<AssistantOutcomes, "capabilityTitles" | "rememberTitle" | "rememberedTitle"> & Pick<AssistantDispatch, "executorOf"> & Pick<AssistantMaterialAccess, "holdsImage"> & { continuations: Pick<AssistantContinuations, "state">; delegations: Pick<AssistantDelegations, "shown"> };
 
 /**
  * Reading a work: its rounds in the Assistant's session and the executor's, its state, the objects it relates to as
@@ -193,10 +194,10 @@ export class AssistantWorkReads {
    * The bodies of the Skills the person chose for one round, in one catalog read with them named (§2.3); a refused one refuses the
    * round, never swapped for another version. Each is recorded as used once the round accepts it.
    */
-  async readSkills(work: StoredWork, refs: readonly SkillRef[], names: ReadonlyMap<string, string> = new Map()): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
+  async readSkills(work: StoredWork, refs: readonly SkillRef[], names: ReadonlyMap<string, string>, categories: Set<string>): Promise<{ skills: Array<{ ref: SkillRef; name: string; body: string }>; handoff: MethodHandoff }> {
     const port = this.ports.methods;
     if (!port) throw assistantErrors.invalid("技能目录未装配");
-    const results = await port.readSkills(work.project_ref, refs);
+    const results = await port.readSkills(work, refs, categories);
     // SKL-16: every named Skill that cannot be read is said at once, with its own reason; the round does not start on the rest.
     const refused = results.flatMap(result => result.ok ? [] : [{ name: names.get(skillRefKey(result.ref)) ?? result.ref.skill_id, reason: result.reason, ...(result.detail ? { detail: result.detail } : {}) }]);
     if (refused.length) throw assistantErrors.invalid(namedSkillsRefused(refused));
@@ -313,7 +314,8 @@ export class AssistantWorkReads {
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
-    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character, ...(view?.frozen.character ? { version: view.frozen.character.version } : {}) } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
+    const character = storedCharacter(round.character);
+    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(character ? { character: { ...character, ...(view?.frozen.character ? { version: view.frozen.character.version } : {}) } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.link.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),

@@ -103,7 +103,7 @@ export function installGlobalEvents(page: JellyPage): void {
   root.addEventListener("molis-work:select-item", (event) => {
     const detail = (event as CustomEvent<{ itemId?: unknown; quiet?: boolean } | null>).detail;
     const id = detail?.itemId;
-    if (typeof id === "string" && id) void run(page, () => showItem(page, id, Boolean(detail?.quiet)));
+    if (typeof id === "string" && id) { event.preventDefault(); void run(page, () => showItem(page, id, Boolean(detail?.quiet))); }
   });
   window.addEventListener("beforeunload", (event) => { if (page.dirty) { event.preventDefault(); event.returnValue = ""; } });
   root.addEventListener("keydown", (event) => {

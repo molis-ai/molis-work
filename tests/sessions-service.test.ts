@@ -65,6 +65,123 @@ function buildTestPorts(
   };
 }
 
+for (const source of ["claude-code", "codex"] as const) {
+  test(`QEA-37: ${source} suggestions use the first three user messages while history keeps its newest page`, async () => {
+    await withTempDir("molis-sessions-opening-", async root => {
+      const homeDir = path.join(root, "home"), userHome = path.join(root, "user");
+      await mkdir(homeDir); await mkdir(userHome);
+      const opening = ["First purpose", "Second purpose", "Third purpose"];
+      const messages = opening.flatMap(text => [{ role: "you" as const, text }, ...Array.from({ length: 120 }, () => ({ role: "tool" as const, text: "Assistant follow-up" }))]);
+      messages.push({ role: "you", text: "Latest unrelated request" });
+      const at = "2026-11-10T10:00:00Z", nativeId = "opening-fixture";
+      const dir = path.join(userHome, source === "codex" ? ".codex" : ".claude", "projects", "fixture");
+      await mkdir(dir, { recursive: true });
+      if (source === "claude-code") await writeFile(path.join(dir, `${nativeId}.jsonl`), messages.map(m => JSON.stringify({
+        sessionId: nativeId, cwd: null, timestamp: at, type: m.role === "you" ? "user" : "assistant",
+        message: { role: m.role === "you" ? "user" : "assistant", content: m.text },
+      })).join("\n") + "\n");
+      let captured: string[] = [];
+      const state = { searchEvents: 0, snapshot: { projects: [{ project_id: "p1", display_name: "Project" }], directories: [], bindings: [] },
+        suggester: { promptVersion: () => 1, suggest: async (input, _signal, beforeDispatch) => {
+          await beforeDispatch?.(); captured = input.groups[0]!.opening;
+          return { items: [{ group: 0, project: 0, alternatives: [], reason: "Original purpose", evidence: [] }] };
+        } } satisfies SessionAttributionSuggester };
+      const base = buildTestPorts(homeDir, userHome, state);
+      const svc = new SessionsService(homeDir, { ...base, ...(source === "codex" ? { protocols: {
+        codexThreadList: async () => ({ threads: [{ id: nativeId, title: "Opening fixture", cwd: null, updated_at: at, activity: "idle" as const, parent_thread_id: null }], next_cursor: null }),
+        codexThreadRead: async () => ({ entries: messages.map((m, i) => ({ ...m, position: `turn:${i}`, at, truncated: false })), activity: "idle" as const }),
+      } } : {}) });
+      try {
+        const scope = await svc.scopeRead({}, PERSON_CALLER);
+        await svc.scopeSet({ expected_revision: scope.scope_revision, sources: [{ entry_id: source, allowed: true, directories: { mode: "all" } }] }, PERSON_CALLER);
+        await svc.waitForDiscoveryIdle();
+        const rows = await svc.list({ view: "unfiled" }, PERSON_CALLER);
+        assert.equal(rows.sessions.length, 1);
+        const key = rows.sessions[0]!.session_key;
+        const history = await svc.historyRead({ session_key: key, limit: 100 }, PERSON_CALLER);
+        assert.equal(history.entries.at(-1)?.text, "Latest unrelated request");
+        assert.equal(history.entries.some(row => row.text === opening[0]), false);
+        await svc.attributionSuggest({ session_keys: [key] }, PERSON_CALLER);
+        assert.deepEqual(captured, opening);
+      } finally { svc.close(); }
+    });
+  });
+}
+
+for (const change of ["disable", "narrow"] as const) for (const stage of ["opening", "cached"] as const) {
+  test(`QEA-29: ${change} during ${stage} suggestion preparation keeps withdrawn sessions out of model dispatch and cached results`, { timeout: 30_000 }, async () => {
+    await withTempDir("molis-sessions-suggest-fence-", async root => {
+      const homeDir = path.join(root, "home"), userHome = path.join(root, "user"), unlinked = path.join(root, "unlinked");
+      for (const dir of [homeDir, userHome, unlinked]) await mkdir(dir, { recursive: true });
+      await writeClaudeSession(userHome, "fixture", "scope-fence", unlinked, "Withdrawn opening", "2026-11-10T10:00:00Z");
+      let dispatched = 0;
+      const state = {
+        searchEvents: 0,
+        snapshot: { projects: [{ project_id: "p1", display_name: "Project" }], directories: [], bindings: [] },
+        suggester: {
+          promptVersion: () => 1,
+          suggest: async (input, _signal, beforeDispatch) => {
+            await beforeDispatch?.();
+            dispatched++;
+            return { items: input.groups.map(group => ({ group: group.ref, project: 0, alternatives: [], reason: "Fixture match", evidence: [] })) };
+          },
+        } satisfies SessionAttributionSuggester,
+      };
+      const base = buildTestPorts(homeDir, userHome, state);
+      let pauseOpening: (() => Promise<void>) | undefined;
+      let pauseSnapshot: (() => Promise<void>) | undefined;
+      const svc = new SessionsService(homeDir, { ...base,
+        files: { ...base.files, open: async (...args) => {
+          const pause = pauseOpening; pauseOpening = undefined;
+          await pause?.();
+          return base.files.open(...args);
+        } },
+        projects: { read: async op => {
+          const value = await base.projects.read(op);
+          const pause = pauseSnapshot; pauseSnapshot = undefined;
+          await pause?.();
+          return value;
+        } },
+      });
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+      try {
+        const initial = await svc.scopeRead({}, PERSON_CALLER);
+        const enabled = await svc.scopeSet({ expected_revision: initial.scope_revision,
+          sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON_CALLER);
+        await svc.waitForDiscoveryIdle();
+        const key = (await svc.list({ view: "unfiled" }, PERSON_CALLER)).sessions[0]!.session_key;
+        if (stage === "cached") {
+          assert.equal((await svc.attributionSuggest({ session_keys: [key] }, PERSON_CALLER)).suggestions[0]?.suggestion.status, "ready");
+        }
+        const originalDispatches = dispatched;
+        const pause = async () => { entered.resolve(); await release.promise; };
+        if (stage === "opening") pauseOpening = pause; else pauseSnapshot = pause;
+        const pending = svc.attributionSuggest({ session_keys: [key] }, PERSON_CALLER);
+        // Attach immediately, including the expected refusal, so a fast rejection is observed.
+        const outcome = pending.then(value => ({ value, error: null }), error => ({ value: null, error }));
+        await Promise.race([entered.promise, outcome.then(() => { throw new Error("Suggestion did not reach the held boundary"); })]);
+        const closed = await svc.scopeSet({ expected_revision: enabled.scope_revision, sources: [{ entry_id: "claude-code",
+          allowed: change !== "disable", directories: { mode: change === "narrow" ? "linked_projects" : "all" } }] }, PERSON_CALLER);
+        release.resolve();
+        const result = await outcome;
+        assert.equal(dispatched, originalDispatches, "withdrawn material must never reach model dispatch");
+        if (stage === "cached") assert.deepEqual(result.value, { suggestions: [] });
+        else assert.equal(result.error?.code, "sessions.scope_changed");
+        await svc.scopeSet({ expected_revision: closed.scope_revision,
+          sources: [{ entry_id: "claude-code", allowed: true, directories: { mode: "all" } }] }, PERSON_CALLER);
+        await svc.waitForDiscoveryIdle();
+        const restored = (await svc.list({ view: "unfiled" }, PERSON_CALLER)).sessions.find(row => row.session_key === key)!;
+        assert.equal(restored.attribution.state, "unfiled");
+        if (restored.attribution.state === "unfiled") assert.equal(restored.attribution.suggestion?.status ?? null, stage === "cached" ? "ready" : null,
+          "a refused dispatch must not persist even a failed suggestion");
+        const recovered = await svc.attributionSuggest({ session_keys: [key] }, PERSON_CALLER);
+        assert.equal(recovered.suggestions[0]?.suggestion.status, "ready");
+        assert.equal(dispatched, 1, "cached recovery stays cached; an uncached recovery dispatches exactly once");
+      } finally { release.resolve(); svc.close(); }
+    });
+  });
+}
+
 test("SRB-14 SRB-15 nine attribution levels, later_suggestion, tool_reported_other and monotonic clear revision", async () => {
   await withTempDir("molis-sessions-svc-", async root => {
     const homeDir = path.join(root, "home");

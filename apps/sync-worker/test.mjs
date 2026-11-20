@@ -37,8 +37,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
   t.mock.method(globalThis,'fetch',(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init));
   try{
     const db=await mf.getD1Database('DB');
-    // The Worker serves only v6 plus the same-version cutover structure, so the fixture loads both files like a fresh database.
-    for(const file of ['0001_sync.sql','0002_process_items_cutover.sql'])await applySql(db,file);
+    await applySql(db,'0001_sync.sql');
     const call=(path,token,body,method=body===undefined?'GET':'POST')=>mf.dispatchFetch('http://local'+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     assert.equal((await call('/v1/policy','invalid')).status,401);
     assert.equal((await call('/v1/policy','wrong-app')).status,403);

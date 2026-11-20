@@ -19,6 +19,7 @@ export * from "./ui/return-trip.js";
 export * from "./ui/resume-prompt.js";
 export * from "./ui/skill-line.js";
 export * from "./ui/field.js";
+export * from "./ui/settings-rows.js";
 export * from "./ui/calendar.js";
 export * from "./ui/directory.js";
 export * from "./ui/layout.js";
@@ -39,6 +40,8 @@ export * from "./ui/appearance-files.js";
 export * from "./ui/appearance-resolve.js";
 export * from "./ui/environment.js";
 export * from "./ui/composer.js";
+export * from "./ui/composer-strip.js";
 export * from "./ui/recovery-parts.js";
+export * from "./ui/coding-basics.js";
 
 export { renderSubtaskConversation, type MwSubtaskContent, type MwSubtaskLink, type MwSubtaskAction, type MwSubtaskMessage, type MwSubtaskDetail, type MwSubtaskConversationView, type MwSubtaskConversationLabels } from "./ui/subtask-conversation.js";

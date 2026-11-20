@@ -178,7 +178,7 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
    - **Goals 同步校验与写入侧一致**：`cited_subjects_json` 里 `kind`／`id` 前后带空格或重复的也拒收（写入侧 `citedSubjectsOf` 会去空格、去重）。
    - **风险页面的只读判断**：只有动作的 forbidden 码（`actions.*` 的 403，不含未登录与非本 Home）才把记录变只读；宿主自己的 403（控制令牌、来源）不算。
    - **调用预算许可**：许可只能点名真变大的计数；补了「删掉已采用的许可」与「点名没变大的计数」两种拒绝用例，`tooling/gates/README.md` 写上两份文件的规则。
-   - `updateTask` 为找一条任务读全部任务，记 [BL-schedule-update-task-lookup](../backlog/BL-schedule-update-task-lookup.md)。
+   - `updateTask` 为找一条任务读全部任务，记 [BL-schedule-update-task-lookup](https://github.com/molis-ai/molis-work/blob/6d22d58ae1a41215fe6723c15510d57b981b0200/specs/backlog/BL-schedule-update-task-lookup.md)。
 10. 合后独立审计整改（2026-11-14，见批次文件 17.md「合后独立审计整改」）：`risk.create` 的关联逐个走读取器；`risk.notes.add` 对已关闭拒绝；`ScheduleTaskReads` 带 provider/group/state，风险页只看自己的 `risk` 组；复查写按风险串行化；页面每页对象格上限 20；总览可从已有关联对象里精确筛选；`concern_opened` 的 `cited_subjects` 改为可选；`risk-review` 方法改用 `risk.list` 的 `keyword`。行为与验收以原需求与 17.md 为准。
 
 11. 合后整修（2026-11-14）：侧栏文档里的插件帧原先没有 `openItem` 宿主，侧栏的「展开成整页」和「去开授权」点了没有动作；补 `molis:side-main-open`（只接受侧栏帧，带发起插件），主区打开同一条风险或 Schedule 任务，`risk-page.e2e` 增展开断言。复查任务被暂停后过了约定时间且从未跑过，原先被算成「已复查」，现为「已暂停」，可改期。无 Goals 时侧栏空闲文案不再提 Goal；关联对象筛选只列已装插件能打开的种类。

@@ -1,3 +1,4 @@
+import { AssistantSettingRecords } from "./assistant-setting-records.js";
 import { AssistantActionPolicies } from "./assistant-action-policies.js";
 import { AssistantPermissionTransitions } from "./assistant-permission-transitions.js";
 import { AssistantRequests } from "./assistant-requests.js";
@@ -7,11 +8,12 @@ import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
 import { AssistantFollowUpRecords } from "./assistant-followups.js";
 import { applySqliteBaseline, openBaselineHomeSqlite, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import { AssistantObservedStates } from "./assistant-observed-states.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCardChoice, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 import { attentionChanged } from "../attention-changes.js";
@@ -25,12 +27,9 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The Assistant's own facts: its works, the rounds the person started in them, and each Send's outcome. Conversation
  * content and run state stay in the Prologue session; business results stay with their owners. One current schema
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
- *
- * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
- * The current schema retains the table and its stored work shape.
  * The current executor is `{ kind: "plugin", plugin_id, ... }`; other stored versions are refused, never translated on read.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: /* @version database.assistant_store_baseline */ 1, upgrades: [], schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -58,9 +57,6 @@ CREATE TABLE assistant_followups (
 CREATE TABLE assistant_undos (
   undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE assistant_jobs (
-  key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
-);
 CREATE TABLE assistant_usage (
   run_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, ended_at TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cached INTEGER NOT NULL
 );
@@ -78,7 +74,7 @@ CREATE TABLE assistant_requests (
 ${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
-export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
+export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by" | "character_selection_required"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
   /** What the next plugin round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
@@ -146,6 +142,8 @@ export interface StoredRound {
   work_budget?: number;
   /** The platform memory's recall receipt for this round: what it was given and what did not fit. */
   memory_receipt?: string;
+  /** The Host started it only to report a task no conversation started (`reportOnlyAuthority`): the work did not go on in it. Rounds stored before the mark (2026-11-19) have none and count as they did. */
+  report_only?: true;
 }
 
 
@@ -166,7 +164,7 @@ export interface StoredCard {
   editable: string[];
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-  outcome?: string;
+  outcome?: OwnedTextRef;
   presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
@@ -178,8 +176,42 @@ export interface StoredCard {
   materials?: Array<{ title: string; text: string }>;
   /** The step of the background job it started (specs/prologue-adoption §6.0o): it stays running until that job ends. */
   job_step?: { graph_id: string; node_id: string };
+  /** Choices its preparer gave editable fields (`AssistantPreparedCard.choices`): only these values run. */
+  choices?: Record<string, AssistantCardChoice[]>;
+  /**
+   * A card the Host itself prepared for the person (the project's automation suggestions): it runs as the person, through their own
+   * actions in the work's scope, never through the Assistant's. Nothing else sets it: not a page's card, not a round's suggestion.
+   */
+  runs_as?: "person";
   created_at: string;
   updated_at: string;
+}
+
+type UndoWrite = StoredUndo | (Pick<StoredUndo, "undo_id" | "work_id"> & { remove: true });
+
+function writeUndo(db: DatabaseSync, actorId: string, undo: UndoWrite): boolean {
+  if ("remove" in undo) {
+    return Boolean(db.prepare("DELETE FROM assistant_undos WHERE actor_id=? AND work_id=? AND undo_id=?").run(actorId, undo.work_id, undo.undo_id).changes);
+  }
+  db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
+    .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+  return true;
+}
+
+function readWorkCards(db: DatabaseSync, workId: string, latestPersonProvider: string | undefined): StoredCard[] {
+  const rows = latestPersonProvider === undefined ? db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId)
+    : db.prepare(`SELECT body FROM assistant_cards WHERE work_id=? AND json_extract(body,'$.runs_as')='person'
+      AND json_extract(body,'$.reference.provider_id')=? ORDER BY rowid DESC LIMIT 1`).all(workId, latestPersonProvider);
+  return rows.map(row => JSON.parse(String(row.body)) as StoredCard);
+}
+
+function roundWithAttachmentRefs(round: StoredRound): StoredRound {
+  const materials = round.materials.map(item => {
+    if (!item.file_attachment) return item;
+    const { text: _text, ...reference } = item;
+    return reference;
+  });
+  return { ...round, materials };
 }
 
 export class AssistantStore {
@@ -196,6 +228,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  readonly preferences: AssistantSettingRecords;
   readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
 
@@ -207,6 +240,7 @@ export class AssistantStore {
     this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
     this.observed = new AssistantObservedStates(db);
     this.noticeReceipts = assistantNoticeReceipts(db);
+    this.preferences = new AssistantSettingRecords(db);
     this.policies = new AssistantActionPolicies(db, (actorId, key, value) => this.setSetting(actorId, key, value));
   }
 
@@ -267,7 +301,7 @@ export class AssistantStore {
 
   addRound(workId: string, round: StoredRound): void {
     const position = Number((this.db.prepare("SELECT COALESCE(MAX(position),0)+1 AS next FROM assistant_rounds WHERE work_id=?").get(workId) as { next: number }).next);
-    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(round));
+    this.db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run(workId, round.run_id, position, JSON.stringify(roundWithAttachmentRefs(round)));
     this.#changed(workId);
   }
 
@@ -284,8 +318,8 @@ export class AssistantStore {
     return card;
   }
 
-  cards(workId: string): StoredCard[] {
-    return this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId).map(row => JSON.parse(String(row.body)) as StoredCard);
+  cards(workId: string, latestPersonProvider?: string): StoredCard[] {
+    return readWorkCards(this.db, workId, latestPersonProvider);
   }
 
   card(workId: string, cardId: string): StoredCard {
@@ -369,8 +403,7 @@ export class AssistantStore {
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
   setting(actorId: string, key: string): string | null {
-    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
-    return row ? String(row.value) : null;
+    return this.preferences.get(actorId, key);
   }
 
   /** The title last seen for an object with this identifier, whatever its kind (titles are kept as `object-title:<kind>:<id>`). */
@@ -382,8 +415,7 @@ export class AssistantStore {
   }
 
   setSetting(actorId: string, key: string, value: string): void {
-    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
-      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+    this.preferences.set(actorId, key, value);
   }
 
   /**
@@ -399,9 +431,8 @@ export class AssistantStore {
     return this.db.prepare("SELECT body FROM assistant_undos WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId).map(row => JSON.parse(String(row.body)) as StoredUndo);
   }
 
-  saveUndo(actorId: string, undo: StoredUndo): void {
-    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body").run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
-    this.#changed(undo.work_id);
+  saveUndo(actorId: string, undo: UndoWrite): void {
+    if (writeUndo(this.db, actorId, undo)) this.#changed(undo.work_id);
   }
 
   /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */
@@ -426,7 +457,7 @@ export class AssistantStore {
   /** A work whose first round could not start is dropped with what was kept for it; one that has a round is never dropped. */
   discard(actorId: string, workId: string): void {
     if (this.rounds(workId).length) return;
-    for (const table of ["works", "observed", "notices", "followups", "undos", "jobs", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
+    for (const table of ["works", "observed", "notices", "followups", "undos", "unsettled"]) this.db.prepare(`DELETE FROM assistant_${table} WHERE actor_id=? AND work_id=?`).run(actorId, workId);
   }
 
   /** Rounds of this person's works started since then, with the work they belong to (most recent 500). */

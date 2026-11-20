@@ -1,4 +1,5 @@
 import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { shelfPreferences, shelfSettings } from "./device-preferences.js";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { SHELF_RUNTIME_ACTIONS, shelfReceiveCopy } from "./runtime-actions.js";
@@ -44,7 +45,7 @@ export const shelfManifest: PluginManifest = {
     { permission: "projects:exist", required: true, reason: "副本来自的项目被删除后，在副本上标出「项目已删除」" },
     { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
     { permission: "model:read", required: true, reason: "读取当前可用模型" },
-    { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上装了哪些终端 Agent" },
+    { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上已安装的外部 AI 工具" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
   capabilities: { provides: [], consumes: [CODING_RESULT_DOCUMENT_ID] },
@@ -55,7 +56,8 @@ export const shelfManifest: PluginManifest = {
   // The Home half is also given the platform's look for the terminal Agents on this machine (`services.localTools`); the project half is not.
   local_tools: SHELF_LOCAL_TOOLS,
   // Each Runtime instance redeems only the actions it owns.
-  actions: [...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
+  settings_entries: shelfSettings,
+  actions: [shelfPreferences.read, shelfPreferences.write, ...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, shelfReceiveCopy, ...SHELF_RUNTIME_ACTIONS],
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:/* @version sync.collection.shelf.copies */ 1,requires:[]}]},
   artifacts: { produces: [], consumes: [{ artifact_type_id: /* @version type.coding.report "coding.report.v{version}" */ "coding.report.v1", schema_version: /* @version type.coding.report */ 1 }] },
   // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.

@@ -105,7 +105,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 | `store/signals.ts` | `SignalsModule`：规范化的外部事件、去重身份、修订与来源 | `signals`、`signal_revisions`、`signal_events` |
 | `store/listener.ts` | `ListenerHost`：持久游标、租约、重试、隔离、原始事件投递与运行收据 | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 
-- 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和项目连接与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromBetterSqlite(db)` 包项目连接（名字是旧驱动留下的），现在只给 `createDemoFeedApplication`（`apps/local-host/src/demo-feed-library.ts`）和测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
+- 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和项目连接与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromProjectConnection(db)` 从项目连接取得 `FeedSql`（有 `transaction` 的连接给整套接口，事务立即加锁；只读连接只给语句），现在只给测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
 - 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，与本插件现行结构一致），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者；入口不导出 Repository 或 Store，也不转出 Storage 的证据正文库（RAC-170）。别的包不读写 `feed_materials`（`scripts/gates/table-owners.mjs`）。
@@ -130,3 +130,5 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.record.bind@1`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。
 
 Feed 主区声明通用 `data-frame-assets-input` / `data-frame-assets-next-input`，使冷启动内容选择器经 owner 的分页舞台读取全部元数据（包含归档），而普通列表继续使用当前筛选；不把完整正文、材料或全量元数据塞回页面快照。
+
+公开来源同步通过平台 `services.sourcePull.plan/pull/forget`：平台拥有计划、预算、网络策略与指纹，Feed拥有来源配置、运行、游标与引用。拉取前先计划并复核来源；正文引用先写运行、再写Home引用账，等待后复核来源再允许平台落正文。终态同键重放不再抓取；非终态恢复继承原引用，暂停/改配置/删除/取消后不追加结果。

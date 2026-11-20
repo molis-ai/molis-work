@@ -431,7 +431,7 @@ test("replay keeps original question order and does not invent missing event tim
 });
 
 for (const persistence of ["delayed", "failed"] as const) {
-  test(`observation timing ${persistence}: keep SDK outcome and commit once before exposing completion`, async () => {
+  test(`QEA-19/20 observation timing ${persistence}: keep SDK outcome while saving display metadata once`, async () => {
     let emit: (event: PrologueEvent) => void = () => {};
     let finish!: () => void;
     let fail!: (error: Error) => void;
@@ -443,14 +443,14 @@ for (const persistence of ["delayed", "failed"] as const) {
     const ref = { run_id: "timed-run", session_id: "timed-session" };
     let frozenView: Awaited<ReturnType<PrologueAgentAdapter["start"]>>["frozen"];
     const runtime: PrologueRuntimePort = {
-      sessions: { create: async () => ({ ref: { id: ref.session_id } }), restore: async () => ({ title: "timing", owner,
+      sessions: { create: async () => ({ ref: { id: ref.session_id } }), restore: async () => ({ title: "timing", owner: { ...owner, actor_id: "user" },
         runs: [{ ref, frozen: frozenView, started_at: savedStart, task: "read the actual result", events,
           ...(persistence === "delayed" ? { timing } : {}) }] }) },
       saveRunTiming: async (run, value) => { assert.deepEqual(run, ref); attempts++; timing = structuredClone(value); await commit; },
       startAgentRun: async input => {
         savedStart = input.provenance.started_at;
         return { run: { ref: { id: ref.run_id }, subscribe: listener => { emit = event => { events.push(event); listener(event); }; return () => {}; }, cancel: async () => {} },
-          control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: () => {}, subscribe: () => () => {} } };
+          control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: async () => { throw new Error("Timing tests do not steer a run"); }, subscribe: () => () => {} } };
       }, shutdown: async () => {},
     };
     let clock = Date.parse("2026-09-20T00:00:00Z");
@@ -467,15 +467,18 @@ for (const persistence of ["delayed", "failed"] as const) {
     emit({ type: "text-delta", text: "Here is the result." });
     emit({ type: "completed" });
     const holding = await adapter.read(handle.ref);
-    assert.equal(holding.phase, "running");
-    assert.equal(holding.ended_at, null);
-    assert.match(holding.stop_reason!, /正在保存显示时间/);
+    assert.equal(holding.phase, "completed");
+    assert.ok(holding.ended_at);
+    assert.doesNotMatch(holding.stop_reason ?? "", /正在保存显示时间/);
     assert.equal(holding.activity[0]?.output, "actual source");
-    if (persistence === "delayed") finish(); else fail(new Error("private storage details must not escape"));
-    const final = await new Promise<Awaited<ReturnType<typeof adapter.read>>>(resolve => {
+    let released = false;
+    const saved = new Promise<Awaited<ReturnType<typeof adapter.read>>>(resolve => {
       let off = () => {};
-      off = adapter.observe(handle.ref, view => { if (view.phase === "completed") { queueMicrotask(() => off()); resolve(view); } });
+      off = adapter.observe(handle.ref, view => { if (released) { queueMicrotask(() => off()); resolve(view); } });
     });
+    released = true;
+    if (persistence === "delayed") finish(); else fail(new Error("private storage details must not escape"));
+    const final = await saved;
     assert.equal(attempts, 1);
     assert.ok(final.ended_at);
     assert.equal(final.turns[1]?.at, holding.turns[1]?.at);
@@ -568,7 +571,7 @@ test("R38-RECOVERY-LIVE-03: closing an inspected interruption refreshes the same
     sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "原会话", owner,
       ...(closed ? {} : { recovery: { required: true as const, reason: "需要核对" } }),
       runs: [{ ref, frozen, original_questions: [{ pending_id: "question", pending_revision: 1, kind: "text", why: "是否执行测试？" }], task: "原要求", started_at: "2026-09-20T00:00:00Z", ...(closed ? { events: [
-        { type: "run-recovered", atMs: 1789900000000, transcript: "opening-only", operations: [{ summary: "修改 cart.mjs", outcome: "completed" }] },
+        { type: "run-recovered", atMs: 1789900000000, transcript: "durable-prefix", operations: [{ summary: "修改 cart.mjs", outcome: "completed" }] },
         { type: "failed", error: { code: "RUN_INTERRUPTED", safeMessage: "Interrupted" } },
       ] as PrologueEvent[] } : {}) }] }) },
     startAgentRun: async () => { throw new Error("must not replay"); }, shutdown: async () => {},

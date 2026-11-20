@@ -150,7 +150,7 @@ node -e "const {DatabaseSync:D}=require('node:sqlite');require('fs').writeFileSy
 
 实测转换的成本（10 列、10 万行）：`better-sqlite3` 65 ms，`node:sqlite` 裸 71 ms，加转换 103 ms。1000 次按主键 `get`：3.2 ms 对 4.0 ms。行多的读慢 50%，单行几乎没差。项目库的查询绝大多数是小结果集；不做按查询跳过转换这种优化，免得差异重新出现。写入 `node:sqlite` 略快（52 对 64 ms）。`prepare` 多一次词法扫描的成本 SQLD-c 顺手量。
 
-Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`home-sqlite.ts` 不经这个适配层）。**「丢第二句」确实存在**（2026-11-08 实测，用例「a library in the Home」钉住）：第二句从不编译、从不执行，所以不是越权，但插件写了两句只跑第一句且不报错。已报统筹记 BL，不在这里修，修法是同一个扫描（`readSqlStatementShape`）。
+Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`home-sqlite.ts` 不经这个适配层）。**「丢第二句」确实存在过**（2026-11-08 实测）：第二句从不编译、从不执行，所以不是越权，但插件写了两句只跑第一句且不报错。当时不在这里修，记 BL-home-library-second-statement；2026-11-19 已修：客户端的关键字过滤（`apps/local-host/src/project-statement-protocol.ts` 的 `assertReadStatement`、`assertWriteStatement`）在过滤之后跑同一个扫描（`readSqlStatementShape`），宿主里跑的 Home 库（`services.database`）与沙箱的 Home 库（`services.database_statements`）都抛 `more than one statement`、两句都不执行，同步回调里原先那段单独的正则也换成这一个。用例「SQLD-02 BL-home-library-second-statement …」（`tests/sqlite-driver-conformance.test.ts`、`tests/plugin-project-database.test.ts`、`tests/sandbox-home-schema.test.ts`）钉住。
 
 **连接上的两处小差异（§3.1 的补充）：** `close` 两次，`better-sqlite3` 什么也不做，`node:sqlite` 抛 `database is not open`（实测），适配层已关就直接返回。`exec`、`close` 窄接口返回 `this`，`node:sqlite` 返回 `undefined`（实测），适配层返回 `this`。
 

@@ -604,7 +604,7 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=diff") }, b.sessionId));
   const empty = "document.querySelector('[data-companion=diff] .mw-empty')", refresh = "document.querySelector('[data-companion-refresh]')";
   const message = `${empty}?.querySelector('strong').textContent`;
-  const zh = "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
+  const zh = "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", en = "Pin a “Before” and “After” version in the Materials reader first to view their differences here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
   await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
   const select = await chooseEnglishInSettings(t, b);
@@ -1125,7 +1125,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
   const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
   assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
-  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建 Goal");
+  assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建目标");
   assert.equal(await b.evaluate("t.text('git.commit.plain')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
   await b.evaluate("document.querySelector('[data-open-create]').click()");
   await b.waitFor("document.querySelector('dialog[open] input.create-compose-title')");
@@ -1329,7 +1329,7 @@ test("FSS-20 FSS-74 the Studio canvas switches the current and previous design's
 });
 
 
-test("FSS-35 FSS-36 connection guides translate with the same OAuth form and keep a hidden settings draft", { timeout: 120_000 }, async t => {
+test("FSS-35 FSS-36 QEA-168 connection guides translate with the same OAuth form and keep a hidden settings draft", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
 
@@ -1756,13 +1756,16 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
   const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await go(`/projects/${b.projectId}/?settings=assistant`);
-  await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .prompt-tag')].some(node => node.textContent === '修改')");
+  // specs/screen-polish/p5-settings.md: the capabilities are one row; their list opens in place under it.
+  await b.waitFor("!!document.querySelector('[data-assistant-capabilities-fold] > summary')");
+  await b.click("[data-assistant-capabilities-fold] > summary");
+  await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability-effect')].some(node => node.textContent === '修改')");
   await b.evaluate(`void (() => { const rows = [...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability')];
-    window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.prompt-tag')?.textContent === word);
-      return { row, toggle: row.querySelector('[role=switch]'), title: row.querySelector('.prompt-row-copy strong').textContent }; });
+    window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.assistant-capability-effect')?.textContent === word);
+      return { row, toggle: row.querySelector('[role=switch]'), title: row.querySelector('.mw-setting-row__copy strong').textContent }; });
     catalogSettings[0].toggle.focus(); })()`);
   const effects = `catalogSettings.map(({row,toggle,title}, index) => [row.isConnected && row.querySelector('[role=switch]') === toggle, toggle.checked, title,
-    row.querySelector('.prompt-row-copy strong').textContent, row.querySelector('.prompt-tag').textContent, toggle.getAttribute('aria-label'), index !== 0 || document.activeElement === toggle])`;
+    row.querySelector('.mw-setting-row__copy strong').textContent, row.querySelector('.assistant-capability-effect').textContent, toggle.getAttribute('aria-label'), index !== 0 || document.activeElement === toggle])`;
   const before = await b.evaluate<Array<[boolean, boolean, string, string, string, string, boolean]>>(effects);
   const select = await chooseEnglishInSettings(t, b);
   for (const locale of ["en", "zh"] as const) {

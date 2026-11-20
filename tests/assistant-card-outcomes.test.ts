@@ -7,6 +7,11 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { createTextReader } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack } from "./fixtures/page-text.js";
+
+/** A stored outcome as the Chinese page reads it. */
+const chinese = createTextReader({ locale: "zh", packs: [pagePack("workbench", "zh")] }).text;
 
 const definition: ActionDefinition = { capability_id: "fixture.receipt.write", version: 1, operation: "command", action: {
   title: "Save receipt", description: "Persist a receipt", kind: "operation", scope: "project", audiences: ["agent"],
@@ -75,7 +80,7 @@ for (const outcome of ["invalid-output", "unknown", "before-effect"] as const) {
     const first = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
     assert.equal(first.status, outcome === "before-effect" ? "failed" : "unknown");
     assert.equal(receipts.prepare("SELECT COUNT(*) AS count FROM receipts").get()!.count, outcome === "before-effect" ? 0 : 1);
-    if (outcome !== "before-effect") assert.match(first.outcome ?? "", /结果未确认.*不会自动重试/);
+    if (outcome !== "before-effect") assert.match(chinese(first.outcome!), /结果未确认.*不会自动重试/, "kept as the platform's key, read here in Chinese");
     db.close(); db = new DatabaseSync(file); assistant = service();
     const second = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: first.revision });
     assert.equal(second.status, first.status);

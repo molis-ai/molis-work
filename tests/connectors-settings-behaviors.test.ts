@@ -413,7 +413,7 @@ test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors"
       active: true,
     },
   })));
-  assert.match(panel, /打开 Connectors/);
+  assert.match(panel, /打开服务连接/);
   assert.match(panel, /href="\/settings\/connectors\?connector=github&amp;project=project-test"/);
   assert.match(panel, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
   assert.match(panel, /凭据已保存/);
@@ -612,18 +612,20 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
 });
 
 
-test("Connector next steps follow the active connection method and never send MCP to Feed", () => {
+test("SCAF-06 Connector next steps follow the active connection method and Feed slot", () => {
   const entry = HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "notion")!;
-  const card = { ...entry, feed_available: true };
   const row = { connection_id: "review-connection", service_id: "notion", display_name: "Work", account_label: null,
     source: "managed" as const, state: "connected" as const, auth_method: "mcp" as const };
   const p = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
   // Next steps are shown once there is an account to use; before that the row says what the service can do.
-  const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>) => renderConnectorsSettings({ connectors: [card], connector_connections: connections }, p).split('data-connector-next>')[1]?.split('</section>')[0] ?? "";
+  const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>, hasFeedSlot = true) =>
+    renderConnectorsSettings({ connectors: [{ ...entry, feed_available: true, uses: hasFeedSlot ? ["feed_source"] : [] }], connector_connections: connections }, p)
+      .split('data-connector-next>')[1]?.split('</section>')[0] ?? "";
   assert.doesNotMatch(render([]), /data-connector-next-link/);
   assert.match(render([row]), /settings\/coding-settings/);
   assert.doesNotMatch(render([row]), /data-connector-next-link="feed"/);
   assert.match(render([{ ...row, auth_method: "oauth" }]), /data-connector-next-link="feed"/);
+  assert.doesNotMatch(render([{ ...row, auth_method: "oauth" }], false), /data-connector-next-link="feed"/);
   assert.doesNotMatch(render([{ ...row, state: "disconnected" }]), /data-connector-next-link/);
   assert.doesNotMatch(render([{ ...row, agent_available: false }]), /settings\/coding-settings/);
 });

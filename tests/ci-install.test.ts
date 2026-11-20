@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fullSuiteWorkflow, workflow, workflowFiles } from "./fixtures/ci-workflow.js";
+import { fullSuiteWorkflow, setupWorkAction, workflow, workflowFiles } from "./fixtures/ci-workflow.js";
 
 // CI install guard (T-019 + T-038, RAC-1183 … RAC-1458). A step that runs `pnpm install` must give the step a short
 // timeout and must set npm_config_nodedir to the headers of the Node that actions/setup-node installed, through this line
@@ -37,10 +37,16 @@ const INSTALL =
   /(?:^|&&|\|\||[;|(){`]|\$\(|\b(?:then|do|else)\b)\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|env|corepack|time|exec|command|nohup)\s+)*pnpm\s+(?:-\S+\s+)*(?:install|i)(?=\s|$|[;&|)])/g;
 const LOOSE_INSTALL = /(?<![\w./-])pnpm\b[^\n]*?\s(?:install|i)(?=\s|$|[;&|)])/g;
 
-/** The installs the real workflows are expected to have; a CI change that adds one must update this. */
-const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 10, "full-suite.yml": 1, "golden-replay-nightly.yml": 1 };
+/** The direct `pnpm install` steps the real workflows are expected to have (shared installs live in setup-work). */
+const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 0, "full-suite.yml": 0, "golden-replay-nightly.yml": 0, "visual-audit.yml": 0 };
+/** How many times each workflow invokes the shared `./.github/actions/setup-work` composite action. */
+const EXPECTED_SETUP_CALLERS: Record<string, number> = { "ci.yml": 10, "full-suite.yml": 2, "golden-replay-nightly.yml": 1, "visual-audit.yml": 2 };
 /** release-macos.yml installs without a guard on purpose: T-019 任务书 明令不动, tracked separately. */
 const UNGUARDED_INSTALLS: Record<string, number> = { "release-macos.yml": 1 };
+
+/** Shift a 4-space composite action's `steps:` to workflow 6-space indentation so the exact same parser checks it. */
+const asWorkflowSteps = (actionText: string): string => actionText.split(/\r?\n/).map((line) => (line ? `  ${line}` : "")).join("\n");
+const setupWorkCallers = (text: string): Step[] => steps(text).filter((step) => step.lines.some((line) => /^ {6}(?:- | {2})uses:\s+\.\/\.github\/actions\/setup-work\s*$/.test(line)));
 
 interface Step {
   line: number;
@@ -143,11 +149,13 @@ function timeoutProblem(step: Step): string | undefined {
 }
 
 /** Everything that would let a hang or a nodejs.org fetch back in, as `line: what` strings. */
-function violations(text: string): string[] {
+function violations(text: string, { requireTimeout = true } = {}): string[] {
   const out: string[] = [];
   for (const step of installSteps(text)) {
-    const timeout = timeoutProblem(step);
-    if (timeout) out.push(`line ${step.line} (${step.name}): ${timeout}`);
+    if (requireTimeout) {
+      const timeout = timeoutProblem(step);
+      if (timeout) out.push(`line ${step.line} (${step.name}): ${timeout}`);
+    }
     for (const install of installs(step)) {
       const before = commands(step).filter((command) => command.line < install.line);
       if (before.some(isApprovedExport)) continue;
@@ -156,6 +164,16 @@ function violations(text: string): string[] {
         out.push(`line ${otherExport.line} (${step.name}): npm_config_nodedir is not the approved export line`);
       else out.push(`line ${install.line} (${step.name}): npm_config_nodedir is not set before the install`);
     }
+  }
+  return out;
+}
+
+/** Timeout violations on workflow steps that call `./.github/actions/setup-work`. */
+function setupCallerViolations(text: string): string[] {
+  const out: string[] = [];
+  for (const step of setupWorkCallers(text)) {
+    const timeout = timeoutProblem(step);
+    if (timeout) out.push(`line ${step.line} (${step.name}): ${timeout}`);
   }
   return out;
 }
@@ -220,15 +238,23 @@ function directoryProblems(files: { file: string; text: string }[]): string[] {
   return out;
 }
 
+const SETUP_ACTION = asWorkflowSteps(setupWorkAction);
+
+test("RAC-1183 .github/actions/setup-work/action.yml: the shared pnpm install runs with the installed Node's headers", () => {
+  assert.equal(installSteps(SETUP_ACTION).length, 1, "setup-work runs pnpm install once");
+  assert.deepEqual(violations(SETUP_ACTION, { requireTimeout: false }), [], "setup-work exports npm_config_nodedir before pnpm install");
+});
+
 const FILES = [
-  { file: ".github/workflows/ci.yml", text: workflow },
-  { file: ".github/workflows/full-suite.yml", text: fullSuiteWorkflow },
+  { file: ".github/workflows/ci.yml", text: workflow, expectedCallers: EXPECTED_SETUP_CALLERS["ci.yml"]! },
+  { file: ".github/workflows/full-suite.yml", text: fullSuiteWorkflow, expectedCallers: EXPECTED_SETUP_CALLERS["full-suite.yml"]! },
 ];
 
-for (const { file, text } of FILES) {
-  test(`RAC-1183 ${file}: every pnpm install runs with the installed Node's headers and a short timeout`, () => {
-    assert.ok(installSteps(text).length > 0, `${file} still runs pnpm install somewhere`);
-    assert.deepEqual(violations(text), [], `${file} guards every pnpm install`);
+for (const { file, text, expectedCallers } of FILES) {
+  test(`RAC-1183 ${file}: every setup-work caller carries a short timeout and no unguarded pnpm install sneaks in`, () => {
+    assert.equal(setupWorkCallers(text).length, expectedCallers, `${file} calls setup-work ${expectedCallers} time(s)`);
+    assert.deepEqual(setupCallerViolations(text), [], `${file} gives every setup-work caller a short timeout`);
+    assert.deepEqual(violations(text), [], `${file} guards any direct pnpm install`);
   });
 }
 
@@ -384,28 +410,22 @@ test("RAC-1456: a folded block under a > header is read as folded", () => {
   }
 });
 
-test("RAC-1456: rewriting the real workflows' block headers keeps the counts and the guard green", () => {
+test("RAC-1456: rewriting setup-work's block header keeps the count and the guard green", () => {
   for (const header of ["|-", "|+", "|2", "|2-", "|-2", "| # note", "|- # note"]) {
-    for (const [file, text, expected] of [
-      ["ci.yml", workflow, 10],
-      ["full-suite.yml", fullSuiteWorkflow, 1],
-    ] as const) {
-      const rewritten = text.replace(/^ {8}run: \|$/gm, `        run: ${header}`);
-      assert.equal(recognised(rewritten), expected, `${file} ${header}: recognised`);
-      assert.equal(mentions(rewritten), expected, `${file} ${header}: loose count`);
-      assert.deepEqual(violations(rewritten), [], `${file} ${header}: violations`);
-    }
+    const rewritten = SETUP_ACTION.replace(/^ {8}run: \|$/gm, `        run: ${header}`);
+    assert.equal(recognised(rewritten), 1, `setup-work ${header}: recognised`);
+    assert.equal(mentions(rewritten), 1, `setup-work ${header}: loose count`);
+    assert.deepEqual(violations(rewritten, { requireTimeout: false }), [], `setup-work ${header}: violations`);
   }
 });
 
-test("RAC-1456: folding the real workflows makes the export and the install one command, and the sentinels report it", () => {
+test("RAC-1456: folding setup-work makes the export and the install one command, and the sentinels report it", () => {
   for (const header of [">-", ">+", "> # note"]) {
-    const reported = problems("ci.yml", workflow.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 10);
-    assert.ok(reported, `${header}: ci.yml is reported`);
+    const reported = problems("setup-work/action.yml", SETUP_ACTION.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 1);
+    assert.ok(reported, `${header}: setup-work is reported`);
     assert.match(reported, /recognised 0 install/);
-    assert.match(reported, /loosely counted 10/);
+    assert.match(reported, /loosely counted 1/);
     assert.match(reported, /line/);
-    assert.ok(problems("full-suite.yml", fullSuiteWorkflow.replace(/^ {8}run: \|$/gm, `        run: ${header}`), 1));
   }
 });
 
@@ -518,13 +538,20 @@ test("RAC-1457: commands that only mention pnpm install are not installs", () =>
 });
 
 // RAC-1458: the sentinels that catch the forms the guard was not taught.
-test("RAC-1458: the real workflows carry exactly the counted and expected installs", () => {
-  assert.equal(recognised(workflow), 10);
-  assert.equal(mentions(workflow), 10);
-  assert.equal(recognised(fullSuiteWorkflow), 1);
-  assert.equal(mentions(fullSuiteWorkflow), 1);
-  assert.equal(problems("ci.yml", workflow, 10), undefined);
-  assert.equal(problems("full-suite.yml", fullSuiteWorkflow, 1), undefined);
+test("RAC-1458: setup-work and the real workflows carry exactly the counted and expected installs and callers", () => {
+  assert.equal(recognised(SETUP_ACTION), 1);
+  assert.equal(mentions(SETUP_ACTION), 1);
+  assert.equal(problems("setup-work/action.yml", SETUP_ACTION, 1), undefined);
+  assert.equal(recognised(workflow), 0);
+  assert.equal(mentions(workflow), 0);
+  assert.equal(recognised(fullSuiteWorkflow), 0);
+  assert.equal(mentions(fullSuiteWorkflow), 0);
+  for (const entry of workflowFiles()) {
+    const name = entry.file.split("/").pop() ?? entry.file;
+    const expected = EXPECTED_SETUP_CALLERS[name] ?? 0;
+    assert.equal(setupWorkCallers(entry.text).length, expected, `${entry.file}: setup-work caller count`);
+    assert.deepEqual(setupCallerViolations(entry.text), [], `${entry.file}: setup-work caller timeouts`);
+  }
 });
 
 test("RAC-1458: forms the guard does not read are reported, not silently ignored", () => {
@@ -540,18 +567,18 @@ test("RAC-1458: forms the guard does not read are reported, not silently ignored
   }
 });
 
-test("RAC-1458: losing an install in the real workflow is reported against the expected count", () => {
-  const reported = problems("ci.yml", workflow.replace("pnpm install --frozen-lockfile", "pnpm exec true"), 10);
+test("RAC-1458: losing the install in setup-work is reported against the expected count", () => {
+  const reported = problems("setup-work/action.yml", SETUP_ACTION.replace("pnpm install --frozen-lockfile --prefer-offline", "pnpm exec true"), 1);
   assert.ok(reported);
-  assert.match(reported, /recognised 9 install/);
-  assert.match(reported, /expected 10/);
+  assert.match(reported, /recognised 0 install/);
+  assert.match(reported, /expected 1/);
 });
 
 test("RAC-1458: every workflow file with an install is listed, and the listed counts match", () => {
   assert.deepEqual(directoryProblems(workflowFiles()), []);
 });
 
-test("RAC-1458: an unlisted file whose fold hides the install is caught, and a listed file with no installs fails", () => {
+test("RAC-1458: an unlisted file whose fold hides the install is caught, and a listed file that is missing fails", () => {
   const unknown = [
     "jobs:",
     "  probe:",
@@ -568,6 +595,5 @@ test("RAC-1458: an unlisted file whose fold hides the install is caught, and a l
   assert.equal(unrecognised.length, 1, unrecognised.join("\n"));
   assert.match(unrecognised[0], /unknown\.yml: has pnpm install\(s\) but is not in EXPECTED_INSTALLS or UNGUARDED_INSTALLS/);
   const missing = directoryProblems([{ file: ".github/workflows/ci.yml", text: "" }]);
-  assert.match(missing.join("\n"), /ci\.yml: recognised 0, loosely counted 0, expected 10/);
   assert.match(missing.join("\n"), /full-suite\.yml: listed but not found/);
 });

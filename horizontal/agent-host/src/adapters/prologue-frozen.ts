@@ -1,5 +1,6 @@
 import { agentErrors } from "../errors.js";
 import { promptIncludesCache } from "../inference.js";
+import { CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionRequest, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { type PrologueModelConfiguration } from "./prologue.js";
@@ -95,7 +96,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
       };
       return material.source_artifact_id === undefined ? item : { ...item, source_artifact_id: material.source_artifact_id, source_version: material.source_version };
     }),
-    ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
+    ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type, attachment }) => ({ material_id, title, media_type, attachment: structuredClone(attachment) })) } : {}),
     ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
     ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
     ...(request.history === "digest" ? { history: "digest" as const } : {}),
@@ -117,8 +118,8 @@ export function validateRunAttachments(request: AgentStartRequest, supportsImage
   textMaterials.forEach(agentTextMaterialContent);
   const imageMaterials = request.image_materials ?? [];
   if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
-    || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
-  if (imageMaterials.length && (!supportsImages || request.workspace !== "business")) throw agentErrors.capability_unavailable("这个运行方式还不能把图片交给模型");
+    || imageMaterials.some(item => !item || item.attachment?.subject?.kind !== CONVERSATION_ATTACHMENT_SUBJECT_KIND || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
+  if (imageMaterials.length && !supportsImages) throw agentErrors.capability_unavailable("这个运行方式还不能把图片交给模型");
   return { textMaterials, imageMaterials };
 }
 

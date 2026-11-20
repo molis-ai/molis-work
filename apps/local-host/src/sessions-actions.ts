@@ -14,7 +14,7 @@ export interface HostSessions {
 }
 
 /**
- * Registers all 12 `sessions.*` actions under the `system.sessions` Home provider and owns the Home's `external-sessions.db` handle while the Host runs.
+ * Registers `sessions.*` under `system.sessions` and owns the Home's `external-sessions.db` handle while the Host runs.
  */
 export function createHostSessions(
   homeDirectory: string,
@@ -28,6 +28,7 @@ export function createHostSessions(
   const definitions: ActionDefinition<unknown, unknown>[] = [
     sessionsActions.list as ActionDefinition<unknown, unknown>,
     sessionsActions.historyRead as ActionDefinition<unknown, unknown>,
+    sessionsActions.historyAuthorize as ActionDefinition<unknown, unknown>,
     sessionsActions.scopeRead as ActionDefinition<unknown, unknown>,
     sessionsActions.scopeSet as ActionDefinition<unknown, unknown>,
     sessionsActions.projectAiReadSet as ActionDefinition<unknown, unknown>,
@@ -43,6 +44,7 @@ export function createHostSessions(
   const handlers: ActionHandlerBinding[] = [
     bindActionHandler(sessionsActions.list, (input, caller) => service.list(input, caller)),
     bindActionHandler(sessionsActions.historyRead, (input, caller) => service.historyRead(input, caller)),
+    bindActionHandler(sessionsActions.historyAuthorize, (input, caller) => service.historyAuthorize(input, caller)),
     bindActionHandler(sessionsActions.scopeRead, (input, caller) => service.scopeRead(input, caller)),
     bindActionHandler(sessionsActions.scopeSet, (input, caller) => service.scopeSet(input, caller)),
     bindActionHandler(sessionsActions.projectAiReadSet, (input, caller) => service.projectAiReadSet(input, caller)),

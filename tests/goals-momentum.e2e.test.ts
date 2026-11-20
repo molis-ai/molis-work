@@ -2,7 +2,28 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { boardSnapshot } from "./fixtures/goal-application.js";
+import { boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
+
+test("QEA-38: an empty project's normal Goals canvas loads without an invalid empty selection", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", seedBoard);
+  if (!browser) return;
+  assert.ok(browser.projectId);
+  const requests: Array<{ goal: string | null; status: number }> = [];
+  browser.server.on("request", (request, response) => {
+    const url = new URL(request.url ?? "/", browser.origin);
+    if (url.pathname.endsWith("/api/board/momentum")) response.once("finish", () => {
+      requests.push({ goal: url.searchParams.get("goal_id"), status: response.statusCode });
+    });
+  });
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=goals` }, browser.sessionId));
+  await browser.click("[data-board-view-tab=canvas]");
+  await browser.waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' || document.querySelector('[data-retry-goal-momentum]')?.hidden === false");
+  assert.ok(requests.length > 0, "the real canvas read reached the Host");
+  assert.deepEqual(requests, requests.map(() => ({ goal: null, status: 200 })));
+  assert.equal(await browser.evaluate("document.querySelector('[data-goal-momentum]').dataset.loaded"), "true");
+  assert.equal(await browser.evaluate("document.querySelectorAll('[data-momentum-node]').length"), 0);
+  assert.equal(await browser.evaluate("document.querySelector('.goal-canvas-empty')?.checkVisibility()"), true);
+});
 
 test("canvas retries graph loading, pans without bounds, drags compact nodes without changing dependencies, and restores its view", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);

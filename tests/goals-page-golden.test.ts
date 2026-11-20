@@ -18,6 +18,15 @@ import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
 // (MOLIS_WORK_GOLDEN_RECORD=1) and every later change to who draws them (T-116 moves the drawing from the workbench and the Host into the
 // Goals package) has to give the same bytes, in both interface languages. Batch 39 (#2105) re-recorded golden.json for the intentional
 // trusted-decision `data-review-version` attributes, unified authorization settings navigation, and retired `policy_bindings` removal.
+// QEA-83 combines those changes with QEA-06 import batch guidance and its action label; the underlying frozen business view is unchanged.
+// Screen polish P5 (#2127, POLISH-29, POLISH-30) re-recorded the sixteen page-* and four settings-general entries for two intended changes,
+// checked line by line against main's drawing: the appearance page's ⓘ became one sentence under the title, and the project's maintenance
+// section became a title over one card.
+// Batch 38 adds a project settings link to scene adoption. Removing only that link and its section from each of the 20 changed
+// renders reproduced main a8d998935d's length and SHA-256, including the desktop query. The 32 other records match directly.
+// B35-R1 adds the Sessions link to onboarding for the current project. Sessions sets its tab state after mounting.
+// Main ffd077b2df reproduced all 52 accepted hashes. Applying just these changes to its Sessions template matched the 16
+// whole pages byte for byte, including the desktop link. The other 36 hashes matched directly.
 // The view is the demo project read once by the real owners (times and ids fixed), so the pages have a Goal tree with children, a decision
 // waiting, an archived and a trashed Goal and a proposal.
 const GOLDEN = new URL("./fixtures/goals-page-golden/", import.meta.url);
@@ -219,12 +228,41 @@ const pages: Record<string, Draw> = {
 // background-tasks tab and page are gone from a project page (the task panel beside the dialog replaces them). Every page state
 // grew by the same amount in each language and no document or settings record moved, so no Goals markup changed here. The 16
 // were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// QEA-03/05: independently built main bd537b7d9 matched all 52 accepted records. Only the import-help text and English
+// Import button were replaced in those baseline draws: +7 zh / +38 en in the 16 whole pages. Candidate draws matched each
+// derived expectation byte for byte; all 36 fragment records stayed exact. No candidate RECORD mode or normalization change.
 // Batch 34 (external sessions, SRB-08), on the merge of main 0d45ba58b: the 16 whole pages moved by +5805 zh / +6358 en and all 36
 // fragment, document and settings records stayed byte-identical. Only the shell changed: the `sessions` picker/rail tile, the deferred
 // `<section data-work-surface="sessions">` stage, the Read Scope `<dialog data-sessions-scope-sheet>` overlay, and the `"sessions"` entry
 // in the shell's plugin title map. Every whole-page state grew by the exact same constant in each language; no Goals markup or JSON
 // changed, and the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// QEA integration of main 4a08c41ca: all 16 normalized whole pages reproduce main's accepted hash and length exactly when only
+// this audit's import-help sentence and English import-submit label are reversed (+7 zh / +38 en). Those two proved changes are
+// retained in the merged expectations; the other 36 records are unchanged. Candidate RECORD mode and normalization were not changed.
+// Copywriting polish (2026-11-17, on main 8d9f1fb0): 30 of the 52 records changed solely from the reviewed zh/en microcopy edits
+// (`workbench.project-settings-folds.*`, `workbench.side-panel-files.*`, `workbench.pane.*`, `workbench.immersive-shell.*`,
+// `goals.dialogs-ui.means-part-that-goal-only-decides-tree-placement`, `goals.guidance-document.only-active-revisions-sent-placed-before-round-s`,
+// `coding.directory.summary`, `git.directory.summary`, and `Text Stats` → `Text stats`). Reversing only those string edits on all 30
+// candidate draws reproduces every main 8d9f1fb0 SHA-256 and byte length exactly; the other 22 records did not change.
+// Screen polish P0 (the next wing shows whole events only): the shell's work line no longer marks its next run ` data-overflow-fade`
+// (−19 characters, once, in each of the 16 page-* records). Each of the 16 drawn pages, with only that attribute put back, has its old
+// hash and length exactly; the other 36 records did not change. Checked again on the merges of main 6359987103 (batch 34's records)
+// and of a717e44284, bdfcc36454 and 43a3c3fa2f (the copywriting polish) after it, and the 16 recorded there with MOLIS_WORK_GOLDEN_RECORD=1.
 // The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
+// QEA-94/109: all 52 normalized draws reproduce their previous hashes and lengths when only the retired final
+// `inbox_judgment:null` client-data property is restored and the Sessions SSR `maxlength="200"` is removed.
+// The 16 whole pages therefore change by -6 characters (-22 +16), and the 8 full refresh fragments by -22;
+// the other 28 records are unchanged. Expectations were derived after this exact reverse check, without RECORD mode.
+// QEA-112's collection projection has separate actual owner-read/HTTP assertions; the original full-page checks remain exact.
+// QEA-148: all 52 normalized shapes from independently built main 8d9f1fb01e matched its accepted hashes. Applying the
+// accepted import text and button, Sessions length and retired inbox_judgment changes to those reference draws matched
+// the merged draws exactly. This updates 24 expectations; the other 28 hashes and the comparison rules stay intact.
+// QEA-178: the same four edits independently predict all 52 merged draws from the accepted main 43a3c3fa2f bytes,
+// including both languages of Copywriting polish. All 52 match exactly; 24 expectations change.
+// QEA-196: adding back only the next-wing attribute restores all 52 accepted records of 811e28f368.
+// Sixteen whole pages change by 19 characters each. The other 36 records are unchanged.
+// QEA-204 applies those four independently checked audit edits to the accepted P5 main drawings.
+// The settings appearance and project maintenance changes follow main, and the comparison covers every original record.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));
@@ -333,11 +371,26 @@ test("RAC-2680 exact dictionary comparison checks assignment boundaries and reta
 // Capsule labels in their present context change; the Chinese copy, argument values and complete sentences still come from B.
 const keys = JSON.parse(readFileSync(new URL("stable-keys.json", GOLDEN), "utf8")) as Record<"words" | "capsule_words" | "interpolation", string[]>;
 
+const reviewedChinese: Readonly<Record<string, string>> = {
+  "goals.chrome.goal-view": "目标视图",
+  "goals.capsule-items.open-goal-see-latest-progress-next-step": "打开这个目标，查看最新进展和下一步。",
+  "goals.guidance-document.long-term-guidance-shared-all-work-project-assistant": "这是整个项目共享的长期做事说明：项目里的个人助理、各插件 AI 和你连接的外部 AI 工具都会参考它。这里只展示当前生效的内容，可随时修改并查看历史版本。",
+  "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "写清楚背景和要求，方便 AI 不用猜就能直接照着做",
+  "goals.guidance-document.how-runtime-uses": "AI 会怎么参考这份说明",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "每次只把当前生效的说明发给 AI（放在具体任务之前）；修改或停用后，从下一次对话起生效。",
+  "goals.chrome.goal-info-timeline": "目标信息与时间线",
+  "goals.inputs.create-goal": "或为这个目标新建",
+  "goals.workbench-stage.goal-workspace": "目标工作区",
+};
+
 const reviewedEnglish: Readonly<Record<string, string>> = {
   "goals.capsule-items.current-project": "current project",
   "goals.capsule-items.running": "Running",
   "goals.guidance-document.project-s-stable-way-working": "The project’s stable way of working",
-  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active revisions are sent, placed before this round’s task and external content. Edits and deactivations take effect in the next prompt.",
+  "goals.guidance-document.long-term-guidance-shared-all-work-project-assistant": "Long-term instructions shared across all work in this project — used by the assistant, plugin AI features and connected external AI tools. Edit anytime and view full revision history.",
+  "goals.guidance-document.write-complete-instruction-future-runtime-can-understand-follow": "Write clear background and rules that AI can follow directly without guessing",
+  "goals.guidance-document.how-runtime-uses": "How AI uses this guidance",
+  "goals.guidance-document.only-active-revisions-sent-placed-before-round-s": "Only active entries are sent to AI ahead of each turn’s task; edits or pauses take effect on the next turn.",
   "goals.inputs.couldn-t-remove": "Couldn’t remove it",
   "goals.inputs.couldn-t-accept": "Couldn’t accept it",
   "goals.inputs.version-can-t-be-found": "This version can’t be found",
@@ -346,8 +399,8 @@ const reviewedEnglish: Readonly<Record<string, string>> = {
 
 function examples(locale: "zh" | "en") {
   const text = (key: string, zh: string, en: string) => {
-    const expected = reviewedEnglish[key] ?? en;
-    return { key, expected: locale === "zh" ? zh : expected, args: undefined };
+    const expected = locale === "zh" ? (reviewedChinese[key] ?? zh) : (reviewedEnglish[key] ?? en);
+    return { key, expected, args: undefined };
   };
   const result = (["words", "capsule_words"] as const).flatMap(section => {
     assert.equal(keys[section].length, Object.keys(moved[section]).length);

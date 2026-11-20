@@ -363,6 +363,7 @@ export interface ExternalSessionListInput {
   /** project＝调用者当前项目；unfiled＝待归类；all＝全部。后两种只有 user。 */
   view: "project" | "unfiled" | "all";
   entry_ids?: ExternalToolId[];
+  query?: string;              // 1～200字符，标题、目录和工具名的字面检索，先过滤后分页
   cursor?: string | null;
   limit?: number;              // 1～100，默认 50
 }
@@ -472,6 +473,7 @@ export interface ExternalSessionHistoryInput {
 
 export interface ExternalSessionHistoryOutput {
   session_key: string;
+  session: ExternalSessionRow | ExternalSessionRowSummary; // 同次末尾授权下的元数据，本人完整行、其他受众摘要
   entries: ExternalSessionEntry[];
   older_cursor: string | null;
   newer_cursor: string | null;
@@ -938,6 +940,7 @@ interface SuggestDraft {
 - 回来的编号必须在给出的范围内，否则丢弃这一项。项目名由服务查回，不用模型写的。
 - `reason`、`evidence` 按文本转义显示。
 - 建议不写归属。晚到的建议只更新建议表，事务里不碰决定表。
+- 模型实际派发前复核本批会话的当前读取范围；等待中撤回材料拒绝整次旧请求，不写失败建议。命中缓存也走返回前范围复核，不外发模型。
 - 按 `input_digest` 缓存：材料没变不重算，重试才强制。
 
 ### 8.5 项目删除与权限变化
@@ -1143,7 +1146,7 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 批次 | 要做什么 |
 | --- | --- |
 | 第 20 批 | 就绪判断同时看读取范围和项目许可，缺哪样去处不同（第 6.5 节） |
-| 第 35 批 | Onboarding 加一步，让本人打开这个项目的 AI 读取许可。许可默认关，不打开时冷启动的 AI 整理读不到历史（SRB-09） |
+| 第 35 批 | Onboarding 让本人打开默认关闭的项目 AI 读取许可（SRB-09）。`sessions.history.authorize@1` 复核当前项目、许可版本、工具范围和指定会话的归属，无需再打开正文。引导在派发和接收整理结果时比较版本 |
 | 第 60 批 | 恢复、发送、停止、交接的动作，持续跟进 |
 | 团队批 | `sessions.project_ai_read.set@1` 对共享项目拒绝，加拒绝测试（第 7.4 节） |
 

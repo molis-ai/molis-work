@@ -46,7 +46,7 @@
       }
     },
     "form.export.fill-file": "Fill-in page file (to send to people)",
-    "form.export.fill-file-format": "Fill-in page · send it to someone to fill in their own browser; they send back the response file, which you import under “Results”",
+    "form.export.fill-file-format": "Fill-in page · send for someone to complete in their browser, then import the returned response file under “Results”",
     "form.export.menu": "Export",
     "form.field.description": "Description",
     "form.field.optional": "Optional",

@@ -1,6 +1,6 @@
 import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorConnectionStatus, ConnectorUse } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string; reauth_note?: string };
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -63,6 +63,8 @@ export interface MolisWorkSettingsView {
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorSettingsConnection[];
   connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
+  /** 设置 › 网页搜索: the sources and the one default (§13.7 ②B); absent when the Home's connections cannot be read. */
+  web_search?: import("@molis-ai/molis-work-contracts/services/web-search").WebSearchSettingsView;
   /**
    * 服务连接 › 插件用的账号: the installation slots of the Home's plugins and the context project's, with the account bound to each (BL-350).
    * `tenant`: a service on each tenant's own origin (BL-595), which sends nothing without an account whose site is pinned.
@@ -99,5 +101,9 @@ export interface ConnectorSettingsCardView {
   readonly method_options?: readonly ConnectorMethodOption[];
   /** The plugin that declared the card (its id and the name its Manifest gives it); null when the platform declares the service. */
   readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
+  /** What the service can be used for, read from its declarations (§13.7 ①B); absent for a service that declares no use. */
+  readonly uses?: readonly ConnectorUse[];
+  /** Which uses have a currently accepted account in this Home. */
+  readonly ready_uses?: readonly ConnectorUse[];
 }
 

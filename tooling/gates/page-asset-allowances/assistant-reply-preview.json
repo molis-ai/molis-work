@@ -1,0 +1,25 @@
+{
+  "reason": "底栏按可见三行复制富文本代码预览，完整代码保存在对话中。着色插入节点时保留当前预览。",
+  "review": "与 6c88cba611 的隔离构建比较，工作台脚本从 1352318 增至 1352996 字节。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 678
+  },
+  "pages": {
+    "workbench-default/zh": {
+      "cold": 678,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 678,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 678,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 678,
+      "warm": 0
+    }
+  }
+}

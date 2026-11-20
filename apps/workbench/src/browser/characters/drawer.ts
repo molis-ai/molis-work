@@ -1,12 +1,12 @@
 import type {
-  CharacterMemberEntry, CharacterRole, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection, CharacterRoleVersionEntry,
+  CharacterMemberEntry, CharacterMemberSaveResult, CharacterRole, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection, CharacterRoleVersionEntry,
   CharacterRoleVersionRef,
 } from "@molis-ai/molis-work-contracts/modules/characters";
 import { escapeHtml as esc, icon, renderAlert, renderAvatar, renderButton, type MwButtonOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ActionClient } from "./action-client.js";
 import { isConflict, messageOf, type ActionRef, type CharacterRecord, type CharacterRequest, type Part } from "./common.js";
-import { WindowDrafts } from "./drafts.js";
-import { memberKey, originalOf } from "./view.js";
+import { WindowDrafts, type StoredDraft } from "./drafts.js";
+import { memberKey, originalOf, renderRoleDiff, sameRoleCapabilities } from "./view.js";
 
 const uiText = globalThis.t;
 const say = (key: string, values?: Record<string, unknown>): string => uiText.text(key, values as Record<string, string | number>);
@@ -37,7 +37,6 @@ export interface DrawerHost {
 }
 
 const SECTIONS: readonly CharacterRoleSection[] = ["work_style", "capabilities"];
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const versionOf = (ref: CharacterRoleVersionRef): number => ref.kind === "personal" ? ref.version : ref.member_version;
 const button = (options: MwButtonOptions): string => renderButton({ size: "sm", variant: "secondary", ...options });
 const state = (tone: "neutral" | "warning", text: string): string => `<span class="settings-state settings-state--${tone}">${esc(text)}</span>`;
@@ -76,7 +75,7 @@ class RoleDrawerState {
   protected focusRow: string | null = null;
   protected readonly drafts: WindowDrafts;
   /** The version an unsaved edit was typed over, kept with it in this window. */
-  protected editBase = 0;
+  protected editBase: Pick<StoredDraft, "version" | "original_version"> = { version: 0 };
 
   constructor(protected readonly host: DrawerHost) {
     this.dialog = host.q<HTMLDialogElement>("drawer");
@@ -118,25 +117,30 @@ class RoleDrawerState {
   protected edited(): { way: boolean; tools: boolean; title: boolean } {
     const now = this.values(), base = this.baseline;
     return { way: now.instructions !== base.instructions, title: now.title !== base.title,
-      tools: !same(now.host_tools, base.host_tools) || !same(now.action_tools ?? null, base.action_tools ?? null) };
+      tools: !sameRoleCapabilities(now, base) };
   }
   protected dirty(): boolean { return this.phase === "dirty" || this.phase === "conflict"; }
   protected roleKey(): string | null { const target = this.target; return !target || target.kind === "new" ? null : target.kind + ":" + target.id; }
   /** The version the role reads as now. */
   protected now(): CharacterRoleVersionEntry | undefined { return this.versions.find(entry => entry.current); }
   protected currentVersion(): number { const current = this.now(); return current ? versionOf(current.ref) : 0; }
+  protected currentBase(): typeof this.editBase {
+    const ref = this.now()?.ref;
+    return { version: this.currentVersion(), ...(ref?.kind === "project" ? { original_version: ref.original.version } : {}) };
+  }
   /** Keeps this window's unsaved edit of the role, or forgets it once it is saved or dropped. */
   protected keep(): void {
     const key = this.roleKey();
     if (!key) return;
-    if (!this.drafts.set(key, this.dirty() ? { content: this.values(), version: this.editBase } : null)) this.host.note(say("workbench.characters.draft-cache-unavailable"));
+    if (!this.drafts.set(key, this.dirty() ? { content: this.values(), ...this.editBase, base: this.baseline } : null)) this.host.note(say("workbench.characters.draft-cache-unavailable"));
   }
 }
 
 /** How the drawer is drawn from its state. */
 class RoleDrawerView extends RoleDrawerState {
   protected controls(): void {
-    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
+    this.host.actions.controls(this.busy);
+    this.dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>("[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools], [data-character-drawer-foot] button, [data-character-drawer-notices] button, [data-roles-version]")
       .forEach(control => { control.disabled = this.busy || control.dataset.rolesDisabled === "true"; });
   }
 
@@ -176,7 +180,7 @@ class RoleDrawerView extends RoleDrawerState {
     if (this.phase === "saved" && this.saved) parts.push(renderAlert({ tone: "success", title: this.saved.title, body: this.saved.body,
       actions: this.saved.undo ? [{ size: "sm", label: say("workbench.roles.undo"), attrs: { "data-roles-drawer": "undo" } }] : [] }));
     if (this.phase === "conflict") {
-      const diff = this.diffOpen && this.theirs ? `<div class="roles-inset" role="group" aria-label="${esc(say("workbench.roles.theirs-vs-yours"))}"><div class="roles-diff"><section><h4>${esc(say("workbench.roles.theirs"))}</h4><p translate="no">${esc(this.theirs.instructions)}</p></section><section><h4>${esc(say("workbench.roles.yours"))}</h4><p translate="no">${esc(this.values().instructions)}</p></section></div></div>` : "";
+      const diff = this.diffOpen && this.theirs ? `<div class="roles-inset" role="group" aria-label="${esc(say("workbench.roles.theirs-vs-yours"))}">${renderRoleDiff(this.theirs, this.values(), [say("workbench.roles.theirs"), say("workbench.roles.yours")])}</div>` : "";
       parts.push(renderAlert({ tone: "danger", title: say(this.target?.kind === "member" ? "workbench.roles.conflict-project" : "workbench.roles.conflict-mine", { name: this.title() }), body: say("workbench.roles.conflict-body"), actions: [
         { size: "sm", label: say(this.diffOpen ? "workbench.roles.hide-difference" : "workbench.roles.see-difference"), attrs: { "data-roles-drawer": "diff", "aria-expanded": String(this.diffOpen) } },
         { size: "sm", variant: "primary", label: say("workbench.roles.keep-mine"), attrs: { "data-roles-drawer": "merge" } },
@@ -293,11 +297,16 @@ export class RoleDrawer extends RoleDrawerView {
     }
     const current = this.now()?.content;
     if (current) { this.baseline = current; if (refill) this.fill(current); }
-    if (refill) this.editBase = this.currentVersion();
+    if (refill) this.editBase = this.currentBase();
     const kept = restore ? this.drafts.get(this.roleKey() ?? "") : undefined;
     if (kept) {
-      this.fill(kept.content); this.editBase = kept.version;
-      if (kept.version !== this.currentVersion()) { this.phase = "conflict"; this.theirs = current ?? null; this.host.note(say("workbench.characters.updated-elsewhere")); }
+      this.fill(kept.content);
+      const active = this.currentBase();
+      this.editBase = { version: kept.version, original_version: kept.original_version };
+      if (kept.version !== active.version || kept.original_version !== active.original_version) {
+        this.baseline = kept.base ?? this.versions.find(entry => versionOf(entry.ref) === kept.version)?.content ?? this.baseline;
+        this.phase = "conflict"; this.theirs = current ?? null; this.host.note(say("workbench.characters.updated-elsewhere"));
+      }
       else { this.phase = "dirty"; this.host.note(say("workbench.characters.draft-restored")); }
     }
     this.render();
@@ -459,29 +468,18 @@ export class RoleDrawer extends RoleDrawerView {
     const member = this.member(), entry = this.originalEntry();
     if (!member || !entry) return;
     const edited = this.edited(), role: MemberRole = member.role;
-    if (this.where === "project") {
-      const body = { expected_revision: role.revision, expected_original_version: role.current.original.version,
-        ...(edited.way ? { work_style: { instructions: values.instructions } } : {}),
-        ...(edited.tools ? { capabilities: { host_tools: values.host_tools, ...(values.action_tools === undefined ? {} : { action_tools: values.action_tools }) } } : {}) };
-      const result = await this.host.request<{ role: MemberRole }>("PUT", "/members/" + encodeURIComponent(target.id), body);
-      const previous = before?.ref;
-      this.done(say("workbench.roles.saved-project", { version: result.role.current.member_version }), say("workbench.roles.impact-project"),
-        previous?.kind === "project" ? async () => this.undo({ version: previous, expected_revision: result.role.revision, expected_original_version: result.role.current.original.version }) : undefined);
-    } else {
-      // To the original: only what was edited here goes there; the original keeps its other section. A section this project
-      // kept for itself follows the original again, so the project uses what was just saved.
-      const base = this.original ?? this.baseline;
-      const content = { title: entry.title, instructions: edited.way ? values.instructions : base.instructions,
-        host_tools: edited.tools ? values.host_tools : base.host_tools, action_tools: (edited.tools ? values.action_tools : base.action_tools) ?? null };
-      const result = await this.host.request<{ draft: { revision: number }; version: number }>("PUT", "/drafts/" + encodeURIComponent(entry.ref.character_id), { ...content, expected_revision: entry.draft_revision });
-      let current = role;
-      for (const section of SECTIONS) {
-        if (current.sections[section].mode !== "override" || !(section === "work_style" ? edited.way : edited.tools)) continue;
-        current = (await this.host.request<{ role: MemberRole }>("POST", "/members/" + encodeURIComponent(target.id) + "/section",
-          { section, to: "follow", expected_revision: current.revision, expected_original_version: result.version })).role;
-      }
-      this.savedOriginal(result.version);
-    }
+    const body = { expected_revision: role.revision, expected_original_version: role.current.original.version,
+      ...(this.where === "mine" ? { expected_original_draft_revision: entry.draft_revision } : {}),
+      ...(edited.way ? { work_style: { instructions: values.instructions } } : {}),
+      ...(edited.tools ? { capabilities: { host_tools: values.host_tools, action_tools: values.action_tools } } : {}) };
+    const result = await this.host.request<CharacterMemberSaveResult>("PUT", "/members/" + encodeURIComponent(target.id), body);
+    const previous = before?.ref, saved = result.role;
+    const undo = previous?.kind === "project" ? async () => this.undo({
+      version: previous, expected_revision: saved.revision, expected_original_version: saved.current.original.version,
+      expected_original_draft_revision: result.original_draft_revision,
+    }) : undefined;
+    if (this.where === "mine") this.savedOriginal(saved.current.original.version, undo);
+    else this.done(say("workbench.roles.saved-project", { version: saved.current.member_version }), say("workbench.roles.impact-project"), undo);
     await this.host.reload(); await this.read(true);
   }
 
@@ -507,7 +505,7 @@ export class RoleDrawer extends RoleDrawerView {
   private async fresh(): Promise<void> { await this.host.reload(); await this.read(false); }
 
   /** What is in the box becomes an unsaved edit on top of the role as it reads now. */
-  private redirty(): void { this.phase = "dirty"; this.editBase = this.currentVersion(); this.keep(); this.render(); }
+  private redirty(): void { this.phase = "dirty"; this.editBase = this.currentBase(); this.keep(); this.render(); }
 
   /** Undo a save: the version before it is saved again as the newest one; what was typed stays in the box, unsaved. */
   private async undo(body: Record<string, unknown>): Promise<void> {

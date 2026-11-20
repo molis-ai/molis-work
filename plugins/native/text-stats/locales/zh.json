@@ -3,18 +3,18 @@
   "owner": "io.molis.work.text-stats",
   "locale": "zh",
   "messages": {
-    "text-stats.directory.summary": "统计文件快照的字数、字节与行数。",
+    "text-stats.directory.summary": "统计已固定文件版本的字数、字节与行数。",
     "text-stats.count.bytes": "UTF-8 字节",
     "text-stats.count.characters": "字符",
     "text-stats.count.lines": "行",
-    "text-stats.empty.waiting-detail": "统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。",
-    "text-stats.error.unreadable": "无法读取文件工作区",
+    "text-stats.empty.waiting-detail": "统计侧栏「资料」中固定为「对比前」的文本版本；重新固定即可更新，修改原文件不会覆盖已固定版本。",
+    "text-stats.error.unreadable": "无法读取项目目录",
     "text-stats.stage.open-materials": "打开资料",
     "text-stats.stage.reading": "正在读取固定内容…",
     "text-stats.stage.refresh": "刷新",
-    "text-stats.stage.retry": "。请点击刷新重试。",
-    "text-stats.empty.waiting": "固定一份文件快照后，这里会显示该版本的文本统计",
-    "text-stats.empty.unavailable": "捕获的快照已经不在了",
+    "text-stats.stage.retry": "。选择「刷新」重试。",
+    "text-stats.empty.waiting": "固定一份文件版本后，这里会显示它的字数与行数统计",
+    "text-stats.empty.unavailable": "之前固定的文件版本已不可用",
     "text-stats.empty.recapture": "重新捕获一次，或者在 Sources 里换一个输入"
   }
 }

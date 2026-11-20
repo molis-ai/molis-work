@@ -94,7 +94,7 @@ test("RAC-443 S-62 the Assistant names no plugin: assistant-coding.ts is gone an
   assert.deepEqual(found, []);
 });
 
-test("B10-R3 RAC-444 RAC-2365 the Assistant store stays at version 1 and refuses unversioned or newer stores without translating on read", () => {
+test("B10-R3 RAC-444 RAC-2365 the Assistant store is at version 1 and refuses unversioned or newer stores without translating on read", () => {
   assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
   for (const version of [0, 2]) {
     const db = new DatabaseSync(":memory:");

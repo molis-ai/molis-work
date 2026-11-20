@@ -1,0 +1,65 @@
+/* 底栏第八版多出来的编排，叠在 bar.css 上面。颜色都引用 ../kit/kit.css 的变量。不是产品样式。 */
+
+/* 输入框左右两格：在输入框外面，和它同一行、同一高度 */
+.dk .qw{gap:0;overflow:visible}
+.dk .fz{flex:1;display:flex;align-items:center;gap:6px;height:38px;min-width:0;overflow:hidden;white-space:nowrap}
+.dk .qw.l .fz{justify-content:flex-end}
+.dk .fz .dc-k{flex:none;width:28px;height:28px;color:var(--ink-soft)}
+.dk .fz .dc-k:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.dk .fz .dc-chip{flex:none;max-width:170px}
+.dk .fz .dc-chip .cut{overflow:hidden;text-overflow:ellipsis}
+.dk .fz .dc-chip [role=button]{display:inline-grid}
+.dk .fz .dn{flex:none;background:none}
+/* 正在看：一直在这个位置。虚线是这次不带，点亮是带上 */
+.f-look{flex:none;display:inline-flex;align-items:center;gap:6px;height:26px;max-width:min(230px,calc(100% - 34px));padding:0 10px;border-radius:13px;outline:1px dashed var(--line-strong);outline-offset:-1px;font-size:12px;color:var(--muted);transition:color var(--dur-hover),background var(--dur-hover)}
+.f-look .cut{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.f-look svg{flex:none;color:var(--faint)}
+.f-look:hover{color:var(--ink)}
+.f-look.on{outline:0;background:var(--popover);box-shadow:0 0 0 1px var(--line);color:var(--ink)}
+.f-look.on svg{color:var(--muted)}.f-look.on svg.ok,.pm svg.ok{color:var(--accent)}
+/* 给谁、怎么送达 */
+.f-who,.f-way{flex:none;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 6px 0 9px;border-radius:9px;font-size:12.5px;color:var(--ink)}
+.f-who small{margin-right:2px;font-size:12px;color:var(--faint)}
+.f-who b{font-weight:500}
+.f-who svg,.f-way svg{color:var(--muted)}
+.f-who:hover,.f-way:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.f-who.alt,.f-who.alt svg,.f-way,.f-way svg{color:var(--accent)}
+.f-way{font-size:12px}
+.dk .qw>.pm{bottom:44px;z-index:4}
+.dk .qw.l>.pm{left:auto;right:0}
+.dk .qw.r>.pm{width:196px}
+.dk .fz .dc-chip.more{gap:4px;color:var(--ink-soft)}
+.dk .pm .dl-r .nm{flex:1}
+
+/* 标签：亮着的那一枚是一组，事项名后面排着它里面的事 */
+.dk .q-tab{flex:none}
+.dk .q-tab .cut{max-width:124px}
+.dk .q-tab.grp{gap:1px;max-width:none;padding:0 5px 0 4px;font-weight:400}
+.g-nm,.g-ev,.g-more{flex:none;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;border-radius:7px;transition:background var(--dur-hover),color var(--dur-hover)}
+.g-nm{font-weight:600;color:var(--ink)}
+.dk .g-nm .cut{max-width:150px}
+.g-nm:hover,.g-ev:hover,.g-more:hover{background:var(--control-fill);color:var(--ink)}
+.g-vr{flex:none;width:1px;height:12px;margin:0 5px 0 3px;background:var(--line-strong)}
+.g-ev{font-size:12px;color:var(--ink-soft)}
+.dk .g-ev .cut{max-width:132px}
+.g-ev.you{color:var(--ink)}
+.g-ev.on{background:var(--control-fill);color:var(--ink);font-weight:600}
+.g-ev.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.g-ev .dg,.g-ev svg.dg{flex:none}
+.g-more{padding:0 6px;font-size:11.5px;color:var(--muted)}
+.g-more.you{color:var(--amber);font-weight:600}
+.q-k.tmk{display:inline-flex;align-items:center;gap:3px;width:auto;min-width:24px;justify-content:center;padding:0 5px}
+.q-k .n{display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:10.5px;font-weight:600;font-style:normal}
+.dk .tm .dl-r small.you{color:var(--amber);font-weight:600}
+.dk .tm .fs-foot{color:var(--muted)}
+
+/* 输入框里没有 ＋ 了：字从左边起 */
+.dk .qb .pc textarea{padding-left:12px!important}
+
+/* 纸的三段：任务卡钉在最上面，说过的话在中间，该你做的在最下面 */
+.qv-top{display:flex;flex-direction:column;gap:8px;padding:18px 44px 0}
+.qv-top:empty{display:none}
+.dk .qv-b{max-height:var(--convmax,360px);padding-top:14px}
+.dd-r{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.dd-r svg{color:var(--green)}
+.bx.marks .qv-top{position:relative;outline:1.5px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:-6px}

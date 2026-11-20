@@ -17,6 +17,7 @@ import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { reportOnlyAuthority } from "./assistant-task-reports.js";
 import { assistantErrors } from "./assistant-errors.js";
+import { assertStoredCharacter } from "./assistant-characters.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
@@ -60,12 +61,16 @@ type ReportTurnAdapter = Parameters<typeof stopAndWait>[0] & { readSession(ref: 
 /**
  * A round that only reports holds read-only authority, so the two never mix: a report never reaches a round under way (it waits for
  * that round's end), and a person's words never join a report: it is stopped (a bounded wait) and their own round starts.
+ *
+ * `reports` reads the round's stored mark. A round the Host starts to report is stored only microtasks after `host.start` returns
+ * (its `beforeEffect` has no fence of its own), so no person's words read the latest round before the mark is there. Keep it so:
+ * real I/O awaited between that start and `addRound` would open the gap.
  */
-async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, session: AgentSessionView, reportRuns: ReadonlySet<string>, reportOnly: boolean): Promise<AgentSessionView> {
+export async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, session: AgentSessionView, reports: (runId: string) => boolean, reportOnly: boolean): Promise<AgentSessionView> {
   const running = session.latest_run && !isTerminalAgentPhase(session.latest_run.phase) ? session.latest_run.ref : undefined;
   if (!running) return session;
   if (reportOnly) throw assistantErrors.state("这段对话正在回答，汇报等它这一轮结束");
-  if (!reportRuns.has(running.run_id)) return session;
+  if (!reports(running.run_id)) return session;
   await stopAndWait(adapter, running);
   const after = await adapter.readSession(ref);
   if (after.latest_run && !isTerminalAgentPhase(after.latest_run.phase)) throw assistantErrors.state("汇报的那一轮还没停下，稍等再发");
@@ -79,7 +84,6 @@ async function reportTurn(adapter: ReportTurnAdapter, ref: AgentSessionRef, sess
  */
 export class AssistantDispatch {
   constructor(private readonly store: Pick<AssistantStore, "addRound" | "get" | "permissionTransitions" | "markTold" | "relations" | "rounds" | "saveUnsettled" | "update">, private readonly ports: AssistantServicePorts, private readonly actorId: string, private readonly now: () => Date, private readonly starting: Map<string, string>, private readonly titles: Map<string, CapabilityTitles>, private readonly recalled: Map<string, string>, private readonly chosenMemory: Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>, private readonly link: AssistantDispatchLinks) {}
-  /** The rounds started only to report, while this Host runs: what a person's Send must not join. */ private readonly reportRuns = new Set<string>();
 
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
@@ -221,7 +225,7 @@ export class AssistantDispatch {
     const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills, intent?.resume_answer);
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
-    this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
+    this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(intent?.report_only ? { report_only: true as const } : {}) });
     return this.result(work, "started", runId, stillCurrent, intent?.draftCurrent);
   }
 
@@ -234,15 +238,15 @@ export class AssistantDispatch {
       const execute = () => this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent, beforeStart, assertBeforeStart, handoff);
       return replyLocale ? runBackgroundWork(replyLocale, execute) : execute();
     }
+    assertStoredCharacter(work.character);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const assertLifetime = intent?.delivery === "after-run" && intent?.target !== "answer" ? undefined : await holdAssistantWorkLifetime(host, work);
-    // The Skills the person chose for this round, by their exact references: the round's named list, so a `manual` one can be read
-    // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
+    // Only Skills the person picked by exact reference are named for this round (capability-pack §2.3).
     const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
       ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
     const autoSkills = intent?.auto_skills !== false;
-    const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
+    const roundAuthority = async () => { const authority = await this.ports.authority(work, undefined, replyLocale, namedSkills, autoSkills, intent?.connector_categories); return intent?.report_only ? reportOnlyAuthority(authority) : authority; };
     let base = await roundAuthority();
     const original_input = !intent?.byHost ? intent?.original_input : undefined;
 
@@ -277,7 +281,7 @@ export class AssistantDispatch {
       base = await roundAuthority(); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
-    const session = await reportTurn(adapter, sessionRef(work), await adapter.readSession(sessionRef(work)), this.reportRuns, Boolean(intent?.report_only));
+    const session = await reportTurn(adapter, sessionRef(work), await adapter.readSession(sessionRef(work)), runId => this.store.rounds(work.work_id, 1).some(round => round.run_id === runId && round.report_only), Boolean(intent?.report_only));
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
@@ -337,7 +341,6 @@ export class AssistantDispatch {
         dispatchHanded = true; intent?.handed?.();
         const delegation = !intent?.report_only && host.workDelegations?.(RUNTIME) ? assistantWorkPermission(work) : undefined;
         const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: ready.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from, resume_answer: intent?.resume_answer, ...(intent?.report_only ? { report_only: true as const } : {}) }), delegation ? { ...authority, delegation } : authority);
-        if (intent?.report_only) this.reportRuns.add(started.ref.run_id);
         handoff.accepted(); return started;
       });
     } catch (error) {
@@ -354,7 +357,7 @@ export class AssistantDispatch {
     }
     const persisted = stripExternalSessionPersistence(materials, context);
     this.store.markTold(this.actorId, prepared.told);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials: persisted.materials, context: persisted.context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}), ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials: persisted.materials, context: persisted.context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(intent?.report_only ? { report_only: true as const } : {}), ...(work.character ? { character: { ...work.character } } : {}), ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
     this.link.continuations.watch(work, handle.ref);
     return this.result(work, "started", handle.ref.run_id, stillCurrent, intent?.draftCurrent, Boolean(intent?.report_only));

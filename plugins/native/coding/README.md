@@ -72,6 +72,8 @@ The project's folders come from the [current-project settings protocol](../../..
 
 ## 开发要求
 
+环境检查只展示成功读取的事实；公开读取的失败outcome、目录截断或实际异常使该分区为unavailable，不能代入零值或空集合。取消仍沿原调用拒绝。检查结果类型由`environment-state.ts`一处定义，页面原位重试复用state读取；非仓库和无HEAD仓库不请求不适用的工作树检查。环境卡安装由`drawEnvironmentReadiness`一处负责，轮次和环境读取顺序均可恢复控件。本地公共renderer输出保持交互属性，模型正文仍走内容净化。
+
 Coding 的 `coding.subject.state@1` 只读当前原记录的 active / archived / deleted，不读 Run、不启动 SDK。通用 subject reader 在读取前后核归档和原映射；已归档原件仍由本人原详情入口查看。Search 的更新版本保留原 updated_at/state；资料内容版本只由原有界 title/summary/content 生成 `content-v1:` token。下一轮方式改变时，配置与 updated_at 在当前项目同一 Host SQLite 写事务内提交，原 record guard 失败或写入失败不留下新的方式。直接回归：`tests/coding-subject-source.test.ts`、`tests/knowledge-source-retention.test.ts`。
 
 Coding 完成后，原 `follow` 作业仅对已成功回执的 completed Run 调用 `memory.learning.enqueue@1`。持久任务再次进入当前安装的 `memory.learning.run@1`，该调用内等待 `memory.learning.form@1`、SDK 形成、晋升与 ledger 完成。Coding 用自己的同步 SessionStore 核全部实际 Coding 来源 Session 的归档、项目与 runtime 映射；不把闭包存入队列。默认 reviewed 留待审候选，未装配来源主人或持久队列时不旁路提炼。补账仍沿原 SDK 合同：已成候选后 App 投影失败，原操作的有界重试可能再次调用提炼模型，再 replay 同一候选/版本；不能宣称模型 exactly-once。来源归档后的拒绝只挡后续派发和写入，先前已确认的 SDK 事实保留。直接回归：`tests/coding-memory-learning.test.ts`。
@@ -99,7 +101,7 @@ Coding 通过原项目内容目录声明“编码会话与草稿”集合，元�
     - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goals-actions.ts` 的 `GOALS_ACTIONS.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题。查询只刷新内存；独立后台观察每 5 秒读取并保存标题及会话状态到本插件存储，选择 Goal 的命令也会记下标题。查询不写持久记录、不启动唤醒；后台观察在停止或撤权后结束。还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
     - Character：一次读 `characters.roles.list@1` 拿到本项目的角色（个人工作里是本人的原件）、各自能不能选与原因、两层默认；会话没有自己的选择时，开第一轮前读 `characters.roles.resolve@1`。Coding 只存稳定引用（`{kind:"project",member_id}` 或 `{kind:"personal",character_id}`）和标题，版本由 Agent 宿主起跑时钉住；本机程序与工作目录的 `characters.execution@1` 只给本人。两个读取都写在 Manifest `capabilities.consumes`，声明 `permissions: []`，不需要授权（role-service-design §5）。
   - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在 Coding 自己的公开入口 `@molis-ai/molis-work-plugin-coding/contract`（`src/contract.ts`，PG-111），Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
-  - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable()` 按类型取，再留下生产者是自己的版本（`outputs.ts` 的 `codingOutputReferences`）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
+  - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable({ producer_plugin_id })` 只列平台记在 Coding 名下的版本，再按类型分（`outputs.ts` 的 `codingOutputReferences`；别家同类型的版本不列也不读，BL-375）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。
   - 提示词与方法正文随目录条目声明，Manifest 只写声明。
@@ -141,3 +143,7 @@ subject-state 可向 Kernel 提供当前 owner 的同步 getter：每次读真�
 `coding.sessions.binding.read@1` 为 user-only、artifact:read 的 `GET /sessions/:sessionId/binding`，严格输出业务 session_id/project_id、原 runtime 引用或 null、archived；只读原业务记录，零执行创建。runtime_session_id 在同一原事务中只能 null→实际 ID；同 ID 幂等且不改时间，改绑/清空返回 `coding.session_binding_conflict`。Memory 的受保护入口经此主人、当前唯一安装和 SDK 持久 owner 求交；业务 id 不是 SDK 身份或写许可。
 
 保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@1` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。
+
+提交说明交给内嵌 Git 使用已登记 clientUses 的 `offerCommitDraft(workspaceId, message)`，不读写另一插件约定的 storage 键。必须定位本轮原目录，不回退当前目录；等待 Git 实际保存后才报告成功，有手写文本时说明建议已保存供显式采用。交接失败在原处重试同一份生成结果，不重调模型。
+
+共享输入材料（QEA-41～46）：父页来源选择随本次提交进入 Coding，与已保存的下一轮材料按完整引用去重；本次选择不写入长期 materialSelections。运行中补充只携带此次来源，三种交付模式都先经同一 owner 读取，再作为资料附到模型正文；原话仍由受保护 original_input 与原 Runtime 记录保存。等待另一轮结束前先验证引用，真正开始时再读。不可读项按提交快照定位，来源条与已保存选择各自恢复，移除不自动重发。未知回应仍由本人显式同 key 重试；正常读取中的真实 Run/queued_inputs 回执调用公共 composer 成功回调，只结算原提交文字与材料，后写内容保留。

@@ -10,25 +10,25 @@ import {
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxJson } from "../platform/plugin-sandbox.js";
-import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingLayer } from "../platform/settings.js";
-import { LOCALE_TAG } from "../platform/ui-text.js";
+import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, SETTINGS_SOURCES, type SettingConsequence, type SettingLayer, type SettingSource } from "../platform/settings.js";
+import { LOCALE_TAG, OWNED_TEXT_REF_SCHEMA, TEXT_REF_SCHEMA, type OwnedTextRef, type TextRef } from "../platform/ui-text.js";
 
-/** The scene service's public contract (specs/scene-and-page-contract/spec.md): the draft, the adoption record and the eight actions declared here. The provider is batch 45's. */
+/** Public drafts and adoption records. Signed scene packages and three-way upgrades belong to batch 45. */
 export const servicesBlueprintsContract = {
   contractId: /* @version contract.io.molis.work.service.blueprints "io.molis.work.service.blueprints.v{version}" */ "io.molis.work.service.blueprints.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.blueprints */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/scene-and-page-contract/spec.md",
 } as const satisfies ContractDescriptor;
 
-/** The provider id the future `system.blueprints` service (batch 45) registers the eight actions under; declared here, not registered yet. */
+/** Shared provider of public scene actions. */
 export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
 
 /**
  * The scene owner's refusals (specs/scene-and-page-contract/spec.md, the error-model paragraph of section 13): a part whose owner does
  * not declare it, a step whose owner revision moved, a dependency that is not installed, and a preview that expired before it was used.
- * Declared once, so callers of the future `system.blueprints` provider (a workflow, a Skill, the interface) can tell them apart.
+ * Declared once, so callers of the `system.blueprints` provider (a workflow, a Skill, the interface) can tell them apart.
  */
 export const blueprintsErrors = /* @__PURE__ */ defineErrorCodes("blueprints", {
   part_unsupported: "invalid",
@@ -74,7 +74,7 @@ export interface BlueprintPackSaveInput { source: DraftSource | { kind: "adoptio
 export interface BlueprintPackSaveResult { preview_id: string }
 
 export type BlueprintCurrentValue =
-  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision }
+  | { state: "present"; value: SandboxJson; origin: BlueprintPartOrigin | null; revision?: AdoptionRevision; setting_source?: SettingSource; value_unavailable?: string }
   | { state: "missing" }
   | { state: "unavailable"; reason: string };
 
@@ -82,16 +82,24 @@ export type BlueprintPreviewCandidate =
   | { kind: "owner"; action: ExactActionReference; subject?: ActionSubject; current: BlueprintCurrentValue }
   | { kind: "bundled"; plugin_id: string; version: string };
 
-const decisions = ["create", "reuse", "update", "needs_choice", "needs_install", "skip"] as const;
-export interface BlueprintPreviewPart {
+const actionableDecisions = ["create", "reuse", "update", "needs_choice", "needs_install"] as const;
+const previewSkipReasons = ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "dependency_unmet"] as const;
+type PreviewDecision =
+  | { decision: (typeof actionableDecisions)[number] }
+  | { decision: "skip"; reason: (typeof previewSkipReasons)[number] };
+export type BlueprintPreviewPart = PreviewDecision & {
   part_id: string;
+  title?: OwnedTextRef;
+  summary?: OwnedTextRef;
   proposal: BlueprintProposal;
   layer: SettingLayer;
   candidates: BlueprintPreviewCandidate[];
-  decision: (typeof decisions)[number];
+  device_only?: true;
+  model_selection?: true;
+  correction_type?: "boolean" | "string" | "json";
   consequences: SettingConsequence[];
   affected_step_ids: string[];
-}
+};
 
 const dependencyChanges = ["added", "removed", "changed"] as const;
 export type BlueprintUpgradePart = {
@@ -121,14 +129,15 @@ export interface BlueprintOwnerReceipt {
   revision: AdoptionRevision;
 }
 
-const skipReasons = ["not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
+const skipReasons = ["invalid_proposal", "undeclared", "owner_disabled", "sandbox_unsupported", "not_selected", "dependency_unmet", "unsupported", "scope_mismatch", "owner_unavailable", "value_unavailable", "revision_changed", "reused", "shared", "no_revert"] as const;
 const appliedCurrentStates = ["changed", "owner_unavailable"] as const;
+const pendingCurrentStates = ["owner_unavailable", "owner_replaced"] as const;
 type BlueprintApprovalStep = { page_id: string; version: number; approval_request_id: string };
 type BlueprintStepError = { code: string; message: string };
 type InterruptedStep =
   | ({ state: "needs_approval" } & BlueprintApprovalStep)
   | { state: "failed"; error: BlueprintStepError }
-  | { state: "pending_verification"; request_id: string }
+  | { state: "pending_verification"; request_id: string; current?: (typeof pendingCurrentStates)[number] }
   | { state: "skipped"; reason: (typeof skipReasons)[number] };
 
 export type BlueprintApplyStep = { part_id: string } & (
@@ -157,6 +166,15 @@ interface BlueprintAdoptionIdentity {
 export interface BlueprintAdoptionApplyResult extends BlueprintAdoptionIdentity { steps: BlueprintApplyStep[] }
 export interface BlueprintAdoptionReadResult extends BlueprintAdoptionIdentity { apply_steps: BlueprintApplyStep[]; latest_undo: UndoResult | null }
 export interface BlueprintAdoptionUndoResult<Operation extends UndoOperation = UndoOperation> { adoption_id: string; undo: UndoResult<Operation> }
+
+export interface BlueprintLibraryResult {
+  drafts: { source: DraftSource; title: TextRef }[];
+  adoptions: { adoption_id: string; title: TextRef; target: BlueprintAdoptedTarget; request: BlueprintAdoptionApplyInput }[];
+  preview?: BlueprintAdoptionPreviewResult;
+  /** For a selected new-project adoption, the destination already exists in the catalog. */
+  target_created?: boolean;
+}
+export type BlueprintLibraryInput = { adoption_id?: never; preview_id?: never } | BlueprintAdoptionReadInput | { preview_id: string };
 
 const token = { type: "string", pattern: "\\S" } as const;
 const locale = { type: "string", pattern: LOCALE_TAG.source } as const;
@@ -219,7 +237,7 @@ const packResult = closedObjectSchema({ preview_id: token });
 const json = { type: ["null", "boolean", "number", "string", "array", "object"] } as const;
 const currentValue = { oneOf: [
   closedObjectSchema({
-    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA,
+    state: { const: "present" }, value: json, origin: { oneOf: [BLUEPRINT_PART_ORIGIN_SCHEMA, nullValue] }, revision: ADOPTION_REVISION_SCHEMA, setting_source: { enum: SETTINGS_SOURCES }, value_unavailable: token,
   }, ["state", "value", "origin"]),
   closedObjectSchema({ state: { const: "missing" } }),
   closedObjectSchema({ state: { const: "unavailable" }, reason: token }),
@@ -228,10 +246,14 @@ const previewCandidate = { oneOf: [
   closedObjectSchema({ kind: { const: "owner" }, action: exactAction, subject: ACTION_SUBJECT_SCHEMA, current: currentValue }, ["kind", "action", "current"]),
   closedObjectSchema({ kind: { const: "bundled" }, plugin_id: token, version: token }),
 ] };
-const previewPart = closedObjectSchema({
-  part_id: token, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
-  decision: { enum: decisions }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
-});
+const previewFields = {
+  part_id: token, title: OWNED_TEXT_REF_SCHEMA, summary: OWNED_TEXT_REF_SCHEMA, proposal: proposalBody, layer: { enum: SETTINGS_LAYERS }, candidates: items(previewCandidate),
+  device_only: { const: true }, model_selection: { const: true }, correction_type: { enum: ["boolean", "string", "json"] }, consequences: { ...items({ enum: SETTINGS_CONSEQUENCES }), uniqueItems: true }, affected_step_ids: partIds,
+} as const;
+const previewPart = { oneOf: [
+  closedObjectSchema({ ...previewFields, decision: { enum: actionableDecisions } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision"]),
+  closedObjectSchema({ ...previewFields, decision: { const: "skip" }, reason: { enum: previewSkipReasons } }, ["part_id", "proposal", "layer", "candidates", "consequences", "affected_step_ids", "decision", "reason"]),
+] };
 const comparison = {
   part_id: token, current: currentValue, keep_user_changes: boolean,
   dependency_changes: items(closedObjectSchema({ part_id: token, change: { enum: dependencyChanges } })),
@@ -252,7 +274,7 @@ const approval = { page_id: token, version, approval_request_id: token };
 const interrupted = [
   closedObjectSchema({ ...part, state: { const: "needs_approval" }, ...approval }),
   closedObjectSchema({ ...part, state: { const: "failed" }, error: closedObjectSchema({ code: token, message: token }) }),
-  closedObjectSchema({ ...part, state: { const: "pending_verification" }, request_id: token }),
+  closedObjectSchema({ ...part, state: { const: "pending_verification" }, request_id: token, current: { enum: pendingCurrentStates } }, ["part_id", "state", "request_id"]),
   closedObjectSchema({ ...part, state: { const: "skipped" }, reason: { enum: skipReasons } }),
 ] as const;
 const applied = { ...part, state: { const: "applied" }, current: { enum: appliedCurrentStates } } as const;
@@ -279,9 +301,18 @@ const undoOutput = (operation: UndoOperation) => closedObjectSchema({
 
 const person = ["user"] as const;
 const drafting = ["user", "agent"] as const;
+const libraryInput = inputSchemaFor<BlueprintLibraryInput>()({ oneOf: [
+  closedObjectSchema({}), closedObjectSchema({ adoption_id: token }), closedObjectSchema({ preview_id: token }),
+] });
+const libraryOutput = closedObjectSchema({
+  drafts: items(closedObjectSchema({ source: blueprintDraftSourceSchema, title: TEXT_REF_SCHEMA }), 50),
+  adoptions: items(closedObjectSchema({ adoption_id: token, title: TEXT_REF_SCHEMA, target: adoptedTarget, request: applyInput }), 50),
+  preview: previewResult, target_created: boolean,
+}, ["drafts", "adoptions"]);
 
 /** Public declarations; the scene owner will bind them under system.blueprints. */
 export const blueprintActions: {
+  library: ActionDefinition<BlueprintLibraryInput, BlueprintLibraryResult>;
   draftSave: ActionDefinition<BlueprintDraftSaveInput, BlueprintDraftResult>;
   draftRead: ActionDefinition<BlueprintDraftReadInput, BlueprintDraftResult>;
   preview: ActionDefinition<BlueprintAdoptionPreviewInput, BlueprintAdoptionPreviewResult>;
@@ -291,6 +322,7 @@ export const blueprintActions: {
   remove: ActionDefinition<BlueprintAdoptionUndoInput, BlueprintAdoptionUndoResult<"remove">>;
   packSave: ActionDefinition<BlueprintPackSaveInput, BlueprintPackSaveResult>;
 } = {
+  library: blueprintAction("blueprints.library.read", /* @version action.blueprints.library.read */ 1, "查看场景草稿和采用记录", "在当前范围继续本人之前的场景采用", "query", person, libraryInput, libraryOutput, false),
   draftSave: blueprintAction("blueprints.drafts.save", /* @version action.blueprints.drafts.save */ 1, "保存场景草稿", "保存场景正文的新稿或按修订保存现有草稿", "command", drafting, saveDraftInput, draftResult, false),
   draftRead: blueprintAction("blueprints.drafts.read", /* @version action.blueprints.drafts.read */ 1, "读取场景草稿", "读取草稿正文和固定的当前修订", "query", drafting, draftReadInput, draftResult, false),
   preview: blueprintAction("blueprints.adoption.preview", /* @version action.blueprints.adoption.preview */ 1, "预览场景采用", "核对选中部分和各主人，返回短期预览及影响", "command", person, previewInput, previewResult),

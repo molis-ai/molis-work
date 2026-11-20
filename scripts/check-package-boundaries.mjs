@@ -244,7 +244,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
   }
 
   const centralVersions = versionSource(repositoryRoot).versions;
-  for (const name of ["github", "gmail", "rss", "web-query", "youtube"]) {
+  for (const name of ["github", "gmail", "rss"]) {
     const pluginRoot = path.join(repositoryRoot, "plugins/official-integrations", name);
     const manifestPath = path.join(pluginRoot, "manifest.json");
     if (!fs.existsSync(manifestPath)) {
@@ -1092,6 +1092,9 @@ export function checkRuntimeHostOwnership(repositoryRoot) {
   return { errors };
 }
 
+const GOAL_ADAPTER_FILE_CACHE = new Map();
+const RETIRED_ADAPTER_FAST_HINT = /(?:board-entry-capabilities|goal-event-entry-capabilities|proposal-capabilities|initializeBoardCapability|snapshotBoardCapability|createGoalIntentCapability|recordGoalUserDecisionCapability|goalTreeCapabilities|createGoalProposalClients|readProjectGuidanceCapability|setActiveGoalCapability|InitializeBoardInput|GoalEventEntryApi|GoalEventDecideEvidence|GoalEventDecideEntryInput|GoalTreeCheckEntryInput|GoalTreeSubmitEntryInput|GoalTreeDecideEvidence|GoalTreeDecideEntryInput|GoalTreeEntryApi|goalContextCapabilities|goalProgressCapabilities|GoalProgressActor|pluginDevelopmentCapability|local-host\.board\.|goals\.events\.|goals\.(?:submit|list|check|decide)-goal-tree-proposal|local-host\.project\.guidance|local-host\.goals\.set-active|goals\.context\.|goals\.progress\.|local-host\.plugin\.development|[+\\])/u;
+
 /** W3-07-5-01 / W3-07-9-01: no definition, registration, export or caller may restore a retired Goals or development protocol. */
 export function checkNoGoalTypedAdapters(files) {
   const retiredModules = new Set(["board-entry-capabilities", "goal-event-entry-capabilities", "proposal-capabilities"]);
@@ -1105,27 +1108,36 @@ export function checkNoGoalTypedAdapters(files) {
     "io.molis.work.local-host.project.guidance", "io.molis.work.local-host.goals.set-active", "goals.context.list.v1", "goals.context.read.v1", "goals.progress.record.v1", "goals.progress.receipt.v1", "io.molis.work.local-host.plugin.development"]);
   const errors = [];
   for (const { path: relativePath, source } of files) {
-    const moduleName = value => value.replace(/\.(?:[cm]?[jt]s|tsx)$/u, "").split("/").at(-1);
-    const named = new Set();
-    if (retiredModules.has(moduleName(relativePath))) named.add(relativePath);
-    const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true);
-    const literalText = node => {
-      if (ts.isStringLiteralLike(node)) return node.text;
-      if (ts.isParenthesizedExpression(node)) return literalText(node.expression);
-      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-        const left = literalText(node.left), right = literalText(node.right);
-        return left === undefined || right === undefined ? undefined : left + right;
+    const cacheKey = `${relativePath}\0${source}`;
+    let found = GOAL_ADAPTER_FILE_CACHE.get(cacheKey);
+    if (found === undefined) {
+      const moduleName = value => value.replace(/\.(?:[cm]?[jt]s|tsx)$/u, "").split("/").at(-1);
+      const named = new Set();
+      if (retiredModules.has(moduleName(relativePath))) named.add(relativePath);
+      if (RETIRED_ADAPTER_FAST_HINT.test(source)) {
+        const file = ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, false);
+        const literalText = node => {
+          if (ts.isStringLiteralLike(node)) return node.text;
+          if (ts.isParenthesizedExpression(node)) return literalText(node.expression);
+          if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+            const left = literalText(node.left), right = literalText(node.right);
+            return left === undefined || right === undefined ? undefined : left + right;
+          }
+          return undefined;
+        };
+        const visit = node => {
+          if (ts.isIdentifier(node) && retiredNames.has(node.text)) named.add(node.text);
+          const literal = literalText(node);
+          if (literal !== undefined && (retiredIds.has(literal) || retiredNames.has(literal) || retiredModules.has(moduleName(literal)))) named.add(literal);
+          ts.forEachChild(node, visit);
+        };
+        visit(file);
       }
-      return undefined;
-    };
-    const visit = node => {
-      if (ts.isIdentifier(node) && retiredNames.has(node.text)) named.add(node.text);
-      const literal = literalText(node);
-      if (literal !== undefined && (retiredIds.has(literal) || retiredNames.has(literal) || retiredModules.has(moduleName(literal)))) named.add(literal);
-      ts.forEachChild(node, visit);
-    };
-    visit(file);
-    for (const name of named) errors.push(`${relativePath}: ${name} is ${name === "pluginDevelopmentCapability" || name === "io.molis.work.local-host.plugin.development"
+      found = [...named];
+      if (GOAL_ADAPTER_FILE_CACHE.size >= 6000) GOAL_ADAPTER_FILE_CACHE.clear();
+      GOAL_ADAPTER_FILE_CACHE.set(cacheKey, found);
+    }
+    for (const name of found) errors.push(`${relativePath}: ${name} is ${name === "pluginDevelopmentCapability" || name === "io.molis.work.local-host.plugin.development"
       ? "a retired private development protocol; use developInPrivateHost" : "a retired Goals typed adapter; use the registered Goals action"}`);
   }
   return errors;

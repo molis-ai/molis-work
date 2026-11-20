@@ -64,10 +64,10 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
                 <div class="images-service-options" role="group" aria-label="${uiText("images.service.model")}" data-images-service-options></div>
               </details>
             </div>
-            <label class="images-field"><span>${uiText("images.compose.prompt")}</span><textarea class="mw-textarea images-prompt" data-images-prompt rows="7" maxlength="32000" required placeholder="${uiText("images.compose.example")}"></textarea></label>
+            <label class="images-field"><span>${uiText("images.compose.prompt")}</span><textarea class="mw-textarea images-prompt" data-images-prompt rows="7" required placeholder="${uiText("images.compose.example")}"></textarea></label>
             <div class="images-parameters">
-              <label class="images-field" data-images-size-field><span>${uiText("images.compose.size")}</span><input class="mw-input" data-images-size list="images-size-options" autocomplete="off" maxlength="100" placeholder="${uiText("images.compose.size-placeholder")}"><small data-images-size-help>${uiText("images.compose.size-help")}</small></label>
-              <label class="images-field" data-images-ratio-field hidden><span>${uiText("images.compose.ratio")}</span><input class="mw-input" data-images-ratio list="images-ratio-options" autocomplete="off" maxlength="100" placeholder="${uiText("images.compose.ratio-placeholder")}"><small data-images-ratio-help></small></label>
+              <label class="images-field" data-images-size-field><span>${uiText("images.compose.size")}</span><input class="mw-input" data-images-size list="images-size-options" autocomplete="off" placeholder="${uiText("images.compose.size-placeholder")}"><small data-images-size-help>${uiText("images.compose.size-help")}</small></label>
+              <label class="images-field" data-images-ratio-field hidden><span>${uiText("images.compose.ratio")}</span><input class="mw-input" data-images-ratio list="images-ratio-options" autocomplete="off" placeholder="${uiText("images.compose.ratio-placeholder")}"><small data-images-ratio-help></small></label>
               <datalist id="images-size-options" data-images-size-options></datalist><datalist id="images-ratio-options" data-images-ratio-options></datalist>
             </div>
             <div class="images-submit-row"><p>${uiText("images.compose.cost")}</p><button class="mw-btn mw-btn--primary" type="submit" data-images-generate disabled>${uiText("images.compose.generate")}</button></div>
@@ -92,10 +92,10 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
                 <small class="images-offer" data-images-offer></small></div>
               <label class="images-field"><span>${uiText("images.account.label")}</span><select class="mw-select" data-images-connection-auth><option value="">${uiText("images.account.anonymous")}</option></select><small data-images-key-help>${uiText("images.account.key-management")}</small></label><a href="/settings/connectors?connector=image-api">${uiText("images.account.open-connectors")}</a>
               <details class="mw-collapsible images-advanced" data-images-advanced><summary>${uiText("images.service.advanced")}</summary><div class="mw-collapsible__body">
-                <label class="images-field"><span>${uiText("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required maxlength="100" autocomplete="off"></label>
+                <label class="images-field"><span>${uiText("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required autocomplete="off"></label>
                 <div class="images-field"><span>${uiText("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${uiText("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
                 <label class="images-field"><span>${uiText("images.service.url")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
-                <label class="images-field"><span>${uiText("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required maxlength="200" autocomplete="off"></label>
+                <label class="images-field"><span>${uiText("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required autocomplete="off"></label>
               </div></details>
             </fieldset>
           </div>

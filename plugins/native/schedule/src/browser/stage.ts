@@ -55,8 +55,8 @@ export function closeForm(page: SchedulePage, taskId: string | null): void {
   if (taskId) select(page, taskId, "task"); else collapse(page);
 }
 
-/** Opens one row's detail; opening a task also marks it read (best effort). */
-export function select(page: SchedulePage, id: string | null | undefined, kind: RowKind): void {
+/** Opens one row's detail; the person opening a task also marks it read (best effort), a redraw of what is open does not. */
+export function select(page: SchedulePage, id: string | null | undefined, kind: RowKind, markRead = true): void {
   if (!id) { collapse(page); return; }
   const { workbench, list, host } = page;
   list.querySelectorAll<HTMLElement>("[data-schedule-row]").forEach(row => {
@@ -73,18 +73,47 @@ export function select(page: SchedulePage, id: string | null | undefined, kind: 
   placeArea(page, kind === "task" ? id : null);
   publishContext(page, kind === "task" ? id : null);
   // Marking a task read is a courtesy: when it does not go through, nothing the person did is lost.
-  if (kind === "task") void post(host, "/tasks/" + encodeURIComponent(id) + "/open", {}, "").catch(() => undefined);
+  if (kind === "task" && markRead) void post(host, "/tasks/" + encodeURIComponent(id) + "/open", {}, "").catch(() => undefined);
+}
+
+/** What is open on the page: a row (by its kind and id), the new/edit form, or nothing. */
+export function openNow(page: SchedulePage): { readonly id?: string; readonly kind: RowKind | "form" | "none" } {
+  if (!page.pane.hidden) return { kind: "form" };
+  const row = page.list.querySelector<HTMLElement>("[data-schedule-row].is-selected");
+  if (!row) return { kind: "none" };
+  return row.dataset.scheduleKind === "task" ? { id: row.dataset.scheduleTaskId, kind: "task" } : { id: row.dataset.scheduleJobId, kind: "job" };
 }
 
 /**
- * Reads the page again and swaps the list and the details in place, then opens `openId` (or none). With `preserveConfirmation`
- * a failure is thrown to the dialog that asked, which keeps its review on show; otherwise it is a toast.
+ * Reads the page again and swaps the list and the details in place, then opens `openId` (or none). When the person opened something
+ * else while the page was read, that stays open instead: a late answer does not take their choice away. With `preserveConfirmation`
+ * a failure is thrown to the caller (a dialog keeps its review on show); otherwise it is a toast. Without `markRead` (a redraw the
+ * person did not ask for), the task opened again is not marked read.
+ *
+ * Reads are numbered: one started later (the person's change while a background read was under way, or the other way round) is
+ * newer than any answer of an earlier one, so an earlier read that answers after it draws nothing and ends as the later one does.
  */
-export async function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false): Promise<boolean> {
+export function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true): Promise<boolean> {
+  const turn = ++page.refreshing, read = drawStage(page, turn, openId, kind, preserveConfirmation, markRead);
+  page.latestRefresh = read;
+  return read;
+}
+
+/** What a read the page has gone past ends with: the later read's outcome, said the way this read's caller asked for. */
+async function superseded(page: SchedulePage, preserveConfirmation: boolean): Promise<boolean> {
+  const drawn = await page.latestRefresh!.catch(() => false);
+  if (!drawn && preserveConfirmation) throw new Error(uiText.text("schedule.error.refresh"));
+  return drawn;
+}
+
+async function drawStage(page: SchedulePage, turn: number, openId: string | undefined, kind: RowKind, preserveConfirmation: boolean, markRead: boolean): Promise<boolean> {
   const { list, workbench, host } = page;
   try {
-    const scrollTop = list.scrollTop, template = document.createElement("template");
-    template.innerHTML = (await host.view.readDocument()).trim();
+    const scrollTop = list.scrollTop, template = document.createElement("template"), asked = openNow(page);
+    const html = await host.view.readDocument();
+    if (turn !== page.refreshing) return superseded(page, preserveConfirmation);
+    template.innerHTML = html.trim();
+    const now = openNow(page), moved = now.kind !== asked.kind || now.id !== asked.id;
     const nextList = template.content.querySelector("[data-schedule-list]"), nextWorkspace = template.content.querySelector("[data-schedule-stage-workspace]");
     const workspace = workbench.querySelector("[data-schedule-stage-workspace]");
     if (!nextList || !nextWorkspace || !workspace) throw new Error(uiText.text("schedule.error.refresh"));
@@ -93,14 +122,24 @@ export async function refreshStage(page: SchedulePage, openId?: string, kind: Ro
     const incoming = [...nextList.childNodes];
     list.replaceChildren(...(chrome ? [chrome, ...incoming] : incoming));
     const empty = workspace.querySelector("[data-schedule-detail-empty]");
+    const target = moved ? now : { id: openId, kind: openId ? kind : "none" as const };
+    // The open task's reads section, where the platform's area is placed, moves into its new detail: the area stays as it is.
+    const kept = page.area?.element.closest<HTMLElement>("[data-schedule-reads]");
+    const keptFor = kept?.closest<HTMLElement>("[data-schedule-detail]")?.dataset.scheduleDetail;
     workspace.querySelectorAll("[data-schedule-detail]").forEach(detail => detail.remove());
     nextWorkspace.querySelectorAll("[data-schedule-detail]").forEach(detail => { if (empty) workspace.insertBefore(detail, empty); else workspace.append(detail); });
+    if (kept && keptFor && target.kind === "task" && keptFor === target.id) detailOf(workspace, keptFor)?.querySelector("[data-schedule-reads]")?.replaceWith(kept);
     list.scrollTop = scrollTop;
-    if (openId) select(page, openId, kind); else collapse(page);
+    // What was to be opened may be gone from the new page (archived meanwhile, while a later read took an earlier one's place): nothing is open then.
+    if ((target.kind === "task" || target.kind === "job") && target.id && detailOf(workspace, target.id)) select(page, target.id, target.kind, markRead);
+    else if (target.kind === "task" || target.kind === "job") collapse(page);
+    else if (target.kind === "none") collapse(page);
     // The rows and details are new: what each task reads is said on them again (one read for the whole list).
     void readTaskReads(page);
     return true;
   } catch {
+    // A read that failed after a later one began says nothing of its own: the later read draws the page, or says it could not.
+    if (turn !== page.refreshing) return superseded(page, preserveConfirmation);
     if (preserveConfirmation) throw new Error(uiText.text("schedule.error.refresh"));
     host.showToast(uiText.text("schedule.error.refresh"), true);
     return false;

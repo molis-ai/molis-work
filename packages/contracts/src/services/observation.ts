@@ -647,7 +647,7 @@ export const observationActions = {
     capability_id: "observation.settings.set",
     version: /* @version action.observation.settings.set */ 1,
     operation: "command",
-    action: { title: "更新工作记录设置", description: "暂停或继续记录、切换用途开关、设置自动清理期限或容量提醒线",
+    action: { title: "更新工作记录设置", description: "暂停或继续记录、切换用途开关；期限与容量提醒线经 observation.preferences.write 保存",
       kind: "operation", scope: "home", effect: "write", audiences: ["user"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationSettingsUpdateInput>()(closedObjectSchema({
         paused: { type: "boolean" },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
@@ -13,16 +13,16 @@ import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { cloudFixture } from './testing.mjs';
 
 test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer complete files through Rust/D1/R2, with conflict and trash recovery',async t=>{
-  const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'shelf-cloud-')),space=personalStorageSpace('https://auth.example.test','work','alice');
+  const cloud=await cloudFixture(t),root=realpathSync(mkdtempSync(join(tmpdir(),'shelf-cloud-'))),space=personalStorageSpace('https://auth.example.test','work','alice');
   const homes=['a','b'].map(name=>join(root,name));homes.forEach(home=>ensureStorageSpace(home,space));
   const releases=homes.map(home=>bindPersonalSpaceAuthority(home,space.spaceId,()=>{}));
   const hosts=homes.map(home=>new MolisWorkLocalHost({homeDirectory:home,completeText:null}));
-  await Promise.all(hosts.map(host=>host.homePlugins.ready()));
-  const actions=hosts.map(host=>bindActionClient(host.homeActionClient(),()=>({actor_id:'alice',project_id:null,audience:'user',permissions:SHELF_ACTION_PERMISSIONS})));
-  const initialIds=(await Promise.all(actions.map(action=>action.invoke(shelfActions.snapshot,{})))).flatMap(snapshot=>snapshot.materials.map(item=>item.item_id));
   const previous={origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL};process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';delete process.env.MOLIS_WORK_SYNC_LOCAL;
   const clients=[];t.after(async()=>{for(const client of clients)client.close();for(const host of hosts)await host.close();for(const release of releases)release();rmSync(root,{recursive:true,force:true});
     for(const [key,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[key];else process.env[key]=value;});
+  await Promise.all(hosts.map(host=>host.homePlugins.ready()));
+  const actions=hosts.map(host=>bindActionClient(host.homeActionClient(),()=>({actor_id:'alice',project_id:null,audience:'user',permissions:SHELF_ACTION_PERMISSIONS})));
+  const initialIds=(await Promise.all(actions.map(action=>action.invoke(shelfActions.snapshot,{})))).flatMap(snapshot=>snapshot.materials.map(item=>item.item_id));
   t.mock.method(globalThis,'fetch',cloud.transport);
   const lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}};
   for(const [index,home] of homes.entries()){
@@ -35,7 +35,10 @@ test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer compl
   const bytes=Buffer.from('full content beyond preview\n'.repeat(10000)),binary=Buffer.from(Array.from({length:900001},(_,i)=>i%256));
   const item=(await actions[0].invoke(shelfActions.admit,{filename:'complete.md',bytes_base64:bytes.toString('base64')})).item;
   const folder=(await actions[0].invoke(shelfActions.admitFolder,{name:'portable',entries:[{relative:'nested/raw.bin',bytes_base64:binary.toString('base64')},{relative:'note.md',bytes_base64:Buffer.from('nested text').toString('base64')}]})).item;
-  await actions[0].invoke(shelfActions.clip,{text:'source clipboard only'});await actions[0].invoke(shelfActions.saveSettings,{drop_wheel_enabled:false});
+  await actions[0].invoke(shelfActions.clip,{text:'source clipboard only'});
+  const wheelKey='shelf.drop_wheel', prefs=shelfManifest.settings_entries;
+  const {values:[current]}=await actions[0].invoke(prefs.read,{keys:[wheelKey]});
+  await actions[0].invoke(prefs.write,{key:wheelKey,layer:'personal',change:{set:false},expected_revision:current.revision,request_id:'source-wheel'});
   await actions[1].invoke(shelfActions.clip,{text:'target clipboard only'});
   await clients[0].save({spaceId:space.spaceId,revision:0,selections:[selection]});await clients[0].run();await clients[1].run();
   const file=(index,id,child)=>actions[index].invoke(shelfActions.file,{item_id:id,...(child?{child}:{})});

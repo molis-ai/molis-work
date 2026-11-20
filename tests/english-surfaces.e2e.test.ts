@@ -53,7 +53,7 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git, Diff and Text 
     ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
     ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
     ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开资料"],
-    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件快照后"],
+    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件版本后"],
   ];
   for (const [plugin, ready, selector, zh] of pages) {
     await open(plugin, ready);
@@ -212,9 +212,10 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   assert.ok((await evaluate<{ han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"))).han.includes("内置执行方式"));
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   assert.deepEqual(await evaluate(HAN_IN_MARKUP(coding, "[data-coding-workbench]")), { found: true, han: [] }, "Coding in English");
-  // The project's name is the person's own; the line around it is English.
+  // The project's name is the person's own; the line around it is English. POLISH-30: the line is a row's name now, and
+  // "Switch project" is that row's button, so no " ·" follows the name.
   const inSettings = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"));
-  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+ ·$/.test(line)), [], "Coding settings in English");
+  assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+$/.test(line)), [], "Coding settings in English");
   assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));

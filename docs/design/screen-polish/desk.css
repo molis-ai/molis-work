@@ -1,0 +1,86 @@
+/* 底栏第十版多出来的编排，叠在 lip.css 上面（输入框、对话的纸沿用那一份）。颜色都引用 ../kit/kit.css 的变量。不是产品样式。 */
+.sp-win.c.lp.dz{height:748px;grid-template-rows:44px minmax(0,1fr) 100px}
+/* 换事项：下面那张纸翻上来 */
+.sp-win.c.dz .sp-stage.turn{transform-origin:50% 100%;animation:dz-turn 440ms var(--ease-quint)}
+@keyframes dz-turn{from{opacity:0;transform:translateY(20px) scale(.984)}to{opacity:1;transform:none}}
+.dz .lb{gap:20px;padding:0 20px 8px}
+.dz .lt{min-height:93px}
+.dz .lt::before,.dz .lt::after{bottom:calc(93px - var(--r))}
+.dz .lt textarea{margin-top:20px}
+
+/* 对话的纸和输入框一样宽：输入框整块向上长成一条 */
+.dz .lv{margin:0;border-radius:18px 18px 0 0;--pad:20px}
+.dz .lu.open .lt::before,.dz .lu.open .lt::after{display:none}
+.dz .lv-h{padding-right:10px}
+
+/* 左上：事项，挂在纸下沿的标签。亮着的和纸同色、接成一张；别的压在纸下面（上沿有纸投下的影子） */
+.dz .lb-s.l{flex-direction:column;align-items:stretch;justify-content:space-between;gap:0;padding:0 0 2px}
+.kt{position:relative;display:flex;align-items:flex-start;height:40px;min-width:0;padding-left:16px;white-space:nowrap}
+.k-tab{position:relative;z-index:1;flex:none;display:inline-flex;align-items:center;gap:7px;height:27px;max-width:176px;padding:0 12px 1px 10px;border-radius:0 0 10px 10px;background:color-mix(in srgb,var(--paper) 50%,var(--desk));box-shadow:inset 0 8px 7px -7px color-mix(in srgb,var(--shadow-color) 30%,transparent);font-size:12.5px;color:var(--ink-soft);transition:color var(--dur-hover),height var(--dur-hover),background var(--dur-hover)}
+.k-tab+.k-tab{margin-left:3px}
+.k-tab:not(.on):hover{height:31px;color:var(--ink);background:color-mix(in srgb,var(--paper) 78%,var(--desk))}
+.k-tab.on{z-index:2;height:35px;margin:-1px 11px 0;max-width:230px;padding:0 16px 3px 13px;border-radius:0 0 13px 13px;background:var(--paper);box-shadow:0 4px 12px -4px rgba(28,42,58,.08);color:var(--ink);font-size:13.5px;font-weight:650}
+.k-tab.on::before,.k-tab.on::after{content:"";position:absolute;top:1px;width:10px;height:10px;pointer-events:none}
+.k-tab.on::before{left:-10px;background:radial-gradient(circle at 0 100%,transparent 9.5px,var(--paper) 10px)}
+.k-tab.on::after{right:-10px;background:radial-gradient(circle at 100% 100%,transparent 9.5px,var(--paper) 10px)}
+.k-tab.home{padding:0 9px 1px}
+.k-tab.home.on{padding:0 16px 3px 13px}
+.k-tab svg{flex:none;color:var(--muted)}
+.k-tab .mini{flex:none;display:grid}
+.dz .k-tab .mini svg.rg{width:15px;height:15px}
+.k-tab .mini .rg circle{stroke-width:5.5}
+.dz .k-tab.on .mini svg.rg{width:17px;height:17px}
+.k-tab em{flex:none;display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:10.5px;font-weight:600;font-style:normal}
+.k-more{flex:none;display:inline-flex;align-items:center;gap:2px;height:24px;margin:2px 0 0 6px;padding:0 6px;border-radius:7px;font-size:11.5px;color:var(--muted)}
+.k-more:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+
+/* 左下：它在办的，一行 */
+.kl{position:relative;display:flex;align-items:center;gap:4px;height:34px;min-width:0;padding-left:14px;white-space:nowrap;font-size:12.5px;color:var(--ink-soft)}
+.kl-c{flex:none;margin-right:2px;font-size:11.5px;color:var(--faint)}
+.kl-i{display:inline-flex;align-items:center;gap:8px;min-width:0;height:30px;padding:0 10px;border-radius:10px;transition:background var(--dur-hover),color var(--dur-hover)}
+.kl-i:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.kl-i.on{background:var(--paper);box-shadow:0 0 0 1px var(--line)}
+.kl-i.pulse{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.kl-i small{flex:none;font-size:12px;color:var(--muted)}
+.kl-m{flex:none;display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 4px;border-radius:7px;font-size:11.5px;color:var(--muted)}
+.kl-m:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.kbar{flex:none;display:inline-flex;align-items:center;gap:2px}
+.kbar i{width:11px;height:3px;border-radius:2px;background:var(--line-strong)}
+.kbar i.on{background:var(--accent)}
+.kbar i.now{background:color-mix(in srgb,var(--accent) 40%,transparent);animation:dz-now 1.5s ease-in-out infinite}
+@keyframes dz-now{50%{background:var(--accent)}}
+.kbar.long{width:52px;height:3px;border-radius:2px;background:var(--line-strong);overflow:hidden}
+.kbar.long i{display:block;height:3px;background:var(--accent)}
+
+/* 右边：一叠等你定的卡 */
+.dz .lb-s.r{align-items:flex-end;justify-content:flex-start;padding:0}
+.dk{position:relative;width:100%;max-width:356px;height:82px;margin-bottom:1px}
+.dk-c{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;padding:9px 10px 9px 14px;border-radius:14px;background:var(--popover);box-shadow:0 0 0 1px var(--line),0 1px 2px color-mix(in srgb,var(--shadow-color) 10%,transparent),0 10px 22px -8px color-mix(in srgb,var(--shadow-color) 26%,transparent);transition:transform var(--dur-hover)}
+.dk-c:hover{transform:translateY(-2px)}
+.dk-p{position:absolute;left:11px;right:11px;top:-6px;z-index:1;height:24px;border-radius:12px 12px 0 0;background:color-mix(in srgb,var(--popover) 74%,var(--desk));box-shadow:0 0 0 1px var(--line-strong);transition:top var(--dur-hover)}
+.dk-p.p2{left:22px;right:22px;top:-11px;z-index:0;background:color-mix(in srgb,var(--popover) 46%,var(--desk))}
+.dk-p[role=button]:hover{top:-9px}
+.dk-h{display:flex;align-items:center;gap:8px;height:18px;font-size:13px;line-height:18px;white-space:nowrap}
+.dk-h b{font-weight:600;color:var(--ink)}
+.dk-n{flex:none;display:inline-flex;align-items:center;gap:1px;height:20px;margin-right:-4px;padding:0 3px 0 6px;border-radius:6px;font-size:11.5px;color:var(--muted)}
+.dk-n[role=button]:hover{background:var(--control-fill);color:var(--ink)}
+.dk-q{height:18px;margin-top:2px;font-size:12.5px;line-height:18px;color:var(--ink-soft)}
+.dk-a{display:flex;align-items:center;gap:6px;margin-top:auto;white-space:nowrap}
+.dk-a .dc-act{flex:none;height:25px;padding:0 11px;font-size:12px}
+.dk-a .dc-act:hover{filter:brightness(1.07)}
+.dk-o{flex:none;display:inline-flex;align-items:center;gap:1px;font-size:11.5px;color:var(--faint);transition:color var(--dur-hover)}
+.dk-c:hover .dk-o,.dk-c:hover .dk-o svg{color:var(--accent)}
+.dk.pulse .dk-c{animation:fx-pulse var(--dur-moment) var(--ease-quint)}
+.dk0{display:flex;align-items:center;gap:10px;height:84px;padding:0 8px;font-size:12.5px;color:var(--faint)}
+.dk0 svg{flex:none;color:var(--green)}
+.dk0 span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.dk0 b{font-weight:500;color:var(--muted)}
+.dk0 small{font-size:11.5px}
+
+/* 交办出去的一件事飞到「在办」 */
+.kfly{position:fixed;left:0;top:0;z-index:99;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent);pointer-events:none}
+
+.dz .lm.r{left:18px;right:auto}
+.lb.mid .kl-c,.lb.mid .kl-i small,.lb.nar .dk-o{display:none}
+.lb.mid .kl{padding-left:6px}
+.lb.nar .k-tab.on{max-width:150px}

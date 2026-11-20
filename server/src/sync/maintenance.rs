@@ -13,17 +13,14 @@ pub(crate) async fn claim(
     key: &str,
     revision: i64,
 ) -> ApiResult<()> {
-    // An explicit claim never reaches a sealed process-items stream; its trash keeps the ordinary expiry only.
     let args = [
         space.into(),
         namespace.into(),
         key.into(),
         JsValue::from_f64(revision as f64),
     ];
-    let mut claim_args = args.to_vec();
-    claim_args.push(crate::cutover::PUBLIC.into());
     db.batch(vec![
-        db.prepare("UPDATE sync_heads SET purged_at=unixepoch()*1000 WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4 AND deleted_at IS NOT NULL AND purged_at IS NULL AND NOT (namespace=?5 AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=sync_heads.space)) AND EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=?1 AND n.value=?2)").bind(&claim_args)?,
+        db.prepare("UPDATE sync_heads SET purged_at=unixepoch()*1000 WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4 AND deleted_at IS NOT NULL AND purged_at IS NULL AND EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=?1 AND n.value=?2)").bind(&args)?,
         db.prepare("DELETE FROM sync_events WHERE space=?1 AND namespace=?2 AND key=?3 AND revision<>?4 AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=?1 AND h.namespace=?2 AND h.key=?3 AND h.revision=?4 AND h.purged_at IS NOT NULL)").bind(&args)?,
     ]).await?;
     let purged=db.prepare("SELECT 1 FROM sync_heads WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4 AND purged_at IS NOT NULL").bind(&args)?.first::<Value>(None).await?;
@@ -118,10 +115,6 @@ async fn enqueue(db: &D1Database, scope: Option<&str>) -> ApiResult<()> {
     // Pinned conflict branches and deleted heads keep their complete retained body for 30 days.
     db.prepare("DELETE FROM sync_events WHERE revision IN (SELECT e.revision FROM sync_events e JOIN sync_heads h ON h.space=e.space AND h.namespace=e.namespace AND h.key=e.key WHERE h.deleted_at IS NULL AND e.revision<>h.revision AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=e.space AND p.namespace=e.namespace AND p.revision=e.revision) AND NOT EXISTS(SELECT 1 FROM sync_version_retention r WHERE r.space=e.space AND r.namespace=e.namespace AND r.revision=e.revision AND r.retained_until>unixepoch()*1000) AND (e.created_at<unixepoch()*1000-2592000000 OR (e.action='write' AND e.value<>'null' AND e.created_at<unixepoch()*1000-86400000 AND EXISTS(SELECT 1 FROM sync_version_retention r WHERE r.space=e.space AND r.namespace=e.namespace AND r.revision=e.revision AND r.retained_until<=unixepoch()*1000))) AND (? IS NULL OR e.space=?) ORDER BY e.revision LIMIT 20)")
       .bind(&[scope.map_or(JsValue::NULL,JsValue::from_str),scope.map_or(JsValue::NULL,JsValue::from_str)])?.run().await?;
-    // Thirty days after a cutover completes, the sealed stream's unpinned current bodies go too. Heads and receipts stay,
-    // so the keys remain known (and never become terminal) while their attachments follow the ordinary reference count.
-    db.prepare("DELETE FROM sync_events WHERE revision IN (SELECT e.revision FROM sync_events e JOIN sync_heads h ON h.space=e.space AND h.namespace=e.namespace AND h.key=e.key AND h.revision=e.revision JOIN sync_cutovers c ON c.space=e.space AND c.completed_at IS NOT NULL AND c.completed_at<=unixepoch()*1000-2592000000 WHERE e.namespace=? AND h.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=e.space AND p.namespace=e.namespace AND p.revision=e.revision) AND (? IS NULL OR e.space=?) ORDER BY e.revision LIMIT 20)")
-      .bind(&[crate::cutover::PUBLIC.into(),scope.map_or(JsValue::NULL,JsValue::from_str),scope.map_or(JsValue::NULL,JsValue::from_str)])?.run().await?;
     // Enqueue new and interrupted claims together without a D1 round-trip per generation.
     let scope = scope.map_or(JsValue::NULL, JsValue::from_str);
     let args = [scope.clone(), scope];
@@ -190,7 +183,6 @@ async fn collect_generation(
     ];
     // Byte accounting is released only after R2 deletion succeeds. A newer generation is never touched.
     db.batch(vec![
-        db.prepare("DELETE FROM sync_cutover_blobs WHERE space=? AND digest=? AND generation=? AND EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=sync_cutover_blobs.space AND b.digest=sync_cutover_blobs.digest AND b.generation=sync_cutover_blobs.generation AND b.deleting=1)").bind(&args)?,
         db.prepare("DELETE FROM sync_blob_parts WHERE space=? AND digest=? AND generation=? AND EXISTS(SELECT 1 FROM sync_blobs b WHERE b.space=sync_blob_parts.space AND b.digest=sync_blob_parts.digest AND b.generation=sync_blob_parts.generation AND b.deleting=1)").bind(&args)?,
         db.prepare("DELETE FROM sync_blobs WHERE space=? AND digest=? AND generation=? AND deleting=1").bind(&args)?,
         db.prepare("UPDATE sync_gc_jobs SET state='done',last_error=NULL WHERE space=? AND digest=? AND generation=?").bind(&args)?,
@@ -244,15 +236,7 @@ async fn scan_orphans(db: &D1Database, bucket: &Bucket) -> ApiResult<()> {
             .bind(&[parts[0].into(), parts[1].into(), parts[2].into()])?
             .first::<Value>(None)
             .await?;
-        if current.is_some() {
-            // In a sealed account, a losing writer's object for a part that is already fixed with another checksum is
-            // removed exactly; an object with the recorded checksum is the shared one and stays.
-            let stale=db.prepare("SELECT 1 AS stale FROM sync_blob_parts p JOIN sync_blobs b ON b.space=p.space AND b.digest=p.digest AND b.generation=p.generation AND b.ready=1 WHERE p.space=? AND p.digest=? AND p.generation=? AND p.part=? AND p.checksum<>? AND EXISTS(SELECT 1 FROM sync_cutovers c WHERE c.space=p.space)")
-                .bind(&[parts[0].into(),parts[1].into(),parts[2].into(),parts[3].parse::<f64>().map_or(JsValue::NULL,JsValue::from_f64),parts[4].into()])?.first::<Value>(None).await?;
-            if stale.is_some() {
-                bucket.delete(key.clone()).await?;
-            }
-        } else {
+        if current.is_none() {
             db.prepare("INSERT INTO sync_gc_jobs(space,digest,generation) VALUES (?,?,?) ON CONFLICT(space,digest,generation) DO UPDATE SET state='pending'").bind(&[parts[0].into(),parts[1].into(),parts[2].into()])?.run().await?;
         }
     }

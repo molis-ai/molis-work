@@ -134,7 +134,7 @@ test("the Functions edge reads its body inside the answer: too large is 413, not
   const notJson = await edge.post("/api/functions", "{");
   assert.deepEqual([notJson.status, notJson.body.code], [400, "actions.input_invalid"]);
   const unchosen = await edge.post("/api/functions/settings", JSON.stringify({}));
-  assert.deepEqual([unchosen.status, unchosen.body], [400, { error: "请在 Connectors 中选择 TypeSafe 连接", code: "functions.invalid" }]);
+  assert.deepEqual([unchosen.status, unchosen.body], [400, { error: "请在「设置 › 服务连接」中选择 TypeSafe 连接", code: "functions.invalid" }]);
 });
 
 // ---- 2. The project catalog ------------------------------------------------------------------------------------------
@@ -336,10 +336,11 @@ test("the 成果 browser's route failures carry a code and the status of their k
  * What the import's own checks answered through `ArtifactImportError` on the merge-base, by reason; 415 and 422 are 400 now (no kind stands for
  * them). The Host's side of the import (reading the request and a connected service: request_invalid, request_aborted, html_invalid,
  * connection_revoked, connection_required, credentials_unavailable) declares the other six, all `invalid`, in artifact-document-import.ts.
+ * The imported-document owner also rejects a fixed version it cannot read, as verified by QEA-79 in artifact-document-import.test.ts.
  */
 const DOCUMENT_STATUS: Readonly<Record<string, number>> = {
   source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, original_not_offered: 400, empty: 400, binary: 400,
-  too_large: 413,
+  too_large: 413, unsupported_version: 503,
 };
 
 test("the import's failures are declared, each with the status of its kind: 415 and 422 are 400, too large is 413", async t => {

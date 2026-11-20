@@ -2,7 +2,7 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { feedManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
-import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { SignalsModule, fromProjectConnection } from "@molis-ai/molis-work-plugin-feed/store";
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -112,9 +112,13 @@ test("RAC-1002: closing the Host lets the package's ids go, and the next Host st
   assert.equal((await pull(f)).ok, true, "started again after the restart, from the package the Home kept");
 });
 
+// QEA-139: the install receipt names the retained edition while Settings decides the next activation.
 test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a fast disable-enable registration", mac, async t => {
   const home = await openTestHome(t), install = await installer(home), registry = await homeIntegrationRegistry(home.home);
   const entered = deferred(), release = deferred(), firstAttach = deferred(), secondAttach = deferred();
+  const publisher = newPublisher(), bundle = integrationPackage(publisher);
+  const switchPackage = (action: "disable" | "enable") => home.web.post<{ plugin_id: string; state: string }>(
+    "/api/settings/plugin-permissions/" + action, { plugin_id: PLUGIN_ID });
   const base = integrationPackage().payload.manifest;
   const blocker = definePollingIntegrationPlugin({ manifest: { ...base, plugin_id: "io.molis.work.example.queueholder", publisher: { publisher_id: "example", signature: "queue-holder-fixture" },
     connection_services: [{ ...base.connection_services![0]!, service_id: "queue-holder", origins: undefined }],
@@ -127,7 +131,7 @@ test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a
     if (args[0].plugin_id === PLUGIN_ID) (++calls === 1 ? firstAttach : secondAttach).resolve();
     const attached = await original(...args); outcomes.push(attached); return attached;
   };
-  let installing: Promise<unknown> | undefined, enabling: Promise<void> | undefined;
+  let installing: Promise<unknown> | undefined, enabling: ReturnType<typeof switchPackage> | undefined;
   const within = async (label: string, work: Promise<unknown>) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try { return await Promise.race([work, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Registry queue test stalled: ${label}`)), 8_000); })]); }
@@ -135,25 +139,31 @@ test("RAC-1001-QUEUE: an attach skipped after a real registry wait cannot undo a
   };
   try {
     await within("blocker start", Promise.race([entered.promise, held.then(() => { throw new Error("Registry blocker completed before entering its start"); })]));
-    const preview = await within("package preview", install.preview(integrationPackage())) as { preview_id: string };
+    const preview = await within("package preview", install.preview(bundle)) as { preview_id: string };
     installing = install.confirm(preview.preview_id);
     await within("first attach queued", firstAttach.promise);
-    await within("disable", home.host.homePlugins!.packageAction(PLUGIN_ID, "disable"));
-    assert.equal(home.host.homePlugins!.installation(PLUGIN_ID)?.state, "disabled");
+    const disabled = await within("disable", switchPackage("disable"));
+    assert.deepEqual(disabled, { plugin_id: PLUGIN_ID, state: "disabled" });
+    const kept = home.host.homePlugins!.installation(PLUGIN_ID);
+    assert.equal(kept?.state, "disabled");
     await assert.rejects(pull(home), code("plugin.integration_unavailable"));
-    enabling = home.host.homePlugins!.packageAction(PLUGIN_ID, "enable");
+    enabling = switchPackage("enable");
     // SCS-16: enabling a signed package waits on the Home's installation line, which the queued install still holds; only disable skips it.
     assert.equal(await Promise.race([secondAttach.promise.then(() => "attached"), new Promise(resolve => setTimeout(resolve, 300, "waiting"))]), "waiting",
       "the enable does not attach while the install it follows is still in its attach");
     release.resolve();
-    await within("second attach queued", secondAttach.promise);
-    await Promise.all([held, installing, enabling]);
+    const [, [, confirmed, enabled]] = await Promise.all([within("second attach queued", secondAttach.promise), Promise.all([held, installing, enabling])]);
+    assert.deepEqual(confirmed, { plugin_id: PLUGIN_ID, version: bundle.payload.manifest.version, publisher_key_id: publisher.identity });
+    assert.deepEqual(enabled, { plugin_id: PLUGIN_ID, state: "running" });
     assert.deepEqual(outcomes, [false, true], "the old attach actually returned without registration; the new one registered");
-    assert.equal(home.host.homePlugins!.installation(PLUGIN_ID)?.state, "running");
+    const current = home.host.homePlugins!.installation(PLUGIN_ID);
+    assert.equal(current?.state, "running");
+    assert.equal(current?.install_id, kept?.install_id);
+    assert.equal(current?.installation_generation, kept?.installation_generation);
     assert.equal(registry.integration("example-feed")?.plugin_id, PLUGIN_ID);
     assert.equal(registry.connectionServices().filter(entry => entry.owner === PLUGIN_ID).length, 1);
     assert.equal((await pull(home)).ok, true, "the queued detach did not remove the new activation's source");
-    await home.host.homePlugins!.packageAction(PLUGIN_ID, "disable");
+    assert.equal((await switchPackage("disable")).state, "disabled");
     await registry.detach("not-an-installation");
     assert.equal(registry.integration("example-feed"), undefined, "no old marker or declaration survives a final stop");
   } finally {
@@ -222,7 +232,7 @@ test("RAC-2615-QUEUE an old source response cannot write Listener, Signal or Fee
   const feed = createLocalFeedApplication(store.db);
   const source = feed.sources.upsert(accountSourceRecord("github", { source_id: "t141-old-response", status: "active", config: {} }));
   const snapshot = () => ({ feed: feed.snapshot(DEMO_PROJECT_ID),
-    signals: new SignalsModule(fromBetterSqlite(store.db)).query.list(DEMO_PROJECT_ID, source.source_id),
+    signals: new SignalsModule(fromProjectConnection(store.db)).query.list(DEMO_PROJECT_ID, source.source_id),
     deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE project_id = ? AND source_id = ?").all(DEMO_PROJECT_ID, source.source_id),
     checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id),
     events: store.db.prepare("SELECT * FROM events WHERE project_id = ? AND object_id = ? ORDER BY event_id").all(DEMO_PROJECT_ID, source.source_id) });

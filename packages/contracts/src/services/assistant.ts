@@ -7,7 +7,7 @@ import type { SkillCatalogEntry, SkillPick } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
-export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
+export type { AssistantCard, AssistantCardChoice, AssistantPreparedCard } from "./assistant-cards.js";
 import type { AssistantActivity } from "./assistant-activity.js";
 import type { AssistantPendingReview } from "./assistant-review.js";
 export type { AssistantActivity, AssistantActivityFailure } from "./assistant-activity.js";
@@ -140,6 +140,7 @@ export interface AssistantMaterialText {
   text?: string;
   truncated?: boolean;
   url?: string;
+  original_available?: true;
   source?: AssistantSurfaceRef;
   object?: AssistantObjectRef;
   draft?: boolean;
@@ -212,7 +213,6 @@ export interface AssistantLanding {
   after?: string;
   selected?: string;
 }
-
 /** A material the person put into this message, or one the page offered and they kept. */
 export interface AssistantMaterial {
   material_id: string;
@@ -228,9 +228,10 @@ export interface AssistantMaterial {
   reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
   /** For `method`: the Skill or role material the person chose with “/” for this round; the Host reads its body from its owner. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
-  /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
-  image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
-  /** In a work's view: an image the runtime no longer holds (the app restarted); it cannot be shown or sent again. */
+  /** For `image`: the picture the person added, kept by the platform's material service as a conversation attachment (only its reference here). */
+  image?: { attachment: MaterialRef; media_type: string; byte_length: number };
+  file_attachment?: MaterialRef;
+  /** In a work's view: an image whose bytes are no longer kept (removed, or brought before attachments were kept); it cannot be shown or sent again. */
   expired?: boolean;
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;
@@ -241,7 +242,6 @@ export interface AssistantMaterial {
   /** From unsaved edits: the saved object says something else. */
   draft?: boolean;
 }
-
 /**
  * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven through the
  * six actions of the work-executor protocol it publishes, and its own page shows the same session. The plugin is kept by `plugin_id`
@@ -292,9 +292,10 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
-  /** The role the person (or a default) chose to carry this work's rounds, as a stable choice in force from the next round on; the Host
-   * pins the version each round runs with. Absent means the Assistant itself. Personal work can have one too (an original). */
+  /** Stable role choice for the next round onward. Host pins the version. Personal work selects an original. */
   character?: AssistantCharacter;
+  /** A saved selection is invalid and the person must explicitly select a role or the Assistant before sending. */
+  character_selection_required?: true;
   /** Set on a work another work delegated: which one, what it was asked to deliver, and (`taken_back_at`) when the person took this part back into it (it stopped; what it made stays). */
   delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
@@ -460,8 +461,8 @@ export interface AssistantWorkView {
   unsettled?: AssistantUnsettledChange[];
   /** Changes of this work that say how they are undone: each can be taken back once, by the person. */
   undoable?: AssistantUndoable[];
-  /** What this work suggests keeping, waiting for the person. */
-  memory_candidates?: AssistantMemoryCandidate[];
+  /** What this work suggests keeping, waiting for the person. Null means this section could not be read; absent means none. */
+  memory_candidates?: AssistantMemoryCandidate[] | null;
   /** What this work kept, replaced or forgot in the platform memory; an automatic one can be undone (`POST /api/memory/changes/<id>/undo`). */
   memory_changes?: MemoryChange[];
   /** Background work this work started in plugins, and how each stands. */
@@ -719,7 +720,7 @@ export interface AssistantFollowUp {
   enabled: boolean;
   created_at: string;
   last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: AssistantSavedText };
-  /** The times it missed that the person has not decided on yet (「现在做」 or 「跳过」), newest last, at most ten. */
+  /** Missed times nobody decided on, newest last; past seven days one is skipped on its own (scheduled-runs.ts), kept a month to be counted. */
   missed?: Array<{ due_at: string; missed_at: string }>;
 }
 

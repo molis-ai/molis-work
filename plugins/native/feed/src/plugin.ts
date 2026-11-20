@@ -28,7 +28,6 @@ import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
 import { isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
-import { createRuntimePublicFeed } from "./runtime-source-pull.js";
 import { keepFeedWakeup } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
 import { type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
@@ -97,13 +96,13 @@ export function createFeedPlugin(): PluginDefinition {
     const vocabulary = services?.sourcePull?.vocabulary, noVocabulary = later("来源词汇");
     const providers: FeedSourceProviders = vocabulary ? {
       listCatalog: () => vocabulary.catalog().map(entry => ({ sourceId: entry.source_id, enabled: entry.enabled, feedUrl: entry.feed_url, name: entry.name })),
-      customRss: { definitionId: vocabulary.custom_rss_definition_id, normalizeUrl: vocabulary.normalizeCustomRssUrl, host: vocabulary.customRssHost },
-      youtube: { definitionId: vocabulary.youtube_definition_id, host: vocabulary.youtube_feed_host, normalizeChannel: vocabulary.normalizeYouTubeChannel, feedUrl: vocabulary.youTubeChannelFeedUrl },
+      customRss: { definitionId: vocabulary.custom_rss_definition_id, normalizeUrl: vocabulary.normalizeCustomRssUrl },
+      youtube: { definitionId: vocabulary.youtube_definition_id, normalizeChannel: vocabulary.normalizeYouTubeChannel },
       gmail: { defaultScope: "", parseScope: later("Gmail 范围") },
       rss: { isSourceKind: vocabulary.isRssSourceKind, failureCount: vocabulary.rssFailureCount, withFailure: vocabulary.rssCursorAfterFailure, withSuccess: vocabulary.rssCursorAfterSuccess },
     } : {
-      listCatalog: noVocabulary, customRss: { definitionId: "", normalizeUrl: noVocabulary, host: noVocabulary },
-      youtube: { definitionId: "", host: "", normalizeChannel: noVocabulary, feedUrl: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
+      listCatalog: noVocabulary, customRss: { definitionId: "", normalizeUrl: noVocabulary },
+      youtube: { definitionId: "", normalizeChannel: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
       rss: { isSourceKind: noVocabulary, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
     const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies, forget = sourcePull?.forget;
@@ -126,10 +125,7 @@ export function createFeedPlugin(): PluginDefinition {
         if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");
         return syncResearchLibrary({ feed, read: (request, options) => repository.read(request, options), commit: operation => writer.commit(caller, operation) }, source, input);
       },
-      createRuntime: (source, operationId, hold) => {
-        if (!sourcePull?.pull) throw new ActionError("actions.dependency_missing", "Feed 没有取得公开来源的权限");
-        return createRuntimePublicFeed(sourcePull, source, operationId ?? "", providers, hold ?? (async () => {}));
-      },
+      sourcePull,
       holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
       // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
       releaseHistory: input => releaseHistoryPages(feed, input.project_id, input.source_id, {
@@ -141,7 +137,7 @@ export function createFeedPlugin(): PluginDefinition {
       return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => writer.commit(caller, operation),
         acquireSync: lease, appendEvent });
     };
-    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, wake: WAKE,
+    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, accountSources: connector, wake: WAKE,
       retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
     // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
     const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {

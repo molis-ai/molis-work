@@ -295,6 +295,11 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
   await waitFor("!!document.querySelector('#wr-meter')", 10_000);
   const remSaved = await evaluate<{ space_reminder_bytes: number }>("molisWorkRequest('/api/observation/settings', { body: {} })");
   assert.equal(remSaved.space_reminder_bytes, 2_500_000_000, "2.5 GB reminder saved to observation.db");
+  const reminder = await evaluate<{ values: { source: string; value: { bytes: number } }[] }>(
+    "molisWorkRequest('/api/observation/preferences/read', { body: { keys: ['observation.space_reminder'] } })");
+  assert.equal(reminder.values[0]?.source, "personal");
+  assert.equal(reminder.values[0]?.value.bytes, 2_500_000_000);
+
   if (shots) {
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(join(shots, "settings-work-records-space-1440-zh-light.png"), Buffer.from(shot.data, "base64"));
@@ -342,7 +347,7 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
     "磁盘或数据库写入失败，2 条没能保存",
     "超过当日上报上限，5 条未接收",
     "本机证据密钥暂不可用，1 处正文未能封存",
-    "上次宿主异常退出前待写队列未刷完",
+    "上次应用异常退出前待写记录未保存完",
     "记录组装异常，1 条未能入队",
     "记录组装异常，2 条未能入队",
     "上报名称不在来源允许的前缀内，1 条已拦截",
@@ -375,7 +380,7 @@ test("OCL-08 OCL-11 OCL-12 OCL-13 OCL-14 OCL-15 OCL-16 PWA-111 PWA-112: Global S
     "Disk or database write failed; 2 records were not saved",
     "Daily reporting limit reached; 5 records were skipped",
     "Local evidence key was unavailable; 1 body could not be sealed",
-    "The previous Host run exited before flushing queued records",
+    "The previous app session exited before saving queued records",
     "Internal recording error; 1 record was not queued",
     "Internal recording error; 2 records were not queued",
     "1 fact outside the caller’s prefix was rejected",

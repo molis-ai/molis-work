@@ -5,6 +5,29 @@ use std::sync::OnceLock;
 use worker::{D1Database, Date};
 
 const SCHEMA_TTL_MS: u64 = 30_000;
+const SCHEMA: &str = include_str!("../../migrations/sync/0001_sync.sql");
+
+fn schema_guards() -> &'static (Vec<(&'static str, String)>, String) {
+    static GUARDS: OnceLock<(Vec<(&'static str, String)>, String)> = OnceLock::new();
+    GUARDS.get_or_init(|| {
+        let guards: Vec<_> = SCHEMA
+            .split("\nCREATE TRIGGER ")
+            .skip(1)
+            .map(|trigger| {
+                let (body, _) = trigger
+                    .split_once("\nEND;")
+                    .expect("sync trigger must end with END;");
+                let name = body
+                    .split_whitespace()
+                    .next()
+                    .expect("sync trigger needs a name");
+                (name, format!("CREATE TRIGGER {body}\nEND"))
+            })
+            .collect();
+        let names = json!(guards.iter().map(|(name, _)| name).collect::<Vec<_>>()).to_string();
+        (guards, names)
+    })
+}
 thread_local! {
     // An isolate belongs to one deployment with a fixed DB binding.
     static VALID_UNTIL: Cell<u64> = const { Cell::new(0) };
@@ -34,14 +57,11 @@ pub(crate) async fn validate_schema(db: &D1Database) -> ApiResult<()> {
         503,
         "SYNC_SCHEMA_MISMATCH",
     )?;
-    // Same-version structure: the database must hold exactly the objects of the cutover script. An old v6, a partial
-    // adoption or a different definition is refused; nothing is created or patched here.
-    static OBJECTS: OnceLock<Vec<(String, String)>> = OnceLock::new();
-    let expected = OBJECTS.get_or_init(adoption_objects);
-    let names = json!(expected.iter().map(|(name, _)| name).collect::<Vec<_>>()).to_string();
+    // Validate the current quota and event guards before modifying data.
+    let (guards, names) = schema_guards();
     let rows = db
-        .prepare("SELECT name,sql FROM sqlite_master WHERE type IN ('table','trigger') AND name IN (SELECT value FROM json_each(?))")
-        .bind(&[names.into()])
+        .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN (SELECT value FROM json_each(?))")
+        .bind(&[names.as_str().into()])
         .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?
         .all()
         .await
@@ -49,53 +69,14 @@ pub(crate) async fn validate_schema(db: &D1Database) -> ApiResult<()> {
         .results::<Value>()
         .map_err(|_| Failure(503, "SYNC_SCHEMA_MISMATCH"))?;
     require(
-        rows.len() == expected.len()
-            && expected.iter().all(|(name, sql)| {
+        rows.len() == guards.len()
+            && guards.iter().all(|(name, sql)| {
                 rows.iter()
-                    .any(|row| row["name"] == name.as_str() && row["sql"] == sql.as_str())
+                    .any(|row| row["name"] == *name && row["sql"] == sql.as_str())
             }),
         503,
         "SYNC_SCHEMA_MISMATCH",
     )
-}
-
-const ADOPTION: &str = include_str!("../../migrations/sync/0002_process_items_cutover.sql");
-/// Each table and trigger the cutover script creates, with the exact text SQLite keeps for it.
-fn adoption_objects() -> Vec<(String, String)> {
-    let mut objects = Vec::new();
-    let mut current: Option<(bool, Vec<&str>)> = None;
-    for line in ADOPTION.lines() {
-        if current.is_none() {
-            if line.starts_with("CREATE TABLE ") {
-                current = Some((false, Vec::new()));
-            } else if line.starts_with("CREATE TRIGGER ") {
-                current = Some((true, Vec::new()));
-            } else {
-                continue;
-            }
-        }
-        if let Some((trigger, lines)) = current.as_mut() {
-            lines.push(line);
-            let done = if *trigger {
-                line == "END;"
-            } else {
-                line.ends_with(';')
-            };
-            if done {
-                let text = lines.join("\n");
-                let text = text.strip_suffix(';').unwrap_or(&text).to_owned();
-                let name = text
-                    .split_whitespace()
-                    .nth(2)
-                    .unwrap_or_default()
-                    .trim_end_matches('(')
-                    .to_owned();
-                objects.push((name, text));
-                current = None;
-            }
-        }
-    }
-    objects
 }
 
 pub(crate) async fn read(db: &D1Database, space: &str) -> ApiResult<Value> {
@@ -117,8 +98,9 @@ pub(crate) async fn read(db: &D1Database, space: &str) -> ApiResult<Value> {
 /// On-demand accounting only. Idle round summaries never scan event or blob references.
 pub(crate) async fn breakdown(db: &D1Database, space: &str) -> ApiResult<Value> {
     let space = wasm_bindgen::JsValue::from_str(space);
-    let row = db.prepare(
-        "WITH events AS (
+    let row = db
+        .prepare(
+            "WITH events AS (
             SELECT e.content_bytes,e.attachments,CASE
                 WHEN e.revision=h.revision AND h.deleted_at IS NULL THEN 3
                 WHEN h.deleted_at IS NOT NULL THEN 2
@@ -139,9 +121,12 @@ pub(crate) async fn breakdown(db: &D1Database, space: &str) -> ApiResult<Value> 
                COALESCE(SUM(CASE WHEN category=3 THEN bytes END),0) AS currentBytes,
                COALESCE(SUM(CASE WHEN category=2 THEN bytes END),0) AS trashBytes,
                COALESCE(SUM(CASE WHEN category=1 THEN bytes END),0) AS historyBytes,
-               COALESCE(SUM(CASE WHEN category=0 THEN bytes END),0) AS reservedAttachmentBytes,
-               COALESCE((SELECT reserved_bytes FROM sync_cutovers WHERE space=?1 AND completed_at IS NULL),0) AS cutoverReservationBytes
+               COALESCE(SUM(CASE WHEN category=0 THEN bytes END),0) AS reservedAttachmentBytes
         FROM billed",
-    ).bind(&[space])?.first::<Value>(None).await?.ok_or(Failure(503,"INVALID_STORAGE"))?;
+        )
+        .bind(&[space])?
+        .first::<Value>(None)
+        .await?
+        .ok_or(Failure(503, "INVALID_STORAGE"))?;
     Ok(row)
 }

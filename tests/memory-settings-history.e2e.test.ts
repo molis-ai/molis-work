@@ -83,7 +83,7 @@ test("complete history discloses a short-to-long decision, cancels without writi
   const url = env.origin + `/projects/${project.project_id}/settings/memory`;
   await navigate(f.page, url); await history(f.page, saved.memory_id, saved.version);
   const selector = revision(saved.memory_id, saved.version), displayed = await f.page.evaluate<string>(`document.querySelector('${selector}').innerText`);
-  for (const text of [saved.text, "通用", "长期", "无固定期限", "完整历史快照"]) assert.ok(displayed.includes(text), text);
+  for (const text of [saved.text, "通用", "长期", "无固定期限", "完整历史记录"]) assert.ok(displayed.includes(text), text);
   await f.page.click(selector + " button"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
   const decision = await f.page.evaluate<string>("document.querySelector('.memory-confirm').innerText");
   for (const text of [saved.text, changed.text, "Coding", "短期", "通用", "长期", "无固定期限", "→", "来源", "状态保持不变"]) assert.ok(decision.includes(text), text);
@@ -152,7 +152,7 @@ test("an existing missing-snapshot ledger revision offers only confirmed text ad
     seedRuntime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: seedHost });
     const nowMs = Date.now(), scopeKey = `owner.project-${project.project_id}`;
     await seedRuntime.store.commit({ kind: "memories", id: `${scopeKey}.${initial.memory_id}.v1`, expectedVersion: 0,
-      metadata: { scope: scopeKey, rowId: initial.memory_id, version: 1, state: "active", shape: 8 },
+      metadata: { scope: scopeKey, rowId: initial.memory_id, version: 1, state: "active", shape: 1 },
       secureBody: new TextEncoder().encode(JSON.stringify({ id: initial.memory_id, scope: "project", owner: project.project_id, version: 1,
         text: initial.text, origin: "明确的边界来源", tags: [], tombstoned: false,
         meta: { kind: "convention", source: "manual", approvedBy: { by: "person" } }, createdAtMs: nowMs, updatedAtMs: nowMs })) });

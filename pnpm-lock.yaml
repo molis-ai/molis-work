@@ -190,6 +190,9 @@ importers:
       '@molis-ai/molis-work-service-automation-recommender':
         specifier: workspace:*
         version: link:horizontal/automation-recommender
+      '@molis-ai/molis-work-service-blueprints':
+        specifier: workspace:*
+        version: link:horizontal/blueprints
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:horizontal/connector-host
@@ -491,6 +494,9 @@ importers:
       '@molis-ai/molis-work-service-automation-recommender':
         specifier: workspace:*
         version: link:../../horizontal/automation-recommender
+      '@molis-ai/molis-work-service-blueprints':
+        specifier: workspace:*
+        version: link:../../horizontal/blueprints
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
@@ -715,8 +721,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz
 
   horizontal/appearance:
     dependencies:
@@ -734,6 +740,18 @@ importers:
         version: link:../../packages/storage
 
   horizontal/automation-recommender:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
+  horizontal/blueprints:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -798,6 +816,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   horizontal/observation:
     dependencies:
@@ -1169,12 +1190,6 @@ importers:
 
   plugins/native/feed:
     dependencies:
-      '@adeptify/intelligence-client':
-        specifier: file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz
-        version: file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz(@adeptify/search-evidence-layer@file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz)
-      '@adeptify/search-evidence-layer':
-        specifier: file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
-        version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
@@ -1513,23 +1528,11 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
-  plugins/official-integrations/web-query:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-
   plugins/official-integrations/youtube:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
 
   server:
     dependencies:
@@ -1901,9 +1904,14 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
-    resolution: {integrity: sha512-tAJX2+3+JE/CPSXWVeYCHrV5CbN+uIYv4wqHpeX53LBAKiaKPPkn6xTBYE7QlRGXtut8nsOFCMrtThx8vlteuA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz}
-    version: 0.0.0-rc.1
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz':
+    resolution: {integrity: sha512-RtF/WmysRhDb1zVH80k4WCjIgy2+w1gooVd1YubXc9Eg77iz36UW9Zwnl/cUaN3TLTwsdXnkrBCxsYRIs58tKQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz}
+    version: 0.1.0-rc.1
+    peerDependencies:
+      '@tauri-apps/api': '>=2.0.0 <3.0.0'
+    peerDependenciesMeta:
+      '@tauri-apps/api':
+        optional: true
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -2033,9 +2041,6 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
-  '@tauri-apps/api@2.11.1':
-    resolution: {integrity: sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==}
 
   '@tauri-apps/cli-darwin-arm64@2.11.4':
     resolution: {integrity: sha512-1ryOF3ZhpZ/nemHV5zVwBQBz9jDGKmKPvWPADOhc83ig0P4bMc2iER4NbC6r9sjeIZ6RVQ4g3RZIYvezhcl4TQ==}
@@ -3762,9 +3767,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1.tgz':
-    dependencies:
-      '@tauri-apps/api': 2.11.1
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.1.tgz': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -3834,8 +3837,6 @@ snapshots:
   '@rolldown/pluginutils@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
-
-  '@tauri-apps/api@2.11.1': {}
 
   '@tauri-apps/cli-darwin-arm64@2.11.4':
     optional: true

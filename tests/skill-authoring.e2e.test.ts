@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
-import { SKILL_AUTHORED_PLUGIN_IDS, type SkillCatalogEntry, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILL_AUTHORED_PLUGIN_IDS, type SkillAuthoredSource, type SkillCatalogEntry, type SkillDraft, type SkillDraftSummary } from "@molis-ai/molis-work-contracts/services/skills";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -15,8 +15,11 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const SHOTS = join(process.cwd(), ".impeccable/qa/review/skill-authoring");
 /** The replay's judge: a result that says `differs` differs from the known answer, the others match. */
-const judge = (prompt: string) => JSON.stringify({ results: [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)].map(([, index, output]) => output!.includes("differs")
-  ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] } : { index: Number(index), verdict: "match", differences: [] }) });
+const judge = (prompt: string) => JSON.stringify({ results: [...prompt.matchAll(/\{"index":(\d+),"output":"((?:[^"\\]|\\.)*)"\}/gu)].map(([, index, output]) => output!.includes("two-differs")
+  ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组", "少了截止日期"] }
+  : output!.includes("differs")
+    ? { index: Number(index), verdict: "differs", differences: ["少了按负责人分组"] }
+    : { index: Number(index), verdict: "match", differences: [] }) });
 
 test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparing, adopting, restoring and copying a Skill on the 「能力包」 page", { timeout: 300_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis42-improve-"));
@@ -26,7 +29,10 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   const completeText = async (prompt: unknown) => {
     const text = String(prompt);
     if (text.includes("你在对照技能回放的结果")) return judge(text);
-    if (text.includes("没有任何工具")) return text.includes("改过的做法") ? "周报：A 完成。（differs）" : "周报：按负责人分组。";
+    if (text.includes("没有任何工具")) {
+      if (text.includes("纯一致样本")) return "周报：按负责人分组。";
+      return text.includes("改过的做法") ? "周报：A 完成。（two-differs）" : "周报：按负责人分组。";
+    }
     return answers.shift() ?? "";
   };
   const f = await serveHomeRuntime(t, { completeText: completeText as never }), project = await f.project("Skill authoring");
@@ -62,6 +68,10 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("!!document.querySelector('.au-ask .au-failure')", { describe: state });
   assert.equal(await page.evaluate("document.querySelector('[data-au-field=intent]').value"), "每周五把一周的进展整理成周报", "the sentence stays");
   answers.push(JSON.stringify({ name: "每周周报", description: "要把一周的进展整理成周报时用。", when_not_to_use: "只想看某一天做了什么。", applies_to: "assistant", body: "# 每周周报\n\n1. 列出完成的事。\n2. 列出卡住的事。" }));
+  // QEA-126: the shared renderer still drives the draft's choices and their selected state.
+  await page.click(act("au-scope", "home"));
+  assert.equal(await page.evaluate(`document.querySelector('${act("au-scope", "home")}').getAttribute('aria-pressed')`), "true");
+  await page.click(act("au-scope", "project"));
   await page.click(act("au-draft"));
   await page.wait("document.querySelector('#au-name')?.value === '每周周报' && document.activeElement?.id === 'sk-title'", { describe: state });
   assert.equal(await page.evaluate("!!document.querySelector('[data-kit-body] .mw-list-detail')"), false, "the list folds away while a draft is open");
@@ -69,6 +79,15 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   assert.match(await text("[data-au-count]"), /4 \/ 500 行/);
   assert.match(await text("[data-sk-bar]"), /采用为新技能/);
   assert.deepEqual(await mine(), [], "a draft is in no catalog");
+  const newDrafts = await api<{ drafts: SkillDraftSummary[] }>("drafts/list");
+  const firstDraft = newDrafts.drafts.find(item => item.name === "每周周报")!;
+  assert.equal(firstDraft.scope, "project");
+  await page.click(act("au-applies", "both"));
+  await page.wait(saved, { describe: state });
+  assert.equal(await page.evaluate(`document.querySelector('${act("au-applies", "both")}').getAttribute('aria-pressed')`), "true");
+  assert.equal((await api<SkillDraft>("drafts/read", { draft_id: firstDraft.draft_id })).fields.applies_to, "both");
+  await page.click(act("au-applies", "assistant"));
+  await page.wait(saved, { describe: state });
   await shot("draft-new-1440");
   const gap = await page.evaluate<number>("document.querySelector('.settings-content').getBoundingClientRect().bottom - document.querySelector('[data-sk-bar]').getBoundingClientRect().bottom");
   assert.ok(Math.abs(gap) <= 1, `the adopt bar sits on the edge, nothing shows under it (gap ${gap}px)`);
@@ -105,33 +124,63 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.fill("#sk-case-title", "上周的周报");
   await page.fill("#sk-case-task", "整理 11 月第二周的进展");
   await page.fill("#sk-case-expected", "周报：按负责人分组。");
-  await page.click(act("sk-case-save"));
+  await page.click("[data-sk-case-form] [type=submit]");
   await page.wait("document.querySelectorAll('.sk-case').length === 1", { describe: state });
   assert.match(await text("[data-sk-bar]"), /先回放/);
   assert.match(await text(".sk-try"), /调用模型 3 次/);
 
-  // 回放：现在的第 1 版与草稿各跑一次；草稿和你的结果不一致；采用时就地问一次，不弹窗。
+  await page.click(act("sk-case-add"));
+  await page.wait("document.activeElement?.id === 'sk-case-title'");
+  await page.fill("#sk-case-title", "纯一致的周报");
+  await page.fill("#sk-case-task", "整理纯一致样本的进展");
+  await page.fill("#sk-case-expected", "周报：按负责人分组。");
+  await page.click("[data-sk-case-form] [type=submit]");
+  await page.wait("document.querySelectorAll('.sk-case').length === 2", { describe: state });
+
+  // 回放：先回放第 1 条（2 处出入），再回放第 2 条（一致）；第 1 条仍保持已回放，采用确认条仍报 2 处不同。
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
   await page.wait("!!document.querySelector('[data-sk-replay] .mw-replay-grid')", { describe: state });
   assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.mw-replay-cell')].map(cell => cell.dataset.verdict)"), ["match", "differs"]);
   await shot("replayed-1440");
   await page.click(act("sk-out", "assistant:draft"));
   await page.wait("!!document.querySelector('.sk-compare .sk-diff')", { describe: state });
+  assert.equal(await page.evaluate("document.querySelector('.sk-side-tabs [aria-selected=true]').id"), "sk-side-compare");
+  assert.equal(await page.evaluate("document.querySelector('.sk-panel').getAttribute('aria-labelledby')"), "sk-side-compare");
   assert.match(await text(".sk-what"), /草稿 · 助理 的结果 → 你认可的结果/);
   await page.click(act("sk-compare", "how"));
   await page.wait("document.querySelector('.sk-what')?.innerText.includes('第 1 版 → 草稿')", { describe: state });
   await shot("compare-1440");
+  await page.click(act("sk-side", "try"));
+  await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2", { describe: state });
+  await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 2 版')", { describe: state });
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.sk-case [data-kit-act=sk-run]')].map(node => node.innerText.trim())"), ["再回放", "再回放"], "replaying the second case preserves the first case's replayed state");
   await page.click(act("sk-adopt"));
   await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
-  assert.match(await text("[data-slot=leave-bar]"), /还有 1 处不同，仍然采用吗/);
+  assert.match(await text("[data-slot=leave-bar]"), /还有 2 处不同，仍然采用吗/);
   assert.equal(await page.evaluate("document.querySelectorAll('[data-sk-bar] .mw-btn--primary').length"), 1, "one main act in view");
+  // Changing known answers while the confirm bar is open clears the stale confirmation so dual primary buttons never appear.
+  await page.click(act("sk-case-add"));
+  await page.wait("document.activeElement?.id === 'sk-case-title'");
+  await page.fill("#sk-case-title", "临时样本");
+  await page.fill("#sk-case-task", "临时任务");
+  await page.fill("#sk-case-expected", "临时结果");
+  await page.click("[data-sk-case-form] [type=submit]");
+  await page.wait("document.querySelectorAll('.sk-case').length === 3", { describe: state });
+  assert.equal(await page.evaluate("!!document.querySelector('[data-slot=leave-bar]')"), false, "adding a case clears the stale adopt confirmation");
+  assert.equal(await page.evaluate("document.querySelectorAll('[data-sk-bar] .mw-btn--primary').length"), 1, "only replay-first stays primary");
+  await page.evaluate("document.querySelectorAll('.sk-case')[2].querySelector('[data-kit-act=sk-case-remove]').click()");
+  await page.wait("document.querySelectorAll('.sk-case').length === 2", { describe: state });
+  await page.click(act("sk-adopt"));
+  await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
+  assert.match(await text("[data-slot=leave-bar]"), /还有 2 处不同，仍然采用吗/);
   await shot("confirm-1440");
   await page.click(act("sk-adopt-anyway"));
   await page.wait(noticeHas("已采用为第 2 版"), { describe: state });
   [skill] = await mine();
   assert.deepEqual([skill?.ref.version, skill?.state], [2, "auto"], "adopting keeps the person's choice of state");
 
-  // 版本：列出全部；对照旧版；恢复第 1 版先开一份草稿（已知答案跟着技能走，要先回放），采用存成第 3 版。
+  // 版本：列出全部；对照旧版；恢复第 1 版先开一份草稿（已知答案跟着技能走，要先回放两条），采用存成第 3 版。
   await page.wait("document.querySelectorAll('.sk-version').length === 2", { describe: state });
   await page.click(act("sk-version-diff", "1"));
   await page.wait("!!document.querySelector('.sk-version-diff .sk-diff')", { describe: state });
@@ -140,6 +189,8 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-version-restore", "1"));
   await page.wait("!!document.querySelector('[data-sk-work] .sk-compare')", { describe: state });
   assert.match(await text("[data-sk-bar]"), /先回放/);
+  await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
+  await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2 && document.querySelectorAll('.sk-case [data-kit-act=sk-run]')[0].innerText.includes('再回放')", { describe: state });
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
   await page.wait("[...document.querySelectorAll('.mw-replay-cell')].some(cell => cell.dataset.verdict === 'match') && document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 3 版')", { describe: state });
   await page.click(act("sk-adopt"));
@@ -159,21 +210,26 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.click(act("sk-close"));
   await page.wait("!document.querySelector('[data-sk-work]') && !!document.querySelector('.mw-list-detail')", { describe: state });
 
-  // 回执里的「打开草稿」：地址里带上草稿，打开页面就在它上面。
+  // 回执里的「打开草稿」：地址里带上草稿，打开页面就在它上面；关闭留下这份草稿，删除技能后它仍在顶部草稿区可见。
   await page.command("Page.navigate", { url: `${f.origin}/projects/${project.project_id}/settings/kit?draft=${kept!.draft_id}` });
   await page.wait("!!document.querySelector('[data-kit-body]')", { describe: state });
   await page.wait("document.querySelector('#sk-title')?.innerText.includes('「每周周报」的草稿') && !location.search.includes('draft=')", { describe: state });
-  await page.click(act("sk-discard"));
-  await page.wait(noticeHas("已放弃草稿"), { describe: state });
+  await page.click(act("sk-close"));
+  await page.wait("!document.querySelector('[data-sk-work]') && !!document.querySelector('.mw-list-detail')", { describe: state });
 
-  // 删除带撤销。
+  // 删除带撤销，且被删技能的未放弃草稿在顶部草稿区仍可打开和放弃。
   await page.click(act("skill-delete"));
   await page.wait(noticeHas("删除了「每周周报」"), { describe: state });
   assert.deepEqual(await mine(), []);
+  assert.ok(await page.evaluate(`!!document.querySelector('.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]')`), "an orphaned draft of a deleted Skill stays visible in the top drafts strip");
   await page.click(`[data-kit-notice] [data-kit-act="au-undelete"]`);
   await page.wait(noticeHas("恢复了"), { describe: state });
   [skill] = await mine();
   assert.deepEqual([skill?.name, skill?.state], ["每周周报", "auto"]);
+  await page.click(`.sk-drafts [data-kit-act="sk-open"][data-kit-v="${kept!.draft_id}"]`);
+  await page.wait("!!document.querySelector('[data-sk-work]')", { describe: state });
+  await page.click(act("sk-discard"));
+  await page.wait(noticeHas("已放弃草稿"), { describe: state });
 
   // 改一份通用技能：说明不能直接改；「改一份我的」开草稿；写进占位符就列出来让你换成自己用的；采用时把原来的关掉。
   const systemSkill = "[...document.querySelectorAll('.kit-detail [data-kit-act=item]')].find(node => node.innerText.includes('分析与决策'))";
@@ -188,21 +244,98 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("document.querySelector('#sk-title')?.innerText.includes('「分析与决策」的草稿')", { describe: state });
   assert.ok((await page.evaluate<string>("document.querySelector('#au-body').value")).length > 100, "the copy starts from the original's body");
   assert.equal(await page.evaluate("document.querySelector('[data-sk-turn-off]').checked"), true);
-  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具。`);
+  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}\n\n结论发到 ~~聊天工具，任务记进 ~~项目管理工具，别改项目进度。`);
   await page.wait(saved, { describe: state });
   await page.click(act("sk-side", "compare"));
-  await page.wait("!!document.querySelector('[data-sk-placeholder]')", { describe: state });
-  await page.fill("[data-sk-placeholder]", "Slack");
-  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack。/);
-  assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').getAttribute('aria-label')"), "把 ~~聊天工具 换成");
+  await page.wait("document.querySelectorAll('[data-sk-placeholder]').length === 2", { describe: state });
+  // Typing character by character with characters already present in the body must never rewrite unrelated text.
+  for (const step of ["项", "项目", "项目群", "", "工", "工具"]) await page.fill('[data-sk-placeholder="~~聊天工具"]', step);
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Linear");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 工具，任务记进 Linear，别改项目进度。/);
+  // Rebuild placeholderBase after a manual wording edit: single-pass restore keeps "工具" from mutating inside "~~项目管理工具".
+  const desc = await page.evaluate<string>("document.querySelector('#au-description').value");
+  await page.fill("#au-description", `${desc} `);
+  await page.fill("#au-description", desc);
+  await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Jira");
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "Slack");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 Slack，任务记进 Jira，别改项目进度。/);
+  assert.doesNotMatch(await page.evaluate<string>("document.querySelector('#au-body').value"), /项目群进度|~~聊天工具进度|~~项目管理/);
+  assert.equal(await page.evaluate(`document.querySelector('[data-sk-placeholder="~~聊天工具"]').getAttribute('aria-label')`), "把 ~~聊天工具 换成");
   await page.wait(saved, { describe: state });
   await shot("copy-1440");
-  await page.click(act("sk-adopt"));
+  // QEA-123: the placeholder and its expanded text are one decision, while an unrelated field survives.
+  const listedCopies = await api<{ drafts: SkillDraftSummary[] }>("drafts/list");
+  const editingCopy = listedCopies.drafts.find(item => item.name === "分析与决策");
+  assert.ok(editingCopy);
+  const oldCopy = await api<SkillDraft>("drafts/read", { draft_id: editingCopy.draft_id });
+  const otherBody = `${oldCopy.fields.body}\n\n别处补充的实操说明。`;
+  const updated = await api<{ revision: number }>("drafts/update", { draft_id: oldCopy.draft_id, expected_revision: oldCopy.revision,
+    fields: { ...oldCopy.fields, body: otherBody }, replacements: oldCopy.replacements });
+  assert.equal(updated.revision, oldCopy.revision + 1);
+  await page.click(".au-more summary");
+  await page.fill("#au-argument_hint", "补充目标");
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "Teams");
+  await page.wait(`!!document.querySelector('[data-sk-bar] [data-kit-act=sk-review-conflict]')`, { describe: state });
+  assert.equal((await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id })).fields.body, otherBody);
+  await page.click(act("sk-review-conflict"));
+  await page.wait(`document.activeElement?.hasAttribute('data-sk-conflict')`, { describe: state });
+  const copyConflict = await text("[data-sk-conflict]");
+  assert.match(copyConflict, /结论发到 Slack，任务记进 Jira，别改项目进度。/);
+  assert.match(copyConflict, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
+  assert.match(copyConflict, /别处补充的实操说明。/);
+  await page.click(act("sk-keep-edit"));
+  await page.wait(saved, { describe: state });
+  const settledCopy = await api<SkillDraft>("drafts/read", { draft_id: oldCopy.draft_id });
+  assert.deepEqual([settledCopy.revision, settledCopy.replacements, settledCopy.fields.argument_hint],
+    [updated.revision + 1, { "~~聊天工具": "Teams", "~~项目管理工具": "Jira" }, "补充目标"]);
+  assert.match(settledCopy.fields.body, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
+  assert.doesNotMatch(settledCopy.fields.body, /别处补充的实操说明。/);
+  // QEA-129: actual completed operations can have a late HTTP receipt. Every editor control follows the same busy state.
+  const holdReceipt = (route: string) => page.evaluate(`(() => {
+    const send = window.fetch.bind(window);
+    window.__qeaCopyReceipt = { status: 0 };
+    const release = new Promise(done => { window.__qeaCopyReceipt.release = done; });
+    window.fetch = async (url, options) => {
+      const response = await send(url, options);
+      if (String(url).endsWith(${JSON.stringify(route)})) {
+        window.fetch = send;
+        window.__qeaCopyReceipt.status = response.status;
+        await release;
+      }
+      return response;
+    };
+  })()`);
+  const copyControls = () => page.evaluate<boolean[]>(`['[data-sk-placeholder]', '[data-sk-turn-off]'].map(selector => document.querySelector(selector).disabled)`);
+  await holdReceipt("/api/skills/drafts/revise");
+  answers.push(JSON.stringify({ ...settledCopy.fields, when_not_to_use: "只想抄录原文时。" }));
+  await page.fill("[data-sk-ask-input]", "补一句什么时候不适用");
+  let duringRevise: boolean[];
+  try {
+    await page.click("[data-sk-ask] [type=submit]");
+    await page.wait("window.__qeaCopyReceipt.status === 200", { describe: state });
+    duringRevise = await copyControls();
+  } finally { await page.evaluate("window.__qeaCopyReceipt.release()"); }
+  await page.wait("document.querySelector('#au-when_not_to_use')?.value === '只想抄录原文时。' && !document.querySelector('[data-sk-placeholder]').disabled", { describe: state });
+  assert.equal(await page.evaluate("document.querySelector('[data-sk-placeholder]').value"), "Teams");
+  await holdReceipt("/api/plugin-trust/skills/drafts/adopt");
+  let duringAdoption: boolean[];
+  try {
+    await page.click(act("sk-adopt"));
+    await page.wait("window.__qeaCopyReceipt.status === 200", { describe: state });
+    duringAdoption = await copyControls();
+    assert.equal(await page.evaluate("document.querySelector('[data-sk-ask-input]').readOnly && document.querySelector('[data-sk-ask] [type=submit]').disabled"), true,
+      "adopting also holds the next rewrite instruction");
+  } finally { await page.evaluate("window.__qeaCopyReceipt.release()"); }
   await page.wait(noticeHas("原来的已关掉"), { describe: state });
   assert.equal((await mine()).length, 2);
   assert.equal((await all()).find(item => item.name === "分析与决策" && item.pack.plugin_id !== SKILL_AUTHORED_PLUGIN_IDS.project)?.state, "off", "the original is off");
   const copy = (await mine()).find(item => item.name === "分析与决策");
   assert.ok(copy?.based_on, "the copy remembers where it came from");
+  const installedCopy = await api<SkillAuthoredSource>("source", { ref: copy.ref });
+  assert.equal(installedCopy.when_not_to_use, "只想抄录原文时。");
+  assert.equal(installedCopy.argument_hint, "补充目标");
+  assert.match(installedCopy.body, /结论发到 Teams，任务记进 Jira，别改项目进度。/);
+  assert.deepEqual([duringRevise, duringAdoption], [[true, true], [true, true]], "companion fields are protected for the same operation as the main fields");
 
   // 1024 与 390、深色：1024 时两栏变成页签；390 没有横向滚动。
   const draft = await (await f.request(`/projects/${project.project_id}/api/skills/drafts/create`, { method: "POST", body: { scope: "project", target: { kind: "own", skill_id: copy!.ref.skill_id } } })).json() as { draft_id: string };

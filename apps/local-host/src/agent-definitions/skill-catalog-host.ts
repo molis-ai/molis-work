@@ -10,7 +10,7 @@ import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILLS_PROVIDER_ID, skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
-import { hostCompleteText, type HostCompleteText } from "../host-complete-text.js";
+import { hostTextForCommit, type HostCompleteText } from "../host-complete-text.js";
 import { resolveModelPrompt } from "./instructions.js";
 import { SkillWorkshop } from "./skill-workshop.js";
 import { HomeConsentLedger } from "../home-plugin-store.js";
@@ -21,6 +21,7 @@ import { scopeInstallations } from "../scope-installations.js";
 import { SkillCatalog, type SkillCatalogPorts } from "./skill-catalog.js";
 import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { isDeepStrictEqual } from "node:util";
+import { categoryAvailability, homeCategoryAccounts, type CategoryAccounts } from "./skill-connector-categories.js";
 import type { CatalogSkill } from "./skill-catalog.js";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { SYSTEM_PACK_SIGNATURE, systemPackInstallId, systemSkillPacks, type SystemSkillPack } from "./system-skill-packs.js";
@@ -40,7 +41,7 @@ export function systemSkillPackWords(pack: SystemSkillPack, callerLocale?: strin
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost, systemSkillsDirectory?: string, completion?: HostCompleteText | null) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home);
   const ports = skillCatalogPorts(home, source, definitions, scopeInstallations, true, undefined, systemSkillsDirectory);
-  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
+  const model = () => hostTextForCommit(home, completion);
   const workshop = new SkillWorkshop({ drafts: definitions.skillDrafts, withSkills: ports.withSkills,
     release: (pluginId, keyId, version) => { try { return packages.load(pluginId, keyId, version).packaged; } catch { return undefined; } },
     savedAt: (pluginId, keyId) => new Map(packages.retainedVersions(pluginId, keyId).map(row => [row.version, row.saved_at])),
@@ -65,6 +66,12 @@ function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions:
     const localKey = localPublisherKeyId(home);
     // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
     const pins = observedPins ?? publishers();
+    // The person's accounts by connector category, read once and only when a Skill here declares one (ASC-38～40).
+    const declaresCategories = installations.some(({ manifest }) => manifest?.methods?.some(method => method.connector_categories?.length))
+      || systemPacks().some(pack => pack.manifest.methods?.some(method => method.connector_categories?.length));
+    const accounts: CategoryAccounts = declaresCategories ? await homeCategoryAccounts(home) : new Map();
+    const categoryFacts = (declared: readonly string[] | undefined) => declared?.length
+      ? { category_accounts: new Map(declared.map(category => [category, accounts.get(category) ?? []])) as CategoryAccounts } : {};
     const result: CatalogSkill[] = [];
     for (const { record, manifest, scope, recoveryCode, readLocalePacks, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
@@ -94,12 +101,12 @@ function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions:
         const body = method?.body;
         let available = availability;
         if (available.available && body === undefined) available = { available: false, reason: "resource_invalid" };
-        // Connector category binding belongs to the connection owner. Until that owner can resolve a declared category, it is unavailable.
-        if (available.available && declaration.connector_categories?.length) available = { available: false, reason: "connection_missing", detail: declaration.connector_categories.join(", ") };
+        // A declared category needs a connected account of a service that declares it; the missing ones are named (ASC-38).
+        if (available.available && declaration.connector_categories?.length) available = categoryAvailability(declaration.connector_categories, accounts) ?? available;
         if (available.available && declaration.native_only_reason) available = { available: false, reason: "native_only", detail: declaration.native_only_reason };
         if (available.available && nativeSkill(body ?? "", (declaration.resources ?? []).map(resource => ({ path: resource.path, binary: !/^(text\/|application\/(json|xml)|image\/svg)/.test(resource.media_type) })))) available = { available: false, reason: "native_only" };
         const display = skillDisplayWords(declaration, reader, locale);
-        result.push({ declaration, display, body: method ? agentBodyIn(method, caller.locale) : "", availability: available,
+        result.push({ declaration, display, body: method ? agentBodyIn(method, caller.locale) : "", availability: available, ...categoryFacts(declaration.connector_categories),
           ref: { source: { kind: "plugin", plugin_id: record.plugin_id, plugin_version: record.version, publisher_signature: record.publisher_signature },
             skill_id: declaration.skill_id, version: declaration.version, install_id: record.install_id, installation_generation: record.installation_generation },
           pack: { plugin_id: record.plugin_id, title, version: record.version, publisher_label: pin?.label ?? manifest.publisher.publisher_id,
@@ -119,8 +126,10 @@ function skillCatalogPorts(home: string, source: ProjectPluginHost, definitions:
       const title = systemSkillPackWords(pack, caller.locale).name;
       for (const declaration of manifest.methods ?? []) {
         const body = pack.bodies.find(item => item.kind === "method" && item.entry_id === declaration.skill_id);
+        const ready: SkillAvailability = body ? { available: true } : { available: false, reason: "resource_invalid" };
         result.push({ declaration, display: skillDisplayWords(declaration, reader, locale), body: body ? agentBodyIn(body, caller.locale) : "",
-          availability: body ? { available: true } : { available: false, reason: "resource_invalid" }, default_state: pack.default_state,
+          availability: ready.available && declaration.connector_categories?.length ? categoryAvailability(declaration.connector_categories, accounts) ?? ready : ready,
+          default_state: pack.default_state, ...categoryFacts(declaration.connector_categories),
           ref: { source: { kind: "plugin", plugin_id: manifest.plugin_id, plugin_version: manifest.version, publisher_signature: SYSTEM_PACK_SIGNATURE },
             skill_id: declaration.skill_id, version: declaration.version, install_id: systemPackInstallId(manifest.plugin_id), installation_generation: manifest.version },
           pack: { plugin_id: manifest.plugin_id, title, version: manifest.version, publisher_label: "Molis Work", trust: "host", scope: "home" },

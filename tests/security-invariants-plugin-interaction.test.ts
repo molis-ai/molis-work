@@ -32,7 +32,7 @@ const card = (change: Partial<AssistantCard> = {}): AssistantCard => ({
 const question = (change: Partial<AgentPendingQuestion> = {}): AgentPendingQuestion => ({
   pending_id: "ask-1", kind: "clarification", prompt: "Which plan?", options: [{ value: "a", label: "Plan A" }], allows_free_text: true, ...change });
 const hostileCard = card({ card_id: `c1" onclick="steal()`, title: `Rename ${HOSTILE}`, summary: `<img src=x onerror=steal()>`, capability_title: `<b>bold</b>`,
-  fields: [{ key: "name", label: `<i>label</i>`, value: `<svg onload=steal()>`, editable: false }], status: "done", outcome: `<u>done</u>`,
+  fields: [{ key: "name", label: `<i>label</i>`, value: `<svg onload=steal()>`, editable: false }], status: "done", outcome: { literal: `<u>done</u>` },
   presentation: { summary: "Renamed", title: `<h1>t</h1>`, text: `<iframe src=x>`, link: { label: "Open", href: "javascript:steal()" } } });
 const hostileQuestion = question({ pending_id: `q" autofocus onfocus="steal()`, prompt: HOSTILE, options: [{ value: `"><script>`, label: `<img src=x onerror=steal()>` }] });
 const hostileSteps: PluginInteractionNextSteps = { questions: [hostileQuestion], cards: [hostileCard], finished: true,

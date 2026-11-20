@@ -273,49 +273,8 @@ export class SearchService {
       next_cursor: offset + limit < found.total ? cursorOf(query, offset + limit) : null, sources };
   }
 
-  async open(access: SearchAccess, input: SearchOpenRequest): Promise<SearchOpenResponse> {
-    const hit = decodeSearchHitId(input.hit_id);
-    const hit_id = input.hit_id;
-    if (hit.project_id && hit.project_id !== access.caller.project_id) {
-      // The person's own space answers them from any project, read with their own access to it; nothing else of another project does.
-      if (hit.project_id !== this.options.personalSpace || access.caller.audience !== "user") return { state: "unavailable", hit_id, reason: "这条结果属于其他项目" };
-      try { access = (await this.owner(hit.project_id)()).access; }
-      catch (error) { return { state: "unavailable", hit_id, reason: errorText(error) }; }
-    }
-    const views = await access.client.discover(access.caller);
-    const source = entrySources(views, access.caller).find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
-    if (!source) return { state: "unavailable", hit_id, reason: "来源插件已停用、升级或当前没有读取权限" };
-    if (!source.view.availability.available) return { state: "unavailable", hit_id, reason: source.view.availability.reason };
-    if (!source.kinds.has(hit.kind)) return { state: "unavailable", hit_id, reason: "来源不再提供这类对象" };
-    const origin = { ...searchActions.open, provider_id: SEARCH_PROVIDER_ID };
-    const nested = retainActionAuthority(access.caller, origin);
-    const reader = views.find(view => isReader(view) && view.availability.available && view.provider.provider_id === hit.provider_id && view.action.subject_kinds.includes(hit.kind));
-    const indexed = this.options.index.document(source.key, hit.kind, hit.id);
-    // Set when the reader failed. Whatever the error was (its code, a plugin's plain Error, its wording), that alone does not say the
-    // object is gone: a locked document or a version kept only as a file is refused too while the owner still lists it.
-    let refusal: string | null = null;
-    if (reader) {
-      try {
-        const context = await access.client.invoke(nested, referenceOf(reader), { subject_id: hit.id }) as ActionSubjectContext & { open?: { surface: string; id: string } };
-        if (context.subject.kind !== hit.kind || context.subject.id !== hit.id) return { state: "unavailable", hit_id, reason: "对象读取结果与搜索结果不一致" };
-        return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
-      } catch (error) {
-        refusal = errorText(error);
-      }
-    }
-    // Gone is decided by the owner's own complete listing (the caller's authority), the same rule indexing follows.
-    let entry: SearchEntry | null;
-    try { entry = await findEntry(access.client, nested, source, hit.kind, hit.id); }
-    catch (error) {
-      if (refusal === null) throw error;
-      return { state: "unavailable", hit_id, reason: refusal };
-    }
-    if (!entry) {
-      this.options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
-      return { state: "missing", hit_id, reason: refusal === null ? "这条内容已被删除" : "这条内容已被删除或归档" };
-    }
-    if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
-    return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+  open(access: SearchAccess, input: SearchOpenRequest): Promise<SearchOpenResponse> {
+    return openSearchHit(this.options, projectId => this.owner(projectId)(), access, input);
   }
 
   /** Indexed material for a trusted consumer, retaining the original provider revision across its waits. */
@@ -489,6 +448,59 @@ export class SearchService {
   }
 }
 
+/** Open a hit against its current owner; an unavailable reader is not proof that the object is gone. */
+async function openSearchHit(options: Pick<SearchServiceOptions, "index" | "personalSpace">, owner: (projectId: string) => Promise<Owner>,
+  access: SearchAccess, input: SearchOpenRequest): Promise<SearchOpenResponse> {
+  const hit = decodeSearchHitId(input.hit_id);
+  const hit_id = input.hit_id;
+  if (hit.project_id && hit.project_id !== access.caller.project_id) {
+    // The person's own space answers them from any project, read with their own access to it; nothing else of another project does.
+    if (hit.project_id !== options.personalSpace || access.caller.audience !== "user") return { state: "unavailable", hit_id, reason: "这条结果属于其他项目" };
+    const signal = access.caller.signal;
+    try {
+      const own = (await owner(hit.project_id)).access;
+      access = { ...own, caller: { ...own.caller, signal: signal && own.caller.signal ? AbortSignal.any([signal, own.caller.signal]) : signal ?? own.caller.signal } };
+    } catch (error) { signal?.throwIfAborted(); return { state: "unavailable", hit_id, reason: errorText(error) }; }
+  }
+  const views = await access.client.discover(access.caller);
+  const source = entrySources(views, access.caller).find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
+  if (!source) return { state: "unavailable", hit_id, reason: "来源插件已停用、升级或当前没有读取权限" };
+  if (!source.view.availability.available) return { state: "unavailable", hit_id, reason: source.view.availability.reason };
+  if (!source.kinds.has(hit.kind)) return { state: "unavailable", hit_id, reason: "来源不再提供这类对象" };
+  const origin = { ...searchActions.open, provider_id: SEARCH_PROVIDER_ID };
+  const nested = retainActionAuthority(access.caller, origin);
+  const reader = views.find(view => isReader(view) && view.availability.available && view.provider.provider_id === hit.provider_id && view.action.subject_kinds.includes(hit.kind));
+  const indexed = options.index.document(source.key, hit.kind, hit.id);
+  // Set when the reader failed. Whatever the error was (its code, a plugin's plain Error, its wording), that alone does not say the
+  // object is gone: a locked document or a version kept only as a file is refused too while the owner still lists it.
+  let refusal: string | null = null;
+  if (reader) {
+    try {
+      const context = await access.client.invoke(nested, referenceOf(reader), { subject_id: hit.id }) as ActionSubjectContext & { open?: { surface: string; id: string } };
+      if (context.subject.kind !== hit.kind || context.subject.id !== hit.id) return { state: "unavailable", hit_id, reason: "对象读取结果与搜索结果不一致" };
+      return { state: "ok", hit_id, subject: context.subject, open: context.open ?? indexed?.open ?? defaultOpen(source, hit.kind, hit.id), title: context.title, revision: context.revision };
+    } catch (error) {
+      access.caller.signal?.throwIfAborted();
+      refusal = errorText(error);
+    }
+  }
+  // Gone is decided by the owner's own complete listing (the caller's authority), the same rule indexing follows.
+  let entry: SearchEntry | null;
+  try { entry = await findEntry(access.client, nested, source, hit.kind, hit.id); }
+  catch (error) {
+    access.caller.signal?.throwIfAborted();
+    if (refusal === null) throw error;
+    return { state: "unavailable", hit_id, reason: refusal };
+  }
+  access.caller.signal?.throwIfAborted();
+  if (!entry) {
+    options.index.remove(source.key, [{ kind: hit.kind, object_id: hit.id }]);
+    return { state: "missing", hit_id, reason: refusal === null ? "这条内容已被删除" : "这条内容已被删除或归档" };
+  }
+  if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
+  return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+}
+
 type ProviderSequences = Map<string | null, Map<string, number>>;
 
 function clearedSequence(cleared: ReadonlyMap<string, number>, projectId: string | null, providerId: string): number {
@@ -595,6 +607,12 @@ async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | 
   };
   // Metadata pages keep the raw cursor even when every entry on a page is hidden.
   return { sources: () => { assertCurrent(); return sources; }, assertCurrent,
+    /**
+     * Sources the owner lists now whose complete pass the index does not hold: never listed yet (an empty index after a Home
+     * restore or a rebuild), still on their first pass, or failed since. What the catalog lacks from them says nothing about
+     * what their owner removed.
+     */
+    unsettled: () => { assertCurrent(); return current.filter(live => !sources.some(record => record.source_key === live.key)).map(live => live.key); },
     get views() { assertCurrent(); return currentViews; },
     catalog: (projectId: string, cursor?: string) => {
       assertCurrent();

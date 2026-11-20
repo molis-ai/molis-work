@@ -176,7 +176,7 @@ test('PCSYNC-01 current schema is required; requests never patch an old database
 test('PCSYNC-OPT-03 read schema checks are cached but writes still validate every guard',async t=>{
  const f=await cloudFixture(t);await f.enable();
  assert.equal((await f.call('/v1/round')).status,200);
- await f.db.prepare('DROP TRIGGER sync_events_seeded').run();
+ await f.db.prepare('DROP TRIGGER sync_events_validate').run();
  for(let i=0;i<19;i++)assert.equal((await f.call('/v1/round')).status,200);
  const refused=await f.write('invalid','record','must not be written');
  assert.equal(refused.status,503);

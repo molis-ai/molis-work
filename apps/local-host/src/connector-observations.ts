@@ -15,6 +15,7 @@ export function withConnectorObservations<T>(home: string, operation: (store: Co
 
 /** The code a connection's last check carries while the token endpoint has refused its refresh (S-70, `connector-refresh-refusals.ts`). */
 export const REFRESH_REFUSED = "connector.refresh_refused";
+export const SEARCH_AUTH_REFUSED = "connector.web_search.needs_auth";
 
 /**
  * A check cannot make a changed or disabled connection look current. The caller separately rechecks its authority. Every entry that

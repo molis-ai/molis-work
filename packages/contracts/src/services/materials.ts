@@ -1,3 +1,5 @@
+import type { MaterialRef } from "../platform/project-materials.js";
+
 /** Host extraction consumes already-authorized bytes, never an arbitrary filesystem path. */
 export interface MaterialSource { file_name: string; bytes: Uint8Array }
 export interface MaterialLine { text: string; confidence: number | null }
@@ -123,3 +125,47 @@ export function codeRootFile(path: string): boolean {
   const name = path.toLowerCase();
   return !name.includes("/") && (roots.includes(name) || /\.(?:sln|csproj|fsproj)$/u.test(name));
 }
+
+/**
+ * A file the person brings into a conversation (the assistant, Coding, a subagent's input; platform capability audit 2026-11-14 §6):
+ * kept by the platform's material service as a material of its own, so it is read once, can be looked at again, and is still there
+ * after a restart. The bytes never change: the subject id is `ca_` and their lowercase sha256, and the pin's `read_revision` is that sha256. It belongs to the
+ * caller that attached it (its installation, and its project or the Home) and only that caller reads it back; the platform reads it
+ * for that caller when a round shows it to the model. Nothing here is a 成果: an attachment never enters the 成果库.
+ */
+export const CONVERSATION_ATTACHMENT_SUBJECT_KIND = "conversation_attachment";
+/** The pictures a model can be shown, recognised by their bytes, not by a name or a declared type. */
+export const CONVERSATION_ATTACHMENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
+export type ConversationAttachmentImageType = (typeof CONVERSATION_ATTACHMENT_IMAGE_TYPES)[number];
+export const CONVERSATION_ATTACHMENT_LIMITS = {
+  round_images: 6,
+  /** A picture: what the model providers take in one image. */
+  image_bytes: 5 * 1024 * 1024,
+  /** A document read for its text (PDF, Office, text, a picture's words, a recording's transcript). */
+  document_bytes: 25 * 1024 * 1024,
+  /** The most of a document's text that is kept and given to a round. */
+  text_chars: 200_000,
+  /** A name as the person sees it. */
+  title_chars: 200,
+} as const;
+
+/** One attachment as the platform keeps it. `ref.subject.kind` is `CONVERSATION_ATTACHMENT_SUBJECT_KIND`; `ref.pin.mode` is `current`. */
+export interface ConversationAttachment {
+  ref: MaterialRef;
+  title: string;
+  kind: "image" | "document";
+  media_type: string;
+  byte_length: number;
+  /** A document's text as the platform read it; absent on a picture. `pages` is null where a format has no pages. */
+  text?: { chars: number; truncated: boolean; pages: number | null; coverage: MaterialExtraction["coverage"]["status"]; issues: string[] };
+}
+/** An attachment read back: its text or a picture for the model. */
+export interface ConversationAttachmentContent {
+  attachment: ConversationAttachment;
+  text?: string;
+  image?: { media_type: ConversationAttachmentImageType; bytes: Uint8Array };
+}
+/** How one caller reads back what it attached. */
+export interface ConversationAttachmentRequest { signal?: AbortSignal; as: "text" | "image" }
+/** A caller with an image-only entry can refuse other files before any extraction or write. */
+export interface ConversationAttachmentUploadRequest { signal?: AbortSignal; expected_kind?: "image" }

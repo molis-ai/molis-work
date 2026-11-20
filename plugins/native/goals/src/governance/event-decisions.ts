@@ -1,5 +1,5 @@
-import type { ProjectDecisionHistory, ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import type { GoalEventAgreementChange, GoalEventTrustedDecisionRecord, RecordGoalUserDecisionInput } from "../contract/goals.js";
+import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import type { GoalEventTrustedDecisionRecord, RecordGoalUserDecisionInput } from "../contract/goals.js";
 import type { GovernanceEventDecisionApi } from "../contract/governance-collaboration.js";
 import { decisionErrors } from "./errors.js";
 import { GovernanceProvenance } from "./provenance.js";
@@ -7,8 +7,7 @@ import { GovernanceProvenance } from "./provenance.js";
 export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
   private readonly provenance = new GovernanceProvenance();
 
-  constructor(private readonly current: (input: RecordGoalUserDecisionInput) => ProjectTrustedDecision,
-    private readonly readOriginal: (projectId: string, decisionId: string) => ProjectDecisionHistory | null) {}
+  constructor(private readonly current: (input: RecordGoalUserDecisionInput) => ProjectTrustedDecision) {}
 
   record(input: RecordGoalUserDecisionInput): GoalEventTrustedDecisionRecord {
     const authority = this.provenance.validateEventDecisionAuthority(input.authority);
@@ -24,24 +23,6 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
         requirement_ids: unique(input.scope?.requirement_ids), event_ids: unique(input.scope?.event_ids),
         concern_ids: unique(input.scope?.concern_ids), action: input.scope?.action?.trim() || null,
       }, authorized_change: input.authorized_change ?? null, recorded_at: decision.decided_at };
-  }
-
-  read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null {
-    const stored = this.readOriginal(projectId, decisionId);
-    if (stored?.subject !== "event") return null;
-    const row = stored.original;
-    return {
-      decision_id: stored.decision_id, project_id: stored.project_id, goal_id: String(row.goal_id),
-      actor_id: String(row.actor_id), actor_kind: "user",
-      authority_source: row.authority_source as GoalEventTrustedDecisionRecord["authority_source"],
-      conversation_ref: String(row.conversation_ref), message_ref: String(row.message_ref),
-      request_id: row.request_id === null ? null : String(row.request_id),
-      selected_option_id: row.selected_option_id === null ? null : String(row.selected_option_id),
-      conclusion: String(row.conclusion), accepts_requirements: row.accepts_requirements === 1,
-      scope: JSON.parse(String(row.scope_json)) as GoalEventTrustedDecisionRecord["scope"],
-      authorized_change: row.change_json === null ? null : JSON.parse(String(row.change_json)) as GoalEventAgreementChange,
-      recorded_at: stored.recorded_at,
-    };
   }
 }
 

@@ -57,7 +57,7 @@ export function prologueDescriptor(options: PrologueAdapterOptions): AgentRuntim
 }
 
 /** A round's children, read only after the round itself is read (and so held to its session). */
-export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run: AgentRunRef) => Promise<unknown>, store: PrologueRunStore): AgentSubagentsCapability {
+export function guardedSubagents(subagents: NonNullable<PrologueRuntimePort["subagents"]>, read: (run: AgentRunRef) => Promise<unknown>, store: PrologueRunStore): AgentSubagentsCapability {
   const hold = async <T>(sessionId: string, work: () => Promise<T>) => {
     if (store.startingSessions.has(sessionId)) throw agentErrors.session_busy("子任务正在准备执行，请核对原请求");
     return store.withSessionHeld(sessionId, work);
@@ -65,6 +65,7 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
   return {
     ...(subagents.workspaces ? { workspaces: true as const } : {}),
     list: async run => { await read(run); return subagents.list(run); },
+    ...(subagents.listForRuns ? { listForRuns: parents => subagents.listForRuns!(parents, read) } : {}),
     ...(subagents.resultCandidates ? { resultCandidates: sessions => subagents.resultCandidates!(sessions) } : {}),
     ...(subagents.subscribe ? { subscribe: async (run, changed) => { await read(run); return subagents.subscribe!(run, changed); } } : {}),
     ...(subagents.conversation ? { conversation: async (run, id) => { await read(run); return subagents.conversation!(run, id); } } : {}),
@@ -72,9 +73,7 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
     ...(subagents.command ? { command: async (run, id, input, control) => {
       await read(run);
       if (input.kind !== "continue" && input.kind !== "retry" && input.kind !== "resume-answer") return subagents.command!(run, id, input, control);
-      const owned = (await subagents.list(run)).find(one => one.subagent_id === id)?.child_run;
-      if (!owned) throw agentErrors.collaboration_unknown("原子任务不存在");
-      return hold(owned.session_id, () => subagents.command!(run, id, input, control));
+      return hold(subagents.sessionOf(run, id), () => subagents.command!(run, id, input, control));
     } } : {}),
     ...(subagents.checkRequest ? { checkRequest: async (run, id, request, actor) => { await read(run); return subagents.checkRequest!(run, id, request, actor); } } : {}),
 

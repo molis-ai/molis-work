@@ -49,7 +49,7 @@ export class HostAvailability {
   async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, pass?: DiscoveryPass): Promise<ActionAvailability> {
     if (!view.availability.available) return view.availability;
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
-    if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或消费场景存在循环依赖，请修正配置" };
+    if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或用途存在循环依赖，请修正配置" };
     const path = new Set(ancestors).add(key);
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
@@ -68,7 +68,7 @@ export class HostAvailability {
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
     const scene = dependencies.scene(required);
-    if (!scene) return { available: false, code: "actions.scene_missing", reason: "消费场景不存在或不可访问" };
+    if (!scene) return { available: false, code: "actions.scene_missing", reason: "所选用途不存在或不可访问" };
     const sceneState = scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability;
     if (!sceneState.available) return sceneState;
     const bindings = await dependencies.bindings(required);
@@ -113,8 +113,8 @@ const actionKey = (reference: ActionReference) => `${reference.capability_id}@${
 function dependencyDirectory(service: ActionService, caller: ActionCallContext, snapshot?: readonly ActionView[],
   projected?: () => ReadonlyMap<string, ActionView> | undefined): DiscoveryPass {
   let actions = snapshot, first: ReturnType<typeof actionDirectoryLookup> | undefined;
-  let scenes: ActionSceneView[] | undefined, choices: SubjectOfferChoiceView[] | undefined;
-  let bindings: Promise<Map<string, ActionSceneUsage[]>> | undefined;
+  let choices: SubjectOfferChoiceView[] | undefined;
+  const bindings = new Map<string, Promise<ActionSceneUsage[]>>();
   const sceneMatches = new Map<string, ActionSceneView | undefined>();
   const directory = () => actions ??= service.discover(caller);
   return {
@@ -123,27 +123,18 @@ function dependencyDirectory(service: ActionService, caller: ActionCallContext, 
     scene: reference => {
       const key = sceneKey(reference.scene_id, reference.version);
       if (!sceneMatches.has(key)) {
-        sceneMatches.set(key, (scenes ??= service.discoverScenes(caller))
-          .find(row => row.definition.scene_id === reference.scene_id && row.definition.version === reference.version));
+        sceneMatches.set(key, service.discoverScenes(caller, undefined, reference)[0]);
       }
       return sceneMatches.get(key);
     },
-    bindings: async reference => (await (bindings ??= service.usages(caller).then(enabledBindings)))
-      .get(sceneKey(reference.scene_id, reference.version)) ?? [],
+    bindings: reference => {
+      const key = sceneKey(reference.scene_id, reference.version);
+      let rows = bindings.get(key);
+      if (!rows) { rows = service.usages(caller, undefined, reference).then(usages => usages.filter(binding => binding.enabled)); bindings.set(key, rows); }
+      return rows;
+    },
     choices: () => choices ??= subjectOfferChoices(directory()),
   };
 }
 
 function sceneKey(id: string, version: number): string { return `${id}@${version}`; }
-
-function enabledBindings(usages: readonly ActionSceneUsage[]): Map<string, ActionSceneUsage[]> {
-  const groups = new Map<string, ActionSceneUsage[]>();
-  for (const binding of usages) {
-    if (!binding.enabled) continue;
-    const key = sceneKey(binding.scene_id, binding.scene_version);
-    const group = groups.get(key);
-    if (group) group.push(binding);
-    else groups.set(key, [binding]);
-  }
-  return groups;
-}

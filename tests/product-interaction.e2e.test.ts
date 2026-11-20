@@ -238,11 +238,14 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
     await click(`${panel} [data-source-schedule-save]`);
     await b.waitFor('window.scheduleResponseReady===true');
     // Something else changes while the save is held, so the refresh it causes draws the page again.
-    createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"保存期间到达的来源"});
-    await evaluate(`(()=>{const state=window.__scheduleBusy;state.oldButton=document.querySelector('${panel} [data-source-schedule-save]');state.hold=true;state.host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));})()`);
+    // QEA-03/08: capture before the write; a revision notice may redraw before the next CDP call.
+    await evaluate(`window.__scheduleBusy.oldButton=document.querySelector('${panel} [data-source-schedule-save]')`);
+    const externalSource = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"保存期间到达的来源"}).source;
+    await evaluate(`(()=>{const state=window.__scheduleBusy;state.hold=true;state.host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));})()`);
     await waitFor('window.__scheduleBusy.releaseRead');
     await evaluate('window.__scheduleBusy.releaseRead()');
     await waitFor(`!window.__scheduleBusy.oldButton.isConnected && document.querySelector('${panel} [data-source-schedule-save]')!==window.__scheduleBusy.oldButton`);
+    await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${externalSource.source_id}"]')`);
     assert.deepEqual(await evaluate(`({busy:document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy'),save:document.querySelector('${panel} [data-source-schedule-save]').disabled,reset:document.querySelector('${panel} [data-source-schedule-reset]').disabled,inert:document.querySelector('${panel}').inert})`), {busy:'true',save:true,reset:true,inert:true}, "the replacement controls stay busy while the original save response is held");
     await attemptDisabled(`${panel} [data-source-schedule-save]`);
     await attemptDisabled(`${panel} [data-source-schedule-reset]`);
@@ -290,7 +293,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await click('[data-feed-config-submit]');
   await b.waitFor('window.configResponseReady === true');
   assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
-  // ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
+  // 服务接入 §10.6 ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').disabled"), true);
   await attemptDisabled('[data-feed-sources-dialog] footer [data-feed-sources-close]');
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);

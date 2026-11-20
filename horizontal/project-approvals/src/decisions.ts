@@ -1,19 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ApprovalRuleOwner, ProjectDecisionHistory, ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import type { ApprovalRuleOwner, ProjectTrustedDecision, TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { assertFrozenProjectReview, assertProjectReviewCoverage } from "./coverage.js";
 
 type Person = Pick<ProjectTrustedDecision, "actor_id" | "source">;
 type DecisionRow = { readonly record_json: string };
 type LocatedDecisionRow = DecisionRow & { readonly row_ref: string };
-type DecisionHistory = ProjectTrustedDecision | ProjectDecisionHistory;
 type Owner = Extract<ApprovalRuleOwner, { kind: "plugin" }>;
 
-export function decisionOwnerMatches(record: DecisionHistory, owner: Owner): boolean {
-  return "kind" in record ? record.owner.plugin_id === owner.plugin_id && record.owner.publisher_signature === owner.publisher_signature
-    : "plugin_id" in record.reference.owner && record.reference.owner.plugin_id === owner.plugin_id && record.publisher_signature === owner.publisher_signature;
+export function decisionOwnerMatches(record: ProjectTrustedDecision, owner: Owner): boolean {
+  return "plugin_id" in record.reference.owner && record.reference.owner.plugin_id === owner.plugin_id && record.publisher_signature === owner.publisher_signature;
 }
 
 function fingerprint(input: TrustedReviewCommand, actorId: string, frozenChoice: unknown) {
@@ -25,20 +23,10 @@ function unreadableDecision(row: LocatedDecisionRow) {
     details: { storage: { table: "project_review_decisions", column: "record_json", row_ref: row.row_ref } } });
 }
 
-function readLocatedDecision(row: LocatedDecisionRow): DecisionHistory {
+function readLocatedDecision(row: LocatedDecisionRow): ProjectTrustedDecision {
   try {
-    const record = JSON.parse(row.record_json) as DecisionHistory;
-    if (!record || typeof record !== "object" || Array.isArray(record)) throw unreadableDecision(row);
-    if ("kind" in record && record.kind === "history") {
-      if (!isRecord(record.original)) throw unreadableDecision(row);
-      // The original JSON cells were retained as text inside the historical record.
-      if (record.subject === "event") {
-        JSON.parse(String(record.original.scope_json));
-        if (record.original.change_json !== null) JSON.parse(String(record.original.change_json));
-      } else {
-        JSON.parse(String(record.original.materialized_objects_json));
-      }
-    }
+    const record = JSON.parse(row.record_json) as ProjectTrustedDecision;
+    if (!record || typeof record !== "object" || Array.isArray(record) || !("request_key" in record)) throw unreadableDecision(row);
     return record;
   } catch {
     throw unreadableDecision(row);
@@ -47,7 +35,7 @@ function readLocatedDecision(row: LocatedDecisionRow): DecisionHistory {
 
 /** The platform owns the immutable record. A business caller commits it inside the existing owner transaction. */
 export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
-  const from = (row: DecisionRow | undefined) => row ? JSON.parse(row.record_json) as DecisionHistory : null;
+  const from = (row: DecisionRow | undefined) => row ? JSON.parse(row.record_json) as ProjectTrustedDecision : null;
   function sameRequest(input: TrustedReviewCommand, actorId: string, frozenChoice?: unknown): ProjectTrustedDecision | null {
     if (input.reference.owner.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "原决定请求属于其他项目");
     const rows = db.prepare<[string, string, string], DecisionRow>(`
@@ -73,18 +61,6 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
       if (Number(saved.changes) !== 1) throw new ActionError("actions.conflict", "原决定的业务结果已经确认或已失效");
     },
     read: (id: string, owner?: Owner) => readProjectReviewDecision(db, projectId, id, owner),
-    transferred(owner: Owner, subject: ProjectDecisionHistory["subject"]): ProjectDecisionHistory[] {
-      const rows = db.prepare<[string, string, string, string], LocatedDecisionRow>(`
-        SELECT record_json, CAST(rowid AS TEXT) AS row_ref FROM project_review_decisions WHERE project_id = ? AND request_id IS NULL
-          AND json_extract(record_json, '$.owner.plugin_id') = ? AND json_extract(record_json, '$.owner.publisher_signature') = ?
-          AND json_extract(record_json, '$.subject') = ? ORDER BY recorded_at, decision_id
-      `).all(projectId, owner.plugin_id, owner.publisher_signature, subject);
-      return rows.map(row => {
-        const record = readLocatedDecision(row);
-        if (!("kind" in record) || record.kind !== "history") throw unreadableDecision(row);
-        return record;
-      });
-    },
     forRequest(id: string): ProjectTrustedDecision | null {
       const record = from(db.prepare<[string, string], DecisionRow>(`
         SELECT record_json FROM project_review_decisions WHERE project_id = ? AND request_id = ?
@@ -97,7 +73,7 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
       `).get(projectId, id));
       return record && "request_key" in record ? record : null;
     },
-    recent(limit: number): DecisionHistory[] {
+    recent(limit: number): ProjectTrustedDecision[] {
       return db.prepare<[string, number], LocatedDecisionRow>(`
         SELECT record_json, CAST(rowid AS TEXT) AS row_ref FROM project_review_decisions WHERE project_id = ?
         ORDER BY recorded_at DESC, decision_id DESC LIMIT ?
@@ -108,7 +84,7 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
     },
     sameRequest,
     commit(input: TrustedReviewCommand, person: Person, frozenChoice: unknown, review: Pick<ProjectTrustedDecision, "publisher_signature" | "review" | "presentation">,
-      at: string, assertCurrent: () => void, originalId: string = randomUUID(), onPrepared?: (record: ProjectTrustedDecision) => void) {
+      at: string, assertCurrent: () => void, originalId: string = randomUUID()) {
       if (!db.inTransaction || person.source.kind !== "person" || person.actor_id !== person.source.actor_id
         || !person.actor_id.trim() || !person.source.entry.conversation_ref.trim() || !person.source.entry.message_ref.trim()
         || !["web", "management"].includes(person.source.entry.source)) {
@@ -126,7 +102,6 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
         choice_fingerprint: fingerprint(input, person.actor_id, frozenChoice), publisher_signature: review.publisher_signature, review: review.review,
         ...(review.presentation ? { presentation: review.presentation } : {}),
       };
-      onPrepared?.(record);
       db.prepare(`INSERT INTO project_review_decisions
         (decision_id, project_id, request_id, request_key, record_json, recorded_at) VALUES (?, ?, ?, ?, ?, ?)
       `).run(record.decision_id, projectId, input.reference.id, input.request_key, canonicalJsonText(record, "null"), at);
@@ -161,9 +136,9 @@ export function projectReviewDecisions(db: SqliteDatabase, projectId: string) {
   };
 }
 
-export function readProjectReviewDecision(db: { prepare(sql: string): { get(...params: string[]): unknown } }, projectId: string, id: string, owner?: Owner): DecisionHistory | null {
-  const filter = owner ? `AND coalesce(json_extract(record_json, '$.owner.plugin_id'), json_extract(record_json, '$.reference.owner.plugin_id')) = ?
-    AND coalesce(json_extract(record_json, '$.owner.publisher_signature'), json_extract(record_json, '$.publisher_signature')) = ?` : "";
+export function readProjectReviewDecision(db: { prepare(sql: string): { get(...params: string[]): unknown } }, projectId: string, id: string, owner?: Owner): ProjectTrustedDecision | null {
+  const filter = owner ? `AND json_extract(record_json, '$.reference.owner.plugin_id') = ?
+    AND json_extract(record_json, '$.publisher_signature') = ?` : "";
   const row = db.prepare(`SELECT record_json, CAST(rowid AS TEXT) AS row_ref
     FROM project_review_decisions WHERE project_id = ? AND decision_id = ? ${filter}`)
     .get(projectId, id, ...(owner ? [owner.plugin_id, owner.publisher_signature] : [])) as LocatedDecisionRow | undefined;

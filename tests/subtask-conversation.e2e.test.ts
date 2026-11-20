@@ -81,17 +81,25 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await wait(`${field} && !${field}.disabled`);
   });
 
-  await t.test("B58-02: user scroll, unread update and reopen retain reading position and process expansion", async () => {
+  await t.test("B58-02 QEA-180: user scroll, unread update and reopen retain reading position and process expansion", async () => {
+    const thread = control("thread");
+    const tailDistance = `${thread}.scrollHeight - ${thread}.clientHeight - ${thread}.scrollTop`;
+    await evaluate(`(() => {
+      const detail = ${root}.querySelector('details');
+      if (detail.open) return;
+      return new Promise(resolve => { detail.addEventListener('toggle', () => resolve(true), {once:true}); detail.open = true; });
+    })()`);
     await evaluate("probe.owner.record('a').messages = Array.from({length:80},(_,i)=>({id:'long-'+i,role:'assistant',content:{text:'Paragraph '+i+' with enough words to read.'}})); probe.handle.refresh()");
-    await evaluate(`${root}.querySelector('details').open = true; ${control("follow")}.click()`);
-    await wait(`${control("thread")}.scrollTop > 0`);
+    // Use the automatic pin for new content and wait for its actual landing before the person's upward scroll.
+    await wait(`${thread}.scrollTop > 0 && ${tailDistance} <= 1`);
     const point = await evaluate<{ x: number; y: number; top: number }>(`(() => { const box=${control("thread")}.getBoundingClientRect(); return {x:box.x+box.width/2,y:box.y+box.height/2,top:${control("thread")}.scrollTop}; })()`);
     // Detached is reported on wheel input, before the browser finishes its asynchronous scroll.
     await evaluate(`void (probe.scrollFinished = new Promise(resolve => ${control("thread")}.addEventListener('wheel', () => ${control("thread")}.addEventListener('scrollend', resolve, {once:true}), {once:true})))`);
     await b.command("Input.dispatchMouseEvent", {type:"mouseWheel",x:point.x,y:point.y,deltaX:0,deltaY:-3000}, b.sessionId);
     await evaluate("probe.scrollFinished.then(() => true)");
     await wait(`${control("thread")}.scrollTop < ${point.top}`);
-    assert.ok(await evaluate<number>(`${control("thread")}.scrollTop`) < point.top, "the native wheel actually moved the reading position before it is saved");
+    const afterWheel = await evaluate<number>(`${control("thread")}.scrollTop`);
+    assert.ok(afterWheel < point.top, `the native wheel actually moved the reading position before it is saved (${point.top} → ${afterWheel})`);
     await wait(`${control("thread")}.dataset.follow === 'detached'`);
     await evaluate(`${control("thread")}.scrollTop=200; ${field}.focus(); probe.owner.record('a').messages=[...probe.owner.record('a').messages,{id:'unread',role:'assistant',content:{text:'Unread result'}}]; probe.handle.refresh()`);
     assert.deepEqual(await evaluate(`[${control("latest")}.hidden,${control("thread")}.scrollTop,document.activeElement===${field}]`), [false,200,true]);
@@ -100,8 +108,8 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     assert.equal(await evaluate(`${control("thread")}.scrollTop`), 200);
     assert.equal(await evaluate(`${root}.querySelector('details').open`), true);
     assert.equal(await evaluate(`${control("latest")}.hidden`), false);
-    await evaluate(`${control("follow")}.click()`);
-    await wait(`${control("thread")}.dataset.follow==='following'`);
+    await b.click("#subtask-probe [data-subtask-follow]");
+    await wait(`${thread}.dataset.follow === 'following' && ${tailDistance} <= 1`);
   });
 
   await t.test("SAI-11: shell reveal after close and an unfinished read cannot overwrite saved expansion without a scroll follower", async () => {
@@ -328,6 +336,33 @@ test("B58-01..05: public child conversation, two owners, original receipts and r
     await wait(`!${root}.querySelector('[data-composer-status-action="check"]') && ${field}.value === ''`);
     assert.deepEqual(await evaluate("[probe.bootstrapChecks,probe.owner.queries.length,probe.owner.sends.length]"), [1,2,1]);
   });
+  await t.test("QEA-45 B58-03: the public subtask composer forwards a late owner acknowledgement without clearing later input", async () => {
+    await evaluate(`probe.handle.destroy(); probe.root.remove(); probe=SubtaskProbe.mountProbe(); probe.acks=[];
+      const composer=probe.owner.source.composer;
+      probe.owner.source.composer=view=>{const options=composer(view);return {...options,submit:(input,signal,acknowledge)=>{
+        probe.acks.push(acknowledge);return options.submit(input,signal,acknowledge);
+      }};};
+      probe.owner.unknownInput(true); probe.handle.open('a')`);
+    await wait(`${field}.value === 'a draft'`);
+    await evaluate("probe.fill('accepted original'); probe.send()");
+    await wait(`${root}.querySelector('[data-composer-status-action="check"]')`);
+    await evaluate("probe.fill('later edit'); probe.owner.receipts.set(probe.owner.sends[0].input.request_id,'sent'); probe.owner.source.check('a',probe.owner.sends[0].input.request_id,new AbortController().signal)");
+    await evaluate("probe.acks[0](); probe.acks[0]()");
+    await wait(`!${root}.querySelector('[data-composer-status-action="check"]') && !${field}.disabled`);
+    assert.equal(await evaluate(`${field}.value`), "later edit");
+    assert.equal(await evaluate("probe.owner.sends.length"), 1);
+    await evaluate("probe.send()");
+    await wait("probe.acks.length === 2");
+    await wait(`${root}.querySelector('[data-composer-status-action="check"]')`);
+    await evaluate("probe.acks[0]()");
+    assert.equal(await evaluate(`${field}.value`), "later edit");
+    assert.equal(await evaluate(`Boolean(${root}.querySelector('[data-composer-status-action="check"]'))`), true);
+    await evaluate("probe.owner.receipts.set(probe.owner.sends[1].input.request_id,'sent'); probe.owner.source.check('a',probe.owner.sends[1].input.request_id,new AbortController().signal)");
+    await evaluate("probe.acks[1]()");
+    await wait(`${field}.value === '' && !${root}.querySelector('[data-composer-status-action="check"]')`);
+    assert.equal(await evaluate("probe.owner.sends.length"), 2);
+  });
+
   await t.test("SAI-11/13: short floats keep feedback, latest, message controls and input reachable by mouse", async () => {
     for (const height of [243, 160]) {
       await evaluate(`probe.handle.destroy(); probe.root.remove(); probe=SubtaskProbe.mountProbe(); probe.root.style.height='${height}px';

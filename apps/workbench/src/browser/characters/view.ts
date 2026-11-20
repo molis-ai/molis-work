@@ -1,5 +1,5 @@
 import type {
-  CharacterMemberEntry, CharacterOriginalEntry, CharacterRoleCatalog, CharacterRoleSection,
+  CharacterMemberEntry, CharacterOriginalEntry, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection,
 } from "@molis-ai/molis-work-contracts/modules/characters";
 import {
   escapeHtml as esc, icon, renderAlert, renderAvatar, renderBadge, renderButton, renderEmpty, renderSourceLadder,
@@ -17,7 +17,7 @@ export interface PageUi {
   diff: string | null;
   flash: string | null;
   /** The difference shown under an upstream note: this project's section next to the original's current one. */
-  diffText?: { ours: string; theirs: string; version: number };
+  diffText?: { ours: CharacterRoleContent; theirs: CharacterRoleContent; version: number };
 }
 
 export type Member = CharacterMemberEntry;
@@ -30,7 +30,8 @@ const act = (name: string, arg = "", extra: Partial<MwButtonOptions> = {}): stri
 } as MwButtonOptions);
 const state = (tone: "neutral" | "warning", text: string): string => `<span class="settings-state settings-state--${tone}">${esc(text)}</span>`;
 const section = (id: string, title: string, body: string, head = ""): string =>
-  `<section class="settings-section" aria-labelledby="${id}"><div class="roles-sec-head"><h2 id="${id}">${esc(title)}</h2>${head}</div>${body}</section>`;
+  // POLISH-29/30: the layout every settings page shares: the title (and its actions) outside, one card of rows under it.
+  `<section class="settings-section mw-settings-section" aria-labelledby="${id}"><header class="mw-settings-section__head roles-sec-head"><h2 id="${id}">${esc(title)}</h2>${head}</header><div class="mw-settings-section__rows">${body}</div></section>`;
 const setRow = (title: string, hint: string, value: string): string =>
   `<section class="settings-setting-row"><div class="setting-copy"><strong>${esc(title)}</strong><span>${esc(hint)}</span></div><div class="setting-value">${value}</div></section>`;
 const inset = (body: string, labelledBy: string, extra = ""): string => `<div class="roles-inset${extra}" role="group" aria-labelledby="${labelledBy}">${body}</div>`;
@@ -40,8 +41,31 @@ export const memberKey = (member: Member): string => member.role.current.member_
 export const originalOf = (catalog: CharacterRoleCatalog, member: Member): Original | undefined =>
   catalog.originals.find(original => original.ref.character_id === member.role.current.original.character_id);
 const overridden = (member: Member): CharacterRoleSection[] => SECTIONS.filter(name => member.role.sections[name].mode === "override");
-const originalChanged = (member: Member): CharacterRoleSection[] =>
+export const originalChanged = (member: Member): CharacterRoleSection[] =>
   SECTIONS.filter(name => { const status = member.role.sections[name]; return status.mode === "override" && status.original_changed; });
+
+const fields = {
+  title: (content: CharacterRoleContent) => [content.title],
+  work_style: (content: CharacterRoleContent) => [content.instructions],
+  capabilities: (content: CharacterRoleContent) => [
+    content.host_tools === null ? say("workbench.characters.inherit-caller") : content.host_tools.join(", ") || say("workbench.characters.no-builtins"),
+    content.action_tools == null ? say("workbench.characters.actions-inherit-task") : content.action_tools
+      .map(ref => ref.capability_id + "@" + ref.version + " (" + ref.provider_id + ")").join("\n") || say("workbench.characters.actions-none"),
+  ],
+};
+
+export const sameRoleCapabilities = (left: CharacterRoleContent, right: CharacterRoleContent): boolean =>
+  JSON.stringify([left.host_tools, left.action_tools ?? null]) === JSON.stringify([right.host_tools, right.action_tools ?? null]);
+
+export function renderRoleDiff(left: CharacterRoleContent, right: CharacterRoleContent, labels: [string, string], sections?: CharacterRoleSection[]): string {
+  const changed = { title: left.title !== right.title, work_style: left.instructions !== right.instructions, capabilities: !sameRoleCapabilities(left, right) };
+  const contentKeys = sections ?? (["title", ...SECTIONS] as const).filter(section => changed[section]);
+  const render = (value: CharacterRoleContent, heading: string) => `<section><h4>${esc(heading)}</h4>${contentKeys.map(section => {
+    const label = section === "work_style" ? "workbench.roles.way" : section === "capabilities" ? "workbench.roles.tools" : "workbench.characters.name";
+    return `<p><strong>${esc(say(label))}</strong><br><span translate="no">${fields[section](value).map(esc).join("<br>")}</span></p>`;
+  }).join("")}</section>`;
+  return `<div class="roles-diff">${render(left, labels[0])}${render(right, labels[1])}</div>`;
+}
 
 /** The value a project member stands for in the default select and the ladder. */
 function memberTitle(catalog: CharacterRoleCatalog, memberId: string): string | null {
@@ -133,12 +157,15 @@ function upstream(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): st
   const changed = originalChanged(member);
   if (!changed.length) return "";
   const id = memberKey(member), version = originalOf(catalog, member)?.version ?? member.role.current.original.version;
-  const open = ui.diff === id && ui.diffText;
-  const diff = open ? inset(`<div class="roles-diff"><section><h4>${esc(say("workbench.roles.this-project"))}</h4><p translate="no">${esc(ui.diffText!.ours)}</p></section><section><h4>${esc(say("workbench.roles.original-version", { version: ui.diffText!.version }))}</h4><p translate="no">${esc(ui.diffText!.theirs)}</p></section></div>`, "roles-diff-" + id) : "";
-  const alert = renderAlert({ tone: "warning", title: say(changed[0] === "work_style" ? "workbench.roles.upstream-way" : "workbench.roles.upstream-tools", { name: member.title, version: version ?? 0 }),
-    body: say("workbench.roles.upstream-body"), actions: [
+  const open = ui.diff === id ? ui.diffText : undefined;
+  const diff = open ? inset(renderRoleDiff(open.ours, open.theirs,
+    [say("workbench.roles.this-project"), say("workbench.roles.original-version", { version: open.version })], changed), "roles-diff-" + id) : "";
+  const both = changed.length === 2;
+  const title = both ? [member.title, say("workbench.roles.original-version", { version }), say("workbench.roles.way"), say("workbench.roles.tools")].join(" · ")
+    : say(changed[0] === "work_style" ? "workbench.roles.upstream-way" : "workbench.roles.upstream-tools", { name: member.title, version });
+  const alert = renderAlert({ tone: "warning", title, ...(both ? {} : { body: say("workbench.roles.upstream-body") }), actions: [
       { size: "sm", label: say(open ? "workbench.roles.hide-difference" : "workbench.roles.see-difference"), attrs: { "data-roles-act": "diff", "data-roles-arg": id, "aria-expanded": String(Boolean(open)) } },
-      { size: "sm", label: say("workbench.roles.follow-original"), attrs: { "data-roles-act": "refollow", "data-roles-arg": id } },
+      { size: "sm", label: say("workbench.roles.follow-original"), attrs: { "data-roles-act": "refollow-changed", "data-roles-arg": id } },
       { size: "sm", variant: "ghost", label: say("workbench.roles.keep-this-project"), attrs: { "data-roles-act": "keep-own", "data-roles-arg": id } },
     ] });
   return alert.replace(/<\/div>$/u, diff + "</div>");

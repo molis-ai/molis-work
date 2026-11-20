@@ -1,3 +1,5 @@
+import type { ConversationAttachment, ConversationAttachmentContent, ConversationAttachmentUploadRequest } from '../services/materials.js';
+import type { MaterialRef } from './project-materials.js';
 import type { ActionSchema } from './action-schema.js';
 import type { PresentationDeclaration } from './presentation-declaration.js';
 import type { PluginLocalesDeclaration, TextRef, UiFormatTool, UiSayTool, UiTextTool } from './ui-text.js';
@@ -267,10 +269,12 @@ export type SandboxOwnerFileChange =
 
 /** One part of an original file as it crosses the channel: at most 256 KiB of bytes, the file's size and the opaque revision a later part passes back. */
 export interface SandboxOriginalPart { data_base64: string; byte_length: number; size: number; revision: string }
+/** One part of an attached picture: `byte_length` bytes from where the part was asked for, of `size` in all. */
+export interface SandboxAttachmentPart { data_base64: string; byte_length: number; size: number; media_type: string }
 
 /** A model the person configured in this Home, as it crosses the channel: names and capabilities, never an endpoint or a credential. */
 export interface SandboxModelSelection { provider_id: string; model_id: string }
-export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision: boolean; reasoning_effort: boolean }
+export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision?: boolean; reasoning_effort: boolean }
 /** The package's model settings as the Host shows them to it: the enabled providers by name and model, never an endpoint, a connection or a credential. */
 export interface SandboxModelSettingsView {
   configured: boolean;
@@ -402,6 +406,10 @@ export interface SandboxSdk {
     claimOriginal(record_key: string): Promise<void>;
     readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
     releaseOriginal(record_key: string): Promise<void>;
+    /** A file the person brought into this plugin's conversation, kept as this installation's attachment in this project (`materials:read`). */
+    attach(file: SandboxMaterialFile, request?: Pick<ConversationAttachmentUploadRequest, 'expected_kind'>): Promise<ConversationAttachment>;
+    /** One of this installation's attachments read back: its text, or a picture's bytes (read in parts of at most 256 KiB). */
+    readAttachment(ref: MaterialRef, request: { as: 'text' | 'image' }): Promise<ConversationAttachmentContent>;
   };
   /** Existing project ids only, up to 200 per request; needs effects.projects: ['exist'] and the current optional Manifest projects:exist grant. */
   projects: { exist(ids: readonly string[]): Promise<Readonly<Record<string, boolean>>> };
@@ -466,7 +474,7 @@ export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' 
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'
-  | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
+  | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'model.choices' | 'model.availability' | 'model.complete'
   | 'model.settings.read' | 'model.settings.save'

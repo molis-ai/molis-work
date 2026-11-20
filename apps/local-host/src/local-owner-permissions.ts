@@ -6,12 +6,14 @@ import { HOME_ACTION_PERMISSIONS, HOME_PROVIDER_ID } from "./home-actions.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_PROVIDER_ID } from "./connector-account-actions.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { connectorRecordActions } from "./connector-record-actions.js";
+import { WEB_SEARCH_MANAGE, WEB_SEARCH_QUERY } from "./web-search-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RUNS_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
+import { projectRuntimeSettingOwner, runtimeSettingsActions } from "./project-runtime-setting-actions.js";
 import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { MATERIALS_PROVIDER_ID, materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { HOST_PROVIDER_ID } from "./local-host.js";
@@ -59,7 +61,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
     [APPEARANCE_PROVIDER_ID, [APPEARANCE_READ_PERMISSION, APPEARANCE_WRITE_PERMISSION]],
-    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, KIT_READ_PERMISSION]],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, WEB_SEARCH_QUERY, WEB_SEARCH_MANAGE, KIT_READ_PERMISSION]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     // Writing a Skill of one's own is the same: the package of own Skills is signed and installed here (batch 41).
@@ -78,6 +80,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
+    [projectRuntimeSettingOwner.provider_id, asks(Object.values(runtimeSettingsActions))],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     // The platform's materials service reads the person's own project folders, as Files did for them (Files retirement, BSH-08).
     // Held over this provider only; a route carries it in its cap only when it reads folders (`MATERIALS_OWNER_PERMISSIONS`).

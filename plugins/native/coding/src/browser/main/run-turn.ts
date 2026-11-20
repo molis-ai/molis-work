@@ -4,6 +4,7 @@ import { paintable } from "./boundary.js";
 import { enrichCode, linkedText } from "./code.js";
 import { foldTurn } from "./run-folds.js";
 import type { Page } from "./page.js";
+import { api, sessionPath } from "./request.js";
 import type { RunView, TurnView } from "./shapes.js";
 
 /** What a turn's text is drawn from, so a turn already drawn from the same text is left alone. */
@@ -23,6 +24,35 @@ function drawText(page: Page, node: HTMLElement, run: RunView, turn: TurnView, w
   if (!turn.html) linkedText(node, turn.text);
 }
 
+/**
+ * The pictures a round was sent with, under the person's words (A3 「发出后在消息里」): each read back from the platform once and
+ * shown as a thumbnail that opens larger in the board's dialog; one that cannot be read says so by its name.
+ */
+function roundPictures(page: Page, node: HTMLElement, run: RunView) {
+  if (node.querySelector(":scope > .coding-turn__pictures")) return;
+  const { readText, s } = page, row = el("ul", "", "coding-turn__pictures");
+  const images = run.frozen.image_materials!;
+  row.setAttribute("aria-label", readText("coding.images.sent", { n: images.length }));
+  node.append(row);
+  void api<{ images: { material_id: string; media_type: string; data: string }[] }>(page, sessionPath(s.current, run.ref.run_id) + "/images").catch(() => null).then(result => {
+    if (!row.isConnected) return;
+    for (const image of images) {
+      const open = el("button", "", "coding-turn__picture");
+      const found = result?.images.find(item => item.material_id === image.material_id);
+      open.type = "button";
+      open.title = image.title;
+      open.setAttribute("aria-label", readText("coding.images.open", { name: image.title }));
+      open.disabled = !found;
+      row.appendChild(el("li")).append(open);
+      if (!found) { open.textContent = readText("coding.images.unreadable", { name: image.title }); continue; }
+      const src = "data:" + found.media_type + ";base64," + found.data, thumb = el("img");
+      thumb.src = src; thumb.alt = "";
+      open.append(thumb);
+      open.onclick = () => window.molisPicture?.(open, { src, title: image.title, close: readText("coding.images.close") });
+    }
+  });
+}
+
 /** The node of one turn in a round's block: made once, drawn again only when its text changed. */
 export function turnNode(page: Page, block: HTMLElement, turn: TurnView, run: RunView, all: readonly RunView[]): HTMLElement {
   const { host, s, turns } = page, { inputReceipts } = page.refs;
@@ -39,6 +69,7 @@ export function turnNode(page: Page, block: HTMLElement, turn: TurnView, run: Ru
     s.renderedText.set(node, renderKey);
     enrichCode(page, node);
   }
+  if (turn.kind === "user" && run.frozen.image_materials?.length && run.turns.find(one => one.kind === "user") === turn) roundPictures(page, node, run);
   const receipt = host.receipts.line(turns, turn, { run_id: run.ref.run_id, awaiting_input: run.awaiting_input, step_board: run.step_board }, inputReceipts.act(s.current, run.ref.run_id));
   if (receipt && receipt.parentNode !== node) node.append(receipt);
   return node;

@@ -43,6 +43,12 @@ export type CharacterDefaultSelection =
 
 export type CharacterTaskSelection = PersonalCharacterRef | ProjectCharacterMemberRef | { kind: "assistant" };
 
+/** Whether a fixed version belongs to the selected original or project member. */
+export function characterVersionMatchesSelection(version: CharacterRoleVersionRef, selection: CharacterTaskSelection): boolean {
+  if (version.kind === "personal") return selection.kind === "personal" && selection.character_id === version.character_id;
+  return version.kind === "project" && selection.kind === "project" && selection.member_id === version.member_id;
+}
+
 export type EffectiveCharacterSelection =
   | { kind: "role"; source: "task"; version: CharacterRoleVersionRef }
   | { kind: "role"; source: "project"; version: ProjectCharacterVersionRef }
@@ -284,12 +290,14 @@ export type CharacterRoleListInput = Record<string, never>;
 export type CharacterVersionsReadInput = { role: PersonalCharacterRef | ProjectCharacterMemberRef };
 export type CharacterMemberAddInput = { character_id: string };
 export type CharacterMemberSaveInput = { member_id: string; expected_revision: string; expected_original_version: number;
+  /** When given, write the edited sections to the original and make those member sections follow it, atomically. */
+  expected_original_draft_revision?: number;
   work_style?: { instructions: string }; capabilities?: Pick<CharacterRoleContent, "host_tools" | "action_tools"> };
 export type CharacterMemberSectionInput = { member_id: string; section: CharacterRoleSection; expected_revision: string; expected_original_version: number; to: "follow" | "keep" };
 export type CharacterMemberStateInput = { member_id: string; expected_revision: string; state: "active" | "disabled" | "removed" };
 export type CharacterRestoreInput =
   | { version: PersonalCharacterVersionRef; expected_revision: number }
-  | { version: ProjectCharacterVersionRef; expected_revision: string; expected_original_version: number };
+  | { version: ProjectCharacterVersionRef; expected_revision: string; expected_original_version: number; expected_original_draft_revision?: number };
 export type CharacterRoleResolveInput = { selection?: CharacterTaskSelection };
 type ProjectRole = Extract<CharacterRole, { layer: "project" }>;
 
@@ -306,10 +314,11 @@ export const CHARACTER_ROLE_SCHEMAS = {
   memberSave: {
     input: inputSchemaFor<CharacterMemberSaveInput>()(closedObjectSchema({
       member_id: nonEmptyString, expected_revision: memberRevision, expected_original_version: positiveSafeInteger,
+      expected_original_draft_revision: positiveSafeInteger,
       work_style: closedObjectSchema({ instructions: { type: "string", maxLength: 20_000 } }),
       capabilities: closedObjectSchema({ host_tools: hostTools, action_tools: actionTools }, ["host_tools"]),
     }, ["member_id", "expected_revision", "expected_original_version"])),
-    output: memberResult as ActionSchema,
+    output: closedObjectSchema({ role: memberRoleSchema, original_draft_revision: positiveSafeInteger }, ["role"]) as ActionSchema,
   },
   memberSection: {
     input: inputSchemaFor<CharacterMemberSectionInput>()(closedObjectSchema({
@@ -326,7 +335,8 @@ export const CHARACTER_ROLE_SCHEMAS = {
   restore: {
     input: inputSchemaFor<CharacterRestoreInput>()({ oneOf: [
       closedObjectSchema({ version: personalVersion, expected_revision: positiveSafeInteger }),
-      closedObjectSchema({ version: projectVersion, expected_revision: memberRevision, expected_original_version: positiveSafeInteger }),
+      closedObjectSchema({ version: projectVersion, expected_revision: memberRevision, expected_original_version: positiveSafeInteger,
+        expected_original_draft_revision: positiveSafeInteger }, ["version", "expected_revision", "expected_original_version"]),
     ] }),
     output: closedObjectSchema({ role: roleSchema }) as ActionSchema,
   },
@@ -341,3 +351,4 @@ export const CHARACTER_ROLE_SCHEMAS = {
 } as const;
 
 export type CharacterMemberResult = { role: ProjectRole };
+export type CharacterMemberSaveResult = CharacterMemberResult & { original_draft_revision?: number };

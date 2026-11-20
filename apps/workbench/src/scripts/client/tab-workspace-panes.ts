@@ -120,12 +120,12 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     if (state.exclusive) {
       root.dataset.exclusive = state.exclusive;
       if (!embedded) document.title = coverLabel(state.exclusive) + " · Molis Work";
-      if (titlebarStrip) {
-        // The strip stays readable under a cover: it names the cover and keeps the way back.
-        const chromeTabs = !embedded && state.panes.length < 2;
-        titlebarStrip.hidden = !chromeTabs;
+      if (!embedded && titlebarStrip) {
+        // Covers hide the pane strips. Their name and close button belong in the titlebar.
         const coveredPane = ops.focused(state);
-        if (chromeTabs && coveredPane) { titlebarStrip.dataset.chromePane = coveredPane.id; renderStrip(coveredPane, titlebarStrip); }
+        titlebarStrip.hidden = false;
+        titlebarStrip.dataset.chromePane = coveredPane.id;
+        renderStrip(coveredPane, titlebarStrip);
       }
       const node = [...document.querySelectorAll('[data-work-surface="' + state.exclusive + '"]')]
         .find((candidate) => !candidate.closest("[data-goal-canvas-shell]"));

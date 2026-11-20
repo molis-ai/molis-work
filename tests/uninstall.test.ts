@@ -5,10 +5,10 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import test from "node:test";
+import test, { after, before } from "node:test";
 import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
 
@@ -17,12 +17,43 @@ import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host"
 
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const IMMUTABLE_RELEASE_DIRS = new Set(["dist", "skills", "node_modules"]);
+let templateRoot = "";
+let templateHome = "";
+
+async function cloneInstalledHome(source: string, destination: string, immutableSubtree = false): Promise<void> {
+  await mkdir(destination, { recursive: true });
+  const entries = await readdir(source, { withFileTypes: true });
+  await Promise.all(entries.map(async (entry) => {
+    const from = join(source, entry.name);
+    const to = join(destination, entry.name);
+    if (entry.isDirectory()) {
+      await cloneInstalledHome(from, to, immutableSubtree || IMMUTABLE_RELEASE_DIRS.has(entry.name));
+    } else if (entry.isSymbolicLink()) {
+      await symlink(await readlink(from), to);
+    } else if (immutableSubtree) {
+      try { await link(from, to); } catch { await copyFile(from, to); }
+    } else {
+      await copyFile(from, to);
+    }
+  }));
+}
+
+before(async () => {
+  templateRoot = await mkdtemp(join(tmpdir(), "molis-work-uninstall-template-"));
+  templateHome = join(templateRoot, ".molis-work");
+  await installMolisWorkHome({ homeDirectory: templateHome, sourceDirectory: ROOT, version: "0.1.0-uninstall-test" });
+});
+
+after(async () => {
+  if (templateRoot) await rm(templateRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+});
 
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-uninstall-"));
   const userHome = join(directory, "user");
   const home = join(userHome, ".molis-work");
-  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: ROOT, version: "0.1.0-uninstall-test" });
+  await cloneInstalledHome(templateHome, home);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const userProject = await catalog.createProject({ display_name: "用户项目", actor_id: "user" });
   const demo = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
@@ -181,7 +212,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
       "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
       "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json", "config/ui-locale.json",
-      "config/desktop.json", "run/presence.json",
+      "config/desktop.json", "run/presence.json", "run/expired-seen.json",
       "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
       // SSC-23: the files the person left in the default output directories when projects were deleted.
       "outputs/a-deleted-project/report.md"];

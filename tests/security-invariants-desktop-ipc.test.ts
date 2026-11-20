@@ -181,11 +181,11 @@ test("RES-08 RES-11 S-14 the runtime commands: the popover's own page reads, dec
   const permission = readFileSync(join(SHELL, "permissions", "runtime.toml"), "utf8");
   const blocks = Object.fromEntries(permission.split("[[permission]]").slice(1).map(block => [/identifier\s*=\s*"([^"]+)"/.exec(block)![1]!,
     [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(block)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!).sort()]));
-  assert.deepEqual(blocks, { "allow-runtime-capsule": ["runtime_decide", "runtime_missed_dot", "runtime_open", "runtime_overview", "runtime_quit_confirmed"],
+  assert.deepEqual(blocks, { "allow-runtime-capsule": ["runtime_decide", "runtime_expired_seen", "runtime_missed_dot", "runtime_open", "runtime_overview", "runtime_quit_confirmed"],
     "allow-runtime-settings": ["runtime_settings_get", "runtime_settings_set"] });
   // Each command checks its caller before it does anything, and the Rust tests pin the refusals.
   const source = readFileSync(fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/runtime.rs", import.meta.url)), "utf8");
-  for (const command of ["runtime_overview", "runtime_decide", "runtime_missed_dot", "runtime_quit_confirmed"]) {
+  for (const command of ["runtime_overview", "runtime_decide", "runtime_expired_seen", "runtime_missed_dot", "runtime_quit_confirmed"]) {
     const body = source.slice(source.indexOf(`fn ${command}(`));
     assert.ok(body.indexOf("from_capsule(&window)?") > 0 && body.indexOf("from_capsule(&window)?") < body.indexOf("\n}\n"), `${command} checks the popover's page first`);
   }

@@ -33,7 +33,7 @@ export { hostDependencyCheck, type PluginDependencyCheck } from "./plugin-action
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { handleCharactersHttp, type CharactersInvoke } from "./characters-http.js";
 export { charactersProvider, type CharactersProject } from "./characters-host.js";
-export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
+export { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-home-database-client.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
@@ -99,8 +99,7 @@ export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { createProjectApprovalSyncRegistration } from './personal-project-approval-sync.js';
 export { projectApprovalSyncSelection } from './platform-sync-catalog.js';
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
-export { PROJECT_DATABASE_BASELINE, PROJECT_DATABASE_VERSION_3_SCHEMA } from "./project-database-schema.js";
-export { projectApprovalUpgrade } from "./project-database-schema.js";
+export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
@@ -208,7 +207,7 @@ export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
-export { connectorDirectory, connectorLoginReady } from "./connector-directory.js";
+export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
@@ -276,9 +275,7 @@ export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export { runLocalHomeCli } from "./cli-home.js";
 export { startOfToday } from "./assistant/assistant-usage-ledger.js";
-export { PROJECT_DATABASE_VERSION_2_SCHEMA } from "./project-database-schema.js";
-export { adoptionRefusalText, type AdoptionRefusalCode, type AdoptionRefusalText } from "./process-items-refusal-text.js";
-export { ORIGINAL_PROJECT_REPLICATION_SCHEMA_SQL, PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
+export { PROJECT_REPLICATION_SCHEMA_SQL } from "./project-replication-schema.js";
 export type { LocalCliOptions } from "./cli-host.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
@@ -316,7 +313,14 @@ export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./searc
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
 // An onboarding round run with the caller's own ports (a stub model), for checking the page while it organizes.
-export { startContextJourney, waitContextJourney } from "./context-onboarding-service.js";
+export { adoptContextJourney, readContextJourney, selectContextSources, startContextJourney, updateContextDraft, waitContextJourney } from "./context-onboarding-service.js";
+// Test fixtures for SRB-09 and the Sessions permission boundary.
+export { readOnboardingSessions, sessionKeyOf } from "./context-onboarding-sessions.js";
+export { bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
+// Test fixtures for A2 and the prompt command permissions.
+export { personalPromptCommands, projectPromptCommands } from "./prompt-commands.js";
+export { registerProjectCapabilities } from "./project-capabilities.js";
+export { issuePluginCaller } from "./plugin-callers.js";
 export { classifyContextModelFailure } from "./context-onboarding-delta.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
@@ -328,6 +332,7 @@ export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { AssistantReportRounds, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
+export { reportTurn } from "./assistant/assistant-dispatch.js";
 export { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "./assistant/assistant-agent.js";
 export { roundStartInput } from "./assistant/assistant-round-start.js";
 // The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
@@ -343,6 +348,9 @@ export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
 export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type DeliveryNote } from "./assistant/assistant-delivery.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
+// Test fixtures exercising the real attachment owner without an HTTP server.
+export { assistantAttachments, assistantAttachmentImage } from "./assistant/assistant-attachments.js";
+export { attachConversationFile, readConversationAttachment, holdsConversationAttachment, forgetProjectAttachments, forgetInstallationAttachments } from "./material-attachments.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
@@ -395,6 +403,7 @@ export { hostTextProblems, installHostUiText } from "./ui-text-provider.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { attentionChanged, onAttentionChange, onAttentionChangeOf } from "./attention-changes.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
+export { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
@@ -422,10 +431,6 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
-export { adoptionPending, adoptProjectDatabase, inspectProjectAdoption, processItemsNeverSynced, retireFilesConsents, type FilesConsentRetirement, type ProjectAdoptionReport } from "./process-items-adoption.js";
-export type { ProjectLayout } from "./project-layout.js";
-export { captureProcessItemsRecovery, verifyProcessItemsRecovery, type ProcessItemsRecoveryCapture } from "./process-items-recovery.js";
-export { processItemsMaintenance, type ProcessItemsMaintenance, type ProcessItemsMaintenancePorts, type ProcessItemsMaintenanceView } from "./process-items-maintenance.js";
 export { createProjectGoalContent } from "./project-goal-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.
@@ -454,7 +459,8 @@ export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent
 export { gatewayFactory } from "./continuity-gateway.js";
 export { configureMemberActions } from "./continuity-admin.js";
 export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";
-export { runtimeOverview, decideRuntimeRun, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
+export { runtimeOverview, decideRuntimeRun, runtimeExpiredSeenRequest, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
+export { expiredOwnerKey, expiredSeen, markExpiredSeen, type ExpiredSeen } from "./runs-expired-seen.js";
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
 export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";
@@ -466,4 +472,5 @@ export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
+export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { recoverAcceptanceCommits } from "./acceptance-recovery.js";

@@ -124,9 +124,8 @@ function projectReachRow(entry: ProjectReachConsentEntry): PluginConsentRecord {
 
 const sameApproval = (a: PluginConsentRecord, b: PluginConsentRecord): boolean => key(a) === key(b) && a.revoked_at === null
   && a.manifest_digest === b.manifest_digest && JSON.stringify(a.approved_capability_ids) === JSON.stringify(b.approved_capability_ids);
-const selectedReach = (row: PluginConsentRecord, selection: ProjectReachConsentSelection): boolean => {
-  if (row.kind !== "project_reach" || row.revoked_at !== null) return false;
-  const subject = readProjectReachSubject(row.subject);
+const matchesReachSubject = (value: string, selection: ProjectReachConsentSelection): boolean => {
+  const subject = readProjectReachSubject(value);
   return "project_id" in selection ? subject.project_id === selection.project_id : subject.install_id === selection.install_id;
 };
 
@@ -183,7 +182,7 @@ export class MemoryPluginConsentLedger implements PluginConsentLedger {
     return copyConsent(row);
   }
   revokeProjectReach(selection: ProjectReachConsentSelection, at: string): number {
-    const rows = this.rows.filter(row => selectedReach(row, selection));
+    const rows = this.rows.filter(row => row.kind === "project_reach" && row.revoked_at === null && matchesReachSubject(row.subject, selection));
     for (const row of rows) this.revoke(row.consent_id, at);
     return rows.length;
   }
@@ -213,6 +212,8 @@ function consentFromRow(row: ConsentRow): PluginConsentRecord {
   if (row.approved_capability_ids !== null) throw pluginErrors.state_invalid("非项目同意的批准集合必须为 null");
   return { ...row, kind: row.kind, approved_capability_ids: null };
 }
+
+const REVOKE_CONSENT_SQL = "UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ? AND revoked_at IS NULL";
 
 /** The ledger in the Home Runtime store (`PLUGIN_TRUST_SCHEMA_SQL`). */
 export class SqlitePluginConsentLedger implements PluginConsentLedger {
@@ -245,7 +246,7 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
     return row ? consentFromRow(row) : null;
   }
   revoke(consentId: string, at: string): PluginConsentRecord | null {
-    this.db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ? AND revoked_at IS NULL").run(at, consentId);
+    this.db.prepare(REVOKE_CONSENT_SQL).run(at, consentId);
     return this.consent(consentId);
   }
   grantProjectReach(entry: ProjectReachConsentEntry): PluginConsentRecord {
@@ -260,22 +261,13 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
   }
   revokeProjectReach(selection: ProjectReachConsentSelection, at: string): number {
     return this.transaction(() => {
-      const rows = (this.db.prepare("SELECT * FROM plugin_consents WHERE kind = 'project_reach' AND revoked_at IS NULL").all() as ConsentRow[])
-        .map(consentFromRow).filter(row => selectedReach(row, selection));
-      for (const row of rows) this.revoke(row.consent_id, at);
+      const active = this.db.prepare("SELECT consent_id, subject FROM plugin_consents WHERE kind = 'project_reach' AND revoked_at IS NULL")
+        .all() as Pick<ConsentRow, "consent_id" | "subject">[];
+      // Resolve every active subject before writing so an unassignable row cannot leave a partial withdrawal.
+      const rows = active.filter(row => matchesReachSubject(row.subject, selection));
+      const revoke = this.db.prepare(REVOKE_CONSENT_SQL);
+      for (const row of rows) revoke.run(at, row.consent_id);
       return rows.length;
-    });
-  }
-  /**
-   * A retired plugin's own current consents taken back at once (the Files retirement, specs/batch-06-shared-tools/spec.md「项目库 v2 同版本采用与交接」):
-   * only rows of that exact plugin id and publisher, only ones still current, each with `revoked_at` like `revoke`. Running it again takes
-   * nothing more back. Another plugin's default wiring that named it stays as it was: its subject names a source that is gone, so it no
-   * longer counts, and whether the person had kept or revoked it is still there to read.
-   */
-  revokeRetiredPlugin(plugin: { readonly plugin_id: string; readonly publisher_signature: string }, at: string): PluginConsentRecord[] {
-    return this.transaction(() => {
-      const current = this.consents(plugin.plugin_id).filter(row => row.publisher_signature === plugin.publisher_signature && row.revoked_at === null);
-      return current.map(row => this.revoke(row.consent_id, at)!);
     });
   }
   publishers(): PluginPublisherPin[] {

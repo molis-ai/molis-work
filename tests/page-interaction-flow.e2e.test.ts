@@ -66,8 +66,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b); 工作记录 sits under 个人 after 记忆 (specs/observation-collection/spec.md §2.4).
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 17)"),
-    ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "access", "authorizations", "history", "update", "diagnostics"]);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 18)"),
+    ["appearance", "directories", "memory", "work-records", "sync", "models", "assistant", "characters", "kit", "runtimes", "library", "connections", "web-search", "access", "authorizations", "history", "update", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   // 设置 › 角色 is the Host's settings page for the person's own roles (plan C), drawn inside the settings cover.
   const rolesShown = "(() => { const page = document.querySelector('[data-work-surface=settings] [data-settings-panel=characters]'); return Boolean(page?.getClientRects().length); })()";
@@ -108,6 +108,60 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   }
 });
 
+test("QEA-142 settings covers have a mouse and touch exit over two real panes", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, setViewport } = browser;
+  await setViewport(1440, 900);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-dock-pin="goals"]');
+  await click("[data-layout-open]");
+  await click('[data-workspace-layout] [data-layout-split="right"]');
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
+  await click('[data-dock-pin="inbox"]');
+  const currentPlugins = `[...document.querySelectorAll('[data-tab-pane] [data-tab-kind=plugin][aria-current]')].map(tab => tab.dataset.plugin)`;
+  await waitFor(`JSON.stringify(${currentPlugins}) === '["goals","inbox"]'`);
+  const projectLayout = () => evaluate(`(() => {
+    const { layout, panes, focusedPaneId } = JSON.parse(localStorage.getItem(${JSON.stringify("molis-work-tab-workspace:" + projectId)}));
+    return { layout, panes, focusedPaneId };
+  })()`);
+  const before = await projectLayout();
+  const cover = "document.querySelector('[data-tab-workspace]').dataset.exclusive";
+  const closeSelector = "[data-titlebar-tabs] [data-cover-close]";
+  const closeButton = () => evaluate<{ x: number; y: number; width: number; height: number; label: string | null; reachable: boolean } | null>(`(() => {
+    const button = document.querySelector('${closeSelector}');
+    if (!button) return null;
+    const { left, top, width, height } = button.getBoundingClientRect();
+    const x = left + width / 2, y = top + height / 2;
+    return { x, y, width, height, label: button.getAttribute('aria-label'), reachable: button.contains(document.elementFromPoint(x, y)) };
+  })()`);
+  const assertReturned = async () => {
+    await waitFor(`!${cover} && JSON.stringify(${currentPlugins}) === '["goals","inbox"]'`);
+    assert.deepEqual(await projectLayout(), before, "closing restores both panes, their tabs, layout and focus");
+  };
+
+  await click("[data-project-menu] > summary");
+  await click('[data-personal-menu] [data-directory-open="settings"]');
+  await waitFor(`${cover} === 'settings'`);
+  const mouse = await closeButton();
+  assert.ok(mouse?.reachable && mouse.label, "the settings cover has a visible, named close button in split layout");
+  await click(closeSelector);
+  await assertReturned();
+
+  await click("[data-project-menu] > summary");
+  await click(".navigator-project-settings");
+  await waitFor(`${cover} === 'project-settings' && !document.body.dataset.navigationPending`);
+  await setViewport(390, 844, true);
+  await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }, sessionId);
+  await waitFor("innerWidth === 390 && matchMedia('(pointer: coarse)').matches");
+  const touch = await closeButton();
+  assert.ok(touch?.reachable && touch.label && touch.width >= 44 && touch.height >= 44, "the named cover exit is a reachable 44px touch target");
+  await command("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: touch.x, y: touch.y }] }, sessionId);
+  await command("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }, sessionId);
+  await assertReturned();
+});
+
 test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
@@ -130,7 +184,7 @@ test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover
   }
 });
 
-test("a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
+test("QEA-143 a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
@@ -178,6 +232,14 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await lingguang.waitFor(opened(newId));
   await click("[data-workspace-history=back]");
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  const savedSparks = async () => (await browser.web.get<{ sparks: { id: string; body: string; updated_at: string }[] }>(
+    `/projects/${projectId}/api/plugins/io.molis.work.lingguang/sparks`,
+  )).sparks;
+  const before = await savedSparks();
+  assert.equal(before.find(spark => spark.id === noteId)?.body, "第一条灵光");
+  assert.equal(before.find(spark => spark.id === newId)?.body, "第二条灵光");
   await click("[data-workspace-history=forward]");
   await lingguang.waitFor(opened(newId));
+  assert.equal(await lingguang.evaluate("document.querySelector('[data-lingguang-body]').value"), "第二条灵光");
+  assert.deepEqual(await savedSparks(), before, "history restores the existing editor without changing either saved record");
 });

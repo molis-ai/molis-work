@@ -132,7 +132,7 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   });
   assert.match(empty, /还没有定时任务/);
   assert.match(empty, /新建定时任务/);
-  assert.match(empty, /到点会在它自己的对话里跑一轮只读 Agent/);
+  assert.match(empty, /设定时间后，AI 到点会自动帮你查看并在这里汇报/);
   // New tasks are written in the detail pane, not a dialog (batch 18 P2, decided 2026-11-04).
   assert.match(empty, /<section[^>]*data-schedule-create-pane[^>]*hidden>/);
   assert.doesNotMatch(empty, /data-schedule-create-dialog/);
@@ -177,6 +177,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
         return next;
       },
       listTasks: () => [],
+      getTask: () => null,
       recoverReminder: unused,
       createTask: unused,
       updateTask: unused,
@@ -211,7 +212,7 @@ test("读一条定时任务：先说每天几点跑、是否已停用，再是�
   const task: ScheduleConversationTaskView = { task_id: "sct-1", title: "每天早上汇总 Inbox 未读", instructions: "把未读按来源归类", hour: 9, minute: 0,
     notify_important: true, enabled: false, archived: false, unread: false, job_id: null, last_run_at: null, last_error: null,
     created_at: "2026-09-29T00:00:00.000Z", updated_at: "2026-09-29T00:00:00.000Z", turns: [], clock_label: "09:00", next_due_at: null };
-  const handlers = createScheduleActionHandlers("schedule-project", { listJobs: () => [], setEnabled: unused, listTasks: () => [task], recoverReminder: unused,
+  const handlers = createScheduleActionHandlers("schedule-project", { listJobs: () => [], setEnabled: unused, listTasks: () => [task], getTask: unused, recoverReminder: unused,
     createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const read = handlers.find(row => row.capability_id === "schedule.subject.read");
   assert.ok(read);
@@ -287,4 +288,22 @@ test("N0705 rendered permission-read warning distinguishes retrying the read fro
     assert.match(warning, locale === "zh" ? /届时仍读不到则本轮失败/u : /that run fails/u);
     assert.doesNotMatch(warning, /last confirmed|上次确认/u);
   }
+});
+
+test("BL-schedule-one-off-detail a one-off task's rendered detail carries the day and time it runs for its edit; a daily task's does not, and the form has a place to say it", () => {
+  const host = new UiHost();
+  host.register(scheduleUiContribution);
+  const words = registeredBuiltinText(scheduleManifest);
+  assert.ok(words);
+  const render = (tasks: ScheduleConversationTaskView[]) => runWithLocale("zh", () => runWithRegisteredText(words, () => host.render({
+    contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: "workbench", model: { ...model({ tasks }), primitives: { ...primitives, formatDate: (value: string) => `«${value}»` } } })));
+  const once = render([task({ task_id: "sct_once", repeat: "none", run_at: "2026-12-01T06:35:00.000Z" })]);
+  const timeInput = (html: string) => html.match(/<input data-schedule-task-time[^>]*>/u)?.[0] ?? "";
+  assert.match(timeInput(once), /data-schedule-task-once="«2026-12-01T06:35:00\.000Z»"/u, "the edit reads the time it runs, as the page writes dates");
+  const daily = render([task({ repeat: "daily", run_at: null })]);
+  assert.doesNotMatch(timeInput(daily), /data-schedule-task-once/u, "a daily task is edited by its daily time");
+  const field = daily.match(/<div class="mw-field schedule-once-field"[^>]*>[\s\S]*?<\/div>/u)?.[0] ?? "";
+  assert.match(field, /data-schedule-form-once hidden/u, "the form's line for a one-off time is put away until a one-off task is edited");
+  assert.match(field, /只跑一次/u);
+  assert.match(field, /data-schedule-form-once-at/u);
 });

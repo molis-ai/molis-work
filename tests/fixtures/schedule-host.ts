@@ -15,6 +15,8 @@ export function scheduleHost(overrides: Record<string, unknown> = {}) {
   Object.assign(globalThis, { molisWorkRequest: request });
   return {
     pluginRoute: (path: string) => `/api/plugins/${SCHEDULE_PLUGIN_ID}${path}`, pluginId: SCHEDULE_PLUGIN_ID,
-    confirm: async () => true, showToast() {}, view: { readDocument: async () => "" }, ...overrides,
+    confirm: async () => true, showToast() {}, view: { readDocument: async () => "" },
+    // These pages do not exercise the view revision; nothing is invalidated, so nothing is read again.
+    scope: { watchRevision: () => () => undefined }, ...overrides,
   };
 }

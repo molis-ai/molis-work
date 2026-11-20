@@ -49,7 +49,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 ## 步骤
 
-原图输入使用共享 `hostTextGeneration` 的 `images: [{ root_path, relative_path, label? }]`：路径须由可信 Host 从已授权材料解析，不能从模型或请求 JSON 直接授权。模型目录须声明 `vision: true`，环境变量配置的模型（只给开发与测试）不推定视觉能力、不自动换模型。Agent Host 复用 SDK Node Host intake/Session attachments，真实格式限 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 50 张/128 MiB，并受共享资源限额约束；超限拒绝、不静默截断或替换为 OCR。成功/失败/取消撤销资源及 Host 暂存字节，关闭 owner 等清理；原 Action 的 signal/beforeEffect、模型快照和业务提交检查仍须保留。PDF/目录组织和领域结果由消费者负责，不把 SDK 已支持当成插件已迁移。
+原图输入使用共享 `hostTextGeneration` 的 `images: [{ root_path, relative_path, label? }]`：路径须由可信 Host 从已授权材料解析，不能从模型或请求 JSON 直接授权。只有模型目录标了 `vision: false` 的模型拒绝带图；没标注的照发，并在说明里告诉模型看不到就直说、不要猜（[决定 51](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-51)③，`UNMARKED_IMAGES_NOTE`）；环境变量配置的模型（只给开发与测试）不推定视觉能力、不自动换模型。Agent Host 一轮只收图片引用（`image_materials` 的 `attachment: MaterialRef`，至多 6 张），字节由调用方自己的对话附件读取器取回（平台对话附件服务，见 S-conversation-attachments），按实际字节识别 PNG/JPEG/GIF/WebP，单图 5 MiB，并受共享资源限额约束；超限拒绝、不静默截断或替换为 OCR。成功/失败/取消撤销资源及 Host 暂存字节，关闭 owner 等清理；原 Action 的 signal/beforeEffect、模型快照和业务提交检查仍须保留。PDF/目录组织和领域结果由消费者负责，不把 SDK 已支持当成插件已迁移。
 
 1. **选用法**（手册第 2 节）：单次有界调用 → Host 端口；多轮带工具 → Agent 角色；专门编排 → 新适配器。不要为统一而套 Agent 循环。
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。
@@ -87,7 +87,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 ## 交互：问人、建议一步、引用对象
 
-AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。
+AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。面向用户的卡面文字（`why`、`note`、操作卡标题及工具失败说明）遵循 [文字与外观](../molis-plugin-dev/text-and-appearance.md#怎么写界面文案)：假定用户无 AI 背景，一句话用人话说清要决定什么与回答后的影响，不暴露内部字段名、错误枚举或「宿主 / 投影 / 回执 / 上下文 / Runtime」等机制词。
 
 - **Agent 中途问人（问卷）**：角色的 `host_tools` 带 `ask-user`。模型能用的题型是 `hostQuestionTypes()`（选择、文字、数字、日期、日期时间、对象引用，即每个画问题的界面都画得出的那几种），一张卡可以混着问。Run 停在 `awaiting_input`；宿主用 `agentQuestionHtml`（`apps/local-host/src/agent-question-card.ts`）把每个等待中的问题画成同一张卡，作为 `html` 放进助理与 Coding 的视图。页面插入它，由共享客户端读回字段，插件 SDK 的 `questionAnswer` 把字段变成回答，经 Run 的控制动作交回（Coding 是 `coding.runs.control`，版本以动作目录里的为准）。Runtime 按它保存的题逐题检查：有一题不合格就整份退回 `agent.answer_invalid`，`problems` 经 `questionErrors` 变成各字段旁的一行（带界限与单位），问题保持打开，模型什么都没听到；改对再交，原 Run 接着做。
 - **对象引用**：一类对象能被问到，要它先能被搜到：插件为这个种类写对象读取器，并在条目列出动作（`defineSearchEntriesAction`）里列出这个种类和给人看的名字，写法见 [`molis-plugin-dev` 的 search.md](../molis-plugin-dev/search.md)。两样都在同一个 Manifest 里，这个种类就是能问的。宿主由此算出 `hostReferenceKinds()`，经 Prologue 的 `askUserReferenceKinds` 交给模型；模型问清单外的种类，给人看之前就被退回。卡上不列候选，人打字时才按这一题的种类调 `search.references`。交给 Run 之前，宿主以会话主人的身份向对象的主人重读每个选中的对象，用主人此刻的标题，页面写的标题不用；读不到的那一题退回 `reference-unavailable`（安全不变量 S-26）。现在只算内置插件的种类（BL-152）。

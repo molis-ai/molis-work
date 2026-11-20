@@ -196,17 +196,23 @@ test("创建任务会留下说明回合，到点 runner 写入助手回复并标
   assert.equal(created.turns.length, 1);
   assert.equal(created.turns[0]?.kind, "user");
   assert.equal(created.turns[0]?.text, "把未读收成三条");
+  let reportedTurn: string | undefined;
   await handleScheduleTaskWakeup(db, created.task_id, {
     async run(input) {
       assert.equal(input.title, "早上汇总");
       assert.match(input.history[0]?.text ?? "", /未读/);
       return { text: "IMPORTANT: yes\n收件箱有三封要看。", important: false };
     },
-  }, () => new Date("2026-09-20T01:05:00.000Z"));
+  }, () => new Date("2026-09-20T01:05:00.000Z"), undefined, undefined, async turn => {
+    reportedTurn = getScheduleConversationTask(db, created.task_id)?.turns.find(t => t.turn_id === turn.turn_id)?.turn_id;
+    throw new Error("observation unavailable");
+  });
   const after = getScheduleConversationTask(db, created.task_id);
   assert.equal(after?.turns.length, 2);
   assert.equal(after?.turns[1]?.kind, "assistant");
   assert.equal(after?.turns[1]?.text, "收件箱有三封要看。");
+  assert.ok(reportedTurn);
+  assert.equal(after?.turns[1]?.turn_id, reportedTurn);
   assert.equal(after?.unread, true);
 });
 

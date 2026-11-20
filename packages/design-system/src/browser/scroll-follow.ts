@@ -33,13 +33,25 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
     if (state === next) return;
     state = next;
     scroller.dataset.follow = next;
+    listenForWheel();
     options.onChange?.(next);
   };
   const input = () => { lastInput = performance.now(); };
-  const leave = () => { input(); set(DETACHED); };
+  const leave = () => {
+    // Leaving the tail abandons the previous gesture and any smooth trip back.
+    lastInput = -Infinity;
+    if (state === FOLLOWING) scroller.scrollTo({ top: scroller.scrollTop, behavior: "instant" });
+    set(DETACHED);
+  };
   const listening = new AbortController(), signal = listening.signal, passive = { passive: true, signal };
 
-  scroller.addEventListener("wheel", (event) => { if (event.deltaY < 0) leave(); else input(); }, passive);
+  const wheel = (event: WheelEvent) => { if (event.deltaY < 0) leave(); else input(); };
+  function listenForWheel() {
+    scroller.removeEventListener("wheel", wheel);
+    // Stop our trip before the browser applies the wheel. Detached readers keep compositor scrolling.
+    scroller.addEventListener("wheel", wheel, { passive: state === DETACHED, signal });
+  }
+  listenForWheel();
   scroller.addEventListener("touchmove", input, passive);
   // Keep the pressed target still until the browser can deliver its click. Only a scrollbar press owns the scroll itself.
   scroller.addEventListener("pointerdown", event => {
@@ -84,13 +96,18 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       frame = requestAnimationFrame(land);
     },
     toLatest() {
+      const animate = state === DETACHED && !matchMedia("(prefers-reduced-motion: reduce)").matches;
       follower.resume();
-      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: still ? "auto" : "smooth" });
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: animate ? "smooth" : "instant" });
     },
     resume() { lastInput = -Infinity; set(FOLLOWING); },
-    restore(place) { scroller.scrollTop = place; before = followDistance(scroller); top = scroller.scrollTop; set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED); },
-    release() { set(DETACHED); },
+    restore(place) {
+      lastInput = -Infinity;
+      scroller.scrollTop = place;
+      before = followDistance(scroller); top = scroller.scrollTop;
+      set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED);
+    },
+    release: leave,
     dispose() {
       listening.abort(); resizing.disconnect(); cancelAnimationFrame(frame);
       owners.delete(scroller); delete scroller.dataset.follow;

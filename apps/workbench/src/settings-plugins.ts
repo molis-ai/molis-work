@@ -20,28 +20,28 @@ export function renderPluginTrustSettings({ projectId, chevron, kinds }: { readT
     <header class="settings-page-heading"><h1 id="plugin-trust-title">${uiText("workbench.settings-plugins.plugin")}</h1>
       <p>${uiText("workbench.settings-plugins.plugins-installed-project-who-signed-them-what-they")}</p></header>
     <p class="settings-form-error" data-plugin-trust-error role="alert" hidden></p>
-    <section class="settings-section" aria-labelledby="plugin-trust-install-title">
-      <h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</p>
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${uiText("workbench.settings-plugins.choose-package")}</button>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-install-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2></header><div class="mw-settings-section__rows">
+      <div class="settings-setting-row"><span class="setting-copy"><span>${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</span></span>
+        <div class="setting-value"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${uiText("workbench.settings-plugins.choose-package")}</button></div></div>
       <input type="file" accept=".json,application/json" hidden data-plugin-trust-pick>
       <div data-plugin-trust-bundled hidden></div>
       <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-list-title">
-      <h2 id="plugin-trust-list-title">${uiText("workbench.settings-plugins.installed-plugins")}</h2>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-list-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-list-title">${uiText("workbench.settings-plugins.installed-plugins")}</h2></header><div class="mw-settings-section__rows">
       <ul class="plugin-trust-list" data-plugin-trust-list><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-home-title">
-      <h2 id="plugin-trust-home-title">${uiText("workbench.settings-plugins.plugins-personal-space")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-home-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-home-title">${uiText("workbench.settings-plugins.plugins-personal-space")}</h2></header><div class="mw-settings-section__rows">
+      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.these-plugins-run-personal-space-one-copy-shared")}</p>
       <ul class="plugin-trust-list" data-plugin-trust-home><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
-    <section class="settings-section" aria-labelledby="plugin-trust-publishers-title">
-      <h2 id="plugin-trust-publishers-title">${uiText("workbench.settings-plugins.publishers-trust")}</h2>
-      <p class="settings-muted">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>
+    </div></section>
+    <section class="settings-section mw-settings-section" aria-labelledby="plugin-trust-publishers-title">
+      <header class="mw-settings-section__head"><h2 id="plugin-trust-publishers-title">${uiText("workbench.settings-plugins.publishers-trust")}</h2></header><div class="mw-settings-section__rows">
+      <p class="mw-settings-section__note">${uiText("workbench.settings-plugins.publishers-have-pinned-packages-they-sign-later-installed")}</p>
       <ul class="plugin-trust-list" data-plugin-trust-publishers><li class="settings-muted">${uiText("workbench.settings-plugins.loading")}</li></ul>
-    </section>
+    </div></section>
     <template data-plugin-trust-chevron>${chevron}</template>
     ${Object.entries(kinds).map(([kind, mark]) => `<template data-plugin-trust-kind="${kind}">${mark}</template>`).join("")}
   </section>`;
@@ -171,8 +171,10 @@ const describe = (id) => {
 const item = reachCapabilities.get(id);
 return row(item ? item.title : id, item ? item.description : "", item?.available ? "" : readText("workbench.settings-plugins.unavailable-now"));
 };
-if (view.capability_ids.length) box.append(group(readText("workbench.settings-plugins.declared-actions"), "", view.capability_ids.map(describe)));
-if (view.added_capability_ids.length) box.append(group(readText("workbench.settings-plugins.newly-declared-actions"), "", view.added_capability_ids.map(describe)));
+const added = view.added_capability_ids;
+const remaining = view.capability_ids.filter(id => !added.includes(id));
+if (added.length) box.append(group(readText("workbench.settings-plugins.newly-declared-actions"), "", added.map(describe)));
+if (remaining.length) box.append(group(readText("workbench.settings-plugins.declared-actions"), "", remaining.map(describe)));
 const actions = el("div", "plugin-trust-actions"); actions.style.flexWrap = "wrap";
 const add = (name, label, title, detail) => {
 const node = button(readText(label), name === "grant" ? "mw-btn--primary" : "mw-btn--ghost"); node.dataset.projectReachAction = name;
@@ -245,7 +247,7 @@ body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_si
 const pending = plugin.pending_keep_data !== undefined;
 if (pending) box.open = Boolean(broken && broken.install_id === plugin.install_id);
 else if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", readText("workbench.settings-plugins.could-not-start-error", { error: readText(plugin.recovery_error === "plugin.publisher_revoked" ? "workbench.settings-plugins.publisher-revoked" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "workbench.settings-plugins.platform-version-mismatch" : plugin.recovery_error === "plugin.package_missing" ? "workbench.settings-plugins.package-plugin-installed-missing-only-uninstalled" : "workbench.settings-plugins.retry-start") })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", readText("workbench.settings-plugins.could-not-start-error", { error: readText(plugin.recovery_error === "plugin.publisher_revoked" ? "workbench.settings-plugins.publisher-revoked" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "workbench.settings-plugins.platform-version-mismatch" : plugin.recovery_error === "plugin.package_missing" ? "workbench.settings-plugins.package-plugin-installed-missing-only-uninstalled" : plugin.recovery_error === "plugin.integration_declaration_conflict" ? "workbench.settings-plugins.integration-id-taken" : "workbench.settings-plugins.retry-start") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else if (!pending) body.append(el("span", "settings-muted", readText("workbench.settings-plugins.permissions-plugin-was-installed-cannot-be-read")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;

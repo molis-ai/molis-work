@@ -147,7 +147,7 @@ export type FrameUp =
 export type FrameDown =
   | { type: "task-opened"; id: number; error?: string }
   | { type: "task-input"; input: Readonly<Record<string, string>> }
-  | { type: "task-return-focus" }
+  | { type: "task-return-focus"; id: number }
   | { type: "frame-asset-source"; handle: string }
   | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string; need?: true }
   | { type: "placement-label"; id: number; html: string }

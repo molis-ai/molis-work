@@ -3,13 +3,13 @@
 import {createTrialAuthPeer,trialAccountConfig} from "../examples/personal-trial-tools/mock-auth.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, statSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { BROWSER_SITES_FILE, BrowserSiteDecisions, COMPUTER_RECORD_FILE, ComputerRecords, ComputerSettings, dismissMolisWorkOnboarding, fileAccountSecrets, homeUpgradeDescriptors, markProjectOpened, ModelProviderStore, ONBOARDING_FILE, PersonalAuth, PROJECT_ARRIVAL_FILE, readMolisWorkOnboardingState, readProjectArrival, runHomeUpgrade, setProjectDescription, upgradeTarget, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_MODEL_CONFIGURATION, jellyServiceActions } from "@molis-ai/molis-work-plugin-jelly";
 import { assertVersionedFileWritable, createFileSecretStore, LocalSqliteStorage, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";

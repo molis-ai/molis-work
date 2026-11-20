@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import { HomeConsentLedger, PluginInstallService, SandboxPackageStore, pluginInstallActions, readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, runningProjectPlatform, PluginInstallService, SandboxPackageStore, pluginInstallActions, readSandboxIntegrationPackage, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementGoalActions, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -23,7 +23,7 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 const dependencyId = "io.molis.work.surface.source";
 const actionId = (pluginId: string, publisher: string, localId: string) => sandboxActionId(sandboxPackageBuildId(pluginId, publisher), localId);
 
-function surfacePackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; dependency?: string; writable?: boolean; listId?: string; startupDelay?: number } = {}): PluginPackageBundle {
+function surfacePackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; dependency?: string; writable?: boolean; listId?: string; startupDelay?: number; scope?: "home" | "project" } = {}): PluginPackageBundle {
   return signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const subject = { kind: "note", id: "n1" };
@@ -42,7 +42,7 @@ function surfacePackage(publisher = newPublisher(), options: { pluginId?: string
     else contract.operations[1]!.effects = {};
     contract.presentation = { objects: [{ kind: "note", fields: [{ key: "title", role: "title" }], forms: { chip: { fields: ["title"] } },
       actions: options.dependency ? [{ ref: options.dependency }] : [] }] };
-    const runtime = { scope: "home" as const };
+    const runtime = options.scope === "project" ? undefined : { scope: "home" as const };
     Object.assign(manifest, sandboxPluginManifest({ pluginId: contract.pluginId, version: manifest.version, name: manifest.name,
       publisher: manifest.publisher, contract, runtime, presentation: false }));
     if (options.version) manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
@@ -419,4 +419,38 @@ test("S-sandbox-presentation a signed integration cannot carry presentation, rea
     assert.throws(() => readSandboxIntegrationPackage(signed.payload), error => error instanceof ActionError && error.code === "plugin.declaration_invalid"
       && /集成包.*不能声明/u.test(error.message));
   }
+});
+
+
+// QEA-82: absence is not a wildcard; an installed edition also shadows a pending declaration of the same plugin.
+test("QEA-82 SCS-16 an unreadable unsigned installation only refuses its actual references, before durable confirmation", mac, async t => {
+  const pending: PluginDefinition[] = [];
+  const h = await fixture(t, { pluginFixtures: { project: pending } }), client = h.projectClient(), caller = person();
+  await client.discover(caller);
+  const platform = await h.host.withProject(h.reference, runtime => runningProjectPlatform(runtime.store, caller.project_id!));
+  assert.ok(platform);
+  const recordOf = (id: string) => platform.runtime.list().find(record => record.plugin_id === id && record.state !== "uninstalled") ?? null;
+  const owner = newPublisher(), missingId = "io.molis.work.surface.restoring";
+  const missing = readSandboxPackage(surfacePackage(owner, { pluginId: missingId, scope: "project" }).payload).manifest;
+  const unsigned = { ...missing, presentation: undefined, publisher: { publisher_id: "fixture", signature: "fixture-surface-restoring" } };
+  const definition: PluginDefinition = { manifest: unsigned, execution: "sandbox", start: async () => assert.fail("the retained installation is awaiting its declaration owner") };
+  const retained = platform.runtime.install({ definition, deployment: "local", grants: ["storage:private"], trust: { level: "unsigned" } }).install;
+  const candidate = surfacePackage(newPublisher(), { scope: "project" });
+  await confirm(client, caller, await previewOf(client, caller, candidate));
+  assert.equal(recordOf(PACKAGE_PLUGIN_ID)?.state, "running", "unrelated self-contained presentation is valid");
+  const reference = actionId(missingId, owner.identity, "notes.list") + "@1";
+  const deniedOwner = newPublisher(), deniedId = "io.molis.work.surface.missing-ref";
+  const denied = surfacePackage(deniedOwner, { pluginId: deniedId, dependency: reference, scope: "project" });
+  await assert.rejects(previewOf(client, caller, denied), { code: "plugin.declaration_invalid" });
+  assertAbsent(h.home, deniedId, deniedOwner.identity, () => recordOf(deniedId));
+  assert.deepEqual(platform.runtime.get(retained.install_id), retained, "validation does not rewrite the retained installation");
+
+  const pendingAction: ActionDefinition = { capability_id: reference.slice(0, -2), version: 1, operation: "query", action: {
+    title: "Read restored notes", description: "The next pending edition", kind: "query", scope: "project", audiences: ["user"], permissions: [],
+    subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "array" },
+  } };
+  pending.push({ manifest: { ...unsigned, version: "1.1.0", actions: [pendingAction] },
+    start: async () => assert.fail("the next edition has only been declared, not activated") });
+  await assert.rejects(previewOf(client, caller, denied), { code: "plugin.declaration_invalid" }, "a future declaration cannot supply a missing installed edition");
+  assertAbsent(h.home, deniedId, deniedOwner.identity, () => recordOf(deniedId));
 });

@@ -64,7 +64,7 @@ test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through
   await browser.waitFor(`document.querySelector('[data-page-dialog=confirm]')?.textContent.includes(${JSON.stringify(workspace.display_name)})`);
   // The dialog says what happens to the output now: no longer written, its files stay, and, being only the output, it leaves the project.
   const asked = String(await browser.evaluate("document.querySelector('[data-page-dialog=confirm]').textContent"));
-  assert.ok(asked.includes(`现在的输出目录「${output.display_name}」不再写入`) && asked.includes("它会从项目里移出"), asked);
+  assert.ok(asked.includes(`原默认目录「${output.display_name}」将移出项目`) && asked.includes("已有文件保留"), asked);
   await browser.click("[data-page-dialog=confirm] [type=button]");
   assert.equal(await child.evaluate("window.setOutputResult"), "已取消");
   assert.deepEqual(await state(), linked, "cancelling keeps the output where it was");
@@ -79,4 +79,77 @@ test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through
   await browser.evaluate("document.querySelector('[data-work-surface=coding]').hidden=true");
   await browser.waitFor("!document.querySelector('[data-page-dialog=confirm]')");
   assert.deepEqual(await state(), moved, "hiding cancels the pending confirmation");
+});
+
+test("BL-set-output-revision SYS-15-U9 an output confirmed in one window after another window changed the folders is refused as stale", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const child = await pluginFrameBrowser(t, browser, "coding");
+  const prefix = `/projects/${browser.projectId}`;
+  const asked = join(browser.homeDirectory, "asked-output"), elsewhere = join(browser.homeDirectory, "elsewhere-output");
+  await mkdir(asked); await mkdir(elsewhere);
+  const state = () => browser.evaluate<{ directories: Array<{ workspace_id: string; canonical_path: string; display_name: string; roles: string[] }>; revision: string }>(
+    `fetch(${JSON.stringify(prefix + "/api/project-settings/directories")}).then(r=>r.json())`);
+
+  // Window B: the project settings in a second window of its own (not a background tab, so window A stays visible and keeps its dialog),
+  // opened before window A brings Coding forward so B shows the project's home rather than the restored Coding tab.
+  const { targetId } = await browser.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", newWindow: true });
+  t.after(() => browser.command("Target.closeTarget", { targetId }).catch(() => undefined));
+  const other = await browser.openPage(targetId);
+  await other.viewport(1360, 900);
+  await other.command("Page.navigate", { url: browser.origin + prefix + "/" });
+  await other.wait("!!document.querySelector('.navigator-project-settings')", { timeoutMs: 30_000 });
+  // The project settings entry is in the project menu: open it first, as a person does.
+  await other.click("details:has(.navigator-project-settings) > summary");
+  await other.click(".navigator-project-settings");
+  await other.wait("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await other.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
+  await other.wait("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  for (const path of [asked, elsewhere]) {
+    await other.evaluate(`(()=>{const node=document.querySelector('[data-directories-add] [name=path]');node.value=${JSON.stringify(path)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await other.click("[data-directories-add] [type=submit]");
+    await other.wait(`document.querySelector('[data-directories-inputs]').textContent.includes(${JSON.stringify(path.split("/").pop())})`);
+  }
+  // Window A: Coding, whose page asks for the output.
+  await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {
+    set(target,key,value){target[key]=key==='coding'?host=>{window.workspaceHost=host;return value(host)}:value;return true}
+  });`);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/?openPlugin=coding" }, browser.sessionId));
+  await browser.surfaceReady("coding"); await child.click("[data-coding-new]");
+  await browser.waitFor(CODING_TAKEN);
+  const before = await state();
+  const [askedPath, elsewherePath] = [await realpath(asked), await realpath(elsewhere)];
+  const askedFolder = before.directories.find(item => item.canonical_path === askedPath)!, elsewhereFolder = before.directories.find(item => item.canonical_path === elsewherePath)!;
+  assert.ok(askedFolder && elsewhereFolder, JSON.stringify(before));
+
+  const setOutput = (id: string) => child.evaluate(`(()=>{const button=document.createElement('button');document.body.append(button);
+    window.setOutputResult=new Promise(resolve=>button.addEventListener('click',()=>workspaceHost.workspaces.setOutput(${JSON.stringify(id)}).then(()=>resolve('set'),error=>resolve(String(error.message))),{once:true}));
+    return true})()`).then(() => child.click("body > button:last-of-type"));
+  const dialogNames = (name: string) => browser.waitFor(`document.querySelector('[data-page-dialog=confirm]')?.textContent.includes(${JSON.stringify(name)})`);
+
+  // A opens the confirmation; B then makes another folder the output; A confirms what it was shown.
+  await setOutput(askedFolder.workspace_id);
+  await dialogNames(askedFolder.display_name);
+  await other.click(`[data-directories-inputs] [data-directory-row="${elsewhereFolder.workspace_id}"] [data-act=set-output]`);
+  await other.wait(`document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title === ${JSON.stringify(elsewherePath)}`);
+  const changedElsewhere = await state();
+  assert.deepEqual(changedElsewhere.directories.find(item => item.workspace_id === elsewhereFolder.workspace_id)?.roles, ["input", "output"], "B's change took effect");
+  assert.ok(await browser.evaluate("!!document.querySelector('[data-page-dialog=confirm]')"), "A's dialog is still open while B changes the folders");
+  await browser.click("[data-page-dialog=confirm] [type=submit]");
+  assert.equal(await child.evaluate("window.setOutputResult"), "项目的文件夹刚在别处改过，这次没有改动。请再操作一次，按最新的文件夹确认。",
+    "A is told plainly that what it confirmed is out of date");
+  const kept = await state();
+  assert.deepEqual(kept, changedElsewhere, "the stale confirmation changed nothing: B's output stays");
+  assert.deepEqual(kept.directories.find(item => item.workspace_id === askedFolder.workspace_id)?.roles, ["input"]);
+
+  // Asked again, A's dialog is built from the folders as they are now (B's output named), and confirming it works.
+  await setOutput(askedFolder.workspace_id);
+  await dialogNames(askedFolder.display_name);
+  const question = String(await browser.evaluate("document.querySelector('[data-page-dialog=confirm]').textContent"));
+  assert.ok(question.includes(`原目录「${elsewhereFolder.display_name}」停止写入`), question);
+  await browser.click("[data-page-dialog=confirm] [type=submit]");
+  assert.equal(await child.evaluate("window.setOutputResult"), "set");
+  const after = await state();
+  assert.deepEqual(after.directories.find(item => item.workspace_id === askedFolder.workspace_id)?.roles, ["input", "output"], "A's folder is the output now");
+  assert.deepEqual(after.directories.find(item => item.workspace_id === elsewhereFolder.workspace_id)?.roles, ["input"], "B's folder stays an input");
+  assert.equal(after.directories.filter(item => item.roles.includes("output")).length, 1);
 });

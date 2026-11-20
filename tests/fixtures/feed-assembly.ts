@@ -6,15 +6,15 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactOperations, projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
-import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
+import { CUSTOM_RSS_DEFINITION_ID, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
+import { YOUTUBE_CHANNEL_DEFINITION_ID, normalizeYouTubeChannelId } from "@molis-ai/molis-work-integration-youtube";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
   type FeedApplication, type FeedApplicationPorts, type FeedArtifactProducer, type FeedSourceRecord, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
-import { fromBetterSqlite, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
-import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { fromProjectConnection, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
+import { createTestSourcePull, type TestSourcePullClient } from "./source-pull.js";
 
 // Isolated Feed test assembly. Product demo initialization runs Feed’s declared Runtime action; product code never imports this fixture.
 
@@ -49,7 +49,7 @@ function feedLedger(ledger: ContextLedgerApi): FeedLedgerPort {
 
 /** Every Feed operation against one local connection. */
 export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedApplicationOptions = {}): FeedApplication {
-  const sql = fromBetterSqlite(db);
+  const sql = fromProjectConnection(db);
   const journal = new LocalSqliteJournal(db);
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {
@@ -97,19 +97,21 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
 
 /** Registers and configures sources over the same connection; a sync of a source is the Runtime plugin's (`feed.sources.sync`). */
 export function createDemoFeedSourceService(db: SqliteDatabase, projectId: string,
-  runtimeFactory: (db: SqliteDatabase, source?: FeedSourceRecord) => SourcePullRuntime = (database, source) => createSourcePullRuntime({ db: database, sourceCursor: source?.cursor }),
+  sourcePullFactory: (db: SqliteDatabase) => TestSourcePullClient = db => createTestSourcePull({ db }),
   now: () => Date = () => new Date(), options?: DemoFeedSourceOptions): FeedSourceService {
   const journal = new LocalSqliteJournal(db);
+  let sourcePull: TestSourcePullClient | undefined;
+  const pull = () => sourcePull ??= sourcePullFactory(db);
   return new FeedSourceService({
     feed: createDemoFeedApplication(db, options), ...(options?.acquireSync ? { acquireSync: options.acquireSync } : {}),
     providers: {
       listCatalog: listRegisterableFeeds,
-      customRss: { definitionId: CUSTOM_RSS_DEFINITION_ID, normalizeUrl: normalizeCustomRssFeedUrl, host: customRssFeedHost },
-      youtube: { definitionId: YOUTUBE_CHANNEL_DEFINITION_ID, host: YOUTUBE_PUBLIC_FEED_HOST, normalizeChannel: normalizeYouTubeChannelId, feedUrl: youtubeChannelFeedUrl },
+      customRss: { definitionId: CUSTOM_RSS_DEFINITION_ID, normalizeUrl: normalizeCustomRssFeedUrl },
+      youtube: { definitionId: YOUTUBE_CHANNEL_DEFINITION_ID, normalizeChannel: normalizeYouTubeChannelId },
       gmail: { defaultScope: GMAIL_DEFAULT_SCOPE, parseScope: parseGmailScope },
       rss: { isSourceKind: isRssSourceKind, failureCount: cursor => readRssHttpState(cursor).consecutive_failures, withFailure: withRssHttpFailure, withSuccess: withRssHttpSuccess },
     },
-    createRuntime: source => runtimeFactory(db, source),
+    sourcePull: { plan: request => pull().plan(request), pull: (request, options) => pull().pull(request, options), forget: ids => pull().forget(ids) },
     transaction: operation => db.transaction(operation).immediate(),
     appendEvent: (eventProject, sourceId, type, reason, payload = {}) => {
       const value = `${sourceId}\u0000${type}\u0000${Date.now()}\u0000${Math.random()}`;

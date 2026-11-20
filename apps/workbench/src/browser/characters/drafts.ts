@@ -1,15 +1,20 @@
 import type { CharacterRoleContent } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** An unsaved edit of one role in this window: what was typed, and the version it was typed over. */
-export interface StoredDraft { content: CharacterRoleContent; version: number }
+export interface StoredDraft { content: CharacterRoleContent; version: number; original_version?: number; base?: CharacterRoleContent }
+
+function isContent(value: unknown): value is CharacterRoleContent {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const draft = value as Record<string, unknown>;
+  return typeof draft.title === "string" && typeof draft.instructions === "string"
+    && (draft.host_tools === null || Array.isArray(draft.host_tools) && draft.host_tools.every(tool => typeof tool === "string"));
+}
 
 function isStoredDraft(value: unknown): value is StoredDraft {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const { content, version } = value as Record<string, unknown>;
-  if (typeof content !== "object" || content === null || !Number.isSafeInteger(version)) return false;
-  const draft = content as Record<string, unknown>;
-  return typeof draft.title === "string" && typeof draft.instructions === "string"
-    && (draft.host_tools === null || Array.isArray(draft.host_tools) && draft.host_tools.every(tool => typeof tool === "string"));
+  const { content, version, original_version, base } = value as Record<string, unknown>;
+  return isContent(content) && Number.isSafeInteger(version)
+    && (original_version === undefined || Number.isSafeInteger(original_version)) && (base === undefined || isContent(base));
 }
 
 /**

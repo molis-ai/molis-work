@@ -1,8 +1,8 @@
 /**
  * A language server over stdio: JSON-RPC with `Content-Length` framing, one handshake, one shutdown.
  *
- * It is deliberately small: the Host only asks for definitions and references, so the client carries the framing and the
- * lifecycle, and nothing that would make it a second editor. A server that dies, writes a broken frame or misses its
+ * It is deliberately small: the Host asks for definitions, references, formatting and the diagnostics a server pushes, so the
+ * client carries the framing, the lifecycle and those notifications, and nothing that would make it a second editor. A server that dies, writes a broken frame or misses its
  * deadline rejects the request in flight and is marked dead; a later call starts a fresh one.
  */
 
@@ -27,11 +27,13 @@ export interface LspClient {
   /** A notification; never waits for an answer. */
   notify(method: string, params: unknown): void;
   /** Hand the server the document text the caller holds. */
-  openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): void;
-  /** Tell the server the document changed; the version must go up. */
-  changeDocument(input: { readonly path: string; readonly text: string; readonly version: number }): void;
+  openDocument(input: { readonly path: string; readonly text: string; readonly languageId: string }): number;
+  /** Assign a new document version, even when this path was closed and opened again. */
+  changeDocument(input: { readonly path: string; readonly text: string }): number;
   /** Tell the server the document is no longer open (a bounded cache evicts the least recently used). */
   closeDocument(input: { readonly path: string }): void;
+  /** Listen to what the server pushes (`textDocument/publishDiagnostics`); returns the way to stop listening. */
+  onNotification(listener: (method: string, params: unknown) => void): () => void;
   /** Shutdown, then exit; a server that will not go is killed. */
   close(): Promise<void>;
   /** Whether the process is still there. */
@@ -57,9 +59,11 @@ export function startLanguageServer(spec: LanguageServerSpec, options: { readonl
 function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly timeoutMs: number }): LspClient {
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   let nextId = 1;
+  let documentVersion = 0;
   let buffer = Buffer.alloc(0);
   let alive = child.exitCode === null;
   let stderr = "";
+  const listeners = new Set<(method: string, params: unknown) => void>();
   const failAll = (error: Error) => {
     for (const [id, held] of pending) { clearTimeout(held.timer); held.reject(error); pending.delete(id); }
   };
@@ -96,9 +100,20 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
       if (buffer.length < start + size) return;
       const body = buffer.subarray(start, start + size).toString("utf8");
       buffer = buffer.subarray(start + size);
-      let message: { id?: number; result?: unknown; error?: { message?: string }; method?: string };
+      let message: { id?: number | string; result?: unknown; error?: { message?: string }; method?: string; params?: unknown };
       try { message = JSON.parse(body) as typeof message; } catch { continue; }
-      if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      if (message.method !== undefined && message.id !== undefined) {
+        /*
+         * The server asks something back (`workspace/configuration`, `window/workDoneProgress/create`, ...). Some servers wait for
+         * the answer before they publish anything, so every request is answered: an empty configuration per item, null otherwise.
+         * The client offers nothing more than it declared, so no answer grants the server anything.
+         */
+        const items = (message.params as { items?: unknown[] } | undefined)?.items;
+        try { send({ id: message.id, result: message.method === "workspace/configuration" && Array.isArray(items) ? items.map(() => null) : null }); } catch { /* gone */ }
+        continue;
+      }
+      if (message.method !== undefined) { for (const listener of listeners) { try { listener(message.method, message.params); } catch { /* a listener's fault stays its own */ } } continue; }
+      if (typeof message.id === "number" && (message.result !== undefined || message.error !== undefined)) {
         const held = pending.get(message.id);
         if (held === undefined) continue;
         pending.delete(message.id);
@@ -125,17 +140,20 @@ function connect(child: ChildProcess, spec: LanguageServerSpec & { readonly time
     request,
     notify: (method, params) => { if (alive) send({ method, params }); },
     openDocument: ({ path, text, languageId }) => {
-      if (!alive) throw new Error("the language server is not running");
-      send({ method: "textDocument/didOpen", params: { textDocument: { uri: fileUri(path), languageId, version: 1, text } } });
+      const version = ++documentVersion;
+      send({ method: "textDocument/didOpen", params: { textDocument: { uri: fileUri(path), languageId, version, text } } });
+      return version;
     },
-    changeDocument: ({ path, text, version }) => {
-      if (!alive) throw new Error("the language server is not running");
+    changeDocument: ({ path, text }) => {
+      const version = ++documentVersion;
       send({ method: "textDocument/didChange", params: { textDocument: { uri: fileUri(path), version }, contentChanges: [{ text }] } });
+      return version;
     },
     closeDocument: ({ path }) => {
       if (!alive) return;
       send({ method: "textDocument/didClose", params: { textDocument: { uri: fileUri(path) } } });
     },
+    onNotification: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     get alive() { return alive; },
     async close() {
       if (!alive) return;

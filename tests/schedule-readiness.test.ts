@@ -95,7 +95,7 @@ test("the readiness action is a project query that reports what the Host reports
 
 test("a Host that gives no readiness check answers the way other missing host ports do, and the route says why", async () => {
   const unused = () => { throw new Error("unused"); };
-  const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], recoverReminder: unused, createTask: unused, updateTask: unused,
+  const bound = directScheduleActions({ listJobs: () => [], setEnabled: unused, listTasks: () => [], getTask: unused, recoverReminder: unused, createTask: unused, updateTask: unused,
     archiveTask: unused, setTaskEnabled: unused, openTask: unused });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => undefined }));
   const answered = await routes.handle({ method: "GET", pathname: "/api/plugins/io.molis.work.schedule/readiness", query: new URLSearchParams(), body: {} }).catch(actionErrorResponse);
@@ -124,9 +124,9 @@ test("the new-task form carries two hidden hints, one per missing thing, and not
     assert.match(hint, /\bhidden\b/, "shown only once the Host says it is missing");
     assert.match(hint, /role="status"/);
   }
-  assert.match(form, /还没有配置文字模型/);
-  assert.match(form, /还没有绑定工作区/);
-  assert.match(form, /仍可以创建/, "says the task can still be created");
+  assert.match(form, /还没有设置可用的 AI 模型/);
+  assert.match(form, /还没有添加文件夹/);
+  assert.match(form, /你仍可先建好任务/, "says the task can still be created");
   assert.match(form, /<button class="mw-btn mw-btn--primary" type="submit">/);
   assert.doesNotMatch(form, /type="submit"[^>]*disabled/);
 });

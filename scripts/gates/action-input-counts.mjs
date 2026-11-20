@@ -63,8 +63,11 @@ const castsOf = (handler, parameter) => {
   return count;
 };
 
+const handlerCastCache = new Map();
 export const countHandlerInputCasts = (file, text) => {
-  if (!MENTIONS_A_HANDLER.test(text)) return 0;
+  const cached = handlerCastCache.get(file);
+  if (cached && cached.text === text) return cached.count;
+  if (!MENTIONS_A_HANDLER.test(text)) { handlerCastCache.set(file, { text, count: 0 }); return 0; }
   let count = 0;
   const visit = (node) => {
     if ((ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node)) && isHandleName(node.name)) {
@@ -82,6 +85,7 @@ export const countHandlerInputCasts = (file, text) => {
     ts.forEachChild(node, visit);
   };
   visit(ts.createSourceFile(file, text, ts.ScriptTarget.Latest));
+  handlerCastCache.set(file, { text, count });
   return count;
 };
 

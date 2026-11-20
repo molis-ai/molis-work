@@ -13,7 +13,7 @@ export const feedCaptureScene: ActionSceneDefinition = {
   result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1",
   default_rule: { function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY, name: "是否进 Inbox", instructions: "看这条消息要不要进 Inbox。", subject_kinds: ["feed_item"],
     options: [{ key: INBOX_ADMIT_OPTION_ID, description: "进入 Inbox" }, { key: FEED_OPEN_OPTION_ID, description: "留在 Feed" }] },
-  recommendation_labels: { "inbox.admit": "加入 Inbox", "feed.open": "打开", "feed.save": "保存为资料", "feed.promote": "升格为 Goal", "feed.archive": "忽略" },
+  recommendation_labels: { "inbox.admit": "加入 Inbox", "feed.open": "打开", "feed.save": "保存为资料", "feed.promote": "转为目标", "feed.archive": "忽略" },
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] }, suggested_behavior_ids: { type: "array", items: { enum: ["inbox.admit", "feed.open", "feed.save", "feed.promote", "feed.archive"] } } }, required: ["status", "suggested_behavior_ids"] },
 };
 /**

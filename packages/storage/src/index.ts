@@ -1,5 +1,6 @@
 /** Local SQLite technical owner. */
 export { openSqliteConnection, sqliteErrorName, sqliteRowAuthorizerCodes, type SqliteAuthorizer } from "./sqlite-connection.js";
+export { readSqlStatementShape } from "./sqlite-statement-shape.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, onEventAppended, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -7,7 +8,7 @@ export { CATALOG_VERSION_ACCESS,LocalCatalogMetadata,catalogOwner,inspectCatalog
 
 export { atomicWriteFileSync, syncPath } from "./adapters/atomic-write.js";
 export { parseMemoryForgetting, serializeMemoryForgetting, mergeMemoryForgetting, inspectMemoryForgetting,
-  initializeMemoryForgetting, openMemoryForgetting, startMemoryForgettingGeneration, MEMORY_FORGETTING_HOME_STORE } from "./adapters/memory-forgetting.js";
+  initializeMemoryForgetting, openMemoryForgetting, MEMORY_FORGETTING_HOME_STORE } from "./adapters/memory-forgetting.js";
 export { createAtomicFileDocument } from './adapters/file-document.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
@@ -41,8 +42,11 @@ export {
   type UpgradeSqliteConnection,
 } from "./upgrade-snapshot.js";
 export { recoverSqliteRollbackJournals, type RollbackLibrary } from "./rollback-journal.js";
+export { assertSqliteDatabaseFiles, assertSqliteLibraryReady, sqliteLibraryDirectoryExists, sqliteRollbackSidecars, pendingSqliteRecovery } from "./sqlite-rollback-policy.js";
+export { withSqliteLibraryTransaction } from "./sqlite-library-transaction.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
+  assertSqliteBaselineShape,
   isSqliteSchemaStructureMismatch,
   isSqliteVersionRefusal,
   onUpgradePending,
@@ -78,19 +82,19 @@ export {
   PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
-export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
+export { type SecretStore, type SecretStoreAccess, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
   SECRET_STORE_FILE, assertSecretStoreWritable, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
 export { sealExistingHomePayload, openExistingHomePayload, assertExistingHomeKeyReference, type SealedHomePayload } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
 
-export { createEvidenceContentStore, evidenceContentRef, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createEvidenceContentStore, evidenceContentRef, RESEARCH_EVIDENCE_DIRECTORY, type EvidenceContentKeyStatus, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { createLocalPayloadProtection } from './adapters/local-payload-protection.js';
 export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
 export { installReplicaTrigger, replicaTriggerDefinitions, shareReplicaTriggerDefinitions } from './replica-triggers.js';
 export {borrowedReplicaDatabase,hasReplicaBodies} from './borrowed-replica.js';
-export { openMemoryLedger, inspectMemoryLedger, finishMemoryLedgerUpgrade, type MemoryLedgerInspection, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
+export { openMemoryLedger, inspectMemoryLedger, type MemoryLedgerInspection, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { readMemoryLedgerRestoreFacts, retainMemoryLedgerAfterRestore } from "./adapters/memory-ledger-recovery.js";
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

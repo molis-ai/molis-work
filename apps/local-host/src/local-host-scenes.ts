@@ -1,5 +1,5 @@
 import type { HostCapabilityDescriptor, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { subjectOfferCompatibilityReason, type ActionService } from "@molis-ai/molis-work-kernel";
+import { subjectOfferCompatibilityReason, type ActionService, type ActionSelection } from "@molis-ai/molis-work-kernel";
 import { sceneConfigurationActions, ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionSceneClient, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostOptions } from "./local-host-types.js";
 import { hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
@@ -14,7 +14,7 @@ export interface SceneHost {
   /** The Host runs, the project (when there is one) is not closing, and neither is the project the running call belongs to. */
   authorityCurrent(project: LocalHostProjectReference | undefined): boolean;
   withRuntime(project: LocalHostProjectReference, operation: () => undefined): Promise<undefined>;
-  discoverActions(caller: ActionCallContext): Promise<ActionView[]>;
+  discoverActions(caller: ActionCallContext, select?: ActionSelection): Promise<ActionView[]>;
   checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDescriptor, "capability_id" | "version">): Promise<void>;
   /** A scene's work takes its place on the project's line (the Home's, with no project), as part of the call that triggered it. */
   queueScene<Result>(project: LocalHostProjectReference | undefined, id: string, version: number, operation: () => Promise<Result>): Promise<Result>;
@@ -46,10 +46,10 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
         availability: scene.availability.available ? policy ?? scene.availability : scene.availability };
     }));
   };
-  const scenes = (caller: ActionCallContext, judgment?: ActionReference, loadDirectory = () => host.discoverActions(caller)) =>
-    withPolicy(caller, host.actionService.discoverScenes(caller, judgment), loadDirectory, judgment);
+  const scenes = (caller: ActionCallContext, judgment?: ActionReference, loadDirectory = () => host.discoverActions(caller), reference?: { scene_id: string; version: number }) =>
+    withPolicy(caller, host.actionService.discoverScenes(caller, judgment, reference), loadDirectory, judgment);
   const check = async (caller: ActionCallContext, sceneId: string, version: number, judgment?: ActionReference, configuration = false) => {
-    const scene = (await scenes(caller, judgment)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
+    const scene = (await scenes(caller, judgment, undefined, { scene_id: sceneId, version }))[0];
     if (!scene) throw new ActionError("actions.scene_missing", "场景不存在或不可访问");
     const availability = configuration ? scene.configuration_availability : scene.availability;
     if (!availability.available) throw new ActionError(availability.code, availability.reason);
@@ -67,7 +67,9 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
     },
     usages: async (caller, judgment) => {
       const bound = await prepare(caller);
-      const [uses, availableScenes, actions] = await Promise.all([host.actionService.usages(bound, judgment), scenes(bound), host.discoverActions(bound)]);
+      const [uses, availableScenes] = await Promise.all([host.actionService.usages(bound, judgment), scenes(bound)]);
+      const needsDirectory = uses.some(use => availableScenes.some(scene => scene.definition.scene_id === use.scene_id && scene.definition.version === use.scene_version && scene.definition.recommendation_source === "subject-offers"));
+      const actions = await host.discoverActions(bound, needsDirectory ? undefined : action => uses.some(use => use.function.capability_id === action.capability_id && use.function.version === action.version));
       return uses.map(use => {
         const source = availableScenes.find(scene => scene.definition.scene_id === use.scene_id && scene.definition.version === use.scene_version);
         const fn = actions.find(action => action.capability_id === use.function.capability_id && action.version === use.function.version);
@@ -91,9 +93,9 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
           ?? { available: false as const, code: "actions.forbidden", reason: "当前调用者未获此场景操作的授权" };
         const disable = managed(management?.disable), enable = managed(management?.enable);
         const configurationAvailability = !target.configuration_availability.available ? target.configuration_availability
-          : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" } : !source.configuration_availability.available ? source.configuration_availability : disable;
+          : !source ? { available: false as const, code: "actions.scene_missing", reason: "此用途已不存在" } : !source.configuration_availability.available ? source.configuration_availability : disable;
         return { ...target, configuration_availability: configurationAvailability, availability: !target.availability.available ? target.availability
-          : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" }
+          : !source ? { available: false as const, code: "actions.scene_missing", reason: "此用途已不存在" }
             : !source.availability.available ? source.availability : !source.compatible ? { available: false as const, code: "actions.scene_incompatible", reason: source.reason ?? "判断与场景不兼容" }
               : !enable.available ? enable : judgment ? fn?.availability ?? { available: false as const, code: "actions.forbidden", reason: "判断能力不可访问" } : target.availability };
       });
@@ -113,12 +115,12 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
     runScene: async (caller, scene, bindingId, event) => {
       const original = await prepare(caller);
       return queue(scene.scene_id, scene.version, async () => {
-        const sources = host.actionService.discoverScenes(original).filter(view => view.definition.scene_id === scene.scene_id && view.definition.version === scene.version);
+        const sources = host.actionService.discoverScenes(original, undefined, scene);
         const source = sources.find(view => view.provider.project_id === project?.project_id) ?? sources.find(view => !view.provider.project_id);
         const sourceCheck = source ? await host.options.retainSceneAuthority?.(source, project) : undefined;
         sourceCheck?.();
         const bound: ActionCallContext = { ...original, assert_authority_current: (reference, permissions) => { original.assert_authority_current?.(reference, permissions); sourceCheck?.(); } };
-        const binding = (await host.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
+        const binding = (await host.actionService.usages(bound, undefined, scene)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
         await check(bound, scene.scene_id, scene.version, binding?.function);
         const client = host.stepClient(project);
         const result = await host.actionService.runScene(bound, scene, bindingId, event, {

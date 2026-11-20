@@ -1,7 +1,8 @@
 # Molis Work 个人版云同步优化交付记录
 
-**记录日期** 2026-11-20  
-**交付状态** Phase 0～3（`PCSYNC-OPT-01`～`19`）全部工程改造与仓库本地门禁均已通过验证；Phase 4（`PCSYNC-OPT-20`～`22`）真实云端与双机人工验收待批准后执行。本轮改动尚未提交、推送或部署。
+**记录日期** 2026-11-20
+
+**交付状态** Phase 0～3（`PCSYNC-OPT-01`～`19`）全部工程改造与仓库本地门禁均已通过验证；Phase 4（`PCSYNC-OPT-20`～`22`）真实云端与双机人工验收待批准后执行。本记录的核验数据来自合入最新 main 前的同步分支。PR #2179 的合并提交需要重新验证。
 
 依据个人版云同步优化方案 `PCSYNC-OPT-01`～`22` 汇总。产品行为及完整项目生命周期以现行规格为准：[个人版云同步规格](spec.md)。
 
@@ -38,7 +39,7 @@
 | `PCSYNC-OPT-01` | Auth 外网降载 | 通过 | 20 次连续轮询仅 1 次签发 + 1 次 JWKS、`/users/me` 0 次；伪造/过期/错误签发方/哈希不匹配/重定向均拒绝；写操作实时核验 Auth（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-02` | 空闲轮询零 D1 限流写入 | 通过 | 26 集合连续轮询 10 次 `sync_rate_windows` 为空表；超限返回 `429` + `Retry-After: 60`（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-03` | Schema 校验缓存 | 通过 | 20 次读命中实例缓存；移除触发器后读命中缓存、写立即拒绝并失效缓存；旧库或缺结构拒绝（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
-| `PCSYNC-OPT-04` | 大附件完成零重读（`partsDigest`） | 通过 | R2 `HEAD` 零字节重读 + 有序 `partsDigest` 清单校验；50 MB `complete` 实测 `< 2s`，缺/错 `partsDigest` 拒返 `409`，2×50 MB 100 MB 满额通过（[attachments.test.mjs](../../apps/sync-worker/attachments.test.mjs)、[cutover.test.mjs](../../apps/sync-worker/cutover.test.mjs)）。 |
+| `PCSYNC-OPT-04` | 大附件完成零重读（`partsDigest`） | 通过 | R2 `HEAD` 零字节重读 + 有序 `partsDigest` 清单校验；50 MB `complete` 实测 `< 2s`，缺/错 `partsDigest` 拒返 `409`，2×50 MB 100 MB 满额通过（[attachments.test.mjs](../../apps/sync-worker/attachments.test.mjs)）。 |
 | `PCSYNC-OPT-05` | 动态分页 | 通过 | 50 条 2 KiB 首批返 20 条；400 KiB 多字节记录按约 2 MiB 截页且无游标遗漏（[cloud.test.mjs](../../apps/sync-worker/cloud.test.mjs)）。 |
 | `PCSYNC-OPT-06` | 本机秒级触发与空闲退避 | 通过 | 1.5s 防抖合并、空闲阶梯退避至 120s、`Retry-After` 统一节流；Web/MCP/动作非 `/api/sync` 写入口均触发 `notifyLocalChange`；指示器监听 `online` 与 `visibilitychange`（[sync-device.test.ts](../../tests/sync-device.test.ts)、[space-web-server.ts](../../apps/local-host/src/space-web-server.ts)、[sync-indicator.ts](../../apps/workbench/src/sync-indicator.ts)）。 |
 | `PCSYNC-OPT-07` | 读写预算解耦与分层并行 | 通过 | 下载积压不耗尽上传预算；拓扑分层并发实测 3 路峰值并发并保持依赖顺序与提速；附件双路分块并发（[security-invariants-personal-sync.test.ts](../../tests/security-invariants-personal-sync.test.ts)、[sync-device.test.ts](../../tests/sync-device.test.ts)）。 |

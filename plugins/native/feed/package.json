@@ -39,8 +39,6 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
-    "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "micromark": "^4.0.2",
     "micromark-extension-gfm": "^3.0.0",
@@ -58,8 +56,6 @@
       "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {
-      "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
-      "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
       "micromark": "^4.0.2",
       "micromark-extension-gfm": "^3.0.0",
       "sanitize-html": "^2.17.7"

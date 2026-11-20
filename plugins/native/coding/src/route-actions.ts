@@ -91,9 +91,17 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => fromRequest(request, ["before", "history_before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "history_before", "limit"]), body: {} }) },
   // A long session may first have the round's own model write a digest of its earlier rounds: that wait runs beside the project's queue.
   "coding.start-run": { definition: define("runs.start", /* @version action.coding.runs.start */ 1, "开始一轮编码", "在已授权的工作目录按所选方式（讨论、规划、修改、执行、评审、并行写入）开始一轮；写操作仍经审查", "command",
-      open({ ...session, task: { type: "string", maxLength: 100_000 }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, worktree_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
+      open({ ...session, task: { type: "string", maxLength: 100_000 }, command_prompt: { const: true }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, worktree_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
       ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  // A picture pasted into the composer, kept by the platform as this session's attachment (A3); the material service reads only inside an action.
+  "coding.attachments": { definition: define("images.keep", /* @version action.coding.images.keep */ 1, "存下一张图片", "把贴进输入框的一张图片存成这个会话的附件，供下一轮发给模型；只收 PNG、JPEG、GIF、WebP，5 MB 以内", "command",
+      closed({ ...session, name: { type: "string", minLength: 1, maxLength: 300 }, data: { type: "string", minLength: 1, maxLength: 7_000_000 } }), ["materials:read"], LOCAL, undefined, "concurrent"),
+    toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
+  "coding.round-images": { definition: define("images.read", /* @version action.coding.images.read */ 1, "读取一轮带的图片", "读回某一轮发给模型的图片；只读，只认这一轮带过的", "query",
+      closed(round), ["materials:read"], LOCAL, undefined, "concurrent"),
+    toInput: request => fromRequest(request),
+    toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
   "coding.control-run": { definition: define("runs.control", /* @version action.coding.runs.control */ 1, "控制编码轮次", "回答提问、补充要求（可指向要纠正的那条）、撤回还没交给模型的补充、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
       codingRunControlInput, [], LOCAL),
     toInput: request => controlInput({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },

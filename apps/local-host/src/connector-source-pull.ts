@@ -27,7 +27,13 @@ export const connectorSourcePullErrors = defineErrorCodes("connector.source_pull
 export interface ConnectorSourcePortOptions {
   readonly home: string;
   readonly registry: () => Promise<IntegrationRegistry>;
+  /** Each service's name as the person reads it (the service directory's titles); a service without one is named by its id. */
+  readonly titles?: () => Promise<ReadonlyMap<string, string>>;
 }
+
+/** The account-bound source adapters read a service through its API. A tool endpoint or CLI session uses another reader. */
+export const supportsAccountSource = (account: Pick<ConnectorConnectionRecord, "auth_method">) =>
+  account.auth_method === "token" || account.auth_method === "oauth";
 
 /** What the registry is asked with when no account is involved: the adapter and the integration's identity do not depend on one. */
 const noAccount = (source_id: string): IntegrationBinding => ({ source_id, connection_id: null, credential_ref: null, config: {} });
@@ -73,8 +79,8 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
         await run.beforeEffect(); current();
         const invoke = () => runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }, { signal, current, beforeEffect: async () => { current(); await run.beforeEffect(); current(); } }));
         const receipt = source ? await withObservationSource(source, invoke) : await invoke();
-        recordPull(home, target, account.connection_id, request.integration_id, source, receipt);
         await run.beforeEffect(); current();
+        recordPull(home, target, account.connection_id, request.integration_id, source, receipt);
         const { receipt_id, driver_id, started_at, completed_at, result } = receipt;
         return { receipt_id, driver_id, started_at, completed_at, result };
       }, { scope_id: targetScope(target), plugin_id: target.plugin_id, slot_id: target.slot_id });
@@ -84,9 +90,16 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
       const adapter = (await registry.bind(integration_id, "source", noAccount(target.record_key!))).signal_adapter;
       return adapter.toSignalDraft(event, { project_id: target.project_id!, source_id: target.record_key! });
     },
-    accounts(service_ids) {
-      if (!existsSync(homeSqlitePath(home, "connectors"))) return Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
-      return withConnectorConnections(home, store => Object.fromEntries(service_ids.map(id => [id, { bound: store.list(id).some(row => row.enabled && !row.disconnected_at) }])), true) ?? Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
+    async accounts(service_ids) {
+      const [registry, titles] = await Promise.all([options.registry(), options.titles?.() ?? Promise.resolve(new Map<string, string>())]);
+      // Pullable as the account source pulls it: the source integration whose id is the service's (the slot), not merely one for that service.
+      const pullable = new Set(registry.listIntegrations("source").filter(entry => entry.declaration.integration_id === entry.declaration.service_id)
+        .map(entry => entry.declaration.service_id));
+      const bound = existsSync(homeSqlitePath(home, "connectors"))
+        ? withConnectorConnections(home, store => new Set(service_ids.filter(id => pullable.has(id) && store.list(id).some(row => row.enabled
+          && supportsAccountSource(row) && shownState(home, row, store.state(row), lastConnectorCheck(store, row.connection_id)) === "connected"))), true) ?? new Set<string>()
+        : new Set<string>();
+      return Object.fromEntries(service_ids.map(id => [id, { bound: bound.has(id), pullable: pullable.has(id), title: titles.get(id) ?? id }]));
     },
   };
 }
@@ -122,6 +135,7 @@ function accountOf(home: string, target: PluginConnectionTarget): ConnectorConne
   return withConnectorConnections(home, store => {
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     return connection && connection.service_id === target.service_id && connection.enabled && !connection.disconnected_at
+      && supportsAccountSource(connection)
       && shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) === "connected" ? connection : null;
   }, true) ?? null;
 }

@@ -55,6 +55,7 @@ export interface ArtifactListQuery {
     availability?: ArtifactAvailability;
     supported_types?: readonly ArtifactConsumerType[];
     personal_owner_actor_id?: string;
+    producer_plugin_id?: string;
 }
 
 export type ArtifactMetadata = Record<string, ArtifactJsonValue>;
@@ -148,7 +149,19 @@ export interface FixedVersionResult<R extends FixedVersionRecord = FixedVersionR
     replayed: boolean;
 }
 
+export declare const IMPORTED_DOCUMENT_READ_TYPES: {
+    artifact_type_id: string;
+    schema_version: 1 | 2;
+}[];
+
+export declare const IMPORTED_DOCUMENT_SCHEMA_VERSION = 2;
+
 export declare const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
+
+export declare const IMPORTED_DOCUMENT_WARNING_SCHEMAS: {
+    readonly literal: 1;
+    readonly textRef: 2;
+};
 
 export interface ImportedDocumentFile {
     filename: string;
@@ -160,6 +173,10 @@ export interface ImportedDocumentFile {
     };
     text?: string;
 }
+
+export type ImportedDocumentWarning = Extract<TextRef, {
+    readonly key: string;
+}>;
 
 export interface InlineArtifactContent {
     kind: "inline";
@@ -216,9 +233,11 @@ export interface RegisterArtifactVersionInput extends RecordFixedVersionInput {
 
 export declare function artifactSubjectId(reference: ArtifactReference): string;
 
-export declare function importedDocumentFile(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "availability" | "content_kind" | "payload"> & {
+export declare function importedDocumentFile(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "schema_version" | "availability" | "content_kind" | "payload"> & {
     title: string;
 } | null): ImportedDocumentFile | null;
+
+export declare function isImportedDocumentVersion(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "schema_version">): boolean;
 
 export declare const modulesArtifactsContract: {
     readonly contractId: "io.molis.work.module.artifacts.v1";

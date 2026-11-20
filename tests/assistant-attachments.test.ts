@@ -9,12 +9,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { existsSync } from "node:fs";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
-import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { pdfDocumentParser } from "../apps/local-host/dist/pdf-document-parser.js";
+import { assistantAttachmentImage, assistantAttachments, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { createHash } from "node:crypto";
 import { deflateSync, crc32 } from "node:zlib";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
@@ -66,28 +67,34 @@ function pdf(lines: string[]): Buffer {
   return Buffer.from(body, "latin1");
 }
 
-test("a PDF the person brings is read by the Agent runtime's own parser into bounded text; what cannot be read says why", { timeout: 60_000 }, async () => {
+test("B35-R5 a PDF the person brings is kept as a conversation attachment and read once by the platform's material readers into bounded text; what cannot be read says why", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-attachments-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-attachments-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    documentParsers: [pdfDocumentParser],
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()) }, "web-user");
+  const attachments = assistantAttachments(home);
+  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home"], host: async () => host, attachments,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), attachmentImage: assistantAttachmentImage(attachments) }) }, "web-user");
   try {
-    const material = await service.materials.readAttachment({ name: "brief.pdf", data: pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]).toString("base64") });
+    const brief = pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]);
+    const material = await service.materialAccess.readAttachment({ name: "brief.pdf", data: brief.toString("base64") });
     assert.equal(material.kind, "file");
+    const digest = createHash("sha256").update(brief).digest("hex");
+    assert.equal(attachments.holds(material.file_attachment!), true);
+    assert.equal(existsSync(join(home, "conversation-attachments", "blobs", digest)), true);
+    assert.deepEqual((await attachments.read(material.file_attachment!, { as: "original" })).original, brief);
     assert.equal(material.explicit, true);
     assert.equal(material.title, "brief.pdf（1 页）");
     assert.match(material.text ?? "", /Q4 plan brief[\s\S]*Weekly sync moves to Wednesday/);
-    await assert.rejects(service.materials.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), /PDF 打不开|没有可读取的文本层/);
-    await assert.rejects(service.materials.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), /暂时只能读取文本文件、PDF 和图片|不能读取/);
-    await assert.rejects(service.materials.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
+    await assert.rejects(service.materialAccess.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.invalid" && /PDF/i.test(error.message), "a damaged PDF says why");
+    await assert.rejects(service.materialAccess.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), (error: unknown) => error instanceof ActionError && error.code === "assistant.unsupported" && /这种文件还读不了/.test(error.message));
+    await assert.rejects(service.materialAccess.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("a picture the person brings is taken in by the runtime and shown to the model in that round only; a model marked as not seeing images gets nothing", { timeout: 60_000 }, async t => {
+test("a picture the person brings is kept by the platform's attachments and shown to the model in that round only; a model marked as not seeing images gets nothing", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-images-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const requests: string[] = [];
@@ -102,10 +109,13 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+  const attachments = assistantAttachments(home);
+  const ports = { pages: async () => ["home"], host: async () => host, attachments, timeZone: "Asia/Shanghai",
+    authority: async (work: Parameters<typeof assistantAuthority>[1]) => ({ ...assistantAuthority(local, work, () => new Set()), attachmentImage: assistantAttachmentImage(attachments) }) };
+  const service = new AssistantService(store, ports, "web-user");
   try {
     const image = png(), bytes = image.toString("base64");
-    const material = await service.materials.readAttachment({ name: "chart.png", data: bytes });
+    const material = await service.materialAccess.readAttachment({ name: "chart.png", data: bytes });
     assert.equal(material.kind, "image");
     assert.equal(material.image?.media_type, "image/png");
     assert.equal(material.text, undefined, "a picture never travels as text");
@@ -117,14 +127,14 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     assert.ok(first.includes(bytes), "the model call carries the picture itself");
     assert.match(first, /"type":"image"/);
     assert.ok(first.includes("看不到图片内容就直接说看不到"), "the model is told not to guess");
+    assert.ok(first.includes(UNMARKED_IMAGES_NOTE), "the platform tells an unmarked model too, as it does every caller's round (decision 51)");
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.kind, "image");
     // The picture can be looked at again from the work (the side panel shows it), exactly as it was brought.
-    assert.deepEqual(await service.materials.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
-    // After a restart the runtime holds no copy: the work says so, and asking for it gives the way out instead of a picture.
-    const restarted = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
-    assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
-    assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
-    await assert.rejects(restarted.materials.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));
+    assert.deepEqual(await service.materialAccess.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
+    // The platform keeps it: after a restart the work still shows it, and it is the same picture.
+    const restarted = new AssistantService(store, ports, "web-user");
+    assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
+    assert.deepEqual(await restarted.materialAccess.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
 
     // The next round of the same work does not carry it again.
     await service.send({ text: "继续说说颜色的含义", request_id: "image-send-2", work_id: sent.work.work_id }, {});
@@ -139,8 +149,14 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     assert.equal(requests.length, before, "no model call ran");
     assert.equal((await service.read(sent.work.work_id)).work.draft, "再看这张");
 
-    // A reference this runtime never issued is refused before anything starts; so is what is not a picture.
-    await assert.rejects(service.send({ text: "看这个", request_id: "image-send-4", scope: { kind: "personal" }, materials: [{ ...material, image: { ...material.image!, resource_id: "res-forged" } }] }, {}), /已失效/);
-    await assert.rejects(service.materials.readAttachment({ name: "photo.heic", data: Buffer.from("not an image at all").toString("base64") }), /只能带 PNG、JPEG、GIF 或 WebP 图片/);
+    // A reference the Assistant never attached is refused before anything starts.
+    vision = undefined;
+    const forged = "0".repeat(64);
+    await assert.rejects(service.send({ text: "看这个", request_id: "image-send-4", scope: { kind: "personal" }, materials: [{ ...material,
+      image: { ...material.image!, attachment: { subject: { kind: "conversation_attachment", id: `ca_${forged}` }, pin: { mode: "current", read_revision: forged } } } }] }, {}), /已不在了/);
+    // Bytes gone from the store: the work says so, and asking for it gives the way out instead of a picture.
+    await rm(join(home, "conversation-attachments", "blobs", createHash("sha256").update(image).digest("hex")));
+    assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
+    await assert.rejects(service.materialAccess.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

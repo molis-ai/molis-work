@@ -46,7 +46,7 @@ test("W5-01-CODING-03 a fixed change set is answered as each file's reviewed tex
   assert.deepEqual(await ask(platform, CHANGESET_REFERENCE), { reference: CHANGESET_REFERENCE, title: "这一轮的固定变更", saved_at: "2026-10-20T08:30:00.000Z", markdown: CHANGE_SET_MARKDOWN });
   const empty = changeSetRecord({ payload: { scope: "run-frozen", run_id: "run-1", applied: false, coverage: "text-reviews", files: [], origin: { session_id: "session-a", runtime_session_id: "r", workspace_id: "w", workspace_name: "n" } } });
   const none = await ask(fakePlatform({ processItems: [empty] }, CODING_TYPES), CHANGESET_REFERENCE) as { markdown: string };
-  assert.equal(none.markdown, "这一轮没有可读取的文本审查；命令及外部操作请查看原回执。");
+  assert.equal(none.markdown, "这一轮没有可读取的文本改动审查；命令及外部操作请查看下方执行记录。");
 });
 
 test("W5-01-CODING-04 archived, other-project, other-kind, forged and unavailable versions are refused in Coding's own code", async () => {
@@ -89,10 +89,11 @@ test("W5-01-CODING-06 Coding lists its own outputs by type through the platform,
   // One listing and one read per listed version, however many kinds are asked for: the page refreshes these while a session is open.
   const calls = { list: 0, read: 0 }, client = platform.artifacts(CODING_PLUGIN);
   const counted = startContext(CODING_PLUGIN, { processItems: platform.processItems(CODING_PLUGIN), artifacts: { ...client,
-    listConsumable: () => { calls.list++; return client.listConsumable(); }, read: reference => { calls.read++; return client.read(reference); } } });
+    listConsumable: filter => { calls.list++; return client.listConsumable(filter); }, read: reference => { calls.read++; return client.read(reference); } } });
   const outputs = codingOutputs(counted, ["coding.report.v1", "coding.changeset.v1", "coding.plan.v1"]);
   assert.deepEqual(outputs.map(output => output.reference.artifact_id),
     [REPORT_REFERENCE.artifact_id, "coding-report:session-b:run-2", CHANGESET_REFERENCE.artifact_id, "coding-plan:session-a:run-1"]);
   assert.equal(outputs[0]?.record.artifact_id, REPORT_REFERENCE.artifact_id, "the version read for the listing comes with it, so a route does not read it again");
-  assert.deepEqual(calls, { list: 1, read: 5 }, "another producer's report is read once to be left out; the archived one is not listed at all");
+  // BL375-07: the platform lists only what it recorded Coding as producing, so another producer's report is not even read.
+  assert.deepEqual(calls, { list: 1, read: 4 }, "another producer's report and the archived one are not listed at all");
 });

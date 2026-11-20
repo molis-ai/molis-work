@@ -6,6 +6,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { TextDiffRow } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
+import { reviewChecks } from "./agent-review-checks.js";
 
 /**
  * The Host's review surface: where a user decides whether an Agent's side
@@ -259,12 +260,14 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
     const canApprove = row.decisions.approve.available && readable(row.request.document);
+    // New errors make sending them back the first choice; the person can still write the file as it is.
+    const fix = row.request.document.kind === "text-edit" && row.request.run ? reviewChecks(row.request.document).note : undefined;
     // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
     return `${blocked}${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">${uiText("workbench.agent-review.feedback")}</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="${uiText("workbench.agent-review.feedback")}" maxlength="2000" rows="1" placeholder="${uiText("workbench.agent-review.feedback-placeholder")}"></textarea><span class="mw-field__hint">${uiText("workbench.agent-review.feedback-hint")}</span></label>` : ""}<footer class="agent-review-actions">
       ${canApprove && row.work_permission_available ? `<button class="mw-btn mw-btn--ghost" type="button" data-agent-review-permission>${p.escape(uiText.text("workbench.authorization.choose"))}</button>` : ""}
       ${canApprove && row.request.document.kind === "command" && row.request.document.escalate === false && row.request.document.grants === undefined && !row.request.document.session_rule_blocked && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape(uiText.text("workbench.agent-review.remember-session"))}</label>` : ""}
-      ${row.decisions.reject.available ? `<button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape(uiText.text("workbench.agent-review.reject"))}</button>` : ""}
-      ${canApprove ? `<button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>` : ""}
+      ${row.decisions.reject.available ? `<button class="mw-btn${fix ? " mw-btn--primary" : ""}" type="button" data-agent-review-reject="${reviewId}"${fix ? ` data-agent-review-note="${p.escape(fix)}" data-agent-review-fix` : ""}>${p.escape(uiText.text(fix ? "workbench.agent-review.checks-fix-first" : "workbench.agent-review.reject"))}</button>` : ""}
+      ${canApprove ? `<button class="mw-btn${fix ? "" : " mw-btn--primary"}" type="button" data-agent-review-approve="${reviewId}">${p.escape(uiText.text("workbench.agent-review.approve-once"))}</button>` : ""}
     </footer>`;
   }
   // A settled item offers no action: a decision already consumed cannot be
@@ -306,12 +309,14 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
         <details data-review-detail="${p.escape("before:" + file.path)}"><summary>${uiText("workbench.agent-review.index-before")}</summary><pre>${p.escape(file.before_text ?? uiText.text("workbench.agent-review.not-staged"))}</pre></details>
         <p>${uiText("workbench.agent-review.index-after")}</p><pre>${p.escape(file.after_text === null ? uiText.text("workbench.agent-review.unstage-keep-disk") : file.after_text || uiText.text("workbench.agent-review.empty-file"))}</pre></section>`).join("")}</div>`;
     case "text-edit": {
-      const diff = renderTextDiff(document.before_text, document.after_text, p);
+      const diff = renderTextDiff(document.before_text, document.after_text, p), checks = reviewChecks(document);
+      const asWritten = document.checks?.formatting.state === "formatted" ? renderTextDiff(document.before_text, document.checks.formatting.as_written, p).html : "";
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape(uiText.text("workbench.agent-review.new-file"))}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
         ${document.workspace_path ? `<p class="agent-review-meta">${p.escape(document.workspace_path)}</p>` : ""}
         ${document.concurrent?.length ? `<p class="agent-review-concurrent" role="note">${p.escape(uiText.text("workbench.agent-review.concurrent", { sessions: document.concurrent.join(uiText.text("common.list.separator")) }))}</p>` : ""}
-        ${diff.html}
+        ${checks.html}${diff.html}
+        ${asWritten ? `<details class="mw-disclosure agent-review-as-written" data-review-detail="as-written"><summary>${p.escape(uiText.text("workbench.agent-review.checks-as-written"))}</summary>${asWritten}</details>` : ""}
         <details class="agent-review-before" data-review-detail="before"><summary>${p.escape(uiText.text("workbench.agent-review.before-full"))}</summary><pre>${p.escape(document.before_text ?? uiText.text("workbench.agent-review.before-no-file"))}</pre></details>
         <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape(uiText.text("workbench.agent-review.after-full"))}</summary><pre class="agent-review-after" translate="no">${p.escape(document.after_text)}</pre></details>
       </div>`;

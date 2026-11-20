@@ -29,13 +29,10 @@ export interface BlobChannel {
   assert():void;
   json<T>(route:string,body?:unknown):Promise<T>;
   binary(route:string,body?:Uint8Array):Promise<Uint8Array>;
-  /** Local state's name for a public collection (sync-cutover.md BSH-14-A/C); requests always carry the public name. */
-  lane?(namespace:string):string;
   onProgress?(delta:{done:number;total:number}):void;
 }
 /** One cycle has a bounded request budget; D1 receipts and local parts survive a process restart. */
 export function blobTransfer(home:string,channel:BlobChannel,budget:{remaining:number}={remaining:32}){
-  const local=(namespace:string)=>channel.lane?.(namespace)??namespace;
   const take=()=>{channel.assert();if(budget.remaining--<=0)throw syncError('busy','附件传输尚未完成，请继续同步',{sync_resume:true});};
   const db=<T>(run:(db:import('node:sqlite').DatabaseSync)=>T)=>{channel.assert();return withSyncDatabase(home,run);};
   const status=async(namespace:string,reference:SyncBlobReference,reserve:boolean)=>{
@@ -46,18 +43,18 @@ export function blobTransfer(home:string,channel:BlobChannel,budget:{remaining:n
   };
   return {
     release(namespace:string,references:SyncBlobReference[]){
-      const lane=local(namespace),files=blobFiles(home,lane,()=>channel.assert());
+      const files=blobFiles(home,namespace,()=>channel.assert());
       for(const reference of references){
         const ref=blobReference(reference);
         files.release(ref.digest);
-        db(connection=>connection.prepare('DELETE FROM sync_blob_parts WHERE namespace=? AND digest=?').run(lane,ref.digest));
+        db(connection=>connection.prepare('DELETE FROM sync_blob_parts WHERE namespace=? AND digest=?').run(namespace,ref.digest));
       }
     },
-    forget(namespace:string,operation:string){db(connection=>connection.prepare('DELETE FROM sync_blob_uploads WHERE namespace=? AND operation=?').run(local(namespace),operation));},
+    forget(namespace:string,operation:string){db(connection=>connection.prepare('DELETE FROM sync_blob_uploads WHERE namespace=? AND operation=?').run(namespace,operation));},
     async upload(namespace:string,operation:string,source:SyncBlobSource){
       const reference=blobReference(source);if(source.bytes.byteLength!==reference.size||hash(source.bytes)!==reference.digest)throw syncError('invalid','同步附件校验失败');
-      if(db(connection=>connection.prepare('SELECT 1 FROM sync_blob_uploads WHERE namespace=? AND operation=? AND digest=?').get(local(namespace),operation,reference.digest)))return;
-      const remember=()=>db(connection=>connection.prepare('INSERT OR IGNORE INTO sync_blob_uploads VALUES (?,?,?)').run(local(namespace),operation,reference.digest));
+      if(db(connection=>connection.prepare('SELECT 1 FROM sync_blob_uploads WHERE namespace=? AND operation=? AND digest=?').get(namespace,operation,reference.digest)))return;
+      const remember=()=>db(connection=>connection.prepare('INSERT OR IGNORE INTO sync_blob_uploads VALUES (?,?,?)').run(namespace,operation,reference.digest));
       const receipt=await status(namespace,reference,true);if(receipt.ready){remember();return;}
       const count=Math.ceil(reference.size/CHUNK),checksums=new Array<string>(count);
       channel.onProgress?.({done:0,total:reference.size});
@@ -71,7 +68,7 @@ export function blobTransfer(home:string,channel:BlobChannel,budget:{remaining:n
     },
     async download(namespace:string,input:SyncBlobReference,protection?:SyncLocalProtection):Promise<Uint8Array>{
       const reference=blobReference(input);
-      const cache=blobCache(home,local(namespace),()=>channel.assert(),protection),cachedParts=cache.parts(reference);
+      const cache=blobCache(home,namespace,()=>channel.assert(),protection),cachedParts=cache.parts(reference);
       const count=Math.ceil(reference.size/CHUNK);
       const expectedSize=(part:number)=>Math.min(CHUNK,reference.size-part*CHUNK);
       const corrupt=()=>syncError('invalid','同步暂存校验失败，原数据已保留');

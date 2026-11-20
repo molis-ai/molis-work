@@ -7,7 +7,7 @@ import { createServer } from "node:net";
 import test from "node:test";
 import { sampleFirstScreen } from "../scripts/first-screen/http.mjs";
 import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows, requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
-import { firstScreenProblems, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
+import { firstScreenMeasurementKey, firstScreenProblems, firstScreenReportMatches, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
 import { assetProblems, readNewAllowances } from "../scripts/gates/page-assets-policy.mjs";
 
 const arrival = { id: "arrival-empty", path: "/" };
@@ -323,6 +323,45 @@ test("FSS-BG-02 a startup pack approval matches a single content address for tha
   assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, [
     `${pageKey} ${duplicate}: multiple paths for /assets/locale/workbench.zh.<digest>.js`,
   ]);
+});
+
+test("FSS-BG-02 a content-hash rotation of an existing startup locale pack compares against its previous digest", () => {
+  const base = measured(), candidate = measured();
+  const localeEntry = (digit) => `/assets/locale/workbench.zh.${digit.repeat(24)}.js`;
+  const oldPack = localeEntry("a"), newPack = localeEntry("b");
+  base[pageKey].entries = { "/": { cold: 15_000, warm: 15_000 }, [oldPack]: { cold: 5_000, warm: 100 } };
+  base[pageKey].totals = { cold: 20_000, warm: 15_100 };
+  // Rotating the digest without growing over 10 KB is not a new entry; total growth still obeys page allowances.
+  candidate[pageKey].entries = { "/": { cold: 14_800, warm: 15_000 }, [newPack]: { cold: 5_200, warm: 100 } };
+  candidate[pageKey].totals = { cold: 20_000, warm: 15_100 };
+  assert.deepEqual(firstScreenProblems(base, candidate, {}, {}).errors, []);
+  // Growing the rotated pack by > 10 KB still demands explicit growth userApproval on the logical entry.
+  candidate[pageKey].entries = { "/": { cold: 4_000, warm: 15_000 }, [newPack]: { cold: 15_001, warm: 100 } };
+  candidate[pageKey].totals = { cold: 19_001, warm: 15_100 };
+  assert.deepEqual(firstScreenProblems(base, candidate, {}, {}).errors, [
+    `${pageKey} ${newPack}: growth over 10 KB requires userApproval`,
+  ]);
+  const approvedGrowth = permit(approve(entryApproval("/assets/locale/workbench.zh.<digest>.js", { change: "growth" })));
+  assert.deepEqual(firstScreenProblems(base, candidate, approvedGrowth, {}).errors, []);
+});
+
+test("FSS-BG-05 first-screen artifact cache keys depend on rows and validate cached measurements strictly", () => {
+  const rowsA = [row("/a")], rowsB = [row("/b")];
+  const keyA = firstScreenMeasurementKey(rowsA);
+  assert.match(keyA, /^[0-9a-f]{24}$/);
+  assert.notEqual(keyA, firstScreenMeasurementKey(rowsB));
+  const pages = {
+    ...measured(),
+    "workbench-demo/zh": { totals: { cold: 10, warm: 10 }, entries: { "/": { cold: 10, warm: 10 } } },
+    "workbench-demo/en": { totals: { cold: 10, warm: 10 }, entries: { "/": { cold: 10, warm: 10 } } },
+  };
+  const sha = "a".repeat(40);
+  assert.equal(firstScreenReportMatches({ sha, key: keyA, pages }, sha, keyA), true);
+  assert.equal(firstScreenReportMatches({ sha: "b".repeat(40), key: keyA, pages }, sha, keyA), false);
+  assert.equal(firstScreenReportMatches({ sha, key: "0".repeat(24), pages }, sha, keyA), false);
+  const missingDemo = { ...pages };
+  delete missingDemo["workbench-demo/en"];
+  assert.equal(firstScreenReportMatches({ sha, key: keyA, pages: missingDemo }, sha, keyA), false);
 });
 
 test("FSS-BG-02 page-only and combined allowances preserve old asset rejection and validate both categories", () => {

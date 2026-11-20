@@ -120,7 +120,7 @@ test("incompatible imported skills, oversize content and other project scopes fa
     f.character.import_snapshot = { runtime_id: "codex", config_root: "/tmp/config", project_root: issue === "project" ? "/tmp/ws-other" : "/tmp/ws", captured_at: "2026-09-23T00:00:00Z", rules: [],
       skills: [{ id: "s", name: "special", description: "", path: "/tmp/config/s", compatibility: issue === "native" ? "native-only" : "portable",
         files: [{ path: "SKILL.md", encoding: "utf8", content: issue === "size" ? "x".repeat(61_000) : "skill" }] }] };
-    await assert.rejects(f.host.start("probe", f.request, f.authority), /内置引擎|项目范围/);
+    await assert.rejects(f.host.start("probe", f.request, f.authority), /内置 AI|项目范围/);
     assert.equal(f.captured.length, 0);
   }
 });

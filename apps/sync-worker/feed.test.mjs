@@ -6,7 +6,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace,createEvidenceContentStore,createLazyFileSecretStore} from '@molis-ai/molis-work-storage';
-import {SignalsModule,SourcesModule,FeedModule,fromBetterSqlite} from '@molis-ai/molis-work-plugin-feed/store';
+import {SignalsModule,SourcesModule,FeedModule,fromProjectConnection} from '@molis-ai/molis-work-plugin-feed/store';
 import {feedLedgerPort} from '../../tests/fixtures/feed-ledger.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
@@ -20,10 +20,10 @@ test('PCSYNC-01/11/12/15/22 Messages and exact evidence cross actual Host/Rust/D
  for(const [k,v]of Object.entries(env))if(v===undefined)delete process.env[k];else process.env[k]=v;
  t.after(()=>{for(const [k,v]of Object.entries(previous))if(v===undefined)delete process.env[k];else process.env[k]=v;});t.mock.method(globalThis,'fetch',cloud.transport);
  const p=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async c=>{const project=await c.createProject({display_name:'Saved messages',actor_id:'alice'});c.addProjectPlugin({project_id:project.project_id,plugin_id:'feed',actor_id:'alice'});return project;});
- const source=new LocalProjectDatabase(p.database_path);t.after(()=>source.close());const at='2026-10-18T00:00:00.000Z',sources=new SourcesModule(fromBetterSqlite(source.db));
+ const source=new LocalProjectDatabase(p.database_path);t.after(()=>source.close());const at='2026-10-18T00:00:00.000Z',sources=new SourcesModule(fromProjectConnection(source.db));
  sources.commands.save({project_id:p.project_id,source_id:'source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'Saved source',description:'Only its description',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'must-not-share-provider'},schedule:{mode:'manual'},connection_ref:'must-not-share-connection',account_label:null,last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:at,updated_at:at});
  const stores=homes.map(home=>createEvidenceContentStore({secretStore:createLazyFileSecretStore(home),rootDirectory:join(home,'feed','evidence')})),text='Saved raw evidence 🙂\n'.repeat(21000),ref=stores[0].write(text).contentRef;
- const signals=new SignalsModule(fromBetterSqlite(source.db)),draft={project_id:p.project_id,source_id:'source',provider_dedupe_id:'one',kind:'update',occurred_at:at,observed_at:at,payload:{title:'First'},content_refs:[ref],raw_event_id:'raw-fixed',adapter:{plugin_id:'fixture',version:'1.0.0'},provenance:{fixture:true}};
+ const signals=new SignalsModule(fromProjectConnection(source.db)),draft={project_id:p.project_id,source_id:'source',provider_dedupe_id:'one',kind:'update',occurred_at:at,observed_at:at,payload:{title:'First'},content_refs:[ref],raw_event_id:'raw-fixed',adapter:{plugin_id:'fixture',version:'1.0.0'},provenance:{fixture:true}};
  signals.commands.submitDraft(draft);const signal=signals.commands.submitDraft({...draft,payload:{title:'Second'}}).signal,feed=createDemoFeedApplication(source.db);
  const result=feed.ingestItem({source:sources.query.get(p.project_id,'source'),externalId:'one',signal:{signal_id:signal.signal_id,revision:2},title:'Saved notification',summary:'Summary',occurredAt:at,attention:false});
  // The owner module provides the explicit material command; no Host SQL writes business facts.

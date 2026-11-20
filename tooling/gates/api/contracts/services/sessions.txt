@@ -154,6 +154,15 @@ export type ExternalSessionFiledAttribution = Omit<Extract<ExternalSessionAttrib
     state: "automatic";
 }>, "tool_reported_other">;
 
+export interface ExternalSessionHistoryAuthorization {
+    readonly scope_revision: string;
+    readonly revision: string;
+}
+
+export interface ExternalSessionHistoryAuthorizeInput {
+    readonly session_keys: readonly string[];
+}
+
 export interface ExternalSessionHistoryInput {
     session_key: string;
     from?: {
@@ -169,6 +178,7 @@ export interface ExternalSessionHistoryInput {
 
 export interface ExternalSessionHistoryOutput {
     session_key: string;
+    session: ExternalSessionRow | ExternalSessionRowSummary;
     entries: ExternalSessionEntry[];
     older_cursor: string | null;
     newer_cursor: string | null;
@@ -199,6 +209,7 @@ export interface ExternalSessionIdentity {
 export interface ExternalSessionListInput {
     view: "project" | "unfiled" | "all";
     entry_ids?: ExternalToolId[];
+    query?: string;
     cursor?: string | null;
     limit?: number;
 }
@@ -391,6 +402,7 @@ export declare const servicesSessionsContract: {
 export declare const sessionsActions: {
     list: ActionDefinition<ExternalSessionListInput, ExternalSessionListOutput>;
     historyRead: ActionDefinition<ExternalSessionHistoryInput, ExternalSessionHistoryOutput>;
+    historyAuthorize: ActionDefinition<ExternalSessionHistoryAuthorizeInput, ExternalSessionHistoryAuthorization>;
     scopeRead: ActionDefinition<ExternalSessionScopeReadInput, ExternalSessionScopeView>;
     scopeSet: ActionDefinition<ExternalSessionScopeSetInput, ExternalSessionScopeView>;
     projectAiReadSet: ActionDefinition<ExternalSessionProjectAiReadSetInput, ExternalSessionProjectAiRead>;

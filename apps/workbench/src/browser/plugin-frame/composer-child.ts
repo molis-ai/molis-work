@@ -1,5 +1,5 @@
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
-import type { ComposerCommand, ComposerControl, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerChip, ComposerCommand, ComposerControl, ComposerFileFact, ComposerHandle, ComposerNotice, ComposerOptions, ComposerOutcome } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { BridgedCommand, BridgedControl, ComposerCalls, ComposerDown, ComposerSnapshot, ComposerUp } from "./composer-bridge.js";
 import { childComposerReadiness } from "./composer-readiness.js";
 import type { FrameScope } from "./types.js";
@@ -14,11 +14,16 @@ function control(item: ComposerControl): BridgedControl {
 
 /** The line above the box as it crosses: words and tone, its button's label only (its press comes back as `composer-act` `notice`). */
 function bridgedNotice(notice: ComposerNotice | null): ComposerSnapshot["notice"] {
-  return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null } : null;
+  return notice ? { text: notice.text, tone: notice.tone, ...(notice.icon ? { icon: notice.icon } : {}), action: notice.action ? { label: notice.action.label } : null,
+    ...(notice.action && notice.also ? { also: { label: notice.also.label } } : {}) } : null;
+}
+/** The command chip as it crosses: words only; its × comes back as `composer-act` `chip`. */
+function bridgedChip(chip: ComposerChip | null): ComposerSnapshot["chip"] {
+  return chip ? { name: chip.name, source: chip.source, remove: { label: chip.remove.label }, ...(chip.prompt ? { prompt: { label: chip.prompt.label, text: chip.prompt.text } } : {}) } : null;
 }
 function command(item: ComposerCommand): BridgedCommand {
   return { slash: item.slash, label: item.label, ...(item.hint ? { hint: item.hint } : {}), ...(item.keywords ? { keywords: [...item.keywords] } : {}),
-    ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}) };
+    ...(item.icon ? { icon: item.icon } : {}), ...(item.add === false ? { add: false as const } : {}), ...(item.group ? { group: item.group } : {}), ...(item.warning ? { warning: item.warning } : {}) };
 }
 
 function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLElement, field: HTMLTextAreaElement | null, running: boolean, hold: string | null): ComposerSnapshot {
@@ -32,7 +37,9 @@ function childSnapshot(ai: Extract<ComposerOptions, { kind: "ai" }>, root: HTMLE
       ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
     delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
     stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
-    mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
+    commandMenu: ai.commandMenu ? { groups: (ai.commandMenu.groups ?? []).map(group => ({ label: group.label, ...(group.empty ? { empty: group.empty } : {}) })), ...(ai.commandMenu.note ? { note: ai.commandMenu.note } : {}) } : null,
+    chip: bridgedChip(ai.chip?.() ?? null),
+    mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}), ...(ai.attachments.pictures ? { pictures: { ...ai.attachments.pictures } } : {}) } : null,
     sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
     notice: bridgedNotice(ai.notice?.() ?? null), submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column, running, hold,
   };
@@ -105,7 +112,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const id = live = ++sequence, field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input");
     const ai = options;
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
-    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false;
+    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], files: readonly ComposerFileFact[] = [], gone = false, last = "", queued = false;
     const readiness = childComposerReadiness(send, id, () => !gone && live === id);
     refuseReady = readiness.discard;
     root.dataset.composerRemote = "";
@@ -133,7 +140,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       focus: () => send({ type: "composer-focus", id }), send: () => send({ type: "composer-send", id }),
     });
     const mirror = stand.mirror;
-    const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal): Promise<ComposerCalls[Op][1]> => {
+    const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal, acknowledge: () => void): Promise<ComposerCalls[Op][1]> => {
       const adapter = ai.draft && "adapter" in ai.draft ? ai.draft.adapter : null;
       switch (op) {
         case "draft-read": {
@@ -162,7 +169,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
           // What is missing is the page's to say at the moment of sending, not as the bar last heard it.
           const missing = ai.required?.();
           if (missing) return { state: "failed", message: missing } as ComposerCalls[Op][1];
-          const outcome: ComposerOutcome = await ai.submit(arg as ComposerCalls["submit"][0], signal);
+          const outcome: ComposerOutcome = await ai.submit(arg as ComposerCalls["submit"][0], signal, acknowledge);
           if (outcome.state !== "unknown") return { ...outcome, ...(outcome.state === "failed" && outcome.unreadable ? { unreadable: [...outcome.unreadable] } : {}) } as ComposerCalls[Op][1];
           const token = ++sequence; checks.set(token, outcome.check);
           return { state: "unknown", check: token } as ComposerCalls[Op][1];
@@ -175,13 +182,14 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (!message || message.id !== id || gone) return;
       if (message.type === "composer-ready") { readiness.answer(message); return; }
       if (message.type === "composer-text") { mirror(message.text); return; }
-      if (message.type === "composer-materials") { materials = message.materials; ai.onMaterials?.(); return; }
+      if (message.type === "composer-materials") { materials = message.materials; files = message.files ?? []; ai.onMaterials?.(); changed(); return; }
       // The bar's input width: a page lines its conversation up with it through this one variable (§10.4).
       if (message.type === "composer-column") { if (Number.isFinite(message.width) && message.width > 0) document.documentElement.style.setProperty("--mw-bar-column", Math.round(message.width) + "px"); return; }
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
-        else if (message.act === "notice") ai.notice?.()?.action?.run();
+        else if (message.act === "notice") { const line = ai.notice?.(); (message.key === "also" ? line?.also : line?.action)?.run(); }
+        else if (message.act === "chip") ai.chip?.()?.remove.run();
         else if (message.act === "receiver") {
           // Only one the page itself listed.
           const named = ai.receiver?.();
@@ -196,7 +204,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       }
       if (message.type !== "composer-call") return;
       const controller = new AbortController(); calls.set(message.call, controller);
-      void run(message.op, message.arg as never, controller.signal).then(
+      void run(message.op, message.arg as never, controller.signal, () => { if (!gone) send({ type: "composer-acknowledge", id, call: message.call }); }).then(
         value => send({ type: "composer-answer", id, call: message.call, value }),
         error => send({ type: "composer-answer", id, call: message.call, error: error instanceof Error ? error.message : String(error) }),
       ).finally(() => { calls.delete(message.call); changed(); });
@@ -219,8 +227,8 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       refresh: changed,
       focus: () => send({ type: "composer-focus", id }),
       insert: (text) => send({ type: "composer-insert", id, text }),
-      attach: (files) => send({ type: "composer-attach", id, files: [...files] }),
-      materials: () => materials,
+      attach: (given, replacing = []) => send({ type: "composer-attach", id, files: [...given], ...(replacing.length ? { replacing: replacing.map(({ name, size, type, lastModified }) => ({ name, size, type, lastModified })) } : {}) }),
+      materials: () => materials, files: () => files,
       destroy,
     };
     return handle;

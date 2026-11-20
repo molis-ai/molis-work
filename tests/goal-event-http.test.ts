@@ -11,6 +11,7 @@ import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-a
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
+import { closeInOrder } from "./fixtures/ordered-cleanup.js";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -648,7 +649,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
     const detailsEnd = requirements.indexOf("</details>");
     assert.ok(detailsStart >= 0 && detailsEnd > detailsStart, "original criteria must be inside an expandable details");
     const details = requirements.slice(detailsStart, detailsEnd + "</details>".length);
-    assert.match(details, /<summary>原 Goal 标准<\/summary>/);
+    assert.match(details, /<summary>初始完成标准<\/summary>/);
     assert.match(details, /legacy-read-criterion/);
     assert.match(details, /inspection/);
     assert.match(details, /\{&quot;value&quot;:90,&quot;unit&quot;:&quot;分&quot;,&quot;baseline&quot;:&quot;release-gate&quot;\}/);
@@ -978,14 +979,15 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
 
 test("onboarding initialize receipt has no retired aliases and persists onboarding source", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-event-http-onboarding-"));
-  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
-  const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
-  const server = createMolisWorkWebServer({
-    homeDirectory, localHost: host,
-    controlToken: TOKEN,
-  });
-  let store: LocalProjectDatabase | undefined;
+  let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let store: LocalProjectDatabase | undefined, failure: { error: unknown } | undefined;
   try {
+    host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+    const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
+    server = createMolisWorkWebServer({
+      homeDirectory, localHost: host,
+      controlToken: TOKEN,
+    });
     const origin = await listen(server);
     const initializedResponse = await fetch(`${origin}/api/onboarding/initialize`, {
       method: "POST",
@@ -1017,15 +1019,16 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
     store = new LocalProjectDatabase(project.database_path);
     const app = new GoalProjectApplication(store);
     assert.equal(app.goalEvents.readState(project.project_id, initialized.goal_id).intent.source_kind, "onboarding");
-  } finally {
-    try {
-      if (server.listening) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    } finally {
-      store?.close();
-      await host.close();
-      rmSync(homeDirectory, { recursive: true, force: true });
-    }
+  } catch (error) {
+    failure = { error };
   }
+  // BL-1017: every step runs even when an earlier one throws; the test's own error, else the first cleanup error, is reported.
+  await closeInOrder("Onboarding fixture", [
+    ["web server", () => server?.listening ? new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve())) : undefined],
+    ["project store", () => store?.close()],
+    ["Local Host", () => host?.close()],
+    ["temporary Home", () => rmSync(homeDirectory, { recursive: true, force: true })],
+  ], failure);
 });
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {
@@ -1217,7 +1220,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
   const headers = { "content-type": "application/json", origin, "x-molis-work-control-token": TOKEN };
   try {
     const page = await (await fetchProject(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
-    assert.match(page, /退回理由已按下方问题预填，可以直接提交，也可以改写/);
+    assert.match(page, /已帮你填好退回原因，可直接发送或补充修改意见/);
     assert.match(page, /已按下方问题预填，可以直接采用，也可以改写/);
     assert.doesNotMatch(page, /Molis Work 会自动附上上方问题/);
     const decisionForm = page.match(/<form\b[^>]*data-goal-tree-decision-form[^>]*>[\s\S]*?<\/form>/)?.[0];

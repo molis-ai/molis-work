@@ -1,3 +1,4 @@
+import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -23,7 +24,7 @@ import { openTestHome } from "./fixtures/test-home.js";
  * only open does not poll each owner apart.
  */
 
-interface Attention { background_tasks: unknown[] | null; notices: unknown[] | null; plugin_events_pending: number | null; board_cursor: number | null;
+interface Attention { background_tasks: HomeBackgroundTasksReadResult | null; notices: unknown[] | null; plugin_events_pending: number | null; board_cursor: number | null;
   line: { events: unknown[]; issues: unknown[] } | null; tasks: { tasks: unknown[]; issues: unknown[] } | null }
 type Notice = import("@molis-ai/molis-work-contracts/services/assistant").AssistantNotice;
 
@@ -33,7 +34,7 @@ test("W4-10-01 the Home page's attention read answers background tasks and notic
   const attention = await home.web.get<Attention>("/api/attention");
   assert.deepEqual(Object.keys(attention).sort(), ["background_tasks", "board_cursor", "line", "notices", "plugin_events_pending", "tasks"]);
   assert.deepEqual([attention.line, attention.tasks], [null, null], "the Home page has no work line");
-  assert.deepEqual(attention.background_tasks, [], "no Coding session is under way in any project");
+  assert.deepEqual(attention.background_tasks, { tasks: [], issues: [] }, "no Coding session is under way in any project");
   assert.ok(Array.isArray(attention.notices), "the Assistant's notices are read");
   assert.equal(attention.plugin_events_pending, 0, "the Home page runs no project's plugins");
   assert.equal(attention.board_cursor, null, "the Home page has no board");
@@ -74,7 +75,7 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
   const attention = await home.web.get<Attention>("/api/attention");
   assert.deepEqual(attention.notices, told, "the attention read answers the Assistant's own notices, not a copy of its own");
   assert.deepEqual((attention.notices as Notice[]).filter(notice => noticeText(notice).includes(title)).map(notice => notice.kind), ["reminder"], "the one reminder, told once");
-  assert.deepEqual(attention.background_tasks, []);
+  assert.deepEqual(attention.background_tasks, { tasks: [], issues: [] });
   assert.equal(attention.plugin_events_pending, 0);
   assert.equal(attention.board_cursor, null);
 });
@@ -131,7 +132,7 @@ async function serveAttention(t: TestContext, sources: AttentionSources) {
 
 // QA-022: each part keeps to its own reader. One that throws, or whose answer is refused, is null; the other three stay exact.
 test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attention read", async t => {
-  const tasks = [{ project_id: "project-a", session_id: "session-1", state: "waiting" }];
+  const tasks: HomeBackgroundTasksReadResult = { tasks: [], issues: [{ project_id: "project-a", source: null, code: "actions.execution_failed" }] };
   const told = (surface: string | null) => [{ notice_id: "notice-1", kind: "reminder", surface }];
   const table = { tasks: [{ id: "task-1" }], issues: [] }, line = { events: [{ id: "event-1" }], table, issues: [] };
   let lineReads = 0;
@@ -167,8 +168,8 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
 });
 
 test("W4-10-01 QA-022 where a page has no plugins, no board or no line, those parts answer none, not a failure", async t => {
-  const read = await serveAttention(t, { backgroundTasks: () => [], notices: async () => [] });
-  assert.deepEqual(await read(), { background_tasks: [], notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
+  const read = await serveAttention(t, { backgroundTasks: () => ({ tasks: [], issues: [] }), notices: async () => [] });
+  assert.deepEqual(await read(), { background_tasks: { tasks: [], issues: [] }, notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
   // A plugin's page is given no mainline reader (mainline-http.ts): the line and the tasks are null for it, the rest answers.
   const plugin = await serveAttention(t, { notices: async () => [], mainline: null });
   assert.deepEqual(await plugin(), { background_tasks: null, notices: [], plugin_events_pending: 0, board_cursor: null, line: null, tasks: null });
@@ -261,3 +262,21 @@ async function serveAttentionStream(t: TestContext, sources: AttentionSources) {
     },
   };
 }
+
+// 56-1 BL-attention-404-by-code: the Host says a project is gone with the catalog's own code, on the read and on the project's stream,
+// so an open page can tell it from a 404 that is not about the project (a Host starting again) and stop only on it.
+test("56-1 BL-attention-404-by-code a deleted or unknown project answers its attention read and stream with catalog.project_not_found", async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Attention Gone");
+  const base = `/projects/${encodeURIComponent(project.project_id)}`;
+  await home.web.get(`${base}/api/attention`);
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/delete`, { delete_confirmed: true, idempotency_key: "bl-attention-404-by-code" });
+  for (const path of [`${base}/api/attention`, `${base}/api/attention/events`, "/projects/never-was/api/attention", "/projects/never-was/api/attention/events"]) {
+    await assert.rejects(home.web.get(path), (error: { status?: number; code?: string }) => {
+      assert.deepEqual([error.status, error.code], [404, "catalog.project_not_found"], path);
+      return true;
+    });
+  }
+  // The Home's own read is not a project's, and still answers.
+  assert.ok(Array.isArray((await home.web.get<Attention>("/api/attention")).notices));
+});

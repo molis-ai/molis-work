@@ -59,6 +59,8 @@ interface Mainline {
 
 **要等别的主人的写（评审 M1）。** `items.create` 的 `from`／`create_as`、`items.convert`、`holds.bind`／`holds.create` 要先以调用方身份读或建来源对象，都声明 `scheduling: "concurrent"`，返回后先 `beforeEffect()` 再提交主线这边。新建来源对象的输入带 `request_id`（由主线服务从调用方给的 `request_id`——没给就用调用号——连同人、项目、种类和名字或事项派生），来源主人按它重放同一个对象；主线这边按来源唯一索引幂等，所以取消或冲突后重试不会多出一个 Goal。
 
+`items.convert` 在请求来源创建前核对主线修订。提交时已经过期的请求直接返回当前排列。来源已创建后发生的排列冲突返回同一错误，使用同一请求号重试会取回该对象并继续绑定。
+
 | 动作 | 输入 → 输出 | 说明 |
 | --- | --- | --- |
 | `mainline.read@1`（查询） | `{}` → `{ mainline, sources }` | `sources` 是这个调用方目录里声明了事项来源的种类：`[{ kind, owner, create: boolean, next: boolean }]`，供「设为事项」「建成 xx」 |
@@ -121,7 +123,7 @@ interface PresentationObject {
   - 来源有 `next` 的，下一步作为一个建议事件放在「接下来」的最前（`suggestion` 种类，`open` 为来源对象）；
   - 背后任务照第 32 批：任务总表里为这些事件办的，以及装进这件事项的任务。
   - 时间角色：沿用呈现声明已有的 `due_at`（排在）、`happened_at`（发生于），不新增角色；日程的「开始于」随第 53 批接日程时再看（事项线合同设计稿 §8 已定）。
-- **安放的两种新去处。** `mainline.place@1` 的输入加一个与 `to` 并列的 `item`（评审 M5：「为哪个事件办」和「在哪件事项里」是两个维度）：`{ kind: "item", item_id }` 放进另一件事项——同时解除它在别的事项里的「装进」，所以只出现在一条线上；`{ kind: "none" }` 不归事项，从所有事项里拿出。任务进事项就是 `holds` 关联绑上任务对象，不改它为哪个事件办，也不改它的授权、预算、数据范围。
+- **安放的两种新去处。** `mainline.place@1` 的输入加一个与 `to` 并列的 `item`（评审 M5：「为哪个事件办」和「在哪件事项里」是两个维度）：`{ kind: "item", item_id }` 放进另一件事项——同时解除它在别的事项里的「装进」，所以只出现在一条线上；`{ kind: "none" }` 不归事项，从所有事项里拿出。任务进事项就是 `holds` 关联绑上任务对象，任务为哪个事件办以及授权、预算、数据范围照常。带 `item` 时须有 `mainline:place` 与 `mainline:arrange`；更换归属在主线库一次提交，原有归属在失败时保留。
 
 ## 6. 存储（`mainline/mainline.db`，`horizontal/mainline` 的 Home 库）
 

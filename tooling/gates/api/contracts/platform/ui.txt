@@ -354,7 +354,6 @@ export interface StagePageContext {
     } | null;
     readonly demo: boolean;
     readonly cli_availability: Record<string, boolean>;
-    readonly client_data?: Readonly<Record<string, unknown>>;
 }
 
 export interface StagePageDrawing {
@@ -1537,7 +1536,7 @@ export declare const platformUiContract: {
 // Declarations the exports above refer to, which no entry exports itself:
 
 type AgentReviewOwner = {
-    readonly kind: "agent-review" | "goal-acceptance";
+    readonly kind: "agent-review";
     readonly project_id: string;
     readonly plugin_id: string;
     readonly install_id: string;

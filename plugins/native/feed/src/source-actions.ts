@@ -33,7 +33,7 @@ export const feedSourceActions = {
     { type: "object", properties: { kind: { enum: ["research_library", "rss", "web_query", "youtube_channel", "custom_rss"] }, name: text, repository: text, research_source: text,
       definition_id: text, query: text, channel_id: text, feed_url: text }, required: ["kind"], additionalProperties: false },
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
-  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", /* @version action.feed.sources.add_account */ 1, "添加账号来源", "为 GitHub 或 Gmail 添加一个账号来源；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
+  add_account: define<AddFeedAccountSourceInput, FeedSourceRegistered>("add_account", /* @version action.feed.sources.add_account */ 1, "添加账号来源", "为一个服务添加账号来源（service 是服务 id，如 github、gmail、notion、linear；只收 Feed 能按账号读的服务）；同一服务同名时返回原来源。账号由本人在来源设置里选，选好之前不能拉取",
     closed({ service: { enum: [...FEED_ACCOUNT_SERVICES] }, name: { type: "string", minLength: 1, maxLength: 80 } }, ["service", "name"]),
     { type: "object", properties: { source, registered: { type: "boolean" } }, required: ["source", "registered"] }),
   // The account is not a field of the source: it is the person's binding on the platform.
@@ -62,6 +62,7 @@ export interface FeedSourceActionPorts {
   feed(): FeedApplication;
   sources(caller: ActionExecutionContext): FeedSourceService;
   connectorSync(caller: ActionExecutionContext): Pick<FeedConnectorSync, "sync">;
+  accountSources?: Pick<import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginConnectorSourceClient, "accounts">;
   /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
   retire?: Parameters<typeof removeFeedSource>[3];
   /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */
@@ -107,7 +108,11 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       if (!registration) throw new ActionError("actions.input_invalid", "来源参数无效");
       return ports.sources(caller).register(registration);
     }),
-    bind(a.add_account, (input, caller) => ports.sources(caller).addAccount(input)),
+    bindWaiting(a.add_account, async (input, caller) => {
+      const available = await ports.accountSources?.accounts([input.service]);
+      if (!available?.[input.service]?.pullable) throw feedErrors.source_invalid_configuration("该服务暂时没有可用的账号来源");
+      return ports.sources(caller).addAccount(input);
+    }),
     bind(a.update, (input, caller) => {
       const { source_id, ...patch } = input;
       return { source: ports.sources(caller).update(source_id, patch as UpdateFeedSourceInput) };

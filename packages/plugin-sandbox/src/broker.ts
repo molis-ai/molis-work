@@ -5,7 +5,7 @@ import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkReques
 import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
+import { attachmentCall, documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
 import { imageGenerationCall, type SandboxImageGeneration, type SandboxImageHolder } from './image.js';
 import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, settingsJson, settingsSelection, type SandboxModel, type SandboxModelSettings } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
@@ -122,7 +122,7 @@ export class SandboxBroker {
     const missing = (): never => { throw new SandboxError('sandbox.service_unavailable', 'Host service is not connected'); };
     return { permit, count, string, missing };
   }
-  private async dispatchMaterials(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchMaterials(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards, call?: SandboxImageHolder): Promise<SandboxJson> {
     // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-65): the first hands the Host an address as
     // data and takes back extracted text, the second names the Host's saved file by the plugin's own key and takes it back in parts; neither
     // gives the plugin a socket, an address that was resolved, or a path. `fetch` (S-93) reads one public page and is a network request as far
@@ -157,7 +157,7 @@ export class SandboxBroker {
       const part = await materials.readOriginalRange(key, { offset, length, ...(revision !== undefined ? { revision } : {}), signal: context.signal });
       return { data_base64: Buffer.from(part.bytes).toString('base64'), byte_length: part.bytes.byteLength, size: part.size, revision: part.revision };
     }
-    permit('materials', 'read');
+    permit('materials', 'read'); if (/^materials\.(attach|readAttachment|readAttachmentPart)$/u.test(method)) return attachmentCall(method, args, materials, context.signal, call) ?? missing();
     if (method === 'materials.imageTextAvailable') { count(0); return materials?.imageTextAvailable ? materials.imageTextAvailable() : missing(); }
     if (method !== 'materials.readDocuments' && method !== 'materials.extract') throw new SandboxError('sandbox.invalid_request', 'Unknown materials method');
     count(2);
@@ -321,7 +321,7 @@ export class SandboxBroker {
       return { status, headers: { ...headers }, body, authenticated };
     }
     if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards, connections);
-    if (method.startsWith('materials.')) return this.dispatchMaterials(context, operation, method, args, guards);
+    if (method.startsWith('materials.')) return this.dispatchMaterials(context, operation, method, args, guards, images);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
     if (method === 'projects.exist') {
       guards.permit('projects', 'exist'); guards.count(1);

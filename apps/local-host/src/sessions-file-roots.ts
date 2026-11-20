@@ -214,8 +214,7 @@ export function createHostSessionFilesPort(homeRoot: string, sourceEnv: NodeJS.P
         await handle.close().catch(() => {});
         throw sessionSourceFailure("read_error", "外部会话记录状态核对失败", false);
       }
-      const nodeStream = handle.createReadStream();
-      signal.addEventListener("abort", () => nodeStream.destroy(), { once: true });
+      const nodeStream = handle.createReadStream({ signal });
       return Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
     },
   };

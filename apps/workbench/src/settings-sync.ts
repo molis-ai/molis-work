@@ -2,7 +2,6 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {SYNC_COMPARISON_SCRIPT} from './settings-sync-comparison.js';
 import {SYNC_PROJECT_RECYCLE_SCRIPT} from './settings-sync-projects.js';
 import {SYNC_CLOUD_HISTORY_SCRIPT} from './settings-sync-history.js';
-import {SYNC_PROCESS_ITEMS_SCRIPT} from './settings-sync-process-items.js';
 
 export function renderSyncSettings(_L:(text:string)=>string):string {
   return `<section class="settings-document" data-sync-settings aria-labelledby="settings-title">
@@ -14,7 +13,6 @@ export function renderSyncSettings(_L:(text:string)=>string):string {
       <details class="settings-data-disclosure" data-sync-quota-details><summary>${uiText("workbench.settings-sync.quota-details")}</summary><dl data-sync-quota-rows></dl></details>
       <div class="settings-form-actions"><button type="button" class="mw-btn mw-btn--secondary" data-sync-reload>${uiText("workbench.settings-sync.reload")}</button> <button type="submit" class="mw-btn mw-btn--primary">${uiText("workbench.settings-sync.save-sync-settings")}</button> <button type="button" class="mw-btn mw-btn--secondary" data-sync-run>${uiText("workbench.settings-sync.sync-now")}</button></div>
     </form>
-    <section class="settings-section" data-sync-process-items hidden></section>
     <div data-sync-conflicts></div><div class="settings-form-actions" data-sync-tools hidden><button type="button" class="mw-btn mw-btn--secondary" data-sync-trash>${uiText("workbench.settings-sync.trash")}</button> <button type="button" class="mw-btn mw-btn--secondary" data-sync-copy-local>${uiText("workbench.settings-sync.copy-local-projects")}</button></div><button type="button" class="mw-btn mw-btn--secondary" data-sync-projects>${uiText("workbench.settings-sync.project-recycle-bin")}</button><div data-sync-history></div>
     <p class="settings-form-error" data-sync-error role="alert" hidden></p>
     <button type="button" class="mw-btn mw-btn--secondary" data-sync-retry hidden>${uiText("common.control.retry")}</button>
@@ -60,8 +58,6 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     };
     ${SYNC_CLOUD_HISTORY_SCRIPT}
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
-    ${SYNC_PROCESS_ITEMS_SCRIPT}
-    let stepsRead=false;
     const render=(data)=>{
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId){
         document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
@@ -110,7 +106,6 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       const retained=node('details','settings-data-disclosure');retained.append(node('summary','',readText("workbench.settings-sync.retained-versions")));history.append(retained);
       for(const collection of data.collections){const entry=node('div','settings-setting-row');entry.append(node('span','',collection.title),button("workbench.settings-sync.cloud-history",()=>cloudHistory(collection)),button("workbench.settings-sync.local-history",async()=>{try{const response=await request('/recoveries?namespace='+encodeURIComponent(namespace(collection.selection)));const body=node('div','');if(!response.items.length)body.append(node('p','settings-muted',readText("workbench.settings-sync.no-retained-versions")));for(const item of response.items)body.append(node('p','',item.key),button("workbench.settings-sync.view-restore",()=>compare(collection,item,true)));sheet("workbench.settings-sync.local-history",body,[]);}catch(failure){error.hidden=false;error.textContent=failure.message;}}));retained.append(entry);}
       error.hidden=!data.error;error.textContent=data.error?data.error:'';
-      if(!stepsRead){stepsRead=true;void loadSteps();}
     };
     const act=async(work,deviceOnly=false,propagate=false)=>{
       if(busy){if(propagate)throw new Error(readText("workbench.settings-sync.syncing"));return;}busy=true;error.hidden=true;retry.hidden=true;
@@ -133,7 +128,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(dirty){error.textContent=readText("workbench.settings-sync.save-before-syncing");error.hidden=false;return;}
       void act(()=>request('/run',{},'POST'));
     });
-    root.querySelector('[data-sync-reload]').addEventListener('click',()=>{dirty=false;stepsRead=false;load();});
+    root.querySelector('[data-sync-reload]').addEventListener('click',()=>{dirty=false;load();});
     const quotaDetails=root.querySelector('[data-sync-quota-details]'),quotaRows=root.querySelector('[data-sync-quota-rows]');
     quotaDetails.addEventListener('toggle',async()=>{
       const activeSpace=state?.policy?.spaceId;
@@ -145,7 +140,6 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         const rows=[
           ["workbench.settings-sync.quota-current",breakdown.currentBytes],["workbench.settings-sync.quota-trash",breakdown.trashBytes],
           ["workbench.settings-sync.quota-history",breakdown.historyBytes],["workbench.settings-sync.quota-attachments",breakdown.reservedAttachmentBytes],
-          ["workbench.settings-sync.quota-cutover",breakdown.cutoverReservationBytes],
         ];
         if(!rows.every(([,bytes])=>Number.isSafeInteger(bytes)&&bytes>=0))throw new Error('INVALID_QUOTA_BREAKDOWN');
         quotaRows.replaceChildren(...rows.flatMap(([label,bytes])=>[node('dt','',readText(label)),node('dd','settings-muted',(bytes/1000000).toFixed(2)+' MB')]));

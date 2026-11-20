@@ -49,6 +49,7 @@
         "packages/storage/src/adapters/home-restore-guard.ts",
         "packages/storage/src/adapters/memory-ledger.ts",
         "packages/storage/src/evidence-snapshot.ts",
+        "packages/storage/src/adapters/evidence-content.ts",
         "packages/storage/src/sqlite-baseline.ts"
       ],
       "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary. Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."
@@ -103,7 +104,7 @@
       "paths": [
         "packages/contracts/src/services/blueprints.ts"
       ],
-      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the future system.blueprints provider, the interface and callers can tell the refusals apart; horizontal/blueprints/ joins when batch 45 creates the service."
+      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the system.blueprints provider in horizontal/blueprints, the interface and other callers use the same refusals."
     },
     "browser": {
       "paths": [
@@ -404,7 +405,8 @@
     },
     "skills": {
       "paths": [
-        "packages/contracts/src/services/skills.ts"
+        "packages/contracts/src/services/skills.ts",
+        "packages/contracts/src/services/skill-errors.ts"
       ],
       "reason": "The Skill catalog, settings and import contract (specs/skill-packs/contract-design.md §6–§8), whose refusals are skills.* like its action ids. A new file only; the Host's Agent definition register that will serve the catalog keeps its agent_definitions owner."
     },

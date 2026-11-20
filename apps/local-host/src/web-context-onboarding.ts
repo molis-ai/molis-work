@@ -5,7 +5,8 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { connectorLoginReady } from "./connector-directory.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { codeRoot } from "./context-onboarding-sources.js";
-import { contextReferenceText, contextModel, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { contextReferenceText, readContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";
+import { onboardingTextModel } from "./configured-text-port.js";
 import { contextOnboardingActions as actions, contextOnboardingDoor as door, type ContextOnboardingEntry } from "./context-onboarding-actions.js";
 import { responseAbortSignal } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -20,12 +21,12 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
     if (url.pathname !== prefix && !url.pathname.startsWith(prefix + "/")) return false;
     try {
       if (req.method === "GET" && url.pathname === prefix) {
-        const model = await contextModel(home, ports);
-        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete()) }); return true;
+        const model = await onboardingTextModel(home, ports.model);
+        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete(url.searchParams.get("project"))) }); return true;
       }
       if (req.method === "POST" && url.pathname === prefix) {
         const input = await readNativePluginJsonBody(req);
-        json(res, 201, await door.invoke(as(), actions.create.definition, { id: String(input.id ?? "") })); return true;
+        json(res, 201, await door.invoke(as(), actions.create.definition, { id: String(input.id ?? ""), ...(typeof input.project_id === "string" ? { project_id: input.project_id } : {}) })); return true;
       }
       const match = url.pathname.match(/^\/api\/onboarding\/context\/([a-z0-9-]+)(?:\/(selection|start|adopt|draft|reopen|files|secret)|\/text\/([0-9a-f]{64}))?$/u);
       if (!match) { json(res, 404, { error: "找不到这项整理操作" }); return true; }
@@ -35,8 +36,10 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
       else if (req.method === "GET" && match[3]) { const text = await contextReferenceText(home, id, match[3]); json(res, 200, { text: text.slice(0, 200_000), chars: text.length }); }
       else if (req.method === "GET" && !match[2]) {
         // The plugins that declare they take a code folder, by name, only while this round has one to hand over (batch12-design §7.3).
-        const journey = readContextJourney(home, id);
-        json(res, 200, { ...journey, takers: codeRoot(journey) ? (ports.takers?.() ?? []).map(({ plugin_id, name }) => ({ plugin_id, name })) : [] });
+        const journey = readContextJourney(home, id, url.searchParams.get("project") ?? undefined);
+        // A round for an existing project shows that project's name; the page cannot read the catalog itself.
+        const project = journey.existing ? await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(journey.project_id).display_name).catch(() => null) : null;
+        json(res, 200, { ...journey, ...(journey.existing ? { project_title: project } : {}), takers: codeRoot(journey) ? (ports.takers?.() ?? []).map(({ plugin_id, name }) => ({ plugin_id, name })) : [] });
       }
       else if (req.method === "POST" && match[2] === "reopen") json(res, 200, await door.invoke(as(), actions.reopen.definition, { journey: id }));
       else if (req.method === "POST" && match[2] === "selection") json(res, 200, await door.invoke(as(), actions.select.definition, { journey: id, body: await readNativePluginJsonBody(req, 72_000_000) }));

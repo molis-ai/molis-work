@@ -9,7 +9,6 @@ export function syncTransport(ports:{
   abort():AbortSignal;
   authority():SyncAuthority;
   assert():void;
-  header():Record<string,string>;
   backoff:ReturnType<typeof syncTransportBackoff>;
   onWrite():void;
 }){
@@ -27,7 +26,7 @@ export function syncTransport(ports:{
     let response:Response;
     try{
       response=await ports.fetch()(new URL(route,ports.endpoint()),{
-        method,signal,redirect:'error',headers:{Authorization:`Bearer ${token}`,'Content-Type':type,...ports.header()},
+        method,signal,redirect:'error',headers:{Authorization:`Bearer ${token}`,'Content-Type':type},
         ...(body===undefined?{}:{body}),
       });
     }catch(error){

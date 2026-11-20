@@ -276,7 +276,7 @@ test("a text edit reads as a unified diff with context and counts; a command rea
   command.request.document = { kind: "command", command: "node", args: ["--test", "a b.test.js", "it's"], cwd: ".", timeout_ms: 15000 };
   const commandHtml = renderAgentReviewSurface({ rows: [command], primitives: p });
   assert.match(commandHtml, /\$<\/span> node --test (&#39;|')a b\.test\.js(&#39;|') (&#39;|')it(&#39;|')\\(&#39;|')(&#39;|')s(&#39;|')</);
-  assert.match(commandHtml, /在 工作区根目录 运行/);
+  assert.match(commandHtml, /在 项目目录根路径 运行/);
 });
 
 test("only an in-boundary command offers 'allow for this session', and a rule's approval says so", () => {
@@ -305,8 +305,8 @@ test("a command that names extra paths or the network shows exactly what it asks
   assert.match(html, /读取<\/span> <code>\/Users\/me\/\.npmrc<\/code>/);
   assert.match(html, /读写<\/span> <code>\/tmp\/cache<\/code>/);
   assert.match(html, /联网/);
-  assert.match(html, /超出宿主执行边界/);
-  assert.doesNotMatch(html, /在宿主执行边界内/, "it does not say it stays inside the boundary");
+  assert.match(html, /超出本轮允许范围/);
+  assert.doesNotMatch(html, /在允许范围内/, "it does not say it stays inside the boundary");
   assert.doesNotMatch(html, /data-agent-review-remember/, "the extra access is never remembered");
 });
 
@@ -335,7 +335,7 @@ test("RING-07 review rings distinguish approval, pending effect, success, failur
   }
 });
 
-test("BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
+test("QEA-21 BL-360: current decisions hide approval after revocation and both choices without an owner", () => {
   const denied = { available: false as const, code: "agent.review_not_permitted", reason: { owner: "workbench", key: "workbench.agent-review.authority-ended" } };
   const onlyReject = row({ decisions: { approve: denied, reject: { available: true } } });
   const html = renderAgentReviewSurface({ rows: [onlyReject], primitives: p });
@@ -344,4 +344,28 @@ test("BL-360: current decisions hide approval after revocation and both choices 
   const neither = row({ decisions: { approve: denied, reject: denied } });
   assert.equal(isDecidable(neither), false);
   assert.doesNotMatch(renderAgentReviewSurface({ rows: [neither], primitives: p }), /data-agent-review-approve|data-agent-review-reject/);
+});
+
+// A4-2 (docs/design/coding-daily-basics scheme A): the file card shows the check before review under its title; new errors make
+// handing them back the first choice, with the errors as the reason; formatting can be compared with the text as written; a check
+// that did not run says so with its cause, never as no errors.
+test("A4-2: the file card's check line, the fix-first refusal and the text as written", () => {
+  const withChecks = (checks: object) => row({ request: { ...row().request, document: { ...row().request.document, after_text: "new\n", checks } as never } });
+  const errors = renderAgentReviewSurface({ rows: [withChecks({
+    diagnostics: { state: "errors", source: "tsc", errors: [{ code: "TS2322", line: 18, text: "string 不能赋给 number" }], more: 1 },
+    formatting: { state: "formatted", source: "tsc", lines: 2, as_written: "new  \n" },
+  })], primitives: p });
+  assert.match(errors, /data-agent-review-checks/);
+  assert.match(errors, /2 个新错误/, "the count includes the ones not listed");
+  assert.match(errors, /TS2322<\/b><span>第 18 行 · string 不能赋给 number/);
+  assert.match(errors, /已格式化 · 2 处/);
+  assert.match(errors, /class="mw-btn mw-btn--primary" type="button" data-agent-review-reject="r1" data-agent-review-note="写入前的检查发现 2 个新错误，先修好再写这个文件：\napps\/local-host\/src\/connect.ts:18 TS2322 string 不能赋给 number" data-agent-review-fix>先让它修好/);
+  assert.match(errors, /class="mw-btn" type="button" data-agent-review-approve="r1"/, "writing as it is stays possible, no longer primary");
+  assert.match(errors, /data-review-detail="as-written"><summary>看格式化前/);
+  const unchecked = renderAgentReviewSurface({ rows: [withChecks({ diagnostics: { state: "unchecked", cause: "missing", reason: "gopls is not on this machine" }, formatting: { state: "unavailable", cause: "missing", reason: "x" } })], primitives: p });
+  assert.match(unchecked, /这次没查错误：检查工具不在这台电脑上/);
+  assert.doesNotMatch(unchecked, /没有新错误|data-agent-review-fix|as-written/);
+  assert.match(unchecked, /mw-btn mw-btn--primary" type="button" data-agent-review-approve/, "nothing to fix: approving stays first");
+  const none = renderAgentReviewSurface({ rows: [row()], primitives: p });
+  assert.doesNotMatch(none, /data-agent-review-checks/, "a card the check did not see has no line");
 });

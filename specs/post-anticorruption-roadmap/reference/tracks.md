@@ -18,7 +18,7 @@
 | D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | D 轨合审组件板新增；负责公共视觉与 UI 文件 |
 | E 插件 | Coding 一族以外的 `plugins/native/<插件>/`、新插件包 | 体验债、风险、工作简报本体、创作台的插件侧实现、场景所需插件配置与结果落点、情境 W4～W6、插件小功能 | 插件实现与定样按已有分工 |
 | F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | 账号、证书、真实 Home 按原用户边界 |
-| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～90 期间不开工 | personal 分支上已有的工作保留；用户定开工，C 轨评合同，F 写桌面部分 |
+| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～91 期间不开工 | personal 分支上已有的工作保留；用户定开工，C 轨评合同，F 写桌面部分 |
 
 本文里的“C 轨”“1·C”指 C1～C3 合起来。C1～C3 各有独占的文件，按文件判断冲突：同一批文件、同一份快照同一时间一个会话在改，不同的可以同时写（[决定 26](decisions.md#decision-26)取代决定 17 的「C 轨一个写手」）。
 
@@ -44,7 +44,9 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5，交付项增到 203；2026-11-12 随事项线加 32-3，交付项增到 204，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2，共 88 批、214 个交付项；2026-11-14 发行拆成发行批（[决定 45](decisions.md#decision-45)）：26 由 8 项变 4 项（移走 26-1～26-4、26-6，新增 26-9），加 REL-1～REL-5 共 11 项，共 93 批、221 个交付项。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／47-2／48-5，交付项增到 203；2026-11-12 随事项线加 32-3，交付项增到 204，第 32 批不再整批在 A 轨；2026-11-13 随插件同等地位收口新增第 44 批（原 44～89 顺延为 45～90，上面的批次号已按新号写）并加 39-2、41-2，共 88 批、214 个交付项；2026-11-14 发行拆成发行批（[决定 45](decisions.md#decision-45)）：26 由 8 项变 4 项（移走 26-1～26-4、26-6，新增 26-9），加 REL-1～REL-5 共 11 项，共 93 批、221 个交付项。2026-11-18 复查（[决定 52](decisions.md#decision-52)）：加 36A（7 项）与 63A（3 项，原 64-8、64-9 移入并加常驻层），72 并入 77 只留去处，共 95 批、229 个交付项；同日新增 91（4 项，对话与执行流式丝滑化，[决定 54](decisions.md#decision-54)）、补记已合入的 41-3（#2086 已在 41.md 补行），并随后合并全产品界面／布局／行为反馈打磨与开发指引（[决定 55](decisions.md#decision-55)）：91（91A）扩为 5 项并新增 91B（4 项），共 97 批、239 个交付项。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+
+2026-11-18 的 92～99 共新增 15 个交付项，逐项轨道接在下方明细表末尾。原有 7 条并入 6 个现有交付项，沿用 BL 上的维护人；73-3 的知识卡和权限夹具分文件执行。[排期与执行依赖](dependencies.md#deps-backlog-92-99)
 
 怎样算占用：
 
@@ -77,7 +79,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [04](batches/04.md) | F |
 | [21](batches/21.md) | C3 |
 | [57](batches/57.md) | F |
-| [72](batches/72.md) | C1 |
+| [72](batches/72.md) | 并入 77（2026-11-18），不占 |
 | [76](batches/76.md) | C3 |
 | [83](batches/83.md) | 不属于任何轨道 |
 | [90](batches/90.md) | 不属于任何轨道 |
@@ -121,6 +123,13 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |
 | [35-2](batches/35.md#batch-35-item-2) | Coding A 期 | B | 是 | — |
+| [36A-1](batches/36a.md#batch-36a-item-1) | 顶部栏：纸上的页签 | D | 是 | — |
+| [36A-2](batches/36a.md#batch-36a-item-2) | 底栏：第十三版 | D | 是 | A |
+| [36A-3](batches/36a.md#batch-36a-item-3) | 助理对话框、事件卡与收起态 | D | 是 | A |
+| [36A-4](batches/36a.md#batch-36a-item-4) | Coding 逐屏 | B | 是 | D |
+| [36A-5](batches/36a.md#batch-36a-item-5) | 设置页：一种写法 | D | 是 | — |
+| [36A-6](batches/36a.md#batch-36a-item-6) | 首页：项目的第一页 | D | 是 | C3、E |
+| [36A-7](batches/36a.md#batch-36a-item-7) | 动效落地与曲线收口 | D | 是 | — |
 | [37-1](batches/37.md#batch-37-item-1) | 生成页面运行、采用与恢复 | C3 | 是 | C1、D、E、F |
 | [37-2](batches/37.md#batch-37-item-2) | 事项切换与工作台状态 | D | 是 | B、E |
 | [43-1](batches/43.md#batch-43-item-1) | 项目助理团执行与交付 | A | 是 | C2 |
@@ -146,6 +155,9 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [56-1](batches/56.md#batch-56-item-1) | Attention 唤醒、角标与系统通知 | F | 是 | C3 |
 | [56-2](batches/56.md#batch-56-item-2) | 切换后新入口文字与翻译复核 | D | 否 | — |
 | [56-3](batches/56.md#batch-56-item-3) | N22 全量迁移与收口 | 不属于任何轨道 | 否 | A、B、C1、E |
+| [63A-1](batches/63a.md#batch-63a-item-1) | 记忆形成质量（P2-01） | C2 | 是 | A、B |
+| [63A-2](batches/63a.md#batch-63a-item-2) | 记忆整理（Dreaming）、按需原文与用户控制 | C2 | 是 | A、B、C1 |
+| [63A-3](batches/63a.md#batch-63a-item-3) | 常驻层（P2-05） | C2 | 是 | A |
 | [64-1](batches/64.md#batch-64-item-1) | 主动发现、持续工作与周期报告 | A | 是 | C3、F |
 | [64-2](batches/64.md#batch-64-item-2) | 智能组合第三片 | C3 | 是 | A、C2、E |
 | [64-3](batches/64.md#batch-64-item-3) | 主线建议与跨项目个人视图 | A | 是 | C3 |
@@ -153,18 +165,40 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [64-5](batches/64.md#batch-64-item-5) | 访谈初始化与工作记忆 | A | 是 | C2 |
 | [64-6](batches/64.md#batch-64-item-6) | 回执阶段 5 | A | 是 | C2 |
 | [64-7](batches/64.md#batch-64-item-7) | 安静准备与观察试用 | A | 是 | C、C3 |
-| [64-8](batches/64.md#batch-64-item-8) | 记忆形成质量（P2-01） | C2 | 是 | A、B |
-| [64-9](batches/64.md#batch-64-item-9) | 记忆整理（Dreaming）、按需原文与用户控制 | C2 | 是 | A、B、C1 |
 | [66-1](batches/66.md#batch-66-item-1) | Coding 自检、评审与有界迭代 | B | 是 | C2 |
 | [66-2](batches/66.md#batch-66-item-2) | 简化与安全专科评审 | B | 是 | — |
 | [66-3](batches/66.md#batch-66-item-3) | 依据三档与同一验收卡 | E | 是 | — |
 | [73-1](batches/73.md#batch-73-item-1) | 技能包、工作流与生成插件导入导出 | C | 是 | E、D |
-| [73-2](batches/73.md#batch-73-item-2) | 场景方案与保存操作面导入导出 | C | 是 | — |
+| [73-2](batches/73.md#batch-73-item-2) | 场景包与保存操作面导入导出 | C | 是 | — |
 | [73-3](batches/73.md#batch-73-item-3) | 整份 Home 导出与导入 U7 | F | 是 | C1 |
 | [73-4](batches/73.md#batch-73-item-4) | 业务数据导出回读 | 不属于任何轨道 | 否 | — |
 | [89-1](batches/89.md#batch-89-item-1) | 情境 W7 与总纲收口 | E | 是 | A、B、C1、D |
 | [89-2](batches/89.md#batch-89-item-2) | 回执阶段 6 的各场景 | E | 是 | F |
 | [89-3](batches/89.md#batch-89-item-3) | Skill 效果比较 | A | 是 | C3 |
+| [91-1](batches/91.md#batch-91-item-1) | Design System 流式、布局与行为反馈统一底座 | D | 是 | C1 |
+| [91-2](batches/91.md#batch-91-item-2) | 平台运行流合同、Prologue 与 Agent Host 热路径减负 | C2 | 是 | C1、D |
+| [91-3](batches/91.md#batch-91-item-3) | 个人助理 SSE 增量流与对话流精修 | A | 是 | D |
+| [91-4](batches/91.md#batch-91-item-4) | Coding SSE 增量流、回滚稳态与过程精修 | B | 是 | C1、D |
+| [91-5](batches/91.md#batch-91-item-5) | 后续开发指引与插件创作台规范同步更新 | D | 是 | E |
+| [91B-1](batches/91b.md#batch-91b-item-1) | 入口、账号、市场、侧栏四视图、IM、Artifacts 与 Sessions 收口 | D | 是 | F |
+| [91B-2](batches/91b.md#batch-91b-item-2) | 工作主干 9 插件 + 4 官方集成全面打磨 | E | 是 | D |
+| [91B-3](batches/91b.md#batch-91b-item-3) | 创作数据 5 + 收集知识 5 + 研发工具与创作台全面打磨 | E | 是 | B、D |
+| [91B-4](batches/91b.md#batch-91b-item-4) | 全站轻动效收口与三层自动化防回归门禁焊死 | 不归轨道 | 否 | B、D、E |
+| [92-1](batches/92.md#batch-92-item-1) | 把图片下载的漏测命令补进手册 | E | 否 | — |
+| [92-2](batches/92.md#batch-92-item-2) | 把「打开数据库会不会创建文件」写准确 | 不归轨道 | 否 | 存储包 |
+| [92-3](batches/92.md#batch-92-item-3) | 让 Goals 测试即使报错也关干净 | E | 否 | Goals 测试 |
+| [93-1](batches/93.md#batch-93-item-1) | 确认页面关掉时，两个正在做的请求各收到自己的取消原因 | 不归轨道 | 否 | 宿主插件页面生命周期 |
+| [93-2](batches/93.md#batch-93-item-2) | 关掉侧栏浏览器后，清掉还没挂好的监听 | A | 是 | 宿主与安全 |
+| [94-1](batches/94.md#batch-94-item-1) | 重新安装同版本开发 App 后，用上刚编出来的版本 | F | 是 | 桌面与发版 |
+| [95-1](batches/95.md#batch-95-item-1) | 把 Feed 连数据库的旧函数名改准确 | E | 是 | Feed、同步调用方 |
+| [95-2](batches/95.md#batch-95-item-2) | 资讯更新点过「现在做」，睡醒后直接做 | E | 是 | Feed |
+| [95-3](batches/95.md#batch-95-item-3) | 错过的任务统一留七天，到期一次说清跳过了几件 | A | 是 | E（Feed、Schedule）、C1 |
+| [96-1](batches/96.md#batch-96-item-1) | 编辑一项定时任务时，只查这一项 | C | 是 | E（Schedule） |
+| [96-2](batches/96.md#batch-96-item-2) | 定时任务失败时，开着的详情立刻显示原因 | E | 是 | Schedule |
+| [97-1](batches/97.md#batch-97-item-1) | 助理只汇报结果时，别占用继续干活的次数 | A | 是 | 助理存储 |
+| [97-2](batches/97.md#batch-97-item-2) | 同一项目同时办完几件事，助理合起来报一次 | A | 是 | 助理汇报 |
+| [98-1](batches/98.md#batch-98-item-1) | 让两家插件都能提供同一种材料，还能按来源挑 | C1 | 是 | 成果与过程项模块 |
+| [99-1](batches/99.md#batch-99-item-1) | 在 Coding 的本轮变更里列出确实删掉的文件 | B | 是 | Coding |
 | [SRV-3-1](batches/srv-3.md#srv-3-item-1) | 团队关键协作实现 | G | 是 | C、D、E |
 | [SRV-3-2](batches/srv-3.md#srv-3-item-2) | 双身份真实协作验证 | C | 否 | D、E、G |
 | [SRV-8-1](batches/srv-8.md#srv-8-item-1) | 自动更新与回退 | F | 是 | G |

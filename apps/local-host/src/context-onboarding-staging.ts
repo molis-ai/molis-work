@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, renameSync } from "node:fs";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
@@ -87,9 +87,18 @@ export async function hasStagedText(home: string, id: string, text: StagedText):
 export async function readStagedNote(home: string, id: string, key: string): Promise<string | null> {
   return readFile(staged(home, id, "notes", key), "utf8").catch(() => null);
 }
-export async function stageNote(home: string, id: string, key: string, note: string): Promise<void> {
-  await mkdir(join(journeyDirectory(home, id), "notes"), { recursive: true });
-  await writeFile(staged(home, id, "notes", key), note);
+export async function stageNote(home: string, id: string, key: string, note: string, beforePublish: () => Promise<void>): Promise<void> {
+  const path = staged(home, id, "notes", key), directory = join(journeyDirectory(home, id), "notes");
+  await mkdir(directory, { recursive: true });
+  const temporary = join(directory, `.incoming-${randomUUID()}`);
+  try {
+    await writeFile(temporary, note, { flag: "wx" });
+    await beforePublish();
+    renameSync(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
 }
 export async function dropStagedNotes(home: string, id: string, keys: readonly string[]): Promise<void> {
   await Promise.all(keys.map(key => rm(staged(home, id, "notes", key), { force: true })));

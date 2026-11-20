@@ -1,40 +1,48 @@
-/** Independent project preferences: one navigation rail and one content scroll. */
-export const PROJECT_SETTINGS_PAGE_STYLES = `
+import { SETTINGS_DOCUMENT_STYLES } from "@molis-ai/molis-work-design-system";
+
+/**
+ * Independent project preferences: one navigation rail and one content scroll. Every page is laid out alike (specs/screen-polish/p5-settings.md):
+ * a 220px category column, a 760px text column whose left edge stays put, a 24px heading over one 13px sentence, and the three rows of
+ * `SETTINGS_DOCUMENT_STYLES`. Pages not yet rewritten in those rows keep their grouped cards (`.settings-section`) until they are.
+ */
+export const PROJECT_SETTINGS_PAGE_STYLES = `${SETTINGS_DOCUMENT_STYLES}
   body.settings-page:is(.project-preferences-page, .settings-stage) { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr); background: var(--page); }
   .project-preferences-chrome { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 24px; border-bottom: 1px solid var(--line); color: var(--muted); background: var(--paper); font-size: 12px; }
   .project-preferences-chrome > a { display: grid; place-items: center; width: 32px; height: 32px; color: var(--muted); border-radius: 8px; }
   .project-preferences-chrome > a:hover { color: var(--ink); background: var(--nav-hover); }
   .project-preferences-chrome svg { width: 16px; height: 16px; }
   :is(body.project-preferences-page, .settings-stage)[data-native-desktop="true"] .project-preferences-chrome { padding-left: 84px; }
-  :is(body.project-preferences-page, .settings-stage) .settings-shell { grid-template-columns: 224px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  :is(body.project-preferences-page, .settings-stage) .settings-shell { grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
   :is(body.project-preferences-page, .settings-stage) .settings-navigation.settings-navigation--codex { padding: 16px 12px; border-color: var(--line); background: var(--nav-bg); }
   .settings-project-identity { display: grid; gap: 4px; padding: 16px 12px 24px; min-width: 0; }
   .settings-project-identity strong { font-size: 15px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .settings-project-identity > span { font-size: 12px; color: var(--muted); }
-  :is(body.project-preferences-page, .settings-stage) .settings-content { display: block; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 32px clamp(24px, 4vw, 48px) 48px; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: var(--page); }
+  :is(body.project-preferences-page, .settings-stage) .settings-content { display: block; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 36px clamp(24px, 4vw, 56px) 48px; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: var(--page); }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content { box-shadow: none; }
   html[data-resolved-theme="dark"] :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.settings-document, .appearance-document) { background: transparent; }
-  :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: auto; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  :is(body.project-preferences-page, .settings-stage) .settings-content > :is(.project-settings-page, .settings-document, .guidance-document, [data-settings-panel], [data-settings-loading]) { display: block; width: 100%; max-width: 760px; height: auto; min-height: 0; overflow: visible; margin-inline: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading) + .mw-settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) .settings-body { display: block; overflow: visible; min-height: 0; padding: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) { max-width: none; margin: 0 0 24px; padding: 0; border: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header) { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   :is(.project-preferences-page, .settings-stage) .settings-page-heading, :is(.project-preferences-page, .settings-stage) .settings-heading { display: block; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) h1 { margin: 0; font-size: 30px; font-weight: var(--weight-title, 600); line-height: 1.2; letter-spacing: -.03em; }
-  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) p { max-width: 54ch; margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) h1 { margin: 0; font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.3; letter-spacing: -.02em; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-page-heading, .settings-heading, .guidance-page-header) p { max-width: 72ch; margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .settings-heading-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section { margin: 0 0 12px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+  :is(.project-preferences-page, .settings-stage) .settings-section { margin: 0 0 12px; padding: 0 16px; border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); }
+  /* A titled section: the title sits outside and its rows are the card (settings-rows.ts). */
+  :is(.project-preferences-page, .settings-stage) .settings-section.mw-settings-section { margin: 0 0 32px; padding: 0; border: 0; border-radius: 0; background: none; }
   :is(.project-preferences-page, .settings-stage) .settings-section + .settings-section { margin-top: 0; }
   :is(.project-preferences-page, .settings-stage) :is(.settings-section > h2) { margin: 12px 0 4px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
-  .settings-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
-  :is(.project-preferences-page, .settings-stage) .settings-section > :last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row] { display: contents; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > [data-runtime-row]:last-child > :last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty strong { font-size: 15px; color: var(--ink); }
-  :is(.project-preferences-page, .settings-stage) .settings-section .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .assistant-capability-effect { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .settings-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  :is(.project-preferences-page, .settings-stage) .settings-section:not(.mw-settings-section) > :last-child { border-bottom: 0; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty { display: grid; gap: 4px; padding: 12px 0 16px; }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty strong { font-size: 15px; color: var(--ink); }
+  :is(.project-preferences-page, .settings-stage) :is(.settings-section, .mcp-access) .settings-empty span { color: var(--muted); font-size: 13px; line-height: 1.5; }
   .setting-copy { display: grid; gap: 4px; min-width: 0; color: var(--ink); }
-  .setting-copy > strong { font-size: 15px; font-weight: var(--weight-control, 500); line-height: 1.4; }
-  .setting-copy > span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .setting-copy > strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.4; }
+  .setting-copy > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a { gap: 12px; }
   body.settings-page .settings-navigation--codex .settings-nav-body > a svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
   .setting-number { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
@@ -58,7 +66,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   .settings-data-list dt { color: var(--muted); }
   .settings-data-list dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono, monospace); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger { margin: 0; padding: 16px 0; border: 0; background: none; }
-  :is(.project-preferences-page, .settings-stage) .settings-section > .project-manager-danger:has(+ .settings-data-disclosure) { padding: 12px 0 4px; }
+  :is(.project-preferences-page, .settings-stage) .mw-settings-section__rows > .project-manager-danger:has(+ .settings-data-disclosure) { padding: 12px 0 4px; }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger h3 { margin: 0 0 8px; font-size: 13px; font-weight: var(--weight-title, 600); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger p { max-width: 62ch; margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: var(--muted); }
   :is(.project-preferences-page, .settings-stage) .project-manager-danger-actions { display: flex; gap: 8px; }
@@ -154,16 +162,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   .settings-segmented { display: flex; flex: none; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--nav-bg); }
   .settings-segmented > :is(button, a) { display: flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-decoration: none; font-size: 12px; white-space: nowrap; box-shadow: none; }
   .settings-segmented > :is([aria-pressed="true"], [aria-current="true"]) { border-color: var(--line); color: var(--ink); background: var(--paper); box-shadow: var(--lift-1); }
-  :is(.project-preferences-page, .settings-stage) .settings-record-list { gap: 0; margin: 0 0 12px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
-  :is(.project-preferences-page, .settings-stage) .settings-record { padding: 24px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
-  :is(.project-preferences-page, .settings-stage) .settings-record:last-child { border-bottom: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-record-title .record-icon { display: none; }
-  :is(.project-preferences-page, .settings-stage) .settings-record-title h2 { font-size: 15px; margin: 0 0 4px; }
   :is(.project-preferences-page, .settings-stage) .settings-record-title p { max-width: 48ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
-  :is(.project-preferences-page, .settings-stage) .settings-record .settings-data-disclosure { border: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-record .settings-data-disclosure > summary { min-height: 0; padding: 16px 0 0; justify-content: flex-start; gap: 8px; color: var(--muted); font-size: 11px; }
-  :is(.project-preferences-page, .settings-stage) .settings-paths { padding: 16px 0 0; margin: 0; background: transparent; border: 0; }
-  :is(.project-preferences-page, .settings-stage) .settings-paths dd { overflow-wrap: anywhere; }
   :is(.project-preferences-page, .settings-stage) .diagnostics-summary { margin: 0 0 12px; padding: 12px 16px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
   :is(.project-preferences-page, .settings-stage) .diagnostics-summary h2, :is(.project-preferences-page, .settings-stage) .launcher-section h2 { font-size: 15px; }
   :is(.project-preferences-page, .settings-stage) .diagnostics-summary dl { grid-template-columns: 1fr; }
@@ -178,17 +177,10 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     :is(.project-preferences-page, .settings-stage) .settings-nav-group-label { display: none; }
     .settings-segmented { width: 100%; }
     .settings-segmented > :is(button, a) { flex: 1; min-height: 44px; padding: 0 8px; }
-    :is(.project-preferences-page, .settings-stage) .settings-record > header { flex-direction: column; align-items: stretch; gap: 16px; }
-    :is(.project-preferences-page, .settings-stage) .settings-record-action { justify-content: space-between; }
     :is(.project-preferences-page, .settings-stage) .diagnostics-summary dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   }
 
 
-  :is(.project-preferences-page, .settings-stage) .settings-record > header { min-height: 0; padding: 0; }
-  @media (max-width: 760px) {
-    :is(.project-preferences-page, .settings-stage) .settings-record-action { flex-direction: row; align-items: center; }
-    :is(.project-preferences-page, .settings-stage) .settings-record .settings-data-disclosure > summary { min-height: 44px; padding: 8px 0; }
-  }
 
   /* Adding a project note keeps the editor in the available panel, with actions outside the field scroll. */
   :is(body.project-preferences-page, .settings-stage) .settings-content:has(.guidance-editor:not([hidden])) { display: flex; justify-content: center; overflow: hidden; padding: 24px clamp(24px, 4vw, 56px) 0; }

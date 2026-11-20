@@ -80,7 +80,12 @@ export class FeedSourceService {
    * `per_record` slot); until then a pull is refused for want of an account. The same service and name give back the source already there;
    * a deleted one is not brought back (its row, its history and whatever was bound to the record stay the deleted source's).
    */
-  addAccount(input: AddFeedAccountSourceInput): { source: FeedSourceRecord; registered: boolean } {
+  addAccount(input: AddFeedAccountSourceInput): Promise<{ source: FeedSourceRecord; registered: boolean }> {
+    const write = () => this.registerAccount(input);
+    return this.ports.commit ? this.ports.commit(write) : Promise.resolve(this.ports.transaction(write));
+  }
+
+  private registerAccount(input: AddFeedAccountSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const name = bounded(input.name.trim(), 80);
     if (!name) throw feedErrors.source_invalid_configuration("来源名称不能为空");
     const sourceId = stableId("feed-source", `${this.projectId}\u0000account\u0000${input.service}\u0000${name}`);
@@ -89,7 +94,9 @@ export class FeedSourceService {
     if (existing) return { source: existing, registered: false };
     const now = this.now().toISOString();
     const source = this.feed.sources.upsert({
-      project_id: this.projectId, source_id: sourceId, kind: input.service, definition_id: input.service, sync_kind: input.service,
+      // GitHub and Gmail are their own sync kinds; any other service's account source is a `connector` source of it (BL-917).
+      project_id: this.projectId, source_id: sourceId, kind: input.service, definition_id: input.service,
+      sync_kind: input.service === "github" || input.service === "gmail" ? input.service : "connector",
       name, description: "", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" },
       cursor: {}, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
     });

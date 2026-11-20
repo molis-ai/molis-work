@@ -180,8 +180,7 @@ function roleHandlers(drafts: CharactersService, projectId: string, validate: Va
     memberAdd: (input: CharacterMemberAddInput) => write(() => ({ role: roles.addMember(requireProject(projectId), input.character_id) })),
     memberSave: async (input: CharacterMemberSaveInput) => {
       if (input.capabilities?.action_tools) await validate(input.capabilities.action_tools);
-      return write(() => ({ role: roles.saveMember(requireProject(projectId), input.member_id, input.expected_revision, input.expected_original_version,
-        { ...(input.work_style ? { work_style: input.work_style } : {}), ...(input.capabilities ? { capabilities: input.capabilities } : {}) }) }));
+      return write(() => drafts.saveMember(requireProject(projectId), input));
     },
     memberSection: (input: CharacterMemberSectionInput) => write(() => ({ role: roles.setSection(requireProject(projectId), input.member_id, input.section,
       input.expected_revision, input.expected_original_version, input.to) })),
@@ -193,8 +192,9 @@ function roleHandlers(drafts: CharactersService, projectId: string, validate: Va
         const draft = drafts.restore(version, input.expected_revision as number);
         return { role: roles.personalRole(draft.character_id)! };
       }
-      const version = input.version, revision = input.expected_revision as string, original = (input as { expected_original_version: number }).expected_original_version;
-      return write(() => ({ role: roles.restoreMember(requireProject(projectId), version, revision, original) }));
+      const projectInput = input as Extract<CharacterRestoreInput, { expected_revision: string }>;
+      const { version, expected_revision, expected_original_version, expected_original_draft_revision } = projectInput;
+      return write(() => ({ role: drafts.restoreMember(requireProject(projectId), version, expected_revision, expected_original_version, expected_original_draft_revision) }));
     },
     defaults: (input: CharacterDefaultSelection) => write(() => { roles.setDefault(projectId, input); return roles.defaultsWithEffective(projectId); }),
     fromTemplate: async (input: CharacterTemplateAdoptionInput) => {
@@ -222,7 +222,7 @@ export function createCharactersActionHandlers(ports: CharactersActionPorts, run
   const store = ports.open(), drafts = store.service;
   const scope: CharacterPublicationScope = { actorId: ports.actorId, projectId: runtime.projectId, references: ports.references,
     read: reference => runtime.artifacts.read(reference), drafts };
-  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
+  const imports = (): CharactersImportPorts => { if (!ports.imports) throw new Error("外部 AI 工具导入服务尚未就绪"); return ports.imports; };
   const validate: Validate = refs => validateDraftActions(runtime.agent, refs);
   return { artifactPreview: characterArtifactMarkdown, dispose: () => store.close(),
     ...recordHandlers(drafts), ...draftHandlers(drafts, validate, beforeWrite), ...roleHandlers(drafts, runtime.projectId, validate, beforeWrite),

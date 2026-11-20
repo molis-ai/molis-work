@@ -1,6 +1,6 @@
 # 术语表
 
-状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订；2026-11-15 补 §2.9 记忆四项；2026-11-17 补有限委托、人审、可信决定、受保护入口、批准来源与提交意向）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
+状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订；2026-11-15 补 §2.9 记忆四项；2026-11-17 补有限委托、人审、可信决定、受保护入口、批准来源与提交意向，并经用户批准落定 §4 U1～U7 界面统一用词及内部黑话禁用规范）。第 5 节的代码改名尚未全部执行。
 
 这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
@@ -17,7 +17,7 @@
 
 | 用名 | 一句话 | 界面现状 | 旧称与易混写法 |
 | --- | --- | --- | --- |
-| 动作（Action） | 一项已注册、带版本和输入输出合同的可调用操作；所有入口调用同一份 | 能力（另有处写「动作」，见 U1） | 能力、函数、工具（指目录条目时） |
+| 动作（Action） | 一项已注册、带版本和输入输出合同的可调用操作；所有入口调用同一份 | 能力（指目录条目）；动作（指页面推荐按钮，见 U1） | 能力、函数、工具（指目录条目时） |
 | 动作目录 | 动作服务按调用者算出的、当下可发现的动作清单 | 能力库 | 共同目录、能力目录、能力板、动作库 |
 | 动作服务 | 注册、发现、授权、调用动作的共用服务 | 能力服务 | 统一动作服务（全称，可用） |
 | 有限委托（工作委托） | 本人对一项工作或持续工作选定的权限方式、范围和有效期；跨轮、等待和重启复用，越界、撤权、停止或内容变化后不再沿用；事实归 `horizontal/agent-host` 的 `WorkDelegationStore` | 授权与审批 | 持续授权（只说方式时）、工作权限（笼统时）、delegation grant（代码） |
@@ -25,7 +25,7 @@
 | 可信决定 | 本人经受保护入口提交、由平台记录到项目库 `project_review_decisions` 的不可变决定；记录决定、对象版本、选项、原入口与本人出处 | 审批来源里的本人决定 | 审批记录（指一般审查时）、平台批准（不准确） |
 | 受保护入口 | Host 为可信决定签发的唯一入口：Web `/api/project-approvals/*`、CLI `review-request`／`review-decide`、管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide`、验收卡 `/api/acceptance/decide`；身份与 `ActionUserAction` 只从入口上下文取，代码统一到 `decideProjectReview` | 无（内部） | 审批页（页面不是入口本身）、管理入口（只说传输时） |
 | 批准来源 | 一条决定或授权是谁给的：本人决定、沿用授权、自动策略、AI 代批；界面按这个区分，不把 AI 代批算真人票 | 审批来源 | 审批方式、来源（裸写） |
-| 提交意向（commit intent） | `<Home>/acceptance/commit-intents/<decision_id>.json` 的原子文件：验收结果已提交、平台决定尚未落到项目库时保留完整决定记录，Host 下次启动/读取按同一 `decision_id` 幂等恢复 | 无（内部） | 待提交记录、outbox（代码口语） |
+| 提交意向（commit intent） | `<Home>/acceptance/commit-intents/<decision_id>.json` 的既存原子文件（新认可已改为两库单次提交）：验收结果已提交、平台决定尚未落到项目库时保留完整决定记录，Host 下次启动/读取按同一 `decision_id` 幂等恢复 | 无（内部） | 待提交记录、outbox（代码口语） |
 | 调用编号（call id） | 宿主给一次入口级操作的编号，贯穿它引起的每次动作与宿主能力调用，只用于诊断，不是身份 | 诊断编号（英文 Diagnostic ID；2026-10-10 用户已批准；「设置 › 诊断」、「能力 › 调用记录」和经共用请求助手显示的错误详情里已出现：装了助手的内联页面，和工作台主程序里已迁到助手的部分（设置一组、项目设置）；工作台的导航、Feed、插件挂载、助理底栏、放置、搜索和插件客户端的错误详情还没有，随 W3-10-2～4、W5-04） | 调用 id、trace id、请求编号；一次性键（`x-molis-work-idempotency-key` 防重放，不是它）；助理与 Agent 工具活动的 `call_id`（一行活动的标识，不是它） |
 | 调用记录 | Home 里近期调用的诊断记录：谁调了什么、怎样结束，不写输入与结果 | 调用记录 | 动作调用日志（`docs/system/SECURITY-INVARIANTS.md` S-12 的写法） |
 | 运行状态（界面） | 菜单栏「运行」面板说的在运行／等着／没在运行：宿主与后台任务此刻的状态 | 在运行、等着、没在运行（菜单栏「运行」、设置 › 运行） | 包运行状态（`docs/SSOT-MATRIX.md` 里指包的运行方式时，必须写全「包运行状态」） |
@@ -38,9 +38,9 @@
 | 宿主能力（typed capability） | 已删除（R8「删 typed 通道」）：注册表里曾经不带 `action` 的条目；宿主的服务现在都登记成动作 | 无 | 裸写的「能力」「Capability」 |
 | 插件私有文件（`ownerFiles` / `owner_files`） | 插件在自己 Manifest 的 `owner_files` 里声明、放在 Home 的文件树（顶层条目、读写权限），只经 `services.ownerFiles` 读写；只有这一套 | 无 | `files`（旧的启动条目声明与 `services.files`，PG-022 P2b 已删，现在只叫 `ownerFiles`）、`initialize_owner_files`（启动钩子，已删，由插件在自己的 `start` 里写） |
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
-| 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
+| 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途（见 U4） | 判断场景、去向、消费入口、消费场景（界面禁用） |
 | 推荐选项 | 判断结果里「建议做什么」的一项 | 推荐动作 | 行为（behavior） |
-| Skill | 按需读取的文字做法，不授予任何权限 | 技能（设置 › 能力包）；Coding 的选择框、助理仍写「方法」，Character 流程里写 Skills | 方法（指这个时）、Method |
+| Skill | 按需读取的文字做法，不授予任何权限 | 技能（英文 `Skill` / `Skills`，见 U3） | 方法（指这个时）、Method |
 | 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
 | 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
@@ -48,8 +48,8 @@
 | 我的技能 | 本人在能力包页新建／修改、用这台电脑的发布身份签名的一个内容包（项目与个人空间各一个）；与从本机导入的同类 | 能力包页的「我的技能」 | 个人方法库、自建方法 |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
-| Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
-| Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
+| Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 日常界面写 AI 或助理；与外部工具对比时写内置 AI（见 U6、4.1） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
+| Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | 具体产品名、外部 AI 工具、电脑上的 AI 工具（见 U6、4.1） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | 外部工具 | 登记表（`platform/external-tools`）里的一个外部 AI 开发工具；范围比外部 Runtime 大，Molis 只读其会话、不运行的也算（见 2.3） | 无 | 把它和 Runtime 当同义词；厂商、插件 |
 | 产品入口 | 外部工具的一个可用形态，登记表一行一个：CLI、IDE、桌面、云端分开，国内、国际分开 | 无 | 把同品牌的几个入口当成一个 |
 | 外部会话 | 外部工具自己保有的对话会话；Molis 在本人打开的读取范围内只建索引、按来源实时只读正文，不存对话全文（标题与建议短引文除外）、不发消息、不托管运行（见 2.3） | 外部会话、历史会话 | 把它和 Coding 会话、个人助理的「工作」或已退役的旧 Sessions 库混写 |
@@ -96,7 +96,7 @@
 | 工作（助理的） | 助理里一项持续的事：用户说的话、助理的回复和它派出去的任务都归在一项工作下，有自己的草稿和进展 | 工作（新工作、我的工作、切换工作）；英文 work | 任务（指它时）、会话（指它时）、受托工作（只在文档里，不对外） |
 | 任务 | 交给某个执行者（Coding、子代理、后台）去做的具体一件 | 任务；英文 task | 工作（指它时）、作业（界面不用；代码与错误信息里的「后台作业」见 2.5） |
 | 子任务 | 一项任务或工作再委托出去的一件 | 子任务；英文 sub-task（不写 subtask、Subtask） | 子工作、子代理（指被委托的那件事时；子代理是执行它的 Agent） |
-| 子代理（subagent） | 被委托执行一项子任务的 Agent；子任务是被委托的那件事，子代理是执行它的执行者 | 子代理 | 子任务（指那件事时）、子工作 |
+| 子代理（subagent） | 被委托执行一项子任务的 Agent；子任务是被委托的那件事，子代理是执行它的执行者 | 日常界面统一指事称「子任务」（不暴露执行体词「子代理」「原子任务」） | 子任务（指那件事时）、子工作、原子任务 |
 | 子任务对话（sub-task conversation） | 在右侧任务浮窗内查看某个子代理的消息、过程与结果，并直接给这一步补充要求；子输入与主助理输入分开 | 子任务对话、子对话 | 子代理对话（不写 subtask conversation）、子聊天 |
 | 任务浮窗（task float） | 工作台右侧既有的任务卡浮层；从任务卡切到子任务对话时，主助理对话与底部主输入不动 | 任务浮窗、右侧浮窗 | 任务面板（指后台任务面板时）、侧栏 |
 | 直接对话（direct conversation） | 用户直接进入某个子任务或 Character 的对话发话，不经父模型代转，也不伪装成父代理或系统消息 | 直接对话 | 子代理代转、父代理转话 |
@@ -105,7 +105,9 @@
 | 送达方式 | AI 运行中再发一句时的三种送法：补充（默认，模型边界读到）、打断并改向、下一轮再做；键位说明里「下一轮再做」叫排队 | 补充、打断并改向、下一轮再做；英文 Add、Interrupt and redirect、Do it next turn | 这一轮结束后再做、打断（单写，指它时） |
 | 接收者（发给谁） | 输入框里这句话发给的对象：助理、某项工作或任务、子任务、项目讨论的群或话题。一个输入框（§10.2 甲）里页面登记给底栏的接收对象，代码与框架桥里也叫「收件人」，与这个是同一件事 | 「发给：对象」；英文 Send to；代码与框架桥「收件人」 | 目标（界面上「目标」只指 Goal）、发到 |
 | 一个输入框（one input） | 第 11 批按用户 2026-11-10 选「甲」：工作台底栏的唯一输入框；插件页面不挂自己的框，登记为收件人，底栏在前台是它时发给它（specs/unified-input-voice/spec.md §10.2～§10.4） | 一个输入框、收件人 | 三个入口各挂一个输入框、第二个框 |
-| 事项（work item） | 一件要办成的事的容器：事项线的线头显示并切换的那一个（一条线属于一个事项；没选时是项目的线）。事项的事实归主线服务（`specs/mainline/spec.md`） | 事项 | 把线上的一项叫事项（那是事件）、任务（指它时） |
+| 事项来源（work-item source） | 在呈现声明提供 `item` 的对象类型，负责自己对象和可选的创建、关联、下一步 | 事项来源 | 主线复制的对象 |
+| 主线排列（mainline arrangement） | 一个人为一个项目安排的事项分组、顺序、固定与当前事项，由主线服务保存 | 主线、排列 | 事项线事件本身 |
+| 事项（work item） | 一件要办成的事的容器：事项线的线头显示并切换的那一个（一条线属于一个事项；没选时是项目的线）。事项的事实归主线服务（`specs/work-mainline/spec.md`） | 事项 | 把线上的一项叫事项（那是事件）、任务（指它时） |
 | 线上的事件（work event） | 事项线上的一项：插件或助理按 Manifest 声明的事件读取动作登记的一件值得跟的事，名字与状态词由登记方当次给出，平台不存标题（`specs/work-line/spec.md` §5、WLN-37）。界面与文档里单写「事件」只在事项线的语境里指它，别处加限定（见 2.5） | 事件 | 事项（指它时）、任务（指它时）、插件事件／宿主事件（那是另外几种事件） |
 | 后台任务（事项线的） | 一个事件背后的一次后台执行，或一项不属于任何事件的后台执行：谁在办、到哪一步、为哪个事件、结果交回给谁。各插件与平台按同一形状报到后台任务总表，在助理对话框的后台任务面板里看（`specs/work-line/spec.md` §4.5、§6.4，WLN-39）。和「后台作业」的关系见 2.5 | 后台任务（面板标题）；任务（行与卡里） | 事件（指它时）、后台作业（指面板里的一项时） |
 | 事项线 | 工作台底部那条高度固定的线：线头（事项）、左翼（发生过和正在办的事件）、输入框、右翼（接下来的事件）。后台任务不在线上，在后台任务面板里（用户 2026-11-14 定） | 无（用户看到的是线本身） | 后台任务条、任务线、Dock（指它时） |
@@ -235,7 +237,7 @@
 
 **Character**
 
-- 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
+- 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。原件、版本及项目成员归 `modules/characters`。任务存原件或成员的稳定引用，由 Agent Host 在运行开始时钉固定版本。项目成员的做事方式与能用什么默认各自跟随原件，项目改过的一节可恢复跟随。发布为成果 `character.definition.v1` 是独立操作。插件须在 Manifest 的 `characters.role_ids` 声明哪些 Agent role 接受个人角色。
 - 归属（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。（CHR-1 已落地，2026-10-22；旧安装记录改走维护，见 `docs/releases/CHECKLIST.md`。）
 - 现行代码（CHR-1，2026-10-22 已落地；之前是 `plugins/native/characters`，一个经 Plugin Runtime 装配的插件）：Characters 没有自己的包、Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主侧有 5 个文件：`apps/local-host/src/characters-host.ts`（为每个项目注册动作提供方）、`apps/local-host/src/characters-http.ts`（页面 14 个地址的门）、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。动作提供方仍叫 `io.molis.work.characters`（`kind: "plugin"`，标题 Characters，D1），所以动作引用、MCP 工具名与已发布的生产者继续对得上；有了 Module 这一种之后叫什么，是 BL-378。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:14-15`），`modules/characters/src/publications.ts:26` 读取时核对，两个值保留；发布写入的 `producer_plugin_version` 是产品版本（D4）。这是代码身份，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
@@ -458,41 +460,36 @@
 4. **贡献 id（`contribution_id`）不是插件 id**：多数内置插件的贡献 id 以 `io.molis.work.native.<x>.` 开头（如 `io.molis.work.native.todo.ui.v1`，`plugins/native/todo/src/ui.ts:4`）。这是贡献 id 的命名空间，不要拿它推 `plugin_id`；它不在改名范围内。
 
 
-## 4. 界面用词待批清单
+## 4. 界面用词决定记录
 
-以下每一条都会改变用户看得见的文字，未经用户批准不改。「建议」是推荐，不是已定；不批准时，本表在「界面现状」一栏记录对照，文档照常使用「用名」。位置给出文件，行号会漂移，以符号和字面为准。
+以下各项已由用户批准（U8 于 2026-11-04 批准，U1～U7 及 §4.1 于 2026-11-17 批准）。新增或修改用户可见文案时直接遵守本节结论，写作规范详见 [`skills/molis-plugin-dev/text-and-appearance.md`](../../skills/molis-plugin-dev/text-and-appearance.md#怎么写界面文案)。
 
-**U1　动作叫「能力」还是「动作」**
+**U1　动作叫「能力」还是「动作」（2026-11-17 已批准）**
 
 - 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`plugins/native/plugin-builder/src/agent-studio.ts`），角色页「角色可选能力」（`modules/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」200 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
 - 同一页里两个词并用：判断规则编辑器里既有「从动作库加入」「原动作不可用」（`apps/workbench/src/judgment-rules/client-render.ts`），又有「搜索能力」「没有匹配的能力」（`apps/workbench/src/judgment-rules/ui.ts`、`client-render.ts`）。
 - 同一组页面两个名字：顶栏进入的是「能力 · 系统服务」，设置里同样四页（能力库、服务连接、对外接入、调用记录）却放在「工具与接入」组下（`apps/workbench/src/settings-sections.ts`）。该组还含「AI 与执行工具」，范围比前者大，所以这一条不要求合并，只请确认。
-- 建议：界面统一用「能力」指目录里的条目（它已是顶栏、页面名和设置项的名字）：把「动作库」「原动作」两处改成「能力库」「原能力」；页面上给用户的下一步仍叫「动作」（「页面动作」「推荐动作」）。代码与文档仍写 Action，术语表记录「界面叫能力」。
-- 备选：界面全部改成「动作」；保持现状。
+- 决定（2026-11-17）：界面统一用「能力 / 能力库」指目录里的条目；页面上推荐给用户的下一步仍叫「动作」（「页面动作」「推荐动作」）。代码与文档仍写 Action。
 
-**U2　界面里出现的「Functions」改成「判断规则」**
+**U2　界面里出现的「Functions」改成「判断规则」（2026-11-17 已批准）**
 
 - 现状：Functions 插件已不存在，但这些用户可见的文字还在用这个名字：`apps/local-host/src/connector-access.ts`（错误提示「请在使用此连接的模型、Images、Functions 或 Coding 设置中……」）、`apps/local-host/src/connector-directory.ts`（TypeSafe 连接的说明与用途标签）、`apps/local-host/src/host-connector-methods.ts` 和 `apps/workbench/src/judgment-rules/client.ts`（「Functions 请求失败」）、`apps/local-host/src/plugin-builder-surface.ts`（「请在 Functions 设置中配置 TypeSafe Key」）、`apps/workbench/src/settings-connector-guide.ts`、`apps/workbench/src/settings-connectors.ts`（含按钮「查看 Functions」，实际链到能力库）。英文界面的对应译文随之改。
-- 建议：改成「判断规则」。
-- 备选：保持现状。
+- 决定（2026-11-17）：界面全部改为「判断规则」（英文 `judgment rules`）。
 
-**U3　Skill 在界面叫「方法」**
+**U3　Skill 在界面统一叫「技能」（2026-11-17 已批准）**
 
 - 现状：Coding 的「项目方法」「安装方法」「方法」（`plugins/native/coding/src/messages.ts`、`settings-messages.ts`），助理里的「用一个能力或方法」和物料类型「方法」（`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`）；同一界面的 Character 流程却写「本轮使用的 Skills」（`plugins/native/coding/src/panels-messages.ts` 的 `coding.character.skills`）。而「方法」还指规划方法、研究方法、连接方式。
-- 建议：上面这些指 Skill 的地方统一写「Skill」；规划方法、研究方法、连接方式保持全名。
-- 备选：界面保留「方法」，把 Character 流程里的「Skills」也改成「方法」；保持现状。
+- 决定（2026-11-17）：中文界面指 Skill 的地方统一写「技能」（与「设置 › 能力包」「技能目录」一致），英文写 `Skill` / `Skills`；规划方法、研究方法、连接方式必须写全名。
 
-**U4　消费场景在界面叫「用途」或「消费场景」**
+**U4　消费场景在界面统一叫「用途」（2026-11-17 已批准）**
 
 - 现状：规则编辑器的步骤叫「选择用途」（`apps/workbench/src/judgment-rules/ui.ts`），能力库页和一批报错写「消费场景」（`apps/workbench/src/capabilities.ts`、`apps/local-host/src/judgment-rules-actions.ts`、`apps/local-host/src/local-host.ts`）。
-- 建议：用户可见处统一写「用途」，把报错和能力库页里的「消费场景」改掉；文档与代码仍写消费场景。
-- 备选：统一成「消费场景」；保持现状。
+- 决定（2026-11-17）：用户可见处统一写「用途」，替换报错和能力库页里的「消费场景」；文档与代码仍写消费场景。
 
-**U5　Board 还出现在 4 处报错里**
+**U5　Board 残留报错改为「目标资料库」或「项目」（2026-11-17 已批准）**
 
 - 现状：「Board 已存在」「Board ID 和名称不能为空」（`plugins/native/goals/src/module/library-commands.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）。这些是动作和命令的报错，用户会在各入口看到。同日的文案改动（#299）已把「Board 不存在」和动作「初始化目标资料库」的说明改成「目标资料库」，所以这 4 处与它不一致。
-- 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，R-B3 已定保持原名（2026-10-26，见 R-C），不在这一条。
-- 备选：保持现状。
+- 决定（2026-11-17）：统一改为「目标资料库」或「项目」。错误码 `board.not_found` 等属合同，R-B3 保持原名。
 
 **U6　「角色」同时指 Character 和 Agent role；外部 AI 工具和它里面的工作者都被叫成「Agent」**
 
@@ -546,15 +543,19 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 提示词正文：`plugins/native/shelf/src/prompts.ts:58` 的「不要调用终端 Agent」是登记的提示词（`SHELF_INSTRUCTIONS`，`version: 1`）的一部分，不是界面文案；改它要升提示词版本，所以不随这一批改，另议。
 - 词典里没有使用处的键：`plugins/native/shelf/src/en.ts:132,137,200,283` 的四个含「Agent」「本机 Agent」的键，源码里没有对应的使用处（按字面搜过），翻译换成稳定键时作为无用键处理（2.7 第 5 点）。
 
-- 建议：批准上面两张表。A 组换成 Runtime，B 组写「外部 Agent」，这样不会把产品叫成工作者，「Agent」在界面里也只剩工作者一个意思。设置页标题「AI 与执行工具」不变（它是工具清单，不是概念名）。「角色」保留为设置页的统称，两个小节标题已经分开；Coding 里的「左侧 Characters」改成「设置 › 角色」（Characters 是设置的一节，不在左侧）。
-- 备选：A 组的泛称改用「执行工具」（设置页标题已用它指外部 Runtime，见 2.5），不用「Runtime」；A 组也写「外部 Agent」（不推荐：就是 §1 列为易混的写法，用户会把产品当成工作者）；把「我的角色」改叫「Character」；保持现状。
-- 关联：Characters 是设置的一节（2.3）。上面涉及它的文案随它并入宿主（CHR-1，2026-10-22）一起搬到了新位置，位置列已改成现行路径与行号，文字本身没有改。
+- 决定（2026-11-17）：先区分环境（Runtime）与工作者（Agent），同日第二轮面向「零 AI 基础用户」再收敛界面用词：文档与代码继续严格写 `Runtime` / `Agent`，**日常界面不再向普通用户裸写 `Runtime` 与 `Agent`**——指电脑上装的外部产品统称 **「外部 AI 工具 / 电脑上的 AI 工具」**（已知具体软件名直接写 `Claude Code`、`Codex` 等），指系统自身执行能力写 **「AI」** 或 **「助理」**（需与外部对比时写 **「内置 AI」**）。设置页标题「AI 与执行工具」与「角色」统称保持不变；Coding 与助理里的「左侧 Characters / 在 Characters 里」统一改为「设置 › 角色」。
+- 关联：Characters 是设置的一节（2.3）。上面涉及它的文案随它并入宿主（CHR-1，2026-10-22）一起搬到了新位置，位置列已改成现行路径与行号。
 
-**U7　插件显示名中英混用，连接说明里又写英文 id**
+**U7　插件显示名中英混用，连接说明里又写英文 id（2026-11-17 已批准）**
 
 - 现状：见 3.3。连接设置的文案用英文 id 称呼插件：「Images」（`apps/local-host/src/connector-directory.ts`、`apps/workbench/src/settings-connector-guide.ts`），而插件切换器里它叫「图片」。`text-stats` 的两个标题大小写不同。`manifest.name` 也会进界面（3.1），当时只有 Characters 的名称与显示名不一致，它并入宿主（CHR-1，2026-10-22）后这条路径就没有不一致了。
-- 建议：连接说明里的插件名一律取界面显示名（「图片」「判断规则」）。显示名的中英混用本身不改，等用户另行决定统一语言。`Text Stats` 与 `Text stats` 统一为 `Text stats`。
-- 备选：统一所有显示名的语言（范围大，需另起一项）；保持现状。
+- 决定（2026-11-17）：连接说明与设置引用里的插件名一律取界面显示名（「图片」「判断规则」「设置 › 服务连接」）；`Text Stats` 与 `Text stats` 统一为 `Text stats`。
+
+### 4.1 面向零 AI 基础用户的界面白话准则与符号约定（2026-11-17 已批准）
+
+- **内部架构词不进用户文案**：`宿主`（改为 `Molis Work`、系统或直接写 `「设置 › …」`）、`超出宿主执行边界`（改为 `超出本次允许范围`）、`权威状态 / 投影`（直接说对象名、当前记录、列表或预览）、`幂等运行记录`（改为 `共用运行记录，不重复执行`）、`游标 / 世代`（改为 `同步进度 / 版本`）、`已落盘 / 终端通道 / 对象挂载位`（改为 `已保存 / 终端连接 / 关联内容区`）、指代项目关联文件夹的 `工作区 / 工作目录`（改为 `项目目录 / 输入目录 / 输出目录`）。
+- **AI 与工程概念词在日常界面一律转译成直白人话**：`Runtime / 运行时` → `外部 AI 工具 / 电脑上的 AI 工具 / 默认 AI 工具`；`Agent / 内置 Agent` → `AI / 助理 / 内置 AI`；`子代理 / 原子任务` → `子任务`；`Prompt / Runtime Prompt` → 日常说明写 `AI 指令说明 / 做事要求`、生图写 `画面描述`、专用编辑页写 `指令说明（提示词）`；`上下文 / 放进上下文 / 超出上下文窗口 / 整理上下文` → `参考内容 / AI 已收到 / 超出当前 AI 一次能读完的长度 / 浓缩早期对话记录`；裸 `tokens` → 首次说明写 `AI 字数额度（按字数折算为 tokens）`；`快照` → `当时的内容备份 / 已保存的文件版本 / 重新读取`；业务处的 `回执` → `执行结果 / 操作记录`；`调用方 / 调用者` → `当前功能 / 使用处`；创作台 `规格板 / 规格校验 / 功能合同 / 沙箱试运行` → `组件库 / 自动检查 / 功能清单 / 安全试运行`；中文句子里不夹杂英文业务词（如 `新建 Goal → 新建目标`、`这条 Item → 这条消息`）。
+- **符号与大小写**：中文界面引用按钮、菜单或对象名称统一用直角引号 `「…」`，层级路径统一用 ` › `；标题、按钮、状态词与空态标题不加句号；英文全界面统一采用 Sentence case（仅首词与专有名词大写）。完整写作规范见 [`skills/molis-plugin-dev/text-and-appearance.md`](../../skills/molis-plugin-dev/text-and-appearance.md#怎么写界面文案)。
 
 **U8　助理里的工作、任务、子任务与输入框用词（H4，已批准）**
 

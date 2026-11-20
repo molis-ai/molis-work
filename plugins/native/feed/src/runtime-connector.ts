@@ -6,6 +6,7 @@ import type { PluginConnectorSourceClient } from "@molis-ai/molis-work-contracts
 import type { ConnectorHostApi, ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { listenerErrors } from "./store/listener.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
+import { FEED_ACCOUNT_SERVICES } from "./source-ports.js";
 import type { FeedApplication } from "./application.js";
 import { FeedConnectorSync } from "./connector-sync.js";
 import { integrationKeyOf } from "./integration-key.js";
@@ -136,8 +137,10 @@ export function authorizeRuntimeSource(connections: PluginConnectionsClient | un
 
 /** The Home-wide answer behind `feed.connections.status`: only whether there is an account, never which one. */
 export async function runtimeConnectorStatus(connector: PluginConnectorSourceClient): Promise<ConnectorAuthStatus> {
-  const answer = await connector.accounts(["github", "gmail"]);
-  return { github: { bound: answer.github?.bound === true }, gmail: { bound: answer.gmail?.bound === true } };
+  const answer = await connector.accounts(FEED_ACCOUNT_SERVICES);
+  const others = FEED_ACCOUNT_SERVICES.filter(id => id !== "github" && id !== "gmail" && answer[id]?.pullable)
+    .map(id => ({ service_id: id, title: answer[id]!.title, bound: answer[id]!.bound })).sort((a, b) => a.title.localeCompare(b.title));
+  return { github: { bound: answer.github?.bound === true }, gmail: { bound: answer.gmail?.bound === true }, others };
 }
 
 /** Takes the person's account off a record the Feed no longer reads with it (a disconnected source). */

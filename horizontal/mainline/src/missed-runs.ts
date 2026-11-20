@@ -15,8 +15,8 @@ export const isRunsSource = (view: ActionView): boolean => view.action.input_typ
 export const isRunDecisionOf = (view: ActionView, source: Required<ActionReference>): boolean =>
   view.action.input_type === RUN_DECISION_INPUT_TYPE && view.action.output_type === RUN_DECISION_OUTPUT_TYPE && view.provider.provider_id === source.provider_id && view.availability.available;
 
-/** Only what was missed is asked for: the window ahead is empty. */
-export const missedRunsWindow = (now: Date = new Date()): RunsWindow => ({ now: now.toISOString(), upcoming_until: now.toISOString() });
+/** Only what was missed is asked for: the window ahead is empty, and nothing is counted as skipped on its own (the panel says that). */
+export const missedRunsWindow = (now: Date = new Date()): RunsWindow => ({ now: now.toISOString(), upcoming_until: now.toISOString(), expired_after: now.toISOString() });
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 

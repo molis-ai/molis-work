@@ -32,6 +32,7 @@ import {
   type EvaluationSampleRemoveInput,
   type EvaluationSampleRemoveOutput,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
+import { OBSERVATION_SERVICE_PREFIXES } from "@molis-ai/molis-work-contracts/services/observation";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { compareEvaluationRuns, summarizeEvaluationMetrics } from "./comparison-and-metrics.js";
 import { evaluationErrors } from "./errors.js";
@@ -41,6 +42,7 @@ import {
   resolveSampleHoldRecordIds,
 } from "./observation-bridge.js";
 import type { EvaluationReplayScenario } from "./replay.js";
+import { isPluginDeliveryRole } from "./rules.js";
 import { executeSampleEvaluationRun } from "./run-executor.js";
 import { EvaluationStore } from "./store.js";
 
@@ -72,6 +74,33 @@ function validateWindow(window: EvaluationSampleInput["window"]): void {
   }
   if (window.since && window.until && Date.parse(window.since) > Date.parse(window.until)) {
     throw evaluationErrors.invalid("样本时间窗口 since 不能晚于 until");
+  }
+}
+
+function validateDeliverySources(input: EvaluationSampleInput): void {
+  const platformPrefixes = Object.values(OBSERVATION_SERVICE_PREFIXES);
+  for (const exp of input.expectations) {
+    if (exp.stage !== "delivery") continue;
+    let facts: readonly string[];
+    let role: string | undefined;
+    let requiresReply = false;
+    if (exp.source === "evaluator" && exp.rule.evidence_source) {
+      facts = [exp.rule.evidence_source.fact];
+      role = exp.rule.evidence_source.role;
+      requiresReply = exp.rule.required_facts?.includes("agent.reply") ?? false;
+    } else if (exp.source === "deterministic" && exp.rule.check === "evidence_text") {
+      facts = exp.rule.facts ?? (exp.rule.fact ? [exp.rule.fact] : []);
+      role = exp.rule.evidence_role;
+      requiresReply = facts.includes("agent.reply") || (!facts.length && (input.work_mode === "assistant" || input.query.fact === "agent.reply"));
+    } else continue;
+    if (!facts.length && input.query.fact) facts = [input.query.fact];
+    const judgesReply = requiresReply || facts.some(fact => platformPrefixes.some(prefix => fact.startsWith(prefix + ".")));
+    if (judgesReply && ((role !== undefined && role !== "reply") || facts.some(fact => fact !== "agent.reply"))) {
+      throw evaluationErrors.invalid("评判模型交付须使用 agent.reply 的 reply 正文。已冻结的样本请用新版本登记正确来源。");
+    }
+    if (!judgesReply && facts.length && role !== undefined && !isPluginDeliveryRole(role)) {
+      throw evaluationErrors.invalid("评判业务插件交付须使用 output 产出或 body 正文。已冻结的样本请用新版本登记正确来源。");
+    }
   }
 }
 
@@ -133,6 +162,7 @@ export class EvaluationService {
   async putSample(caller: ActionExecutionContext, input: EvaluationSampleInput): Promise<EvaluationSamplePutOutput> {
     assertPersonCaller(caller);
     validateWindow(input.window);
+    validateDeliverySources(input);
     caller.signal?.throwIfAborted();
     this.store.assertSampleImmutable(input);
     const origin = originOf(caller, evaluationActions.samplesPut);
@@ -199,6 +229,7 @@ export class EvaluationService {
           : `评测样本 ${input.sample_id} 不存在`,
       );
     }
+    validateDeliverySources(sample);
     const origin = originOf(caller, evaluationActions.runsExecute);
     const holdId = input.hold_records ? `eval:${sample.sample_id}:v${sample.version}` : null;
     let holdCommitted = false;

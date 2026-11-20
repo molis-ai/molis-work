@@ -2,8 +2,10 @@ import { cutWithEllipsis } from "./whole-units.js";
 import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCard, AssistantCardChoice } from "@molis-ai/molis-work-contracts/services/assistant";
+import { TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextDateStyle } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorKind } from "./errors.js";
+import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
 
 /**
  * Action cards (specs/ai-interaction-experience H2, D26): a suggestion the person runs with one click, exactly as shown,
@@ -26,13 +28,16 @@ export interface ActionCard {
   editable: string[];
   missing: Array<{ field: string; question: string }>;
   status: ActionCardStatus;
-  outcome?: string;
+  /** What happened, or why not, as a key with its raw values (`common.action-card.*`), or the owner's own words as a `literal`; never a sentence made here. */
+  outcome?: OwnedTextRef;
   /** The successful call's declared, bounded presentation; never the raw result. */
   presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
   target?: { kind: string; id: string; revision: string; title: string };
+  /** Choices its preparer gave editable top-level fields: only these values can run (`AssistantPreparedCard.choices`). */
+  choices?: Record<string, AssistantCardChoice[]>;
   created_at: string;
   updated_at: string;
 }
@@ -93,29 +98,74 @@ export function cardSubject(view: Pick<ActionView, "action" | "operation">, inpu
   return null;
 }
 
+const MAX_CHOICE_FIELDS = 8, MAX_CHOICES = 12;
+const isArrayField = (declared: Schema | undefined) => declared?.type === "array";
+
+/**
+ * The values a prepared field holds, as the list its choices are checked against: an array field's items, any other's one value.
+ * Anything that is not a string list, or a string, is not a choice.
+ */
+function picked(declared: Schema | undefined, value: unknown): string[] | null {
+  if (isArrayField(declared)) return Array.isArray(value) && value.every(item => typeof item === "string") ? value as string[] : null;
+  return typeof value === "string" ? [value] : null;
+}
+
+/**
+ * A preparer's choices, checked before anything is kept: only for top-level fields it lets the person change, bounded, each value
+ * and label a short string, and what the field holds now among them.
+ */
+function checkedChoices(offer: { input: unknown; editable?: readonly string[]; choices?: Record<string, AssistantCardChoice[]> }, schema: Schema, refuse: ActionCardPorts["refuse"]): Record<string, AssistantCardChoice[]> {
+  const entries = Object.entries(offer.choices ?? {});
+  const text = (value: unknown, max: number) => typeof value === "string" && value.trim() !== "" && value.length <= max;
+  if (entries.length > MAX_CHOICE_FIELDS) throw refuse("invalid", "可选的字段太多");
+  const out: Record<string, AssistantCardChoice[]> = {};
+  for (const [key, list] of entries) {
+    if (key.includes(".") || !offer.editable?.includes(key) || !Array.isArray(list) || !list.length || list.length > MAX_CHOICES
+      || list.some(choice => !choice || !text(choice.value, 200) || !text(choice.label, 120) || choice.description !== undefined && !text(choice.description, 300))
+      || new Set(list.map(choice => choice.value)).size !== list.length) throw refuse("invalid", `字段「${key}」的选项写法不对`);
+    const values = new Set(list.map(choice => choice.value));
+    const held = plainObject(offer.input) ? offer.input[key] : undefined;
+    const now = held === undefined ? [] : picked(schema.properties?.[key], held);
+    if (!now || now.some(value => !values.has(value))) throw refuse("invalid", `字段「${key}」准备的值不在它的选项里`);
+    out[key] = list.map(choice => ({ value: choice.value, label: choice.label.trim(), ...(choice.description ? { description: choice.description.trim() } : {}) }));
+  }
+  return out;
+}
+
 /**
  * A suggestion checked against the actions offered now and made a card: the exact capability it names, its input valid
  * unless fields are still missing, and the object it would change as that object reads now. Nothing runs.
  */
-export async function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[],
+export async function draftActionCard(cardId: string, offer: AgentActionOffer & { readonly choices?: Record<string, AssistantCardChoice[]> }, views: readonly ActionView[],
   ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard> {
   const view = views.find(row => sameAction(row, offer.reference));
   if (!view || !view.availability.available) throw ports.refuse("revoked", "That capability is not available here; nothing was suggested.");
   const missing = (offer.missing ?? []).filter(item => item.field && item.question);
+  const choices = offer.choices === undefined ? undefined : checkedChoices(offer, view.action.input_schema as Schema, ports.refuse);
   if (!missing.length) await ports.check(view, offer.input);
   const at = ports.now().toISOString();
   const card: ActionCard = { card_id: cardId, revision: 1, title: offer.title, summary: offer.summary, provider: view.provider.title, capability_title: view.action.title,
     effect: actionEffect(view.action, view.capability_id), reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
     input: structuredClone(offer.input), input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,
-    status: missing.length ? "needs-input" : "ready", created_at: at, updated_at: at };
+    status: missing.length ? "needs-input" : "ready", ...(choices ? { choices } : {}), created_at: at, updated_at: at };
   const subject = cardSubject(view, offer.input);
   const read = subject ? await ports.readSubject(subject) : null;
   if (subject && read && read !== "missing") card.target = { ...subject, revision: read.revision, title: read.title || subject.id };
   return card;
 }
 
+/**
+ * A card's outcome is kept and drawn later, maybe in another language: the platform's sentence by key with the raw values as
+ * arguments (a date as a date, never formatted here), or the owner's own words as they came.
+ */
+const said = (key: string, ...args: TextArg[]): OwnedTextRef => ({ owner: PLATFORM_TEXT_OWNER, key: `common.action-card.${key}`, ...(args.length ? { args } : {}) });
+const textArg = (name: string, text: string): TextArg => ({ name, kind: "text", text: cutWithEllipsis(text, TEXT_REF_LIMITS.arg_text) });
+const dateArg = (name: string, at: string, style: TextDateStyle, zone?: string): TextArg => at.length > TEXT_REF_LIMITS.arg_at ? textArg(name, at)
+  : { name, kind: "date", at, style, ...(zone ? { time_zone: zone } : {}) };
+const ownWords = (text: string): OwnedTextRef => ({ literal: cutWithEllipsis(text, TEXT_REF_LIMITS.literal) });
+
 /** A result in a line the person can read: what was made or changed, by its name; never the whole payload. */
-function summarizeResult(result: unknown): string {
+function summarizeResult(result: unknown): OwnedTextRef | null {
   const named = (value: unknown): string | null => {
     if (!value || typeof value !== "object") return null;
     const row = value as Record<string, unknown>;
@@ -123,16 +173,16 @@ function summarizeResult(result: unknown): string {
     for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
     return null;
   };
-  if (typeof result === "string") return cutWithEllipsis(result, 200) || "已完成";
+  if (typeof result === "string") return result ? ownWords(cutWithEllipsis(result, 200)) : { owner: PLATFORM_TEXT_OWNER, key: "common.presentation.done" };
   const name = named(result);
-  return name ? `「${name.slice(0, 120)}」` : "";
+  return name ? { owner: PLATFORM_TEXT_OWNER, key: "common.punctuation.quoted", args: [textArg("value", name.slice(0, 120))] } : null;
 }
 
 /** Words that count days from the day they were said. */
 const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
 
 /** Why a card is no longer what the person would mean by it: a moment passed, or "today" was another day. */
-function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): string | null {
+function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): OwnedTextRef | null {
   const zone = ports.timeZone;
   const day = (at: Date) => new Intl.DateTimeFormat("en-CA", { ...(zone ? { timeZone: zone } : {}), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
   const now = ports.now(), today = day(now), prepared = day(new Date(card.created_at));
@@ -140,19 +190,19 @@ function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick
   for (const [key, value] of Object.entries(plainObject(input) ? input : {})) {
     if (typeof value !== "string" || !value) continue;
     const kind = actionFieldInput(properties[key]);
-    if (kind === "datetime" && Date.parse(value) < now.getTime()) return `卡里的时间（${actionFieldValue(key, value, properties[key])}）已经过去，这张建议没有执行；需要时让助理按现在重新准备`;
-    if (kind === "date" && value < today && value >= prepared) return `卡里的日期（${value}）已经过去，这张建议没有执行；需要时让助理按今天重新准备`;
+    if (kind === "datetime" && Date.parse(value) < now.getTime()) return said("time-passed", dateArg("time", value, "datetime", zone));
+    if (kind === "date" && value < today && value >= prepared) return said("date-passed", dateArg("date", value, "date"));
   }
-  if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return `这张建议是 ${prepared} 准备的，里面说的“今天、明天”按那天算，没有执行；需要时让助理按今天重新准备`;
+  if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return said("prepared-another-day", dateArg("date", prepared, "date"));
   return null;
 }
 
 /** Why the object a card would change is no longer the one it was suggested for: deleted, or changed by hand since. */
-async function targetMoved(card: ActionCard, ports: Pick<ActionCardPorts, "readSubject">): Promise<string | null> {
+async function targetMoved(card: ActionCard, ports: Pick<ActionCardPorts, "readSubject">): Promise<OwnedTextRef | null> {
   if (!card.target) return null;
   const now = await ports.readSubject(card.target);
-  if (now === "missing") return `「${card.target.title}」已在原处删除，这张建议不再执行`;
-  if (now && now.revision !== card.target.revision) return `你在原处改过「${card.target.title}」，这张建议基于改之前的内容，不再执行；需要时让助理按现在的内容重新准备`;
+  if (now === "missing") return said("target-deleted", textArg("title", card.target.title));
+  if (now && now.revision !== card.target.revision) return said("target-changed", textArg("title", card.target.title));
   return null;
 }
 
@@ -169,6 +219,16 @@ function preparedInput(card: ActionCard, values: Record<string, string>, refuse:
     const properties = (card.input_schema as Schema).properties;
     const schema = child ? properties?.[head]?.properties?.[child] : properties?.[head];
     let value: unknown = raw;
+    const listed = !child ? card.choices?.[head] : undefined;
+    // A field with prepared choices takes only them: an array field the picked ones (none picked is an empty list), any other one.
+    if (listed) {
+      let parsed: unknown = raw;
+      if (isArrayField(schema)) { try { parsed = raw === "" ? [] : raw.startsWith("[") ? JSON.parse(raw) : [raw]; } catch { parsed = null; } }
+      const values = picked(schema, parsed);
+      if (!values || values.some(item => !listed.some(choice => choice.value === item)) || new Set(values).size !== values.length) throw refuse("invalid", `字段「${key}」只能从给出的选项里选`);
+      prepared[key] = parsed;
+      continue;
+    }
     // A day or a moment the person cleared, on a field that may be empty, is "none".
     if (raw === "" && actionFieldInput(schema) && allowsNull(schema)) value = null;
     else if (schema?.type !== "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
@@ -191,10 +251,10 @@ const OUTCOME_UNKNOWN: ReadonlySet<string> = new Set(["actions.outcome_unknown",
 /** How a run that threw reads, by the failure's code and kind alone, never by its wording (specs/ai-interaction-experience D26). */
 function settled(error: unknown): Partial<ActionCard> {
   const message = error instanceof Error ? error.message : String(error);
-  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` };
+  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: said("unknown", textArg("message", message)) };
   // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
-  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` };
-  return { status: "failed", outcome: message };
+  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: said("data-changed", textArg("message", message)) };
+  return { status: "failed", outcome: ownWords(message) };
 }
 
 /**
@@ -214,16 +274,16 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   const authority = await ports.authority();
   const view = (await authority.discover()).find(row => sameAction(row, card.reference));
   // The card runs what it shows or not at all: never another capability, version or provider.
-  if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" });
+  if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? ownWords(view.availability.reason) : said("unavailable") });
   try { await authority.check(view, prepared); }
   catch (error) { throw ports.refuse("invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
   let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined, presentation: undefined });
   try {
     const result = await authority.invoke(claimed.reference, prepared);
     const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
-    const outcome = presentation?.summary ?? summarizeResult(result);
+    const outcome = presentation?.summary ? ownWords(presentation.summary) : summarizeResult(result);
     // Background work it started: the card shows it running, then how it ended.
-    if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: "已开始，后台进行中" });
+    if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: said("started") });
     claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
     return claimed;
   } catch (error) {
@@ -280,6 +340,14 @@ export function actionCardView(card: ActionCard & { readonly run_id?: string | n
           fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner, properties[key]?.properties?.[child]), editable: editable || card.editable.includes(`${key}.${child}`),
             ...choices(properties[key]?.properties?.[child], inner) });
         }
+        continue;
+      }
+      const listed = card.choices?.[key];
+      if (listed) {
+        const declared = properties[key] as Schema | undefined, now = picked(declared, value) ?? [];
+        const labels = now.map(item => listed.find(choice => choice.value === item)?.label ?? item);
+        fields.push({ key, label: labelOf(properties, key), value: labels.join("、"), editable, options: listed.map(choice => ({ ...choice })),
+          ...(isArrayField(declared) ? { multiple: true, raw: JSON.stringify(now) } : now[0] !== undefined ? { raw: now[0] } : {}) });
         continue;
       }
       // The object it acts on reads by its title, not by its identifier.

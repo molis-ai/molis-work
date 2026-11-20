@@ -44,7 +44,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { knowledgeErrors } from "./errors.js";
+import { knowledgeErrors, reasonOf } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
 import { RoundBudget, roundOf } from "./budget.js";
@@ -55,7 +55,7 @@ import { knowledgeCardSource, type KnowledgeSource, type KnowledgeSourceState } 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
 export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
-  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, contentRevision, knowledgeCardSource } from "./organize.js";
+  type KnowledgeCatalogSnapshot, type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeSource, type KnowledgeSourceState, contentRevision, knowledgeCardSource } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
@@ -97,9 +97,7 @@ const DEFAULT_CARDS = 10;
 const HINT_CHARS = 160;
 const DEFAULT_GREP_LIMIT = 30;
 const DEFAULT_LIST = 30;
-const REASON_CHARS = 200;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
-const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS);
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
@@ -435,7 +433,7 @@ class KnowledgeSourceReader {
   async assertActive(access: KnowledgeAccess, subject: ActionSubject): Promise<void> {
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return;
     const card = this.stored(this.project(access), subject);
-    if (card?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    if (card?.excluded) throw knowledgeErrors.excluded("这份资料被设为不让 AI 读取；要用它，请在项目资料里取消这个设置");
     if (!this.options.sourceState) return;
     const state = await this.options.sourceState(access, subject, card ? knowledgeCardSource(card) : undefined);
     if (state !== undefined && state !== "active") throw knowledgeErrors.unreadable("这份资料当前不供任务读取；来源已归档、不可用或状态尚未确认");
@@ -456,7 +454,7 @@ class KnowledgeSourceReader {
     const project = this.project(access);
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
     const known = this.stored(project, subject);
-    if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不让 AI 读取；要用它，请在项目资料里取消这个设置");
     await this.assertActive(access, subject);
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {

@@ -5,8 +5,9 @@ import { createPage } from "./page.js";
 import { wireReads } from "./reads.js";
 import { wireRecovery } from "./recovery.js";
 import { detailOf } from "./dom.js";
-import { select } from "./stage.js";
+import { openNow, refreshStage, select } from "./stage.js";
 import type { ScheduleHost } from "./types.js";
+import { read } from "./request.js";
 
 const OPEN_KEY = "mw-schedule-open";
 
@@ -22,6 +23,16 @@ export function scheduleClient(host: ScheduleHost): void {
   wireOperation(page);
   wireForm(page);
   wireReads(page);
+  // Schedule says when what its page shows has changed behind it (a round, reminder or operation ended, a task stopped or was set for
+  // its next time, or anyone changed a task through its actions): while the page is on screen it reads the page again and keeps open
+  // what is open, without marking a task read (PG-061, 96-2). The first check reads too: the page was drawn before it, and a change
+  // in between has no later version to show it by. With the form open it waits; the next check reads again.
+  host.scope.watchRevision(() => read(host, "/view-revision"), async () => {
+    const open = openNow(page);
+    if (open.kind === "form" || page.creating || page.recovering || page.operationBusy) return false;
+    // A page that could not be read this time keeps the change for the next check.
+    return refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, true, false).then(() => true, () => false);
+  });
   list.addEventListener("click", event => {
     const target = event.target as Element;
     if (target.closest("[data-schedule-new]")) return;
@@ -36,6 +47,7 @@ export function scheduleClient(host: ScheduleHost): void {
   workbench.addEventListener("molis-work:select-item", event => {
     const itemId = (event as CustomEvent<{ itemId?: unknown } | undefined>).detail?.itemId;
     if (typeof itemId !== "string" || !itemId) return;
+    event.preventDefault();
     if (detailOf(workbench, itemId)) select(page, itemId, "task");
     else workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } }));
   });

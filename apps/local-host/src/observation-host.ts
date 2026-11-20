@@ -182,7 +182,12 @@ export function createHostObservation(home: string, ports: HostObservationPorts 
     ...(resolveSubject ? { resolveSubject } : {}),
   };
   const secrets = createLazyFileSecretStore(home);
-  const layer = new ObservationLayer({ home, env, keys: hasEvidence => observationKeys(secrets, hasEvidence) });
+  const automaticSecrets = createLazyFileSecretStore(home, { keychain: "cached" });
+  const layer = new ObservationLayer({ home, env, keys: hasEvidence => {
+    const automatic = observationKeys(automaticSecrets, hasEvidence), explicit = observationKeys(secrets, hasEvidence);
+    // Recording must not ask to unlock unrelated credentials. Explicit evidence reads retain the original access path.
+    return { digest: automatic.digest, seal: automatic.seal, open: explicit.open };
+  } });
   const bound = layer.actions(caller => { observationShellDoor.entryOf(caller); });
   let closed = false, stepDown = () => {};
   const disposeOwner = projectDeletedHooksFor(home).register({ ...OBSERVATION_OWNER, survivesRebuild: false, alive: () => !closed,

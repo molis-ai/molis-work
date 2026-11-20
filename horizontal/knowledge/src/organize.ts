@@ -13,6 +13,7 @@ import {
   type KnowledgeSectionNote,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
+import { reasonOf } from "./errors.js";
 import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
@@ -96,10 +97,17 @@ export function knowledgeCardSource(card: KnowledgeCardRecord): KnowledgeSource 
     ...(contentRevision(card.revision) || contentRevision(card.organized_revision) ? { state_required: true as const } : {}) };
 }
 
+/**
+ * A project's catalog now, and which of its live sources it does not hold completely. `unsettled` names sources whose owner
+ * lists them but whose complete pass the index does not hold yet (an emptied index after a Home restore or a rebuild, a first
+ * pass that has not finished, a pass that failed): a card from one of them is neither removed nor marked missing.
+ */
+export interface KnowledgeCatalogSnapshot { pieces: KnowledgePiece[]; unsettled: ReadonlySet<string> }
+
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
-  /** Every piece the project's catalog holds now. */
-  catalog(projectId: string): Promise<KnowledgePiece[]>;
+  /** The project's catalog now; null when there is none to judge by (no owner authority, closing). */
+  catalog(projectId: string): Promise<KnowledgeCatalogSnapshot | null>;
   /** Undefined only for a current, available provider that does not adopt owner state. Failures are unknown. */
   sourceState?(projectId: string, source: KnowledgeSource, subject: ActionSubject): Promise<KnowledgeSourceState>;
   /** The project's text model now; null when there is none, and pending cards wait for one. */
@@ -116,7 +124,6 @@ export const ORGANIZE_TEXT_CHARS = 12_000;
 /** Text shorter than this gets a card but no outline. */
 export const OUTLINE_MIN_CHARS = 2_000;
 const MAX_NOTES = 60;
-const ERROR_CHARS = 200;
 
 const keyOf = (subject: ActionSubject) => `${subject.kind}\u0000${subject.id}`;
 const clip = (value: unknown, max: number) => (typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim().slice(0, max);
@@ -228,12 +235,16 @@ export class KnowledgeOrganizer {
     return pass;
   }
 
-  /** Cards for every piece in the catalog; a card whose piece left goes, unless the person edited or kept it back. */
+  /**
+   * Cards for every piece in the catalog; a card whose piece left a completely listed source goes, unless the person edited or
+   * kept it back. A source not completely listed now says nothing about what left it, so its cards stay as they are.
+   */
   async reconcile(projectId: string): Promise<void> {
     if (this.closed || this.removed.has(projectId)) return;
     const store = this.options.store;
-    const pieces = await this.options.catalog(projectId);
-    if (this.closed || this.removed.has(projectId)) return;
+    const catalog = await this.options.catalog(projectId);
+    if (!catalog || this.closed || this.removed.has(projectId)) return;
+    const { pieces, unsettled } = catalog;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
     // The search index inserts sources concurrently. Its row order is not a stable order for new card IDs.
     for (const piece of [...pieces].sort((left, right) => {
@@ -247,6 +258,7 @@ export class KnowledgeOrganizer {
       if (!card || !sameFields(card, next)) store.put(next);
     }
     for (const card of cards.values()) {
+      if (unsettled.has(card.source_key)) continue;
       const state = await this.state(projectId, knowledgeCardSource(card), card.subject);
       if (this.closed || this.removed.has(projectId)) return;
       const current = store.get(projectId, card.subject);
@@ -303,7 +315,7 @@ export class KnowledgeOrganizer {
     // A piece kept from agents waits: its text goes to no model until the person lets agents have it again.
     for (const queued of this.options.store.list(projectId).filter(card => card.state === "pending" && !card.excluded)) {
       if (signal.aborted) return;
-      const piece = (await this.options.catalog(projectId)).find(item => keyOf(item.subject) === keyOf(queued.subject));
+      const piece = (await this.options.catalog(projectId))?.pieces.find(item => keyOf(item.subject) === keyOf(queued.subject));
       if (signal.aborted) return;
       const waiting = this.options.store.get(projectId, queued.subject);
       if (!waiting || waiting.excluded || waiting.state !== "pending" || !piece || piece.revision !== waiting.revision || bare(piece)) continue;
@@ -326,7 +338,7 @@ export class KnowledgeOrganizer {
       const outcome = await writer(input, signal, () => { signal.throwIfAborted(); piece.assertCurrent?.(); }).then(draft => ({ draft }), (error: unknown) => ({ error }));
       if (signal.aborted) return;
       // Refresh availability and revision, then fence the original source before any success or failure record.
-      const fresh = (await this.options.catalog(projectId)).find(item => keyOf(item.subject) === keyOf(piece.subject));
+      const fresh = (await this.options.catalog(projectId))?.pieces.find(item => keyOf(item.subject) === keyOf(piece.subject));
       if (signal.aborted) return;
       piece.assertCurrent?.();
       if (!fresh || fresh.source_key !== piece.source_key || fresh.revision !== piece.revision || fresh.content_policy !== piece.content_policy) continue;
@@ -338,7 +350,7 @@ export class KnowledgeOrganizer {
       const now = this.options.store.get(projectId, waiting.subject);
       if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
       this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
-        : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
+        : { ...now, state: "failed", error: reasonOf(outcome.error) });
     }
   }
 

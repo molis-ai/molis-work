@@ -1,5 +1,6 @@
 import type { MemoryBasis, MemoryEvidenceInput, MemoryKind } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors } from "./errors.js";
+import type { MemoryBackendCandidate } from "./backend.js";
 
 /** New automatic changes record this rule; an existing entry keeps the version that approved it. */
 export const MEMORY_GATE_POLICY = "memory.write-gate";
@@ -31,3 +32,7 @@ export function automaticMemoryHold(kind: MemoryKind, basis: MemoryBasis | null,
 
 /** A suggestion left alone this long has gone quietly; a learned candidate waits no longer than this (one value for all three). */
 export const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Formation already bounds this SDK deadline; reads never recreate it from the ledger's timestamp. */
+export const candidateExpired = (candidate: MemoryBackendCandidate, now: number): boolean =>
+  candidate.meta.expires_at_ms !== undefined && candidate.meta.expires_at_ms <= now;

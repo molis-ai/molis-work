@@ -1,6 +1,7 @@
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
 import { MATERIAL_REF_SCHEMA } from "../platform/project-materials.js";
 import { CHARACTER_TASK_SELECTION_SCHEMA } from "../modules/character-role-scope.js";
+import { CONVERSATION_ATTACHMENT_LIMITS } from "./materials.js";
 import { memoryClassRestrictionsSchema } from "./memory.js";
 import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.js";
 import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "./agent-host-ports.js";
@@ -132,6 +133,8 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
   skills: list(shape(["ref", "origin", "name", "tools", "named"], { ref: object, origin: { enum: ["own", "catalog"] }, name: string, tools: strings, named: { type: "boolean" } })),
   reply_locale: { enum: ["zh", "en"] },
   instructions: shape(["trusted", "files"], { trusted: { type: "boolean" }, files: list(shape(["path", "chars", "truncated", "sha256"], { path: string, chars: number, truncated: { type: "boolean" }, sha256: string })) }),
+  code_intelligence: shape(["languages"], { problem: string, languages: list(shape(["language", "command", "state"], { language: string, command: string,
+    state: { enum: ["ready", "missing"] }, source: { enum: ["this_machine", "tools"] } })) }),
   mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
   directories: shape(["directories_revision", "output", "inputs", "execution"], { directories_revision: string, output: string, inputs: strings,
     execution: { anyOf: [shape(["kind"], { kind: { const: "output" } }), shape(["kind", "worktree_id"], { kind: { const: "worktree" }, worktree_id: string })] } }),
@@ -224,8 +227,8 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
     { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
       properties: { ...materialFields, text: text(1_000_000), ...materialSource } },
   ] } },
-  image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
-    resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
+  image_materials: { type: "array", maxItems: CONVERSATION_ATTACHMENT_LIMITS.round_images, items: { type: "object", required: ["material_id", "title", "attachment", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
+    attachment: MATERIAL_REF_SCHEMA, media_type: entryId } } },
   skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema }, auto_skills: { const: false },
   mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version", "configuration_version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
   mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server", "configuration_version"], additionalProperties: false, properties: mcpRef } },
@@ -256,7 +259,8 @@ export const agentSubagentCommandSchema = { anyOf: [
 const subagentConversationOutput = shape(["child", "messages", "phase", "questions", "approvals"], {
         child: subagentOutput, messages: list({ ...turnOutput, required: [...turnOutput.required, "run"], properties: { ...turnOutput.properties, run: runRefOutput } }),
         phase: { enum: RUN_PHASES }, questions: list(questionOutput), queued_answer: shape(["pending_id", "pending_revision"], { pending_id: string, pending_revision: number }),
-        approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string });
+        approvals: list(shape(["pending_id"], { pending_id: string, pending_revision: number })), input_unavailable: string,
+        extend_budget_available: { const: true } });
 
 export const agentHostCapabilities = {
   readSubagentConversation: {

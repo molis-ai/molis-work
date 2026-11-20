@@ -13,6 +13,7 @@ import type {
   AgentCreateSessionRequest,
   AgentRunControl,
   AgentRunRef,
+  AgentSubagentView,
   AgentRunView,
   AgentRuntimeCapabilityMatrix,
   AgentSessionView,
@@ -123,8 +124,8 @@ export interface PrologueStartInput {
   /** Memories the Host chose for this run; the runtime re-reads each and injects it as data. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory;
   text_materials?: readonly AgentTextMaterial[];
-  /** Images shown to the model in this Run (runtime resource references). */
-  image_materials?: readonly AgentImageMaterial[];
+  /** Images shown to the model in this Run: the caller's attachments, taken in by the runtime for this Run. */
+  image_materials?: ReadonlyArray<AgentImageMaterial & { resource: { id: string; revision: number } }>;
   skills?: readonly AgentRoundSkill[];
   mcp_tools?: readonly AgentMcpToolRef[];
   mcp_sources?: readonly AgentMcpSourceRef[];
@@ -157,7 +158,10 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  subagents?: Omit<import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability, "listForRuns"> & {
+    listForRuns?(parents: readonly AgentRunRef[], readParent: (run: AgentRunRef) => Promise<unknown>): Promise<AgentSubagentView[]>;
+    sessionOf(run: AgentRunRef, subagentId: string): string;
+  };
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("./prologue-plan-steps.js").PlanCollaborationPort;
@@ -168,15 +172,19 @@ export interface PrologueRuntimePort {
   schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
   /** Prologue Memory, scope by scope. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
-  /** Documents parsed by the runtime's own parsers. */
-  documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
+  /**
+   * Takes a picture in for one Run (PNG, JPEG, GIF or WebP, recognised by its bytes), and lets it go when the Run is over. The
+   * picture's own copy is the caller's conversation attachment; the runtime only holds it while a Run shows it to the model.
+   */
+  images?: {
+    intake(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string }>;
+    release(resource: { id: string; revision: number }): Promise<void>;
+  };
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   mcpLibrary?: AgentMcpLibrary;
   saveRunTiming?(run: AgentRunRef, timing: PrologueRunTiming): Promise<void>;
   /** This runtime prepares selected bounded text methods through SDK public APIs. */
   inlineMethods?: boolean;
-  /** Images taken in by this runtime can be attached to a Run's model calls. */
-  imageAttachments?: boolean;
   /** Node composition actually supplies a cancellable SDK ContextCompactor. */
   compaction?: boolean;
   /** null only when the original owner confirms the question was answered. */
@@ -210,6 +218,8 @@ export interface PrologueRuntimePort {
     control: PrologueControlPort;
     /** The instruction files this round was given, as recorded in its index (`frozen.instructions`); absent when not recorded. */
     instructions?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunInstructions;
+    /** Which languages the round can understand, as recorded in its index (`frozen.code_intelligence`); absent when it has none. */
+    code_intelligence?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRunCodeIntelligence;
     memory?: import("@prologue/sdk").AgentMemoryControl;
   } & RoundDesk>;
   shutdown(): Promise<unknown>;

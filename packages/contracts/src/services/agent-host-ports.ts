@@ -143,6 +143,8 @@ export interface AgentSubagentConversation {
   approvals: Array<{ pending_id: string; pending_revision?: number }>;
   /** A retained scope, recovery or attempt-budget refusal. Reads remain available. */
   input_unavailable?: string;
+  /** The existing attempt budget may be extended for this exact authorized child Run. */
+  extend_budget_available?: true;
 }
 
 /** A page freezes these references before awaiting anything. actor/authority are never payload fields. */
@@ -174,6 +176,8 @@ export interface AgentSubagentsCapability {
   /** Distinct child roots and their review/recovery bridge are actually wired. */
   workspaces?: true;
   list(run: AgentRunRef): Promise<AgentSubagentView[]>;
+  /** Children in the supplied parent order. Only parents with children need a full Run read. */
+  listForRuns?(parents: readonly AgentRunRef[]): Promise<AgentSubagentView[]>;
   /** Trusted Host lookup of settled attempt candidates for the caller's parent Sessions. Confirm each with the original Run view. */
   resultCandidates?(parentSessionIds: ReadonlySet<string>): readonly { parent_run: AgentRunRef; subagent_id: string; attempt_run_id: string }[];
   conversation?(run: AgentRunRef, subagentId: string): Promise<AgentSubagentConversation>;

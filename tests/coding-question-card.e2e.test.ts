@@ -406,6 +406,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await evaluate("window.__motion"), [["appear", []], ["pick", []], ["submit", []]]);
 });
 
+// QEA-156: a stable answer card must also keep focus beside the independently rendered environment panel.
 test("AC-10-6: while Coding waits, the page reads the run again and the card, the words being written and the reading position stay", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t, { why: `先确认要修哪一处。${LONG}`, questions: [
     { id: "fix", prompt: `先修哪一个？${LONG}`, options: [{ label: "登录", description: LONG, recommended: true }, { label: "导出", description: LONG }, { label: "都修", description: LONG }] },

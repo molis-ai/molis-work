@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ChromeHarness, locateTestChrome, type ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, memoryActions, type MemoryClassRestriction, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { person } from "./fixtures/home-runtime.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
@@ -32,23 +34,16 @@ test("classification controls save independent personal/project restrictions, ke
     await client.invoke(memoryActions.savePrefs, { scope, prefs: { class_restrictions: [retained] } });
   }
   const read = (scope: MemoryScope) => client.invoke(memoryActions.prefs, { scope });
-  const savePrefs = MemoryService.prototype.savePrefs;
-  let failNext = false, failOverviewAfterSave = false, failPrefsRead = false, failedRefreshes = 0, failPairsRead = false, pairReads = 0;
+  let failOverview = false, failedRefreshes = 0, failPairsRead = false, pairReads = 0;
   const pairs = MemoryService.prototype.pairs;
   t.mock.method(MemoryService.prototype, "pairs", async function(this: MemoryService, ...args: Parameters<MemoryService["pairs"]>) {
     pairReads++; if (failPairsRead) { failPairsRead = false; throw new Error("刷新配对失败，请重新读取"); }
     return pairs.apply(this, args);
   });
-  t.mock.method(MemoryService.prototype, "savePrefs", function(this: MemoryService, ...args: Parameters<MemoryService["savePrefs"]>) {
-    if (failNext) { failNext = false; throw new Error("保存分类限制失败，请重试"); }
-    const saved = savePrefs.apply(this, args);
-    if (failOverviewAfterSave) { failOverviewAfterSave = false; failPrefsRead = true; failPairsRead = true; }
-    return saved;
-  });
-  const prefs = MemoryService.prototype.prefs;
-  t.mock.method(MemoryService.prototype, "prefs", function(this: MemoryService, ...args: Parameters<MemoryService["prefs"]>) {
-    if (failPrefsRead) { failPrefsRead = false; failedRefreshes++; throw new Error("刷新分类限制失败，请重新读取"); }
-    return prefs.apply(this, args);
+  const pageRecords = MemoryService.prototype.page;
+  t.mock.method(MemoryService.prototype, "page", function(this: MemoryService, ...args: Parameters<MemoryService["page"]>) {
+    if (failOverview) { failOverview = false; failedRefreshes++; throw new Error("刷新分类限制失败，请重新读取"); }
+    return pageRecords.apply(this, args);
   });
   directory = await mkdtemp(join(tmpdir(), "memory-classes-browser-"));
   browser = await ChromeHarness.start(directory, { executable });
@@ -61,6 +56,8 @@ test("classification controls save independent personal/project restrictions, ke
     await page.wait("document.documentElement?.dataset.oldMemoryClasses !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
     await page.evaluate(`(() => { const node = [...document.querySelectorAll('[data-memory-settings]')].find(node => node.checkVisibility()); node.setAttribute('data-memory-classes-test', ''); })()`);
     await page.wait(`document.querySelector('${root} [data-memory-class-form] fieldset')?.disabled === false`);
+    // The restrictions are one row of 谁可以用; the form opens in place under it (specs/screen-polish/p5-settings.md).
+    await page.evaluate(`void (document.querySelector('${root} [data-memory-classes-row] > details').open = true)`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].filter(node =>
       node.closest('.mw-select-picker')?.querySelector('button')?.disabled).map(node => node.dataset.memoryClass)`), [],
     "the loaded form enables its actual picker controls, not only the fieldset");
@@ -107,13 +104,17 @@ test("classification controls save independent personal/project restrictions, ke
     const rule: MemoryClassRestriction = { selector, read: scope === "personal" ? "explicit-only" : "off", form: scope === "personal" ? "off" : "inherit" };
     await choose(page, "read", rule.read); await choose(page, "form", rule.form);
     if (scope === "personal") {
-      failNext = true; await page.click(root + " [data-memory-class-form] button[type=submit]");
-      await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '尚未保存，请重试。'`);
+      const db = new DatabaseSync(homeSqlitePath(env.home, MEMORY_LEDGER_STORE));
+      try {
+        db.exec("CREATE TRIGGER fail_class_receipt BEFORE INSERT ON memory_markers WHEN instr(NEW.key,'/receipt/')>0 BEGIN SELECT RAISE(ABORT,'receipt unavailable'); END");
+        await page.click(root + " [data-memory-class-form] button[type=submit]");
+        await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '尚未保存，请重试。'`);
+      } finally { db.exec("DROP TRIGGER IF EXISTS fail_class_receipt"); db.close(); }
       assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class-error]').hidden`), false);
       assert.deepEqual((await read(scope)).prefs.class_restrictions, [retained]);
       assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class=read]').value`), "explicit-only");
     }
-    if (scope === "personal") failOverviewAfterSave = true;
+    if (scope === "personal") { failOverview = true; failPairsRead = true; }
     await submit(); expected.set(scope, [retained, rule]);
     const stored = (await read(scope)).prefs;
     assert.deepEqual(stored.class_restrictions, expected.get(scope)); assert.equal(stored.enabled, true); assert.equal(stored.form, true);

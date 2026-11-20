@@ -30,52 +30,22 @@ async fn enabled(db: &D1Database, space: &str, namespace: &str) -> ApiResult<()>
     let row=db.prepare("SELECT 1 AS enabled FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND n.value=?").bind(&[space.into(),namespace.into()])?.first::<Value>(None).await?;
     require(row.is_some(), 403, "COLLECTION_DISABLED")
 }
-/// A generation the sealed process-items stream referenced is reachable from another collection only through a reference
-/// of that collection's own; knowing the digest and size is not proof of holding the bytes.
-async fn unprotected(db: &D1Database, space: &str, namespace: &str, digest: &str) -> ApiResult<()> {
-    let row=db.prepare("SELECT 1 AS protected FROM sync_cutover_blobs p JOIN sync_blobs b ON b.space=p.space AND b.digest=p.digest AND b.generation=p.generation WHERE p.space=? AND p.digest=? AND NOT EXISTS(SELECT 1 FROM sync_events e,json_each(e.attachments) a WHERE e.space=p.space AND e.namespace=? AND json_extract(a.value,'$.digest')=p.digest)").bind(&[space.into(),digest.into(),namespace.into()])?.first::<Value>(None).await?;
-    require(row.is_none(), 403, "SYNC_BLOB_PROTECTED")
-}
-/// Who may write or read a blob right now, both before the work and inside the statement that publishes it. An ordinary
-/// collection needs its live selection (and, for a protected generation, a reference of its own); a seed upload needs the
-/// sealed account's live adoption consent and the digest in its frozen plan.
+/// Who may write or read a blob right now, both before the work and inside the statement that publishes it.
 pub(crate) enum Permit<'a> {
     Collection { namespace: &'a str },
-    Seed { cutover: &'a str, consent: i64 },
 }
 impl Permit<'_> {
-    fn sql(&self, space: &str, digest: &str) -> (&'static str, Vec<JsValue>) {
+    fn sql(&self, space: &str, _digest: &str) -> (&'static str, Vec<JsValue>) {
         match self {
             Permit::Collection { namespace } => (
                 "EXISTS(SELECT 1 FROM sync_policy p,json_each(p.namespaces) n WHERE p.space=? AND n.value=?)",
                 vec![space.into(), (*namespace).into()],
             ),
-            Permit::Seed { cutover, consent } => (
-                "EXISTS(SELECT 1 FROM sync_cutovers c JOIN sync_cutover_items i ON i.space=c.space AND i.plan_id=c.cutover_id,json_each(i.attachments) a WHERE c.space=? AND c.cutover_id=? AND c.consent_revision=? AND c.adopting=1 AND c.completed_at IS NULL AND json_extract(a.value,'$.digest')=?)",
-                vec![
-                    space.into(),
-                    (*cutover).into(),
-                    JsValue::from_f64(*consent as f64),
-                    digest.into(),
-                ],
-            ),
         }
     }
-    async fn check(&self, db: &D1Database, space: &str, digest: &str) -> ApiResult<()> {
+    async fn check(&self, db: &D1Database, space: &str, _digest: &str) -> ApiResult<()> {
         match self {
-            Permit::Collection { namespace } => {
-                enabled(db, space, namespace).await?;
-                unprotected(db, space, namespace, digest).await
-            }
-            Permit::Seed { .. } => {
-                let (sql, binds) = self.sql(space, digest);
-                let row = db
-                    .prepare(format!("SELECT 1 AS permitted WHERE {sql}"))
-                    .bind(&binds)?
-                    .first::<Value>(None)
-                    .await?;
-                require(row.is_some(), 403, "SYNC_CONSENT_REQUIRED")
-            }
+            Permit::Collection { namespace } => enabled(db, space, namespace).await,
         }
     }
 }
@@ -337,12 +307,11 @@ pub(crate) async fn handle(
     env: &Env,
     db: &D1Database,
     space: &str,
-    scope: &crate::cutover::Scope,
 ) -> ApiResult<Response> {
     let path = req.url()?.path().to_owned();
     let bucket = env.bucket("FILES")?;
     if path == "/v1/blobs/status" || path == "/v1/blobs/chunk" {
-        let namespace = scope.route(&query(req, "namespace")?)?;
+        let namespace = query(req, "namespace")?;
         let permit = Permit::Collection {
             namespace: &namespace,
         };
@@ -364,15 +333,13 @@ pub(crate) async fn handle(
     let result = match path.as_str() {
         "/v1/blobs/reserve" => {
             fields(&value, &["namespace", "digest", "size"])?;
-            let namespace = scope.route(string(&value, "namespace", 2500)?)?;
+            let namespace = string(&value, "namespace", 2500)?;
             reserve(
                 db,
                 space,
                 digest(&value)?,
                 integer(&value, "size")?,
-                &Permit::Collection {
-                    namespace: &namespace,
-                },
+                &Permit::Collection { namespace },
             )
             .await?
         }
@@ -390,16 +357,14 @@ pub(crate) async fn handle(
             } else {
                 None
             };
-            let namespace = scope.route(string(&value, "namespace", 2500)?)?;
+            let namespace = string(&value, "namespace", 2500)?;
             complete(
                 db,
                 &bucket,
                 space,
                 digest(&value)?,
                 parts_digest,
-                &Permit::Collection {
-                    namespace: &namespace,
-                },
+                &Permit::Collection { namespace },
             )
             .await?
         }

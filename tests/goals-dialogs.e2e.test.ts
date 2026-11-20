@@ -7,7 +7,7 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
-test("refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
+test("QEA-167 refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;
@@ -26,7 +26,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     form.elements.parent_goal_id.value = 'V1';
     form.querySelector('[name=dependency_goal_ids][value=INTERFACES]').checked = true;
     form.elements.parent_goal_id.dispatchEvent(new Event('change', {bubbles:true}));
-    form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7);
+    form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7, 'backward');
   })()`);
   const response = await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals", {
     method: "POST", headers: { "content-type": "application/json", origin,
@@ -46,9 +46,10 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     return {open: document.querySelector('[data-create-dialog]').open, title: form.elements.title.value,
       outcome: form.elements.outcome.value, parent: form.elements.parent_goal_id.value,
       dependencies: [...form.querySelectorAll('[name=dependency_goal_ids]:checked')].map(input=>input.value),
-      focus: document.activeElement.name, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd};
+      focus: document.activeElement.name, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd,
+      direction: document.activeElement.selectionDirection};
   })()`), { open: true, title: "Unsaved draft", outcome: "Keep my input", parent: "V1",
-    dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7 });
+    dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7, direction: "backward" });
   await click('[data-create-dialog] [data-close-create]');
   const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, baseline.goals);
@@ -82,8 +83,8 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await evaluate("(() => { const form=" + dom("[data-create-form]") + "; form.elements.parent_goal_id.value='V1'; form.elements.parent_goal_id.dispatchEvent(new Event('change',{bubbles:true})); const dependency=form.querySelector('[name=dependency_goal_ids][value=INTERFACES]'); dependency.checked=true; dependency.dispatchEvent(new Event('change',{bubbles:true})); return true; })()");
   const parentTitle = before.goals.find(item => item.goal_id === "V1")!.title;
   const dependencyTitle = before.goals.find(item => item.goal_id === "INTERFACES")!.title;
-  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新 Goal → 属于 → 「" + parentTitle + "」。这是目录层级，不需要等待它完成。");
-  assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新 Goal → 依赖 → 「" + dependencyTitle + "」；这些 Goal 完成前，新 Goal 还不能收尾。普通笔记和准备仍可先做。");
+  assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新目标归在「" + parentTitle + "」名下（仅作目录分级，无需等它先完成）。");
+  assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新目标需等待 「" + dependencyTitle + "」 完成后才能收尾（平时记进展、做准备不受影响）。");
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals"] }, sessionId);
   const createSubmit = '[data-create-form] button[type="submit"]';
   await click(createSubmit);
@@ -155,7 +156,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await waitFor("window.trashResponseReady === true");
   assert.ok(goal().trashed_at, "the production endpoint has already saved the original Goal");
   assert.equal(await evaluate("document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy')"), "true");
-  // ASC-40: deliberately press a disabled cancel control while the real response is held.
+  // 服务接入 §10.6 ASC-40: deliberately press a disabled cancel control while the real response is held.
   const pendingCancel = '[data-goal-trash-dialog] footer [data-close-goal-trash]';
   await evaluate(`(() => {
     window.pendingCancelPointerDowns = 0;
@@ -179,7 +180,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await reloadPage();
   await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
   await evaluate("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')?.click()");
-  await waitFor("document.querySelector('[data-goal-trash-dialog]')?.open === true && document.querySelector('[data-goal-trash-title]')?.textContent === '恢复 Goal'");
+  await waitFor("document.querySelector('[data-goal-trash-dialog]')?.open === true && document.querySelector('[data-goal-trash-title]')?.textContent === '恢复目标'");
   await evaluate(dom(reason) + ".value='Restore the same Goal'");
   await navigate(() => click(trashSubmit));
   await waitFor(dom('[data-goal-view="' + goalId + '"]'));

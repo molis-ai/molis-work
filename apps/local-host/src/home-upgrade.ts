@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { assertNoPendingArtifactRows, recoverHomeArtifactRows } from "./home-artifact-recovery.js";
+import { assertNoPendingArtifactRows, recoverHomeLibraryTransactions } from "./home-library-recovery.js";
 import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
 import { lstatSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
@@ -368,10 +368,9 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
 
 /**
  * Directories of a Home that held a store this build no longer has. Nothing reads them, and an entry the store registry does not name
- * stops the Home's snapshot, so a round removes them before it lists the stores. `goals` held the Goals plugin's library of the person's
- * planning methods until the methods became Skills of the catalog (batch 41; 用户 2026-11-14: 开发阶段没有用户，直接删).
+ * stops the Home's snapshot, so a round removes them before it lists the stores.
  */
-export const REMOVED_HOME_STORES: readonly string[] = ["goals"];
+export const REMOVED_HOME_STORES: readonly string[] = [];
 
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that
@@ -389,7 +388,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
     if (installed.unavailable === 0) writeUpgradeNotice(root, installed);
     options.onUnitDone?.();
   }
-  recoverHomeArtifactRows(root, owner, options.expectedSpace);
+  recoverHomeLibraryTransactions(root, owner, options.expectedSpace);
   assertNoPendingArtifactRows(root, owner);
   const fingerprint = upgradeFingerprint(descriptors), identity = homeIdentity(root), stamp = readUpgradeStamp(root, identity);
   if (stamp === fingerprint) return NOTHING;

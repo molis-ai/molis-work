@@ -9,7 +9,7 @@ export function renderLocalDirectorySettings({ }: { readText(text: string): stri
       <p>${uiText("workbench.settings-local-directories.folders-mac-let-plugins-read-permission-stands-until")}</p>
       <p>${uiText("workbench.settings-local-directories.plugins-agents-scheduled-tasks-workflows-external-clients-may")}</p>
       <p>${uiText("workbench.settings-local-directories.backups-keep-read-history-viewing-page-does-not")}</p></header>
-    <div class="settings-section" data-local-directory-list><p class="settings-muted">${uiText("workbench.settings-local-directories.loading")}</p></div>
+    <div data-local-directory-list><div class="mw-settings-section__rows"><p class="mw-settings-section__note mw-loading">${uiText("workbench.settings-local-directories.loading")}</p></div></div>
     <p class="settings-form-error" data-local-directory-error role="alert" hidden></p>
   </section>`;
 }
@@ -64,17 +64,18 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
     let grants;
     try { grants = (await molisWorkRequest("/api/host/directory-grants")).grants; }
     catch (failure) { list.replaceChildren(); failed(failure); return; }
-    if (!grants.length) { list.replaceChildren(el("p", "settings-muted", globalThis.t.text("workbench.settings-local-directories.no-plugin-has-been-allowed-read-folder-mac"))); return; }
+    if (!grants.length) { const card = el("div", "mw-settings-section__rows"); card.append(el("p", "mw-settings-section__note", globalThis.t.text("workbench.settings-local-directories.no-plugin-has-been-allowed-read-folder-mac"))); list.replaceChildren(card); return; }
     const plugins = new Map();
     for (const grant of grants) { if (!plugins.has(grant.plugin_id)) plugins.set(grant.plugin_id, []); plugins.get(grant.plugin_id).push(grant); }
     list.replaceChildren(...[...plugins].map(([pluginId, owned]) => {
-      const group = el("section", "settings-section local-directory-plugin");
+      // One plugin is one section: its name outside, its folders the rows of one card.
+      const group = el("section", "settings-section mw-settings-section local-directory-plugin");
       group.dataset.pluginId = pluginId;
-      const head = el("div", "settings-heading-row");
+      const head = el("div", "mw-settings-section__head"), card = el("div", "mw-settings-section__rows");
       head.append(el("h2", "", owned[0].plugin_name));
       const all = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-local-directories.take-back-all-plugin")); all.type = "button";
       all.addEventListener("click", () => revoke("plugin/" + encodeURIComponent(pluginId), globalThis.t.text("workbench.settings-local-directories.take-back-every-folder-permission-plugin-has")));
-      head.append(all); group.append(head, ...owned.map(grantRow));
+      head.append(all); card.append(...owned.map(grantRow)); group.append(head, card);
       return group;
     }));
     if (focus) list.querySelector('[data-plugin-id="' + CSS.escape(focus) + '"]')?.scrollIntoView({ block: "start" });

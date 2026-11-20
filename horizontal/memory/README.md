@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-service-memory`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+本人在设置页或场景里改记忆偏好，都经 `memory.preferences.read/write` 访问同一份设置。个人记忆只有个人层；项目记忆可以单独设置，也可以沿用所有项目的默认值。项目仍能逐插件继承规则。撤销时恢复项目原来的选择。设置、修订和回执在原记忆库的同一事务保存，旧管理入口也更新同一修订。见 `tests/blueprint-memory-preferences.test.ts` 和 `tests/memory-settings-classes.e2e.test.ts`。
+
 ## 分类分页与条件改类
 
 本人管理经 `memory.page` 读取当前授权范围内的一页，支持场景、六种正式类别、保留类型、状态、来源、到期与文本筛选。`managementPages` 只配置页大小与整次扫描限额；不承诺底层目录枚举有界。项目设置按既有 owner 关系逐页包含角色记忆。游标绑定本人、项目、使用方、当前 owner 集合及查询；异步返回前重新检查取消与 owner 集合。不能证明精确总数时明确返回 unknown，读取不补分类或改写原件。总开关关闭不阻挡本人管理读取。
@@ -186,6 +188,8 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 
 ## 开发要求
 
+候选读取与到期维护：`MemoryCandidates` 合读 SDK 原件及账注，并执行条件决定；query只按SDK实际期限投影，不结算或补账。提议的去重和每工作上限排除到期pending，已认可/拒绝的同文规则保留。已有upkeep先处理候选再考虑使用开关和正式条目；每个候选的expiry操作身份固定，SDK决定登记后中断或SDK已写而账注失败都继续原事实，不增加正式记忆的变动计数。候选独存的角色只补本人management的候选读取/清理权限，不扩大正式记忆或模型权限。对应QEA-51/52：`tests/memory-retention-roundtrip.test.ts`、`tests/memory-runtime-policy.test.ts`、`tests/security-invariants-memory-candidate-expiry.test.ts`；结果以本轮报告为准。
+
 自动形成在原 snapshot 和 formationSources 得到完整 canonical 来源并集后，先调用可选 `bindFormationSources`，再开始原 operation / SDK form。它只把实际选源交给当前 Host 控制，不复制选择算法、不增加权限；SDK 候选回执含集合外来源时拒绝补账或晋升。当前 owner 的同步检查覆盖 SDK 实际写、模型派出与 ledger。
 
 离线 Home 恢复由 `prepareMemoryRestoreRetention` / `applyMemoryRestoreRetention` 只处理原主人给出的无正文遗忘事实：固定 canonical 归属，保留来源事件屏障，并选择需要清除的正式记录、候选及 ledger 投影。SDK 已清除而投影补账失败的候选，仍按原 `memory_id` / `supersedes` 或同归属的来源事件关联清投影，不能因 SDK 没有正文就保留旧候选正文。Memory 不打开数据库、不改归档、不管理发布日志；Storage 与 AgentHost 分别通过专属窄口执行，Host 持有原恢复 lease 和发布／回滚。没有可关闭此屏障的配置或插件。定向回归：`tests/home-restore-memory-forgetting.test.ts`。
@@ -204,7 +208,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
 - 不负责：记忆正文的存储、版本号、墓碑与作用域隔离（Prologue Memory）；模型调用与提炼（Agent Host）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（Workbench）。
 - 公开入口：`@molis-ai/molis-work-service-memory`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/memory`。
 - 拒绝由公开 `memoryErrors` 声明并返回共同 `ActionError`：权限与范围是 `forbidden`，不存在是 `not_found`，待处理建议上限与预览后变动是 `conflict`，输入与开关是 `invalid`。Host 和助理保留 `memory.*` 码、消息、kind 与 details；HTTP 经 SDK 分别回答 403、404、409、400，不另把它改成助理码。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts` 和 `@molis-ai/molis-work-plugin-sdk`。SDK 提供与其他设置主人相同的修订核对和回执写入，记忆后端仍经本包适配端口访问；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 正式记忆缺少依据、批准者或原时间时投影为 `null`；未知证据类别和原引用保持原值，状态编辑和恢复不补造事实。新写与候选的依据、证据输入保持严格。导出不含证据正文；未知依据往返，导入缺少原批准事实仍未知。缺时间不获新近权重、不能据此执行 90 天自动停用。见当前 Memory 策略 spec §9.4。
   - 前台控制按调用贯穿 SDK 的异步准备、实际 storage 提交和同步 owner 账本；后台维护使用自身授权。被拒绝的后续写入不反抹已经提交的 SDK 事实，部分失败明确报出并可重开核对。
@@ -290,3 +294,5 @@ SDK `get` 本身不核来源。形成登记在精确 get 后复用原 `beforeEff
 受保护 Session 单条 remove 在首次 canonical/当前控制核验之后、独立接受和SDK清理之前，把已核 session_binding 与原 scope/owner/id/version 一同保留在既有无正文 change-request marker。完整原请求重试只准原绑定（含缺失/存在的区别），继续交原 SDK operation/CAS核回执；不以已被遗忘的 revisions 充当授权，不补造绑定、不改operation，也不借此恢复非删除写。
 
 已接受的原 bound 单条 remove 可由本人全局 UI management 沿原无正文 marker/related 决定继续：必须显式提供原版本，actor/op/scope/owner/id/version 完全相符，当前无 Session binding，且原决定已独立接受；不复制或更改 marker 的绑定。任何受保护入口仍须完整同绑定。操作发现对 bound 单删只返回绑定和原决定/purge元组可核的原 remove 请求，全局保持原 DTO/当前删除授权，不新增业务导航身份，也不授予 Session 非删除权。
+
+配对查询只投影当前可处理的pending配对，不把一方暂时停用或不可读写成resolved。重新启用后仍须尊重原冲突；只有明确配对决定和现有删除清理改变其终结事实。回归：`tests/security-invariants-memory-pair-queries.test.ts`（QEA-58/59）。

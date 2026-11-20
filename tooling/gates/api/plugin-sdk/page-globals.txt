@@ -6,10 +6,24 @@ export type ComposerAttachmentState = {
     state: "attached";
     ref: string;
     title: string;
+    meta?: string;
 } | {
     state: "failed";
     reason: string;
 };
+
+export interface ComposerChip {
+    name: string;
+    source: string;
+    remove: {
+        label: string;
+        run(): void;
+    };
+    prompt?: {
+        label: string;
+        text: string;
+    };
+}
 
 export interface ComposerCommand {
     slash: string;
@@ -18,7 +32,17 @@ export interface ComposerCommand {
     keywords?: readonly string[];
     icon?: PluginIconName;
     add?: false;
+    group?: string;
+    warning?: string;
     run(): void;
+}
+
+export interface ComposerCommandMenu {
+    groups?: readonly {
+        label: string;
+        empty?: string;
+    }[];
+    note?: string;
 }
 
 export interface ComposerCommonOptions {
@@ -32,10 +56,17 @@ export interface ComposerCommonOptions {
     submitKeys?: false;
     controls?: readonly ComposerControl[];
     commands?: readonly ComposerCommand[];
+    commandMenu?: ComposerCommandMenu;
+    chip?: () => ComposerChip | null;
     mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
     attachments?: {
         accept?: string;
         upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState>;
+        pictures?: {
+            label: string;
+            open: string;
+            close: string;
+        };
     };
     onMaterials?(): void;
     sources?: boolean;
@@ -45,7 +76,7 @@ export interface ComposerCommonOptions {
     voice?: string;
     required?: () => string | null;
     notice?: () => ComposerNotice | null;
-    submit(input: ComposerSubmission, signal: AbortSignal): Promise<ComposerOutcome>;
+    submit(input: ComposerSubmission, signal: AbortSignal, acknowledge: () => void): Promise<ComposerOutcome>;
 }
 
 export type ComposerControl = {
@@ -91,15 +122,18 @@ export interface ComposerDraftAdapter {
     sent?(): Promise<void>;
 }
 
+export type ComposerFileFact = Pick<File, "name" | "size" | "type" | "lastModified">;
+
 export interface ComposerHandle {
     ready(): Promise<void>;
     setRunning(running: boolean): void;
-    refresh(): void;
     focus(): void;
     insert(text: string): void;
+    refresh(what?: "lines"): void;
     hold(reason: string | null): void;
-    attach(files: readonly File[]): void;
+    attach(files: readonly File[], replacing?: readonly ComposerFileFact[]): void;
     materials(): readonly ComposerMaterial[];
+    files(): readonly ComposerFileFact[];
     destroy(): void;
 }
 
@@ -114,6 +148,10 @@ export interface ComposerNotice {
     tone: "readonly" | "info";
     icon?: PluginIconName;
     action?: {
+        label: string;
+        run(): void;
+    };
+    also?: {
         label: string;
         run(): void;
     };
@@ -146,6 +184,7 @@ export type ComposerOutcome = {
 } | {
     state: "failed";
     message: string;
+    feedback?: "page";
     unreadable?: readonly {
         index: number;
         reason: string;

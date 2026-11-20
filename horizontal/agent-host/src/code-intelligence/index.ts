@@ -8,14 +8,14 @@
  * and the tool reports itself unavailable.
  */
 
-import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
-import { delimiter } from "node:path";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolRunner } from "@prologue/sdk";
 import { fileUri, startLanguageServer, type LanguageServerSpec, type LspClient } from "./lsp-client.js";
 import { ensureTool, type ToolInstallSpec } from "./tool-fetcher.js";
+import { checkProposedWrite, type ServerCapabilities } from "./write-check.js";
+import { codeIntelligenceReadiness, localCommand } from "./readiness.js";
 
 export type { LanguageServerSpec } from "./lsp-client.js";
 export { ensureTool } from "./tool-fetcher.js";
@@ -25,8 +25,28 @@ export { unconfiguredSymbolIndex } from "./coding-tools.js";
 export interface CodeIntelligence {
   /** The `coding.symbol-index` executor; the official coding pack's `coding.find-symbol` calls it. */
   readonly symbolIndex: ToolRunner;
+  /** Format and check a proposed write before it is reviewed (A4-2); `path` is inside this round's directory, the file may be new. */
+  checkWrite(input: { readonly path: string; readonly before: string | undefined; readonly after: string }): ReturnType<typeof checkProposedWrite>;
+  /** Which languages the round's directory uses and whether each one's program is here (A4); starts and downloads nothing. */
+  readiness(): ReturnType<typeof codeIntelligenceReadiness>;
   close(): Promise<void>;
 }
+
+/**
+ * The servers every round knows without configuration (A4: TypeScript/JavaScript, Python, Rust, Go), after the person's own entries,
+ * which win for an extension they name. They are used only from this machine (an absolute path or a name on PATH) and never
+ * downloaded; one that is not there makes its file type "not checked", with that reason.
+ */
+const TS = ["typescript-language-server", "--stdio"] as const;
+export const BUILTIN_LANGUAGE_SERVERS: readonly LanguageServerSpec[] = [
+  { command: TS[0], args: [TS[1]], extensions: [".ts", ".mts", ".cts"], languageId: "typescript" },
+  { command: TS[0], args: [TS[1]], extensions: [".tsx"], languageId: "typescriptreact" },
+  { command: TS[0], args: [TS[1]], extensions: [".js", ".mjs", ".cjs"], languageId: "javascript" },
+  { command: TS[0], args: [TS[1]], extensions: [".jsx"], languageId: "javascriptreact" },
+  { command: "pyright-langserver", args: ["--stdio"], extensions: [".py", ".pyi"], languageId: "python" },
+  { command: "rust-analyzer", extensions: [".rs"], languageId: "rust" },
+  { command: "gopls", extensions: [".go"], languageId: "go" },
+];
 
 const MAX_EXTENSIONS = 16;
 const MAX_TEXT_CHARS = 2_000_000;
@@ -115,26 +135,23 @@ async function insideRoot(rootPath: string, requested: string): Promise<string> 
   return real;
 }
 
-/**
- * Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root.
- * `command` is either an absolute path or a name looked up on PATH.
- */
-function localCommand(command: string): string | undefined {
-  if (command.startsWith("/")) return existsSync(command) ? command : undefined;
-  for (const directory of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = path.join(directory, command);
-    if (candidate.length > directory.length && existsSync(candidate)) return candidate;
-  }
-  return undefined;
+/** Like `insideRoot`, for a file that may not exist yet: its directory must, inside the root. */
+async function insideRootForWrite(rootPath: string, requested: string): Promise<string> {
+  const root = await realpath(path.resolve(rootPath));
+  const parent = await realpath(path.dirname(path.resolve(rootPath, requested))).catch(() => { throw new Error(`"${requested}" is in no directory of this round`); });
+  const absolute = path.join(parent, path.basename(requested)), relative = path.relative(root, absolute);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error(`"${requested}" is outside this round's directory`);
+  return absolute;
 }
 
+/** Q5: an applicable local command is used first; only when it is not there is the tool fetched into the isolated root. */
 async function resolveSpec(
   spec: LanguageServerSpec,
   tools: { readonly root: string; readonly allow: () => boolean | Promise<boolean>; readonly registry?: string } | undefined,
 ): Promise<LanguageServerSpec> {
   const local = localCommand(spec.command);
   if (local !== undefined) return { ...spec, command: local };
-  if (spec.install === undefined) return spec;
+  if (spec.install === undefined) throw new Error(`${spec.command} is not on this machine`);
   if (tools === undefined) throw new Error(`no ${spec.install.package} is installed and this Host has no tools directory to fetch it into`);
   const tool = await ensureTool(spec.install, {
     toolsRoot: tools.root,
@@ -142,6 +159,25 @@ async function resolveSpec(
     ...(tools.registry === undefined ? {} : { registry: tools.registry }),
   });
   return { ...spec, command: tool.command };
+}
+
+/** Negotiate the server features used by the symbol and write checks. */
+async function initializeServer(client: LspClient, rootPath: string, initializationOptions: unknown): Promise<ServerCapabilities> {
+  const started = await client.request<{ readonly capabilities?: ServerCapabilities }>("initialize", {
+    processId: process.pid,
+    rootUri: fileUri(rootPath),
+    capabilities: {
+      textDocument: {
+        definition: { linkSupport: false },
+        references: {},
+        documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+        formatting: {}, rangeFormatting: {}, publishDiagnostics: { versionSupport: true }, diagnostic: {},
+      },
+    },
+    workspaceFolders: [{ uri: fileUri(rootPath), name: path.basename(rootPath) || "work" }],
+    ...(initializationOptions === undefined ? {} : { initializationOptions: initializationOptions }),
+  });
+  return started?.capabilities ?? {};
 }
 
 /**
@@ -159,8 +195,9 @@ export function createCodeIntelligence(input: {
   const starting = new Map<string, Promise<LspClient>>();
   const spawning = new Set<LspClient>();
   const texts = new Map<string, string>();
-  const versions = new Map<string, number>();
   const openWith = new Map<string, LspClient>();
+  const fileOperations = new Map<string, Promise<unknown>>();
+  const abilities = new WeakMap<LspClient, ServerCapabilities>();
   // A round reads a bounded number of files: handing the model an unbounded cache would hold whole trees in memory.
   const MAX_OPEN_DOCUMENTS = 64;
   let closed = false;
@@ -175,20 +212,9 @@ export function createCodeIntelligence(input: {
       const client = startLanguageServer(resolved, { cwd: input.rootPath, ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
       spawning.add(client);
       try {
-        await client.request("initialize", {
-          processId: process.pid,
-          rootUri: fileUri(input.rootPath),
-          capabilities: {
-            textDocument: {
-              definition: { linkSupport: false },
-              references: {},
-              documentSymbol: { hierarchicalDocumentSymbolSupport: true },
-            },
-          },
-          workspaceFolders: [{ uri: fileUri(input.rootPath), name: path.basename(input.rootPath) || "work" }],
-          ...(spec.initializationOptions === undefined ? {} : { initializationOptions: spec.initializationOptions }),
-        });
+        const capabilities = await initializeServer(client, input.rootPath, spec.initializationOptions);
         if (closed) throw new Error("this round has ended; code intelligence is closed");
+        abilities.set(client, capabilities);
         client.notify("initialized", {});
         clients.set(key, client);
         return client;
@@ -197,7 +223,7 @@ export function createCodeIntelligence(input: {
         if (clients.get(key) === client) clients.delete(key);
         await client.close().catch(() => undefined);
         if (closed) throw new Error("this round has ended; code intelligence is closed");
-        throw error;
+        throw new Error(`the language server failed to start: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         spawning.delete(client);
         starting.delete(key);
@@ -207,7 +233,20 @@ export function createCodeIntelligence(input: {
     return launch;
   };
 
-  const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string }> => {
+  const closeDocument = (file: string) => {
+    openWith.get(file)?.closeDocument({ path: file });
+    texts.delete(file);
+    openWith.delete(file);
+  };
+  const withDocument = async <T>(file: string, operation: () => Promise<T>): Promise<T> => {
+    const previous = fileOperations.get(file);
+    const current = Promise.resolve(previous).catch(() => undefined).then(operation);
+    fileOperations.set(file, current);
+    try { return await current; }
+    finally { if (fileOperations.get(file) === current) fileOperations.delete(file); }
+  };
+
+  const clientFor = async (file: string): Promise<{ readonly client: LspClient; readonly languageId: string; readonly name: string; readonly capabilities: ServerCapabilities }> => {
     if (closed) throw new Error("this round has ended; code intelligence is closed");
     const found = serverFor(input.servers, file);
     if (found === undefined) {
@@ -217,7 +256,7 @@ export function createCodeIntelligence(input: {
     if (closed) throw new Error("this round has ended; code intelligence is closed");
     const key = `${resolved.command}\u0000${(resolved.args ?? []).join("\u0000")}`;
     const client = await ensureClient(key, resolved, found.spec);
-    return { client, languageId: found.languageId };
+    return { client, languageId: found.languageId, name: path.basename(resolved.command), capabilities: abilities.get(client) ?? {} };
   };
 
   const open = async (absolute: string): Promise<{ readonly client: LspClient; readonly text: string }> => {
@@ -229,19 +268,15 @@ export function createCodeIntelligence(input: {
     // A restarted server has never seen the document, even when its text did not change while it was down.
     if (previous === undefined || openWith.get(absolute) !== client) {
       client.openDocument({ path: absolute, text, languageId });
-      versions.set(absolute, 1);
       openWith.set(absolute, client);
     } else if (previous !== text) {
-      const version = (versions.get(absolute) ?? 1) + 1;
-      client.changeDocument({ path: absolute, text, version });
-      versions.set(absolute, version);
+      client.changeDocument({ path: absolute, text });
     }
     texts.delete(absolute); texts.set(absolute, text);
     for (const held of texts.keys()) {
       if (texts.size <= MAX_OPEN_DOCUMENTS) break;
       // The document may belong to another file type's server: close it on the client that opened it.
-      openWith.get(held)?.closeDocument?.({ path: held });
-      texts.delete(held); versions.delete(held); openWith.delete(held);
+      closeDocument(held);
     }
     return { client, text };
   };
@@ -254,6 +289,10 @@ export function createCodeIntelligence(input: {
     if (symbol !== undefined && symbol.length > MAX_SYMBOL_CHARS) throw new Error("coding.find-symbol takes a symbol name of at most 200 characters");
     const realRoot = await realpath(path.resolve(input.rootPath));
     const absolute = await insideRoot(input.rootPath, requested);
+    return withDocument(absolute, () => symbolsFor(absolute, realRoot, requested, symbol));
+  };
+
+  const symbolsFor = async (absolute: string, realRoot: string, requested: string, symbol: string | undefined) => {
     const { client, text } = await open(absolute);
     const position = symbol === undefined ? { line: 0, character: 0 } : findSymbolPosition(text, symbol);
     if (position === undefined) return `no definition of "${symbol}" was found in ${requested}`;
@@ -276,6 +315,12 @@ export function createCodeIntelligence(input: {
 
   return {
     symbolIndex,
+    readiness: () => codeIntelligenceReadiness({ servers: input.servers, rootPath: input.rootPath,
+      ...(input.tools === undefined ? {} : { tools: { root: input.tools.root, ...(input.tools.registry === undefined ? {} : { registry: input.tools.registry }) } }) }),
+    checkWrite: async ({ path: requested, before, after }) => {
+      const absolute = await insideRootForWrite(input.rootPath, requested);
+      return withDocument(absolute, () => checkProposedWrite({ clientFor, closeDocument }, { absolute, before, after }));
+    },
     async close() {
       closed = true;
       await Promise.all([...clients.values(), ...spawning.values()].map((client) => client.close().catch(() => undefined)));
@@ -284,7 +329,6 @@ export function createCodeIntelligence(input: {
       clients.clear();
       spawning.clear();
       texts.clear();
-      versions.clear();
       openWith.clear();
     },
   };

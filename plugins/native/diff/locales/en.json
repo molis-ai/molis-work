@@ -5,7 +5,7 @@
   "messages": {
     "diff.directory.summary": "Compare fixed versions and read each change.",
     "diff.board.files": "A turn’s file rows · lines added and removed, long paths",
-    "diff.error.unreadable": "Couldn’t read the file workspace",
+    "diff.error.unreadable": "Couldn’t read the project folder",
     "diff.fold.reveal": "Show {count} unchanged lines",
     "diff.line.comment-after": "Comment on line {number} after the change",
     "diff.line.comment-before": "Comment on line {number} before the change",
@@ -13,10 +13,10 @@
     "diff.msg.mode-executable": "File mode: made executable (100644 → 100755)",
     "diff.msg.mode-not-executable": "File mode: no longer executable (100755 → 100644)",
     "diff.msg.no-change-in": "This turn didn’t change {path}",
-    "diff.msg.no-readable-review": "This turn has no text review to read. See the original receipt for commands and outside actions.",
+    "diff.msg.no-readable-review": "This turn has no text diff to review. Check the activity record for commands and external operations.",
     "diff.msg.renamed": "Renamed: {from} → {to}",
-    "diff.msg.snapshots-different-workspaces": "These two snapshots come from different working folders and can’t be compared",
-    "diff.msg.snapshots-unreadable": "Couldn’t read these two snapshots",
+    "diff.msg.snapshots-different-workspaces": "These two file versions come from different project folders and can’t be compared",
+    "diff.msg.snapshots-unreadable": "Couldn’t read these two saved file versions",
     "diff.msg.text-unchanged": "The text is unchanged",
     "diff.notice.coarse": "Too different to line up: listed as removed and added in full",
     "diff.notice.created": "This file is new",
@@ -40,9 +40,9 @@
     "diff.stage.refresh-for-language": "Refresh the comparison to show the current language.",
     "diff.stage.retry": ". Select Refresh to try again.",
     "diff.waiting.change-set": "When Coding has prepared changes from a turn, they show here",
-    "diff.waiting.choose-input": "Choose an input first: two snapshots, a change Coding prepared, or a Git workspace change",
-    "diff.waiting.choose-snapshots": "Choose two file snapshots to compare",
+    "diff.waiting.choose-input": "Choose what to compare: two pinned file versions, a Coding change, or unstaged Git changes",
+    "diff.waiting.choose-snapshots": "Choose two pinned file versions to compare",
     "diff.waiting.git-change-set": "Choose a change in Git and it shows here",
-    "diff.waiting.snapshots": "Pin a before and an after in the file reader first, and the difference shows here"
+    "diff.waiting.snapshots": "Pin a “Before” and “After” version in the Materials reader first to view their differences here"
   }
 }

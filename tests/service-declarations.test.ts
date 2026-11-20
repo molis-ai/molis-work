@@ -1,3 +1,4 @@
+import { modelPreferenceDeclaration } from "./fixtures/model-preference-declaration.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,20 +15,23 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 // specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
 // declared in its Manifest (`model_configuration`, `image_generation`) and nowhere else.
 
-const MODEL = { preference: { store_name: "notes", file_name: "preferences.json" }, custom_provider: { provider_id: "notes-text", display_name: "Notes 模型" },
+const MODEL = { key: "probe.model", preference: { store_name: "notes", file_name: "preferences.json" }, custom_provider: { provider_id: "notes-text", display_name: "Notes 模型" },
   actions: { read: { capability_id: "notes.model.settings", version: 1 }, save: { capability_id: "notes.model.configure", version: 1 } } };
 const IMAGES = { store_name: "notes", read_permission: "notes:read", write_permission: "notes:write", generate_permission: "notes:generate" };
 const manifest = (extra: Record<string, unknown>, permissions = ["storage:private", "model:invoke", "notes:read", "notes:write", "notes:generate"]) => ({
   schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
   publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: permissions.map(permission => ({ permission, required: true, reason: "自己的设置" })),
-  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...extra,
+  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, ...("model_configuration" in extra ? {
+    ...modelPreferenceDeclaration(MODEL), settings_entries: { ...modelPreferenceDeclaration(MODEL).settings_entries, model_configuration: extra.model_configuration },
+  } : extra),
 });
 
 test("RAC-311 the Manifest's model_configuration and image_generation declare their store, names, actions and the permissions the Manifest holds", () => {
-  assert.deepEqual(parsePluginManifest(manifest({ model_configuration: MODEL })).model_configuration, MODEL);
+  assert.throws(() => parsePluginManifest({ ...manifest({}), model_configuration: MODEL }), /settings_entries/u);
+  assert.deepEqual(parsePluginManifest(manifest({ model_configuration: MODEL })).settings_entries?.model_configuration, MODEL);
   assert.deepEqual(parsePluginManifest(manifest({ image_generation: IMAGES })).image_generation, IMAGES);
-  assert.equal(parsePluginManifest(manifest({})).model_configuration, undefined);
+  assert.equal(parsePluginManifest(manifest({})).settings_entries?.model_configuration, undefined);
   for (const [extra, mentions, permissions] of [
     [{ model_configuration: [] }, /model_configuration 必须为对象/u],
     [{ model_configuration: { ...MODEL, quota: 1 } }, /model_configuration 不认这些字段：quota/u],
@@ -50,9 +54,9 @@ test("RAC-311 the Manifest's model_configuration and image_generation declare th
 
 test("RAC-312 Jelly's model settings and Images' image connections are their own Manifests' declarations: no registration names them", () => {
   const find = (id: string) => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === id)!;
-  assert.equal(find("io.molis.work.jelly").manifest.model_configuration, JELLY_MODEL_CONFIGURATION);
+  assert.equal(find("io.molis.work.jelly").manifest.settings_entries?.model_configuration, JELLY_MODEL_CONFIGURATION);
   assert.equal(find("io.molis.work.images").manifest.image_generation, IMAGES_IMAGE_GENERATION);
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.model_configuration).map(entry => entry.manifest.plugin_id), ["io.molis.work.jelly"]);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.settings_entries?.model_configuration).map(entry => entry.manifest.plugin_id), ["io.molis.work.jelly"]);
   assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.image_generation).map(entry => entry.manifest.plugin_id), ["io.molis.work.images"]);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     for (const field of ["model_configuration", "image_generation"]) assert.equal(field in (entry.runtime ?? {}), false, `${entry.manifest.plugin_id}: runtime.${field}`);
@@ -60,7 +64,7 @@ test("RAC-312 Jelly's model settings and Images' image connections are their own
 });
 
 /** The same definition whose Manifest also asks for `extra`, with the `model:invoke` permission both of them need. */
-const declaring = (definition: PluginDefinition, extra: Record<string, unknown>): PluginDefinition => ({ ...definition, manifest: { ...definition.manifest, ...extra,
+const declaring = (definition: PluginDefinition, extra: Record<string, unknown>): PluginDefinition => ({ ...definition, manifest: { ...definition.manifest, ...("model_configuration" in extra ? modelPreferenceDeclaration(extra.model_configuration as typeof MODEL, definition.manifest.actions) : extra),
   permissions: [...definition.manifest.permissions, { permission: "model:invoke", required: false, reason: "用模型" }] } });
 
 test("RAC-313 a definition that declares model settings or image connections and is not on the Host's start list is refused to start with its own code", async t => {

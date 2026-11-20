@@ -142,6 +142,8 @@ export interface StoredRound {
   work_budget?: number;
   /** The platform memory's recall receipt for this round: what it was given and what did not fit. */
   memory_receipt?: string;
+  /** The Host started it only to report a task no conversation started (`reportOnlyAuthority`): the work did not go on in it. Rounds stored before the mark (2026-11-19) have none and count as they did. */
+  report_only?: true;
 }
 
 

@@ -6,7 +6,7 @@ import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { whenThere } from "./assistant-errors.js";
 import { inAssistantWorkEffect } from "./assistant-work-permissions.js";
 import { agentContinuationStarts } from "../agent-continuation-starts.js";
-import { DELEGATION_LIMITS } from "./assistant-delegation.js";
+import { DELEGATION_LIMITS, roundsOnItsOwn } from "./assistant-delegation.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
 import { AssistantStepGate } from "./assistant-step-gate.js";
@@ -170,9 +170,7 @@ export class AssistantContinuations {
     const session = await adapter.readSession({ runtime_id: RUNTIME, session_id: request.session_id });
     if (session.recovery || session.latest_run && !isTerminalAgentPhase(session.latest_run.phase)) return later("agent.session_busy");
     // So many rounds in a row that no person wrote: the work stops here and says so; the person's next word starts the count again.
-    const rounds = this.ports.store.rounds(work.work_id);
-    let auto = 0;
-    while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+    const auto = roundsOnItsOwn(this.ports.store.rounds(work.work_id));
     if (auto >= DELEGATION_LIMITS.autoRounds) {
       this.ports.notify?.(work, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: work.title }),
         original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, `auto-cap-${request.request_key}`.slice(0, 80));

@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BackgroundTaskRow, BackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { backgroundTaskRow } from "@molis-ai/molis-work-service-mainline";
-import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID, AssistantReportRounds, AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, roundStartInput, type TaskReport } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID, ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantReportRounds, AssistantService, AssistantStore, AssistantTaskReports, reportOnlyAuthority, roundStartInput, type TaskReport } from "@molis-ai/molis-work-app-local-host";
 
 // specs/work-line contract-design §9 and spec.md (user decision 2026-11-15): a task no conversation started marks its row
 // `reports_to: "assistant"`; once the table shows it ended, the scope's Assistant runs one round in the main conversation that
@@ -154,4 +158,80 @@ test("PWA-156 the Assistant starts a report as the Host, with a round that only 
     assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
     assert.deepEqual(intents, [{ byHost: true, report_only: true }], "as the Host, a round that only reports");
   } finally { service.continuations.close(); db.close(); }
+});
+
+// Batch 97-1 (specs/backlog/BL-report-rounds-auto-cap.md): a round that only reports is no step the work took by itself. It neither
+// counts toward the rounds in a row a work may go on alone (DELEGATION_LIMITS.autoRounds, 8) nor starts that count again.
+const mainWork = (store: AssistantStore) => {
+  const work = store.create({ actor_id: "user", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, origin: null, main: true });
+  return store.update("user", work.work_id, null, { session_id: "s-main" });
+};
+const roundOf = (runId: string, over: Record<string, unknown> = {}) => ({ run_id: runId, text: "t", materials: [], context: null, started_at: new Date().toISOString(), ...over });
+
+test("RRC-01 RRC-02 rounds that only report neither use up nor start again what a work may do on its own, across a restart: it still stops at the cap", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-report-rounds-"));
+  const open = () => openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
+  let db = open(), store = new AssistantStore(db);
+  const work = mainWork(store);
+  store.addRound(work.work_id, roundOf("person"));
+  for (let i = 1; i <= 7; i++) store.addRound(work.work_id, roundOf(`went-on-${i}`, { written_by: "host" }));
+  for (let i = 1; i <= 3; i++) store.addRound(work.work_id, roundOf(`report-${i}`, { written_by: "host", report_only: true }));
+  db.close();
+  // Restarted: the stored mark, not anything this process remembered, tells a report from a round the work went on in.
+  db = open(); store = new AssistantStore(db);
+  const stored = (runId: string) => store.rounds(work.work_id).find(round => round.run_id === runId);
+  assert.equal(stored("report-2")?.report_only, true);
+  let view: unknown;
+  const host = { adapter: () => ({ readSession: async () => ({ latest_run: null }), collaboration: { read: async () => [view] } }) };
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as never, authority: async () => { throw new Error("not reached"); } }, "user");
+  let runs = 0;
+  service.dispatcher.dispatch = async (...args: Parameters<typeof service.dispatcher.dispatch>) => {
+    const [on, text, , , , writtenBy, , , , intent] = args, runId = `run-${++runs}`;
+    store.addRound(on.work_id, roundOf(runId, { text, written_by: writtenBy, ...(intent?.report_only ? { report_only: true } : {}) }));
+    return { run_id: runId } as never;
+  };
+  const eligible = (key: string) => { view = { wait: { wait_id: `w-${key}`, state: "satisfied", by: "model", reason: "条件已满足" }, continuation: { state: "eligible", auto: true, request_key: key, graph_id: "g", node_id: "n" } }; };
+  try {
+    eligible("k8");
+    assert.deepEqual(await service.continuations.takeUp(store.get("user", work.work_id)), { run: { run_id: "run-1", session_id: "s-main" } },
+      "seven rounds it went on in and three reports after them: the eighth on its own still starts");
+    view = undefined; // its continuation taken up: nothing eligible is left for a report to wait on
+    assert.equal(await service.reports.report({ project_id: "p", row: row({ updated_at: new Date(Date.now() + 60_000).toISOString() }), end: "done" }), "reported");
+    assert.equal(stored("run-2")?.report_only, true, "the report's own round is stored as one");
+    eligible("k9");
+    const refused = await service.continuations.takeUp(store.get("user", work.work_id));
+    assert.equal((refused as { refused?: { code: string } }).refused?.code, "assistant.auto_round_cap", "the ninth stops at the cap, as without any report");
+    assert.equal(runs, 2, "nothing started for it");
+    assert.ok(service.notices.notices(null).some(notice => notice.work_id === work.work_id && "original" in notice.text && notice.text.label?.key === "workbench.assistant-notice.handoff-blocked"), "the person is told why it stopped");
+    store.addRound(work.work_id, roundOf("person-again"));
+    store.addRound(work.work_id, roundOf("report-after", { written_by: "host", report_only: true }));
+    eligible("k10");
+    assert.deepEqual(await service.continuations.takeUp(store.get("user", work.work_id)), { run: { run_id: "run-3", session_id: "s-main" } },
+      "the person's word starts the count again; a report after it does not stand in for it");
+  } finally { service.continuations.close(); db.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("RRC-03 a store written before opens as it is, at the same version: rounds with no mark keep their meaning, nothing is guessed from words", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-report-rounds-existing-"));
+  // User 2026-11-19 (batch 97): no version raise and no migration. A round the Host wrote before the mark existed stays an ordinary
+  // Host round, whatever its words say; only rounds started from now on carry `report_only`.
+  const report = "（Molis 转告）后台任务「整理周报」已经办完：已汇总。这项任务由「示例」发起，不是从这段对话派出的。请用一两句话向用户汇报结果，需要时给出建议；这一轮只汇报，不接着做、不派新任务、不做任何改动。";
+  let db = openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
+  let position = 0;
+  const raw = (round: ReturnType<typeof roundOf>) => db.prepare("INSERT INTO assistant_rounds(work_id,run_id,position,body) VALUES (?,?,?,?)").run("w-old", round.run_id, ++position, JSON.stringify(round));
+  raw(roundOf("person"));
+  raw(roundOf("went-on", { written_by: "host" }));
+  raw(roundOf("old-report", { written_by: "host", text: report }));
+  const before = db.prepare("SELECT body FROM assistant_rounds ORDER BY position").all().map(row => String(row.body));
+  db.close();
+  db = openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
+  const store = new AssistantStore(db);
+  try {
+    assert.equal((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, ASSISTANT_STORE_BASELINE.version, "the same version: nothing to upgrade");
+    assert.deepEqual(db.prepare("SELECT body FROM assistant_rounds ORDER BY position").all().map(row => String(row.body)), before, "the rows are not rewritten");
+    assert.deepEqual(store.rounds("w-old").map(round => [round.run_id, round.report_only ?? false]), [["person", false], ["went-on", false], ["old-report", false]],
+      "an old round is not taken for a report by its words");
+    store.addRound("w-old", roundOf("new-report", { written_by: "host", report_only: true }));
+    assert.equal(store.rounds("w-old", 1)[0]?.report_only, true, "a report from now on is stored as one");
+  } finally { db.close(); await rm(home, { recursive: true, force: true }); }
 });

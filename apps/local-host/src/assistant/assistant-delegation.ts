@@ -14,7 +14,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantCharacter, AssistantCharacterRef, AssistantMaterial, AssistantSavedText, AssistantWork, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantWords } from "./assistant-saved-text.js";
-import type { AssistantStore, StoredWork } from "./assistant-store.js";
+import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 import { assistantEndControl, holdAssistantWorkLifetime, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
 import { promptTitle } from "./assistant-work-title.js";
@@ -28,6 +28,21 @@ import type { AssistantStepGate } from "./assistant-step-gate.js";
  * bounded by the usage caps.
  */
 export const DELEGATION_LIMITS = { active: 5, followUps: 2, autoRounds: 8 } as const;
+
+/**
+ * How many rounds in a row a work went on in by itself since the person last wrote: the Host wrote each. A round that only reported
+ * (`report_only`) neither counts nor ends the run, so reports never use up, or start again, what the work may do alone.
+ */
+export function roundsOnItsOwn(rounds: readonly Pick<StoredRound, "written_by" | "report_only">[]): number {
+  let count = 0;
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    const round = rounds[i]!;
+    if (round.report_only) continue;
+    if (round.written_by !== "host") break;
+    count++;
+  }
+  return count;
+}
 const RUNTIME = "prologue";
 const ENDED: readonly string[] = ["succeeded", "failed", "cancelled"];
 /** A part's steps on its delegating work's graph: the one it was handed out as, and those under it (follow-ups, the person's rounds). */
@@ -386,9 +401,7 @@ export class AssistantDelegations {
       // Started once per continuation: the round's own start is under the continuation's request key (the binding's).
       const key = `hand-back-${ready.request_key.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 80);
       // So many rounds in a row that no person wrote: the work stops here and says so; the person's next word starts the count again.
-      const rounds = store.rounds(parent.work_id);
-      let auto = 0;
-      while (auto < rounds.length && rounds[rounds.length - 1 - auto]!.written_by === "host") auto++;
+      const auto = roundsOnItsOwn(store.rounds(parent.work_id));
       if (!stillCurrent()) return;
       if (auto >= DELEGATION_LIMITS.autoRounds) {
         this.#refused.add(ready.request_key);

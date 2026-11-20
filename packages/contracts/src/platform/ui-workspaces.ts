@@ -1,6 +1,8 @@
 /** Current-project directories only: a page may ask to add an input folder, make one of the project's folders its output, or turn on reading its
  * instruction files (`projects.directories.set_instructions@1`); the trusted Host confirms each with the person first. Which folder a page shows
- * is that page's own state (specs/shared-sources-and-surfaces §3); the project keeps no browsing choice to select. */
+ * is that page's own state (specs/shared-sources-and-surfaces §3); the project keeps no browsing choice to select. `setOutput` and
+ * `readInstructions` commit from the folders the dialog was built from: changed elsewhere before the person confirmed, they reject with status
+ * 409 and a sentence saying so, nothing is changed, and asking again shows the folders as they are now. */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
   /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */

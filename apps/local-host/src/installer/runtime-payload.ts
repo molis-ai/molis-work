@@ -1,3 +1,4 @@
+import { parseAccountEnvironment } from "@molis-ai/molis-work-service-account";
 import { installerErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -16,7 +17,7 @@ export interface MolisWorkRuntimePayloadOptions {
   /** Desktop tooling verifies download integrity and architecture before calling. */
   nodeExecutablePath: string;
   /** Build outputs only. The signer and its private key never enter the payload. */
-  desktopDistribution?: { readonly profile: string; readonly signedPackages?: string };
+  desktopDistribution?: { readonly profile: string; readonly signedPackages?: string; readonly account?: unknown; readonly syncOrigin?: string };
 }
 
 /** Packages the same self-contained release used by Home installation, without installing or starting it. */
@@ -28,12 +29,25 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
   const source = await inspectSource(path.resolve(options.sourceDirectory), undefined);
   source.bundledNodePath = nodeExecutable;
   const distribution = options.desktopDistribution;
-  if (distribution) releaseProfile(distribution.profile);
+  let account: ReturnType<typeof parseAccountEnvironment> | undefined;
+  if (distribution) {
+    const expected = releaseProfile(distribution.profile).accountEnvironment;
+    if (expected) {
+      account = parseAccountEnvironment(distribution.account);
+      const kind = expected === 'prod' ? 'PRODUCTION' : 'TEST';
+      if (account.environmentKind !== kind || account.deliveryMode !== 'LIVE' || account.providerMode !== 'LIVE')
+        throw new Error("Release account configuration does not match its profile");
+    } else if (distribution.account !== undefined) {
+      throw new Error("This release profile has no packaged account configuration");
+    }
+  }
   source.contentDigest = createHash("sha256").update(JSON.stringify({
     source: source.contentDigest,
     node: await digestPaths(path.dirname(nodeExecutable), [path.basename(nodeExecutable)]),
     ...(distribution && {
       profile: distribution.profile,
+      account,
+      syncOrigin: distribution.syncOrigin,
       signedPackages: distribution.signedPackages
         ? await digestPaths(path.dirname(distribution.signedPackages), [path.basename(distribution.signedPackages)])
         : null,
@@ -47,6 +61,9 @@ export async function createMolisWorkRuntimePayload(options: MolisWorkRuntimePay
     if (distribution) {
       const host = path.join(staged, "node_modules", "@molis-ai", "molis-work-app-local-host", "dist");
       await fs.writeFile(path.join(host, "selected-release-profile"), distribution.profile + "\n", { flag: "wx" });
+      if (account) {
+        await fs.writeFile(path.join(host, "selected-account-config.json"), JSON.stringify({ account, syncOrigin: distribution.syncOrigin }), { flag: "wx" });
+      }
       if (distribution.signedPackages) {
         // The build already put the unsigned drafts (`<plugin_id>.draft.json`, batch 41) in this folder: each signed package goes in beside
         // them, and still never over a file that is there. The Host refuses a draft whose package also lies here signed.

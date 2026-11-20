@@ -134,6 +134,9 @@ pub(crate) fn validate_caller(window: &WebviewWindow) -> Result<(), String> {
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(home) = crate::web_service::packaged_test_home() {
+        return Ok(home.join("directory-access").join("bookmarks.json"));
+    }
     // Match the explicit Home override used by the desktop launcher and isolated QA.
     // Otherwise bookmarks belong to this installed app, independently of any project.
     let root = match std::env::var_os("MOLIS_WORK_HOME") {

@@ -12,24 +12,9 @@ Web 共用请求助手通过显式 `control: true` 为账号 GET 添加页面拥
 
 ## 环境配置
 
-启动时通过 `MOLIS_WORK_ACCOUNT_CONFIG` JSON 或受信任的 `WebServerOptions.account` 注入，HTTP 输入不能覆盖这些值。以下是本地配置形状示例，使用前须在 Auth 登记匹配的应用、客户端、环境和精确回调；Auth 自身的默认 Web seed 不会自动创建 Work 客户端。邮箱/手机表单与 Google/GitHub 回跳均已接入：
+源码启动由 [账号环境启动](../cli-and-development.md#账号环境启动) 选择 properties。正式安装包读取打包时生成的公开配置。程序化嵌入可以通过受信的 `WebServerOptions.account` 提供独立夹具；HTTP 输入要通过账号所有者对当前准入、来源和回调的检查。
 
-```json
-{
-  "environmentId": "unified-local",
-  "environmentKind": "LOCAL",
-  "authOrigin": "http://127.0.0.1:8787",
-  "productOrigin": "http://127.0.0.1:4207",
-  "applicationId": "molis-work-unified-local-app",
-  "clientId": "molis-work-unified-local",
-  "policyProfile": "unified-account-v2",
-  "redirectAllowlist": ["http://127.0.0.1:4207/account/callback"],
-  "providerMode": "MOCK",
-  "deliveryMode": "MOCK"
-}
-```
-
-本地地址必须为数字回环地址；Work 产品仍使用本机 HTTP，隔离测试／正式环境的 Auth 使用 HTTPS；正式环境拒绝 MOCK。回调是精确登记，不支持通配、查询或片段。没有配置时不猜测客户端或读取其他产品凭据。
+Work 在数字回环入口接收已登记的 `/account/callback`。开发 Auth 运行在本机，测试和正式 Auth 使用其配置中的 HTTPS 入口。Home 与会话代次均来自已选环境，切回环境也需要重新登录。
 
 ## 持久会话与撤销
 

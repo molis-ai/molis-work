@@ -9,7 +9,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
+import { CALLERS_WRITE, callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
@@ -260,7 +260,7 @@ const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, a
 const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
 
-async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: readonly string[] = []) {
+async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: readonly string[] = [], optionalPermissions: readonly string[] = []) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-rounds-"));
   // With a Home the Host keeps its call log, which RAC-181 reads.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
@@ -286,12 +286,13 @@ async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: 
     subagents: { list: answer("subagents", () => []), command: answer("child-command", () => ({ state: "applied", run: { session_id: "child-session", run_id: "child-run" } })) },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
-  const consumer = withReaderRole(callerPlugin("rounds", "project", {}, [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]));
+  const consumer = withReaderRole(callerPlugin("rounds", "project", Object.fromEntries(optionalPermissions.map(permission => [permission, false])),
+    [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]));
   const bystander = callerPlugin("rounds-bystander", "project");
-  await startPlugin(localHost, reference, store, consumer, { actorId: "web-user" });
+  const consumerRuntime = await startPlugin(localHost, reference, store, consumer, { actorId: "web-user", grants: optionalPermissions });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  return { localHost, reference, seen, owner, consumer, bystander, observers };
+  return { localHost, reference, seen, owner, consumer, bystander, observers, consumerRuntime };
 }
 const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", turns: [],
   frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null }, activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
@@ -506,6 +507,38 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
     await assert.rejects(actions.invoke(agent.waitRun, [session, run, null, timeoutMs]), { code: "actions.input_invalid" }, String(timeoutMs));
   await assert.rejects(actions.invoke(agent.waitRun, [session, run, null, 0, "someone-else"] as never), { code: "actions.input_invalid" });
   assert.equal(seen.length, before, "no refused wait reached the Runtime");
+});
+
+/*
+ * RAC-181 (BL-960): a wait already following the round when the person takes a permission away. The permission switch withdraws the
+ * activation that called; the round then changes, and the caller is refused: it never gets the view, the call log keeps the code alone,
+ * and the wait lets go of the round. The order is held by what can be seen (the round followed), not by a timer.
+ */
+test("RAC-181 a wait under way when the person revokes a permission is refused once the round changes, and lets go of the round", async t => {
+  const { localHost, consumer, owner, observers, consumerRuntime } = await roundsSetup(t, true, [], [CALLERS_WRITE]);
+  const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
+  owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
+  const rows = () => localHost.callLog!.list(PROJECT).filter(row => row.capability_id === agent.waitRun.capability_id);
+  const until = async (ready: () => boolean, label: string) => {
+    for (let turn = 0; turn < 500 && !ready(); turn++) await new Promise(resolve => setImmediate(resolve));
+    assert.ok(ready(), label);
+  };
+  const actions = consumer.actions(PROJECT), first = await actions.invoke(agent.waitRun, [session, run, null, 0]);
+  const pending = actions.invoke(agent.waitRun, [session, run, first.version, 25_000]);
+  const settled = pending.then(answer => ({ answer }), (error: unknown) => ({ error }));
+  await until(() => observers.size === 1, "the wait is following the round");
+
+  await consumerRuntime.runtime.regrant(consumerRuntime.install_id, CALLERS_WRITE, false);
+  assert.equal(consumerRuntime.runtime.get(consumerRuntime.install_id).grants.includes(CALLERS_WRITE), false, "the permission is off");
+  assert.equal(observers.size, 1, "the revocation alone has not answered the wait: it is still following the round");
+  const secret = "这一轮的新内容";
+  for (const listener of [...observers]) listener({ ...ROUND_VIEW, phase: "completed", turns: [{ text: secret }] } as never);
+  const outcome = await settled;
+  assert.ok(!("answer" in outcome), "the caller gets no view of the round");
+  assert.equal((outcome.error as ActionError).code, "actions.forbidden", "the caller is refused as a withdrawn activation");
+  assert.ok(!JSON.stringify(outcome.error, Object.getOwnPropertyNames(outcome.error as object)).includes(secret), "the refusal carries nothing of the round");
+  assert.deepEqual(rows().map(row => [row.ok, row.code, row.message]), [[false, "actions.forbidden", undefined]], "the call log keeps the code alone");
+  assert.equal(observers.size, 0, "the wait let go of the round");
 });
 
 /** R8 batch 4: the runtime directory, roles and actions, the MCP servers and the wait for a continuation. */

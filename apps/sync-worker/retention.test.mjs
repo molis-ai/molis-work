@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {cloudFixture} from './testing.mjs';
 
 async function file(f,text='retained bytes'){
@@ -21,8 +22,64 @@ const oldBlobs=async f=>f.db.prepare('UPDATE sync_blobs SET created_at=unixepoch
 const restore=(f,revision,operationId='restore',key='asset')=>f.call('/v1/trash/restore','alice',{namespace:f.namespace,key,revision,operationId,policyRevision:1});
 const purge=(f,revision,key='asset',confirm=true)=>f.call('/v1/trash/purge','alice',{namespace:f.namespace,key,revision,confirm});
 
+test('PCSYNC-OPT-12 storage breakdown bills shared blobs once and stays in the caller space',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const shared=await file(f,'one shared file'),spare=await file(f,'reserved bytes');
+ assert.equal((await f.write('live','live','current',{attachments:[shared]})).status,200);
+ await deleted(f,'trash',shared);
+ const revision=(await f.db.prepare("SELECT revision FROM sync_heads WHERE key='live'").first()).revision;
+ assert.equal((await f.write('next','live','latest',{base:revision,attachments:[shared]})).status,200);
+ const own=await(await f.call('/v1/quota/breakdown')).json();
+ assert.equal(own.currentBytes,shared.size+Buffer.byteLength(JSON.stringify('latest')));
+ assert.equal(own.historyBytes,Buffer.byteLength(JSON.stringify('current')));
+ assert.equal(own.trashBytes,Buffer.byteLength(JSON.stringify({content:'trash'})));
+ assert.equal(own.reservedAttachmentBytes,spare.size);
+ assert.equal(own.usedBytes,own.currentBytes+own.historyBytes+own.trashBytes+own.reservedAttachmentBytes);
+ assert.equal((await(await f.call('/v1/quota/breakdown','bob')).json()).usedBytes,0);
+});
+
+test('PCSYNC-OPT-12 permanent trash removes only the confirmed revision and releases text capacity atomically',async t=>{
+ const disabled=await cloudFixture(t,{permanentCleanup:false});await disabled.enable();
+ const blocked=await deleted(disabled);
+ assert.equal((await purge(disabled,blocked)).status,409);
+ assert.equal((await(await disabled.call('/v1/trash')).json()).permanentCleanup,undefined);
+ const f=await cloudFixture(t);await f.enable();await f.enable('bob');
+ const revision=await deleted(f),other=await deleted(f,'other');
+ assert.equal((await(await f.call('/v1/trash')).json()).permanentCleanup,true);
+ assert.equal((await f.call('/v1/trash/purge','bob',{namespace:f.namespace,key:'asset',revision,confirm:true})).status,404);
+ assert.equal((await purge(f,revision,'asset',false)).status,400);
+ assert.equal((await purge(f,other,'asset')).status,409);
+ assert.equal((await purge(f,revision)).status,200);
+ assert.equal((await(await f.call('/v1/quota')).json()).usedBytes,Buffer.byteLength(JSON.stringify({content:'other'})));
+ assert.equal((await restore(f,revision)).status,404,'the permanently removed text is no longer recoverable');
+});
+
+test('PCSYNC-OPT-11 maintenance reclaims 20 generations and tombstone histories per pass',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const keep=await file(f,'shared live attachment');
+ assert.equal((await f.write('live','live','kept',{attachments:[keep]})).status,200);
+ for(let i=0;i<22;i++){
+   const ref=await file(f,'retained bytes '+i);
+   await deleted(f,'expired-'+i,ref);
+ }
+ await deleted(f,'shared',keep);
+ await age(f,31);await oldBlobs(f);
+ const run=async()=>{
+   const response=await f.call('/v1/maintenance','alice',{});
+   assert.equal(response.status,200);
+   return (await response.json()).collected;
+ };
+ assert.equal(await run(),20);
+ const purged=await f.db.prepare('SELECT COUNT(*) AS n FROM sync_heads WHERE purged_at IS NOT NULL').first();
+ assert.equal(purged.n,20);
+ assert.equal(await run(),2);
+ assert.equal((await f.bucket.list()).objects.length,1);
+ const quota=(await(await f.call('/v1/quota')).json()).usedBytes;
+ assert.equal(quota,keep.size+Buffer.byteLength(JSON.stringify('kept')));
+});
+
 for(const mode of ['read-only','mistyped-mode'])test('PCSYNC-26 operator '+mode+' preserves D1/R2 across every mutation and scheduled GC',async t=>{
- const f=await cloudFixture(t);await f.enable();await f.enable('bob');const ref=await file(f,'paired backup original');
+ const f=await cloudFixture(t,{rateLimit:40});await f.enable();await f.enable('bob');const ref=await file(f,'paired backup original');
  await deleted(f,'asset',ref);await age(f,31);await oldBlobs(f);
  const tables=(await f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sync_%' AND name<>'sync_rate_windows' ORDER BY name").all()).results.map(row=>row.name);
  const snapshot=async()=>Object.fromEntries(await Promise.all(tables.map(async name=>[name,(await f.db.prepare('SELECT * FROM "'+name+'"').all()).results])));
@@ -42,7 +99,10 @@ for(const mode of ['read-only','mistyped-mode'])test('PCSYNC-26 operator '+mode+
   assert.equal((await f.call('/v1/quota')).status,200);assert.equal((await f.call('/v1/blobs/status?'+new URLSearchParams({namespace:f.namespace,digest:ref.digest}))).status,200);
  }else assert.equal((await f.call('/v1/round')).status,503,'invalid operator configuration fails closed');
  await f.scheduled();assert.deepEqual(await snapshot(),original);assert.deepEqual(await objects(),bytes,'scheduled GC cannot invalidate a paired backup');
- assert.ok((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_rate_windows').first()).n>0,'existing rate checks remain active');
+ const fromOneIP=()=>f.call('/v1/round','invalid',undefined,'GET','https://sync.example.test','192.0.2.9');
+ for(let i=0;i<40;i++)assert.equal((await fromOneIP()).status,401);
+ assert.equal((await fromOneIP()).status,429,'edge rate checks remain active during maintenance');
+ assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_rate_windows').first()).n,0);
  await f.writeMode('read-write');assert.equal((await f.call('/v1/maintenance','alice',{})).status,200);
  assert.equal((await f.bucket.list()).objects.length,0,'the same retained generation is collected only after writes explicitly resume');
  assert.equal((await(await f.call('/v1/quota')).json()).usedBytes,0);
@@ -126,4 +186,58 @@ test('PCSYNC-17/18 nested removal retains the complete old graph and file from r
  assert.deepEqual(JSON.parse((await f.db.prepare('SELECT value FROM sync_events WHERE revision=?').bind(receipt.revision).first()).value),original);
  assert.deepEqual(await(await restore(current.revision)).json(),receipt,'retry restores once');
  await f.call('/v1/maintenance','alice',{});assert.equal((await f.bucket.list()).objects.length,1,'the restored current head continues to own its bytes');
+});
+
+test('PCSYNC-OPT-10 body compression and continuous-edit folding cut quota growth by >=70% while keeping conflicts and trash for 30 days',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const codec=createSyncJsonContent({spaceId:f.space('alice'),authorize(){}});
+ const blobs=new Map();
+ let base=0,naiveTotal=0,foldedOp=null,foldedRevision=0;
+ for(let i=0;i<30;i++){
+  const doc={id:'doc-opt10',revision:i,sections:Array.from({length:40},(_,s)=>({title:`Section ${s}`,body:`Structured personal notes and goals content paragraph ${s} version ${i}. `.repeat(70)}))};
+  const rawSize=Buffer.byteLength(JSON.stringify(doc));
+  assert.ok(rawSize>=180_000,'each revision is ~200 KiB structured payload');
+  naiveTotal+=rawSize;
+  const encoded=codec.encode('doc-opt10',doc);
+  const refs=[];
+  for(const blob of encoded.blobs){
+   blobs.set(blob.digest,blob.bytes);
+   const ref={digest:blob.digest,size:blob.size};
+   assert.equal((await f.call('/v1/blobs/reserve','alice',{namespace:f.namespace,...ref})).status,200);
+   assert.equal((await f.transport('https://sync.example.test/v1/blobs/chunk?'+new URLSearchParams({namespace:f.namespace,digest:ref.digest,part:'0'}),{method:'PUT',headers:{Authorization:'Bearer alice'},body:blob.bytes})).status,200);
+   assert.equal((await f.call('/v1/blobs/complete','alice',{namespace:f.namespace,digest:ref.digest})).status,200);
+   refs.push(ref);
+  }
+  const op=`burst-${i}`;
+  const res=await f.write(op,'doc-opt10',encoded.value,{base,attachments:refs});
+  assert.equal(res.status,200);
+  const {revision}=await res.json();
+  if(i===10){foldedOp={op,base,value:encoded.value,attachments:refs};foldedRevision=revision;}
+  if(i===15){
+   const archived=await f.call('/v1/history/archive','alice',{namespace:f.namespace,policyRevision:1,mutation:{operationId:'conflict-pin',key:'doc-opt10',base:revision,value:{conflict:'must-keep-30-days'}},attachments:[]});
+   assert.equal(archived.status,200);
+  }
+  base=revision;
+  if(i===29){
+   const decoded=await codec.decode('doc-opt10',encoded.value,async ref=>blobs.get(ref.digest));
+   assert.deepEqual(decoded,doc,'compressed structured aggregate round-trips identically');
+  }
+ }
+ const billed=(await(await f.call('/v1/quota')).json()).usedBytes;
+ assert.ok(billed<naiveTotal*0.3,`expected >=70% savings, got billed=${billed} vs naive=${naiveTotal}`);
+ const remaining=(await f.db.prepare("SELECT COUNT(*) AS n FROM sync_events WHERE space=? AND key='doc-opt10' AND action='write'").bind(f.space('alice')).first()).n;
+ assert.equal(remaining,2,'burst folding keeps only burst baseline + current head');
+ const replay=await f.write(foldedOp.op,'doc-opt10',foldedOp.value,{base:foldedOp.base,attachments:foldedOp.attachments});
+ assert.equal(replay.status,200);
+ assert.equal((await replay.json()).revision,foldedRevision,'folded edit receipt stays idempotent');
+ const pinned=(await f.db.prepare("SELECT COUNT(*) AS n FROM sync_events WHERE space=? AND key='doc-opt10' AND action='archive'").bind(f.space('alice')).first()).n;
+ assert.equal(pinned,1,'conflict archive branch is never folded');
+ const trashed=await deleted(f,'trash-keep');
+ assert.ok(trashed>0);
+ await f.call('/v1/maintenance','alice',{});
+ assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM sync_events WHERE space=? AND key='trash-keep' AND value<>'null'").bind(f.space('alice')).first()).n,1,'deleted trash body stays preserved for 30 days');
+ // Zip-bomb / tampered compressed payload rejection
+ const sample=codec.encode('doc-opt10',{x:'a'.repeat(10_000)});
+ assert.equal(sample.value.encoding,'deflate-raw');
+ await assert.rejects(()=>codec.decode('doc-opt10',{...sample.value,size:100},async()=>{throw new Error('unexpected');}),/同步内容/);
 });

@@ -71,7 +71,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
   const bind = (root, context = null) => {
     if (!root || root.dataset.memoryBound === "1") return;
     root.dataset.memoryBound = "1";
-    const L = globalThis.t.text;
+    const readText = globalThis.t.text, L = readText;
     let scope = root.dataset.memoryScope === "project" ? "project" : "personal";
     const project = root.dataset.project || "";
     const params = new URLSearchParams((context || location).search);
@@ -85,7 +85,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       : (scope === "project" && project ? "/projects/" + encodeURIComponent(project) : "") + "/api/memory";
     const $ = (selector) => root.querySelector(selector);
     const part = name => $("[data-memory-" + name + "]");
-    const unread = globalThis.t.text("workbench.settings-memory.reading-did-not-finish-reload-try-again");
+    const unread = readText("workbench.settings-memory.reading-did-not-finish-reload-try-again");
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     // Whichever way a dialog closes, focus goes back to the element the person used: focus they have genuinely moved
@@ -119,7 +119,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
       const header = el("header", "mw-form__header"), heading = el("div"), h2 = el("h2", "", title); h2.id = titleId;
       heading.append(h2, el("p", "", description)); header.append(heading);
-      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--secondary mw-btn--md", globalThis.t.text("workbench.settings-memory.cancel")), yes = el("button", "mw-btn mw-btn--danger mw-btn--md", yesLabel);
+      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--secondary mw-btn--md", readText("workbench.settings-memory.cancel")), yes = el("button", "mw-btn mw-btn--danger mw-btn--md", yesLabel);
       cancel.type = "button"; yes.type = "button"; yes.dataset.memoryConfirmYes = "";
       footer.append(cancel, yes); form.append(header, footer); dialog.append(form);
       let answer = false;
@@ -132,12 +132,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // From the personal page a memory moves into a project the person picks; that project's own route decides and checks it.
     const projectChoices = (() => { try { return JSON.parse(root.dataset.memoryProjects || "[]"); } catch { return []; } })();
     const moveIntoProject = (item, trigger) => {
-      if (!projectChoices.length) { fail(new Error(globalThis.t.text("workbench.settings-memory.no-project-to-move-into"))); return; }
+      if (!projectChoices.length) { fail(new Error(readText("workbench.settings-memory.no-project-to-move-into"))); return; }
       const dialog = el("dialog", "mw-dialog memory-confirm memory-project-picker"); dialog.dataset.slot = "dialog";
       const titleId = "memory-project-" + Date.now().toString(36); dialog.setAttribute("aria-labelledby", titleId);
       const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
-      const header = el("header", "mw-form__header"), heading = el("div"), h2 = el("h2", "", globalThis.t.text("workbench.settings-memory.move-into-which-project")); h2.id = titleId;
-      heading.append(h2, el("p", "", globalThis.t.text("workbench.settings-memory.after-moving-used-only-in-that-project"))); header.append(heading);
+      const header = el("header", "mw-form__header"), heading = el("div"), h2 = el("h2", "", readText("workbench.settings-memory.move-into-which-project")); h2.id = titleId;
+      heading.append(h2, el("p", "", readText("workbench.settings-memory.after-moving-used-only-in-that-project"))); header.append(heading);
       const list = el("div", "memory-project-choices");
       let chosen = null;
       projectChoices.forEach((choice) => {
@@ -145,7 +145,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         option.addEventListener("click", () => { chosen = choice; dialog.close(); });
         list.append(option);
       });
-      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--ghost mw-btn--md", globalThis.t.text("workbench.settings-memory.cancel"));
+      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--ghost mw-btn--md", readText("workbench.settings-memory.cancel"));
       cancel.type = "button"; cancel.addEventListener("click", () => dialog.close());
       footer.append(cancel); form.append(header, list, footer); dialog.append(form);
       dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
@@ -167,18 +167,18 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       disabled: "workbench.settings-memory.switch-off", auto_disabled: "workbench.settings-memory.switched-off-automatically", enabled: "workbench.settings-memory.switch", paused: "workbench.settings-memory.paused", resumed: "workbench.settings-memory.resumed", removed: "workbench.settings-memory.delete", accepted: "workbench.settings-memory.accepted-2", imported: "workbench.settings-memory.imported", cleared: "workbench.settings-memory.cleared" };
     const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope, classification) => {
-      const sep = globalThis.t.text("common.list.separator");
-      const parts = classification?.lifecycle === "session" ? [globalThis.t.text("workbench.settings-memory.within-session")] : [];
-      if (applies?.plugin_ids?.length) parts.push(globalThis.t.text("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(sep) }));
-      if (applies?.object_kinds?.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: applies.object_kinds.join(sep) }));
+      const sep = readText("common.list.separator");
+      const parts = classification?.lifecycle === "session" ? [readText("workbench.settings-memory.within-session")] : [];
+      if (applies?.plugin_ids?.length) parts.push(readText("workbench.settings-memory.plugins-list", { list: applies.plugin_ids.join(sep) }));
+      if (applies?.object_kinds?.length) parts.push(readText("workbench.settings-memory.object-list", { list: applies.object_kinds.join(sep) }));
       // Associated objects: by name where their owner can still read them (labelled with the owner); the rest by plugin/kind:id.
       const objects = applies?.objects || [];
-      if (objects.length) parts.push(globalThis.t.text("workbench.settings-memory.object-list", { list: objects.map(o => {
+      if (objects.length) parts.push(readText("workbench.settings-memory.object-list", { list: objects.map(o => {
         const key = o.plugin_id + "/" + o.kind + ":" + o.id, label = data?.labels?.objects?.[key];
-        return label ? globalThis.t.text("workbench.settings-memory.object-title", { owner: label.owner, title: label.title }) : globalThis.t.text("workbench.settings-memory.object-unreadable", { object: key }); }).join(sep) }));
+        return label ? readText("workbench.settings-memory.object-title", { owner: label.owner, title: label.title }) : readText("workbench.settings-memory.object-unreadable", { object: key }); }).join(sep) }));
       if (applies?.task) parts.push(applies.task);
-      if (applies?.until) parts.push(globalThis.t.text("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
-      return parts.length ? parts.join(" · ") : globalThis.t.text(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");
+      if (applies?.until) parts.push(readText("workbench.settings-memory.until-date", { date: applies.until.slice(0, 10) }));
+      return parts.length ? parts.join(" · ") : readText(itemScope === "character" ? "workbench.settings-memory.work-character-does-project" : scope === "project" ? "workbench.settings-memory.all-work-project" : "workbench.settings-memory.all-work");
     };
     let data = null, busy = false, removing = false, reading = false, readFailed = false, reader, currentCursor, previous = [], pairsOpened = false;
     const filters = { scene: "", kind: "", lifecycle: "", source: "", state: "", expired: "", query: "" };
@@ -193,18 +193,18 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     if (!validTarget) {
-      error.textContent = globalThis.t.text("workbench.settings-memory.session-selection-incomplete-invalid-open-memory-original-session"); error.hidden = false;
+      error.textContent = readText("workbench.settings-memory.session-selection-incomplete-invalid-open-memory-original-session"); error.hidden = false;
       part("list").textContent = error.textContent; root.querySelectorAll("button, input, select").forEach(node => { node.disabled = true; }); return;
     }
     if (sessionMode) {
-      part("title").textContent = globalThis.t.text("workbench.settings-memory.session-memory");
-      part("intro").textContent = globalThis.t.text("workbench.settings-memory.session-intro");
-      part("clear-title").textContent = globalThis.t.text("workbench.settings-memory.clear-all-memories-candidates-session"); part("clear").textContent = globalThis.t.text("workbench.settings-memory.clear-3");
+      part("title").textContent = readText("workbench.settings-memory.session-memory");
+      part("intro").textContent = readText("workbench.settings-memory.session-intro");
+      part("clear-title").textContent = readText("workbench.settings-memory.clear-all-memories-candidates-session"); part("clear").textContent = readText("workbench.settings-memory.clear-3");
       root.querySelectorAll(".memory-prefs, [data-memory-classes], [data-memory-pairs-section], [data-memory-changes-section], .memory-rules-note").forEach(node => { node.hidden = true; });
       for (const name of ["upkeep-run", "export", "import"]) part(name).closest(".mw-setting-row").hidden = true;
       if (project) {
-        const label = el("label", "memory-toolbar", globalThis.t.text("workbench.settings-memory.memory-scope")), choices = el("select", "mw-select"); choices.dataset.memoryScopeChoice = ""; choices.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.memory-scope"));
-        for (const [value, title] of [["personal", "workbench.settings-memory.personal"], ["project", "workbench.settings-memory.project"]]) { const option = el("option", "", globalThis.t.text(title)); option.value = value; choices.append(option); }
+        const label = el("label", "memory-toolbar", readText("workbench.settings-memory.memory-scope")), choices = el("select", "mw-select"); choices.dataset.memoryScopeChoice = ""; choices.setAttribute("aria-label", readText("workbench.settings-memory.memory-scope"));
+        for (const [value, title] of [["personal", "workbench.settings-memory.personal"], ["project", "workbench.settings-memory.project"]]) { const option = el("option", "", readText(title)); option.value = value; choices.append(option); }
         choices.value = scope; choices.addEventListener("change", () => { scope = choices.value; selected.clear(); invalidateRead(); void load(); }); label.append(choices); root.querySelector(".memory-heading").append(label);
       }
     }
@@ -214,11 +214,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const pendingRemoval = () => [...pendingCommands.values()].some(command => JSON.parse(command.body).action === "remove" || command.removal || command.path === "/clear");
     const commandTitle = (path, payload, bodyless = false) => {
       const actions = { renew: "workbench.settings-memory.renew-expiry", reclassify: "workbench.settings-memory.correct-classification", update: "workbench.settings-memory.edit", disable: "workbench.settings-memory.switch-off", enable: "workbench.settings-memory.switch", remove: "workbench.settings-memory.delete", move: "workbench.settings-memory.moved", restore: "workbench.settings-memory.went-back-earlier-version", items: "workbench.settings-memory.add", import: "workbench.settings-memory.imported", undo: "workbench.settings-memory.undo", accept: "workbench.settings-memory.accepted-2", discard: "workbench.settings-memory.no" };
-      const title = globalThis.t.text(actions[payload.action || path.split("/").at(-1)]);
+      const title = readText(actions[payload.action || path.split("/").at(-1)]);
       if (bodyless || payload.action === "remove") return title;
       const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
         || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
-      return subject ? globalThis.t.text("workbench.settings-memory.named-subject", { title, subject }) : title;
+      return subject ? readText("workbench.settings-memory.named-subject", { title, subject }) : title;
     };
     const invalidateRead = () => {
       reader?.abort(); reader = undefined; reading = false; readFailed = true;
@@ -236,29 +236,29 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (removal) { removing = true; pendingCommands.set(command.id, command); invalidateRead(); }
       try {
         const result = await api(command.path, JSON.parse(command.body), command.base || base);
-        if (command.path === "/import") toast(globalThis.t.text("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + globalThis.t.text("workbench.settings-memory.skipped-n", { n: result.skipped }) : "") + (result.refused ? " · " + globalThis.t.text("workbench.settings-memory.not-imported-n", { n: result.refused }) : ""));
+        if (command.path === "/import") toast(readText("workbench.settings-memory.imported-count", { count: result.written }) + (result.skipped ? " · " + readText("workbench.settings-memory.skipped-n", { n: result.skipped }) : "") + (result.refused ? " · " + readText("workbench.settings-memory.not-imported-n", { n: result.refused }) : ""));
         if (command.path === "/batch/apply") paintBatchResults(result.items);
-        if (command.path === "/clear/apply") { if (result.complete && clearPreview?.preview_id === JSON.parse(command.body).preview_id) clearPreview = null; paintSessionResults(result.items); showClear(result.complete ? globalThis.t.text("workbench.settings-memory.session-memory-cleanup-complete") : globalThis.t.text("workbench.settings-memory.cleanup-incomplete-retrying-uses-original-preview")); }
+        if (command.path === "/clear/apply") { if (result.complete && clearPreview?.preview_id === JSON.parse(command.body).preview_id) clearPreview = null; paintSessionResults(result.items); showClear(result.complete ? readText("workbench.settings-memory.session-memory-cleanup-complete") : readText("workbench.settings-memory.cleanup-incomplete-retrying-uses-original-preview")); }
         if (command.path === "/clear") showClearResult(result, JSON.parse(command.body).fingerprint);
         if (result.complete === false) {
           pendingCommands.set(command.id, command); paintRetries();
-          if (command.path === "/batch/apply") throw new Error(globalThis.t.text("workbench.settings-memory.operation-unfinished-continue-original-operation"));
+          if (command.path === "/batch/apply") throw new Error(readText("workbench.settings-memory.operation-unfinished-continue-original-operation"));
           return result;
         }
         pendingCommands.delete(command.id); discovered.delete(command.id); paintRetries(); return result;
-      } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); if (command.path === "/clear/apply") showClear(globalThis.t.text("workbench.settings-memory.cleanup-unconfirmed-keep-original-preview-retry-reconcile-operation")); throw failure; }
+      } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); if (command.path === "/clear/apply") showClear(readText("workbench.settings-memory.cleanup-unconfirmed-keep-original-preview-retry-reconcile-operation")); throw failure; }
       finally { if (removal) { removing = false; invalidateRead(); } }
     };
     function paintRetries() {
       $("[data-memory-retries]").hidden = !pendingCommands.size && !operationsCursor;
-      $("[data-memory-retries] h2").textContent = globalThis.t.text(pendingCommands.size ? "workbench.settings-memory.operations-waiting-retry" : "workbench.settings-memory.check-original-operations");
+      $("[data-memory-retries] h2").textContent = readText(pendingCommands.size ? "workbench.settings-memory.operations-waiting-retry" : "workbench.settings-memory.check-original-operations");
       const list = $("[data-memory-retry-list]");
       const existing = new Map([...list.querySelectorAll("[data-memory-command]")].map(row => [row.dataset.memoryCommand, row]));
       for (const command of pendingCommands.values()) {
         const retained = existing.get(command.id);
-        if (retained) { retained.querySelector("strong").textContent = command.title; retained.querySelector("button").setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.retry-operation-named", { title: command.title })); existing.delete(command.id); continue; }
+        if (retained) { retained.querySelector("strong").textContent = command.title; retained.querySelector("button").setAttribute("aria-label", readText("workbench.settings-memory.retry-operation-named", { title: command.title })); existing.delete(command.id); continue; }
         const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
-        const retry = button(globalThis.t.text("workbench.settings-memory.retry-operation"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.retry-operation-named", { title: command.title }));
+        const retry = button(readText("workbench.settings-memory.retry-operation"), "mw-btn--secondary", readText("workbench.settings-memory.retry-operation-named", { title: command.title }));
         retry.dataset.memoryRetry = "";
         retry.addEventListener("click", () => run(() => dispatch(command), command.path === "/import" || command.path === "/clear" || command.path === "/clear/apply" ? undefined : "workbench.settings-memory.operation-completed"));
         row.dataset.memoryCommand = command.id; row.append(copy, retry); list.append(row);
@@ -266,7 +266,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       for (const row of existing.values()) row.remove();
       list.querySelector("[data-memory-more-operations]")?.remove();
       if (operationsCursor) {
-        const more = button(globalThis.t.text("workbench.settings-memory.find-more-original-operations"), "mw-btn--secondary");
+        const more = button(readText("workbench.settings-memory.find-more-original-operations"), "mw-btn--secondary");
         more.dataset.memoryMoreOperations = "";
         more.addEventListener("click", async () => {
           more.disabled = true;
@@ -286,11 +286,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const payload = item.request ? { ...item.request, operation_id: item.operation_id }
           : item.fingerprint ? { scope: item.scope, fingerprint: item.fingerprint }
           : item.preview_id ? { preview_id: item.preview_id } : undefined;
-        if (item.cleanup === "needs-reconcile" || !payload) { fail(new Error(globalThis.t.text("workbench.settings-memory.original-operation-needs-reconciliation-cleanup-unfinished"))); continue; }
+        if (item.cleanup === "needs-reconcile" || !payload) { fail(new Error(readText("workbench.settings-memory.original-operation-needs-reconciliation-cleanup-unfinished"))); continue; }
         const held = item.kind === "session-clear" && [...pendingCommands.values()].find(command => command.path === path && command.body === JSON.stringify(payload) && (command.base || base) === targetBase(item.target));
         const id = held ? held.id : item.operation_id;
         if (!pendingCommands.has(id)) pendingCommands.set(id, Object.freeze({ id, path, ...(item.kind === "session-clear" ? { base: targetBase(item.target) } : {}), body: JSON.stringify(payload),
-          title: globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted-continue-cleanup" : "workbench.settings-memory.continue-original-memory-operation"), removal: item.kind !== "batch" || item.action === "remove" }));
+          title: readText(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted-continue-cleanup" : "workbench.settings-memory.continue-original-memory-operation"), removal: item.kind !== "batch" || item.action === "remove" }));
         discovered.add(id);
       }
       operationsCursor = page.cursor; paintRetries();
@@ -310,7 +310,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const run = async (work, message) => {
       if (busy) return;
       busy = true; error.hidden = true;
-      try { await work(); await load(); if (message) toast(globalThis.t.text(message)); }
+      try { await work(); await load(); if (message) toast(readText(message)); }
       catch (failure) { if (pendingRemoval()) await load().catch(fail); fail(failure); }
       finally { busy = false; paintSelection(); }
     };
@@ -380,17 +380,17 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const next = part("next"); next.disabled = reading || readFailed || !data?.cursor || data.exhausted;
       // One page only: no page turning to show (POLISH-30). 重新读取 and the count stay.
       part("previous").hidden = next.hidden = !reading && !readFailed && Boolean(data) && !previous.length && (!data.cursor || data.exhausted);
-      next.textContent = globalThis.t.text(data && !data.items.length && !data.exhausted ? "workbench.settings-memory.continue-searching" : "workbench.settings-memory.next-page");
+      next.textContent = readText(data && !data.items.length && !data.exhausted ? "workbench.settings-memory.continue-searching" : "workbench.settings-memory.next-page");
       part("reload").disabled = reading;
-      part("page-status").textContent = reading ? globalThis.t.text("workbench.settings-memory.loading") : readFailed ? unread : !data ? ""
-        : globalThis.t.text("workbench.settings-memory.shown-page") + " " + data.items.length + " · " + globalThis.t.text(data.exhausted ? "workbench.settings-memory.search-complete" : "workbench.settings-memory.search-not-finished-continue-check-more-memories");
+      part("page-status").textContent = reading ? readText("workbench.settings-memory.loading") : readFailed ? unread : !data ? ""
+        : readText("workbench.settings-memory.shown-page") + " " + data.items.length + " · " + readText(data.exhausted ? "workbench.settings-memory.search-complete" : "workbench.settings-memory.search-not-finished-continue-check-more-memories");
     }
 
     function paintSummary() {
       const parts = [data.total.kind === "exact"
-        ? globalThis.t.text(scope === "project" ? "workbench.settings-memory.project-count" : "workbench.settings-memory.personal-count", { count: data.total.value })
-        : globalThis.t.text(scope === "project" ? "workbench.settings-memory.project-memory" : "workbench.settings-memory.personal-memories") + " · " + globalThis.t.text("workbench.settings-memory.total-unknown")];
-      if (data.candidates?.length) parts.push(data.candidates.length + " " + globalThis.t.text("workbench.settings-memory.waiting-2"));
+        ? readText(scope === "project" ? "workbench.settings-memory.project-count" : "workbench.settings-memory.personal-count", { count: data.total.value })
+        : readText(scope === "project" ? "workbench.settings-memory.project-memory" : "workbench.settings-memory.personal-memories") + " · " + readText("workbench.settings-memory.total-unknown")];
+      if (data.candidates?.length) parts.push(data.candidates.length + " " + readText("workbench.settings-memory.waiting-2"));
       part("summary").textContent = parts.join(" · ");
     }
 
@@ -402,16 +402,16 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       changes.forEach((change) => {
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
         const copy = el("div", "memory-change-copy");
-        const head = change.state === "undone" ? globalThis.t.text("workbench.settings-memory.undone-deleted-memory")
-          : change.text ? globalThis.t.text("workbench.settings-memory.change-named", { change: globalThis.t.text(CHANGE[change.kind] || change.kind), text: change.text })
-            : globalThis.t.text(CHANGE[change.kind] || change.kind) + (change.moved_to ? " · " + globalThis.t.text(change.moved_to === "personal" ? "workbench.settings-memory.moved-to-personal" : "workbench.settings-memory.moved-to-project")
-              : change.memory_id && change.kind !== "removed" ? " · " + globalThis.t.text("workbench.settings-memory.since-deleted-its-text-not-kept") : "");
+        const head = change.state === "undone" ? readText("workbench.settings-memory.undone-deleted-memory")
+          : change.text ? readText("workbench.settings-memory.change-named", { change: readText(CHANGE[change.kind] || change.kind), text: change.text })
+            : readText(CHANGE[change.kind] || change.kind) + (change.moved_to ? " · " + readText(change.moved_to === "personal" ? "workbench.settings-memory.moved-to-personal" : "workbench.settings-memory.moved-to-project")
+              : change.memory_id && change.kind !== "removed" ? " · " + readText("workbench.settings-memory.since-deleted-its-text-not-kept") : "");
         copy.append(el("strong", "", head));
-        const meta = [day(change.at), change.rule, change.reason, change.work ? (change.work.title ? globalThis.t.text("workbench.settings-memory.work-named", { title: change.work.title }) : globalThis.t.text("workbench.settings-memory.work-main")) : ""].filter(Boolean).join(" · ");
+        const meta = [day(change.at), change.rule, change.reason, change.work ? (change.work.title ? readText("workbench.settings-memory.work-named", { title: change.work.title }) : readText("workbench.settings-memory.work-main")) : ""].filter(Boolean).join(" · ");
         if (meta) copy.append(el("span", "settings-muted", meta));
         row.append(copy);
         if (change.undoable && change.state === "active") {
-          const undo = button(globalThis.t.text("workbench.settings-memory.undo"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.undo-named", { text: change.text || "" })), revert = mutation();
+          const undo = button(readText("workbench.settings-memory.undo"), "mw-btn--secondary", readText("workbench.settings-memory.undo-named", { text: change.text || "" })), revert = mutation();
           undo.addEventListener("click", () => run(() => revert("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "workbench.settings-memory.undone"));
           row.append(undo);
         }
@@ -430,22 +430,22 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", globalThis.t.text(KIND[candidate.kind] || candidate.kind)));
+        meta.append(el("span", "memory-tag", readText(KIND[candidate.kind] || candidate.kind)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
-        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.because-named", { why: candidate.why })));
+        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", readText("workbench.settings-memory.because-named", { why: candidate.why })));
         // A main conversation keeps no title, so a memory learned there names it by what it is.
-        if (candidate.work) meta.append(el("span", "", candidate.work.title ? globalThis.t.text("workbench.settings-memory.work-named", { title: candidate.work.title }) : globalThis.t.text("workbench.settings-memory.work-main")));
+        if (candidate.work) meta.append(el("span", "", candidate.work.title ? readText("workbench.settings-memory.work-named", { title: candidate.work.title }) : readText("workbench.settings-memory.work-main")));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
-        const keep = button(globalThis.t.text("workbench.settings-memory.keep"), "mw-btn--primary", globalThis.t.text("workbench.settings-memory.keep-named", { text: candidate.text }));
+        const keep = button(readText("workbench.settings-memory.keep"), "mw-btn--primary", readText("workbench.settings-memory.keep-named", { text: candidate.text }));
         keep.addEventListener("click", () => run(() => decide("accept"), "workbench.settings-memory.kept"));
-        const reword = button(globalThis.t.text("workbench.settings-memory.edit-then-keep"), "mw-btn--ghost");
+        const reword = button(readText("workbench.settings-memory.edit-then-keep"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
           const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "workbench.settings-memory.kept");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const drop = button(globalThis.t.text("workbench.settings-memory.no"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.no-named", { text: candidate.text }));
+        const drop = button(readText("workbench.settings-memory.no"), "mw-btn--ghost", readText("workbench.settings-memory.no-named", { text: candidate.text }));
         drop.addEventListener("click", () => run(() => decide("discard"), "workbench.settings-memory.will-not-be-suggested-again"));
         actions.append(keep, reword, drop);
         row.append(copy, actions);
@@ -461,26 +461,26 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintSessionResults(items) {
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
       for (const [index, item] of items.entries()) {
-        const row = el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
-          + " · " + globalThis.t.text(BATCH_STATES[item.outcome]) + " · " + globalThis.t.text(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + globalThis.t.text(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
+        const row = el("li", "settings-muted", readText("workbench.settings-memory.version") + " " + (index + 1) + " " + readText("workbench.settings-memory.items") + " · " + readText(item.kind === "memory-candidate" ? "workbench.settings-memory.pending-candidate" : "workbench.settings-memory.saved-memory")
+          + " · " + readText(BATCH_STATES[item.outcome]) + " · " + readText(item.forgetting === "accepted" ? "workbench.settings-memory.forgetting-accepted" : "workbench.settings-memory.forgetting-not-accepted") + " · " + readText(item.cleanup === "complete" ? "workbench.settings-memory.cleanup-complete" : item.cleanup === "pending" ? "workbench.settings-memory.cleanup-pending" : "workbench.settings-memory.needs-checking"));
         row.dataset.memorySessionItem = item.kind + ":" + (item.kind === "memory-candidate" ? item.candidate_id : item.memory_id); list.append(row);
       }
     }
     function paintBatchResults(items) {
       batchPositions.clear(); items.forEach((item, index) => batchPositions.set(item.memory_id, index + 1));
       const list = part("batch-results"); list.replaceChildren(); list.hidden = !items.length;
-      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-memory.version") + " " + (index + 1) + " " + globalThis.t.text("workbench.settings-memory.items") + " · " + globalThis.t.text(BATCH_STATES[item.outcome] || "workbench.settings-memory.needs-checking")
-        + (item.cleanup === "needs-reconcile" ? " · " + globalThis.t.text("workbench.settings-memory.needs-checking") : "")));
+      for (const [index, item] of items.entries()) list.append(el("li", "settings-muted", readText("workbench.settings-memory.version") + " " + (index + 1) + " " + readText("workbench.settings-memory.items") + " · " + readText(BATCH_STATES[item.outcome] || "workbench.settings-memory.needs-checking")
+        + (item.cleanup === "needs-reconcile" ? " · " + readText("workbench.settings-memory.needs-checking") : "")));
     }
     function paintSelection() {
       // Nothing chosen: no greyed batch buttons to wonder about (POLISH-32); they appear with the first choice.
       part("batch").hidden = sessionMode || !selected.size;
       part("selection-reset").disabled = !selected.size || busy;
-      part("selected").textContent = globalThis.t.text("workbench.settings-memory.selected") + " " + selected.size;
+      part("selected").textContent = readText("workbench.settings-memory.selected") + " " + selected.size;
       root.querySelectorAll("[data-memory-selection-index]").forEach(node => {
         const id = node.closest("[data-memory-id]").dataset.memoryId;
         const index = selected.has(id) ? [...selected.keys()].indexOf(id) + 1 : batchPositions.get(id);
-        node.hidden = !index; node.textContent = index ? globalThis.t.text("workbench.settings-memory.version") + " " + index + " " + globalThis.t.text("workbench.settings-memory.items") : "";
+        node.hidden = !index; node.textContent = index ? readText("workbench.settings-memory.version") + " " + index + " " + readText("workbench.settings-memory.items") : "";
       });
       root.querySelectorAll("[data-memory-batch-action]").forEach(node => { node.disabled = !selected.size || busy || reading; });
     }
@@ -488,9 +488,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     root.querySelectorAll("[data-memory-batch-action]").forEach(node => node.addEventListener("click", () => run(async () => {
       const action = node.dataset.memoryBatchAction;
       const preview = await api("/batch/preview", { scope, action, items: [...selected].map(([memory_id, expected_version]) => ({ memory_id, expected_version })) });
-      if (!await ask(globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget-selected-memories" : "workbench.settings-memory.disable-selected-memories"), globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget-count-not-used-again" : "workbench.settings-memory.switch-off-count-until-on-again", { count: preview.count }), globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget" : "workbench.settings-memory.switch-off"))) return;
+      if (!await ask(readText(action === "remove" ? "workbench.settings-memory.forget-selected-memories" : "workbench.settings-memory.disable-selected-memories"), readText(action === "remove" ? "workbench.settings-memory.forget-count-not-used-again" : "workbench.settings-memory.switch-off-count-until-on-again", { count: preview.count }), readText(action === "remove" ? "workbench.settings-memory.forget" : "workbench.settings-memory.switch-off"))) return;
       const command = Object.freeze({ id: "memory-batch:" + preview.preview_id, path: "/batch/apply", body: JSON.stringify({ preview_id: preview.preview_id }),
-        title: globalThis.t.text(action === "remove" ? "workbench.settings-memory.forget-selected-2" : "workbench.settings-memory.disable-selected-2"), removal: action === "remove" });
+        title: readText(action === "remove" ? "workbench.settings-memory.forget-selected-2" : "workbench.settings-memory.disable-selected-2"), removal: action === "remove" });
       batchPositions.clear(); [...selected.keys()].forEach((id, index) => batchPositions.set(id, index + 1));
       selected.clear(); paintSelection(); await dispatch(command);
     })));
@@ -502,7 +502,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const mine = (item) => item.scope === scope || (scope === "project" && item.scope === "character");
       const items = (data.items || []).filter(mine);
       if (!items.length) {
-        list.append(el("li", "memory-empty settings-muted", globalThis.t.text(data.exhausted ? "workbench.settings-memory.no-memories-match" : "workbench.settings-memory.search-not-finished-continue-check-more-memories")));
+        list.append(el("li", "memory-empty settings-muted", readText(data.exhausted ? "workbench.settings-memory.no-memories-match" : "workbench.settings-memory.search-not-finished-continue-check-more-memories")));
         return;
       }
       items.forEach((item) => {
@@ -510,9 +510,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
         const choice = el("input", ""); choice.type = "checkbox"; choice.dataset.memorySelect = ""; choice.hidden = sessionMode;
-        choice.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.select-memory-named", { text: item.text })); choice.checked = selected.has(item.memory_id);
+        choice.setAttribute("aria-label", readText("workbench.settings-memory.select-memory-named", { text: item.text })); choice.checked = selected.has(item.memory_id);
         choice.addEventListener("change", () => {
-          if (choice.checked && selected.size >= 100) { choice.checked = false; fail(new Error(globalThis.t.text("workbench.settings-memory.select-up-100-memories-time"))); return; }
+          if (choice.checked && selected.size >= 100) { choice.checked = false; fail(new Error(readText("workbench.settings-memory.select-up-100-memories-time"))); return; }
           if (choice.checked) selected.set(item.memory_id, item.version); else selected.delete(item.memory_id);
           paintSelection();
         });
@@ -520,57 +520,57 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const position = el("span", "settings-muted"); position.dataset.memorySelectionIndex = ""; position.hidden = true;
         heading.append(choice, position, el("strong", "memory-text", item.text)); copy.append(heading);
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", globalThis.t.text(FORMAL_KIND[item.kind] || item.kind)));
+        meta.append(el("span", "memory-tag", readText(FORMAL_KIND[item.kind] || item.kind)));
         meta.append(el("span", "memory-tag", classificationText(item.classification)));
-        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.valid-until-named", { value: expiryText(item.expires_at) })));
-        if (item.expired) meta.append(el("span", "memory-tag memory-tag--state", globalThis.t.text("workbench.settings-memory.expired-2")));
-        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", globalThis.t.text("workbench.settings-memory.role-named", { title: item.character_title || item.character_id })));
-        if (item.plugin_id) meta.append(el("span", "memory-tag", globalThis.t.text("workbench.settings-memory.plugins-n", { name: item.plugin_id })));
-        meta.append(el("span", "memory-tag memory-tag--" + item.source, globalThis.t.text("workbench.settings-memory.source-at", { source: globalThis.t.text(SOURCE[item.source] || item.source), at: day(item.created_at) })));
-        if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", globalThis.t.text(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
-        meta.append(el("span", "", globalThis.t.text("workbench.settings-memory.applies-named", { value: appliesText(item.applies, item.scope, item.classification) })));
-        meta.append(el("span", "", item.last_used ? globalThis.t.text("workbench.settings-memory.last-referenced-turn-named", { title: item.last_used.title }) + " · " + day(item.last_used.at) : globalThis.t.text("workbench.settings-memory.no-confirmed-reference")));
+        meta.append(el("span", "", readText("workbench.settings-memory.valid-until-named", { value: expiryText(item.expires_at) })));
+        if (item.expired) meta.append(el("span", "memory-tag memory-tag--state", readText("workbench.settings-memory.expired-2")));
+        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", readText("workbench.settings-memory.role-named", { title: item.character_title || item.character_id })));
+        if (item.plugin_id) meta.append(el("span", "memory-tag", readText("workbench.settings-memory.plugins-n", { name: item.plugin_id })));
+        meta.append(el("span", "memory-tag memory-tag--" + item.source, readText("workbench.settings-memory.source-at", { source: readText(SOURCE[item.source] || item.source), at: day(item.created_at) })));
+        if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", readText(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
+        meta.append(el("span", "", readText("workbench.settings-memory.applies-named", { value: appliesText(item.applies, item.scope, item.classification) })));
+        meta.append(el("span", "", item.last_used ? readText("workbench.settings-memory.last-referenced-turn-named", { title: item.last_used.title }) + " · " + day(item.last_used.at) : readText("workbench.settings-memory.no-confirmed-reference")));
         copy.append(meta);
-        const origin = el("details", "memory-origin"); origin.append(el("summary", "", globalThis.t.text("workbench.settings-memory.provenance")), el("p", "", item.origin));
+        const origin = el("details", "memory-origin"); origin.append(el("summary", "", readText("workbench.settings-memory.provenance")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
         // A long-term memory learned in this session is shown here but belongs to its own page: the session cannot change it.
         if (sessionMode && item.classification?.lifecycle !== "session") {
-          const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text(item.project_id ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
+          const elsewhere = el("a", "mw-btn mw-btn--ghost mw-btn--sm", readText(item.project_id ? "workbench.settings-memory.manage-in-project" : "workbench.settings-memory.manage-in-personal"));
           elsewhere.href = (item.project_id ? "/projects/" + encodeURIComponent(project) : "") + "/settings/memory";
           elsewhere.dataset.memoryManageElsewhere = "";
           actions.append(elsewhere); row.append(copy, actions); list.append(row);
           return;
         }
-        const edit = button(globalThis.t.text("workbench.settings-memory.edit"), "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.edit-named", { text: item.text }));
+        const edit = button(readText("workbench.settings-memory.edit"), "mw-btn--ghost", readText("workbench.settings-memory.edit-named", { text: item.text }));
         edit.addEventListener("click", () => {
           const editor = itemEditor(item, change);
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const toggleLabel = item.state === "paused" ? globalThis.t.text("workbench.settings-memory.resume-use") : globalThis.t.text(item.state === "disabled" ? "workbench.settings-memory.switch" : "workbench.settings-memory.switch-off");
-        const toggle = button(toggleLabel, "mw-btn--ghost", globalThis.t.text("workbench.settings-memory.toggle-named", { label: toggleLabel, text: item.text }));
+        const toggleLabel = item.state === "paused" ? readText("workbench.settings-memory.resume-use") : readText(item.state === "disabled" ? "workbench.settings-memory.switch" : "workbench.settings-memory.switch-off");
+        const toggle = button(toggleLabel, "mw-btn--ghost", readText("workbench.settings-memory.toggle-named", { label: toggleLabel, text: item.text }));
         toggle.addEventListener("click", () => run(() => change({ action: item.state === "active" ? "disable" : "enable" }), item.state === "active" ? "workbench.settings-memory.switched-off-will-not-be-used" : "workbench.settings-memory.switched"));
         const more = el("details", "memory-more mw-menu-host");
-        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", globalThis.t.text("workbench.settings-memory.more-named", { text: item.text }));
+        const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", readText("workbench.settings-memory.more-named", { text: item.text }));
         const menu = el("div", "memory-menu mw-menu");
         const menuItem = (text, handler, danger) => { const node = el("button", "mw-menu__item" + (danger ? " mw-menu__item--danger" : ""), text); node.type = "button"; node.addEventListener("click", () => { more.open = false; handler(); }); menu.append(node); };
-        if (item.scope !== "character" && !item.plugin_id) menuItem(globalThis.t.text(item.scope === "project" ? "workbench.settings-memory.make-personal" : "workbench.settings-memory.make-project-memory"), () => {
+        if (item.scope !== "character" && !item.plugin_id) menuItem(readText(item.scope === "project" ? "workbench.settings-memory.make-personal" : "workbench.settings-memory.make-project-memory"), () => {
           if (item.scope === "personal" && !project) { moveIntoProject(item, summary); return; }
           run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "workbench.settings-memory.moved-2");
         });
-        if (item.expired && item.expires_at && item.classification?.lifecycle !== "session") menuItem(globalThis.t.text("workbench.settings-memory.renew-expiry"), () => {
+        if (item.expired && item.expires_at && item.classification?.lifecycle !== "session") menuItem(readText("workbench.settings-memory.renew-expiry"), () => {
           const editor = renewalEditor(item, change); copy.replaceChildren(editor); editor.querySelector("input").focus();
         });
-        menuItem(globalThis.t.text("workbench.settings-memory.history"), () => historyPanel(item, copy));
-        if (item.scope === "project" && project) menuItem(globalThis.t.text("workbench.settings-memory.promote-project-guidance"), async () => {
+        menuItem(readText("workbench.settings-memory.history"), () => historyPanel(item, copy));
+        if (item.scope === "project" && project) menuItem(readText("workbench.settings-memory.promote-project-guidance"), async () => {
           try {
             const prefix = "/projects/" + encodeURIComponent(project);
             const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
             window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
           } catch (failure) { fail(failure); }
         });
-        menuItem(globalThis.t.text("workbench.settings-memory.delete"), async () => {
-          if (await ask(globalThis.t.text("workbench.settings-memory.delete-memory"), globalThis.t.text("workbench.settings-memory.nothing-will-use-text-anywhere-once-deleted-its", { text: item.text }), globalThis.t.text("workbench.settings-memory.delete"), summary)) {
+        menuItem(readText("workbench.settings-memory.delete"), async () => {
+          if (await ask(readText("workbench.settings-memory.delete-memory"), readText("workbench.settings-memory.nothing-will-use-text-anywhere-once-deleted-its", { text: item.text }), readText("workbench.settings-memory.delete"), summary)) {
             await run(() => change({ action: "remove" }), "workbench.settings-memory.deleted");
             // The confirmed delete repaints the list and takes the row's more button away: focus falls to the page's add button.
             focusBack(summary);
@@ -613,8 +613,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (askRow) {
         askRow.setAttribute("aria-disabled", String(!prefs.form));
         askRow.classList.toggle("is-off", !prefs.form);
-        askRow.querySelector("[data-memory-pref-ask-value]").textContent = globalThis.t.text(prefs.form ? "workbench.settings-memory.always" : "workbench.settings-memory.not-in-effect");
-        askRow.querySelector("[data-memory-pref-ask-copy]").textContent = globalThis.t.text(prefs.form ? "workbench.settings-memory.when-say-now-remember-kept-once-told-where" : "workbench.settings-memory.allow-remembering-off-ask-keeps-nothing");
+        askRow.querySelector("[data-memory-pref-ask-value]").textContent = readText(prefs.form ? "workbench.settings-memory.always" : "workbench.settings-memory.not-in-effect");
+        askRow.querySelector("[data-memory-pref-ask-copy]").textContent = readText(prefs.form ? "workbench.settings-memory.when-say-now-remember-kept-once-told-where" : "workbench.settings-memory.allow-remembering-off-ask-keeps-nothing");
       }
     }
 
@@ -625,16 +625,16 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       pairs.forEach((pair) => {
         const row = el("li", "memory-row memory-row--pair");
         const copy = el("div", "memory-row-copy");
-        copy.append(el("span", "memory-tag memory-tag--state", globalThis.t.text(pair.kind === "conflict" ? "workbench.settings-memory.may-conflict" : "workbench.settings-memory.may-repeat") + (pair.why ? " · " + pair.why : "")));
+        copy.append(el("span", "memory-tag memory-tag--state", readText(pair.kind === "conflict" ? "workbench.settings-memory.may-conflict" : "workbench.settings-memory.may-repeat") + (pair.why ? " · " + pair.why : "")));
         [["a", pair.a], ["b", pair.b]].forEach(([side, item]) => {
           const line = el("div", "memory-pair-line");
-          line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", globalThis.t.text(SOURCE[item.source] || item.source)));
-          const keep = button(globalThis.t.text("workbench.settings-memory.keep-one"), "mw-btn--secondary", globalThis.t.text("workbench.settings-memory.keep-2-named", { text: item.text }));
+          line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", readText(SOURCE[item.source] || item.source)));
+          const keep = button(readText("workbench.settings-memory.keep-one"), "mw-btn--secondary", readText("workbench.settings-memory.keep-2-named", { text: item.text }));
           keep.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: side }), "workbench.settings-memory.kept-other-switched-off"));
           line.append(keep);
           copy.append(line);
         });
-        const both = button(globalThis.t.text("workbench.settings-memory.keep-both"), "mw-btn--ghost");
+        const both = button(readText("workbench.settings-memory.keep-both"), "mw-btn--ghost");
         both.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: "both" }), "workbench.settings-memory.both-kept-pair-will-not-come-up-again"));
         row.append(copy, el("div", "memory-actions"));
         row.lastChild.append(both);
@@ -645,9 +645,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     function paintUpkeep() {
       const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
       if (!last) return;
-      const done = [last.expired ? globalThis.t.text("workbench.settings-memory.expired-n", { n: last.expired }) : "", last.unused ? globalThis.t.text("workbench.settings-memory.unused-n", { n: last.unused }) : "", last.merged ? globalThis.t.text("workbench.settings-memory.merged-n", { n: last.merged }) : "",
-        last.paused ? globalThis.t.text("workbench.settings-memory.paused-basis-gone-n", { n: last.paused }) : "", last.pairs ? globalThis.t.text("workbench.settings-memory.choose-n", { n: last.pairs }) : ""].filter(Boolean).join(" · ");
-      box.textContent = globalThis.t.text("workbench.settings-memory.last-tidied-at", { date: day(last.at), time: new Date(last.at).toTimeString().slice(0, 5) }) + " · " + (done || globalThis.t.text("workbench.settings-memory.nothing-do"));
+      const done = [last.expired ? readText("workbench.settings-memory.expired-n", { n: last.expired }) : "", last.unused ? readText("workbench.settings-memory.unused-n", { n: last.unused }) : "", last.merged ? readText("workbench.settings-memory.merged-n", { n: last.merged }) : "",
+        last.paused ? readText("workbench.settings-memory.paused-basis-gone-n", { n: last.paused }) : "", last.pairs ? readText("workbench.settings-memory.choose-n", { n: last.pairs }) : ""].filter(Boolean).join(" · ");
+      box.textContent = readText("workbench.settings-memory.last-tidied-at", { date: day(last.at), time: new Date(last.at).toTimeString().slice(0, 5) }) + " · " + (done || readText("workbench.settings-memory.nothing-do"));
     }
 
     function paint() {
@@ -688,7 +688,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (!file) return;
       run(async () => {
         let pack;
-        try { pack = JSON.parse(await file.text()); } catch { throw new Error(globalThis.t.text("workbench.settings-memory.file-not-memory-package")); }
+        try { pack = JSON.parse(await file.text()); } catch { throw new Error(readText("workbench.settings-memory.file-not-memory-package")); }
         await importPackage("/import", { scope, package: pack });
       });
     });
@@ -696,44 +696,44 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const clearButton = $("[data-memory-clear]"), resetClear = $("[data-memory-clear-reset]"), clearStatus = $("[data-memory-clear-status]");
     const showClear = (message) => {
       clearStatus.textContent = message; clearStatus.hidden = false;
-      clearButton.textContent = globalThis.t.text(sessionMode ? clearPreview ? "workbench.settings-memory.retry-cleanup" : "workbench.settings-memory.clear-3" : clearPreview ? "workbench.settings-memory.retry-clear" : "workbench.settings-memory.clear"); resetClear.hidden = !clearPreview;
+      clearButton.textContent = readText(sessionMode ? clearPreview ? "workbench.settings-memory.retry-cleanup" : "workbench.settings-memory.clear-3" : clearPreview ? "workbench.settings-memory.retry-clear" : "workbench.settings-memory.clear"); resetClear.hidden = !clearPreview;
     };
     const showClearResult = (done, fingerprint) => {
       clearPreview = done.complete ? null : { fingerprint };
       if (done.complete) {
-        showClear(globalThis.t.text("workbench.settings-memory.clear-done-count", { count: done.removed }));
+        showClear(readText("workbench.settings-memory.clear-done-count", { count: done.removed }));
         toast(clearStatus.textContent);
       } else {
         const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
-        showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + globalThis.t.text("workbench.settings-memory.deleted") + " " + done.removed
-          + " · " + globalThis.t.text("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + globalThis.t.text("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + globalThis.t.text("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
+        showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories") + " · " + readText("workbench.settings-memory.deleted") + " " + done.removed
+          + " · " + readText("workbench.settings-memory.version-conflicts") + " " + count("conflict") + " · " + readText("workbench.settings-memory.outcome-unknown") + " " + count("unknown") + " · " + readText("workbench.settings-memory.not-run-yet") + " " + count("not-executed"));
       }
     };
     clearButton.addEventListener("click", () => run(async () => {
       if (sessionMode) {
         if (!clearPreview) {
           const preview = await api("/clear/preview", {});
-          if (!preview.preview_id || !(preview.memory_count + preview.candidate_count)) { toast(globalThis.t.text("workbench.settings-memory.session-has-no-memories-yet")); return; }
+          if (!preview.preview_id || !(preview.memory_count + preview.candidate_count)) { toast(readText("workbench.settings-memory.session-has-no-memories-yet")); return; }
           // Say how many before anything goes: what this session learned (kept or still waiting), and that nothing else is touched.
-          if (!await ask(globalThis.t.text("workbench.settings-memory.clear-session-s-memory"), globalThis.t.text("workbench.settings-memory.will-clear-memories-and-suggestions", { memories: preview.memory_count, candidates: preview.candidate_count }), globalThis.t.text("workbench.settings-memory.confirm-clearing"), clearButton)) return;
+          if (!await ask(readText("workbench.settings-memory.clear-session-s-memory"), readText("workbench.settings-memory.will-clear-memories-and-suggestions", { memories: preview.memory_count, candidates: preview.candidate_count }), readText("workbench.settings-memory.confirm-clearing"), clearButton)) return;
           clearPreview = preview;
         }
-        await dispatch(Object.freeze({ id: "memory-session-clear:" + clearPreview.preview_id, path: "/clear/apply", body: JSON.stringify({ preview_id: clearPreview.preview_id }), title: globalThis.t.text("workbench.settings-memory.clear-session-memory"), removal: true })); return;
+        await dispatch(Object.freeze({ id: "memory-session-clear:" + clearPreview.preview_id, path: "/clear/apply", body: JSON.stringify({ preview_id: clearPreview.preview_id }), title: readText("workbench.settings-memory.clear-session-memory"), removal: true })); return;
       }
       if (!clearPreview) {
         const preview = await api("/preview", { scope });
-        if (!preview.count) { toast(globalThis.t.text("workbench.settings-memory.no-memories-clear")); return; }
-        if (!await ask(globalThis.t.text("workbench.settings-memory.clear-these-memories"), globalThis.t.text("workbench.settings-memory.will-delete-count-count-once-deleted-they-never", { count: preview.count }), globalThis.t.text("workbench.settings-memory.clear-2"), clearButton)) return;
+        if (!preview.count) { toast(readText("workbench.settings-memory.no-memories-clear")); return; }
+        if (!await ask(readText("workbench.settings-memory.clear-these-memories"), readText("workbench.settings-memory.will-delete-count-count-once-deleted-they-never", { count: preview.count }), readText("workbench.settings-memory.clear-2"), clearButton)) return;
         clearPreview = preview;
       }
-      showClear(globalThis.t.text("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories"));
+      showClear(readText("workbench.settings-memory.clear-incomplete-retrying-only-handles-confirmed-memories"));
       await dispatch(Object.freeze({ id: "memory-clear:" + clearPreview.fingerprint, path: "/clear",
-        body: JSON.stringify({ scope, fingerprint: clearPreview.fingerprint }), title: globalThis.t.text("workbench.settings-memory.clear-memories"), removal: true }));
+        body: JSON.stringify({ scope, fingerprint: clearPreview.fingerprint }), title: readText("workbench.settings-memory.clear-memories"), removal: true }));
     }));
     resetClear.addEventListener("click", () => run(async () => {
       // The reset ask's own button hides when it lands, so the clear button — visible before and after — is the fallback.
-      if (!await ask(globalThis.t.text("workbench.settings-memory.preview-clear-scope-again"), globalThis.t.text("workbench.settings-memory.stop-retrying-confirmation-deleted-memories-stay-deleted-new"), globalThis.t.text("workbench.settings-memory.preview-again"), resetClear)) return;
-      clearPreview = null; showClear(globalThis.t.text("workbench.settings-memory.next-clear-will-preview-current-scope-ask-confirmation"));
+      if (!await ask(readText("workbench.settings-memory.preview-clear-scope-again"), readText("workbench.settings-memory.stop-retrying-confirmation-deleted-memories-stay-deleted-new"), readText("workbench.settings-memory.preview-again"), resetClear)) return;
+      clearPreview = null; showClear(readText("workbench.settings-memory.next-clear-will-preview-current-scope-ask-confirmation"));
       focusBack(resetClear, clearButton);
     }));
     part("preference-inherit")?.addEventListener("click", () => run(() => writePreference(null), "workbench.settings-memory.saved"));

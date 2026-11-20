@@ -51,7 +51,7 @@ try{
  // Registration paints account controls before it releases the document's inert state.
  await page.wait("!document.body.inert && !document.body.hasAttribute('data-account-registering')");
  await page.command('Page.bringToFront');
- await page.click('[data-unified-account-link]');await page.wait("Boolean(document.querySelector('.account-dialog [data-personal-action=logout]'))");
+ await page.click('[data-account-link]'); await page.click('#mw-account-menu [data-unified-account-link]');await page.wait("Boolean(document.querySelector('.account-dialog [data-personal-action=logout]'))");
  let cookieCleared=false;server.prependListener('request',(req,res)=>{if(req.url?.startsWith('/api/personal/logout'))res.once('finish',()=>{cookieCleared=String(res.getHeader('set-cookie')).includes('molis-work-session=;')&&String(res.getHeader('set-cookie')).includes('Max-Age=0');});});
  authOnline=false;
  const signedOut=navigationTo(url=>url.searchParams.get('accountEntry')==='1');await page.click('.account-dialog [data-personal-action=logout]');await signedOut;

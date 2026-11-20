@@ -4,27 +4,30 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
-import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
+import {setImmediate} from 'node:timers/promises';
+import {PersonalSync,SYNC_STORE_BASELINE,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
+import {ensureStorageSpace,homeSqlitePath,personalStorageSpace,runSqliteUpgrade} from '@molis-ai/molis-work-storage';
+import {DatabaseSync} from 'node:sqlite';
 
 function fixture(t:TestContext){
-  t.mock.timers.enable({apis:['setInterval']});
+  t.mock.timers.enable({apis:['setTimeout','Date']});
   const root=mkdtempSync(join(tmpdir(),'sync-device-'));
   t.after(()=>rmSync(root,{recursive:true,force:true}));
-  const clients:PersonalSync[]=[],paths:string[]=[];let requests=0,online=true;
+  const clients:PersonalSync[]=[],paths:string[]=[];let requests=0,online=true,limited=false;
   const create=(user='alice')=>{
     const space=personalStorageSpace('http://127.0.0.1:8787','work',user),home=join(root,user);
     ensureStorageSpace(home,space);const authority=new AbortController();
     let delay:Promise<void>|null=null;
     const sync=new PersonalSync({home,spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',registrations:[],authority:{signal:authority.signal,assertCurrent(){authority.signal.throwIfAborted();},accessToken:async()=>'synthetic-only'},fetch:async(input)=>{
       requests++;paths.push(new URL(String(input)).pathname);if(!online)throw new Error('offline');if(delay)await delay;
+      if(limited)return Response.json({error:'SYNC_RATE_LIMITED'},{status:429,headers:{'Retry-After':'60'}});
       if(new URL(String(input)).pathname==='/v1/round')return syncRoundResponse({spaceId:space.spaceId,revision:1,selections:[]},0);
       return Response.json(new URL(String(input)).pathname==='/v1/quota'?{limitBytes:100000000,usedBytes:0}:{spaceId:space.spaceId,revision:1,selections:[]});
     }});
     clients.push(sync);return {sync,authority,home,delay(value:Promise<void>){delay=value;}};
   };
   t.after(()=>clients.forEach(sync=>sync.close()));
-  return {create,paths,requests:()=>requests,offline:()=>online=false,online:()=>online=true};
+  return {create,paths,requests:()=>requests,offline:()=>online=false,online:()=>online=true,limit:(value:boolean)=>limited=value};
 }
 
 test('PCSYNC-02/03/04 a new device is silent; policy save and manual sync never start a timer',async t=>{
@@ -46,10 +49,26 @@ test('PCSYNC-02/05 choices persist independently per account and resume after re
   await b.sync.setDevice(false);assert.deepEqual(a.sync.status().device,{automatic:true});
   a.sync.close();const restarted=f.create();assert.deepEqual(restarted.sync.status().device,{automatic:true});
   const before=f.requests();restarted.sync.start();await restarted.sync.run();assert.equal(f.requests(),before+1);assert.deepEqual(f.paths.slice(before),['/v1/round']);
-  f.offline();t.mock.timers.tick(15000);await restarted.sync.run();assert.match(restarted.sync.status().error??'',/offline/);
-  f.online();t.mock.timers.tick(15000);await restarted.sync.run();assert.equal(restarted.sync.status().error,null);
+  f.offline();t.mock.timers.tick(30000);await restarted.sync.run();assert.match(restarted.sync.status().error??'',/offline/);
+  f.online();t.mock.timers.tick(20000);await restarted.sync.run();assert.equal(restarted.sync.status().error,null);
   await restarted.sync.setDevice(false);const disabled=f.requests();t.mock.timers.tick(60000);
   assert.equal(f.requests(),disabled);assert.deepEqual(f.create().sync.status().device,{automatic:false});
+});
+
+test('PCSYNC-OPT-06 empty rounds slow down, and Retry-After applies to automatic and manual requests',async t=>{
+  const f=fixture(t),{sync}=f.create();
+  await sync.setDevice(true);await sync.run();
+  for(const [index,interval] of [30000,60000,120000,120000].entries()){
+    const before=f.requests();
+    t.mock.timers.tick(interval-1);assert.equal(f.requests(),before,'no premature polling');
+    t.mock.timers.tick(1);await setImmediate();assert.equal(f.requests(),before+1,'timer starts the next round');
+    assert.equal(f.requests(),index+2);
+  }
+  f.limit(true);await sync.run();
+  const rejected=f.requests();
+  f.limit(false);
+  t.mock.timers.tick(59999);await sync.run();assert.equal(f.requests(),rejected,'manual sync respects Retry-After');
+  t.mock.timers.tick(1);await setImmediate();assert.equal(f.requests(),rejected+1,'sync resumes when the deadline has passed');
 });
 
 test('PCSYNC-06 disabling cancels a delayed response before applying policy; revocation cannot revive a timer',async t=>{
@@ -65,6 +84,19 @@ test('PCSYNC-06 disabling cancels a delayed response before applying policy; rev
   await assert.rejects(()=>b.sync.setDevice(true));
 });
 
+test('PCSYNC-OPT-06 local writes coalesce into one opt-in round and cannot wake a disabled device',async t=>{
+  const f=fixture(t),{sync}=f.create();
+  sync.notifyLocalChange();
+  t.mock.timers.tick(3000);assert.equal(f.requests(),0);
+  await sync.setDevice(true);await sync.run();
+  sync.notifyLocalChange();sync.notifyLocalChange();
+  t.mock.timers.tick(1499);assert.equal(f.requests(),1);
+  t.mock.timers.tick(1);await setImmediate();assert.equal(f.requests(),2);
+  sync.notifyLocalChange();
+  await sync.setDevice(false);
+  t.mock.timers.tick(3000);await setImmediate();assert.equal(f.requests(),2);
+});
+
 test('PCSYNC-02 a copied or malformed preference is rejected instead of enabling another account',async t=>{
   const f=fixture(t),a=f.create();await a.sync.setDevice(true);await a.sync.run();a.sync.close();
   const b=f.create('bob');b.sync.close();
@@ -72,4 +104,108 @@ test('PCSYNC-02 a copied or malformed preference is rejected instead of enabling
   assert.throws(()=>f.create('bob'),/本机同步设置无效/);
   writeFileSync(join(a.home,'sync','device.json'),JSON.stringify({version:1,spaceId:'wrong',automatic:true}));
   assert.throws(()=>f.create(),/本机同步设置无效/);
+});
+
+test('PCSYNC-OPT-13 v1 deferred events survive upgrade and retry deadlines survive reopening the store',async t=>{
+  const f=fixture(t),{home,sync}=f.create();
+  const selection={plugin_id:'io.example.details',publisher_id:'example',publisher_signature:'example-key',collection_id:'docs',schema_version:1};
+  const namespace=syncNamespace(selection),spaceId=sync.policy().spaceId;
+  const path=homeSqlitePath(home,'sync');
+  sync.close();
+  const db=new DatabaseSync(path);
+  const event={operationId:'original',key:'pending',base:0,value:{title:'Original'},revision:3};
+  try{
+    db.exec('ALTER TABLE sync_failures DROP COLUMN next_retry_at; ALTER TABLE sync_failures DROP COLUMN attempts; PRAGMA user_version=1');
+    db.prepare('INSERT INTO sync_failures VALUES (?,?,?,?,?,?,?)').run(namespace,event.key,'download',JSON.stringify(event),'waiting',event.revision,1);
+    db.prepare('INSERT INTO sync_stream_cursors VALUES (?,?)').run(namespace,event.revision);
+    assert.deepEqual(runSqliteUpgrade(db,path,SYNC_STORE_BASELINE),{from:1,to:2});
+  }finally{db.close();}
+  let attempts=0,dependencyReady=false;
+  const coordinator=new PersonalSync({home,spaceId,endpoint:'http://127.0.0.1:8788',
+    authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
+    fetch:async()=>syncRoundResponse({spaceId,revision:1,selections:[selection]},3),
+    registrations:[{selection,title:'Documents',async refresh(){},
+      async prepare(){attempts++;if(!dependencyReady)throw new Error('Waiting for dependency');},
+      withReplica:run=>run({cursor:()=>3,next:()=>null,receive(){},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}})}]});
+  t.after(()=>coordinator.close());
+  await coordinator.run();assert.equal(attempts,1,'the migrated event still replays');
+  await coordinator.run();assert.equal(attempts,1,'retry cooldown is honored by every round');
+  t.mock.timers.tick(15_000);
+  await coordinator.run();assert.equal(attempts,2);
+  t.mock.timers.tick(59_999);
+  await coordinator.run();assert.equal(attempts,2,'the second failure schedules a longer interval');
+  dependencyReady=true;
+  await coordinator.retryItem(namespace,event.key,'download');
+  assert.equal(attempts,3,'an explicit retry can apply the event during cooldown');
+  assert.deepEqual(coordinator.status().collections[0]?.failures,[]);
+});
+
+test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers while respecting dependencies',async t=>{
+  t.mock.timers.reset();
+  const root=mkdtempSync(join(tmpdir(),'molis-sync-parallel-'));
+  t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const space=personalStorageSpace('https://auth.example.test','work','alice');
+  ensureStorageSpace(root,space);
+  const selections=Array.from({length:7},(_,i)=>({plugin_id:`io.example.col${i}`,publisher_id:'example',publisher_signature:'example-key',collection_id:i===0?'projects':`items-${i}`,schema_version:1}));
+  const order:string[]=[];
+  let active=0,peak=0,baseDone=false;
+  const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
+  const registrations=selections.map((selection,i)=>({
+    selection,title:`Col ${i}`,
+    ...(i===6?{dependencies:[selections[1]!]}:{}),
+    async refresh(){},
+    async prepare(){},
+    withReplica:run=>run({cursor:()=>0,next:()=>null,receive(){if(i===0)baseDone=true;},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}}),
+  }));
+  const sync=new PersonalSync({home:root,spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',
+    authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
+    registrations,
+    fetch:async input=>{
+      const url=new URL(String(input));
+      if(url.pathname==='/v1/round')return Response.json({format:1,policy:{spaceId:space.spaceId,revision:1,selections},quota:{limitBytes:100000000,usedBytes:0},heads:selections.map(s=>({namespace:syncNamespace(s),revision:1}))});
+      const ns=url.searchParams.get('namespace')!;
+      if(ns!==syncNamespace(selections[0]!))assert.equal(baseDone,true,'projects catalog settles before dependent layers');
+      active++;peak=Math.max(peak,active);order.push(ns);
+      await delay(80);
+      active--;
+      return Response.json({events:[{operationId:'op-'+ns,key:'k',base:0,revision:1,value:{ok:true}}],more:false});
+    }});
+  t.after(()=>sync.close());
+  const started=performance.now();
+  await sync.run();
+  const elapsed=performance.now()-started;
+  assert.equal(sync.status().error,null);
+  assert.equal(peak,3,'bounded concurrency runs 3 independent collections at once');
+  assert.ok(order.indexOf(syncNamespace(selections[1]!))<order.indexOf(syncNamespace(selections[6]!)),'declared dependency completes before consumer');
+  // 7 * 80ms serial = >=560ms; layered parallel (1 + ceil(5/3) + 1 = 4 waves -> ~320ms) stays well below serial time even under CI CPU load
+  assert.ok(elapsed<480,`expected layered parallelism speedup, elapsed=${elapsed.toFixed(1)}ms`);
+});
+
+test('PCSYNC-OPT-09 indicatorStatus reflects local edits when automatic sync is off without refreshCatalog scans',async t=>{
+  const f=fixture(t),{home,sync}=f.create();
+  let pending=0,refreshes=0;
+  const selection={plugin_id:'io.example.ind',publisher_id:'example',publisher_signature:'example-key',collection_id:'docs',schema_version:1};
+  const spaceId=sync.policy().spaceId;
+  sync.close();
+  const client=new PersonalSync({home,spaceId,endpoint:'http://127.0.0.1:8788',
+    authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic';}},
+    discover:async()=>{refreshes++;return [];},
+    registrations:[{selection,title:'Docs',async refresh(){},async prepare(){},
+      withReplica:run=>run({cursor:()=>0,next:()=>null,receive(){},acknowledge(){},counts:()=>({pending,conflicts:0}),conflicts:()=>[],resolve(){}})}],
+    fetch:async()=>syncRoundResponse({spaceId,revision:1,selections:[selection]},0)});
+  t.after(()=>client.close());
+  await client.run();
+  const afterRun=refreshes;
+  assert.equal(client.indicatorStatus().progress.pending,0);
+  assert.equal(client.indicatorStatus().progress.complete,true);
+  // Idle 60s indicator checks do not trigger discover/refreshCatalog
+  for(let i=0;i<30;i++){client.indicatorStatus();}
+  assert.equal(refreshes,afterRun,'indicator reads never invoke catalog discovery');
+  // Local edit with automatic sync disabled updates indicatorStatus on next read
+  pending=2;
+  client.notifyLocalChange();
+  const updated=client.indicatorStatus();
+  assert.equal(updated.progress.pending,2);
+  assert.equal(updated.progress.complete,false);
+  assert.equal(refreshes,afterRun,'local change refresh still avoids full catalog discovery');
 });

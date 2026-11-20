@@ -1,7 +1,8 @@
+import { workEnvironment } from "../../scripts/account-environments.mjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "../../apps/local-host/src/release-profile.ts";
+import { releaseApplication, releaseMacOS, releaseProfile, releaseRuntime } from "@molis-ai/molis-work-app-local-host";
 
 const root = new URL("../../", import.meta.url);
 const read = file => readFileSync(new URL(file, root), "utf8");
@@ -17,9 +18,10 @@ export function nodeVersion(environment = process.env) {
 }
 
 export function tauriSettings(profile) {
-  const { minimumSystemVersion, ...application } = releaseApplication;
+  const { minimumSystemVersion } = releaseApplication;
+  const { identifier, productName } = profile.desktopApplication ?? releaseApplication;
   return {
-    ...application,
+    identifier, productName,
     bundle: { macOS: {
       minimumSystemVersion,
       ...(profile.signingIdentity ? { signingIdentity: profile.signingIdentity } : {}),
@@ -30,7 +32,7 @@ export function tauriSettings(profile) {
 
 export function missingProfileValues(name, profile = releaseProfile(name)) {
   const required = {
-    accountEnvironment: profile.accountEnvironment,
+    ...(name !== "dev" ? { accountEnvironment: profile.accountEnvironment } : {}),
     signingIdentity: profile.signingIdentity,
     notarization: profile.notarization,
     publisherKeyRef: profile.publisherKeyRef,
@@ -67,11 +69,11 @@ export function carrierIssues(name, rootRead = read) {
 
 export function misplacedValues(repository = root) {
   const configuration = JSON.parse(readFileSync(new URL(configurationFile, repository), "utf8"));
-  const { application, connectorApplications, macOS, accountPolicyProfile } = configuration;
-  const accounts = Object.values(configuration.accountEnvironments);
+  const { application, connectorApplications, macOS } = configuration;
+  const accounts = ["dev", "test", "prod"].map(name => workEnvironment(name, repository, { publicOnly: true }));
   const values = new Set([
-    accountPolicyProfile, ...macOS.machO,
-    ...accounts.flatMap(account => [account.authOrigin, account.applicationId, account.clientId]),
+    ...macOS.machO,
+    ...accounts.flatMap(account => [account.authOrigin, account.applicationId, account.clientId, account.policyProfile]),
     ...Object.values(connectorApplications).flatMap(table => [table.secretPrefix, table.fallbackMapRef]),
     ...Object.values(configuration.profiles).flatMap(profile => [
       profile.connectors.brokerOrigin, profile.publisherKeyRef, profile.entitlements, profile.updateChannel, profile.symbolUploadTarget,
@@ -84,7 +86,7 @@ export function misplacedValues(repository = root) {
     "-e", `"${application.identifier}"`, "-e", `'${application.identifier}'`,
     ...references.flatMap(value => ["-e", `secrets.${value}`, "-e", `secrets['${value}']`]),
     "--", "apps/local-host", "apps/desktop", "scripts", "tooling", macOSWorkflow,
-    `:(exclude)${configurationFile}`, `:(exclude)${tauriFile}`, `:(exclude)${tauriMacOSFile}`,
+    ":(exclude)scripts/account-environments.mjs", `:(exclude)${configurationFile}`, `:(exclude)${tauriFile}`, `:(exclude)${tauriMacOSFile}`,
     ":(exclude)tooling/gates/api/**", ":(exclude)tooling/gates/version-exceptions.json",
     ":(exclude)**/*.md", ":(exclude)**/*.test.*", ":(exclude)**/test/**", ":(exclude)**/test.mjs",
   ], { cwd: fileURLToPath(repository), encoding: "utf8" });
@@ -108,7 +110,7 @@ function run(args) {
       return;
     case "--tauri": process.stdout.write(JSON.stringify(tauriSettings(profile))); return;
     case "--node": process.stdout.write(nodeVersion()); return;
-    case "--app-name": process.stdout.write(releaseApplication.productName); return;
+    case "--app-name": process.stdout.write(tauriSettings(profile).productName); return;
     case "--signing-identity": process.stdout.write(profile.signingIdentity ?? ""); return;
     case "--mach-o": process.stdout.write(releaseMacOS.machO.join("\n") + "\n"); return;
     case "--ci-outputs": {
@@ -127,7 +129,7 @@ export function publisherKeyReference(name) {
   return releaseProfile(name).publisherKeyRef;
 }
 
-export { connectorApplicationReferences } from "../../apps/local-host/src/release-profile.ts";
+export { connectorApplicationReferences } from "@molis-ai/molis-work-app-local-host";
 export { releaseMacOS };
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) run(process.argv.slice(2));

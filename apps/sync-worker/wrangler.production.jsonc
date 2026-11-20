@@ -6,6 +6,7 @@
   "compatibility_date": "2026-09-19",
   "workers_dev": true,
   "preview_urls": false,
+  "ratelimits": [{"name": "SYNC_RATE_LIMIT", "namespace_id": "471982703", "simple": {"limit": 600, "period": 60}}],
   // AUTH_ORIGIN, APPLICATION_ID, DEPLOYMENT_MODE and SYNC_WRITE_MODE are managed
   // in the Worker's runtime Variables and Secrets, not in Builds variables.
   "keep_vars": true,

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { assertSecretStoreWritable, createFileSecretStore, resolveMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { accountErrors, createAccountSessionManager, createAccountAuthentication, parseAccountEnvironment, type AccountSessionManager } from "@molis-ai/molis-work-service-account";
-import { configuredAccountEnvironment } from "./active-release-profile.js";
+import { configuredAccountEnvironment, localAccountGeneration } from "./active-release-profile.js";
 import type { AccountEnvironmentConfig, AccountCallControl, AccountView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 
 /**
@@ -30,7 +30,7 @@ export interface PersonalAccountLease {
   assertCurrent(): void;
   accessToken(): Promise<string>;
 }
-export function personalCloudConfig(env: NodeJS.ProcessEnv = process.env): PersonalCloudConfig | null {
+export function personalCloudConfig(env?: NodeJS.ProcessEnv): PersonalCloudConfig | null {
   const configuration = configuredAccountEnvironment(env);
   return configuration ? parseAccountEnvironment(configuration) : null;
 }
@@ -51,7 +51,9 @@ export class PersonalAuth {
   private readonly key:string;
   readonly sessions:AccountSessionManager;
   constructor(readonly config:PersonalCloudConfig, private readonly secrets:AccountSecrets, private readonly http:typeof fetch=fetch, private readonly now=()=>Date.now()) {
-    this.key=`molis.installation.account.v2:${createHash('sha256').update(JSON.stringify(config)).digest('hex')}`;
+    const generation = localAccountGeneration();
+    const scope = generation ? { config, generation } : config;
+    this.key=`molis.installation.account.v2:${createHash('sha256').update(JSON.stringify(scope)).digest('hex')}`;
     this.active=this.owner(true);
     // Home borrows this stable port, while its original installation lease fences every operation.
     this.sessions=new Proxy(this.active.manager,{get:(_target,key)=>{

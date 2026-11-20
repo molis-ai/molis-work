@@ -1,29 +1,63 @@
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:net';
-import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
-import { accountEnvironment } from './account-environments.mjs';
-const name = process.argv[2];
-if (process.argv.length !== 3) throw new Error('Usage: node scripts/start-account-environment.mjs dev|test|prod');
-const config = accountEnvironment(name);
-const port = Number(new URL(config.productOrigin).port);
-const root = fileURLToPath(new URL('../', import.meta.url));
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { assertPortAvailable, selectEnvironment } from './environment-properties.mjs';
+import { sessionGeneration } from './environment-session.mjs';
+import { port, workSettings } from './account-environments.mjs';
+
+const name = selectEnvironment(process.argv.slice(2), 'start', ['--desktop']);
+const desktop = process.argv.includes('--desktop');
+const { account, syncOrigin } = workSettings(name);
+await assertPortAvailable(port);
+const entry = new URL('../dist/web/server.js', import.meta.url);
+if (!existsSync(entry)) throw new Error('Run pnpm install --frozen-lockfile and pnpm build first.');
+
+const capabilities = new URL('/api/v2/auth/capabilities', account.authOrigin);
+capabilities.searchParams.set('clientId', account.clientId);
+const response = await fetch(capabilities, {
+  headers: { Origin: account.productOrigin },
+  redirect: 'error', signal: AbortSignal.timeout(5000),
+}).catch(() => null);
+if (!response?.ok) throw new Error(`Auth or client registration is unavailable at ${account.authOrigin}`);
+
 const home = join(homedir(), '.molis-work-environments', name);
-await new Promise((resolve, reject) => {
-  const server = createServer();
-  server.once('error', () => reject(new Error(`Port ${port} is occupied. Stop its owner first; no existing process was stopped.`)));
-  server.listen(port, '127.0.0.1', () => server.close(resolve));
-});
-const response = await fetch(config.authOrigin, { signal: AbortSignal.timeout(5000) }).catch(() => null);
-if (!response?.ok) throw new Error(`Auth is unavailable at ${config.authOrigin}. For dev, run npm run dev in the Auth repository first.`);
-if (!existsSync(join(root, 'dist/web/server.js'))) throw new Error('Run pnpm install --frozen-lockfile and pnpm build first.');
-console.log(`${name}: ${config.productOrigin}; Auth: ${config.authOrigin}; Home: ${home}`);
-const child = spawn(process.execPath, [join(root, 'dist/web/server.js'), '--port', String(port), '--home', home], {
-  cwd: root, stdio: 'inherit', env: { ...process.env, MOLIS_WORK_ACCOUNT_CONFIG: JSON.stringify(config) },
-});
-process.on('SIGINT', () => child.kill('SIGINT'));
-process.on('SIGTERM', () => child.kill('SIGTERM'));
-child.on('error', error => { console.error(error.message); process.exitCode = 1; });
-child.on('exit', code => { process.exitCode = code ?? 1; });
+const generation = sessionGeneration('work', name);
+const profile = await import('../apps/local-host/dist/active-release-profile.js');
+profile.configureLocalAccount(name, account, generation, syncOrigin);
+process.env.MOLIS_WORK_HOME = home;
+delete process.env.MOLIS_WORK_SECRET_BACKEND;
+process.argv = [process.execPath, fileURLToPath(entry), '--port', String(port), '--home', home];
+console.log(`Work ${name}: ${account.productOrigin}; Auth ${account.authOrigin}; local Home ${home}; sync ${syncOrigin || 'disabled'}`);
+await import(entry.href);
+
+if (desktop) {
+  const deadline = Date.now() + 15000;
+  while (true) {
+    const health = await fetch(account.productOrigin + '/health', { signal: AbortSignal.timeout(1000) }).catch(() => null);
+    if (health?.ok) break;
+    if (Date.now() >= deadline) {
+      console.error('The fixed-port Work Host did not become ready');
+      process.kill(process.pid, 'SIGTERM');
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (Date.now() < deadline) {
+    const child = spawn('cargo', [
+      'run', '--bin', 'molis-work-desktop', '--manifest-path', 'apps/desktop/src-tauri/Cargo.toml',
+    ], {
+      cwd: new URL('../', import.meta.url), stdio: 'inherit',
+      env: { ...process.env, MOLIS_WORK_RELEASE_PROFILE: 'dev' },
+    });
+    const shutdown = () => child.kill('SIGTERM');
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    child.on('error', error => {
+      console.error(error.message);
+      process.kill(process.pid, 'SIGTERM');
+    });
+    child.on('exit', () => process.kill(process.pid, 'SIGTERM'));
+  }
+}

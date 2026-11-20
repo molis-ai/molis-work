@@ -104,8 +104,8 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
       [...menu.querySelectorAll<HTMLButtonElement>('button:not([hidden])')].find(button => button.getClientRects().length)?.focus(); refresh();
     });
   });
-  // The Molis account opens its own dialog (account.ts): the menu steps aside for it.
-  requiredElement(menu, '[data-unified-account-link]').addEventListener('click', () => close());
+  // The Molis account opens its own dialog (account.ts): the menu steps aside and returns focus to its trigger so closing the dialog lands there.
+  requiredElement(menu, '[data-unified-account-link]').addEventListener('click', () => close(true));
   document.addEventListener('pointerdown', e => { const target = e.target; if (target instanceof Node && !menu.contains(target) && !links.some(a => a.contains(target))) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); close(true); } });
   addEventListener('resize', () => close());

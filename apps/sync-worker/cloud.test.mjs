@@ -1,6 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash,generateKeyPairSync,sign} from 'node:crypto';
 import {cloudFixture} from './testing.mjs';
+
+test('PCSYNC-OPT-01 signed rounds reuse an Auth proof and mutations still check live Auth',async t=>{
+ const {privateKey,publicKey}=generateKeyPairSync('ed25519');
+ const jwk={...publicKey.export({format:'jwk'}),kid:'sync-test',alg:'EdDSA',use:'sig'};
+ let revoked=false;
+ const f=await cloudFixture(t,{signedAuth(request,Response){
+   const {pathname,origin}=new URL(request.url);
+   if(pathname==='/.well-known/molis-sync-jwks.json'){
+     assert.equal(request.headers.get('Authorization'),null);
+     return Response.json({keys:[jwk]});
+   }
+   assert.equal(pathname,'/api/v2/auth/sync-read-proof');
+   const user=request.headers.get('Authorization')?.slice(7);
+   if(user==='redirect')return new Response(null,{status:302,headers:{Location:'https://elsewhere.example.test/'}});
+   if(revoked)return Response.json({}, {status:401});
+   const iat=Math.floor(Date.now()/1000);
+   const payload={iss:user==='wrong-issuer'?'https://other.example.test':origin,aud:user==='wrong-app'?'other':'work',
+     sub:user,iat:user==='stale'?iat-60:iat,exp:user==='stale'?iat-30:iat+30,scope:'molis-sync:read',
+     token_sha256:createHash('sha256').update(user==='wrong-key'?'alice':user).digest('hex')};
+   const encoded=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+   const message=encoded({alg:'EdDSA',typ:'molis-sync-read+jwt',kid:jwk.kid})+'.'+encoded(payload);
+   const signature=sign(null,Buffer.from(user==='forged'?message+'.bad':message),privateKey).toString('base64url');
+   return Response.json({data:{proof:message+'.'+signature}});
+ }});
+ for(let count=0;count<20;count++){
+   const round=await f.call('/v1/round');
+   assert.equal(round.status,200);
+   assert.equal((await round.json()).policy.spaceId,f.space('alice'));
+ }
+ assert.deepEqual(f.requests.map(url=>new URL(url).pathname),['/api/v2/auth/sync-read-proof','/.well-known/molis-sync-jwks.json']);
+ for(const user of ['wrong-app','wrong-issuer','stale','forged','wrong-key','redirect'])
+   assert.equal((await f.call('/v1/round',user)).status,401,user);
+ await f.enable();
+ assert.equal(new URL(f.requests.at(-1)).pathname,'/api/v2/users/me');
+ revoked=true;
+ assert.equal((await f.call('/v1/round','bob')).status,401);
+});
 
 test('PCSYNC-01/26 round summaries isolate accounts and report ordinary tombstones, never retained archives',async t=>{
  const f=await cloudFixture(t);
@@ -20,11 +58,51 @@ test('PCSYNC-01/26 round summaries isolate accounts and report ordinary tombston
  assert.deepEqual((await(await f.call('/v1/round')).json()).heads,[],'disabled namespaces are not disclosed in summaries');
 });
 
-test('PCSYNC-26 rate limits reject before Auth and independently bound authenticated accounts',async t=>{
- const f=await cloudFixture(t);await f.call('/v1/quota');const calls=f.requests.length;
- await f.db.prepare("UPDATE sync_rate_windows SET hits=600 WHERE bucket LIKE 'ip:%'").run();assert.equal((await f.call('/v1/quota')).status,429);assert.equal(f.requests.length,calls,'over-limit requests do not call Auth');
- await f.db.prepare("DELETE FROM sync_rate_windows WHERE bucket LIKE 'ip:%'").run();await f.db.prepare("UPDATE sync_rate_windows SET hits=600 WHERE bucket=?").bind('account:'+f.space('alice')).run();
- assert.equal((await f.call('/v1/quota')).status,429);assert.equal((await f.call('/v1/quota','bob')).status,200);
+test('PCSYNC-26/PCSYNC-OPT-02 edge limits protect Auth and accounts without writing D1 rate windows',async t=>{
+ const f=await cloudFixture(t,{rateLimit:12});
+ const selections=Array.from({length:26},(_,i)=>({...f.selection,collection_id:'records-'+i}));
+ assert.equal((await f.call('/v1/policy','alice',{spaceId:f.space('alice'),revision:0,selections},'PUT')).status,200);
+ for(let i=0;i<10;i++){
+   const response=await f.call('/v1/round');
+   assert.equal(response.status,200);
+   assert.equal((await response.json()).heads.length,26);
+ }
+ assert.equal((await f.db.prepare('SELECT count(*) AS count FROM sync_rate_windows').first()).count,0);
+ assert.equal((await f.call('/v1/quota')).status,200);
+ const calls=f.requests.length;
+ const rejected=await f.call('/v1/quota','bob');
+ assert.equal(rejected.status,429);assert.equal(rejected.headers.get('Retry-After'),'60');
+ assert.equal(f.requests.length,calls,'over-limit IP requests do not call Auth');
+ const anotherIP=user=>f.call('/v1/quota',user,undefined,'GET','https://sync.example.test','192.0.2.2');
+ assert.equal((await anotherIP('alice')).status,429,'a different IP does not reset the account limit');
+ assert.equal((await anotherIP('bob')).status,200);
+});
+
+test('PCSYNC-OPT-05 change pages enforce event and UTF-8 byte limits without skipping a revision',{timeout:60000},async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ const page=async after=>{
+   const response=await f.call('/v1/changes?namespace='+encodeURIComponent(f.namespace)+'&after='+after);
+   assert.equal(response.status,200);
+   const wire=await response.text();
+   assert.ok(Buffer.byteLength(wire)<=2*1024*1024);
+   return JSON.parse(wire);
+ };
+ const write=async (prefix,count,value)=>{
+   for(let i=0;i<count;i++)assert.equal((await f.write(prefix+i,prefix+i,value)).status,200);
+ };
+ await write('small-',50,'a'.repeat(2048));
+ const first=await page(0);
+ assert.equal(first.events.length,20);assert.equal(first.more,true);
+ const second=await page(first.events.at(-1).revision);
+ const third=await page(second.events.at(-1).revision);
+ assert.equal(third.more,false);
+ assert.deepEqual([...first.events,...second.events,...third.events].map(event=>event.key),Array.from({length:50},(_,i)=>'small-'+i));
+ await write('large-',10,'云'.repeat(136_533));
+ const large=await page(third.events.at(-1).revision);
+ assert.equal(large.events.length,5);assert.equal(large.more,true);
+ const tail=await page(large.events.at(-1).revision);
+ assert.equal(tail.more,false);
+ assert.deepEqual([...large.events,...tail.events].map(event=>event.key),Array.from({length:10},(_,i)=>'large-'+i));
 });
 
 test('PCSYNC-01 cloud Auth is HTTPS-only, redirects and wrong applications are refused',{timeout:60000},async t=>{
@@ -93,4 +171,18 @@ test('PCSYNC-01 current schema is required; requests never patch an old database
   const f=await cloudFixture(t,{schema:false});
   assert.equal((await f.call('/v1/quota')).status,503);
   assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name LIKE 'sync_%'").first()).n,0);
+});
+
+test('PCSYNC-OPT-03 read schema checks are cached but writes still validate every guard',async t=>{
+ const f=await cloudFixture(t);await f.enable();
+ assert.equal((await f.call('/v1/round')).status,200);
+ await f.db.prepare('DROP TRIGGER sync_events_validate').run();
+ for(let i=0;i<19;i++)assert.equal((await f.call('/v1/round')).status,200);
+ const refused=await f.write('invalid','record','must not be written');
+ assert.equal(refused.status,503);
+ assert.equal((await refused.json()).error,'SYNC_SCHEMA_MISMATCH');
+ assert.equal((await f.db.prepare('SELECT count(*) AS count FROM sync_events').first()).count,0);
+ const before=f.requests.length;
+ assert.equal((await f.call('/v1/round')).status,503,'schema failure invalidates the cached read check');
+ assert.equal(f.requests.length,before,'schema mismatch is refused before calling Auth');
 });

@@ -56,10 +56,14 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
   const declareGoal = (goalId, fallback) => {
     const title = goalId ? titleForItem("goals", goalId, fallback) : "";
+    const surface = document.querySelector('[data-work-surface="goals"]'), tui = document.querySelector("[data-tui-pane]");
+    const pluginId = tui?.dataset.tuiPluginId || PLUGIN_MANIFEST_IDS.goals || "";
+    const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
+    const surfaceTitle = surface?.dataset.workSurfaceLabel || "";
     document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
-      if (goalId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.goals", surface_title: "Goals",
-        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) },
-        belongs_to: { plugin_id: "io.molis.work.goals", kind: "goal", id: goalId, title: title || "" } }));
+      if (goalId && pluginId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: pluginId, surface_title: surfaceTitle,
+        object: { kind: subjectKind, id: goalId, ...(title ? { title } : {}) },
+        belongs_to: { plugin_id: pluginId, kind: subjectKind, id: goalId, title: title || "" } }));
       else node.removeAttribute("data-assistant-context");
     });
   };

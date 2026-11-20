@@ -1,6 +1,7 @@
 import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
+import { MATERIAL_REF_SCHEMA, type MaterialRef } from "../platform/project-materials.js";
 
 export const servicesPlacementContract = {
   contractId: /* @version contract.io.molis.work.service.placement "io.molis.work.service.placement.v{version}" */ "io.molis.work.service.placement.v1",
@@ -168,9 +169,9 @@ export const placementAttachActions = {
     input_schema: object({ project_id: projectRef, object: PLACED_OBJECT_SCHEMA }), output_schema: object({ kinds: { type: "array", items: object({ kind: { type: "string" }, noun: { type: "string" },
       targets: { type: "array", items: object({ id: { type: "string" }, title: { type: "string" }, current: { type: "boolean" } }) } }) } }) } } as ActionDefinition<{ project_id: string; object: PlacedObject }, { kinds: PlacementAttachKindView[] }>,
   attach: { capability_id: "placement.attach", version: /* @version action.placement.attach */ 1, operation: "command", action: { ...write,
-    title: "挂到…", description: "把对象挂到另一个对象上（由对方的主人记录）；不复制、不移动。对象在别处时，同时用于对方所在的项目。给了读到的版本（read_revision）时，对方的主人可以记下它，以后能看出原文改没改。",
-    input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef, target: object({ kind: kindSchema, id }), read_revision: { type: "string", minLength: 1, maxLength: 200 } }, ["object", "project_id", "target"]),
-    output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string }, { key: string }>,
+    title: "挂到…", description: "把对象挂到另一个对象上（由对方的主人记录）；不复制、不移动。对象在别处时，同时用于对方所在的项目。给了读到的版本（read_revision）时，对方的主人可以记下它，以后能看出原文改没改；mode 为 fixed 时按固定版本记下输入。",
+    input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef, target: object({ kind: kindSchema, id }), read_revision: { type: "string", minLength: 1, maxLength: 200 }, mode: { enum: ["live", "fixed"] }, material_ref: MATERIAL_REF_SCHEMA }, ["object", "project_id", "target"]),
+    output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string; target: { kind: string; id: string }; read_revision?: string; mode?: "live" | "fixed"; material_ref?: MaterialRef }, { key: string }>,
   create: { capability_id: "placement.create", version: /* @version action.placement.create */ 1, operation: "command", action: { ...write,
     title: "在这里新建", description: "在指定位置新建一份内容（文档、演示稿、数据表…），需要时同时挂到一个对象上。",
     input_schema: object({ station: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, project_id: projectRef, title: { type: "string", maxLength: 200 },

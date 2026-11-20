@@ -64,3 +64,9 @@ test("RAC-805 Goals' tables have one owner: the table-owner gate passes with no 
   const gate = spawnSync(process.execPath, [join(ROOT, "scripts", "gates", "table-owners.mjs")], { encoding: "utf8" });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
 });
+
+test("PEQ-03 H4 Workbench source names no hardcoded io.molis.work.goals plugin ID or Goals plugin API route", () => {
+  const workbench = join(ROOT, "apps", "workbench", "src");
+  const found = sources(workbench).filter(path => /io\.molis\.work\.goals/u.test(text(path)));
+  assert.deepEqual(found, [], `Workbench hardcodes io.molis.work.goals again: ${where(found)}`);
+});

@@ -2,6 +2,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { placementActions, placementAttachActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest } from "@molis-ai/molis-work-contracts/services/placement";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
@@ -28,7 +29,9 @@ export async function handlePlacementHttp(request: IncomingMessage, response: Se
         : route === "move" ? await client.invoke(placementActions.move, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? "") })
         : route === "copy" ? await client.invoke(placementActions.copy, { object: body.object as PlacedObject, to_project_id: String(body.to_project_id ?? ""), request_id: String(body.request_id ?? "") })
         : route === "attach" ? await client.invoke(placementAttachActions.attach, { object: body.object as PlacedObject, project_id: String(body.project_id ?? ""),
-          target: body.target as { kind: string; id: string }, ...(typeof body.read_revision === "string" && body.read_revision ? { read_revision: body.read_revision } : {}) })
+          target: body.target as { kind: string; id: string }, ...(typeof body.read_revision === "string" && body.read_revision ? { read_revision: body.read_revision } : {}),
+          ...(body.mode === "live" || body.mode === "fixed" ? { mode: body.mode } : {}),
+          ...(body.material_ref && typeof body.material_ref === "object" ? { material_ref: body.material_ref as MaterialRef } : {}) })
         : route === "create" ? await client.invoke(placementAttachActions.create, body as unknown as PlacementCreateRequest)
         : await client.invoke(placementActions.convert, { ...body as unknown as PlacementConvertRequest, ...(page ? { source: page.ownedObject(body.source as PlacedObject) } : {}) }, control);
       page?.assertCurrent(); sendJson(response, 200, result);

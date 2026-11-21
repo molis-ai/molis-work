@@ -97,10 +97,11 @@ test("BL-set-output-revision SYS-15-U9 an output confirmed in one window after a
   const other = await browser.openPage(targetId);
   await other.viewport(1360, 900);
   await other.command("Page.navigate", { url: browser.origin + prefix + "/" });
-  await other.wait("!!document.querySelector('.navigator-project-settings')", { timeoutMs: 30_000 });
-  // The project settings entry is in the project menu: open it first, as a person does.
-  await other.click("details:has(.navigator-project-settings) > summary");
-  await other.click(".navigator-project-settings");
+  await other.wait("!!document.querySelector('.workbench-header[data-dock-drawn] [data-top-corner-toggle]')", { timeoutMs: 30_000 });
+  // The project settings entry is in the top-left project/page list: open it first, as a person does.
+  await other.click("[data-top-corner-toggle]");
+  await other.wait("!document.querySelector('[data-top-corner-list]')?.hidden");
+  await other.click("[data-top-corner-list] [data-directory-open=project-settings]");
   await other.wait("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await other.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
   await other.wait("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");

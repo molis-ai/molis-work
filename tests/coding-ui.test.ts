@@ -108,9 +108,10 @@ test("会话按 Goal 分组渲染，未关联目标是一个真实分组", () =>
   // The group with no Goal is named as the page's live list names it (VUX-39: the first paint read 未关联目标, untranslated).
   assert.match(html, /<h2 class="mw-dir__heading" data-slot="directory-heading">未关联目标<\/h2>/);
   // Each row carries its state in words and its state ring, as the live list draws it (VUX-39: the first paint had no ring).
-  // The word is the chip's title too: in a narrow column a state that asks nothing shows only its ring (screen-polish P0).
-  assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running" title="执行中">执行中<\/small>/);
-  assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle" title="[^"]+">/);
+  // The word is the chip's title too. Expected change (screen-polish P4, POLISH-23): a state that asks nothing of the person
+  // shows only its ring at every width, not just in a narrow column (P0), so its word is in the row for a screen reader only.
+  assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running" title="执行中" data-quiet="true"><span class="mw-sr-only">执行中<\/span><\/small>/);
+  assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle" title="[^"]+" data-quiet="true">/);
 });
 
 // screen-polish P0: the settings page drew 「配置模型与凭据 · 返回工作台」 under its lede; both are the settings shell's own (its

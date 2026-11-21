@@ -1,4 +1,4 @@
-import { t as uiText, renderButton, renderCard, renderChoice, renderStateRing, renderStatusMark, renderSwitch, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderCard, renderChoice, renderSettingRow, renderStateRing, renderStatusMark, renderSwitch, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   ModelApiFormat,
   ModelProviderCheck,
@@ -281,7 +281,7 @@ function reachability(health: ModelProviderHealth | undefined, _p: ModelSettings
  */
 function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth | undefined, model: ModelSettingsModel): string {
   const { primitives: p } = model;
-  const row = (title: string, note: string, value: string) => `<div class="settings-setting-row"><span class="setting-copy"><strong>${title}</strong><span>${note}</span></span><span class="setting-value">${value}</span></div>`;
+  const row = (name: string, hint: string, control: string) => renderSettingRow({ name, hint, control });
   const connections = model.connections ?? [], keys = model.selected_connection_ids ?? {};
   const key = connections.find((connection) => connection.connection_id === keys[provider.provider_id]);
   const enabled = provider.models.filter((entry) => entry.enabled).map((entry) => entry.model_id);
@@ -296,7 +296,7 @@ function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth 
     row(uiText.text("workbench.settings-models.key"), uiText.text("workbench.settings-models.encrypted-computer-neither-page-nor-assistant-sees"), `<strong>${key ? p.escape(key.display_name) : uiText("workbench.settings-models.no-key-yet")}</strong>`),
     row(uiText.text("workbench.settings-models.reachable"), uiText.text("workbench.settings-models.checked-before-each-save"), reachability(health, p)),
     row(uiText.text("workbench.settings-models.what-can-do"), uiText.text("workbench.settings-models.each-call-billed-account-service"), `<span>${p.escape(models)}</span>`),
-    row(uiText.text("workbench.settings-models.used"), sharing.length ? p.escape(uiText.text("workbench.settings-models.same-key-also-serves-names", { names: sharing.join(uiText.text("common.list.separator")) })) : uiText.text("workbench.settings-models.changing-key-turning-off-affects-these"), `<span>${users}</span>`),
+    row(uiText.text("workbench.settings-models.used"), sharing.length ? uiText.text("workbench.settings-models.same-key-also-serves-names", { names: sharing.join(uiText.text("common.list.separator")) }) : uiText.text("workbench.settings-models.changing-key-turning-off-affects-these"), `<span>${users}</span>`),
   ].join("") });
 }
 

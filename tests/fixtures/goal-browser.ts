@@ -183,6 +183,14 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
   }
+  /** Where the project menu's entries are from 960px: 项目设置 and 全部项目 in the first place's list, the rest in the account bar. */
+  const MOVED = [
+    [".navigator-project-settings, [data-directory-open=project-settings]", "[data-top-corner-list] [data-directory-open=project-settings]"],
+    [".navigator-project-manage", "[data-top-corner-list] .top-corner-manage:not([data-corner-new])"],
+    ["[data-account-link]", ".bar-account [data-account-link]"],
+    ["[data-directory-open=settings]", ".bar-account [data-directory-open=settings]"],
+    ["[data-capabilities-open]", ".bar-account [data-capabilities-open]"],
+  ] as const;
   /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
   const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')
     && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
@@ -190,6 +198,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     // Negative interaction tests may deliberately press a disabled control; visibility and hit checks still apply.
     // A person waits while a plugin surface they opened is still loading its client (#150): it is inert until then.
     await waitFor(SURFACES_SETTLED, 10_000);
+    // From 960px the strip's right end has no project (POLISH-05 as rewritten, POLISH-71): an entry of its hidden menu is pressed
+    // where a person finds the same entry now, in the foot's account bar or the first place's list.
+    selector = await evaluate<string>(`(() => { const node = document.querySelector(${JSON.stringify(selector)}), end = node?.closest('.titlebar-end');
+      if (!node || !end || end.checkVisibility()) return ${JSON.stringify(selector)};
+      const to = ${JSON.stringify(MOVED)}.find(([from, there]) => node.matches(from) && document.querySelector(there));
+      return to ? to[1] : ${JSON.stringify(selector)}; })()`);
     const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});
       // Reach an entry the way a person would: the side panel, the full plugin list, a collapsed source drawer, or the menu it sits in.
@@ -197,9 +211,22 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       const reveal = (element) => {
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
+        // The project home and the other projects are in the list under the top strip's first place (§4「底栏第十三版」第 1 条).
+        const corner = element.closest('[data-top-corner-list]');
+        if (corner && corner.hidden) document.querySelector('[data-top-corner-toggle]')?.click();
+        // An event is a row of 办完, 在办 or 接下来, opened from its count inside the input (§4「底栏第十三版」第 4 条).
+        const rows = element.closest('[data-work-list-rows]');
+        if (rows && rows.hidden) document.querySelector('[data-work-list="' + rows.dataset.workListRows + '"]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
-        // The side opens from its current glyph in the titlebar (the bar's side button left in 07-1 S4b).
-        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')?.click();
+        // The side opens from its switch at the right end of the top strip (specs/screen-polish §3 方案 C, POLISH-05).
+        const sideSwitch = document.querySelector('[data-side-toggle]');
+        if (sidePanel && sidePanel.hidden) (sideSwitch ?? document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]'))?.click();
+        // A side view is chosen in the list that opens from the view's name on the side sheet: open the side, then the list.
+        const sideViews = element.closest('[data-side-tabs][data-side-menu]');
+        if (sideViews && sideViews.hidden) {
+          if (document.body.dataset.sideOpen !== 'true') sideSwitch?.click();
+          document.querySelector('[data-side-ear]')?.click();
+        }
         const rail = element.closest('.plugin-rail-items');
         if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
         // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.

@@ -63,7 +63,7 @@ export function renderMcpAccess(model: McpAccessModel, projects: readonly { proj
     renderSettingRow({ label: true, name: uiText.text("workbench.mcp-access.access-scope"),
       hint: `${uiText.text("workbench.mcp-access.all-sessions-client-share-these-grants-each-project")}${model.client_id?.startsWith("agent:") ? ` ${uiText.text("workbench.mcp-access.built-agent-also-needs-capabilities-chosen-task-character")}` : ""}`,
       control: `<select name="project" aria-label="${uiText("workbench.mcp-access.access-scope")}"><option value="">${uiText("workbench.mcp-access.global-capabilities")}</option>${scopes.map(project => `<option value="${e(project.project_id)}"${project.project_id === model.project_id ? " selected" : ""}>${e(project.display_name)}</option>`).join("")}</select>` })}${
-    renderSettingRow({ name: uiText.text("workbench.mcp-access.what-it-may-use"),
+    renderSettingRow({ name: uiText.text("workbench.mcp-access.what-it-may-use"), attrs: { "data-mcp-access-step": true },
       hint: model.client_id ? uiText.text("workbench.mcp-access.scope-changed-select-view-capabilities-load-before-continuing") : uiText.text("workbench.mcp-access.select-client-view-its-capabilities"),
       hintAttrs: model.client_id ? { "data-mcp-scope-pending": true, role: "status", hidden: true } : {},
       control: `<button type="submit" class="mw-btn mw-btn--secondary">${uiText("workbench.mcp-access.view-capabilities")}</button>` })}` });

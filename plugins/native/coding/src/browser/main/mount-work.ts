@@ -7,6 +7,7 @@ import { characterChoice } from "../characters.js";
 import { plansClient } from "../plans.js";
 import { writerDirectories } from "../writers.js";
 import { renderArtifacts } from "./artifacts.js";
+import { noteChangeTally } from "./change-tally.js";
 import { refreshState, rememberConfiguration } from "./configuration.js";
 import { controls } from "./controls.js";
 import { returnFromChange } from "./goals.js";
@@ -14,6 +15,7 @@ import { paintDiffs } from "./code.js";
 import { closeReport } from "./report.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
+import { renderRuns } from "./runs.js";
 import type { Page } from "./page.js";
 
 /** The split of a directory into worktrees: who works where, and which directory the next round uses. */
@@ -94,6 +96,12 @@ function mountReview(page: Page) {
   refs.changeReview = changesetClient({
     lifetime, translate: readText, root, q, api: s.ports.api, current: () => s.current, closeReport: () => closeReport(page), returnToTask: () => returnFromChange(page),
     onRunOpen: () => { s.changeItem = ""; s.reportItem = ""; renderArtifacts(page); },
+    // Reading a round's changes also tells how many lines it added and removed: its line in the conversation says so from then on.
+    onRead: (runId, files, netGroups) => {
+      // The reader reads again on every switch of file or layout: the conversation redraws only when the count changed.
+      const run = noteChangeTally(page, s.current, runId, files, netGroups) && s.allRuns.find(item => item.ref.run_id === runId);
+      if (run) renderRuns(page, [run], s.allRuns);
+    },
     appendDraft: task => refs.draft.append(s.current, text => {
       const next = text.endsWith(task) ? text : (text ? text + "\n\n" : "") + task;
       if (next.length > 100000) throw new Error(uiText.text("coding.feedback.too-long"));

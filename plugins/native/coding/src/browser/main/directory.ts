@@ -1,13 +1,13 @@
 import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { sessionTitle } from "../session-title.js";
-import { CODING_SESSION_MARKS } from "../../session-marks.js";
+import { CODING_SESSION_ASKS, CODING_SESSION_MARKS } from "../../session-marks.js";
 import { api } from "./request.js";
 import { el, errorMessage } from "../dom.js";
 import { renderGoalFace } from "./goals.js";
 import type { Page } from "./page.js";
 import type { SessionRecord } from "./shapes.js";
 
-const NEEDS_YOU = ["paused", "waiting-answer", "waiting-approval", "failed", "reconcile-required"];
+const NEEDS_YOU = Object.keys(CODING_SESSION_ASKS);
 const BUSY = ["running", "paused", "waiting-answer", "waiting-approval", "queued"];
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -55,18 +55,55 @@ function drawTime(time: HTMLTimeElement, updated: string) {
   time.title = invalid ? updated : format.date(updated, "datetime-with-seconds");
 }
 
-/** What a session's state line says: priority, the state, who holds its open plan steps, and a twin on the same Goal. */
-function stateLabel(page: Page, session: SessionRecord, visible: readonly SessionRecord[]): string {
-  const { s } = page, steps = session.steps;
-  if (session.runtime_session_id && session.execution_state === null) return uiText.text("coding.session.lifecycle-unavailable");
-  if (!session.archived && session.execution_state === "archived") return uiText.text("coding.session.lifecycle-incomplete");
-  if (session.archived) return uiText.text("coding.directory.archived");
+/** The short word of a state that asks something of the person (CODING_SESSION_ASKS says which), one literal key each; "" for the rest. */
+function shortWord(state: string): string {
+  switch (CODING_SESSION_ASKS[state]) {
+    case "coding.session.short.paused": return uiText.text("coding.session.short.paused");
+    case "coding.session.short.waiting": return uiText.text("coding.session.short.waiting");
+    case "coding.session.short.failed": return uiText.text("coding.session.short.failed");
+    case "coding.session.short.reconcile": return uiText.text("coding.session.short.reconcile");
+    default: return "";
+  }
+}
+
+/**
+ * What a session's state says: `before` (priority), the state's own `word`, and `after` (who holds its open plan steps, a
+ * twin on the same Goal). Joined, they are the whole sentence: the chip's title, and what a screen reader hears. `short` is
+ * what the row shows of it: the short word of a state that asks something of the person, nothing for a state that asks
+ * nothing (it is its ring alone, so the name has the line; screen-polish §6.1, POLISH-23).
+ */
+function stateParts(page: Page, session: SessionRecord, visible: readonly SessionRecord[]): { before: string; word: string; after: string; short: string } {
+  const { s } = page, steps = session.steps, only = (word: string, short: string) => ({ before: "", word, after: "", short });
+  if (session.runtime_session_id && session.execution_state === null) return only(uiText.text("coding.session.lifecycle-unavailable"), uiText.text("coding.session.lifecycle-unavailable"));
+  if (!session.archived && session.execution_state === "archived") return only(uiText.text("coding.session.lifecycle-incomplete"), uiText.text("coding.session.lifecycle-incomplete"));
+  if (session.archived) return only(uiText.text("coding.directory.archived"), "");
   // Who is on the open plan steps, after the state: what waits on the person first.
   const holders = steps ? [steps.mine ? uiText.text("coding.steps.mine", { count: steps.mine }) : "", steps.subtasks ? uiText.text("coding.steps.subtasks", { count: steps.subtasks }) : "", steps.unowned ? uiText.text("coding.steps.unowned", { count: steps.unowned }) : ""].filter(Boolean).join(" · ") : "";
   // Two sessions under way on the same Goal may be doing the same thing twice.
   const twin = session.goal_id && BUSY.includes(session.state) ? visible.find(other => other !== session && other.goal_id === session.goal_id && BUSY.includes(other.state)) : null;
-  return (session.priority ? uiText.text("coding.session.priority") + " · " : "") + (session.checkpoint_busy ? uiText.text("coding.session.rewind-pending") : s.SESSION_STATE[session.state] || session.state)
-    + (session.background_unreadable ? " · " + uiText.text("coding.session.background-unreadable") : "") + (holders ? " · " + holders : "") + (twin ? " · " + uiText.text("coding.session.twin", { title: twin.title.slice(0, 16) }) : "");
+  return {
+    before: session.priority ? uiText.text("coding.session.priority") : "",
+    word: session.checkpoint_busy ? uiText.text("coding.session.rewind-pending") : s.SESSION_STATE[session.state] || session.state,
+    after: (session.background_unreadable ? " · " + uiText.text("coding.session.background-unreadable") : "") + (holders ? " · " + holders : "") + (twin ? " · " + uiText.text("coding.session.twin", { title: twin.title.slice(0, 16) }) : ""),
+    short: shortWord(session.checkpoint_busy ? "waiting-approval" : session.state),
+  };
+}
+
+/**
+ * Writes the state into its chip without touching the ring the page mounted in it: 「优先」 (the person's own mark, always
+ * shown), the short word of a state that asks for them (`data-word`, drawn by the styles and kept from screen readers: the
+ * sentence already says it), and the whole sentence, read out.
+ */
+function drawState(mark: HTMLElement, parts: ReturnType<typeof stateParts>) {
+  const label = (parts.before ? parts.before + " · " : "") + parts.word + parts.after, quiet = String(!parts.short && !parts.before);
+  if (mark.title === label && mark.dataset.quiet === quiet && (mark.dataset.word ?? "") === parts.short) return;
+  mark.title = label;
+  mark.dataset.quiet = quiet;
+  if (parts.short) mark.dataset.word = parts.short; else delete mark.dataset.word;
+  const ring = mark.querySelector(":scope > .mw-state-ring"), piece = (text: string, className: string) => el("span", text, className);
+  mark.replaceChildren(...(ring ? [ring] : []),
+    ...(parts.before ? [piece(parts.before, "coding-session-pre"), piece(" · ", "mw-sr-only")] : []),
+    piece(parts.word + parts.after, "mw-sr-only"));
 }
 
 function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: readonly SessionRecord[]) {
@@ -88,9 +125,7 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
   if (title.textContent !== shown) title.textContent = shown;
   title.title = shown;
   drawTime(time, session.updated_at);
-  const label = stateLabel(page, session, visible);
-  if (mark.textContent !== label) mark.textContent = label;
-  mark.title = label;
+  drawState(mark, stateParts(page, session, visible));
   mark.dataset.state = session.checkpoint_busy ? "waiting-approval" : session.state;
   mark.dataset.mwState = session.checkpoint_busy ? "verify" : CODING_SESSION_MARKS[session.state as keyof typeof CODING_SESSION_MARKS]?.ring || "idle";
 }

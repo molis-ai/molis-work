@@ -109,12 +109,14 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   };
   // Only what needs the person (a decision, a failure, a reminder that is due) shows before the input; news about a work
   // is a mark on that work's tab and in the list of works, gone once it is seen.
-  // On a project page the line's head says how much waits on the person, and this count is that same number (WLN-39): the
-  // list behind it is still the notices and the plugins' items. The head says it as an attribute; a change repaints here.
+  // On a project page the first place in the top strip says how much waits on the person, and this count is that same number
+  // (WLN-39): the list behind it is still the notices and the plugins' items. It says it as an attribute; a change repaints here.
+  // A standalone workbench bar (such as the Assistant specimen frame, without the top strip) still owns the bar, so the bell
+  // reads 0 from [data-work-bar] instead of counting the notice list on its own.
   let headWatched = null;
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
-    const head = document.querySelector("[data-work-line-head]");
+    const head = document.querySelector("[data-top-corner-toggle],[data-work-bar]");
     if (head && head !== headWatched) { headWatched = head; new MutationObserver(() => paintAttention()).observe(head, { attributes: true, attributeFilter: ["data-waiting"] }); }
     // With nothing on the line waiting, what the list holds keeps the bell in reach, without a number of its own.
     const listed = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting + attentionObjectsCount;
@@ -131,14 +133,17 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     drawTabs(); paintList();
     if (noticePop && !noticePop.hidden) paintNotices();
   };
+  const barNotices = document.querySelector("[data-bar-notices]");
+  let noticeTrigger = null;
   const setNotices = (open) => {
     if (!noticePop) return;
+    if (open) noticeTrigger = document.activeElement === barNotices ? barNotices : noticeBtn;
     noticePop.hidden = !open;
     noticeBtn?.setAttribute("aria-expanded", String(open));
     if (open) {
       paintNotices(true); noticePop.querySelector("button")?.focus();
       void attentionObjects?.update().then(() => {
-        if (!noticePop.hidden && document.activeElement === noticeBtn) {
+        if (!noticePop.hidden && document.activeElement === noticeTrigger) {
           const first = [...objectList.querySelectorAll("[data-home-row] [tabindex], [data-home-row] button, .surface-correction-default summary")]
             .find(node => node.closest("[data-home-row]") && node.checkVisibility() && !node.disabled);
           (first || objectList.querySelector(".surface-correction-default summary"))?.focus();

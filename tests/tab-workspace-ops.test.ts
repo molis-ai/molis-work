@@ -6,7 +6,7 @@ import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settleP
 // The workspace the page builds: its right side is part of the saved shape (specs/product-flow-governance §4.6.2 口径 1).
 const ops = withLayout(withSidePane(createTabWorkspaceOps()));
 
-// 07-S2 口径 3: the project home is not a tab; an empty pane shows it, and the Dock's 项目首页 goes there.
+// 07-S2 口径 3: the project home is not a tab; an empty pane shows it, and the Dock's 项目主页 goes there.
 test("PFG-23 a fresh workspace shows the project home with no tab", () => {
   const state = ops.create();
   assert.equal(ops.countTabs(state), 0);
@@ -46,7 +46,7 @@ test("RAC-84 PG-060 tab-title rules fall back to a plugin id and retain Host sur
   // Fallback rules only: Manifest title derivation is covered by plugin-declarative-mounting, not this unit test.
   assert.equal(ops.pluginTitle("feed"), "feed");
   assert.equal(ops.pluginTitle("lingguang"), "lingguang");
-  assert.equal(ops.pluginTitle("home"), "项目首页");
+  assert.equal(ops.pluginTitle("home"), "项目主页");
   assert.equal(ops.pluginTitle("characters"), "Characters");
   assert.equal(ops.pluginTitle("market"), "插件市场");
   assert.equal(createTabWorkspaceOps({ home: "Project home" }).pluginTitle("home"), "Project home");
@@ -375,7 +375,7 @@ test("project root landing keeps item tabs", () => {
 test("W1-18-TAB-FORMAT-01: unsupported saved shapes are rejected instead of becoming current tabs", () => {
   for (const alter of [
     // 口径 3, 4: a home tab is the shape before 07-S2; such a layout is started again, not read with the tab dropped.
-    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "home", kind: "home", title: "项目首页" }; },
+    state => { state.panes[0].tabs[0] = { id: "saved", plugin: "home", kind: "home", title: "项目主页" }; },
     state => { delete state.solo; },
     state => { state.solo = "pane"; },
     state => { state.panes[0].tabs[0].kind = "mother"; },

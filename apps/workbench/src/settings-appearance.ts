@@ -1,6 +1,6 @@
 import { BASELINE_FONT, BASELINE_SKIN, renderDialog, renderLookCard, renderLookGroup, renderLookProof, renderSheet } from "@molis-ai/molis-work-design-system";
 import type { UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { t as uiText, escapeHtml, icon, renderButton, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderButton, renderSettingRow, renderSettingsSection, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WebLocalePreference } from "./i18n.js";
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { appearanceJson, type WorkbenchAppearance, type WorkbenchAppearanceChoices } from "./appearance-document.js";
@@ -86,16 +86,17 @@ export function renderAppearanceSettingsDocument(
   const preference = source === "system" || source === "default" ? "system" : currentLocale();
   const language = (value: WebLocalePreference, label: string, tag?: string) =>
     `<a class="mw-toggle${preference === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" data-ui-language="${value}"${tag ? ` lang="${tag}"` : ""} aria-current="${preference === value}">${escapeHtml(label)}</a>`;
-  const options = (attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${uiText(label)}</button>`).join("")}</div>`;
-  const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${uiText(title)}</strong><span>${uiText(description)}</span></div><div class="setting-value" aria-label="${uiText(title)}">${control}</div></section>`;
+  const options = (title: string, attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group" aria-label="${uiText(title)}">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${uiText(label)}</button>`).join("")}</div>`;
+  const row = (title: string, description: string, control: (title: string) => string) => renderSettingRow({ name: uiText.text(title), hint: uiText.text(description), control: control(title) });
+  const choice = (attribute: string, values: [string, string][]) => (title: string) => options(title, attribute, values);
   return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-appearance.interface-language")}</h1></div><p>${uiText("workbench.settings-appearance.theme-density-terminal-colors-saved-device")}</p></header>
     ${model ? renderAppearanceChoices(readText, model) : ""}
-    <section class="settings-section" aria-label="${uiText("workbench.settings-appearance.preferences")}">
-    ${row("workbench.settings-appearance.theme", "workbench.settings-appearance.choose-theme-follow-system-appearance", options("data-theme-option", [["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"], ["system", "workbench.language.follow-system"]]))}
-    ${row("workbench.settings-appearance.language", "workbench.settings-appearance.change-interface-text-while-keeping-project-content-its", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${WORKBENCH_LANGUAGES.languages.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`)}
-    ${row("workbench.settings-appearance.interface-density", "workbench.settings-appearance.adjust-spacing-goal-navigation-content", options("data-density-option", [["standard", "workbench.settings-appearance.density-standard"], ["compact", "workbench.settings-appearance.density-compact"]]))}
-    ${row("workbench.settings-appearance.terminal-appearance", "workbench.settings-appearance.choose-separate-color-scheme-terminal-content", options("data-terminal-theme-option", [["auto", "workbench.settings-appearance.follow-interface"], ["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"]]))}
-    </section>
+    ${renderSettingsSection({ className: "settings-section", attrs: { "aria-label": uiText.text("workbench.settings-appearance.preferences") }, body: [
+    row("workbench.settings-appearance.theme", "workbench.settings-appearance.choose-theme-follow-system-appearance", choice("data-theme-option", [["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"], ["system", "workbench.language.follow-system"]])),
+    row("workbench.settings-appearance.language", "workbench.settings-appearance.change-interface-text-while-keeping-project-content-its", (title) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group" aria-label="${uiText(title)}" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${WORKBENCH_LANGUAGES.languages.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`),
+    row("workbench.settings-appearance.interface-density", "workbench.settings-appearance.adjust-spacing-goal-navigation-content", choice("data-density-option", [["standard", "workbench.settings-appearance.density-standard"], ["compact", "workbench.settings-appearance.density-compact"]])),
+    row("workbench.settings-appearance.terminal-appearance", "workbench.settings-appearance.choose-separate-color-scheme-terminal-content", choice("data-terminal-theme-option", [["auto", "workbench.settings-appearance.follow-interface"], ["light", "workbench.primitive-catalog.light"], ["dark", "workbench.primitive-catalog.dark"]])),
+    ].join("") })}
   </section>`;
 }
 

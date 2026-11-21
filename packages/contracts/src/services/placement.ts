@@ -136,7 +136,7 @@ export const placementActions = {
     title: "对象现在在哪里", description: "按对象身份返回它当前所在的位置；对象被移动过时返回新位置。",
     input_schema: object({ object: PLACED_OBJECT_SCHEMA }), output_schema: object({ object: PLACED_OBJECT_SCHEMA, moved: { type: "boolean" } }) } } as ActionDefinition<{ object: PlacedObject }, { object: PlacedObject; moved: boolean }>,
   link: { capability_id: "placement.link", version: /* @version action.placement.link */ 1, operation: "command", action: { ...write,
-    title: "用于项目", description: "把一个对象关联到项目：项目首页列出它，你在项目里能打开；它仍在原位置，项目里的助理和 Runtime 读不到正文。",
+    title: "用于项目", description: "把一个对象关联到项目：项目主页列出它，你在项目里能打开；它仍在原位置，项目里的助理和 Runtime 读不到正文。",
     input_schema: object({ object: PLACED_OBJECT_SCHEMA, project_id: projectRef }), output_schema: object({ key: { type: "string" } }) } } as ActionDefinition<{ object: PlacedObject; project_id: string }, { key: string }>,
   unlink: { capability_id: "placement.unlink", version: /* @version action.placement.unlink */ 1, operation: "command", action: { ...write,
     title: "移除关联", description: "去掉一条由系统记录的关联；不删除对象，不影响复制品与固定版本。",

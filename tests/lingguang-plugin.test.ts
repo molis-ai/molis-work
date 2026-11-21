@@ -137,15 +137,18 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   // Shelf, the 常开插件, and still opens as a full stage from the start page.
   const stack = html.slice(html.indexOf('class="workbench-header immersive-titlebar"'), html.indexOf('id="goal-tree-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
-  const ownAt = stack.indexOf("data-bar-own"), projectAt = stack.indexOf("data-project-island"), footAt = stack.indexOf('class="workbench-bar"');
-  assert.ok(stripAt >= 0 && ownAt > stripAt && projectAt > ownAt && footAt > projectAt && assistantAt > footAt, "顶条：插件入口、你自己的托盘、项目圆钮；助手在底部的线上");
-  assert.doesNotMatch(stack, /data-side-toggle/);
+  // specs/screen-polish §3 方案 C (POLISH-05): the right end is the side's switch, the layout button and the project; no tray of the person's own.
+  const sideAt = stack.indexOf("data-side-toggle"), projectAt = stack.indexOf("data-project-island"), footAt = stack.indexOf('class="workbench-bar"');
+  assert.ok(stripAt >= 0 && sideAt > stripAt && projectAt > sideAt && footAt > projectAt && assistantAt > footAt, "顶条：插件入口、侧边开关、项目圆钮；助手在底部的线上");
+  assert.doesNotMatch(stack, /class="bar-side bar-own"/);
   assert.doesNotMatch(stack, /data-bar-resident/);
   // The side's tabs sit at the right end of the title bar since 07-S1, not in the bar.
-  const strip = html.slice(html.indexOf("data-side-tabs"), html.indexOf("</div></div>", html.indexOf("data-side-tabs")));
+  // From the element itself, not a script that queries `[data-side-tabs]` (the page's scripts carry markup of their own).
+  const tabsAt = html.search(/data-side-tabs[ >]/);
+  const strip = html.slice(tabsAt, html.indexOf("</div></div>", tabsAt));
   const tabs = [...strip.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（常开插件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
-  assert.match(stack.slice(stripAt, ownAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
+  assert.match(stack.slice(stripAt, sideAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);

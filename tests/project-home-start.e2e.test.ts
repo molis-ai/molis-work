@@ -57,37 +57,36 @@ test("The project button holds settings and the account, and opens settings in t
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await evaluate("dispatchEvent(new Event('resize'))");
   await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-  await click(".titlebar-end .navigator-project-selector");
-  await click(".titlebar-end [data-account-link]");
+  // From 960px who you are, the Molis account, 插件 and 设置 are in the foot's account bar, and 项目设置 in the first place's list
+  // (POLISH-05 as rewritten, POLISH-71): the strip's right end has no project.
+  await click(".bar-account [data-account-link]");
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   // WORK-03 / T01-ACCOUNT-ENTRY-01: the enabled account entry opens in place and can return to this project.
-  await click(".titlebar-end .navigator-project-selector");
-  await click(".titlebar-end [data-unified-account-link]");
+  await click("#mw-account-menu [data-unified-account-link]");
   await waitFor("!!document.querySelector('.account-dialog[open] .account-form')");
   assert.equal(await evaluate("document.querySelector('#account-title').textContent"), "Molis account");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   await click(".account-dialog > button");
   await waitFor("!document.querySelector('.account-dialog')");
-  assert.equal(await evaluate("document.activeElement === document.querySelector('.titlebar-end .navigator-project-selector')"), true);
-  await click(".titlebar-end .navigator-project-selector");
-  await click("[data-plugin-id=settings]");
+  assert.equal(await evaluate("document.activeElement === document.querySelector('.bar-account [data-account-link]')"), true, "the focus goes back to the avatar that opened the account menu");
+  await click(".bar-account [data-plugin-id=settings]");
   await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate("document.querySelector('.bar-account [data-plugin-id=settings]').getAttribute('aria-current')"), "page");
   assert.equal(await evaluate("!!document.querySelector('[data-directory-panel=settings] [data-theme-option=dark]')"), false);
   await evaluate("document.querySelector('[data-work-surface=settings] [data-theme-option=dark]').click()");
   await waitFor("document.documentElement.dataset.resolvedTheme==='dark'");
   await click("[data-plugin-id=goals]");
   await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').hasAttribute('aria-current')"), false);
-  await click(".navigator-project-settings");
+  assert.equal(await evaluate("document.querySelector('.bar-account [data-plugin-id=settings]').hasAttribute('aria-current')"), false);
+  await click("[data-top-corner-list] [data-directory-open=project-settings]");
   await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='project-settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
-  assert.equal(await evaluate("document.querySelector('.navigator-project-settings').getAttribute('aria-current')"), "page");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-id=settings]').hasAttribute('aria-current')"), false);
+  assert.equal(await evaluate("document.querySelector('[data-top-corner-list] [data-directory-open=project-settings]').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate("document.querySelector('.bar-account [data-plugin-id=settings]').hasAttribute('aria-current')"), false);
   await click('[data-directory-panel=project-settings] [data-settings-section="guidance"]');
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-guidance-form]')");
   await click("[data-plugin-id=goals]");
@@ -119,7 +118,8 @@ test("WBR-24: Home opens the exact original Inbox item, Feed source, and a newly
     await b.waitFor(visible(selector), 15_000);
     await b.click(selector);
   };
-  const home = () => open('[data-dock-pin="home"]');
+  // The project home is a row of the list under the top strip's first place (§4「底栏第十三版」第 1 条).
+  const home = async () => { await open('[data-top-corner-toggle]'); await b.click('[data-corner-home]'); };
   // Each owner answers the home under one budget; a slow one shows 重试, which openRow presses as a person would (fixtures/home-rows.ts).
   const openRow = async (selector: string, owner: string) => { await waitForHomeRow(b, selector, "io.molis.work." + owner); await b.click(selector); };
   await openRow(homeRow("inbox_entry", entry.entry_id) + ' .mw-presentation__row-title', "inbox");
@@ -236,7 +236,7 @@ test("SCS-11: a reply from the Home in an older focused split cannot open Goals 
   await b.click('[data-layout-open]');
   await b.click('[data-layout-split="right"]');
   await b.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  await b.click('[data-dock-pin="home"]');
+  await b.click('[data-corner-home]');
   const frame = "document.querySelector('iframe[data-pane-key=\"plugin:home\"]:not([hidden])')";
   await b.waitFor(`${frame}?.contentDocument?.querySelector(${JSON.stringify(start)})`);
   const from = await b.evaluate<string>(`${frame}.dataset.paneOwner`);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   COMPOSER_DRAFT_PREFIX, composerDeliveries, composerDraft, composerDraftKey, composerGenerations, composerKey, composing, parseComposerDraftKey,
-  pickComposerDelivery, renderComposerDeliveryMenu, staleComposerDrafts, wantsEnterHint, type ComposerStorage,
+  pickComposerDelivery, renderComposerDeliveryMenu, staleComposerDrafts, type ComposerStorage,
 } from "@molis-ai/molis-work-design-system";
 import { COMPOSER_AI_LABELS } from "./fixtures/composer-labels.js";
 
@@ -11,8 +11,11 @@ import { COMPOSER_AI_LABELS } from "./fixtures/composer-labels.js";
 
 const key = (over: Partial<KeyboardEvent> = {}) => ({ key: "Enter", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, isComposing: false, keyCode: 13, ...over });
 
-test("UIC-05 UIV-01: Enter writes a line, ⌘/Ctrl+Enter sends, ⌘/Ctrl+Shift+Enter is for the next turn; interrupting has no key", () => {
-  assert.equal(composerKey(key()), null, "Enter is the browser's own new line");
+test("UIC-05 UIV-01 POLISH-52: Enter sends, Shift+Enter writes a line (UIV §10.5); ⌘/Ctrl+Enter still sends, ⌘/Ctrl+Shift+Enter is for the next turn; interrupting has no key", () => {
+  assert.equal(composerKey(key()), "send", "Enter sends (UIV §10.5, user 2026-11-16)");
+  assert.equal(composerKey(key({ isComposing: true })), null, "an Enter that ends an input method's composition does not send");
+  assert.equal(composerKey(key({ keyCode: 229 })), null, "nor WebKit's, which says so by keyCode 229");
+  assert.equal(composerKey(key({ altKey: true })), null);
   assert.equal(composerKey(key({ metaKey: true })), "send");
   assert.equal(composerKey(key({ ctrlKey: true })), "send");
   assert.equal(composerKey(key({ metaKey: true, shiftKey: true })), "after-run");
@@ -20,28 +23,19 @@ test("UIC-05 UIV-01: Enter writes a line, ⌘/Ctrl+Enter sends, ⌘/Ctrl+Shift+E
   assert.equal(composerKey(key({ metaKey: true, altKey: true })), null, "no key chord interrupts");
   assert.equal(composerKey(key({ key: "Escape" })), null, "Esc is only the open menu's");
   assert.equal(composerKey(key({ key: "Tab" })), null);
-  assert.equal(composerKey(key({ shiftKey: true })), null);
+  assert.equal(composerKey(key({ shiftKey: true })), null, "Shift+Enter is the browser's own new line");
   // A decision's reason (`submitKeys: false`): the send keys only write.
+  assert.equal(composerKey(key(), false), null);
   assert.equal(composerKey(key({ metaKey: true }), false), null);
   assert.equal(composerKey(key({ metaKey: true, shiftKey: true }), false), null);
 });
 
-test("UIC-05 UIV-02: nothing is sent or hinted while an input method composes, by isComposing or keyCode 229", () => {
+test("UIC-05 UIV-02: nothing is sent while an input method composes, by isComposing or keyCode 229", () => {
   assert.equal(composing({ isComposing: true, keyCode: 13 }), true);
   assert.equal(composing({ isComposing: false, keyCode: 229 }), true, "WebKit's Enter that ends a composition");
   assert.equal(composing({ isComposing: false, keyCode: 13 }), false);
   assert.equal(composerKey(key({ metaKey: true, isComposing: true })), null);
   assert.equal(composerKey(key({ metaKey: true, keyCode: 229 })), null);
-  assert.equal(wantsEnterHint(key({ keyCode: 229 }), "你好", 2), false);
-});
-
-test("UIC-06: the Enter hint is for someone sending the old way: one written line, the caret at its end", () => {
-  assert.equal(wantsEnterHint(key(), "把测试补上", 5), true);
-  assert.equal(wantsEnterHint(key(), "把测试补上", 2), false, "the caret inside the line is someone breaking it");
-  assert.equal(wantsEnterHint(key(), "第一行\n第二行", 7), false, "a second line is someone writing lines");
-  assert.equal(wantsEnterHint(key(), "   ", 3), false, "nothing written");
-  assert.equal(wantsEnterHint(key({ shiftKey: true }), "x", 1), false);
-  assert.equal(wantsEnterHint(key({ metaKey: true }), "x", 1), false);
 });
 
 test("UIC-08 RC-03: a delivery the target does not take is shown with its reason and never sent as another", () => {

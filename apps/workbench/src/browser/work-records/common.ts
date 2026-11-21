@@ -11,7 +11,7 @@ import type {
   ObservationSpaceView,
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { renderKindMark, type MwKindMarkHue } from "@molis-ai/molis-work-design-system/work-records";
-import { escapeHtml, icon, renderBadge, renderButton, type AttrValue, type MwTone, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderBadge, renderButton, renderSettingRow, renderSettingsSection, type AttrValue, type MwTone, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const page = globalThis as typeof globalThis & { molisWorkRequest: UiRequest };
 
@@ -107,10 +107,12 @@ export const switchHtml = (on: boolean, attrs = "", disabled = false) =>
 export const selectHtml = (attrs: string, options: readonly [string, string][], cur: string) =>
   `<select class="mw-select" data-slot="select" ${attrs}>${options.map(([v, n]) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
 
+/** One setting of these pages: the settings page's own row (the SDK's), its name carrying the id its control is labelled by. */
 export const settingHtml = (id: string, title: string, note: string, control: string) =>
-  `<div class="mw-setting"><div><strong id="${id}">${esc(title)}</strong>${note ? `<p>${esc(note)}</p>` : ""}</div><div>${control}</div></div>`;
+  renderSettingRow({ name: title, nameAttrs: { id }, hint: note || undefined, control });
 
-export const settingsHtml = (rows: string) => `<div class="mw-settings">${rows}</div>`;
+/** The card those rows sit in. */
+export const settingsHtml = (rows: string) => renderSettingsSection({ body: rows });
 
 export const markHtml = (iconName: PluginIconName, hue?: MwKindMarkHue) => renderKindMark({ icon: iconName, hue });
 

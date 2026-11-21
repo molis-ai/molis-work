@@ -11,9 +11,9 @@ export const CHARACTERS_STYLES = `
   .roles-page .mw-empty { justify-items: center; text-align: center; }
   .roles-page .mw-empty__actions { justify-content: center; }
   .roles-hint { margin: 4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
-  .roles-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
-  .roles-sec-head h2 { margin: 0 auto 0 0; }
-  .roles-sec-head > :not(h2) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .roles-page .mw-settings-section__head { flex-wrap: wrap; gap: 8px 12px; }
+  .roles-page .mw-settings-section__head > h2 { margin: 0 auto 0 0; }
+  .roles-page .mw-settings-section__head > :not(h2) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .roles-page .mw-settings-section__rows > .mw-alert { margin: 12px 0; }
   /* POLISH-30: what a section's card starts or ends with keeps clear of the card's edge. */
   .roles-page .mw-settings-section__rows > .roles-hint { margin: 0; padding: 12px 0 8px; }
@@ -21,13 +21,13 @@ export const CHARACTERS_STYLES = `
   .roles-page .mw-alert .mw-alert__actions { margin-top: 8px; }
   .roles-ladder { padding: 4px 0 12px; }
   /* The name and its facts keep a readable width; when the row's actions do not fit beside them, they wrap under it, right-aligned. */
-  .roles-row { flex-wrap: wrap; row-gap: 8px; }
+  /* A role is this page's own row (an avatar, a name with its mark, a state, several actions), on a setting row's height, padding and line. */
+  .roles-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-width: 0; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); box-sizing: border-box; }
   .roles-row .settings-record-title { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 14rem; }
-  .roles-row .setting-value { margin-left: auto; }
   .roles-row .settings-record-title h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 14px; overflow-wrap: anywhere; }
   .roles-row .settings-record-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
   .roles-row .mw-avatar { flex: none; width: 32px; height: 32px; font-size: 13px; }
-  .roles-row .setting-value { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+  .roles-row__acts { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 100%; margin-left: auto; }
   .roles-row:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: var(--r-row, 10px); }
   .roles-row:focus:not(:focus-visible) { outline: none; }
   .roles-row.is-flash { animation: roles-flash var(--dur-reveal) var(--ease-standard); }
@@ -36,7 +36,7 @@ export const CHARACTERS_STYLES = `
   .mw-alert .roles-inset { margin-bottom: 0; background: var(--paper); }
   .roles-inset__title { margin: 0 0 8px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
   .roles-inset__title:focus { outline: none; }
-  .roles-inset .settings-setting-row { padding: 8px 0; }
+  .roles-inset .roles-row { min-height: 0; padding: 8px 0; }
   .roles-inset__end { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 8px; }
   .roles-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
   .roles-fact + .roles-fact { border-top: 1px solid var(--line); }

@@ -5,8 +5,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 
 // specs/unified-input-voice K3 (UIV-12, UIV-17, UIC-06, UIC-09, RC-03): the bottom bar's Assistant is the platform's unified
-// composer. Its receiver row says who the next Send goes to (「发给：…」); Enter is a new line and ⌘↵ (Ctrl+↵) sends, with a
-// one-time tip the first time Enter could have been meant as Send; a work's draft is the Assistant's own (the Host keeps it, the
+// composer. Its receiver row says who the next Send goes to (「发给：…」); Shift+Enter is a new line, Enter and ⌘↵ (Ctrl+↵) send,
+// and no tip about the keys comes (UIV §10.5, user 2026-11-18); a work's draft is the Assistant's own (the Host keeps it, the
 // browser keeps no copy); while a turn runs the Send is 补充, interrupting selects 打断并改向 before a separate Send and the next Send
 // is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it queues for the next turn the person begins (2026-11-09 audit fix).
 // Each Send's body is read as the page made it.
@@ -42,14 +42,14 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   // A new work: the receiver row names where it is put, then the Assistant (BL-1076: 「项目 · 助理」, 「个人 · 助理」).
   assert.match(await to(), /^发给：\s*\S.* · 助理$/, "UIV-12: the receiver row says who the next Send goes to and where the new work is put");
 
-  // UIC-06: Enter is a new line, nothing is sent, and the first time it says once how to send.
+  // UIV §10.5 (user 2026-11-16, 2026-11-18): Shift+Enter is a new line and sends nothing; no tip about the keys comes.
   await evaluate(`${field}.focus()`);
   await type("第一行");
-  await key(0, "\r");
+  await key(SHIFT, "\r");
   await type("第二行");
-  assert.equal(await evaluate(`${field}.value`), "第一行\n第二行", "Enter adds a new line");
-  assert.deepEqual(await sent(), [], "Enter sends nothing");
-  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer]').textContent"), /⌘↵|Ctrl\+↵/, "UIC-06: the one-time tip names the keys that send");
+  assert.equal(await evaluate(`${field}.value`), "第一行\n第二行", "Shift+Enter adds a new line");
+  assert.deepEqual(await sent(), [], "Shift+Enter sends nothing");
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-assistant-composer]').textContent"), /回车已改为换行/, "the one-time tip is gone");
 
   // ⌘↵ sends; the new work becomes the receiver, with a mark to start a new work instead.
   await key(CTRL);

@@ -130,10 +130,6 @@ export const NAVIGATION_CLICKS: readonly ClickRule[] = [
     if (open && page.s.current) await readCurrent(page);
   }],
   ["[data-coding-board-expand]", expandBoard],
-  ["[data-coding-board-close]", page => {
-    showBoard(page, false);
-    page.q("[data-coding-view=dialogue]").focus({ preventScroll: true });
-  }],
   ["[data-coding-goal-face-visit]", (page, target) => {
     if (target.dataset.goalId) page.host.openItem("goals", target.dataset.goalId, target.dataset.goalTitle || "");
   }],

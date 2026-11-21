@@ -46,16 +46,17 @@ test("VUX-23/24 QEA-179: the split divider has a dead zone, follows, snaps with 
   assert.equal(await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:' + ${JSON.stringify(projectId)})`), beforeCandidate, "the candidate does not persist a layout change");
 
   // Past it, the divider follows the pointer; the frames are guarded while it moves and released after.
-  const columns = "document.querySelector('.work-line-row').style.getPropertyValue('--slot-columns')";
-  await waitFor(`Boolean(${columns})`);
-  const restingColumns = await evaluate<string>(columns);
+  // The one input no longer follows the panes (UIV-19 as specs/unified-input-voice §10.5 rewrote it, 底栏第十三版): it keeps the
+  // window's centre while the divider moves.
+  const centre = "(() => { const box = document.querySelector('[data-work-line-slot]').getBoundingClientRect(); return Math.round(box.left + box.width / 2 - innerWidth / 2); })()";
+  assert.equal(await evaluate<number>(centre), 0, "the input stands in the window's centre");
   await mouse("mousePressed", center.x);
   await mouse("mouseMoved", at(0.62));
   const moving = await guarded();
   assert.equal(moving.resizing, true);
   assert.ok(moving.frames.every(value => value === "none"), "the panes' frames do not take the pointer mid-drag");
   assert.equal(await value(), 62, "the divider is where the pointer is");
-  await waitFor(`${columns} && ${columns} !== ${JSON.stringify(restingColumns)}`);
+  assert.equal(await evaluate<number>(centre), 0, "and stays there while the divider moves");
   // Back near the default it settles there; 12 px off it holds; past 16 px it lets go again.
   await mouse("mouseMoved", center.x + 6);
   assert.equal(await value(), 50, "within 8 px it settles on the default");

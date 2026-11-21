@@ -3,7 +3,7 @@ import { renderButton, renderSettingRow, renderSettingsSection, renderSwitch, t 
 function savePreference(kind: "lookback" | "report"): string {
   const reset = renderButton({ label: t.text("workbench.settings-assistant.use-default"), variant: "ghost", size: "sm", attrs: { "data-inherit": true, hidden: true } });
   const save = renderButton({ label: t.text("common.control.save"), variant: "secondary", size: "sm", type: "submit", disabled: true });
-  return `<div class="mw-setting-row"><span class="mw-setting-row__copy" data-${kind}-source></span><div class="mw-setting-row__control">${reset}${save}</div></div>
+  return `${renderSettingRow({ name: "", nameAttrs: { [`data-${kind}-source`]: true }, control: `${reset}${save}` })}
     <p class="settings-form-error" data-${kind}-error role="alert" hidden></p>`;
 }
 

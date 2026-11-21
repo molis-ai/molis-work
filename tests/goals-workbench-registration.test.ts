@@ -70,6 +70,9 @@ test("the shipped page preserves the assembled registration program after litera
   const rest = shipped.slice(UI_REQUEST_CLIENT_SCRIPT.length), at = rest.indexOf(program);
   assert.match(rest, /^"use strict";var molisWorkHomeView=/u);
   assert.ok(at > 0 && rest.indexOf(program, at + 1) < 0, "the assembled program is shipped once, whole, after the home view");
-  assert.match(rest.slice(at + program.length), /data-unified-account-link/);
-  assert.equal(count(shipped, "data-unified-account-link"), 1);
+  // The foot's account menu (inside `program`, account-menu.ts) renders and closes on `[data-unified-account-link]`;
+  // the Molis account IIFE itself is appended once after `program` (tooling/build-client.mjs).
+  const account = rest.slice(at + program.length);
+  assert.equal(count(account, "data-unified-account-link"), 1);
+  assert.equal(count(shipped, "data-unified-account-link") - count(program, "data-unified-account-link"), 1);
 });

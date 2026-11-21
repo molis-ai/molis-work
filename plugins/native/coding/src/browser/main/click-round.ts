@@ -1,5 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { sessionTitle } from "../session-title.js";
+import { showRoundDetails } from "../../timeline.js";
 import { directoryStatus, loadArchivedDirectory, renderDirectory } from "./directory.js";
 import { errorMessage } from "../dom.js";
 import { commitRound } from "./click-commit.js";
@@ -209,6 +210,11 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
     target.disabled = true;
     await recoverAndContinue(page, target.dataset.codingRecoverContinue || "");
     target.disabled = false;
+  }],
+  // A round's own details open under its line; its footer remembers it, so the next draw of the round leaves them open.
+  ["[data-coding-run-more]", (_page, target) => {
+    const footer = target.closest<HTMLElement>(".coding-run-footer");
+    if (footer) showRoundDetails(footer, footer.dataset.more !== "open");
   }],
   ["[data-coding-archived]", async (page, target) => {
     target.disabled = true;

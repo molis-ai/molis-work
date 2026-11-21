@@ -125,7 +125,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-search input:focus { outline: none !important; box-shadow: none !important; }
   [data-shelf] .shelf-search input::placeholder { color: var(--da-faint); }
   [data-shelf="settings"] .settings-heading h1 { margin: 0; }
-  [data-shelf="settings"] .settings-setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--da-line); }
   [data-shelf="settings"] .shelf-hotkey-lead { margin: 0 0 12px; font-size: 11px; color: var(--da-faint); }
   [data-shelf="settings"] .shelf-hotkey-row {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -545,7 +544,8 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-settings-block h3 { margin: 0 0 8px; font-size: 12px; font-weight: var(--weight-title, 600); color: var(--da-muted); }
   [data-shelf] .shelf-settings-line { margin: 0 0 8px; font-size: 13px; color: var(--da-text); line-height: 1.55; }
   [data-shelf="settings"] .settings-hint { margin: 8px 0 12px; font-size: 12px; color: var(--da-muted); line-height: 1.55; }
-  [data-shelf="settings"] .shelf-settings-fact { align-items: center; }
+  /* What the Mac asks for and why: a sentence of the card at a setting row's height, with nothing to press. */
+  [data-shelf="settings"] .shelf-settings-fact { display: flex; align-items: center; min-height: 60px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--da-line); box-sizing: border-box; color: var(--da-text); font-size: 13px; line-height: 1.5; }
   [data-shelf] .shelf-runtime-list, [data-shelf] .shelf-runtime-custom, [data-shelf] .shelf-action-list {
     margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px;
   }

@@ -212,9 +212,9 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
     assert.equal(await b.evaluate("(()=>{const dialog=document.querySelector('[data-sync-dialog][open]'),outer=dialog.getBoundingClientRect();return [...dialog.querySelectorAll('button')].every(button=>{const r=button.getBoundingClientRect();return r.left>=outer.left&&r.right<=outer.right&&r.top>=outer.top&&r.bottom<=outer.bottom})})()"),true,'long identifiers must never push visible actions outside the modal');
     const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile('.impeccable/qa/review/cloud-history-'+width+'-'+theme+'.png',Buffer.from(shot.data,'base64'));
   }
-  await b.click('[data-sync-dialog][open] .settings-setting-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
-  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .settings-setting-row button')");
-  await b.click('[data-sync-dialog][open]:last-of-type .settings-setting-row button');await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] pre')].some(pre=>pre.textContent.includes('云端保留正文'))");
+  await b.click('[data-sync-dialog][open] .sync-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .sync-row button')");
+  await b.click('[data-sync-dialog][open]:last-of-type .sync-row button');await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] pre')].some(pre=>pre.textContent.includes('云端保留正文'))");
   assert.equal(await b.evaluate('window.historyInjected===undefined'),true);
   await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1).querySelector('footer button').click()");await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] [role=alert]')].some(p=>p.textContent.includes('synthetic restore failure'))");
   assert.equal(await b.evaluate("document.querySelectorAll('[data-sync-dialog][open]').length"),3,'failed restore keeps the inspected preview');
@@ -222,8 +222,8 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
   assert.deepEqual(await b.evaluate('window.historyRestores[0]'),await b.evaluate('window.historyRestores[1]'));assert.equal(await b.evaluate('window.historyRestores[0].revision'),8);assert.equal(await b.evaluate('window.historyRestores[0].sourceRevision'),7);
   await b.evaluate("[...document.querySelectorAll('[data-sync-history] button')].find(button=>button.textContent==='云端保留版本').click()");await b.waitFor("document.querySelector('[data-sync-dialog][open] code')?.textContent==='asset'");
   await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].find(button=>button.textContent==='查看版本').click()");await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===2");
-  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .settings-setting-row button')");
-  await b.click('[data-sync-dialog][open]:last-of-type .settings-setting-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===3");
+  await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open]')].at(-1)?.querySelector('.mw-form__body .sync-row button')");
+  await b.click('[data-sync-dialog][open]:last-of-type .sync-row button');await b.waitFor("document.querySelectorAll('[data-sync-dialog][open]').length===3");
   assert.equal(await b.evaluate("[...document.querySelectorAll('[data-sync-dialog][open] button')].some(button=>button.textContent==='删除云端版本')"),false);
   assert.equal(await b.evaluate('window.historyPurges.length'),0,'PTR-01 retained cloud versions cannot be purged by the trial UI');
 });
@@ -247,10 +247,12 @@ test('PCSYNC-20 personal project recycle UI binds confirmation to the observed s
 test('PCSYNC-27 resident indicator reports conflict and offline states without showing a completed claim',{timeout:60000},async t=>{
  const b=await openGoalBrowser(t,'user',seedBoard);if(!b)return;
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.fetch=async(input,init)=>new URL(String(input),location.href).pathname==='/api/sync'?Response.json({available:true,running:false,lastSuccess:null,error:null,progress:{selected:1,pending:0,conflicts:1,waiting:0,failures:0,unavailable:0,complete:false}}):original(input,init);})();`},b.sessionId);
- await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));await b.waitFor("document.querySelector('[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
- assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
- await b.evaluate("dispatchEvent(new Event('offline'))");await b.waitFor("document.querySelector('[data-sync-indicator]').dataset.syncPhase==='offline'");
- assert.equal(await b.evaluate("document.querySelector('[data-sync-indicator]').textContent.includes('已同步')"),false);
+ await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId},b.sessionId));
+ await b.waitFor("document.querySelector('.bar-account-sync[data-sync-indicator]')?.dataset.syncPhase==='conflict'&&document.querySelector('a[data-sync-indicator]')?.dataset.syncPhase==='conflict'");
+ assert.equal(await b.evaluate("document.querySelector('a[data-sync-indicator]').getAttribute('href')"),'/settings/sync');
+ await b.evaluate("dispatchEvent(new Event('offline'))");
+ await b.waitFor("document.querySelector('.bar-account-sync[data-sync-indicator]')?.dataset.syncPhase==='offline'&&document.querySelector('a[data-sync-indicator]')?.dataset.syncPhase==='offline'");
+ assert.equal(await b.evaluate("[...document.querySelectorAll('[data-sync-indicator]')].some(el=>el.textContent.includes('已同步'))"),false);
 });
 test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project structure copy discloses what stays in the original',{timeout:60000},async t=>{
   const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;

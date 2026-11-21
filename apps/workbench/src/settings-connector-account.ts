@@ -1,4 +1,4 @@
-import { format, t as uiText, renderBadge, renderCard, renderRadioGroup, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText, renderBadge, renderCard, renderRadioGroup, renderSettingRow, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { credentialInputs, recommendedMethod, type ConnectorPrimitives } from "./settings-connector-guide.js";
 import { renderConnectionStatus } from "./settings-connection-status.js";
@@ -95,16 +95,19 @@ export function renderConnectionAccount(connection: ConnectorSettingsConnection,
   const { escapeHtml: e } = p;
   const id = e(connection.connection_id), { project, own } = manageable(connection);
   const key = connection.auth_method === "token" && !connection.account_label;
-  const row = (title: string, note: string, value: string) => `<div class="settings-setting-row"><span class="setting-copy"><strong>${title}</strong><span>${note}</span></span><span class="setting-value">${value}</span></div>`;
-  const declared = connection.declared_by ? ` <small data-connection-declared-by>${e(uiText.text("workbench.settings-connector-account.made"))} · ${e(connection.declared_by.title)}</small>` : "";
-  const named = connection.account_label && connection.account_label !== connection.display_name ? e(connection.display_name) : e(uiText.text(key ? "workbench.settings-connector-account.kept-machine-neither-page-nor-assistant-sees" : "workbench.settings-connector-account.account-signed"));
-  const where = connection.target_origin ? ` · ${e(connection.target_origin)}` : "";
-  const reachNote = connection.reauth_note ? `<small data-connection-reauth-note>${e(connection.reauth_note)}</small>` : e(uiText.text(checkable(connection) ? "workbench.settings-connector-account.last-check" : "workbench.settings-connector-account.checked-where-used"));
+  const say = (words: string) => uiText.text(words);
+  // One sentence under each name, as every setting row has: who made the connection closes the account's sentence.
+  const declared = connection.declared_by ? ` · ${say("workbench.settings-connector-account.made")} · ${connection.declared_by.title}` : "";
+  const named = connection.account_label && connection.account_label !== connection.display_name ? connection.display_name : say(key ? "workbench.settings-connector-account.kept-machine-neither-page-nor-assistant-sees" : "workbench.settings-connector-account.account-signed");
+  const where = connection.target_origin ? ` · ${connection.target_origin}` : "";
   const facts = renderCard({ className: "connection-facts", body: [
-    row(e(uiText.text(key ? "workbench.settings-connector-account.key" : "workbench.settings-connector-account.account")), `${named}${where}${declared}`, `<strong>${e(accountName(connection))}</strong>`),
-    row(e(uiText.text("workbench.settings-connector-account.reachable-2")), reachNote, `<span data-connection-state>${reachability(connection, p)}</span>`),
-    row(e(uiText.text("workbench.settings-connector-account.what-can-do")), e(uiText.text("workbench.settings-connector-account.raw-permissions-under-advanced-below")), `<span>${e(abilities(card, connection))}</span>`),
-    row(e(uiText.text("workbench.settings-connector-account.used")), e(uiText.text("workbench.settings-connector-account.switching-disconnecting-affects-these")), `<span data-connection-usages="${id}">${e(uiText.text("workbench.settings-connector-account.read-when-opened"))}</span>`),
+    renderSettingRow({ name: say(key ? "workbench.settings-connector-account.key" : "workbench.settings-connector-account.account"), hint: `${named}${where}${declared}`,
+      hintAttrs: { "data-connection-declared-by": Boolean(connection.declared_by) }, control: `<strong>${e(accountName(connection))}</strong>` }),
+    renderSettingRow({ name: say("workbench.settings-connector-account.reachable-2"), control: `<span data-connection-state>${reachability(connection, p)}</span>`,
+      ...(connection.reauth_note ? { hint: connection.reauth_note, hintAttrs: { "data-connection-reauth-note": true } }
+        : { hint: say(checkable(connection) ? "workbench.settings-connector-account.last-check" : "workbench.settings-connector-account.checked-where-used") }) }),
+    renderSettingRow({ name: say("workbench.settings-connector-account.what-can-do"), hint: say("workbench.settings-connector-account.raw-permissions-under-advanced-below"), control: `<span>${e(abilities(card, connection))}</span>` }),
+    renderSettingRow({ name: say("workbench.settings-connector-account.used"), hint: say("workbench.settings-connector-account.switching-disconnecting-affects-these"), control: `<span data-connection-usages="${id}">${e(say("workbench.settings-connector-account.read-when-opened"))}</span>` }),
   ].join("") });
   const button = (variant: string, attrs: string, label: string) => `<button class="mw-btn mw-btn--${variant}" type="button" ${attrs}>${e(label)}</button>`;
   const relogin = card && own && ["oauth", "mcp"].includes(connection.auth_method);

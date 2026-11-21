@@ -1,8 +1,7 @@
 import { composerLocalDraft } from "./composer-storage.js";
 import type { ComposerRetained } from "./composer-retained.js";
 import { formatMessage } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ENTER_HINT_KEY } from "../composer-rules.js";
-import { storage, type Composer } from "./composer-state.js";
+import type { Composer } from "./composer-state.js";
 
 /**
  * Drafts (specs/unified-input-voice/implementation-plan.md §3.4): the platform's on this machine, keyed by project, installation,
@@ -59,9 +58,3 @@ export function composerDrafts(c: Composer, retained: ComposerRetained): Compose
     stop: flush,
   };
 }
-
-/** The one-time Enter hint's memory: shown once on this machine, never again. */
-export const enterHint = {
-  shown: () => { try { return storage().getItem(ENTER_HINT_KEY) === "done"; } catch { return true; } },
-  done: () => { try { storage().setItem(ENTER_HINT_KEY, "done"); } catch { /* the hint is a convenience: not shown again this page either way */ } },
-};

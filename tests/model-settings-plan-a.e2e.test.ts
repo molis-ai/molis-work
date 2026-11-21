@@ -77,9 +77,9 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
     await size(width); await scheme(mode);
     await open(`?provider=${encodeURIComponent(id)}`, lang);
     await waitFor("document.querySelector('.model-facts')");
-    const page = await evaluate<{ rows: number; reach: string; overflow: boolean; cut: string[]; leaked: boolean }>(`({ rows: document.querySelectorAll('.model-facts .settings-setting-row').length,
-      reach: document.querySelectorAll('.model-facts .settings-setting-row')[1].textContent, overflow: document.documentElement.scrollWidth > innerWidth,
-      cut: [...document.querySelectorAll('.model-facts .setting-value > *')].filter(node => node.scrollWidth > node.clientWidth + 1).map(node => node.textContent),
+    const page = await evaluate<{ rows: number; reach: string; overflow: boolean; cut: string[]; leaked: boolean }>(`({ rows: document.querySelectorAll('.model-facts .mw-setting-row').length,
+      reach: document.querySelectorAll('.model-facts .mw-setting-row')[1].textContent, overflow: document.documentElement.scrollWidth > innerWidth,
+      cut: [...document.querySelectorAll('.model-facts .mw-setting-row__control > *')].filter(node => node.scrollWidth > node.clientWidth + 1).map(node => node.textContent),
       leaked: document.documentElement.outerHTML.includes(${JSON.stringify(good)}) })`);
     assert.equal(page.rows, 4);
     assert.match(page.reach, lang === "zh" ? /连得上 · \d\d-\d\d \d\d:\d\d 检查/ : /Reachable · checked \d\d-\d\d \d\d:\d\d/);
@@ -108,7 +108,7 @@ test("ASC-62 the first key: refused under its field, rate limited with when it c
   // Replacing the saved key with a wrong one: said under the new key, the key in use keeps working, nothing changes.
   const saved = JSON.stringify(await providers());
   const said = () => evaluate<{ field: string; status: string; reach: string }>(`({ field: document.querySelector('[data-model-key-error]')?.textContent || '',
-    status: document.querySelector('[data-model-status]').textContent, reach: document.querySelectorAll('.model-facts .settings-setting-row')[1].textContent })`);
+    status: document.querySelector('[data-model-status]').textContent, reach: document.querySelectorAll('.model-facts .mw-setting-row')[1].textContent })`);
   await open(`?provider=${encodeURIComponent(id)}`);
   await evaluate(`(() => { const select = document.querySelector('[data-model-connection]'); select.value = '';
     for (const type of ['input', 'change']) select.dispatchEvent(new Event(type, { bubbles: true })); })()`);

@@ -186,11 +186,11 @@ export const homePageActions: {
   diff: ActionDefinition<HomePageDiffInput, HomePageDiffResult>;
   readFiles: ActionDefinition<HomePageRef, HomePageFilesResult>;
 } = {
-  read: homeAction("home.read", /* @version action.home.read */ 1, "读取项目首页", "读取首页选择、版本或指定请求的原回执", "query", ["user", "plugin", "agent"], readInput, readResult),
+  read: homeAction("home.read", /* @version action.home.read */ 1, "读取项目主页", "读取首页选择、版本或指定请求的原回执", "query", ["user", "plugin", "agent"], readInput, readResult),
   saveDraft: homeAction("home.pages.drafts.save", /* @version action.home.pages.drafts.save */ 1, "保存首页草稿", "新建或追加页面草稿版本，保存不改变当前首页", "command", ["user", "agent"], saveInput, saveResult),
   preview: homeAction("home.pages.preview", /* @version action.home.pages.preview */ 1, "试用首页草稿", "为固定的草稿版本打开只读动作的试用页面", "command", person, pageRefSchema,
     closedObjectSchema({ page: pageRefSchema, page_session_id: token })),
-  adopt: homeAction("home.pages.adopt", /* @version action.home.pages.adopt */ 1, "采用生成首页", "确认固定页面版本与批准的动作，再设为项目首页", "command", person, approveInput, approvalReply("adopt")),
+  adopt: homeAction("home.pages.adopt", /* @version action.home.pages.adopt */ 1, "采用生成首页", "确认固定页面版本与批准的动作，再设为项目主页", "command", person, approveInput, approvalReply("adopt")),
   restore: homeAction("home.pages.restore", /* @version action.home.pages.restore */ 1, "恢复首页版本", "由本人再次批准后恢复指定页面版本", "command", person, approveInput, approvalReply("restore")),
   select: homeAction("home.select", /* @version action.home.select */ 1, "切回基础首页", "按所见的选择修订切回项目的基础首页", "command", person, selectInput, selectResult),
   diff: homeAction("home.pages.diff", /* @version action.home.pages.diff */ 1, "比较首页版本", "比较两个固定版本的文件、入口和动作集合", "query", person, diffInput, diffResult),

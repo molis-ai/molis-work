@@ -69,9 +69,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       membership: pluginMembership,
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
-      leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       open: (plugin, origin) => openSurfaceEntry(plugin, origin),
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      pagePlugin: () => tabWorkspace?.pagePlugin?.() || null,
+      tabsReady: () => Boolean(tabWorkspace),
       startPage: () => tabWorkspace?.startPage, openBeside: (plugin) => tabWorkspace?.openBeside(plugin),
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
@@ -124,7 +125,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const positionOffers = (${HOME_OFFERS_FACTORY_SCRIPT});
     projectHome = globalThis.molisWorkHomeView?.mountHome({
       read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
-      order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
       picker: () => {

@@ -86,10 +86,12 @@ test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, ope
   await b.click(CODING_SEND);
   await child.waitFor("document.querySelector('[data-coding-workbench]').textContent.includes('只读完环境说明，没有运行命令。')", 30_000);
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ''`);
-  await child.waitFor("document.querySelector('[data-run] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]')");
+  // Expected change (screen-polish POLISH-24): a round's environment card sits inside the round's one-line fold of what it was
+  // prepared with (`[data-coding-prep]`), not directly in the round; the card, its actions and what they do are the same.
+  await child.waitFor("document.querySelector('[data-run] > [data-coding-prep] > [data-coding-env-checklist] [data-coding-env-action=run-baseline]')");
   const afterRun = model.requests.length;
   await b.evaluate(codingType("下一轮草稿"));
-  await child.click("[data-run] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
+  await child.click("[data-run] > [data-coding-prep] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value.includes('基线测试（pnpm test）')`);
   assert.match(await readDraft(), /^下一轮草稿\n/); assert.equal(model.requests.length, afterRun);
   const endedDraft = await readDraft();
@@ -100,7 +102,7 @@ test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, ope
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value === ${JSON.stringify(endedDraft)}`);
   await b.reloadPage(); await b.waitFor(CODING_OPEN);
   await child.waitFor(`document.querySelector('[data-coding-session="${sid}"]')?.classList.contains('is-selected')`);
-  await child.click("[data-run] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
+  await child.click("[data-run] > [data-coding-prep] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
   await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value.includes('基线测试（pnpm test）')`);
   assert.equal(model.requests.length, afterRun);
   const evidence = reviewEvidenceUrl("quality-audit-coding-recovery/"); await mkdir(evidence, { recursive: true });
@@ -108,11 +110,11 @@ test("QEA-47 QEA-166 · real Coding environment controls preserve the draft, ope
     await b.setViewport(width, 900);
     await b.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }, { name: "prefers-reduced-motion", value: "reduce" }] }, b.sessionId);
     await b.evaluate(codingType("保留这段草稿"));
-    await child.click("[data-run] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
+    await child.click("[data-run] > [data-coding-prep] > [data-coding-env-checklist] [data-coding-env-action='run-baseline']");
     await b.waitFor(`document.querySelector(${JSON.stringify(CODING_BOX)}).value.includes('基线测试（pnpm test）')`);
     assert.match(await readDraft(), /^保留这段草稿\n/); assert.equal(model.requests.length, afterRun);
     assert.equal(await child.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    await child.evaluate("document.querySelector('[data-run] > [data-coding-env-checklist]').scrollIntoView({ block: 'center' })");
+    await child.evaluate("document.querySelector('[data-run] > [data-coding-prep] > [data-coding-env-checklist]').scrollIntoView({ block: 'center' })");
     await writeFile(new URL(`environment-${theme}-${width}.png`, evidence), Buffer.from((await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId)).data, "base64"));
   }
   assert.match(git("status", "--porcelain").toString(), /UU conflict\.txt/, "UI preparation never resolves or overwrites the actual repository");

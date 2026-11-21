@@ -25,15 +25,6 @@ export interface PluginMarketCard {
   readonly sites: readonly string[];
 }
 
-/**
- * The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer): the ones whose
- * navigator view declares `pinned_default`, in the order of their views. Only a plugin the project chooses can be one.
- */
-export function dockDefaultPins(directory: PluginDirectory = builtinPlacementDirectory()): string[] {
-  const chosen = directory.filter(entry => entry.chosen);
-  return placedDirectoryViews(registryFor(chosen, chosen.map(entry => entry.id)), "navigator").filter(({ view }) => view.pinned_default).map(({ id }) => id);
-}
-
 /** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
 export function extendPluginIds(directory: PluginDirectory = builtinPluginDirectory()): ReadonlySet<string> {
   return new Set(directory.filter(entry => entry.chosen && entry.ui.views.some(view => view.slot === "navigator" && view.rail === "extend")).map(entry => entry.id));
@@ -55,8 +46,6 @@ export interface RailEntry {
   group: UiViewGroup | null;
   /** The view's place in the rail apart from its group: `core` (the backbone) or `extend` (a way to extend the workbench); null is an ordinary tool. */
   rail: UiViewRail | null;
-  /** Whether the Dock keeps the plugin until the person chooses others (the view's `pinned_default`). */
-  pinned_default: boolean;
   /** Whether the project's plugin list chooses it (a built-in); a plugin installed at run time is in the project because it runs there. */
   chosen: boolean;
 }
@@ -179,8 +168,8 @@ function railEntry({ id, entry, view }: PlacedDirectoryView): RailEntry {
     // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
     // a view does not put itself there, nor keep another group once it is the person's.
     group: isPersonalPlugin(entry) ? "personal" : view.group === "personal" ? null : view.group ?? null,
-    // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
-    rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
+    // Only a plugin the project chooses can be the backbone or an extend entry, whoever built the directory.
+    rail: entry.chosen ? view.rail ?? null : null, chosen: entry.chosen };
 }
 
 function insertPlatformEntry(
@@ -192,9 +181,9 @@ function insertPlatformEntry(
 ): void {
   const at = views.findIndex((item) => item.order > nav.order || (item.order === nav.order && item.plugin_id.localeCompare(providerId) > 0));
   const pos = at < 0 ? entries.length : at;
-  const { id, surface, glyph, group, rail, pinned_default, chosen } = nav;
+  const { id, surface, glyph, group, rail, chosen } = nav;
   views.splice(pos, 0, { order: nav.order, plugin_id: providerId });
-  entries.splice(pos, 0, { id, surface, label, glyph, group, rail, pinned_default, chosen });
+  entries.splice(pos, 0, { id, surface, label, glyph, group, rail, chosen });
 }
 
 function railFrom(registry: DirectoryRegistry, artifactLabel: string, sessionsLabel: string): RailEntry[] {

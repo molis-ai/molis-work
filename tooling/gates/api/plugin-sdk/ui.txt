@@ -198,8 +198,6 @@ export interface MwComposerLabels {
     restored: string;
     clear: string;
     unsaved: string;
-    enterHint: string;
-    enterHintDismiss: string;
     notice: string;
     sending: string;
     sendingText: string;
@@ -1139,6 +1137,7 @@ export declare function renderSeparator(options?: {
 export declare function renderSettingRow(options: {
     name: string;
     hint?: string;
+    detail?: string;
     className?: string;
     attrs?: Record<string, AttrValue>;
     nameAttrs?: Record<string, AttrValue>;

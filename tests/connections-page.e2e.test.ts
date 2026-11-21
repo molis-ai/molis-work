@@ -114,8 +114,8 @@ test("ASC-73 ASC-74 ASC-77: services are rows grouped by use; an account's four 
   assert.equal(await text(page, stateOf("gitlab")), "已连接 2 个账号");
   // ASC-74: four rows in plain words; who uses it is read when the service opens, once per account.
   await page.wait(`document.querySelector('[data-connection-usages="${WORK}"]')?.textContent.includes('等 3 处')`);
-  assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${row(WORK)} .connection-facts .setting-copy > strong')].map(node => node.textContent)`), ["这个账号", "连得上吗", "能做什么", "谁在用"]);
-  assert.equal(await text(page, `document.querySelector('${row(WORK)} .connection-facts .setting-value')`), "yijun-work");
+  assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${row(WORK)} .connection-facts .mw-setting-row__copy > strong')].map(node => node.textContent)`), ["这个账号", "连得上吗", "能做什么", "谁在用"]);
+  assert.equal(await text(page, `document.querySelector('${row(WORK)} .connection-facts .mw-setting-row__control')`), "yijun-work");
   assert.equal(await text(page, `document.querySelector('[data-connection-usages="${HOME}"]')`), "还没有地方在用");
   assert.deepEqual([...reads].sort(), [HOME, WORK].sort(), "each account's uses are read once when the service opens");
 
@@ -432,11 +432,11 @@ test("ASC-73 ASC-79: the page in both languages, themes and four widths: rows on
       assert.equal(await page.evaluate("document.documentElement.lang.slice(0, 2)"), locale);
       assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `${locale}/${theme}/${width}: no horizontal overflow`);
       // Rows do not wrap: a service row's name, caption and state, and an account's labels and values, each keep one line.
-      const wrapped = await page.evaluate<string[]>(`[...document.querySelectorAll('.settings-connection-item > .settings-connection-row .settings-connection-row__identity > :is(strong, small), .settings-connection-item > .settings-connection-row > [data-connector-state], .connection-facts .setting-copy > strong, .connection-facts .setting-value > *')]
+      const wrapped = await page.evaluate<string[]>(`[...document.querySelectorAll('.settings-connection-item > .settings-connection-row .settings-connection-row__identity > :is(strong, small), .settings-connection-item > .settings-connection-row > [data-connector-state], .connection-facts .mw-setting-row__copy > strong, .connection-facts .mw-setting-row__control > *')]
         .filter(node => node.getClientRects().length && node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight) * 1.5 + 4).map(node => node.textContent.trim())`);
       assert.deepEqual(wrapped, [], `${locale}/${theme}/${width}: rows keep one line`);
       // An account's values and notes are whole: where the content is narrow they go under their labels, decided by the card's width.
-      const cut = await page.evaluate<string[]>(`[...document.querySelectorAll('[data-connector-item=gitlab] .connection-facts :is(.setting-value > *, .setting-copy > span)')]
+      const cut = await page.evaluate<string[]>(`[...document.querySelectorAll('[data-connector-item=gitlab] .connection-facts :is(.mw-setting-row__control > *, .mw-setting-row__copy > span)')]
         .filter(node => node.getClientRects().length && node.scrollWidth > node.clientWidth + 1).map(node => node.textContent.trim())`);
       assert.deepEqual(cut, [], `${locale}/${theme}/${width}: an account's rows are not cut off`);
       // Buttons have edges.

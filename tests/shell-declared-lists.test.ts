@@ -8,7 +8,7 @@ import test from "node:test";
 import { TAB_WORKSPACE_FILES, tabWorkspaceSource } from "./tab-workspace-files.js";
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
-import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, dockDefaultPins, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, renderCodingSettings } from "@molis-ai/molis-work-plugin-coding";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-plugin-shelf";
 import { defaultShelfDeviceSettings } from "@molis-ai/molis-work-module-shelf";
@@ -44,7 +44,7 @@ test("RAC-692 a record's tab title is read from the row its plugin declared, not
   assert.match(text, /RECORD_ROWS\.find\(\(\[id\]\) => id === plugin\)/u);
 });
 
-test("RAC-694 the rail and the Dock keep no table of plugin names; the Manifests' views carry the backbone, the extend entry and the default pins", () => {
+test("RAC-694 the rail and the Dock keep no table of plugin names; the Manifests' views carry the backbone and the extend entry", () => {
   for (const file of ["immersive-shell.ts", "plugin-catalog.ts", "scripts/client/navigation-presentation.ts"]) {
     assert.doesNotMatch(source(file), /RAIL_CORE_ORDER|RAIL_CORE_PLUGIN_IDS|RAIL_EXTEND_PLUGIN_IDS|DOCK_DEFAULT_PINS/u, `${file} lists plugins by name`);
   }
@@ -52,10 +52,11 @@ test("RAC-694 the rail and the Dock keep no table of plugin names; the Manifests
     .filter(view => view[field] !== undefined).map(view => [entry.project_plugin_id, view[field], view.slot, view.order] as const))
     .sort((left, right) => (left[3] ?? 100) - (right[3] ?? 100));
   assert.deepEqual(declared("rail"), [["goals", "core", "navigator", 10], ["inbox", "core", "navigator", 30], ["feed", "core", "navigator", 40], ["plugin-builder", "extend", "navigator", 57]]);
+  // The Manifests still declare `pinned_default` (a contract field), but the top strip keeps no plugins of its own (specs/screen-polish
+  // §3 方案 C): the Dock script holds 项目主页 alone and keeps no list in the browser.
   assert.deepEqual(declared("pinned_default").map(([id]) => id), ["goals", "inbox", "feed"], "in the views' order");
-  assert.deepEqual(dockDefaultPins(), ["goals", "inbox", "feed"]);
   assert.deepEqual([...extendPluginIds()], ["plugin-builder"]);
-  assert.ok(CLIENT_SCRIPT.includes('const DEFAULT_PINS = ["goals","inbox","feed"];'), "the Dock script is written with the declared pins");
+  assert.doesNotMatch(CLIENT_SCRIPT, /DEFAULT_PINS|molis-work:dock-pins|data-dock-choice/, "the Dock script reads no pins");
 });
 
 const hostSource = (path: string) => readFileSync(fileURLToPath(new URL(`../apps/local-host/src/${path}`, import.meta.url)), "utf8");
@@ -97,7 +98,7 @@ test("RAC-698 the Shelf and Coding settings pages come out as before when drawn 
   assert.ok(coding.includes("运行时 r-write") && coding.includes("/projects/p1/"));
 }));
 
-test("RAC-695 the directory the shell takes in drops a backbone place, an extend place and a default pin from a plugin installed at run time", () => {
+test("RAC-695 the directory the shell takes in drops a backbone place and an extend place from a plugin installed at run time, and a default pin from every plugin", () => {
   const entry = (id: string, chosen: boolean) => ({ id, plugin_id: `io.molis.work.probe.${id}`, name: id, chosen,
     ui: { views: [{ view_id: "directory", slot: "navigator" as const, title: id, order: 20, rail: "core" as const, pinned_default: true as const }] } });
   const cleaned = sanitizePluginDirectory([entry("rogue", false), entry("kept", true)]);
@@ -105,6 +106,6 @@ test("RAC-695 the directory the shell takes in drops a backbone place, an extend
   assert.equal(view("rogue").rail, undefined);
   assert.equal(view("rogue").pinned_default, undefined);
   assert.equal(view("kept").rail, "core", "a chosen entry keeps what its view declares");
-  assert.equal(view("kept").pinned_default, true);
-  assert.deepEqual(dockDefaultPins(cleaned), ["kept"]);
+  // The top strip keeps no plugins of its own (specs/screen-polish §3 方案 C): the shell does not carry `pinned_default` at all.
+  assert.equal(view("kept").pinned_default, undefined);
 });

@@ -3,6 +3,7 @@ export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from
 export { goalContextReference } from "./goal-context.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
+export { codingRoundTally, type ChangeTally as CodingRoundTally } from "./round-tally.js";
 export { codingResultDocumentHandler } from "./results-document.js";
 export { codingOutputReferences, codingOutputs } from "./outputs.js";
 export { codingFollowUps, CODING_NEXT_STEP, type CodingFollowUpRun } from "./next-steps.js";

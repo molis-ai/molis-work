@@ -2,7 +2,7 @@ import type {
   CharacterMemberEntry, CharacterOriginalEntry, CharacterRoleCatalog, CharacterRoleContent, CharacterRoleSection,
 } from "@molis-ai/molis-work-contracts/modules/characters";
 import {
-  escapeHtml as esc, icon, renderAlert, renderAvatar, renderBadge, renderButton, renderEmpty, renderSourceLadder,
+  escapeHtml as esc, icon, renderAlert, renderAvatar, renderBadge, renderButton, renderEmpty, renderSettingRow, renderSettingsSection, renderSourceLadder,
   type MwButtonOptions, type MwSourceLayer,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -31,9 +31,8 @@ const act = (name: string, arg = "", extra: Partial<MwButtonOptions> = {}): stri
 const state = (tone: "neutral" | "warning", text: string): string => `<span class="settings-state settings-state--${tone}">${esc(text)}</span>`;
 const section = (id: string, title: string, body: string, head = ""): string =>
   // POLISH-29/30: the layout every settings page shares: the title (and its actions) outside, one card of rows under it.
-  `<section class="settings-section mw-settings-section" aria-labelledby="${id}"><header class="mw-settings-section__head roles-sec-head"><h2 id="${id}">${esc(title)}</h2>${head}</header><div class="mw-settings-section__rows">${body}</div></section>`;
-const setRow = (title: string, hint: string, value: string): string =>
-  `<section class="settings-setting-row"><div class="setting-copy"><strong>${esc(title)}</strong><span>${esc(hint)}</span></div><div class="setting-value">${value}</div></section>`;
+  renderSettingsSection({ title, id, className: "settings-section", action: head, body });
+const setRow = (name: string, hint: string, control: string): string => renderSettingRow({ name, hint, control });
 const inset = (body: string, labelledBy: string, extra = ""): string => `<div class="roles-inset${extra}" role="group" aria-labelledby="${labelledBy}">${body}</div>`;
 const option = (value: string, label: string, selected: boolean): string => `<option value="${esc(value)}"${selected ? " selected" : ""}>${esc(label)}</option>`;
 
@@ -147,9 +146,9 @@ function memberRow(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): s
     [say("workbench.roles.fact-records"), say("workbench.roles.fact-kept")]];
   const ask = ui.stopAsk === "member:" + id ? stopQuestion("member:" + id, title, facts) : "";
   const isDefault = catalog.defaults.project?.kind === "project" && catalog.defaults.project.member_id === id;
-  return `<div class="settings-setting-row roles-row${ui.flash === "member:" + id ? " is-flash" : ""}" id="roles-row-member-${esc(id)}" tabindex="-1" aria-labelledby="roles-name-member-${esc(id)}">
+  return `<div class="roles-row${ui.flash === "member:" + id ? " is-flash" : ""}" id="roles-row-member-${esc(id)}" tabindex="-1" aria-labelledby="roles-name-member-${esc(id)}">
     <div class="settings-record-title">${renderAvatar({ label: title })}<div><h3 id="roles-name-member-${esc(id)}"><span translate="no">${esc(title)}</span>${isDefault ? renderBadge({ label: say("workbench.roles.project-default") }) : ""}</h3><p>${esc(memberCaption(member))}</p></div></div>
-    <div class="setting-value">${status}${adjust}${more}</div></div>${ask}`;
+    <div class="roles-row__acts">${status}${adjust}${more}</div></div>${ask}`;
 }
 
 /** The note under a member whose original also changed a section this project keeps: look, follow, or keep this project's. */
@@ -175,8 +174,8 @@ function upstream(catalog: CharacterRoleCatalog, ui: PageUi, member: Member): st
 function addPanel(catalog: CharacterRoleCatalog): string {
   const here = new Set(catalog.members.map(member => member.role.current.original.character_id));
   const candidates = catalog.originals.filter(original => !here.has(original.ref.character_id) && original.state === "active" && original.version !== null);
-  const rows = candidates.map(original => `<div class="settings-setting-row roles-row"><div class="settings-record-title">${renderAvatar({ label: original.title })}<div><h3><span translate="no">${esc(original.title)}</span></h3><p>${esc(say("workbench.roles.version-used", { version: original.version ?? 0, count: original.use.projects }))}</p></div></div>
-    <div class="setting-value">${act("member-add", original.ref.character_id, { variant: "primary", label: say("workbench.roles.add"), attrs: { "aria-label": say("workbench.roles.add-named", { name: original.title }) } })}</div></div>`).join("");
+  const rows = candidates.map(original => `<div class="roles-row"><div class="settings-record-title">${renderAvatar({ label: original.title })}<div><h3><span translate="no">${esc(original.title)}</span></h3><p>${esc(say("workbench.roles.version-used", { version: original.version ?? 0, count: original.use.projects }))}</p></div></div>
+    <div class="roles-row__acts">${act("member-add", original.ref.character_id, { variant: "primary", label: say("workbench.roles.add"), attrs: { "aria-label": say("workbench.roles.add-named", { name: original.title }) } })}</div></div>`).join("");
   return inset(`<p class="roles-inset__title" id="roles-add-title">${esc(say("workbench.roles.add-about"))}</p>${rows || `<p class="roles-hint">${esc(say("workbench.roles.all-here"))}</p>`}
     <div class="roles-inline">${act("open", "new", { variant: "ghost", icon: "plus", label: say("workbench.roles.write-new") })}</div>`, "roles-add-title", " roles-inset--add");
 }
@@ -204,9 +203,9 @@ function originalRow(catalog: CharacterRoleCatalog, ui: PageUi, original: Origin
   const facts: [string, string][] = [[say("workbench.roles.fact-default-projects"), say("workbench.roles.fact-assistant-does")],
     [say("workbench.roles.fact-used-in", { count: original.use.projects }), say("workbench.roles.fact-keeps-version")], [say("workbench.roles.fact-records"), say("workbench.roles.fact-kept")]];
   const ask = ui.stopAsk === "original:" + id ? stopQuestion("original:" + id, title, facts) : "";
-  return `<div class="settings-setting-row roles-row${ui.flash === "original:" + id ? " is-flash" : ""}" id="roles-row-original-${esc(id)}" data-character-id="${esc(id)}" tabindex="-1" aria-labelledby="roles-name-original-${esc(id)}">
+  return `<div class="roles-row${ui.flash === "original:" + id ? " is-flash" : ""}" id="roles-row-original-${esc(id)}" data-character-id="${esc(id)}" tabindex="-1" aria-labelledby="roles-name-original-${esc(id)}">
     <div class="settings-record-title">${renderAvatar({ label: title })}<div><h3 id="roles-name-original-${esc(id)}"><span translate="no">${esc(title)}</span>${isDefault ? renderBadge({ label: say("workbench.roles.my-default") }) : ""}${original.origin ? renderBadge({ label: say("workbench.roles.from-template") }) : ""}</h3><p>${esc(originalCaption(original))}</p></div></div>
-    <div class="setting-value">${status}${adjust}${more}</div></div>${ask}`;
+    <div class="roles-row__acts">${status}${adjust}${more}</div></div>${ask}`;
 }
 
 /** Settings › 角色: the person's default and their roles. */

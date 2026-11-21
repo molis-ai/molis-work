@@ -256,6 +256,7 @@ test('T405-17B5-UI-01: a real Feed refresh preserves retained menu focus and nev
     await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
     assert.equal((await state()).control, 'summary');
     await refresh(async () => {
+      // At 390×640 the project's mark is still shown at the strip's right end (<960px, POLISH-05 as rewritten, POLISH-71) and keeps focus on press.
       await b.click('.navigator-project-selector');
       assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true);
       assert.equal((await state()).documentFocused, false, 'The user moved focus out of the pending Feed document');

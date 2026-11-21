@@ -46,6 +46,7 @@ import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-r
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { skillConsumerOf } from "./memory/memory-plugin-scene.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
+import { exactActionView } from "./exact-action-view.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -391,7 +392,7 @@ async function startAuthority(
 
 /** An input checked as dispatch will check it, against the action as this grant discovers it now; runs nothing. */
 async function checkActionInput(authorized: { context: ActionCallContext; service: { discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]> } }, reference: ExactActionReference, input: unknown): Promise<void> {
-  const view = (await authorized.service.discover(authorized.context)).find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+  const view = await exactActionView(authorized.service, authorized.context, reference);
   if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
   assertActionInput(view.action.input_schema, input);
 }

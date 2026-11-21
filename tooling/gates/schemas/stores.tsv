@@ -16,7 +16,7 @@ context-onboarding/context-onboarding.db	apps/local-host	1	6b6e720e44774d75	-
 conversation-attachments/conversation-attachments.db	apps/local-host	1	0ceb0c6ee4dc2273	-
 dataset/dataset.db	io.molis.work.dataset	2	905c710557501bb4	1
 evaluation/evaluation.db	horizontal/evaluation	1	c45a6b323aed5968	-
-external-sessions/external-sessions.db	horizontal/sessions	1	a2f89f0557afe6c3	-
+external-sessions/external-sessions.db	horizontal/sessions	2	eabec6a25b46795b	1
 feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 form/form.db	io.molis.work.form	1	0e3c9d4717792190	-
 functions/functions.db	modules/functions	1	bd2d2c28207ec864	-

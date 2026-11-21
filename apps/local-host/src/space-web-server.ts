@@ -355,7 +355,7 @@ function respondAccountPreparation(response:ServerResponse,render?:()=>string):v
 export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner,accountEntry?:{
   render(token:string,request:IncomingMessage,url:URL,message?:string):string;
   renderSameOriginEntry():string;
-  asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean;
+  asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean|Promise<true>;
 }):http.Server {
   installHostUiText();
   let server:http.Server;

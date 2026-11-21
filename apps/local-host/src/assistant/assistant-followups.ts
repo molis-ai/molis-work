@@ -105,6 +105,8 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
   state(host: AgentHost, work: W): Promise<AssistantWorkState>;
+  /** The state could not be read because the work's executor plugin is no longer there: the round goes ahead and is refused as such (S-51). */
+  executorGone(work: W): Promise<boolean>;
   /** Start one round of the work with these words; the service writes them where the round starts, in the language last used; `stillCurrent` is checked again right before it starts. */
   send(work: W, words: FollowUpMessageWords, requestId: string, stillCurrent: () => boolean): Promise<unknown>;
   schedule(): Promise<AgentScheduleCapability>;
@@ -277,11 +279,12 @@ export class AssistantFollowUps<W extends FollowUpWork> {
         const host = await ports.host();
         if (!current()) return;
         const state = await ports.state(host, work);
+        const unreadable = assistantStateUnknown(state) && !await ports.executorGone(work);
         if (!current()) return;
         // A round under way, an interrupted round the person has not checked, or a state that could not be read: a new round would bury what they owe.
         const skipped = assistantRoundOpen(state) ? "workbench.assistant-followup.busy"
           : state === "needs-check" ? "workbench.assistant-followup.needs-check"
-            : assistantStateUnknown(state) ? "workbench.assistant-followup.unreadable" : null;
+            : unreadable ? "workbench.assistant-followup.unreadable" : null;
         if (skipped) {
           outcome = "skipped";
           detail = assistantWords(skipped);
@@ -329,7 +332,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       const host = await ports.host(), state = await ports.state(host, work);
       if (assistantRoundOpen(state)) throw assistantErrors.busy("这项工作正在进行，等这一轮结束再做");
       if (state === "needs-check") throw assistantErrors.state("请先核对上一轮的中断结果再做");
-      if (assistantStateUnknown(state)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再试");
+      if (assistantStateUnknown(state) && !await ports.executorGone(work)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再试");
       await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${parsed.due}`, () => find() !== null);
     }
     return this.#forgetMissed(followUp.followup_id, due) ? { state: decision.decision === "run_now" ? "started" : "skipped" } : { state: "gone" };

@@ -5,7 +5,7 @@ import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, type AgentRunView, type AgentSessionRef, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer, assistantRoundOpen, assistantStateUnknown } from "@molis-ai/molis-work-contracts/services/assistant";
 import { replyLanguage } from "../reply-language.js";
@@ -42,7 +42,7 @@ const MAX_ACTION_TOOLS = 1000;
 /** How many of a work's objects, and how much of each, travel to the executor when the work is handed over. */
 const HANDOVER_OBJECTS = 3, HANDOVER_OBJECT_CHARS = 6000;
 
-export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | "workObjects" | "stateSafely" | "publicWork"> & Pick<AssistantRoundMaterials, "readSubject" | "roundMaterials"> & Pick<AssistantBudget, "assertBudget" | "workUsage"> & Pick<AssistantMemoryBridge, "memoryForRound"> & Pick<AssistantNotices, "notice"> & { read(workId: string): Promise<AssistantWorkView>; continuations: Pick<AssistantContinuations, "withdraw" | "watch">; delegations: Pick<AssistantDelegations, "startPlaced"> };
+export type AssistantDispatchLinks = Pick<AssistantWorkReads, "assistantPart" | "workObjects" | "stateSafely" | "executorGone" | "publicWork"> & Pick<AssistantRoundMaterials, "readSubject" | "roundMaterials"> & Pick<AssistantBudget, "assertBudget" | "workUsage"> & Pick<AssistantMemoryBridge, "memoryForRound"> & Pick<AssistantNotices, "notice"> & { read(workId: string): Promise<AssistantWorkView>; continuations: Pick<AssistantContinuations, "withdraw" | "watch">; delegations: Pick<AssistantDelegations, "startPlaced"> };
 
 /** Stop a round and wait (a bounded while) until it has ended. */
 async function stopAndWait(adapter: { control(ref: AgentRunRef, control: { kind: "stop" }): Promise<unknown>; observe(ref: AgentRunRef, listener: (view: { phase: AgentRunView["phase"] }) => void): () => void }, ref: AgentRunRef): Promise<void> {
@@ -116,7 +116,7 @@ export class AssistantDispatch {
       const host = await this.ports.host();
       assertAssistantSessionSettled(host, work);
       const state = await this.link.stateSafely(work, true);
-      if (assistantStateUnknown(state) && !await this.executorGone(work)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再交接");
+      if (assistantStateUnknown(state) && !await this.link.executorGone(work)) throw assistantErrors.state("暂时读不到这项工作的状态，请稍后再交接");
       if (assistantRoundOpen(state) || (work.executor.kind === "assistant" && state === "needs-check")) throw assistantErrors.state("请先结束这一轮或核对中断结果");
       const control = assistantEndControl(this.store, work, caller);
       if (to.kind === "plugin") await this.handoverToPlugin(work, to.plugin_id, input.mode, control);
@@ -180,19 +180,6 @@ export class AssistantDispatch {
     if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
     const handed = dispatch?.original || dispatch?.skills?.length ? { original: dispatch.original, skills: dispatch.skills } : undefined;
     return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, handed, id), id, dispatch?.control);
-  }
-
-  /**
-   * A plugin-carried work whose executor is no longer in the project: its state cannot be read because nobody is left who could still
-   * be running a round, not because a read failed for now. Such a work can be taken back; giving it to that plugin again is refused as
-   * the executor being unavailable (S-62).
-   */
-  private async executorGone(work: StoredWork): Promise<boolean> {
-    if (work.executor.kind !== "plugin") return false;
-    try {
-      await this.executorOf(work);
-      return false;
-    } catch (error) { return error instanceof ActionError && error.code === "assistant.executor_unavailable"; }
   }
 
   /** The plugins that can carry a work in the project the page is on, with the ways each offers; none for personal work. */

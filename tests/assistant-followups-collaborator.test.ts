@@ -48,7 +48,7 @@ function harness(start = "2026-10-15T08:00:00.000Z", options: { file?: string; t
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
     rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
-    host: async () => ({}) as never, state: async () => workState,
+    host: async () => ({}) as never, state: async () => workState, executorGone: async () => false,
     send: async (_work, words, requestId) => { sent.push({ words, requestId }); if (options.failSend !== undefined) throw new Error(options.failSend); },
     schedule: async () => schedule,
   };

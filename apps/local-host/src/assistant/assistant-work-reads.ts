@@ -10,7 +10,7 @@ import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { isSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSubjectReader, type ActionSubjectContext, type ActionView, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectAssistantReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
@@ -275,6 +275,19 @@ export class AssistantWorkReads {
 
   async stateSafely(work: StoredWork, inspectActual = false): Promise<AssistantWorkState> {
     try { return await this.stateFor(await this.ports.host(), work, inspectActual); } catch (error) { return work.session_id ? this.unreadable(work, error) : "idle"; }
+  }
+
+  /**
+   * A plugin-carried work whose executor is no longer in the project (removed, switched off, or its grant taken back): its state is
+   * unread because nobody is left who could still be running a round, not because a read failed for now. What it is asked to do next
+   * goes ahead and is refused as the executor being unavailable (S-51, S-62); it can still be taken back.
+   */
+  async executorGone(work: StoredWork): Promise<boolean> {
+    if (work.executor.kind !== "plugin") return false;
+    try {
+      await this.link.executorOf(work);
+      return false;
+    } catch (error) { return error instanceof ActionError && error.code === "assistant.executor_unavailable"; }
   }
 
   /** A read of the run's state that failed: `unreadable`, never a check the person owes; the cause goes to the Host log once per failing spell. */

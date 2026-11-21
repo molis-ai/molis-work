@@ -20,7 +20,7 @@ interface SurfaceCtx extends SessionsSurfaceMutable {
   sourcesExpanded: boolean;
   toolMeta: readonly SessionToolMeta[];
   selectedKey: string | null;
-  listRead: { controller: AbortController; state: "loading" | "ready" | "failed" } | null;
+  listRead: { controller: AbortController; state: "loading" | "ready" | "failed"; errorMessage?: string } | null;
   pageCursors: Array<string | null>;
   nextCursor: string | null;
   showError(message: string): void;
@@ -52,6 +52,11 @@ function paintSurfaceList(ctx: SurfaceCtx): void {
   ctx.bodyEl.setAttribute("aria-labelledby", `sessions-tab-${ctx.view}`);
   ctx.droidBar.hidden = !ctx.toolMeta.find((m) => m.id === ctx.toolFilter)?.can_tool_search;
   renderSourcesSection(ctx.sourcesEl, ctx.sources, ctx.sourcesExpanded);
+  if (ctx.listRead?.state === "failed" && ctx.rows.length === 0) {
+    const message = ctx.listRead.errorMessage || uiText.text("workbench.sessions.read-failed");
+    ctx.bodyEl.innerHTML = `<div class="mw-empty mw-empty--error" role="alert"><p>${escapeHtml(message)}</p><div><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-sessions-retry>${uiText("common.control.retry")}</button></div></div>`;
+    return;
+  }
   if (!ctx.sources.some((s) => s.state !== "not_allowed" && s.state !== "unsupported")) {
     ctx.bodyEl.innerHTML = `<div class="sessions-empty-card"><strong>${uiText("workbench.sessions.onboarding-title")}</strong><span>${uiText("workbench.sessions.onboarding-body")}</span><div><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-sessions-open-scope="tools">${uiText("workbench.sessions.choose-read-scope")}</button></div></div>`;
     return;
@@ -116,9 +121,13 @@ async function loadSurfaceList(ctx: SurfaceCtx, withSuggest = true, page: "reset
     }
   } catch (error) {
     if (ctx.listRead !== read || read.controller.signal.aborted) return;
+    const message = (error as Error).message || uiText.text("workbench.sessions.read-failed");
     read.state = "failed";
-    ctx.showError((error as Error).message || uiText.text("workbench.sessions.read-failed"));
-  } finally { if (ctx.listRead === read) paintSurfaceList(ctx); }
+    read.errorMessage = message;
+    ctx.showError(message);
+  } finally {
+    if (ctx.listRead === read) paintSurfaceList(ctx);
+  }
 }
 
 async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = "", revalidate = false): Promise<void> {
@@ -159,10 +168,15 @@ async function searchSurfaceTool(ctx: SurfaceCtx): Promise<void> {
     read.state = "ready";
   } catch (error) {
     if (ctx.listRead !== read || read.controller.signal.aborted) return;
+    const message = (error as Error).message || uiText.text("workbench.sessions.read-failed");
     read.state = "failed";
-    ctx.showError((error as Error).message || uiText.text("workbench.sessions.read-failed"));
+    read.errorMessage = message;
+    ctx.showError(message);
   } finally {
-    if (ctx.listRead === read) { paintSurfaceList(ctx); ctx.poller.kick(false); }
+    if (ctx.listRead === read) {
+      paintSurfaceList(ctx);
+      ctx.poller.kick(false);
+    }
   }
 }
 
@@ -214,7 +228,9 @@ export function mountSessionsSurface(
     onToast: (msg) => showToast?.(msg, false),
   });
   bindSessionsClientEvents(ctx, {
-    loadList: (w) => loadSurfaceList(ctx, w), paintList: () => paintSurfaceList(ctx),
+    loadList: (w) => loadSurfaceList(ctx, w),
+    retryList: () => loadSurfaceScopeMeta(ctx).then(() => loadSurfaceList(ctx)),
+    paintList: () => paintSurfaceList(ctx),
     loadPage: page => loadSurfaceList(ctx, true, page),
     searchTool: () => searchSurfaceTool(ctx),
     openSession: (id, s) => openSurfaceSession(ctx, id, s), loadEarlier: () => loadEarlierEntries(ctx),

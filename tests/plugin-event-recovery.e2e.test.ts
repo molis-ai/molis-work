@@ -72,30 +72,33 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await waitFor(`document.querySelector('[data-market-project]').value === ${JSON.stringify(projectId)} && ${reachable}`);
   await click('[data-plugin-event-open]');
   await waitFor("document.querySelector('[data-plugin-event-dialog]').open");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input:checked')"), null, "retry is never preselected");
-  await evaluate(`(()=>{const dialog=document.querySelector('[data-plugin-event-dialog]'),draft=dialog.querySelector('textarea');
-    draft.value='核对原文';draft.focus();draft.setSelectionRange(1,3);
-    window.eventTimes={dialog,draft,row:document.querySelector('[data-plugin-events-list] time'),stamp:dialog.querySelector('time')};})()`);
-  for (const [tag, lang, locale] of [["en", "en", "en-US"], ["zh", "zh-CN", "zh-CN"]]) {
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-payload]')"), null, "raw JSON payload is not exposed to end users");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] textarea')"), null, "manual reason textarea is removed");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input[type=radio]')"), null, "risk-acknowledgment radio is removed");
+  assert.equal(await evaluate("document.activeElement === document.querySelector('[data-plugin-event-cancel]')"), true, "cancel receives initial focus rather than a decision action");
+  await evaluate(`(()=>{const dialog=document.querySelector('[data-plugin-event-dialog]'),cancel=dialog.querySelector('[data-plugin-event-cancel]');
+    window.eventTimes={dialog,cancel,row:document.querySelector('[data-plugin-events-list] time'),stamp:dialog.querySelector('time')};})()`);
+  for (const [tag, lang, locale, retryLabel, skipLabel] of [["en", "en", "en-US", "Retry", "Skip this notification"], ["zh", "zh-CN", "zh-CN", "重试", "跳过这一条"]] as const) {
     await evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(tag)};document.body.append(link);link.click();link.remove();})()`);
     await waitFor(`document.documentElement.lang===${JSON.stringify(lang)} && eventTimes.stamp?.textContent===new Date(eventTimes.stamp.dateTime).toLocaleString(${JSON.stringify(locale)})`);
-    assert.deepEqual(await evaluate(`(()=>{const {dialog,draft,row,stamp}=eventTimes;
-      return [dialog.open,draft===document.activeElement,draft.value,draft.selectionStart,draft.selectionEnd,
+    assert.deepEqual(await evaluate(`(()=>{const {dialog,cancel,row,stamp}=eventTimes;
+      return [dialog.open,cancel===document.activeElement,
+        dialog.querySelector('[data-plugin-event-decision="retry"]')?.textContent,
+        dialog.querySelector('[data-plugin-event-decision="skip"]')?.textContent,
         row===document.querySelector('[data-plugin-events-list] time'),stamp===dialog.querySelector('time'),row.textContent===stamp.textContent,stamp.dateTime];})()`),
-    [true, true, "核对原文", 1, 3, true, true, true, event.occurred_at]);
+    [true, true, retryLabel, skipLabel, true, true, true, event.occurred_at]);
     assert.deepEqual(repository.resolutions(projectId!), []);
   }
   await click('[data-plugin-event-cancel]');
   assert.equal(repository.listCursors(projectId!).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.revision, cursor.revision);
 
   await click('[data-plugin-event-open]');
-  await evaluate("document.querySelector('[data-plugin-event-form] textarea').value='已核对文件内容，原通知无需再次处理。'");
-  await click('[data-plugin-event-form] input[value="skip"]');
   repository.saveCursor({ ...cursor, revision: randomUUID() });
-  await click('[data-plugin-event-form] [type="submit"]');
+  await click('[data-plugin-event-decision="skip"]');
   await waitFor("document.querySelector('[data-plugin-event-error]').textContent.includes('已变化')");
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-dialog]').open"), true);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] textarea').value"), "已核对文件内容，原通知无需再次处理。");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-decision=\"skip\"]').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-decision=\"retry\"]').disabled"), true);
   assert.deepEqual(repository.resolutions(projectId!), []);
 
   // Fail the read that 重新读取 starts: arming on the click keeps the notifications reader's periodic read from taking the failure.
@@ -109,16 +112,13 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   })()`);
   await click('[data-plugin-event-reload]');
   await waitFor("document.querySelector('[data-plugin-event-error]').textContent==='暂时无法读取，请重试'");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] textarea').value"), "已核对文件内容，原通知无需再次处理。");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] [type=submit]').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-decision=\"skip\"]').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-event-decision=\"retry\"]').disabled"), true);
   await click('[data-plugin-event-reload]');
-  await waitFor("!document.querySelector('[data-plugin-event-form] [type=submit]').disabled");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input:checked')"), null, "refresh requires a new explicit decision");
-  await click('[data-plugin-event-form] input[value="skip"]');
+  await waitFor("!document.querySelector('[data-plugin-event-decision=\"skip\"]').disabled && !document.querySelector('[data-plugin-event-decision=\"retry\"]').disabled");
 
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("document.querySelector('[data-plugin-event-dialog]').getBoundingClientRect().width <= innerWidth");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input[type=radio]').getBoundingClientRect().width < 24"), true);
   const directory = join(process.cwd(), ".impeccable/qa/review"); await mkdir(directory, { recursive: true });
   for (const theme of ["light", "dark"]) {
     await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
@@ -126,7 +126,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
     const capture = await command("Page.captureScreenshot", { format: "png" }, sessionId) as { data: string };
     await writeFile(join(directory, `plugin-event-recovery-${theme}.png`), Buffer.from(capture.data, "base64"));
   }
-  await click('[data-plugin-event-form] [type="submit"]');
+  await click('[data-plugin-event-decision="skip"]');
   await waitFor("!document.querySelector('[data-plugin-event-dialog]').open && document.querySelector('[data-plugin-events-status]').textContent==='没有待核对的通知。'");
   assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "the list's read clears the bell at once");
   const history = repository.resolutions(projectId!);

@@ -135,7 +135,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (data.work) retainSent(data.work);
       if (visible) {
         if (data.work) chooseSent(data.work);
-        if (data.action) problem = { ...error, name: error.name, message: error.message, action: data.action };
+        if (data.action || data.action_kind) problem = { ...error, name: error.name, message: error.message, action: data.action, action_kind: data.action_kind };
         if (curId) await reload(); else render();
       }
       throw error;

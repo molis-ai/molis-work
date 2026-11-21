@@ -92,7 +92,7 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
     if (!dialog.open) dialog.showModal(); void load(url.pathname + keptQuery(url.search, url.pathname));
     return true;
   };
-  document.addEventListener('molis-work:open-settings-path', event => { openSettings(event.detail?.href); });
+  document.addEventListener('molis-work:open-settings-path', event => { if (openSettings(event.detail?.href)) event.preventDefault?.(); });
   document.addEventListener('click', event => {
     const link = event.target.closest('a[href]');
     if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;

@@ -92,6 +92,7 @@ export async function load(page: CogniaPage): Promise<void> {
   const next = await page.api<Workspace>("?" + query);
   if (id !== page.seq) return;
   page.state = next;
+  page.loaded = true;
   paintFilters(page);
   paintModel(page);
   renderRows(page);
@@ -99,5 +100,12 @@ export async function load(page: CogniaPage): Promise<void> {
   paintManage(page);
 }
 
-/** A load that tells the person when it fails, in the notice. */
-export const reload = (page: CogniaPage): Promise<void> => load(page).catch((error: unknown) => notice(page, messageOf(error)));
+/** A load that tells the person when it fails, in the notice and in place when the initial list never loaded. */
+export const reload = (page: CogniaPage): Promise<void> => load(page).catch((error: unknown) => {
+  const message = messageOf(error);
+  notice(page, message);
+  const rows = q(page, "[data-cognia-rows]");
+  if (!page.loaded || rows.querySelector(".mw-loading")) {
+    rows.innerHTML = `<div class="mw-empty mw-empty--error" role="alert"><p>${esc(message)}</p>${button(uiText.text("common.control.retry"), "reload")}</div>`;
+  }
+});

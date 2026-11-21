@@ -17,12 +17,39 @@ export async function subscriptionForm(panel: TenantPanel, mode: SubscriptionMod
   const plan = mode === 'create' || mode === 'change' ? select('workbench.account.plan-version', 'subscriptionPlan', [['', uiText.text("workbench.account-subscription-form.select-published-plan")], ...plans.map((p,i) => [String(i), p.name + ' · ' + p.planId + ' v' + p.planVersion] as [string,string])]) : undefined;
   if (plan && s) plan.value = String(plans.findIndex(p => p.planId === s.planId && p.planVersion === s.planVersion));
   const quantities = node('div'), inputs = new Map<string, HTMLInputElement>();
-  if (plan) { form.append(quantities);const renderQuantities = () => { quantities.replaceChildren();inputs.clear();const p = plans[Number(plan.value)];
-    if ((scope?.value ?? s?.owner.kind) !== 'TENANT' || plan.value === '' || !p) return;
-    quantities.append(node('p', uiText.text("workbench.account-subscription-form.tenant-managers-must-release-seats-before-capacity-type")));
-    for (const type of p.seatTypes) { const input = field(type.name + ' · ' + type.seatTypeId, 'quantity:' + type.seatTypeId, 'number', 'off');input.min = '0';input.max = '1000000';input.step = '1';input.value = String(pools.find(p => p.seatTypeId === type.seatTypeId)?.quantity ?? 0);quantities.append(input.parentElement!);inputs.set(type.seatTypeId,input); }
-    for (const pool of pools) quantities.append(node('p', pool.seatTypeId + ' · ' + uiText.text("workbench.account-subscription-form.current-capacity") + ' ' + pool.quantity + ' · ' + uiText.text("workbench.account-subscription-form.assigned") + ' ' + pool.assignedCount));
-  };plan.onchange = renderQuantities;if (scope) scope.onchange = renderQuantities;renderQuantities(); }
+  if (plan) {
+    form.append(quantities);
+    const renderQuantities = () => {
+      quantities.replaceChildren();
+      inputs.clear();
+      const p = plans[Number(plan.value)];
+      if ((scope?.value ?? s?.owner.kind) !== 'TENANT' || plan.value === '' || !p) return;
+      quantities.append(node('p', uiText.text("workbench.account-subscription-form.tenant-managers-must-release-seats-before-capacity-type")));
+      for (const type of p.seatTypes) {
+        const wrap = node('label', '', 'mw-field');
+        wrap.append(node('span', type.name + ' · ' + type.seatTypeId));
+        const input = node('input', '', 'mw-input');
+        input.name = 'quantity:' + type.seatTypeId;
+        input.type = 'number';
+        input.setAttribute('autocomplete', 'off');
+        input.required = true;
+        input.min = '0';
+        input.max = '1000000';
+        input.step = '1';
+        input.value = String(pools.find(pool => pool.seatTypeId === type.seatTypeId)?.quantity ?? 0);
+        wrap.append(input);
+        quantities.append(wrap);
+        inputs.set(type.seatTypeId, input);
+      }
+      for (const pool of pools) {
+        const seatLabel = p.seatTypes.find(type => type.seatTypeId === pool.seatTypeId)?.name ?? pool.seatTypeId;
+        quantities.append(node('p', seatLabel + ' · ' + uiText.text("workbench.account-subscription-form.current-capacity") + ' ' + pool.quantity + ' · ' + uiText.text("workbench.account-subscription-form.assigned") + ' ' + pool.assignedCount));
+      }
+    };
+    plan.onchange = renderQuantities;
+    if (scope) scope.onchange = renderQuantities;
+    renderQuantities();
+  }
   const starts = mode === 'create' || mode === 'period' ? dateField(panel, 'workbench.account.starts-at', 'subscriptionStart', s?.startsAt ?? new Date().toISOString()) : undefined;
   const ends = ['create','period','renew'].includes(mode) ? dateField(panel, 'workbench.account.ends-at', 'subscriptionEnd', s?.endsAt ?? new Date(Date.now()+30*86400000).toISOString()) : undefined;
   if (mode === 'renew') form.append(node('p', uiText.text("workbench.account-subscription-form.extends-expiry-keeps-disabled-status-assignments")));

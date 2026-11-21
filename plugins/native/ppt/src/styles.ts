@@ -103,7 +103,7 @@ export const PPT_STYLES = `
   .ppt-card h2 { margin: 0; font-size: 17px; font-weight: 500; }
   .ppt-card ul { margin: 0; padding-left: 16px; }
   .ppt-card-empty { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); }
-  .ppt-note { margin: 0; font-size: 12px; color: var(--tone-done, var(--muted)); }
+  .ppt-note { margin: 0; font-size: 12px; color: var(--muted); }
   .ppt-note.is-error { color: var(--red); }
   .plugin-stage-detail-bar [data-ppt-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;

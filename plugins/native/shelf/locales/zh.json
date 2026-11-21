@@ -95,6 +95,7 @@
     "shelf.preview.done-editing": "完成编辑",
     "shelf.preview.download-file": "下载文件",
     "shelf.preview.edit-copy": "编辑副本",
+    "shelf.preview.empty-file": "这份文件是空的。",
     "shelf.preview.material": "材料",
     "shelf.preview.origin-project-deleted": "项目已删除",
     "shelf.preview.previewing-a-saved-clip-add": "仅预览历史记录 · 加入材料后可运行指令",

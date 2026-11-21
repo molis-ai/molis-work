@@ -22,6 +22,8 @@ export interface CogniaPage {
   draft: Draft | null;
   flow: Flow;
   busy: boolean;
+  /** True after the initial workspace list load succeeds at least once. */
+  loaded: boolean;
   /** Counts the list loads; an answer that is not the latest is dropped. */
   seq: number;
   /** Counts the materials opened; only the one opened last takes the reader. */
@@ -45,7 +47,7 @@ export function cogniaPage(host: CogniaClientHost, root: HTMLElement): CogniaPag
     dialog: part<HTMLDialogElement>("[data-cognia-dialog]"), form: part<HTMLFormElement>("[data-cognia-form]"),
     content: part("[data-cognia-dialog-content]"), submit: part<HTMLButtonElement>("[data-cognia-submit]"),
     state: { materials: [], domains: [], sources: [], drafts: [], ai_available: false, ai_runtime: null, ai_unavailable_reason: null },
-    selected: new Set(), cur: null, etag: "", preview: null, receipt: null, draft: null, flow: "", busy: false, seq: 0, opened: 0,
+    selected: new Set(), cur: null, etag: "", preview: null, receipt: null, draft: null, flow: "", busy: false, loaded: false, seq: 0, opened: 0,
     timer: undefined, returnFocus: null, listScroll: 0, listFocus: null,
   };
 }

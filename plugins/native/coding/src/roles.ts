@@ -128,7 +128,7 @@ export const codingAgentManifest: AgentManifest = {
     },
   ],
   prompts: [
-    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3 },
+    { prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 4 },
     { prompt_id: "coding-compaction", version: /* @version prompt.coding-compaction */ 1 },
     { prompt_id: "coding-ending-review", version: /* @version prompt.coding-ending-review */ 2 },
     // The product's own constraints, shared by every role. Its own layer so a
@@ -147,7 +147,7 @@ export const codingAgentManifest: AgentManifest = {
 /** The prompt bodies this package ships. The Host composes a role from these. */
 export const codingPrompts: readonly AgentPromptText[] = [
   {
-    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 3,
+    prompt_id: "coding-planner", version: /* @version prompt.coding-planner */ 4,
     ...promptBody("coding-planner"),
   },
   {

@@ -93,6 +93,7 @@ test("PWA-156 the report's round runs as a read-only role with no host tools, an
   const role = ASSISTANT_AGENT.roles.find(one => one.role_id === ASSISTANT_REPORT_ROLE_ID);
   assert.equal(role?.execution, "read-only", "queries only, a browser only looked at");
   assert.deepEqual(role?.host_tools, [], "it waits on nothing and asks nothing: no host tool, so it takes up no continuation of the conversation");
+  assert.deepEqual(role?.prompts, ["assistant-base"], "read-only report role omits work/main prompts whose tools are unavailable");
   const work = { work_id: "w", title: "主对话", scope: { kind: "project", project_id: "p" }, project_ref: { project_id: "p", storage_key: "memory:p" }, main: true } as never;
   const round = { actor_id: "user", session: { runtime_id: "prologue", session_id: "s" }, role_id: ASSISTANT_REPORT_ROLE_ID, task: "t", text_materials: [], materials: [] } as never;
   assert.equal(roundStartInput(work, { ...(round as object), report_only: true } as never).browser, false);

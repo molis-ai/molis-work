@@ -1,84 +1,194 @@
 export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
-  const root=market.querySelector('[data-plugin-events]'), readText=host.translate;
-  const lifetime=host.mountPluginClient(root); if(!lifetime)return {scope:()=>{}};
-  const q=selector=>root.querySelector(selector), dialog=q('[data-plugin-event-dialog]'), form=q('[data-plugin-event-form]');
-  const status=q('[data-plugin-events-status]'), error=q('[data-plugin-event-error]');
-  let rows=[], selected=null, fresh=false, busy=false, viewSignal, reading=0, revealUntil=0;
-  const key=row=>JSON.stringify([row.cursor.subscriber_plugin_id,row.cursor.subscriber_install_id,row.cursor.subscriber_generation,row.cursor.source_plugin_id,row.cursor.event_type_id,row.cursor.type_version]);
-  const message=text=>{if(typeof text==='string')error.textContent=text;else molisWorkRequest.show(error,text);error.hidden=!text;};
-  const node=(tag,text,className)=>{const item=document.createElement(tag);item.textContent=text;if(className)item.className=className;return item;};
-  const wordsAt=at=>globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
-  const time=at=>{const item=node('time',wordsAt(at));item.dateTime=at;return item;};
-  const sourceOf=row=>[globalThis.t.text("workbench.plugin-event-recovery.label")+' '+row.source_name+' · ',row.event?.occurred_at?time(row.event.occurred_at):''];
-  const sync=()=>{
-    form.querySelectorAll('button,textarea,input').forEach(item=>{item.disabled=busy;});
-    form.querySelector('[type=submit]').disabled=busy||!fresh||!selected?.can_recover;
-    form.querySelector('[type=submit]').textContent=globalThis.t.text(busy?"workbench.plugin-event-recovery.saving":"workbench.plugin-event-recovery.confirm-decision");
-    q('[data-plugin-events-refresh]').disabled=busy;
+  const root = market.querySelector('[data-plugin-events]');
+  const lifetime = host.mountPluginClient(root);
+  if (!lifetime) return { scope: () => {} };
+  const q = selector => root.querySelector(selector);
+  const dialog = q('[data-plugin-event-dialog]');
+  const form = q('[data-plugin-event-form]');
+  const status = q('[data-plugin-events-status]');
+  const error = q('[data-plugin-event-error]');
+  const skipBtn = form.querySelector('[data-plugin-event-decision="skip"]');
+  const retryBtn = form.querySelector('[data-plugin-event-decision="retry"]');
+  let rows = [], selected = null, fresh = false, busy = false, pendingDecision = '', viewSignal, reading = 0, revealUntil = 0;
+  const key = row => JSON.stringify([row.cursor.subscriber_plugin_id, row.cursor.subscriber_install_id, row.cursor.subscriber_generation, row.cursor.source_plugin_id, row.cursor.event_type_id, row.cursor.type_version]);
+  const message = text => {
+    if (typeof text === 'string') error.textContent = text;
+    else molisWorkRequest.show(error, text);
+    error.hidden = !text;
   };
-  const describe=()=>{
-    q('[data-plugin-event-description]').replaceChildren(...(selected ? [selected.subscriber_name+' · ',...sourceOf(selected)]
+  const node = (tag, text, className) => {
+    const item = document.createElement(tag);
+    item.textContent = text;
+    if (className) item.className = className;
+    return item;
+  };
+  const wordsAt = at => globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
+  const time = at => {
+    const item = node('time', wordsAt(at));
+    item.dateTime = at;
+    return item;
+  };
+  const sourceOf = row => [globalThis.t.text("workbench.plugin-event-recovery.label") + ' ' + row.source_name + ' · ', row.event?.occurred_at ? time(row.event.occurred_at) : ''];
+  const sync = () => {
+    form.querySelectorAll('button').forEach(item => { item.disabled = busy; });
+    const actionable = !busy && fresh && Boolean(selected?.can_recover);
+    if (skipBtn) {
+      skipBtn.disabled = !actionable;
+      skipBtn.textContent = globalThis.t.text(busy && pendingDecision === 'skip' ? "workbench.plugin-event-recovery.saving" : "workbench.plugin-event-recovery.skip-notification");
+    }
+    if (retryBtn) {
+      retryBtn.disabled = !actionable;
+      retryBtn.textContent = globalThis.t.text(busy && pendingDecision === 'retry' ? "workbench.plugin-event-recovery.saving" : "workbench.plugin-event-recovery.retry-action");
+    }
+    q('[data-plugin-events-refresh]').disabled = busy;
+  };
+  const describe = () => {
+    q('[data-plugin-event-description]').replaceChildren(...(selected ? [selected.subscriber_name + ' · ', ...sourceOf(selected)]
       : [globalThis.t.text("workbench.plugin-event-recovery.notification-has-been-handled-no-longer-available-close")]));
-    q('[data-plugin-event-payload]').textContent=selected?JSON.stringify({source:selected.cursor.source_plugin_id,event:selected.event,error:selected.cursor.last_error_code},null,2):'';
-    if(selected&&!selected.can_recover)message(selected.unavailable_reason);
+    if (selected && !selected.can_recover) message(selected.unavailable_reason);
     sync();
   };
-  const paint=(history=[])=>{
-    q('[data-plugin-events-list]').replaceChildren(...rows.map((row,index)=>{
-      const item=node('div','','plugin-event-row'), copy=node('div','');
-      const details=node('p','');details.append(...sourceOf(row));copy.append(node('strong',row.subscriber_name),details);
-      if(row.unavailable_reason)copy.append(node('small',row.unavailable_reason));
-      const button=node('button',globalThis.t.text("workbench.plugin-event-recovery.review"),'mw-btn mw-btn--secondary');button.type='button';button.dataset.pluginEventOpen=String(index);
-      item.append(copy,button);return item;
+  const paint = (history = []) => {
+    q('[data-plugin-events-list]').replaceChildren(...rows.map((row, index) => {
+      const item = node('div', '', 'plugin-event-row');
+      const copy = node('div', '');
+      const details = node('p', '');
+      details.append(...sourceOf(row));
+      copy.append(node('strong', row.subscriber_name), details);
+      if (row.unavailable_reason) copy.append(node('small', row.unavailable_reason));
+      const button = node('button', globalThis.t.text("workbench.plugin-event-recovery.review"), 'mw-btn mw-btn--secondary');
+      button.type = 'button';
+      button.dataset.pluginEventOpen = String(index);
+      item.append(copy, button);
+      return item;
     }));
-    q('[data-plugin-events-history]').hidden=!history.length;
-    q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>{
-      const row=node('p','');row.append(time(record.resolved_at),' · '+record.actor_id+' · ',
-        globalThis.t.text(record.decision==='skip'?"workbench.plugin-event-recovery.skipped":"workbench.plugin-event-recovery.retry-requested"),' · '+record.event_id+' · '+record.reason);return row;
+    q('[data-plugin-events-history]').hidden = !history.length;
+    q('[data-plugin-events-history-list]').replaceChildren(...history.map(record => {
+      const row = node('p', '');
+      row.append(time(record.resolved_at), ' · ' + record.actor_id + ' · ',
+        globalThis.t.text(record.decision === 'skip' ? "workbench.plugin-event-recovery.skipped" : "workbench.plugin-event-recovery.retry-requested"),
+        ' · ' + record.event_id + ' · ' + record.reason);
+      return row;
     }));
   };
   // The dock bell asks for this list; bring it into view once the read it waited for has settled.
-  const reveal=()=>{
-    if(Date.now()>revealUntil)return;revealUntil=0;
-    root.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
-    q('[data-plugin-events-heading]').focus({preventScroll:true});
+  const reveal = () => {
+    if (Date.now() > revealUntil) return;
+    revealUntil = 0;
+    root.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    q('[data-plugin-events-heading]').focus({ preventScroll: true });
   };
-  const load=async(reselect=false)=>{
-    if(busy||!lifetime.visible)return;
-    const epoch=++reading, oldKey=selected&&key(selected), signal=viewSignal;fresh=false;sync();status.textContent=globalThis.t.text("workbench.plugin-event-recovery.loading-plugin-notifications");status.classList.add('mw-loading');
-    try{
-      const body=await molisWorkRequest(host.route('/api/plugins/runtime/events'),{scope:lifetime,signal,fallback:globalThis.t.text("workbench.plugin-event-recovery.could-not-load-plugin-notifications-please-refresh")});
-      if(epoch!==reading)return;
-      rows=body.pending||[];paint(body.history||[]);status.classList.remove('mw-loading');status.textContent=rows.length?globalThis.t.text("workbench.plugin-event-recovery.some-notifications-need-review-other-plugins-can-continue"):globalThis.t.text("workbench.plugin-event-recovery.no-notifications-need-review");
-      if(reselect&&oldKey){selected=rows.find(row=>key(row)===oldKey)||null;form.elements.decision.forEach(item=>{item.checked=false;});message('');describe();}
-      fresh=true;sync();
-      document.dispatchEvent(new CustomEvent('molis-work:plugin-events',{detail:{pending:rows.length}}));reveal();
-    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');molisWorkRequest.show(status,cause);if(dialog.open)message(cause);fresh=false;sync();reveal();}}
+  const load = async (reselect = false) => {
+    if (busy || !lifetime.visible) return;
+    const epoch = ++reading, oldKey = selected && key(selected), signal = viewSignal;
+    fresh = false;
+    sync();
+    status.textContent = globalThis.t.text("workbench.plugin-event-recovery.loading-plugin-notifications");
+    status.classList.add('mw-loading');
+    try {
+      const body = await molisWorkRequest(host.route('/api/plugins/runtime/events'), { scope: lifetime, signal, fallback: globalThis.t.text("workbench.plugin-event-recovery.could-not-load-plugin-notifications-please-refresh") });
+      if (epoch !== reading) return;
+      rows = body.pending || [];
+      paint(body.history || []);
+      status.classList.remove('mw-loading');
+      status.textContent = rows.length ? globalThis.t.text("workbench.plugin-event-recovery.some-notifications-need-review-other-plugins-can-continue") : globalThis.t.text("workbench.plugin-event-recovery.no-notifications-need-review");
+      if (reselect && oldKey) {
+        selected = rows.find(row => key(row) === oldKey) || null;
+        message('');
+        describe();
+      }
+      fresh = true;
+      sync();
+      document.dispatchEvent(new CustomEvent('molis-work:plugin-events', { detail: { pending: rows.length } }));
+      reveal();
+    } catch (cause) {
+      if (epoch === reading && !signal?.aborted && lifetime.alive) {
+        status.classList.remove('mw-loading');
+        molisWorkRequest.show(status, cause);
+        if (dialog.open) message(cause);
+        fresh = false;
+        sync();
+        reveal();
+      }
+    }
   };
-  lifetime.whenVisible(signal=>{viewSignal=signal;void load();return()=>{reading++;fresh=false;if(dialog.open)dialog.close();};});
-  lifetime.listen(document,'molis-work:language-changed',()=>{
-    root.querySelectorAll('time[datetime]').forEach(item=>{item.textContent=wordsAt(item.dateTime);});
+  const recover = async (decision) => {
+    if (busy || !fresh || !selected?.can_recover || (decision !== 'skip' && decision !== 'retry')) return;
+    const cursor = selected.cursor, signal = viewSignal;
+    const reason = globalThis.t.text(decision === 'skip' ? "workbench.plugin-event-recovery.reason-skipped" : "workbench.plugin-event-recovery.reason-retried");
+    const input = {
+      subscriber_plugin_id: cursor.subscriber_plugin_id,
+      source_plugin_id: cursor.source_plugin_id,
+      event_type_id: cursor.event_type_id,
+      type_version: cursor.type_version,
+      expected_revision: cursor.revision,
+      expected_install_id: cursor.subscriber_install_id,
+      expected_generation: cursor.subscriber_generation,
+      expected_version: selected.subscriber_version,
+      event_id: selected.event.event_id,
+      reason,
+      decision,
+    };
+    busy = true;
+    pendingDecision = decision;
+    sync();
+    message('');
+    try {
+      await molisWorkRequest(host.route('/api/plugins/runtime/events/recover'), { body: input, scope: lifetime, signal, fallback: globalThis.t.text("workbench.plugin-event-recovery.outcome-could-not-be-confirmed-refresh-review-before") });
+      dialog.close();
+      selected = null;
+      busy = false;
+      pendingDecision = '';
+      await load();
+    } catch (cause) {
+      if (!signal?.aborted && lifetime.alive) {
+        fresh = false;
+        message(cause);
+      }
+    } finally {
+      busy = false;
+      pendingDecision = '';
+      if (lifetime.alive) sync();
+    }
+  };
+  lifetime.whenVisible(signal => {
+    viewSignal = signal;
+    void load();
+    return () => {
+      reading++;
+      fresh = false;
+      if (dialog.open) dialog.close();
+    };
   });
-  lifetime.listen(root,'click',event=>{
-    const open=event.target.closest('[data-plugin-event-open]');
-    if(open&&!busy){selected=rows[Number(open.dataset.pluginEventOpen)];form.reset();message('');describe();dialog.showModal();form.elements.reason.focus();return;}
-    if(event.target.closest('[data-plugin-event-cancel]')&&!busy){dialog.close();return;}
-    if(event.target.closest('[data-plugin-events-refresh], [data-plugin-event-reload]'))void load(dialog.open);
+  lifetime.listen(document, 'molis-work:language-changed', () => {
+    root.querySelectorAll('time[datetime]').forEach(item => { item.textContent = wordsAt(item.dateTime); });
+    sync();
   });
-  lifetime.listen(document,'molis-work:plugin-events-reveal',()=>{revealUntil=Date.now()+10000;if(lifetime.visible)void load();});
-  lifetime.listen(dialog,'cancel',event=>{if(busy)event.preventDefault();});
-  lifetime.listen(form,'submit',async event=>{
-    event.preventDefault();if(busy||!fresh||!selected?.can_recover||!form.reportValidity())return;
-    const data=new FormData(form), cursor=selected.cursor, signal=viewSignal;
-    const input={subscriber_plugin_id:cursor.subscriber_plugin_id,source_plugin_id:cursor.source_plugin_id,event_type_id:cursor.event_type_id,type_version:cursor.type_version,
-      expected_revision:cursor.revision,expected_install_id:cursor.subscriber_install_id,expected_generation:cursor.subscriber_generation,expected_version:selected.subscriber_version,
-      event_id:selected.event.event_id,reason:String(data.get('reason')||''),decision:String(data.get('decision')||'')};
-    busy=true;sync();message('');
-    try{
-      await molisWorkRequest(host.route('/api/plugins/runtime/events/recover'),{body:input,scope:lifetime,signal,fallback:globalThis.t.text("workbench.plugin-event-recovery.outcome-could-not-be-confirmed-refresh-review-before")});
-      dialog.close();selected=null;busy=false;await load();
-    }catch(cause){if(!signal?.aborted&&lifetime.alive){fresh=false;message(cause);}}
-    finally{busy=false;if(lifetime.alive)sync();}
+  lifetime.listen(root, 'click', event => {
+    const open = event.target.closest('[data-plugin-event-open]');
+    if (open && !busy) {
+      selected = rows[Number(open.dataset.pluginEventOpen)];
+      message('');
+      describe();
+      dialog.showModal();
+      q('[data-plugin-event-cancel]')?.focus();
+      return;
+    }
+    if (event.target.closest('[data-plugin-event-cancel]') && !busy) {
+      dialog.close();
+      return;
+    }
+    if (event.target.closest('[data-plugin-events-refresh], [data-plugin-event-reload]')) {
+      void load(dialog.open);
+      return;
+    }
+    const action = event.target.closest('[data-plugin-event-decision]');
+    if (action) void recover(action.dataset.pluginEventDecision);
   });
-  return {scope:enabled=>{root.hidden=!enabled;}};
+  lifetime.listen(document, 'molis-work:plugin-events-reveal', () => {
+    revealUntil = Date.now() + 10000;
+    if (lifetime.visible) void load();
+  });
+  lifetime.listen(dialog, 'cancel', event => { if (busy) event.preventDefault(); });
+  return { scope: enabled => { root.hidden = !enabled; } };
 }`;

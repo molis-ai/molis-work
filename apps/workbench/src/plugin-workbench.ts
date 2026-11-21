@@ -18,6 +18,7 @@ import {
   SOURCE_LADDER_STYLES,
 } from "@molis-ai/molis-work-design-system";
 import { CODING_COMPANION_STYLES } from "./styles/coding-companions.js";
+import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses" | "contributions"> {
@@ -117,15 +118,20 @@ export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPlug
   return (pack && splitOf(pack)?.scoped) || null;
 }
 
+/** Lower-specificity layout-shell primitives for framed plugins so a later dependency sheet (e.g. git.css after coding.css) never overrides the host plugin's responsive overrides. */
+const FRAMED_LAYOUT_SHELL = PRIMITIVE_PLUGIN_LAYOUT_SHELL.replaceAll(":is(.mw-catalog, .mw-layout-primitives)", ":where(.mw-catalog, .mw-layout-primitives)");
+
 const FRAMED_PLUGIN_EXTRA_STYLES: Readonly<Record<string, string>> = {
-  coding: `${COMPOSER_STYLES}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}${SETTINGS_DOCUMENT_STYLES}${INPUT_RECEIPTS_STYLES}${INTERACTION_STYLES}`,
-  feed: `${KEEP_EDITS_STYLES}${SOURCE_LADDER_STYLES}`,
-  inbox: PRESENTATION_FORM_STYLES,
+  coding: `${FRAMED_LAYOUT_SHELL}${COMPOSER_STYLES}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}${SETTINGS_DOCUMENT_STYLES}${INPUT_RECEIPTS_STYLES}${INTERACTION_STYLES}.assistant-code pre{tab-size:var(--code-tab,4)}`,
+  feed: `${KEEP_EDITS_STYLES}${SOURCE_LADDER_STYLES}${DETAIL_READING_STYLES}`,
+  git: `${FRAMED_LAYOUT_SHELL}${CODING_BASICS_STYLES}${CODING_COMPANION_STYLES}`,
+  inbox: `${PRESENTATION_FORM_STYLES}${DETAIL_READING_STYLES}`,
   jelly: PRIMITIVE_PLUGIN_CALENDAR,
   pages: CONTEXT_TOOLBAR_STYLES,
-  risk: PRIMITIVE_PLUGIN_SEVERITY,
+  risk: `${PRIMITIVE_PLUGIN_SEVERITY}${FRAMED_LAYOUT_SHELL}`,
+  schedule: DETAIL_READING_STYLES,
   shelf: SETTINGS_DOCUMENT_STYLES,
-  "work-brief": PRIMITIVE_PLUGIN_LAYOUT_SHELL,
+  "work-brief": FRAMED_LAYOUT_SHELL,
 };
 
 /**

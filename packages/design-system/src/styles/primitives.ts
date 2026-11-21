@@ -43,6 +43,8 @@ const PRIMITIVE_SHELL_EXTRAS = `
   .mw-return-bar__actions, .mw-resume-prompt__actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .mw-return-bar__actions { padding-top: 4px; }
   .mw-return-bar[data-return-bar-state=gone] svg { display: none; }
+  /* The Skills one round used (specs/prologue-strategies/skill.md §10): a line above the reply, each Skill a bounded button; it wraps, never cuts a name. */
+  .mw-skill-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); > span { white-space: nowrap; } .mw-btn { max-width: 100%; } }
   /* Its 「依据」 panel, the shell's: why the Skill was used, then what to do about it — this round, and from now on. */
   .mw-skill-why { position: fixed; margin: 0; inset: auto; width: min(420px, calc(100vw - 16px)); padding: 12px; overflow: auto; color: var(--ink); font-size: 13px; }
   .mw-skill-why__body { display: grid; gap: 10px; }

@@ -1,24 +1,24 @@
 /** Placement slot and target label styles rendered inside framed plugin documents (102-1). */
 export const PLACEMENT_SLOT_STYLES = `
   /* The bar gives way in a crowded header: the location ellipsizes rather than pushing the plugin's own buttons out. */
-  [data-placement-slot], .plugin-stage-detail-bar > span[data-placement-slot] { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; }
-  [data-placement-slot]:empty, .plugin-stage-detail-bar > span[data-placement-slot]:empty { display: none; }
-  .placement-bar { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; height: 26px; padding: 0 4px; gap: 0; font: inherit; font-size: 12px;
-    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 13px; cursor: pointer; }
-  .placement-bar:hover, .placement-bar:focus-visible { background: var(--nav-hover); border-color: var(--line-strong); color: var(--ink); }
-  .placement-bar > span { display: inline-flex; align-items: center; padding: 0 6px; white-space: nowrap; }
-  .placement-bar > span + span:not([hidden]) { border-left: 1px solid var(--line); }
-  .placement-bar > span:empty { display: none; }
-  .placement-bar > .placement-bar-where { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
-  .placement-bar-saved { gap: 4px; }
-  .placement-bar-saved:empty { display: none; }
+  [data-placement-slot], .plugin-stage-detail-bar > span[data-placement-slot] { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; &:empty { display: none; } }
+  .placement-bar {
+    display: inline-flex; align-items: center; min-width: 0; max-width: 100%; height: 26px; padding: 0 4px; gap: 0; font: inherit; font-size: 12px;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 13px; cursor: pointer;
+    &:is(:hover, :focus-visible) { background: var(--nav-hover); border-color: var(--line-strong); color: var(--ink); }
+    > span { display: inline-flex; align-items: center; padding: 0 6px; white-space: nowrap; & + span:not([hidden]) { border-left: 1px solid var(--line); } &:empty { display: none; } }
+    > .placement-bar-where { color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+    @media (max-width: 760px) {
+      > :is(.placement-bar-access, .placement-bar-links) { display: none; }
+      > .placement-bar-where { display: block; max-width: 8em; }
+    }
+  }
+  .placement-bar-saved { gap: 4px; &:empty { display: none; } }
   /* A long name ellipsizes; the tooltip shows it whole. */
-  .placement-target { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .placement-target > span { flex: none; }
-  .placement-target b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--ink-soft, var(--ink)); }
-  @media (max-width: 760px) {
-    .placement-bar > .placement-bar-access, .placement-bar > .placement-bar-links { display: none; }
-    .placement-bar > .placement-bar-where { display: block; max-width: 8em; }
+  .placement-target {
+    display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; max-width: 100%; font-size: 12px; color: var(--muted); white-space: nowrap;
+    > span { flex: none; }
+    b { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--ink-soft, var(--ink)); }
   }
 `;
 

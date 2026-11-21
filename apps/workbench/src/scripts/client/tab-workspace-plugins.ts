@@ -243,6 +243,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     column = "main";
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
     if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
+    const current = paneSurface(ops.focused(state), plugin);
+    if (current) delete current.dataset.paneKey;
     apply();
     persist();
     host.prepareSurface?.(paneSurface(ops.focused(state), plugin), "open");

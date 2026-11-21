@@ -83,34 +83,55 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       || canonical?.querySelector("iframe[data-plugin-frame]")
       || surfaceTemplates.has(plugin)),
   );
-  const buildPaneSearch = (pane, tab, viewPlugin) => {
-    const params = new URLSearchParams();
+  const buildPaneSearch = (pane, tab, viewPlugin, isClone = false) => {
+    const params = new URLSearchParams(isClone ? "" : location.search);
     params.set("workbenchPane", pane.id);
     params.set("panePlugin", tab?.plugin || viewPlugin || "home");
     if (tab?.kind === "item" && tab.itemId) params.set("paneItem", tab.itemId);
+    else params.delete("paneItem");
     const view = readView(pane.id, tab?.id);
     if (view !== undefined) params.set("paneView", view);
+    else params.delete("paneView");
     return "?" + params.toString();
   };
-  const promoteSurvivingClones = () => {
+  const dropRemovedTemplates = (gone) => {
+    if (!Array.isArray(gone) || !gone.length) return;
+    const removed = new Set(gone);
+    surfaceTemplates.forEach((tpl, id) => {
+      if (removed.has(id) || (tpl.dataset?.pluginClient && removed.has(tpl.dataset.pluginClient))) {
+        surfaceTemplates.delete(id);
+      }
+    });
+    panesEl.querySelectorAll("[data-work-surface][data-pane-clone]").forEach((el) => {
+      const id = el.dataset.workSurface;
+      if ((id && removed.has(id)) || (el.dataset.pluginClient && removed.has(el.dataset.pluginClient))) {
+        disposeClone(el);
+      }
+    });
+  };
+  const promoteSurvivingClones = (removedCanonicalIds) => {
     const livePlugins = new Set();
     document.querySelectorAll("[data-work-surface]:not([data-pane-clone])").forEach((el) => {
       if (!el.closest("[data-goal-canvas-shell]") && el.dataset.workSurface) livePlugins.add(el.dataset.workSurface);
     });
     panesEl.querySelectorAll("[data-work-surface][data-pane-clone]").forEach((el) => {
       const id = el.dataset.workSurface;
-      if (id && !livePlugins.has(id)) {
+      if (id && !livePlugins.has(id) && !removedPlugin(id)) {
         el.removeAttribute("data-pane-clone");
         livePlugins.add(id);
       }
     });
-    surfaceTemplates.forEach((tpl, id) => {
-      if (id.startsWith("__") || livePlugins.has(id)) return;
-      const restored = tpl.cloneNode(true);
-      restored.hidden = true;
-      pool.append(restored);
-      livePlugins.add(id);
-    });
+    if (removedCanonicalIds?.size) {
+      removedCanonicalIds.forEach((id) => {
+        if (id.startsWith("__") || livePlugins.has(id) || removedPlugin(id)) return;
+        const tpl = surfaceTemplates.get(id);
+        if (!tpl) return;
+        const restored = tpl.cloneNode(true);
+        restored.hidden = true;
+        pool.append(restored);
+        livePlugins.add(id);
+      });
+    }
   };
   const prunePaneClones = () => {
     const hiddenClones = [];

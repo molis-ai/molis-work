@@ -65,32 +65,35 @@ const PRIMITIVE_PLUGIN_DIR_BASE = `
   /* A row with a second fact stays one line: the title, then the fact in muted words (cut first when room runs out), then the
      count or state. A row never stacks its facts. A plugin's record row (.pc-row) is content to read and keeps its own layout. */
   .mw-dir-row--meta { height: 36px; min-height: 36px; align-items: center; padding-block: 0; }
-  .mw-dir-row {
-    &:hover { color: var(--ink); background: var(--nav-hover); }
-    &:active { background: var(--nav-press); }
-    &:focus-visible { ${CONTAINED_FOCUS}; }
-    &:is(.is-selected, [aria-current="page"]) {
-      color: var(--ink); background: var(--nav-active);
-      .mw-dir-row__copy strong { color: var(--ink); }
-      .mw-dir-row__icon { color: var(--plugin-tint, var(--ink-soft)); }
-      .mw-dir-row__copy small { color: var(--muted); }
-      .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
-    }
-    .mw-dir-row__status {
-      justify-self: end; align-self: center; flex: none; gap: 4px;
-      min-height: 0; padding: 0; border: 0; border-radius: 0;
-      background: transparent; color: var(--status-tone, var(--faint));
-      font-size: 12px; font-weight: 400; line-height: 16px;
-      svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
-    }
+  .mw-dir-row:hover { color: var(--ink); background: var(--nav-hover); }
+  .mw-dir-row:active { background: var(--nav-press); }
+  .mw-dir-row:focus-visible { ${CONTAINED_FOCUS}; }
+  .mw-dir-row .mw-dir-row__status {
+    justify-self: end; align-self: center; flex: none; gap: 4px;
+    min-height: 0; padding: 0; border: 0; border-radius: 0;
+    background: transparent; color: var(--status-tone, var(--faint));
+    font-size: 12px; font-weight: 400; line-height: 16px;
   }
+  .mw-dir-row .mw-dir-row__status svg:not(.mw-state-ring) { width: 12px; height: 12px; color: inherit; }
+  .mw-dir-row.is-selected,
+  .mw-dir-row[aria-current="page"] {
+    color: var(--ink);
+    background: var(--nav-active);
+  }
+  .mw-dir-row.is-selected .mw-dir-row__copy strong,
+  .mw-dir-row[aria-current="page"] .mw-dir-row__copy strong { color: var(--ink); }
+  .mw-dir-row.is-selected .mw-dir-row__icon,
+  .mw-dir-row[aria-current="page"] .mw-dir-row__icon { color: var(--plugin-tint, var(--ink-soft)); }
+  .mw-dir-row.is-selected .mw-dir-row__copy small,
+  .mw-dir-row[aria-current="page"] .mw-dir-row__copy small { color: var(--muted); }
+  .mw-dir-row.is-selected .mw-dir-row__status,
+  .mw-dir-row[aria-current="page"] .mw-dir-row__status { color: var(--status-tone, var(--muted)); }
   .mw-dir-row__icon { width: 16px; height: 16px; color: var(--plugin-tint, var(--faint)); display: grid; place-items: center; svg { width: 16px; height: 16px; } }
-  .mw-dir-row__copy {
-    min-width: 0; overflow: hidden; display: grid; align-content: center; column-gap: 12px;
-    strong { min-width: 0; overflow: hidden; color: inherit; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
-  }
+  .mw-dir-row__copy { min-width: 0; overflow: hidden; display: grid; align-content: center; column-gap: 12px; }
+  .mw-dir-row__copy strong { min-width: 0; overflow: hidden; color: inherit; font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
   .mw-dir-row__copy strong:has(.mw-dir-row__stem) { display: flex; text-overflow: clip; }
-  .mw-dir-row--compact { .mw-dir-row__copy { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } .mw-dir-row__headline { display: contents; } }
+  .mw-dir-row--compact .mw-dir-row__copy { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .mw-dir-row--compact .mw-dir-row__headline { display: contents; }
   .mw-dir-row--meta:not(.pc-row) {
     .mw-dir-row__copy { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); grid-auto-columns: auto; grid-auto-flow: column; align-items: baseline; column-gap: 8px; }
     .mw-dir-row__headline { display: contents; > :not(strong) { order: 2; justify-self: end; } }
@@ -108,8 +111,8 @@ const PRIMITIVE_PLUGIN_DIR_BASE = `
     &:active { background: var(--nav-press); }
     &:is(:hover, :active) .mw-dir-row { color: var(--ink); background: transparent; }
     .mw-dir-row { width: 100%; min-width: 0; }
-    > :not(.mw-dir-row) { position: static; transform: none; align-self: center; justify-self: center; display: grid; place-items: center; }
   }
+  .mw-dir-row-wrap > :not(.mw-dir-row) { position: static; transform: none; align-self: center; justify-self: center; display: grid; place-items: center; }
   .mw-dir-row-wrap:has(.is-selected),
   .mw-dir-row-wrap:has([aria-current="page"]) { background: var(--nav-active); }
   .mw-dir-row-wrap:has(.is-selected) .mw-dir-row,
@@ -179,6 +182,10 @@ const PRIMITIVE_DIR_SHELL_EXTRAS = `
 export const PRIMITIVE_PLUGIN_DIR_COMPACT = PRIMITIVE_PLUGIN_DIR_BASE
   .replace(/body\[data-desktop-shell="true"\]\s+\.mw-dir-row:has\(\.mw-dir-row__icon\),\s*body\.immersive-workbench\s+\.tree-pane\s+\.mw-dir-row:has\(\.mw-dir-row__icon\),\s*/g, "")
   .replace(/body\[data-desktop-shell="true"\]\s+\.mw-dir-row,\s*body\.immersive-workbench\s+\.tree-pane\s+\.mw-dir-row,\s*/g, "")
-  .replace(/,\s*body\.immersive-workbench\s+\.immersive-workspace\s+\.tree-pane\s+\.mw-dir-row-wrap\s+\.mw-dir-row,\s*body\.immersive-workbench\s+\.immersive-workspace\s+\.tree-pane\s+\.mw-dir-row-wrap\s+\.mw-dir-row:is\(:hover,\s*:active,\s*\.is-selected,\s*\[aria-current="page"\]\)/g, "");
+  .replace(/,\s*body\.immersive-workbench\s+\.immersive-workspace\s+\.tree-pane\s+\.mw-dir-row-wrap\s+\.mw-dir-row,\s*body\.immersive-workbench\s+\.immersive-workspace\s+\.tree-pane\s+\.mw-dir-row-wrap\s+\.mw-dir-row:is\(:hover,\s*:active,\s*\.is-selected,\s*\[aria-current="page"\]\)/g, "")
+  .replace(/\.mw-dir-row:hover \{ color: var\(--ink\); background: var\(--nav-hover\); \}[\s\S]*?\.mw-dir-row\[aria-current="page"\] \.mw-dir-row__status \{ color: var\(--status-tone, var\(--muted\)\); \}/,
+    `.mw-dir-row{&:hover{color:var(--ink);background:var(--nav-hover)}&:active{background:var(--nav-press)}&:focus-visible{${CONTAINED_FOCUS}}.mw-dir-row__status{justify-self:end;align-self:center;flex:none;gap:4px;min-height:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--status-tone,var(--faint));font-size:12px;font-weight:400;line-height:16px;svg:not(.mw-state-ring){width:12px;height:12px;color:inherit}}&:is(.is-selected,[aria-current="page"]){color:var(--ink);background:var(--nav-active);.mw-dir-row__copy strong{color:var(--ink)}.mw-dir-row__icon{color:var(--plugin-tint,var(--ink-soft))}.mw-dir-row__copy small{color:var(--muted)}.mw-dir-row__status{color:var(--status-tone,var(--muted))}}}`)
+  .replace(/\.mw-dir-row-wrap:has\(\.is-selected\),[\s\S]*?\.mw-dir-row-wrap:has\(\[aria-current="page"\]\) \.mw-dir-row::before \{ content: none; \}/,
+    `.mw-dir-row-wrap:has(:is(.is-selected,[aria-current="page"])){background:var(--nav-active);&::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:1px;background:var(--ink);pointer-events:none}.mw-dir-row{background:transparent;&::before{content:none}}}`);
 
 export const PRIMITIVE_PLUGIN_DIR = PRIMITIVE_PLUGIN_DIR_BASE + PRIMITIVE_DIR_SHELL_EXTRAS;

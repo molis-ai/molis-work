@@ -369,6 +369,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => {
     if (event.detail?.next) directory = readDirectory(event.detail.next);
+    dropRemovedTemplates(event.detail?.gone);
     captureSurfaceTemplates();
     apply();
   });

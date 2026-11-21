@@ -92,7 +92,7 @@ ${TAB_WORKSPACE_CLONES_PART}
       return;
     }
     if (isFramedSurface(tab.plugin, node)) {
-      node.dataset.paneSearch = buildPaneSearch(pane, tab, null);
+      node.dataset.paneSearch = buildPaneSearch(pane, tab, null, isClone);
       host.prepareSurface?.(node, "restore");
     }
     selectItem(node, tab.kind === "item" ? tab.itemId : null, readView(pane.id, tab.id));
@@ -228,6 +228,7 @@ ${TAB_WORKSPACE_CLONES_PART}
       setWorkSurface(state.exclusive, false, false);
       return;
     }
+    const wasExclusive = root.hasAttribute("data-exclusive");
     root.removeAttribute("data-exclusive");
     if (exclusiveEl) {
       exclusiveEl.hidden = true;
@@ -279,6 +280,7 @@ ${TAB_WORKSPACE_CLONES_PART}
     // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.
     const mountedNow = new Set();
 
+    const removedCanonicalIds = new Set();
     panesEl.querySelectorAll("[data-tab-pane]").forEach((section) => {
       if (state.panes.some((pane) => pane.id === section.dataset.tabPane)) return;
       section.querySelectorAll(":scope > [data-tab-pane-body] > [data-pane-clone]").forEach((child) => disposeClone(child));
@@ -287,7 +289,10 @@ ${TAB_WORKSPACE_CLONES_PART}
           child.querySelectorAll("[data-home-lead] > [data-work-surface]").forEach((lead) => {
             lead.hidden = true;
             if (!lead.querySelector(":scope > iframe[data-plugin-frame]")) pool.append(lead);
-            else lead.remove();
+            else {
+              if (lead.dataset.workSurface) removedCanonicalIds.add(lead.dataset.workSurface);
+              lead.remove();
+            }
           });
           child.hidden = true;
           delete child.dataset.paneTab;
@@ -300,11 +305,13 @@ ${TAB_WORKSPACE_CLONES_PART}
           delete child.dataset.paneTab;
           delete child.dataset.paneKey;
           pool.append(child);
+        } else if (child.dataset.workSurface) {
+          removedCanonicalIds.add(child.dataset.workSurface);
         }
       });
       section.remove();
     });
-    promoteSurvivingClones();
+    promoteSurvivingClones(removedCanonicalIds);
     prunePaneClones();
     // Create missing pane sections in state.panes order so DOM/Tab order stays stable across reloads,
     // then mount surfaces for already-populated panes first so splitting never steals a live surface.
@@ -364,7 +371,7 @@ ${TAB_WORKSPACE_CLONES_PART}
         const prevPaneKey = node.dataset.paneKey || "";
         const prevView = node.dataset.paneView || "";
         const nextView = readView(pane.id, tab?.id) || "";
-        const unchanged = wasMountedHere && prevPaneKey === paneKey && prevView === nextView;
+        const unchanged = !wasExclusive && wasMountedHere && prevPaneKey === paneKey && prevView === nextView && !(tab?.kind === "item" && node.dataset.expanded === "false");
         mount(pane, node);
         if (frameKey) node.dataset.paneTab = frameKey;
         node.dataset.paneKey = paneKey;
@@ -387,7 +394,7 @@ ${TAB_WORKSPACE_CLONES_PART}
         } else {
           const isClone = node.hasAttribute("data-pane-clone");
           if (isFramedSurface(viewPlugin, node)) {
-            node.dataset.paneSearch = buildPaneSearch(pane, null, viewPlugin);
+            node.dataset.paneSearch = buildPaneSearch(pane, null, viewPlugin, isClone);
             host.prepareSurface?.(node, "restore");
           }
           if (isClone && viewPlugin === "goals") {

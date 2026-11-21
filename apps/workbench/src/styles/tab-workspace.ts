@@ -53,7 +53,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-close[hidden] { display: none; }
   body.immersive-workbench .tab-pane-close svg { width: 12px; height: 12px; }
   body.immersive-workbench .tab-pane-close:hover { background: var(--nav-active); color: var(--ink); }
-  body.immersive-workbench .tab-pane-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--paper); }
+  body.immersive-workbench .tab-pane-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; container: plugin-stage / inline-size; background: var(--paper); }
   body.immersive-workbench .tab-pane-body > * { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }

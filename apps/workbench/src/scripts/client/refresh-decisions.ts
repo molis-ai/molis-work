@@ -61,7 +61,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     let documentReplaceGeneration = 0, documentCursor;
-    const { loadGoalDocument } = (${GOALS_PAGE.goalsDocument})({
+    const createGoalDocumentLoader = ${GOALS_PAGE.goalsDocument};
+    const { loadGoalDocument } = createGoalDocumentLoader({
       documentPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
       showError: (message) => showToast(message, true),
       afterReplace: () => {
@@ -80,7 +81,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       if (!targetPane || targetPane === documentPane) return loadGoalDocument(goalId);
       let entry = cloneGoalLoaders.get(targetPane);
       if (!entry) {
-        const eventApi = goalData ? (${GOALS_PAGE.goalsEventDocument})({
+        const eventApi = goalData ? createGoalEventDocument({
           documentPane: targetPane, route, translate: globalThis.t.text, isAbortError,
           showError: (message) => showToast(message, true),
           showStatus: (message) => showToast(message, false),
@@ -88,7 +89,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           controlHeaders: () => (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" }),
         }) : null;
         let clonePendingRestore = null;
-        const loader = (${GOALS_PAGE.goalsDocument})({
+        const loader = createGoalDocumentLoader({
           documentPane: targetPane, documentCollection, route, translate: globalThis.t.text, isAbortError,
           showError: (message) => showToast(message, true),
           afterReplace: () => {

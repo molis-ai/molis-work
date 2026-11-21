@@ -34,10 +34,15 @@ export function shortcutKeyboardEventInit(chord: string, mac = isMacPlatform()):
   };
 }
 
-/** Normalizes a child-frame keydown into a portable chord name, distinguishing Mac `metaKey` vs non-Mac `ctrlKey`. */
+/**
+ * Normalizes a child-frame keydown into a portable chord name.
+ * macOS strictly binds `Mod` to `metaKey` (never hijacking readline `ctrlKey` chords like `^K`/`^F`/`^B`).
+ * Non-macOS binds `Mod` to `ctrlKey` and also accepts mutually exclusive `metaKey` chords dispatched by host shortcuts or cross-platform tests.
+ */
 export function normalizeChildShortcut(key: Pick<KeyboardEvent, "key" | "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">, mac = isMacPlatform()): string {
-  const mod = mac ? (key.metaKey && !key.ctrlKey) : (key.ctrlKey && !key.metaKey);
-  if ((mac && key.ctrlKey) || (!mac && key.metaKey)) return "";
+  if (mac && key.ctrlKey) return "";
+  if (key.ctrlKey && key.metaKey) return "";
+  const mod = mac ? key.metaKey : (key.ctrlKey || key.metaKey);
   let named: string;
   if (key.key === "\\") named = "Backslash";
   else if (key.code === "Backslash") named = "";

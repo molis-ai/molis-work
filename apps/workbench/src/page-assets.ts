@@ -89,7 +89,7 @@ import { WORK_BAR_CLIENT_SCRIPT } from "./scripts/work-bar-client.js";
 import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 import { APPEARANCE_RECOVERY_STYLES } from "./styles/settings.js";
 import { FOCUS_SECTION_STYLES } from "./styles/focus-sections.js";
-import { PLUGIN_STAGE_LAYER_STYLES, PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
+import { PLUGIN_STAGE_FINISH_STYLES, PLUGIN_STAGE_LAYER_STYLES, PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
 import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
 import { ARRIVAL_STYLES } from "./styles/arrival.js";
 import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
@@ -157,16 +157,25 @@ const PLUGIN_FRAME_MICRO_STYLES = `${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${FOLL
 
 /**
  * Dedicated lightweight (<80 KB minified) base stylesheet for opaque plugin `srcdoc` frames (102-1).
- * Uses CSS Cascade Layers (`@layer`) so unlayered plugin stylesheets override cleanly without `!important` escalation.
+ * Uses CSS Cascade Layers (`@layer`) for reset, tokens, foundation, and stage defaults while keeping
+ * shared primitives, stage finish, and platform control invariants unlayered so specificity resolves
+ * identically against unlayered plugin stylesheets without breaking `:where()` resets or focus contrast.
  */
 export function renderMolisWorkPluginBaseStylesheet(): string {
-  return `@layer reset, tokens, foundation, primitives, controls, stage;
+  const sheet = `@layer reset, tokens, foundation, stage;
 @layer reset { *, *::before, *::after { box-sizing: border-box; } [hidden] { display: none !important; } .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; } }
 @layer tokens { ${TYPEFACE_STYLES}${MOTION_STYLES} }
 @layer foundation { ${PLUGIN_FOUNDATION_STYLES} }
-@layer primitives { ${PRIMITIVE_PLUGIN_STYLES} }
-@layer controls { ${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}.appearance-notice.mw-toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 22px; z-index: 31; max-width: min(38em, calc(100vw - 24px)); } }
-@layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }`;
+@layer stage { ${PLUGIN_STAGE_LAYER_STYLES}${PLACEMENT_SLOT_STYLES} }
+${PRIMITIVE_PLUGIN_STYLES}${PLUGIN_COSS_CONTROL_STYLES}${PLUGIN_FRAME_MICRO_STYLES}${DIFF_VIEW_STYLES}${PLUGIN_STAGE_FINISH_STYLES}
+.appearance-notice.mw-toast{position:fixed;inset-inline:0;margin-inline:auto;bottom:22px;z-index:31;max-width:min(38em,calc(100vw - 24px))}
+html[data-craft-still] *,html[data-craft-still] *::before,html[data-craft-still] *::after{transition-duration:0s!important;transition-delay:0s!important;animation:none!important}
+body .mw-toggle-group{display:inline-flex;gap:4px;padding:4px;border:0;border-radius:12px;background:var(--control-fill);box-shadow:none;&>:is(button,a){min-height:26px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px;font-weight:var(--weight-control,500);box-shadow:none;&:hover{color:var(--ink);background:transparent}}&>:is([aria-current="true"],[aria-current="page"],[aria-pressed="true"],.is-current,.is-active){color:var(--ink);background:var(--paper);box-shadow:var(--shadow-soft),inset 0 1px 0 var(--edge-highlight)}}
+body.immersive-workbench .mw-select-picker__trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+@media (max-width:760px){body.immersive-workbench{--control-h:44px;.plugin-stage-back{width:44px;height:44px;min-height:44px}}}`;
+  return sheet
+    .replace(/:root\[data-resolved-theme="dark"\],\[data-ui-skin="soft-workbench@1"\]\[data-resolved-theme="dark"\],:root\[data-resolved-theme="dark"\] \[data-ui-skin="soft-workbench@1"\]:not\(\[data-resolved-theme="light"\]\)/, ':root[data-resolved-theme="dark"],[data-ui-skin="soft-workbench@1"][data-resolved-theme="dark"]')
+    .replace(/(--[\w-]+):([^;{}]+)/g, (_, name: string, value: string) => `${name}:${value.trim().replace(/,\s+/g, ",")}`);
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

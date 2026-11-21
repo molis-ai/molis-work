@@ -57,13 +57,17 @@ export const BUTTON_STYLES = `
       color: var(--action-ink);
       box-shadow: var(--lift-1);
     }
-    &:is(:active, [aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
-      background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
-    }
+  }
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
+  }
+  .mw-btn--primary[aria-pressed="true"]:not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
-  .mw-btn--secondary { background: var(--control-fill); color: var(--ink); &:hover:not(:disabled) { border-color: transparent; background: var(--nav-hover); } }
+  .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
+  .mw-btn--secondary:hover:not(:disabled) { border-color: transparent; background: var(--nav-hover); }
   .mw-btn--ghost {
     border-color: transparent; background: transparent; color: var(--ink-soft);
     &:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }

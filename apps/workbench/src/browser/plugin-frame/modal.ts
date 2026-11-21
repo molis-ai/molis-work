@@ -19,17 +19,19 @@ export function childModal(port: MessagePort, scope: FrameScope): void {
       }
     }
   };
+  const scheduleReport = () => queueMicrotask(() => queueMicrotask(report));
   const proto = HTMLDialogElement.prototype;
   const nativeShowModal = proto.showModal;
   const nativeClose = proto.close;
   proto.showModal = function showModalPatched() {
     nativeShowModal.call(this);
-    report();
+    // Run after same-turn attribute MutationObservers (e.g. data-assistant-context) so context arrives before modal cover layout.
+    scheduleReport();
   };
   proto.close = function closePatched(returnValue?: string) {
     if (arguments.length > 0) nativeClose.call(this, returnValue);
     else nativeClose.call(this);
-    report();
+    scheduleReport();
   };
   const onClose = () => queueMicrotask(report);
   document.addEventListener("close", onClose, true);

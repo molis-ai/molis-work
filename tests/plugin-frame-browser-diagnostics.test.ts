@@ -135,12 +135,13 @@ test("102-1 plugin-frame navigation normalizes and dispatches platform-aware sho
   assert.equal(normalizeChildShortcut({ key: ".", code: "Period", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, true), "Mod+Period");
   assert.equal(normalizeChildShortcut({ key: "[", code: "BracketLeft", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, true), "");
 
-  // Non-Mac (Linux/Windows): Ctrl is Mod, Meta is rejected as Mod; Alt+ArrowLeft/Right for history
+  // Non-Mac (Linux/Windows): Ctrl is Mod (and exclusive Meta is accepted for cross-platform chords), combined Ctrl+Meta is rejected; Alt+ArrowLeft/Right for history
   assert.equal(normalizeChildShortcut({ key: "ArrowLeft", code: "ArrowLeft", metaKey: false, ctrlKey: false, shiftKey: false, altKey: true }, false), "Alt+ArrowLeft");
   assert.equal(normalizeChildShortcut({ key: "T", code: "KeyT", metaKey: false, ctrlKey: true, shiftKey: true, altKey: false }, false), "Mod+Shift+T");
   assert.equal(normalizeChildShortcut({ key: "Enter", code: "Enter", metaKey: false, ctrlKey: true, shiftKey: true, altKey: false }, false), "Mod+Shift+Enter");
   assert.equal(normalizeChildShortcut({ key: ".", code: "Period", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, false), "Mod+Period");
-  assert.equal(normalizeChildShortcut({ key: "T", code: "KeyT", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false }, false), "");
+  assert.equal(normalizeChildShortcut({ key: "K", code: "KeyK", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, false), "Mod+K");
+  assert.equal(normalizeChildShortcut({ key: "T", code: "KeyT", metaKey: true, ctrlKey: true, shiftKey: true, altKey: false }, false), "");
 
   const macBracket = shortcutKeyboardEventInit("Mod+BracketLeft", true);
   assert.equal(macBracket.key, "[");

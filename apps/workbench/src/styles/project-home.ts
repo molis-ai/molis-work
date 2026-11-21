@@ -64,6 +64,9 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + `
     .home-groups .home-row:hover .mw-presentation--row .mw-item { background: var(--nav-hover); }
   }
   .home-row .mw-presentation__row-title[aria-haspopup] { cursor: pointer; }
+  @media (max-width: 760px), (pointer: coarse) {
+    .home-row .mw-presentation__row-title[aria-haspopup] { display: inline-flex; align-items: center; min-block-size: 28px; }
+  }
   .home-row .mw-presentation__more { z-index: 1; }
   .home-row .mw-presentation__more[open] { z-index: 2; }
   .home-row:has(>.surface-correction-menu) { position: relative; }

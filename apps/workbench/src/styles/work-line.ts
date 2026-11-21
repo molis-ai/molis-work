@@ -69,8 +69,8 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 .bar-account-avatar{position:relative;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--surface-soft);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--line)}
 .bar-account-avatar>svg{width:18px;height:18px}
 .bar-account-sync{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 2px var(--popover)}
-.bar-account-sync[hidden]{display:none}
-.bar-account-sync:is([data-sync-phase="complete"],[data-sync-phase="idle"]){background:var(--green)}
+.bar-account-sync:is([hidden],[data-sync-phase="idle"]){display:none}
+.bar-account-sync[data-sync-phase="complete"]{background:var(--green)}
 .bar-account-sync:is([data-sync-phase="syncing"],[data-sync-phase="pending"],[data-sync-phase="waiting"]){background:var(--accent)}
 .bar-account-sync:is([data-sync-phase="conflict"],[data-sync-phase="failed"]){background:var(--red)}
 .bar-account-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -86,7 +86,7 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 /* The row is drawn 24px high (§4「底栏第十三版」第 3 条) but its keys are the bar's 28px floor on a fine pointer (DESIGN.md, the desktop
    chrome's exception) and 44px for a finger, so the row stands 6px from the top and centres on the same line. */
 .work-counts{position:absolute;position-anchor:--work-text;z-index:3;top:calc(anchor(top,0px) + 6px);right:10px;display:inline-flex;align-items:center;gap:2px;height:28px}
-.work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:7px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
+.work-count{display:inline-flex;align-items:center;gap:3px;height:28px;padding:0 6px;border:0;border-radius:8px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color ${HOVER},color ${HOVER}}
 .work-count>svg{flex:none;width:14px;height:14px}
 .work-count[data-zero]{color:var(--faint)}
 .work-count:hover,.work-count[aria-expanded="true"]{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
@@ -102,8 +102,8 @@ ${SHELL} .work-line-slot .mw-composer__text{padding-inline-end:var(--counts-room
 .work-stack{position:relative;isolation:isolate;height:74px;min-width:0}
 .work-stack-empty{display:flex;align-items:center;gap:8px;height:100%;margin:0;padding:0 16px;box-sizing:border-box;border-radius:20px;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:12px}
 .work-stack-empty>svg{flex:none;width:14px;height:14px;color:var(--green)}
-.work-stack-card{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;height:100%;padding:0 12px 0 14px;box-sizing:border-box;border-radius:20px;background:var(--popover);box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 52%,var(--line)),var(--lift-2,0 4px 12px rgb(0 0 0/.08));cursor:pointer;transition:transform ${HOVER},box-shadow ${HOVER}}
-.work-stack-card:hover{transform:translateY(-2px)}
+.work-stack-card{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;height:100%;padding:0 12px 0 14px;box-sizing:border-box;border-radius:20px;background:var(--popover);box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 52%,var(--line)),var(--lift-2,0 4px 12px rgb(0 0 0/.08));cursor:pointer;transition:box-shadow ${HOVER},background-color ${HOVER}}
+.work-stack-card:hover{box-shadow:0 0 0 1px var(--amber),var(--lift-2,0 4px 12px rgb(0 0 0/.08))}
 .work-stack-card[data-behind]::before,.work-stack-card[data-behind="2"]::after{content:"";position:absolute;z-index:-1;top:-5px;left:14px;right:14px;height:12px;border-radius:12px 12px 0 0;background:color-mix(in srgb,var(--popover) 74%,var(--desk));box-shadow:0 0 0 1px var(--line-strong)}
 .work-stack-card[data-behind="2"]::after{top:-9px;left:28px;right:28px;z-index:-2;background:color-mix(in srgb,var(--popover) 46%,var(--desk))}
 .work-stack-head,.work-stack-body{display:flex;align-items:center;gap:6px;min-width:0}
@@ -123,7 +123,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
 .work-lists-sources:empty{display:none}
 .work-lists-body{min-height:0;overflow:auto;padding:0 6px 8px}
 .work-lists .work-list[hidden]{display:none}
-.work-lists .work-event{display:flex;justify-content:flex-start;width:100%;max-width:none;height:34px;border-radius:9px;background:none;box-shadow:none;text-align:start}
+.work-lists .work-event{display:flex;justify-content:flex-start;width:100%;max-width:none;height:34px;border-radius:8px;background:none;box-shadow:none;text-align:start}
 .work-lists .work-event:hover{background:var(--surface-soft)}
 .work-lists .work-event[aria-current]{background:var(--surface-soft);box-shadow:inset 0 0 0 1.5px var(--ink)}
 .work-lists .work-event-name{flex:1 1 auto;text-align:start}
@@ -132,7 +132,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
 .work-list-task>span{flex:0 1 auto;min-width:0;${ELLIPSIS}}
 .work-list-task>small{flex:0 4 auto;min-width:0;${ELLIPSIS};color:var(--muted);font-size:11px}
 .work-lists-empty{margin:0;padding:10px 8px;color:var(--muted);font-size:12px}
-.work-lists-earlier{width:100%;height:32px;margin-top:2px;border:0;border-radius:9px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;text-align:start;padding:0 10px;cursor:pointer}
+.work-lists-earlier{width:100%;height:32px;margin-top:2px;border:0;border-radius:8px;background:none;color:var(--ink-soft);font:inherit;font-size:12px;text-align:start;padding:0 10px;cursor:pointer}
 .work-lists-earlier:hover{background:var(--surface-soft)}
 /* 541–959: the input alone, centred; the stack is 该你 N inside it and its card opens above it; the account is the strip's avatar. */
 @media (max-width:959px){
@@ -163,6 +163,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
   ${SHELL} .work-line-slot .mw-composer__text,${REST_COMPOSER}>.mw-composer[data-rest] .mw-composer__text{padding:48px 8px 0}
   .work-counts{left:10px;justify-content:flex-end;pointer-events:none}
   .work-counts>*{pointer-events:auto}
+  .work-counts>[data-work-line-checking]{flex:0 1 auto;min-width:0;max-width:100%;overflow:hidden}
 }
 ${SHELL} [data-line-yield]{margin-bottom:var(--line-rise,0px)}
 ${PRESSABLE}{position:relative;flex:none;display:inline-flex;align-items:center;font:inherit;white-space:nowrap;cursor:pointer;transition:background-color ${HOVER},box-shadow ${HOVER},border-color ${HOVER}}
@@ -172,8 +173,8 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* An event: one thing on the line, registered by a plugin or the Assistant. Its state is a word as well as a look; the tasks behind it show as a ring and a count. */
 .work-event{gap:7px;height:32px;max-width:300px;padding:0 10px 0 6px;border:0;border-radius:999px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font-size:12px;font-weight:500}
 .work-event[aria-current]{box-shadow:inset 0 0 0 1.5px var(--ink)}
-.work-event[data-fresh]{animation:craft-rise-from-bar var(--dur-move) var(--ease-spring,var(--ease-quint))}
-.work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
+.work-event[data-fresh]{animation:craft-rise-from-bar ${MOVE}}
+.work-event-mark{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;background:color-mix(in srgb,var(--event-hue,var(--muted)) 16%,transparent);color:var(--event-hue,var(--muted))}
 .work-event-mark svg{width:12px;height:12px}
 .work-event-name{flex:0 1 auto;min-width:2em;overflow:hidden;text-overflow:ellipsis}
 .work-event-state{flex:none;font-size:11px}
@@ -192,7 +193,7 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): a capsule that cannot hold its name drops its note (the script marks it tight); the head's name shortens; an unreadable source drops its words under 640px and its name under 560px; under 400px (a 1024px window) a line with events keeps only the head's glyph and count. A state word never goes. */
 /* Who a reply is from: the Assistant's mark, or a Character's initial. */
 .work-reply-who{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--rail);color:var(--ink-soft);font-size:11px;font-weight:600}
-.work-reply-who[data-who="assistant"]{border-radius:5px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
+.work-reply-who[data-who="assistant"]{border-radius:6px;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-strong)}
 /* The background-task mark at the dialog's top right: a ring and how many are being worked on. */
 .work-task-mark{gap:5px;height:28px;padding:0 8px 0 6px;border:1px solid var(--line-strong);border-radius:var(--r-control,8px);background:var(--paper);color:var(--ink-soft);font-size:12px}
 .work-task-mark-count{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
@@ -208,7 +209,7 @@ ${TASK_FLOAT_STYLES}
 .work-task-panel-title{flex:1 1 auto;min-width:0;${ELLIPSIS};font-size:13px;font-weight:600}
 .work-task-counts{flex:none;display:inline-flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:12px;white-space:nowrap}
 .work-task-counts [data-count]{display:inline-flex;align-items:center;gap:3px;font-weight:600;font-variant-numeric:tabular-nums}
-.work-task-counts [data-count="you"]{color:var(--amber)}
+.work-task-counts [data-count="need-you"]{color:var(--amber)}
 .work-task-counts [data-count="failed"]{color:var(--red)}
 .work-task-panel-body{display:flex;flex-direction:column;min-height:0;padding:6px;overflow:auto}
 .work-task-panel-body[data-card]{gap:12px;padding:12px 14px 14px}
@@ -352,9 +353,8 @@ ${SHELL} .work-reply-peek-body :is(ul,ol){padding-inline-start:1.4em}
 .work-reply-mini{display:inline-flex;align-items:center;gap:4px;animation:craft-rise-from-bar var(--dur-hover) var(--ease-quint)}
 /* A dialog tab is as wide as its name (96 to 184), and the strip scrolls: an event's tab has to say which event it is. */
 ${W} .assistant-tabs[data-work-tabs] .assistant-tab{flex:0 0 auto;width:auto;min-width:96px;max-width:184px}
-@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}.work-stack-card:hover{transform:none}}
+@media (prefers-reduced-motion:reduce){${ANIMATED}{animation:none}}
 html[data-craft-still] ${ANIMATED}{animation:none}
-html[data-craft-still] .work-stack-card:hover{transform:none}
 @media (max-width:760px){
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab:not([data-current]){display:flex}
   ${W} .assistant-tabs[data-work-tabs] .assistant-tab{min-width:72px;max-width:132px}

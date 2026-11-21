@@ -36,8 +36,6 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   else unused.push(uiText.text("coding.attach.material"));
   if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
   if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
-  if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
-  if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
   return { values, unused };
 }
 

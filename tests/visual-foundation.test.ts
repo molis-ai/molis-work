@@ -270,9 +270,9 @@ test("narrow settings keep one compact readable navigation layer", () => {
     VISUAL_FOUNDATION_STYLES,
     /@media \(max-width: 760px\)[\s\S]*\.settings-navigation \{[^}]*padding: 8px 8px;[^}]*\}[\s\S]*\.settings-navigation a \{ min-height: 44px; \}/,
   );
-  assert.match(
+  assert.doesNotMatch(
     stylesheet,
-    /@media \(max-width: 520px\) \{\s*\.preference-options--density \{ grid-template-columns: 1fr; \}/,
+    /\.preference-section|\.preference-options--density|\.settings-action-section|\.settings-import-row/,
   );
 });
 

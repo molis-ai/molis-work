@@ -12,7 +12,7 @@ export const COMPOSER_PICTURES_STYLES = `
   .mw-composer__files.is-pictures .is-failed .mw-mark { box-shadow: 0 0 0 1.5px var(--red); }
   .mw-composer__open { all: unset; place-self: stretch; border-radius: inherit; cursor: zoom-in; transition: box-shadow var(--dur-hover) var(--ease-quint); }
   .mw-composer__open:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
-  .mw-composer__open:focus-visible { outline: var(--focus-stroke) solid var(--accent); outline-offset: 2px; }
+  .mw-composer__open:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   @media (pointer: coarse) { .mw-composer__files.is-pictures .mw-mark { width: 44px; height: 44px; } }
 `;
 

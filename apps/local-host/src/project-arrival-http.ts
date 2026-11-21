@@ -6,7 +6,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { lookingForArea } from "./web-view.js";
 import { composeProjectBrief, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
 import { isResumeSummaryAction, type ActionDefinition, type ResumeSummary, type WorkEventView, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { homeActions } from "./home-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -16,10 +15,11 @@ import { descriptionFromSummary, readProjectArrival } from "./project-arrival.js
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 /**
  * What the project chooser asks of a project it is only looking at: its brief. Read as the person, through the same
- * public readers Home uses (the Goals directory, Home's events), for one project at a time; nothing here writes, and a
+ * public readers Home uses (plugins' resume summaries, Home's events), for one project at a time; nothing here writes, and a
  * reader that cannot answer is left out of the brief rather than guessed.
  */
 interface ProjectBriefResponse { html: string; summary: ProjectBriefSummary }
@@ -117,41 +117,32 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     const actions = bindLocalWebActions(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
     const arrival = readProjectArrival(homeDirectory);
     const remembered = arrival.projects[project.project_id];
+    // The brief's track comes from the plugins that publish progress in their resume summary (`progress`); a summary without it names
+    // no counts or times, so the brief invents none. Several publishers: the first by provider id, so the brief does not change with
+    // discovery order.
     const readResume = async (): Promise<{ items: BriefGoal[]; detail: string | null } | null> => {
-      const views = await lookingForArea(() => actions.declaredMatching(definition => isResumeSummaryAction(definition.action)));
+      const views = (await lookingForArea(() => actions.declaredMatching(definition => isResumeSummaryAction(definition.action))))
+        .slice().sort((left, right) => left.provider.provider_id.localeCompare(right.provider.provider_id));
       if (!views.length) return null;
       const settled = await Promise.all(views.map(view => settle(lookingForArea(() => actions.invoke(
         { capability_id: view.capability_id, version: view.version, operation: view.operation, provider_id: view.provider.provider_id, action: view.action } as ActionDefinition<Record<string, never>, ResumeSummary>,
         {},
       )))));
-      const summaries = settled.flatMap(entry => entry.ok ? [entry.value] : []);
-      if (!summaries.length) return null;
-      const withProgress = summaries.find(summary => summary.progress !== undefined);
-      if (withProgress?.progress) {
-        return {
-          items: withProgress.progress.items.map(item => ({
-            goal_id: item.id, title: item.title, work_status: item.status,
-            next_hint: item.next_hint, pending_decision_count: item.pending_decision_count, updated_at: item.updated_at,
-          })),
-          detail: withProgress.focus?.detail ?? null,
-        };
-      }
-      const primary = summaries.find(summary => summary.focus || summary.next.length > 0) ?? summaries[0]!;
-      const fallbackItems = [...(primary.focus ? [primary.focus] : []), ...primary.next];
+      const withProgress = settled.flatMap(entry => entry.ok ? [entry.value] : []).find(summary => summary.progress !== undefined);
+      if (!withProgress?.progress) return null;
       return {
-        items: fallbackItems.map((item, index) => ({
-          goal_id: item.subject.id, title: item.title, work_status: "open" as const,
-          next_hint: item.next_hint, pending_decision_count: 0,
-          updated_at: new Date(now.getTime() - index * 1000).toISOString(),
+        items: withProgress.progress.items.map(item => ({
+          goal_id: item.id, title: item.title, work_status: item.status,
+          next_hint: item.next_hint, pending_decision_count: item.pending_decision_count, updated_at: item.updated_at,
         })),
-        detail: primary.focus?.detail ?? null,
+        detail: withProgress.focus?.detail ?? null,
       };
     };
     const [resume, events, guidance] = await Promise.all([
       personal ? Promise.resolve({ ok: true as const, value: { items: [] as BriefGoal[], detail: null } }) : settle(readResume()),
       settle(actions.invoke(homeActions.events, eventWindow(now))),
       // The introduction the person accepted at creation is kept here; a project made another way may carry long-term notes instead.
-      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(projectGuidanceActions.read, {})),
+      remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(pinnedProjectGuidanceRead, {})),
     ]);
     const goalList: BriefGoal[] | null = resume.ok && resume.value !== null ? resume.value.items : null;
     const eventList: BriefEvent[] | null = events.ok ? events.value.events.map(briefEvent) : null;

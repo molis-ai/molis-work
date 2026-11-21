@@ -1,35 +1,19 @@
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
-import { closeInOrder } from "./fixtures/ordered-cleanup.js";
 import { goalsActions, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { prepareWebReview, webGoalReviews } from "./fixtures/project-review-entry.js";
-
-const TOKEN = "molis-work-event-http-token-0123456789abcdef";
-
-function listen(server: Server): Promise<string> {
-  return new Promise((resolve, reject) => {
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address() as AddressInfo;
-      resolve(`http://127.0.0.1:${address.port}`);
-    });
-    server.once("error", reject);
-  });
-}
 
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async t => {
   const served = await openTestHome(t);
@@ -972,60 +956,6 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
   } finally {
     store.close();
   }
-});
-
-test("onboarding initialize receipt has no retired aliases and persists onboarding source", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-event-http-onboarding-"));
-  let host: MolisWorkLocalHost | undefined, server: ReturnType<typeof createMolisWorkWebServer> | undefined;
-  let store: LocalProjectDatabase | undefined, failure: { error: unknown } | undefined;
-  try {
-    host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
-    const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
-    server = createMolisWorkWebServer({
-      homeDirectory, localHost: host,
-      controlToken: TOKEN,
-    });
-    const origin = await listen(server);
-    const initializedResponse = await fetch(`${origin}/api/onboarding/initialize`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin,
-        "x-molis-work-control-token": TOKEN,
-        "x-molis-work-idempotency-key": "http-onboarding",
-      },
-      body: JSON.stringify({
-        project_name: "引导创建来源",
-        outcome: "建立可持续推进的购买体验",
-        intent_frame: "open",
-        workspace_path: null,
-        runtime_kind: null,
-        user_confirmed: true,
-      }),
-    });
-    assert.equal(initializedResponse.status, 201, await initializedResponse.clone().text());
-    const initialized = await initializedResponse.json() as {
-      project: { project_id: string };
-      goal: Record<string, unknown>;
-      goal_id: string;
-    };
-    for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
-      assert.equal(Object.hasOwn(initialized.goal, field), false);
-    }
-    const project = await withHostCatalog({ homeDirectory }, catalog => catalog.getProject(initialized.project.project_id));
-    store = new LocalProjectDatabase(project.database_path);
-    const app = new GoalProjectApplication(store);
-    assert.equal(app.goalEvents.readState(project.project_id, initialized.goal_id).intent.source_kind, "onboarding");
-  } catch (error) {
-    failure = { error };
-  }
-  // BL-1017: every step runs even when an earlier one throws; the test's own error, else the first cleanup error, is reported.
-  await closeInOrder("Onboarding fixture", [
-    ["web server", () => server?.listening ? new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve())) : undefined],
-    ["project store", () => store?.close()],
-    ["Local Host", () => host?.close()],
-    ["temporary Home", () => rmSync(homeDirectory, { recursive: true, force: true })],
-  ], failure);
 });
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {

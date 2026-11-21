@@ -15,7 +15,8 @@ export function renderChanged(page: Page): void {
   const run = s.lastRun, paths = run && terminal(run.phase) ? editedPaths(run) : [];
   count.hidden = !paths.length;
   count.textContent = paths.length ? String(paths.length) : "";
-  q("[data-coding-results-open]").setAttribute("aria-label", uiText.text("coding.results.title") + (paths.length ? " · " + uiText.text("coding.round.card.delivered-files", { count: paths.length }) : ""));
+  const baseLabel = q("[data-coding-results-label]").textContent || uiText.text("coding.results.title");
+  q("[data-coding-results-open]").setAttribute("aria-label", baseLabel + (paths.length ? " · " + uiText.text("coding.round.card.delivered-files", { count: paths.length }) : ""));
   section.hidden = !paths.length;
   if (!run || !paths.length) { list.replaceChildren(); delete list.dataset.content; return; }
   const tally = changeTally(page, run.ref.run_id), lines = new Map(tally?.files.map(file => [file.path, file]));
@@ -27,6 +28,7 @@ export function renderChanged(page: Page): void {
     const row = el("button", "", "coding-changed-file"), cut = path.lastIndexOf("/"), name = el("span", "", "coding-change-path"), file = lines.get(path);
     row.type = "button";
     row.dataset.codingChangeOpen = run.ref.run_id;
+    row.dataset.codingChangePath = path;
     row.title = path;
     if (cut >= 0) name.append(el("span", path.slice(0, cut + 1), "coding-change-dir"));
     name.append(el("b", path.slice(cut + 1)));

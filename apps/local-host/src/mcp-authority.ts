@@ -1,5 +1,6 @@
 import { mcpErrors } from "./mcp-errors.js";
-import { isPlatformMcpTool, isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+import { isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+import { isPlatformMcpTool } from "./mcp-platform-tools.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import type { AssembledMcpCatalog } from "./mcp-catalog.js";

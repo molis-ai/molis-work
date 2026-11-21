@@ -1,6 +1,6 @@
 import type { McpToolDefinition } from "./protocol.js";
-import { managementGoalTools, MANAGEMENT_REVIEW_TOOLS, type McpManagementActionSource } from "./goal-tools.js";
-import { MANAGEMENT_GOAL_TOOL_NAMES } from "./tool-dispatch.js";
+import { declaredManagementTools, MANAGEMENT_REVIEW_TOOLS } from "./management-tools.js";
+import type { McpDeclaredManagementTool } from "./tool-dispatch.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
 /**
@@ -10,12 +10,12 @@ import { CONTEXT_TOOLS } from "./context-tools.js";
 const SERVER_INFO = { name: "molis-work-mcp", version: /* @version identity.mcp.server */ "1.0.0" };
 
 
-/** Every platform tool, in the order a management client lists them: the Goals management tools, then the connection tools. */
-export function platformMcpTools(read: McpManagementActionSource): McpToolDefinition[] {
-  return [...managementGoalTools(read), ...MANAGEMENT_REVIEW_TOOLS, ...CONTEXT_TOOLS];
+/** Every tool a management client lists: the plugin-declared management tools, the review tools, then the connection tools. */
+export function platformMcpTools(declared: readonly McpDeclaredManagementTool[]): McpToolDefinition[] {
+  return [...declaredManagementTools(declared), ...MANAGEMENT_REVIEW_TOOLS, ...CONTEXT_TOOLS];
 }
 
-const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...Object.values(MANAGEMENT_GOAL_TOOL_NAMES), ...MANAGEMENT_REVIEW_TOOLS.map(tool => tool.name), ...CONTEXT_TOOLS.map(tool => tool.name)]);
+const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...MANAGEMENT_REVIEW_TOOLS.map(tool => tool.name), ...CONTEXT_TOOLS.map(tool => tool.name)]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_resolve",
@@ -29,7 +29,7 @@ const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
 
 const RUNTIME_TOOLS = CONTEXT_TOOLS.filter((tool) => RUNTIME_CONTEXT_TOOL_NAMES.has(tool.name));
 
-/** Platform schema names, including management-only tools the Runtime must not treat as unknown. */
+/** The platform's own tool names (review and connection); the Host adds the plugin-declared management tools it lists. */
 export function isPlatformMcpTool(name: string): boolean {
   return PLATFORM_TOOL_NAMES.has(name);
 }

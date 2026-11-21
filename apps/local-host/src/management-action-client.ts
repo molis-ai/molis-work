@@ -12,7 +12,7 @@ import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import { bindGoalsManagementActions, managementContext, managementInputFields, requireManagementDefinition, type ManagementActionReference, type ManagementActions } from "./management-actions.js";
+import { bindManagementActions, managementContext, managementInputFields, requireManagementDefinition, type ManagementActionReference, type ManagementActions } from "./management-actions.js";
 
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
@@ -99,10 +99,10 @@ export function bindStandaloneReviewActions(host: MolisWorkLocalHost, project: L
 
 /** The previously authorized standalone local entry of the management MCP. Production MCP forwards only to the resident. */
 export function bindStandaloneManagementActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): ManagementActions {
-  const goals = bindGoalsManagementActions(host.actionClient(project), project, { signal });
-  return { ...goals, async invoke<Output>(reference: ManagementActionReference, input: object, evidence?: unknown) {
+  const port = bindManagementActions(host.actionClient(project), project, { signal });
+  return { ...port, async invoke<Output>(reference: ManagementActionReference, input: object, evidence?: unknown) {
     const name = reviewOperation(reference);
-    if (!name) return goals.invoke<Output>(reference, input, evidence);
+    if (!name) return port.invoke<Output>(reference, input, evidence);
     if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
     return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;
   } };

@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 import { renderListToolbar, renderObjectRow, renderQuestionList, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createLocalHostWorkbenchRenderer, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import type { MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
+import { workbenchClientSource, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
+import { chinesePagePacks, pageTextScriptForPacks } from "./fixtures/page-text-packs.js";
 
 // specs/screen-polish/p5-settings.md: a settings page is a document written in three rows. Acceptance numbers are the
 // screen-polish spec's (POLISH-29…32).
@@ -163,4 +165,103 @@ test("only the SDK writes a settings section, a setting row or an object row, an
   assert.deepEqual(written, [], "a page calls renderSettingsSection, renderSettingRow or renderObjectRow; it does not write their markup");
   assert.deepEqual(older, [], "the workbench's settingRow (.settings-setting-row) and the design system's SETTING_ROW_STYLES (.mw-setting) are gone");
   assert.equal(existsSync("apps/workbench/src/settings-row.ts"), false);
+});
+
+test("网页搜索: broken default keeps its fix link ready for switch-away; client serializes switches, clears stale status, and restores focus", async () => {
+  const html = documentOf(page({
+    ...settings("web-search"),
+    web_search: {
+      default_source: "conn-1", default_unusable: true, last_use: null,
+      sources: [
+        { source_id: "builtin:anysearch", kind: "builtin", title: "AnySearch", state: "ready", is_default: false },
+        { source_id: "conn-1", kind: "connection", service_id: "tavily", title: "Tavily", account_label: "Work", state: "needs_attention", is_default: true },
+      ],
+    },
+  }));
+  const brokenRow = html.slice(html.indexOf('data-web-search-source="conn-1"'));
+  assert.match(brokenRow, /class="[^"]*web-search-source__current[^"]*"[\s\S]*用不了/, "broken default shows 用不了 while default");
+  assert.match(brokenRow, /class="mw-btn mw-btn--ghost mw-btn--sm web-search-source__use" href="\/capabilities\/connections\?connector=tavily">去处理账号<\/a>/,
+    "broken default carries the hidden fix link that takes over once the user switches away");
+
+  // Exercise the shipped client script: busy-disables all buttons, moves focus to status when clicked button vanishes, and clears stale status before error.
+  type Node = {
+    dataset: Record<string, string>; hidden: boolean; disabled: boolean; textContent: string; tabIndex: number; isConnected: boolean; focused: boolean;
+    attrs: Record<string, string>; classes: Set<string>;
+    classList: { toggle(name: string, force?: boolean): void };
+    setAttribute(name: string, value: string): void; removeAttribute(name: string): void; remove(): void; focus(): void;
+    closest(selector: string): Node | null;
+  };
+  const bodyNode = {} as Node;
+  let activeEl: Node | null = null;
+  const make = (dataset: Record<string, string> = {}, classes: string[] = []): Node => {
+    let isDisabled = false;
+    const node: Node = {
+      dataset, hidden: false,
+      get disabled() { return isDisabled; },
+      set disabled(value: boolean) {
+        isDisabled = value;
+        // Real browsers apply the HTML focus fixup rule: disabling the focused control immediately blurs it to document.body.
+        if (value && activeEl === node) activeEl = bodyNode;
+      },
+      textContent: "", tabIndex: 0, isConnected: true, focused: false, attrs: {}, classes: new Set(classes),
+      classList: { toggle(name, force) { if (force) node.classes.add(name); else node.classes.delete(name); } },
+      setAttribute(name, value) { node.attrs[name] = value; }, removeAttribute(name) { delete node.attrs[name]; },
+      remove() { node.isConnected = false; if (activeEl === node) activeEl = bodyNode; },
+      focus() { node.focused = true; activeEl = node; }, closest() { return null; },
+    };
+    return node;
+  };
+  const said = make(), error = make(), broken = make(); said.hidden = true; error.hidden = true;
+  const rowBuiltin = make({ webSearchSource: "builtin:anysearch" }), rowBroken = make({ webSearchSource: "conn-1" }, ["is-default"]);
+  const btnFromBanner = make({ webSearchUse: "builtin:anysearch", webSearchName: "AnySearch" }); btnFromBanner.closest = s => s === "[data-web-search-use]" ? btnFromBanner : null;
+  const btnOther = make({ webSearchUse: "conn-2", webSearchName: "Brave" }); btnOther.closest = s => s === "[data-web-search-use]" ? btnOther : null;
+  activeEl = btnFromBanner;
+  let onClick: ((event: { target: Node }) => Promise<void>) | undefined;
+  const doc = { documentElement: {}, body: bodyNode, get activeElement() { return activeEl; }, querySelector: () => root };
+  const root = {
+    dataset: {} as Record<string, string>,
+    matches: (s: string) => s === "[data-web-search-settings]",
+    contains: () => true,
+    addEventListener: (_: string, fn: (event: { target: Node }) => Promise<void>) => { onClick = fn; },
+    querySelector: (s: string) => s === "[data-web-search-said]" ? said : s === "[data-web-search-error]" ? error : s === "[data-web-search-broken]" ? (broken.isConnected ? broken : null) : null,
+    querySelectorAll: (s: string) => s === "[data-web-search-use]" ? [btnFromBanner, btnOther] : s === "[data-web-search-source]" ? [rowBuiltin, rowBroken] : [],
+  };
+  const calls: string[] = [];
+  let releaseFirst = () => {};
+  const firstPending = new Promise<void>(resolve => { releaseFirst = resolve; });
+  let failNext = false;
+  const request = Object.assign(async (_url: string, init: { body: { source_id: string } }) => {
+    calls.push(init.body.source_id);
+    if (calls.length === 1) await firstPending;
+    if (failNext) throw new Error("network down");
+    return { default_source: init.body.source_id };
+  }, { show: (target: Node, failure: unknown) => { target.textContent = String(failure); } });
+  const bundle = workbenchClientSource();
+  const start = bundle.indexOf("globalThis.molisWorkBindWebSearchSettings =");
+  const end = bundle.indexOf("globalThis.molisWorkBindWebSearchSettings?.(document);", start);
+  assert.ok(start >= 0 && end > start, "workbench client bundle ships molisWorkBindWebSearchSettings");
+  const webSearchScript = bundle.slice(start, end + "globalThis.molisWorkBindWebSearchSettings?.(document);".length);
+  vm.runInNewContext(pageTextScriptForPacks("zh", chinesePagePacks()) + "\n" + webSearchScript, {
+    document: doc, CSS: { escape: (v: string) => v }, matchMedia: () => ({ matches: true }),
+    getComputedStyle: (target: Node) => ({ display: target === btnFromBanner ? "none" : "inline-flex", getPropertyValue: () => "" }),
+    molisWorkRequest: request,
+  });
+  // Click first button (inside broken banner); while pending, second button is disabled and ignores clicks.
+  const first = onClick!({ target: btnFromBanner });
+  assert.equal(btnFromBanner.disabled, true); assert.equal(btnOther.disabled, true, "all switch buttons disable while a switch is in flight");
+  await onClick!({ target: btnOther });
+  assert.deepEqual(calls, ["builtin:anysearch"], "concurrent click on another button does not fire a second POST");
+  // Simulate banner removal removing btnFromBanner; focus must move to status element rather than falling to body.
+  btnFromBanner.isConnected = false;
+  releaseFirst(); await first;
+  assert.equal(rowBuiltin.classes.has("is-default"), true); assert.equal(rowBroken.classes.has("is-default"), false);
+  assert.equal(broken.isConnected, false); assert.equal(said.hidden, false); assert.match(said.textContent, /AnySearch/);
+  assert.equal(said.focused, true, "focus moves to status note when the clicked button is removed/hidden");
+  assert.equal(btnOther.disabled, false);
+  // On subsequent failure, stale status message is cleared before request and stays hidden.
+  failNext = true;
+  await onClick!({ target: btnOther });
+  assert.equal(said.hidden, true, "stale success notice is cleared before next request and stays hidden on failure");
+  assert.equal(said.textContent, "");
+  assert.equal(error.hidden, false); assert.equal(btnOther.disabled, false);
 });

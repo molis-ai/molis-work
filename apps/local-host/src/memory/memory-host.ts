@@ -225,7 +225,7 @@ export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { 
   character?: { character_id: string; title: string } }) {
   const host = memoryHostFor(localHost);
   if (!host) return null;
-  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", current_scene: pluginMemoryScene(input.plugin_id), ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.character_id, title: input.character.title } } : {}) },
+  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent", current_scene: pluginMemoryScene(input.plugin_id, undefined, input.project_id), ...(input.plugin_id ? { plugin_id: input.plugin_id } : {}), ...(input.character ? { character: { id: input.character.character_id, title: input.character.title } } : {}) },
     { query: input.task.slice(0, 2000), used_for: input.used_for.slice(0, 80), ...(input.plugin_id ? { situation: { plugin_id: input.plugin_id } } : {}), limit: 12 });
 }
 

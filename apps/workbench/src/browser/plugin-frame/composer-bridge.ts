@@ -48,8 +48,6 @@ export interface ComposerSnapshot {
   notice: { text: string; tone: "readonly" | "info"; icon?: string; action: { label: string } | null; also?: { label: string } | null } | null;
   submitKeys: boolean;
   draft: boolean;
-  /** Where the page's conversation stands across its frame (the box around the root it gave), so the bar lines up with it. */
-  column: { left: number; width: number } | null;
   running: boolean;
   hold: string | null;
 }
@@ -104,8 +102,6 @@ export interface BarReceiver {
   readonly root: HTMLElement;
   readonly placeholder: string;
   visible(): boolean;
-  /** The page's conversation column across the window, when it has one to show. */
-  column(): { left: number; width: number } | null;
   readonly options: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerOptions;
   /** The bar mounted the composer on it (with the text box it uses), or let it go (null). */
   bind(handle: null): void;

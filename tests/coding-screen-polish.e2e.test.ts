@@ -154,6 +154,18 @@ test("POLISH-23 POLISH-24 POLISH-26 POLISH-27: 目录列让名字说话，准备
   assert.deepEqual(leaked, [], "POLISH-27 绝对路径和能力编号不在首屏");
   assert.ok(results.folded.includes("coding-first-read"), "它们还在「运行详情」里，点开就看得到");
   assert.equal(await evaluate<number>("changeReads"), 1, "增减行只读一次这一轮的变更，重画和打开面板都不再读");
+  // UIV-19: even with the 320px results panel open, the dialogue reading column aligns with --mw-bar-left (within 1px).
+  const align = await evaluate<{ barLeft: number; turnLeft: number }>(`(()=>{
+    const root=document.querySelector('${coding}'), barLeft=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mw-bar-left'));
+    const turnLeft=root.querySelector('[data-run="${RUN}"] .coding-turn[data-kind=assistant]').getBoundingClientRect().left;
+    return { barLeft: Math.round(barLeft), turnLeft: Math.round(turnLeft) };
+  })()`);
+  assert.ok(Number.isFinite(align.barLeft) && Math.abs(align.turnLeft - align.barLeft) <= 1, `UIV-19 结果面板打开时对话正文左缘仍对齐底部输入框（${JSON.stringify(align)}）`);
+  // Clicking the second changed file in 「改了什么」 opens that specific file in the diff reader, not always file 0.
+  await click(`${coding} .coding-changed-file[data-coding-change-path="src/week.ts"]`);
+  await waitFor(`document.querySelector('${coding} [data-coding-change-body]')?.dataset.codePath === 'src/week.ts'`, 15_000);
+  await click(`${coding} [data-coding-change-close]`);
+  await waitFor(`document.querySelector('${coding} [data-coding-change-reader]').hidden`, 10_000);
 
   // 6.6: the task graph. The view switch is the way back; nothing planned yet is the shared empty state.
   await click(`${coding} [data-coding-results-close]`);

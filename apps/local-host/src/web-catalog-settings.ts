@@ -1,4 +1,5 @@
 import { readRollbackHold, readRollbackPoint } from "./installer/home-rollback.js";
+import { projectPluginJudge } from "./project-action-availability.js";
 import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, DynamicPluginSettingsNavItem, WebSettingsProject, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
@@ -50,6 +51,7 @@ interface DiscoveredDynamicSettingsPlugin extends DynamicPluginSettingsNavItem {
 async function discoverDynamicSettingsPlugins(
   localHost: MolisWorkLocalHost,
   contextProject: WebSettingsProject | null,
+  shownInProject: (pluginId: string) => boolean = () => true,
 ): Promise<DiscoveredDynamicSettingsPlugin[]> {
   const found = new Map<string, DiscoveredDynamicSettingsPlugin>();
   const register = (manifest: PluginManifest | undefined, scope: "home" | "project", providerId: string) => {
@@ -60,7 +62,7 @@ async function discoverDynamicSettingsPlugins(
     if (!nonModel.length) return;
     const readAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.read.capability_id && a.version === manifest.settings_entries!.read.version);
     const writeAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.write.capability_id && a.version === manifest.settings_entries!.write.version);
-    if (!readAction || !writeAction || readAction.action.scope !== scope) return;
+    if (!readAction || !writeAction || readAction.action.scope !== scope || writeAction.action.scope !== scope) return;
     if (found.has(manifest.plugin_id)) return;
     found.set(manifest.plugin_id, {
       section_id: manifest.plugin_id,
@@ -92,7 +94,8 @@ async function discoverDynamicSettingsPlugins(
         const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
         if (!platform) return;
         for (const record of platform.runtime.list()) {
-          if (record.state !== "running") continue;
+          // A plugin hidden in this project has no settings here, as it has no place in the project's pages.
+          if (record.state !== "running" || !shownInProject(record.plugin_id)) continue;
           const manifest = installedPluginManifest(runtime.store.db, record.install_id)?.manifest ?? platform.supervisor.manifest(record.plugin_id);
           const providerId = record.publisher_trust === "host" ? record.plugin_id : record.execution === "sandbox" ? `plugin:${record.plugin_id}` : record.install_id;
           register(manifest, "project", providerId);
@@ -126,6 +129,15 @@ function renderDynamicPluginSettingsHtml(
     <header class="settings-section-header"><h1>${escapeSettingsHtml(plugin.label)}</h1></header>
     <div class="settings-card">${rows}</div>
   </section>`;
+}
+
+/** Whether a project plugin is enabled in the project the settings were opened from (the same judge the project's actions use). */
+async function projectShownJudge(composition: LocalWebComposition, homeDirectory: string | undefined, project: WebSettingsProject | null): Promise<(pluginId: string) => boolean> {
+  if (!project || !homeDirectory) return () => true;
+  return composition.withCatalog({ homeDirectory }, catalog => {
+    const judge = projectPluginJudge(catalog, project.project_id, homeDirectory);
+    return (pluginId: string) => judge(pluginId) !== false;
+  });
 }
 
 /** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, the personal plugins. */
@@ -193,7 +205,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     };
   }) : undefined;
   const membership = await pluginMembership(composition, serverOptions.homeDirectory, contextProject?.project_id ?? null);
-  const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject);
+  const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
   response.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
@@ -242,7 +254,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
       const projectId = typeof body.project_id === "string" && body.project_id ? body.project_id : null;
       const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch(() => [] as WebSettingsProject[]);
       const contextProject = projectId ? projects.find(p => p.project_id === projectId) ?? null : null;
-      const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject);
+      const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
       const target = dynamicPlugins.find(item => item.plugin_id === pluginId);
       if (!target) { sendJson(response, 404, { error: "找不到这个插件的设置项" }); return true; }
       const projectRef = target.scope === "project" && contextProject
@@ -260,7 +272,8 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     return true;
   }
   const rawSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
-  const pluginSettingsSlug = rawSlug ? decodeURIComponent(rawSlug) : undefined;
+  let pluginSettingsSlug: string | undefined;
+  try { pluginSettingsSlug = rawSlug ? decodeURIComponent(rawSlug) : undefined; } catch { return false; }
   if (!(request.method === "GET" && pluginSettingsSlug && serverOptions.homeDirectory)) return false;
   const pluginSettings = findPluginSettingsNavItem(pluginSettingsSlug);
   const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch((error: unknown) => {
@@ -271,7 +284,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
     : null;
-  const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject);
+  const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
   const dynamicTarget = pluginSettings ? undefined : dynamicPlugins.find(item => item.section_id === pluginSettingsSlug || item.plugin_id === pluginSettingsSlug);
   if (!pluginSettings && !dynamicTarget) return false;
   let plugin_settings_html: string;

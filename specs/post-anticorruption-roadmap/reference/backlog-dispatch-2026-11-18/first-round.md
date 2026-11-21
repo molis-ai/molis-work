@@ -30,7 +30,9 @@
 
 ## 会话 C · 关闭页面与连接
 
-[第 93 批交付](../batches/93.md#batch-93-item-1)
+[第 93 批交付及复核](../batches/93.md#batch-93-item-1)
+
+第 93 批两项均已合入。以下开工 Prompt 保留供回看。
 
 ```text
 在 Molis Work 推进第 93 批「关闭页面与连接」。先读 specs/post-anticorruption-roadmap/reference/batches/93.md 和其中两个 BL。在独立工作树从最新主线接手，核对 #1743 和在途 PR。

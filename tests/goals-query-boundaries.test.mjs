@@ -115,14 +115,16 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
     assert.match(changed("mcp", add(code)), /tool-dispatch\.ts.*Host client/, code);
   }
   assert.equal(changed("mcp", add('// No host.client(reference), withScope or coordinator.goals here.\nconst note = "LocalHostProjectClient";')), "");
-  for (const action of ["MANAGEMENT_GOAL_ACTIONS.initialize", "trustedReviewActions.read", "trustedReviewActions.decide"]) {
+  // Batch 44 recheck: the transport names no plugin. Each invoke is the declared tool's own action, found by name, or a review action.
+  for (const action of ["declared.action", "trustedReviewActions.read", "trustedReviewActions.decide"]) {
     const actual = `actions.invoke(${action},`;
     const source = transportSources().mcp.dispatcher;
     assert.ok(source.includes(actual), `${action} mutation reaches the production call`);
-    assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(MANAGEMENT_GOAL_ACTIONS.list,")
-      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), new RegExp(action.replace(".", "\\.")));
+    assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,")
+      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), /invoke must name the declared tool's action/, action);
   }
-  assert.match(changed("mcp", text => text.replace("actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,", "actions.invoke(typed,")), /invoke must name a Goals action/);
+  assert.match(changed("mcp", text => text.replace("actions.invoke(declared.action,", "actions.invoke(typed,")), /invoke must name the declared tool's action/);
+  assert.match(changed("mcp", text => text.replace("ports.declared.find(tool => tool.name === name)", "ports.declared[0]")), /found by name in ports\.declared/);
   for (const [part, retired] of [["dispatcher", "goal-tree-decide"], ["mcp", "molis_work_v1_event_decide"], ["mcp", "molis_work_v1_goal_tree_decide"]]) {
     assert.match(changed(part, add(`const retired = ${JSON.stringify(retired)};`)), /retired Goals decision reference/);
   }
@@ -158,7 +160,7 @@ test("PEQ-15 H6 the command line's port refuses everything but the review operat
     ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");\n  return name;', "return name;"],
     ["const name = requireReview(reference, evidence);", "const name = reviewOperation(reference)!;"],
     ["return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously",
-      "return await bindGoalsManagementActions(host.actionClient(project), project, { signal }).invoke<Output>(reference, input);\n  } };\n}\n\n/** The previously"],
+      "return await bindManagementActions(host.actionClient(project), project, { signal }).invoke<Output>(reference, input);\n  } };\n}\n\n/** The previously"],
     ["currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously", "currentCallId() ?? newCallId(), undefined) as Output;\n  } };\n}\n\n/** The previously"],
     ["    requireReview(reference, evidence);\n", ""],
     ["return await port.invoke<Output>(reference, input);", "return await port.invoke<Output>(reference, input, evidence);"],
@@ -306,18 +308,19 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
   // The old dispatchers: Goals' descriptors imported from the platform's contracts and called as `goalEntryActions.<name>`.
   const oldCli = source => source.replace(/const GOALS = \{[\s\S]*?\} as const;\n/u, "").replace(/\bGOALS\./gu, "goalEntryActions.")
     .replace("import { printCliJson", 'import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";\nimport { printCliJson');
-  const oldMcp = source => source.replace(/export const MANAGEMENT_GOAL_ACTIONS = \{[\s\S]*?\} as const;\n/u, "").replace(/\bMANAGEMENT_GOAL_ACTIONS\./gu, "goalEntryActions.")
+  const oldMcp = source => source.replace("actions.invoke(declared.action,", "actions.invoke(goalEntryActions.initialize,")
     .replace("import type { McpPresentationErrorFactory", 'import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";\nimport type { McpPresentationErrorFactory');
   assert.notEqual(oldCli(transportSources().cli.dispatcher), transportSources().cli.dispatcher);
   assert.notEqual(oldMcp(transportSources().mcp.dispatcher), transportSources().mcp.dispatcher);
   assert.match(changed("dispatcher", oldCli), /command-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
   assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
-  assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*MANAGEMENT_GOAL_ACTIONS/);
+  assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*invoke must name the declared tool's action/);
   // The dispatchers' own module lists carry no Goals contract either.
   assert.match(changed("dispatcher", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /command-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
   assert.match(changed("mcp", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
-  // The table is the dispatcher's own: removing it, importing one, or invoking a Goals action from anywhere else is refused.
-  assert.match(changed("mcp", source => source.replace(/export const MANAGEMENT_GOAL_ACTIONS = \{[\s\S]*?\} as const;\n/u, "")), /tool-dispatch\.ts.*MANAGEMENT_GOAL_ACTIONS/);
+  // A plugin's table of its own actions in the transport is refused: the management tools are the ones plugins declare.
+  assert.match(changed("mcp", source => source.replace("actions.invoke(declared.action,", "actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,")
+    .concat('\nexport const MANAGEMENT_GOAL_ACTIONS = { initialize: { capability_id: "goals.board.initialize", version: 1 } } as const;\n')), /tool-dispatch\.ts.*invoke must name the declared tool's action/);
 });
 
 // PG094-CLI-04 / T405-FULL-09: require product admission and retain every owner, mkdir, reference and signal mutation.

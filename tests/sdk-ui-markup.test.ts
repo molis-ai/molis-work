@@ -328,4 +328,18 @@ test("VUX-55: ui.help and sandbox help declarations validate structure, owner ke
     pluginId: "io.molis.generated.tracker",
     help: { topics: [{ id: "page", title: "进度表", sections: [{ id: "what", heading: "这是什么", body: "记录每周进展" }] }] },
   }), []);
+  assert.ok(sdkUi.sandboxHelpDeclarationProblems({
+    pluginId: "io.molis.generated.tracker",
+    help: { topics: [{ id: "page", title: { key: "tracker.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "tracker.help.what" } }] }] },
+  }).some((msg) => msg.includes("ui.locales")), "P2-9: sandbox contract help keys still require ui.locales");
+  assert.deepEqual(sdkUi.sandboxHelpDeclarationProblems({
+    pluginId: "io.molis.generated.tracker",
+    ui: { locales },
+    help: { topics: [{ id: "page", title: { key: "tracker.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "tracker.help.what" } }] }] },
+  }), [], "P2-9: sandbox contract help keys pass when ui.locales is declared");
+  const declScript = sdkUi.renderHelpDeclarationScript({
+    default_topic: "page",
+    topics: [{ id: "page", title: { key: "common.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { literal: "<script>" } }] }],
+  });
+  assert.match(declScript, /^<script type="application\/json" data-mw-help-declaration>.*\\u003cscript>.*<\/script>$/u);
 });

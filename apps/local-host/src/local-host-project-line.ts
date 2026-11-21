@@ -87,6 +87,10 @@ async function closeOpened<Runtime>(runtime: Promise<Runtime>, close: (runtime: 
 export class ProjectLine<Runtime> {
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
   private readonly closingKeys = new Set<string>();
+  /** The close under way for each project, so a second close waits for it instead of closing the same runtime twice. */
+  private readonly closings = new Map<string, Promise<boolean>>();
+  /** How many times each project was closed on purpose, so a sleep that ends after one does not mark it asleep again. */
+  private readonly purposeful = new Map<string, number>();
   /** Projects being put to sleep: a call that comes meanwhile waits for it, then opens the project again (`awake`). */
   private readonly sleeping = new Map<string, Promise<unknown>>();
   /** Projects put to sleep and not opened since, with when they had last been used then: what the Home read of them before still holds. */
@@ -291,15 +295,29 @@ export class ProjectLine<Runtime> {
       .sort((left, right) => left.storage_key.localeCompare(right.storage_key));
   }
 
-  async closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
+  closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
     const storageKey = typeof referenceOrStorageKey === "string"
       ? referenceOrStorageKey.trim()
       : normalizeReference(referenceOrStorageKey).storage_key;
     // Closed on purpose, open or asleep: the Home neither reads it nor opens it to read it until it is opened again.
     this.rested.delete(storageKey);
     this.dismissed.add(storageKey);
+    this.purposeful.set(storageKey, (this.purposeful.get(storageKey) ?? 0) + 1);
+    return this.close(storageKey);
+  }
+
+  private close(storageKey: string): Promise<boolean> {
+    const under = this.closings.get(storageKey);
+    if (under) return under;
     const entry = this.entries.get(storageKey);
-    if (!entry) return false;
+    if (!entry) return Promise.resolve(false);
+    const closing = this.closeEntry(storageKey, entry);
+    this.closings.set(storageKey, closing);
+    void closing.then(() => undefined, () => undefined).finally(() => { if (this.closings.get(storageKey) === closing) this.closings.delete(storageKey); });
+    return closing;
+  }
+
+  private async closeEntry(storageKey: string, entry: RuntimeEntry<Runtime>): Promise<boolean> {
     entry.state = "closing"; entry.observing.abort(this.host.running() ? hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭") : new ActionError("actions.host_closed", "能力所在运行环境已关闭"));
     this.closingKeys.add(storageKey);
     try {
@@ -346,8 +364,10 @@ export class ProjectLine<Runtime> {
     if (!idle()) return false;
     const usedAt = entry!.lastUsedAt;
     if (await hasLiveWork() || !idle() || entry!.lastUsedAt !== usedAt) return false;
-    const closing = this.closeProject(storageKey).then(closed => {
-      if (closed) {
+    const purposeful = this.purposeful.get(storageKey);
+    const closing = this.close(storageKey).then(closed => {
+      // Closed on purpose meanwhile (deleted, restored, synced): it stays closed, not asleep.
+      if (closed && this.purposeful.get(storageKey) === purposeful) {
         this.dismissed.delete(storageKey);
         this.rested.set(storageKey, usedAt);
       }

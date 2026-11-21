@@ -1,5 +1,6 @@
 import { ActionError, BACKGROUND_TASK_DONE_STATES, BACKGROUND_TASKS_OUTPUT_TYPE, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { backgroundTaskRows } from "@molis-ai/molis-work-service-mainline";
 import { collectHomeAggregate, type HomeAggregatePorts } from "./home-aggregate.js";
 import { repeatingFailure } from "./host-log.js";
@@ -35,7 +36,8 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
 }
 
 /** The states of a background task that is being done, waits its turn, or tries again: work a closing project would cut short. */
-const UNDER_WAY = new Set<string>(["doing", "starting", "running", "generating", "saving", "indexing", "queued", "waiting", "syncing", "retrying"]);
+const UNDER_WAY: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.filter(family => (["running", "waiting", "syncing", "retrying"] as const)
+  .some(key => key === family.key)).flatMap(family => [...family.states]));
 
 /**
  * Whether the project's background-task providers say something in it is under way (batch 103-1): asked before the project is put to

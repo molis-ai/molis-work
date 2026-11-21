@@ -34,7 +34,7 @@ test("HOST-CLOSE-01 an open that fails while the Host closes does not fail the c
 test("B103-01 an idle project is put to sleep only when nothing of it runs; a call during its close opens it again", async () => {
   const opened: string[] = [], closed: string[] = [];
   let releaseClose!: () => void;
-  const closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+  let closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
   let holdClose = false;
   const host = new LocalHost<{ id: string }>({
     instanceId: "test-local-host-sleep",
@@ -69,5 +69,17 @@ test("B103-01 an idle project is put to sleep only when nothing of it runs; a ca
     assert.equal(host.projectRest(reference.storage_key).state, "asleep");
     await host.closeProject(reference.storage_key);
     assert.equal(host.projectRest(reference.storage_key).state, "closed");
+    // Closed on purpose while it was being put to sleep: it ends closed, not asleep, and its runtime is closed once.
+    await host.withRuntime(reference, () => undefined);
+    closed.length = 0;
+    closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+    holdClose = true;
+    const asleep = host.sleepIfIdle(reference.storage_key, 0, async () => false);
+    await new Promise(resolve => setImmediate(resolve));
+    const purposeful = host.closeProject(reference.storage_key);
+    releaseClose();
+    await Promise.all([asleep, purposeful]);
+    assert.equal(host.projectRest(reference.storage_key).state, "closed");
+    assert.deepEqual(closed, ["p1"]);
   } finally { releaseClose(); await host.close(); }
 });

@@ -37,7 +37,19 @@ test("CIP-05 shell, studio replay and account-login checks follow their own inpu
     assert.equal(decideChecks({ affected: change(file) }).studio_replay.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).studio_replay.mode, "none");
-  for (const file of ["horizontal/account/src/a.ts", ".github/actions/setup-work/action.yml", "apps/local-host/src/a.ts", "apps/workbench/src/a.ts", "packages/contracts/src/a.ts", "packages/kernel/src/a.ts", "scripts/account-authentication.test.mjs", "unknown/file.toml"]) {
+  for (const file of [
+    "horizontal/account/src/a.ts",
+    ".github/actions/setup-work/action.yml",
+    "apps/local-host/src/a.ts",
+    "apps/workbench/src/a.ts",
+    "packages/contracts/src/a.ts",
+    "packages/kernel/src/a.ts",
+    "packages/plugin-runtime/src/a.ts",
+    "packages/plugin-sdk/src/a.ts",
+    "modules/sync-replication/src/a.ts",
+    "scripts/account-authentication.test.mjs",
+    "unknown/file.toml",
+  ]) {
     assert.equal(decideChecks({ affected: change(file) }).account_login.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).account_login.mode, "none");
@@ -120,7 +132,24 @@ test("MR19-07 plugin stylesheet and shared browser component changes run the PR 
   const filters = visual.split("    paths:")[1]!.split("  workflow_dispatch:")[0]!;
   const patterns = [...filters.matchAll(/^\s+- "([^"]+)"$/gm)].map(match => match[1]!);
   const triggers = (path: string) => patterns.some(pattern => matchesGlob(path, pattern));
-  for (const path of ["plugins/native/coding/src/styles.ts", "packages/plugin-sdk/src/browser/subtask-conversation.ts"])
+  for (const path of [
+    "plugins/native/coding/src/styles.ts",
+    "plugins/native/coding/src/footnote-styles.ts",
+    "plugins/native/goals/src/workbench-styles.ts",
+    "plugins/native/feed/src/stage-ui.ts",
+    "plugins/native/goals/src/kanban-ui.ts",
+    "plugins/native/goals/src/tree-ui-model.ts",
+    "plugins/native/alchemist/src/work-reuse/ui.ts",
+    "plugins/native/goals/src/page/chrome.ts",
+    "packages/plugin-sdk/src/ui.ts",
+    "packages/plugin-sdk/src/browser.ts",
+    "packages/plugin-sdk/src/browser/subtask-conversation.ts",
+    "packages/plugin-sdk/src/diff-view.ts",
+    "packages/plugin-sdk/src/highlight.ts",
+  ]) {
     assert.equal(triggers(path), true, path);
+  }
   assert.equal(triggers("horizontal/evaluation/src/service.ts"), false);
+  assert.equal(triggers("plugins/native/todo/src/store.ts"), false);
+  assert.match(visual, /tests\/fixtures\/visual-capture\.mts/, "nightly/manual visual audit exercises visual-capture settlement");
 });

@@ -55,8 +55,6 @@ export function goldenPathMatcher(store) {
 
 /** Same-version structure changes the user approved one by one, each an exact pair of hashes with who approved it and why. */
 export const EXCEPTIONS_FILE = "tooling/gates/schemas/same-version-exceptions.json";
-/** Pre-release v1 reset allowances explicitly approved by the user, pinned to exact base/head versions and structure hashes. */
-export const V1_RESET_FILE = "tooling/gates/schemas/v1-reset-exceptions.json";
 export function parseExceptions(text) {
   if (text === null) return { rows: [] };
   let rows;
@@ -66,20 +64,6 @@ export function parseExceptions(text) {
     && typeof row.store === "string" && Number.isInteger(row.version) && hash(row.from) && hash(row.to) && row.from !== row.to
     && typeof row.approved === "string" && row.approved.length >= 10 && typeof row.reason === "string" && row.reason.length >= 20);
   return valid ? { rows } : { why: `${EXCEPTIONS_FILE}: each entry is { store, version, from, to (16-digit hashes), approved, reason }` };
-}
-export function parseV1ResetExceptions(text) {
-  if (text === null) return { rows: [] };
-  let rows;
-  try { rows = JSON.parse(text); } catch { return { why: `${V1_RESET_FILE} is not JSON` }; }
-  const hash = value => typeof value === "string" && /^[0-9a-f]{16}$/u.test(value);
-  const keys = "approved,from_structure,from_version,place,reason,store,to_structure,to_version";
-  const valid = Array.isArray(rows) && rows.every(row => row && typeof row === "object" && Object.keys(row).sort().join(",") === keys
-    && typeof row.place === "string"
-    && Number.isInteger(row.from_version) && row.from_version > 1 && row.to_version === 1
-    && ((typeof row.store === "string" && hash(row.from_structure) && hash(row.to_structure))
-      || (row.store === null && row.from_structure === null && row.to_structure === null))
-    && typeof row.approved === "string" && row.approved.length >= 10 && typeof row.reason === "string" && row.reason.length >= 20);
-  return valid ? { rows } : { why: `${V1_RESET_FILE}: each entry is { store (string or null), place, from_version (>1), to_version (1), from_structure, to_structure, approved, reason }` };
 }
 
 /** Whether a golden's store entry holds `store` at `version`: the library's own version, or for `<library>#<plugin_id>` that plugin's tables. */
@@ -109,12 +93,10 @@ export function storeSchemaProblems({ files, read }, readBase) {
   const problems = [], goldens = goldenStores({ files, read });
   // A same-version change the user approved names its exact pair of hashes in ${EXCEPTIONS_FILE}; any other change still fails.
   const exceptions = parseExceptions(read(EXCEPTIONS_FILE));
-  if (exceptions.why) return [exceptions.why];
-  const resets = parseV1ResetExceptions(read(V1_RESET_FILE));
-  if (resets.why) return [resets.why];
+  if (exceptions.why) {
+    return [exceptions.why];
+  }
   const excepted = (store, version, from, to) => exceptions.rows.some(row => row.store === store && row.version === version && row.from === from && row.to === to);
-  const resetAllowed = (store, fromVersion, toVersion, fromStructure, toStructure) => resets.rows.some(row =>
-    row.store === store && row.from_version === fromVersion && row.to_version === toVersion && row.from_structure === fromStructure && row.to_structure === toStructure);
   for (const [store, now] of head.rows) {
     const before = base.rows.get(store);
     if (!before) continue;
@@ -123,7 +105,7 @@ export function storeSchemaProblems({ files, read }, readBase) {
       continue;
     }
     if (now.version < before.version) {
-      if (!resetAllowed(store, before.version, now.version, before.structure, now.structure)) problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`);
+      problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`);
       continue;
     }
     const missing = [];

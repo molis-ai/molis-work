@@ -12,7 +12,7 @@ const GATE_RULE_TEST_INPUTS = [
   "tests/installer-symlink-dependencies.test.ts", "tests/shell-page-gate.test.ts", "tests/artifact-type-gate.test.ts",
   "tests/artifact-declaration-gate.test.ts", "tests/artifact-host-writers.test.ts", "tests/studio-replay.test.ts",
   "tests/affected-tests.test.ts", "tests/fixtures/ci-workflow.ts", "tests/fixtures/plugin-styles-build.ts",
-  "tests/fixtures/feed-content-home-v1.sql", "tests/fixtures/agent-definitions-v1.sql", "tests/fixtures/observation-v1.sql",
+  "tests/fixtures/feed-content-home-v1.sql",
 ];
 const STUDIO_INPUTS = [
   ".github/", "skills/molis-plugin-dev/", "plugins/native/plugin-builder/",
@@ -27,6 +27,7 @@ const STUDIO_INPUTS = [
 const ACCOUNT_LOGIN_INPUTS = [
   ".github/", "horizontal/account/", "apps/desktop/", "apps/local-host/", "apps/workbench/",
   "packages/contracts/", "packages/kernel/", "packages/storage/", "packages/test-kit/", "packages/design-system/", "packages/ui-host/",
+  "packages/plugin-runtime/", "packages/plugin-sdk/", "modules/sync-replication/",
   "scripts/account-", "scripts/central-account.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs",
   "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs", "scripts/machine-slot.mjs", "vendor/",
 ];

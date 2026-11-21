@@ -51,7 +51,8 @@ export function acceptPresentation(output: string, design: AgentDesign) {
       || !isDeepStrictEqual(columns(previous), columns(part.props))) throw new Error('界面文字已随方案冻结；在设计修订里修改词包，界面布局答卷应保留已有引用');
   }
   const presentation = validatePluginPresentation(value.presentation, parts, design.contract);
-  // Enforce the v1 authoring choice at this write boundary; historical layouts remain readable.
+  // The reader refuses a detail pane beside an independent reader among the new parts. Here the design's previous parts count too, so an
+  // answer that drops the reader's text mapping in the same breath does not get the pane through.
   for (const [id, appearance] of Object.entries(presentation.parts)) if (appearance.detail) {
     const reader = independentReader([...design.parts, ...parts], id);
     if (reader) throw new Error(id + ' 已有独立正文 ' + reader.id + ' 读取其选中记录，不能再开启集合 detail；保留独立正文和字段映射，将 ' + id + '.detail 设为 false');

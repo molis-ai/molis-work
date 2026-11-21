@@ -71,7 +71,7 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
  *   arriving meanwhile must not queue it again. Opening a build, or trying it, shows everything at once.
  * - `wiredCaps`, `wires`, `playWires` (D22): Capabilities being connected are ticked on the capability board only once the code agent has carried them in. It takes the capability
  *   from the board and carries it to the part that calls it. A button on each record has nowhere to show while the list is empty: it is carried to that list instead.
- * - `GROUPS`: Parts are UI catalog components; builds from before keep their old names, which map onto the catalog.
+ * - `GROUPS`: Parts are UI catalog components, shown under the catalog's own groups.
  * - The capability board (`CAP_SOURCES`, `usedCapabilities`): what this plugin uses from the project's unified action directory, and the whole directory.
  * - `phaseOf`: A build stopped on a question for the person is waiting for them, not paused.
  * - `toEnable`: The plugins a proposal would need enabled in this project first.

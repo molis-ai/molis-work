@@ -6,7 +6,7 @@ import { isDestructivePluginOperation, literalPluginWord } from './plugin-surfac
 import { BASELINE_SPEC } from './baseline.js';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
-/** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
+/** A part's component: a UI catalog id (see PLUGIN_COMPONENTS). */
 export type PluginComponentKind = string;
 export type PluginComponentIntent = UiComponentIntent;
 export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'requiredText', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;

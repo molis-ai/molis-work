@@ -367,7 +367,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "embed-open" || message.type === "embed-layout" || message.type === "embed-close") { void embed(message); return; }
     if (message.type === "task-grants-open" || message.type === "task-grants-layout" || message.type === "task-grants-close") { taskGrants(message); return; }
     if (message.type === "connection-need-open" || message.type === "connection-need-layout" || message.type === "connection-need-close") { connectionNeed(message); return; }
-    if (message.type === "package-install-open" || message.type === "package-install-layout" || message.type === "package-install-close") { packageInstall(message); return; }
+    if (message.type === "package-install-open" || message.type === "package-install-layout" || message.type === "package-install-close") {
+      packageInstall(message);
+      return;
+    }
     if (message.type === "return-go" || message.type === "return-arrived" || message.type === "return-abort") { returns.receive(message); return; }
     if (message.type === "fetch" || message.type === "abort" || message.type === "pull") { void requests(message); return; }
     if (message.type === "draft") {

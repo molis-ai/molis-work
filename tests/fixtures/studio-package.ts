@@ -3,9 +3,7 @@ import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
-import { HomeConsentLedger, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
-import { readKeptPackage } from "../../apps/local-host/dist/sandbox-package.js";
-import type { InstalledRelease } from "../../apps/local-host/dist/installed-release.js";
+import { HomeConsentLedger, readKeptPackage, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { newPublisher, payloadOf } from "./sandbox-package.js";
@@ -41,8 +39,11 @@ export function studioPackage(release: Published, publisher: StudioPublisher, op
   }), signature: null, publisher_key: null }, publisher.signer);
 }
 
+/** What the Home's package store reads back for an installation. */
+export type StudioInstalledRelease = ReturnType<SandboxPackageStore["load"]>;
+
 /** The release an installation runs: read back from the package kept in the Home, under a publisher the person pinned. */
-export function packagedStudioRelease(home: string, release: Published, publisher: StudioPublisher, options: { upgradesFrom?: readonly number[]; scope?: "home" } = {}): InstalledRelease {
+export function packagedStudioRelease(home: string, release: Published, publisher: StudioPublisher, options: { upgradesFrom?: readonly number[]; scope?: "home" } = {}): StudioInstalledRelease {
   const bundle = studioPackage(release, publisher, options), packages = new SandboxPackageStore(home);
   pinStudioPublisher(home, publisher);
   packages.save(bundle, readKeptPackage(verifyPluginPackageSignature(bundle).bundle.payload));

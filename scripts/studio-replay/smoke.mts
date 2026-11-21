@@ -76,7 +76,7 @@ async function designOne(options: SmokeOptions, item: SmokeBrief): Promise<Smoke
     runInLanguage: run => runBackgroundWork(locale, run),
     validateContract: contract => assertContract(contract), prepareBuild: async () => scratch,
     check: async () => { throw new Error(DESIGN_ONLY); }, call: async () => { throw new Error(DESIGN_ONLY); }, resetPreview: async () => {},
-    browserAcceptance: async () => { throw new Error(DESIGN_ONLY); }, publish: async () => { throw new Error(DESIGN_ONLY); }, installations: async () => [], lifecycle: async () => {},
+    browserAcceptance: async () => { throw new Error(DESIGN_ONLY); }, publish: async () => { throw new Error(DESIGN_ONLY); }, installations: async () => [],
   };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
   let build: AgentBuild = workflow.create(item.brief), answered = false;

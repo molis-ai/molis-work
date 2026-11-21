@@ -170,7 +170,7 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
       return record(request, next.answer);
     } }),
     prepareBuild: async () => scratch, check: async () => { throw new Error("design only"); }, call: async () => [], resetPreview: async () => {},
-    browserAcceptance: async () => { throw new Error("design only"); }, publish: async () => { throw new Error("design only"); }, installations: async () => [], lifecycle: async () => {},
+    browserAcceptance: async () => { throw new Error("design only"); }, publish: async () => { throw new Error("design only"); }, installations: async () => [],
   };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
   try {

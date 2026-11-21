@@ -70,7 +70,10 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     const pages = pluginPagesFor(serverOptions.homeDirectory);
     // A signed package rides in the install sheet's preview (as large as the settings door takes one); every other body is small.
     const body = await readLocalWebBody(request, ...(install ? [PAGE_INSTALL_MAX_BYTES] : []));
-    if (install) { sendLocalWebJson(response, 200, await pagePackageInstall(context, project, body)); return true; }
+    if (install) {
+      sendLocalWebJson(response, 200, await pagePackageInstall(context, project, body));
+      return true;
+    }
     if (need) { sendLocalWebJson(response, 200, await pageConnectionNeed(context, project, body)); return true; }
     if (slot) {
       sendLocalWebJson(response, 200, await pageConnectionSlot(context, project, body)); return true;

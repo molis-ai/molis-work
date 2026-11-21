@@ -170,7 +170,7 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { SkillAuthoringService, type SkillAuthoringPorts } from "./skill-authoring.js";
-export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
+export { readKeptPackage, readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 
 export { SandboxPackageStore } from "./sandbox-package-store.js";

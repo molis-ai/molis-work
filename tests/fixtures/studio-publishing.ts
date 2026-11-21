@@ -21,7 +21,7 @@ export const publicationAuthority = (): PluginExecutionControl => ({ signal: new
 export function publicationPorts(home: string, root: string): AgentBuilderPorts {
   const unused = async (): Promise<never> => { throw new Error('This publication fixture must not generate, check, or install'); };
   return { projectId: 'author', catalog: async () => [], models: async () => [], agent: unused, validateContract() {}, prepareBuild: unused,
-    check: unused, call: unused, resetPreview: async () => {}, browserAcceptance: unused, publish: createStudioPublisher(home, root), installations: async () => [], lifecycle: unused };
+    check: unused, call: unused, resetPreview: async () => {}, browserAcceptance: unused, publish: createStudioPublisher(home, root), installations: async () => [] };
 }
 
 /** A previously checked fixed source, for publication boundary tests; real checking/browser coverage is separate. */

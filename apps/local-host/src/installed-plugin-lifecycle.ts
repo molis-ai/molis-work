@@ -257,7 +257,10 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return;
     }
     if (action === 'enable') return enableInstalled(c, release, record, grants);
-    if (action === 'uninstall') { await uninstall(release, record, record.state === 'uninstalled' ? undefined : grants.keepData === true); return; }
+    if (action === 'uninstall') {
+      await uninstall(release, record, record.state === 'uninstalled' ? undefined : grants.keepData === true);
+      return;
+    }
     // An installation moves to a newer package and nowhere else: there is no way back to an earlier version, and nothing else to ask for.
     action satisfies never;
     throw pluginErrors.state_invalid('已装的插件不能回到旧版本：先卸载，再装要用的那个包');

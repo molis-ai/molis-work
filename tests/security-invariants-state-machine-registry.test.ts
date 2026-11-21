@@ -1,7 +1,7 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   STATE_MACHINES_PROVIDER_ID, stateMachineActions,
   type PluginContribution, type PluginDefinition, type PluginInstanceRecord, type PluginLifecycleState, type PluginManifest,
@@ -234,16 +234,16 @@ test("SMP-08 the provider stays registered without a Home and answers an empty l
   const provider = stateMachineActionProvider();
   assert.equal(provider.provider.provider_id, STATE_MACHINES_PROVIDER_ID);
   assert.deepEqual(provider.definitions.map(definition => `${definition.capability_id}@${definition.version}`), ["state_machines.list@1", "state_machines.get@1"]);
-  const caller = { actor_id: "local-person", audience: "user", permissions: [], beforeEffect: async () => {} };
+  const caller: ActionExecutionContext = { actor_id: "local-person", project_id: "project", audience: "user", permissions: [], beforeEffect: async () => {} };
   const call = <T>(capability: string, input: unknown) => {
     const handler = provider.handlers.find(one => one.capability_id === capability)!;
-    return handler.handle(caller as Parameters<typeof handler.handle>[0], input) as Promise<T>;
+    return handler.handle(caller, input) as Promise<T>;
   };
   assert.deepEqual(await call<StateMachineListResult>("state_machines.list", {}), { entries: [], empty_reason: "no_home" });
   assert.deepEqual(await call<StateMachineGetResult>("state_machines.get", { machine_id: "io.molis.work.any.item" }), { entry: null });
   const empty = stateMachineActionProvider({ builtin: () => [], open: async () => ({ stores: [], close() {} }) });
   const handler = empty.handlers.find(one => one.capability_id === "state_machines.list")!;
-  const listed = await handler.handle(caller as Parameters<typeof handler.handle>[0], {}) as StateMachineListResult;
+  const listed = await handler.handle(caller, {}) as StateMachineListResult;
   assert.equal(listed.empty_reason, "no_plugins_in_scope");
   assert.deepEqual(listed.entries.map(entry => entry.owner), ["platform"]);
   assert.deepEqual(projectStateMachines({ builtin: [], installations: [] }), listed.entries, "the page data path and the action share one projection");

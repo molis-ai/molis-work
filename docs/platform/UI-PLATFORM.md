@@ -144,7 +144,9 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 `molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；W3-10-1b 让工作台主程序（`/assets/molis-work-workbench.js`）以助手开头，所以挂进工作台的页面（设置里的各页、侧栏）不用自带，并先迁了设置一组（模型、提示词、助理、记忆、诊断、常驻服务、项目与项目说明、Runtime 接入预览）、侧栏（含浏览器与文件）、设置目录、后台任务和插件通知；工作台的其余请求（导航、Feed、插件挂载、助理底栏、放置、搜索，W3-10-2～4）和插件客户端（W5-04）还在用各自的包装。挂进工作台的页面里的「诊断编号」按钮只有一个复制入口（`data-molis-call-id`，助手的点击处理），不再另挂 `data-copy-value`。
 
-隔离视图另可调用 `host.confirm(message)`、`host.prompt(message, initial)` 和 `host.copyText(text)`：前两者是当前视图内可取消的异步组件对话框，后者只在真实用户操作后复制文字，不提供系统剪贴板读取。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
+隔离视图另可调用 `host.confirm(message)`、`host.prompt(message, initial)` 和 `host.copyText(text)`：前两者是当前视图内可取消的异步组件对话框，后者只在真实用户操作后复制文字，不提供系统剪贴板读取。
+
+页面手里有一个签名包、想请用户装到这里时，调用 `host.packageInstall(place, { bundle }, { signal })`：外壳在 `place` 所在位置画安装单（一屏：包名与版本、发布者、装到哪里、必需与可选权限、要填的密钥），预览、用户的选择、密钥和每一次写入都在外壳与 Host 里完成，页面的脚本读不到也按不到。页面只拿到结果：`installed`（插件编号与版本）、`cancelled` 或 `failed`（拒绝的错误码）。Host 像对待设置里导入的包一样验签；装什么、要什么权限只看包本身。合同在 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPackageInstallTarget` 与 `UiPackageInstallOutcome`，边界见 `docs/system/security-invariants/S-package-install-sheet.md`。插件创作台发布后的「安装」页签就是这样装的，没有自己的安装、升级或卸载界面；停用、启用、卸载在「设置」的「插件」里。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
 
 页面终端有两样平台件，都在 `dist/web/pty-client.js`（`apps/workbench/src/terminal-client.ts`）：`molisTerminalRenderer` 画一个面板的屏幕（xterm、键盘、回放、主题、尺寸），`molisPageTerminal` 是页面拿到的通道。插件框架里的页面由框架经父页的受限通道给；工作台自己画的页面（Characters 的执行记录等）由 `terminal/page-terminal.ts` 的 `createPageTerminal` 在外壳自己的 `/pty` 通道上给出同一个 `UiPageTerminal`。页面只能 `attach` / `write` / `resize` / `kill` 后端已经建好的面板：通道在入口处拒绝别的命令（`spawn`、认证、缺 `panelId`、空命令），并按字段重建消息，页面不能起进程，也带不出额外字段；框架里已有 `molisPageTerminal` 时不覆盖（`tests/page-terminal.test.ts`）。终端客户端随各自的客户端包发，工作台的终端入口与 `terminal/` 不 import 任何插件包、不含插件 id；留在工作台的只有 Goal 工作面板的「工作终端」（靠控制令牌的 `/pty` 通道启动进程，`startWorkTerminalClient`）。
 

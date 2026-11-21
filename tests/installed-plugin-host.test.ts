@@ -31,7 +31,6 @@ import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins 
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
-import { sandboxEditionKey } from '../apps/local-host/dist/sandbox-package-store.js';
 import { packagedStudioRelease } from './fixtures/studio-package.js';
 import { openTestHome } from './fixtures/test-home.js';
 
@@ -360,8 +359,8 @@ test('a missing package or approval is reported without borrowing another instal
     await one.lifecycle('install', first.release, { consent: true });
     assert.equal((await one.actions.client.discover(context)).filter(view => view.capability_id.startsWith('generated.')).length, 3, 'new consent repairs a missing approval without borrowing another installation');
     await releaseInstalledPlugins(stores[1]!, DEMO_PROJECT_ID);
-    // The package the installation was made from is gone from the Home: nothing else stands in for it, the studio's own record least of all.
-    await rm(join(home, 'plugin-packages', sandboxEditionKey(second.release.pluginId, second.publisher.identity, '1.0.0')), { recursive: true, force: true });
+    // The packages the Home kept are gone, this installation's among them: nothing else stands in for it, the studio's own record least of all.
+    await rm(join(home, 'plugin-packages'), { recursive: true, force: true });
     const missing = await ensureInstalledPlugins({ store: stores[1]!, projectId: DEMO_PROJECT_ID, homeDirectory: home });
     assert.ok(missing.recoveryErrors.get(second.release.pluginId), 'the person is told the installation cannot be read back');
     assert.equal(missing.installations()[0]?.state, 'failed');

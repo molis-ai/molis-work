@@ -402,8 +402,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     await page.click('[data-as-tab="install"]');
     await sheet.staged('review');
     assert.match(await sheet.text(), /1\.0\.0[\s\S]*2\.0\.0|2\.0\.0[\s\S]*1\.0\.0/, 'the sheet says which version it upgrades');
-    await sheet.shot('upgrade-review');
-    await sheet.ready(); await sheet.press('confirm'); await sheet.staged('done');
+    await sheet.ready(); await sheet.shot('upgrade-review'); await sheet.press('confirm'); await sheet.staged('done');
     await refuseOldStage(framedStagePath);
     const upgradedStagePath = await currentStagePath();
     await installedPage.command('Page.navigate', { url: gatewayOrigin + upgradedStagePath });

@@ -129,7 +129,7 @@ test('FSS-36 Studio resumes portable v1 proposals and operations with long origi
    contractRevision:request.contractRevision,instruction:request.instruction,input:request.task,output:detail('已选择方案'),configuredModel:'fixture',reportedModels:[],phase:'completed',startedAt:at,finishedAt:at,activity:[],usage:[]};}}),
   prepareBuild:async()=>f.homes[1]!, check:async()=>({passed:true,gates:[{id:'G5',passed:true,detail:'Fixture operation checks'}]}), call:async()=>null,
   resetPreview:async()=>{}, browserAcceptance:async()=>({passed:true,at,cases:[{id:'add-note',passed:true,detail:'Fixture acceptance'}]}),
-  publish:async()=>{throw new Error('This journey does not publish');}, installations:async()=>[], lifecycle:async()=>{},
+  publish:async()=>{throw new Error('This journey does not publish');}, installations:async()=>[],
  };
  const workflow=new AgentBuilderWorkflow(f.storage[1]!,ports);
  workflow.subscribe(build=>{observed.push(...build.steps);});

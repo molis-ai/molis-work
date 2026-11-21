@@ -49,7 +49,7 @@ async function fixture(t: test.TestContext) {
       await beforeDeclaration();
       assert.equal(caller?.project_id, 'p'); assert.equal(caller?.plugin_install_id, 'install-1');
       return { kind: 'installed', registration: { owner_id: pluginId,
-        source: { kind: 'plugin', plugin_id: pluginId, title: 'Fixture', plugin_version: '1.0.0', origin: 'generated', state: 'enabled' },
+        source: { kind: 'plugin', plugin_id: pluginId, title: 'Fixture', plugin_version: '1.0.0', state: 'enabled' },
         prompts: [{ prompt_id: 'summary', version: 1, kind: 'instruction', title: 'Summary', purpose: 'Extract notes', used_by: ['Fixture'], body: 'BUILD_INSTRUCTION' }], roles: [] } };
     },
     resolveInference: async () => { await beforeResolve(); return adapter.inference; } });
@@ -131,7 +131,7 @@ test('generated named prompts send declared or user-edited instructions through 
   await f.invoke(undefined, { prompt: 'summary', input: 'ONLY_THIS_MATERIAL' });
   assert.match(JSON.stringify(f.bodies[0].messages.filter((item: any) => item.role === 'system')), /BUILD_INSTRUCTION/);
   const registry = agentDefinitionsFor(f.home, builtinRegistrations);
-  registry.register({ owner_id: owner, source: { kind: 'plugin', plugin_id: owner, title: 'Fixture', plugin_version: '1.0.0', origin: 'generated', state: 'enabled' },
+  registry.register({ owner_id: owner, source: { kind: 'plugin', plugin_id: owner, title: 'Fixture', plugin_version: '1.0.0', state: 'enabled' },
     prompts: [{ prompt_id: 'summary', version: 1, kind: 'instruction', title: 'Summary', purpose: 'Extract notes', used_by: ['Fixture'], body: 'SHIPPED_INSTRUCTION' }], roles: [] });
   registry.save(owner + '/summary', 'EDITED_INSTRUCTION', null, 'person');
   await f.invoke(undefined, { prompt: 'summary', input: 'ONLY_THIS_MATERIAL' });

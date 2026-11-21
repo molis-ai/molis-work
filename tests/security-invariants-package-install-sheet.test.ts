@@ -51,7 +51,8 @@ test("S-package-install-sheet PBU-47-1 only the outer document's page header rea
   const c = await sheetHome(t), page = await c.open(), bundle = sheetPackage();
   const before = await c.state();
   // The child's fetch bridge carries `x-molis-plugin-page` and drops the outer header; neither it, nor both, nor none reach the route.
-  for (const headers of [{}, { "x-molis-plugin-page": page }, { "x-molis-context-page": page, "x-molis-plugin-page": page }]) {
+  const refused: Array<Record<string, string>> = [{}, { "x-molis-plugin-page": page }, { "x-molis-context-page": page, "x-molis-plugin-page": page }];
+  for (const headers of refused) {
     assert.equal((await c.sheet(page, { operation: "preview", bundle }, headers)).status, 403, JSON.stringify(headers));
   }
   // The page's project only: the same page from another project's path is refused.

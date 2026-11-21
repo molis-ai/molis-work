@@ -77,7 +77,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
     selectionAvailable: () => true,
     browserAcceptance: async () => ({ passed: true, cases: [{ id: 'add-note', passed: true, detail: 'hello visible' }], at: new Date().toISOString() }),
     publish: async (_build, _manifest, _bundle, version, control) => control.commit({ directory: '/tmp/release/v' + version, bundlePath: '/tmp/release/v' + version + '/plugin.mjs', packagePath: '/tmp/release/v' + version, prompts: [] }),
-    installations: async () => [], lifecycle: async () => {},
+    installations: async () => [],
   };
   return state;
 }

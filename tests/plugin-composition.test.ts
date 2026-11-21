@@ -33,7 +33,7 @@ test('installation requires the versioned renderer; legacy releases still activa
   assert.deepEqual(resolvePluginActivation({ manifests: [sandboxedPluginDefinition(legacy, {}, []).manifest] }).order, [readingContract.pluginId]);
 });
 
-test('new UI composition cannot hide a selected record action behind a second reading mode; historical layouts still load', () => withPagePacks("zh", chinesePagePacks(), () => {
+test('UI composition cannot hide a selected record action behind a second reading mode, wherever the layout is read', () => withPagePacks("zh", chinesePagePacks(), () => {
   const contract = structuredClone(readingContract), parts = readingNodes.map(({ kind: _kind, ...plan }) => structuredClone(plan));
   contract.operations.push({ id: 'notes.read', kind: 'query', input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
     output: { type: 'object', properties: { title: { type: 'string' }, text: { type: 'string' } } }, effects: {}, examples: [], errors: [] });
@@ -45,7 +45,7 @@ test('new UI composition cannot hide a selected record action behind a second re
   presentation.pages[0]!.layout = { layout: 'stack', children: parts.map(part => ({ part: part.id })) };
   const answer = { summary: '正文独立呈现', presentation };
   assert.match(presentationTask({ brief: '读全文', design }, '整理').parts.find(part => part.id === 'notes')!.detailUnavailableBecause!, /reader/);
-  assert.equal(validatePluginPresentation(presentation, parts, contract), presentation, 'the shared reader continues to accept historical layouts');
+  assert.throws(() => validatePluginPresentation(presentation, parts, contract), /已有独立正文 reader/, 'the shared reader refuses it too: a stored design, a synced draft and a package are read by the same rule (N38)');
   assert.throws(() => acceptPresentation(JSON.stringify(answer), design), /已有独立正文 reader/);
   assert.throws(() => acceptPresentation(JSON.stringify({ ...answer, props: { reader: {} } }), design), /已有独立正文 reader/, 'dropping the text mapping cannot evade the reading contract');
   presentation.parts.notes!.detail = false;

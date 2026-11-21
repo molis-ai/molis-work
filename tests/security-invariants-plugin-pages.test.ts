@@ -560,11 +560,13 @@ test("B12 S-47 a page holding its own stream open keeps its authority; an idle p
   const home = mkdtempSync(join(tmpdir(), "molis-work-page-authority-"));
   try {
     const authority = pluginPagesFor(home);
-    const manifest = { plugin_id: "io.example.registered", ui: {}, actions: [], routes: [] } as PluginManifest;
-    const page = authority.open("io.example.registered", null, "web-user", undefined,
+    const { manifest } = homeProbe("registered").definition;
+    const page = authority.open(manifest.plugin_id, null, "web-user", undefined,
       { manifest, install_id: null, project_id: null, actor_id: "web-user", assertCurrent() {}, requestAllowed: () => true });
     const send = async () => {
-      const request = { headers: { "x-molis-plugin-page": page.page_id }, method: "GET" } as IncomingMessage, response = new ServerResponse(new IncomingMessage(new Socket()));
+      const request = new IncomingMessage(new Socket()), response = new ServerResponse(request);
+      request.method = "GET";
+      request.headers["x-molis-plugin-page"] = page.page_id;
       await authority.bind(request, new URL("http://127.0.0.1/api/anything"), response);
       return () => { response.emit("close"); };
     };

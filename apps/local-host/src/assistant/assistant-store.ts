@@ -14,6 +14,7 @@ import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import { AssistantObservedStates } from "./assistant-observed-states.js";
 import type { AssistantCardChoice, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import { CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 import { attentionChanged } from "../attention-changes.js";
@@ -480,6 +481,20 @@ export class AssistantStore {
     return this.list(actorId, { archived, limit: 500 }).filter(work => parent.graph_id !== undefined && work.delegated_by?.graph_id === parent.graph_id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
+  /** Whether any stored work or round currently references this conversation attachment subject id. */
+  referencesAttachment(subjectId: string): boolean {
+    const pattern = `%"${subjectId.replace(/[\\%_]/g, character => `\\${character}`)}"%`;
+    const visit = (value: unknown): boolean => {
+      if (Array.isArray(value)) return value.some(visit);
+      if (!value || typeof value !== "object") return false;
+      const ref = value as Partial<{ subject?: { kind?: unknown; id?: unknown } }>;
+      if (ref.subject?.kind === CONVERSATION_ATTACHMENT_SUBJECT_KIND && ref.subject.id === subjectId) return true;
+      return Object.values(value).some(visit);
+    };
+    const matches = (sql: string) => (this.db.prepare(sql).all(pattern) as Array<{ body: string }>).some(row => visit(JSON.parse(row.body)));
+    return matches("SELECT body FROM assistant_works WHERE body LIKE ? ESCAPE '\\'")
+      || matches("SELECT body FROM assistant_rounds WHERE body LIKE ? ESCAPE '\\'");
+  }
 
   close(): void {
     if (this.#closed) return;

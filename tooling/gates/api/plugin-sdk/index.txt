@@ -343,6 +343,8 @@ export type { PluginAgentRunInput } from "@molis-ai/molis-work-contracts/platfor
 export type { PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginConsumableFilter } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";

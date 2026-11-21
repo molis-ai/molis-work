@@ -1,6 +1,7 @@
 import type { CharacterRoleCatalog } from "@molis-ai/molis-work-contracts/modules/characters";
 import { roleKey } from "./assistant-characters.js";
-import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutHead, cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { MATERIAL_PART_UNITS } from "./assistant-material-parts.js";
 import { takeBackAssistantWork } from "./assistant-work-control.js";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -357,9 +358,9 @@ export class AssistantDelegations {
     const host = await this.ports.host(), back = await this.#back(host, work);
     if (!back.length) return undefined;
     const lines = await Promise.all(back.map(({ child, state }) => handedBackLines(this.ports, child, state)));
-    return { material_id: "handed-back", title: "子任务交回", text: [
+    return { material_id: "handed-back", title: "子任务交回", text: cutHead([
       "下面这些子任务结束了，结果交回给这项工作；它们的答复是子任务自己说的，宿主没有核对过。带逐项要求的，核验与认可以平台的记录为准，没通过的项不要对用户说成完成：",
-      ...lines].join("\n").slice(0, 18_000) };
+      ...lines].join("\n"), MATERIAL_PART_UNITS) };
   }
 
   /** The Host started: works whose parts all came back while it was away go on now (the SDK kept their continuations). */

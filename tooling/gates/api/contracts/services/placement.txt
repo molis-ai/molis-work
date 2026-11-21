@@ -274,6 +274,8 @@ export declare const placementAttachActions: {
             id: string;
         };
         read_revision?: string;
+        mode?: "live" | "fixed";
+        material_ref?: MaterialRef;
     }, {
         key: string;
     }>;

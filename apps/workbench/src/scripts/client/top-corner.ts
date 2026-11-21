@@ -43,6 +43,9 @@ export const TOP_CORNER_PART = `
   document.addEventListener('click', (event) => {
     if (cornerList && !cornerList.hidden && !(event.target?.nodeType === 1 && corner.contains(event.target))) setCorner(false);
   });
+  document.addEventListener('molis-work:place-changed', () => setCorner(false));
+  addEventListener('molis:surface-interaction', () => setCorner(false));
+  addEventListener('blur', () => setCorner(false));
   document.addEventListener('keydown', (event) => {
     if (!cornerList || cornerList.hidden || event.defaultPrevented) return;
     if (event.key === 'Escape') { event.preventDefault(); setCorner(false); cornerToggle?.focus(); return; }

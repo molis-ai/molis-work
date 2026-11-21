@@ -2,8 +2,8 @@
 export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.closest("[data-work-surface-link]");
       if (surfaceLink) {
         saveUiState();
-        const surface = surfaceLink.dataset.workSurfaceLink || "inbox";
-        if (desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface)) {
+        const surface = surfaceLink.dataset.workSurfaceLink || "";
+        if (surface && desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface)) {
           event.preventDefault();
           setDesktopDirectory("root", true, false, surfaceLink);
           if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
@@ -12,7 +12,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
       }
       const surfaceOpen = target.closest("[data-work-surface-open]");
       if (surfaceOpen) {
-        openSurfaceEntry(surfaceOpen.dataset.workSurfaceOpen || "goals", surfaceOpen, event);
+        const surface = surfaceOpen.dataset.workSurfaceOpen || "";
+        if (surface) openSurfaceEntry(surface, surfaceOpen, event);
         return;
       }
       const directoryOpen = target.closest("[data-directory-open]");

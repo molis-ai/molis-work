@@ -19,6 +19,8 @@ test("SYS-14 health answers fresh challenges without disclosing the control toke
     assert.equal(body.includes(f.token), false);
     assert.equal(JSON.parse(body).status, "ok");
     assert.equal(JSON.parse(body).desktop_tui, true);
+    assert.equal(typeof JSON.parse(body).active_work, "number");
+    assert.ok(JSON.parse(body).active_work >= 0);
     proofs.push(proof);
   }
   assert.notEqual(proofs[0], proofs[1], "a previous response cannot answer the next challenge");

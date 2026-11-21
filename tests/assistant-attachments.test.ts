@@ -158,5 +158,14 @@ test("a picture the person brings is kept by the platform's attachments and show
     await rm(join(home, "conversation-attachments", "blobs", createHash("sha256").update(image).digest("hex")));
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
     await assert.rejects(service.materialAccess.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));
+
+    // P2: a blank document rejected for empty text cleans up its unreferenced orphan blob immediately.
+    const blankDoc = Buffer.from("   \n\t  ", "utf8");
+    const blankBlob = join(home, "conversation-attachments", "blobs", createHash("sha256").update(blankDoc).digest("hex"));
+    await assert.rejects(
+      service.materialAccess.readAttachment({ name: "blank.txt", data: blankDoc.toString("base64") }),
+      /没有读到文字/u,
+    );
+    assert.equal(existsSync(blankBlob), false, "unreferenced rejected empty document leaves no orphan blob on disk");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

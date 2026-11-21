@@ -36,7 +36,7 @@ export interface FeedReaderData {
   readonly inbox_active: boolean;
   readonly promote_available: boolean;
 }
-export const FEED_STAGE_INBOX_READ = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1, provider_id: "io.molis.work.inbox" } as const;
+export const FEED_STAGE_INBOX_READ = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1 } as const;
 const snapshotSchema = { type: "object", properties: { sources: rows(["source_id"]), feed_items: { type: "array", items: item },
   facets: rows(["source_id", "label", "count"]), offset: { type: "integer", minimum: 0 }, next_offset: { type: ["integer", "null"], minimum: 0 }, runs: rows(["run_id"]), out_rules: rows(["rule_id"]) }, required: ["sources", "feed_items", "runs", "out_rules", "offset", "next_offset", "facets"], additionalProperties: false };
 const connectionsSchema = { type: "object", properties: {
@@ -61,7 +61,7 @@ export const feedQueryActions = {
     { type: "object", properties: { material_offset: { type: "integer" }, material_next_offset: { type: ["integer", "null"] }, item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
       required: ["item", "inbox_active", "promote_available", "material_offset", "material_next_offset"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
-    required_actions: [{ capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1, provider_id: "io.molis.work.goals" }] } },
+    required_actions: [{ capability_id: "goals.contract.read", version: /* @version action.goals.contract.read */ 1 }] } },
   snapshot: define<Record<string, string>, FeedDirectorySnapshot>("feed.snapshot", /* @version action.feed.snapshot */ 1, "读取 Feed 面板",
     "分页读取当前项目的消息元数据；正文与材料经单项读取，Inbox 事项由 Inbox 自己授权读取",
     feedPageSchema,

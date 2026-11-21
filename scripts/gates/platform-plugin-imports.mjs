@@ -3,7 +3,7 @@ import path from "node:path";
 import { extractImportSpecifiers } from "@molis-ai/molis-work-test-kit";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
-const PLATFORM_ROOTS = ["apps", "packages", "horizontal", "modules"];
+const PLATFORM_ROOTS = ["apps", "packages", "horizontal", "modules", "server"];
 
 /** Generated plugin registries may import only `/registration` subpaths. */
 export const GENERATED_PLUGIN_REGISTRIES = new Set([
@@ -69,13 +69,26 @@ function collectPlatformFiles(repositoryRoot) {
 }
 
 /**
- * PEQ-03: Platform directories (`apps/`, `packages/`, `horizontal/`, `modules/`) must not import
- * native plugin packages (`plugins/native/*`), outside the two generated registries, the spec §3
- * whitelist, and the explicit migration-only exception list.
+ * PEQ-03: Platform directories (`apps/`, `packages/`, `horizontal/`, `modules/`, `server/`) must not import
+ * native plugin packages (`plugins/native/*`), whether by package name, relative path, or dynamic import/require,
+ * outside the two generated registries, the spec §3 whitelist, and the explicit migration-only exception list.
  */
+const DYNAMIC_PLUGIN_TEMPLATE = /\b(?:import|require)\s*\(\s*`([^`]*?(?:@molis-ai\/molis-work-plugin-|plugins\/native\/)[^`]*)`/gu;
+
 export function checkPlatformNoPluginPackageImports(repositoryRoot, packages, overrides = {}) {
-  const nativePluginNames = packages.filter((pkg) => pkg.path.startsWith("plugins/native/")).map((pkg) => pkg.name);
-  const findNativePlugin = (specifier) => nativePluginNames.find((name) => specifier === name || specifier.startsWith(`${name}/`));
+  const nativePlugins = packages.filter((pkg) => pkg.path.startsWith("plugins/native/"));
+  const nativePluginNames = nativePlugins.map((pkg) => pkg.name);
+  const nativePluginByPath = new Map(nativePlugins.map((pkg) => [pkg.path, pkg.name]));
+  const findNativePlugin = (specifier, file) => {
+    const byName = nativePluginNames.find((name) => specifier === name || specifier.startsWith(`${name}/`));
+    if (byName) return byName;
+    if (specifier.startsWith(".")) {
+      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier));
+      const match = /^plugins\/native\/([^/]+)(?:\/|$)/u.exec(resolved);
+      if (match) return nativePluginByPath.get(`plugins/native/${match[1]}`) ?? `plugins/native/${match[1]}`;
+    }
+    return undefined;
+  };
   const migrationByFile = new Map(MIGRATION_PLUGIN_IMPORT_EXCEPTIONS.map((entry) => [entry.file, new Set(entry.packages)]));
   const usedMigrations = new Map();
   const files = overrides.files ?? collectPlatformFiles(repositoryRoot).map(({ rel, full }) => ({
@@ -86,7 +99,7 @@ export function checkPlatformNoPluginPackageImports(repositoryRoot, packages, ov
 
   for (const { file, source } of files) {
     for (const specifier of extractImportSpecifiers(source)) {
-      const target = findNativePlugin(specifier);
+      const target = findNativePlugin(specifier, file);
       if (!target) continue;
       if (GENERATED_PLUGIN_REGISTRIES.has(file)) {
         if (specifier !== `${target}/registration`) {
@@ -103,6 +116,11 @@ export function checkPlatformNoPluginPackageImports(repositoryRoot, packages, ov
         continue;
       }
       errors.push(`${file}: platform code must not import native plugin package ${specifier} (PEQ-03)`);
+    }
+    for (const match of source.matchAll(DYNAMIC_PLUGIN_TEMPLATE)) {
+      const template = match[1] ?? "";
+      if (!template.includes("${")) continue;
+      errors.push(`${file}: platform code must not dynamically import native plugin via template \`${template}\` (PEQ-03)`);
     }
   }
 

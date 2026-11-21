@@ -39,6 +39,8 @@ export declare function presentationText(object: OwnedPresentationObject, item: 
 
 export declare function presentationValuesProblems(input: PresentationValuesInput, values: PresentationValues): string[];
 
+export declare function sandboxActionProtocolAction(operation: SandboxProtocolOperation, identity?: Identity): ActionDefinition;
+
 export declare function sandboxReadProtocolAction(operation: SandboxReadOperation, identity?: Identity): ActionDefinition;
 
 export declare function validatePresentationDeclaration(manifest: {

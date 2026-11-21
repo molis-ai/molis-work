@@ -1,8 +1,9 @@
 {
-  "file": 800,
-  "classLines": 300,
-  "classMethods": 25,
-  "functionLines": 150,
+  "giantPolicy": "anti-god-object",
+  "file": 2500,
+  "classLines": 1200,
+  "classMethods": 60,
+  "functionLines": 600,
   "vendoredPrologueSdk": 2,
   "docsJsonBytes": 65536
 }

@@ -90,9 +90,25 @@ fn wait_for_owned_web(
     service_state: &WebServiceState,
     upgrade: Upgrade,
 ) -> Result<Started, String> {
+    let home = molis_work_home();
     let waited = wait_for_web(
         upgrade,
-        || crate::web_identity::answer().ok(),
+        || {
+            if let Ok(answer) = crate::web_identity::answer() {
+                return Some(answer);
+            }
+            // If the spawned Host hit EADDRINUSE on 4173 and fell back to a spare port in 4174–4199,
+            // adopt its `run/endpoint.json` port once it proves itself with this Home's control key.
+            if let Some(port) = crate::host_port::endpoint_port(&home) {
+                if port != crate::host_port::port() {
+                    if let Ok(answer) = crate::web_identity::answer_at(port) {
+                        crate::host_port::set_port(port);
+                        return Some(answer);
+                    }
+                }
+            }
+            None
+        },
         Instant::now,
         || thread::sleep(PROBE_INTERVAL),
         || service_state.shutting_down.load(Ordering::Acquire),
@@ -194,6 +210,7 @@ fn read_rollback_hold(home: &Path) -> Option<Version> {
 struct Program {
     version: Version,
     built: Option<String>,
+    profile: Option<String>,
 }
 
 /// `dist/.molis-work-build.json` (`format.build.manifest` 1): `pnpm build` writes it, the App's payload carries it and
@@ -205,17 +222,62 @@ struct BuildManifest {
     created_at: String,
 }
 
+fn parse_ascii_u32(bytes: &[u8]) -> Option<u32> {
+    let mut value = 0u32;
+    for &byte in bytes {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        value = value * 10 + u32::from(byte - b'0');
+    }
+    Some(value)
+}
+
+fn days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 0,
+    }
+}
+
 /// `Date.prototype.toISOString()` in UTC, `YYYY-MM-DDTHH:MM:SS.sssZ`: of two such times the later one sorts later as text.
 fn is_utc_instant(text: &str) -> bool {
     const SHAPE: &[u8; 24] = b"0000-00-00T00:00:00.000Z";
-    text.len() == SHAPE.len()
-        && text
-            .bytes()
+    let bytes = text.as_bytes();
+    if bytes.len() != SHAPE.len()
+        || !bytes
+            .iter()
             .zip(SHAPE.iter())
-            .all(|(byte, shape)| match shape {
+            .all(|(&byte, &shape)| match shape {
                 b'0' => byte.is_ascii_digit(),
-                other => byte == *other,
+                other => byte == other,
             })
+    {
+        return false;
+    }
+    let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) = (
+        parse_ascii_u32(&bytes[0..4]),
+        parse_ascii_u32(&bytes[5..7]),
+        parse_ascii_u32(&bytes[8..10]),
+        parse_ascii_u32(&bytes[11..13]),
+        parse_ascii_u32(&bytes[14..16]),
+        parse_ascii_u32(&bytes[17..19]),
+    ) else {
+        return false;
+    };
+    (1..=12).contains(&month)
+        && (1..=days_in_month(year, month)).contains(&day)
+        && hour <= 23
+        && minute <= 59
+        && second <= 59
 }
 
 fn read_build_time(program: &Path) -> Option<String> {
@@ -223,6 +285,23 @@ fn read_build_time(program: &Path) -> Option<String> {
     let manifest = serde_json::from_slice::<BuildManifest>(&fs::read(path).ok()?).ok()?;
     (manifest.schema_version == 1 && is_utc_instant(&manifest.created_at))
         .then_some(manifest.created_at)
+}
+
+fn read_release_profile(program: &Path) -> Option<String> {
+    let path = program
+        .join("node_modules")
+        .join("@molis-ai")
+        .join("molis-work-app-local-host")
+        .join("dist")
+        .join("selected-release-profile");
+    match fs::read_to_string(path) {
+        Ok(content) => {
+            let trimmed = content.trim();
+            matches!(trimmed, "dev" | "test" | "release").then(|| trimmed.to_string())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some("dev".to_string()),
+        Err(_) => None,
+    }
 }
 
 #[derive(Deserialize)]
@@ -239,10 +318,18 @@ fn read_installed_program(home: &Path) -> Option<Program> {
     let installation = serde_json::from_slice::<Installation>(&fs::read(path).ok()?).ok()?;
     let version = Version::parse(installation.version.trim()).ok()?;
     let release = format!("releases/molis-work-{}", installation.version.trim());
+    let release_dir = home.join(&release);
     let built = (installation.release_path.as_deref() == Some(release.as_str()))
-        .then(|| read_build_time(&home.join(&release)))
+        .then(|| read_build_time(&release_dir))
         .flatten();
-    Some(Program { version, built })
+    let profile = built
+        .as_ref()
+        .and_then(|_| read_release_profile(&release_dir));
+    Some(Program {
+        version,
+        built,
+        profile,
+    })
 }
 
 fn embedded_is_upgrade(
@@ -259,11 +346,21 @@ fn embedded_is_upgrade(
     match embedded.version.cmp(&installed.version) {
         std::cmp::Ordering::Greater => true,
         std::cmp::Ordering::Less => false,
-        // Only a later build of the same version: an App built earlier never puts its program over a newer one,
-        // such as one `pnpm install:local` put there since. Without both times it is not an upgrade, as before.
+        // Only a later build of the same version and release profile: an App built earlier or for a
+        // different profile (for example dev over release) never silently overwrites the installed build.
         std::cmp::Ordering::Equal => matches!(
-            (&embedded.built, &installed.built),
-            (Some(embedded), Some(installed)) if embedded > installed
+            (
+                &embedded.built,
+                &installed.built,
+                &embedded.profile,
+                &installed.profile,
+            ),
+            (
+                Some(embedded),
+                Some(installed),
+                Some(embedded_profile),
+                Some(installed_profile),
+            ) if embedded > installed && embedded_profile == installed_profile
         ),
     }
 }
@@ -275,9 +372,12 @@ fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool 
     let Some(version) = read_runtime_version(&source.join("package.json")) else {
         return false;
     };
+    let built = read_build_time(&source);
+    let profile = built.as_ref().and_then(|_| read_release_profile(&source));
     let embedded = Program {
         version,
-        built: read_build_time(&source),
+        built,
+        profile,
     };
     embedded_is_upgrade(
         &embedded,
@@ -313,21 +413,59 @@ fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), S
     })
 }
 
+#[derive(Deserialize)]
+struct ServiceCommandResult {
+    status: String,
+}
+
+fn service_command_status(stdout: &[u8]) -> Option<String> {
+    if let Ok(result) = serde_json::from_slice::<ServiceCommandResult>(stdout) {
+        return Some(result.status);
+    }
+    let text = std::str::from_utf8(stdout).ok()?;
+    for line in text.lines().rev() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Ok(result) = serde_json::from_str::<ServiceCommandResult>(trimmed) {
+            return Some(result.status);
+        }
+    }
+    None
+}
+
 fn sync_managed_web_service_after_upgrade(home: &Path) -> bool {
     let cli = home.join("bin").join("molis-work");
     if !cli.is_file() {
         return false;
     }
-    Command::new(cli)
+    let Ok(output) = Command::new(&cli)
         .args(["service", "install", "--home"])
         .arg(home)
-        .arg("--confirm")
+        .args(["--confirm", "--json"])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
+        .output()
+    else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    if service_command_status(&output.stdout).as_deref() == Some("unchanged") {
+        return Command::new(&cli)
+            .args(["service", "restart", "--home"])
+            .arg(home)
+            .arg("--confirm")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+    true
 }
 
 fn terminate_owned_web_child(child: &mut std::process::Child) {
@@ -390,7 +528,21 @@ pub(crate) fn desktop_owns_web_service(state: &WebServiceState) -> bool {
         .unwrap_or(false)
 }
 
+/// True when the desktop-owned web child process is still running (has not exited yet).
+pub(crate) fn owned_web_service_alive(state: &WebServiceState) -> bool {
+    state
+        .owned_child
+        .lock()
+        .ok()
+        .and_then(|mut slot| {
+            slot.as_mut()
+                .map(|child| child.try_wait().ok().flatten().is_none())
+        })
+        .unwrap_or(false)
+}
+
 pub(crate) fn stop_owned_web_service(state: &WebServiceState) -> bool {
+    crate::web_identity::invalidate_health_lease();
     let child = state
         .owned_child
         .lock()
@@ -489,6 +641,7 @@ pub(crate) fn start_molis_work_web(
     if upgraded_runtime {
         if packaged_test_home().is_none() {
             let _ = sync_managed_web_service_after_upgrade(&home);
+            adopt_endpoint_port(&home);
         }
         bin = web_launcher(&home);
     }
@@ -525,6 +678,7 @@ pub(crate) fn start_molis_work_web(
     let mut command = Command::new(&bin);
     command
         .args(["--home", home.to_str().unwrap_or_default()])
+        .env("MOLIS_WORK_HOME", &home)
         .env("PATH", &path);
     // 4173 answers, but not as this Home's Host: another program's port. This Host listens on a spare
     // one and says so in its address file (resident-runtime-design §6).
@@ -587,6 +741,15 @@ mod embedded_runtime_version_tests {
         Program {
             version: Version::parse(version).unwrap(),
             built: built.map(str::to_string),
+            profile: built.map(|_| "dev".to_string()),
+        }
+    }
+
+    fn program_with_profile(version: &str, built: Option<&str>, profile: Option<&str>) -> Program {
+        Program {
+            version: Version::parse(version).unwrap(),
+            built: built.map(str::to_string),
+            profile: profile.map(str::to_string),
         }
     }
 
@@ -646,16 +809,101 @@ mod embedded_runtime_version_tests {
     #[test]
     fn dsv_only_a_utc_iso_instant_counts_as_a_build_time() {
         assert!(is_utc_instant(A));
+        assert!(is_utc_instant("2024-02-29T23:59:59.999Z"));
+        assert!(is_utc_instant("2000-02-29T00:00:00.000Z"));
         for text in [
             "",
             "2026-11-19T07:42:18Z",
             "2026-11-19T07:42:18.353+00:00",
             "2026-11-19 07:42:18.353Z",
             "9999-99-99T99:99:99.999z",
+            "9999-99-99T99:99:99.999Z",
+            "2026-00-10T00:00:00.000Z",
+            "2026-13-01T00:00:00.000Z",
+            "2026-02-29T00:00:00.000Z",
+            "1900-02-29T00:00:00.000Z",
+            "2026-04-31T00:00:00.000Z",
+            "2026-11-19T24:00:00.000Z",
+            "2026-11-19T00:60:00.000Z",
+            "2026-11-19T00:00:60.000Z",
             "x026-11-19T07:42:18.353Z",
         ] {
             assert!(!is_utc_instant(text), "{text}");
         }
+    }
+
+    fn write_release_profile(program: &std::path::Path, profile: &str) {
+        let host = program
+            .join("node_modules")
+            .join("@molis-ai")
+            .join("molis-work-app-local-host")
+            .join("dist");
+        fs::create_dir_all(&host).unwrap();
+        fs::write(
+            host.join("selected-release-profile"),
+            format!("{profile}\n"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn dsv_same_version_replacement_requires_matching_release_profile() {
+        let dev_a = program_with_profile("0.1.0", Some(A), Some("dev"));
+        let dev_b = program_with_profile("0.1.0", Some(B), Some("dev"));
+        let release_a = program_with_profile("0.1.0", Some(A), Some("release"));
+        let release_b = program_with_profile("0.1.0", Some(B), Some("release"));
+        let test_b = program_with_profile("0.1.0", Some(B), Some("test"));
+        let unknown_b = program_with_profile("0.1.0", Some(B), None);
+
+        assert!(embedded_is_upgrade(&dev_b, Some(&dev_a), None));
+        assert!(embedded_is_upgrade(&release_b, Some(&release_a), None));
+        assert!(
+            !embedded_is_upgrade(&dev_b, Some(&release_a), None),
+            "dev build must not overwrite release installation"
+        );
+        assert!(
+            !embedded_is_upgrade(&test_b, Some(&release_a), None),
+            "test build must not overwrite release installation"
+        );
+        assert!(
+            !embedded_is_upgrade(&release_b, Some(&dev_a), None),
+            "cross-profile same-version overwrite is blocked"
+        );
+        assert!(
+            !embedded_is_upgrade(&unknown_b, Some(&release_a), None),
+            "unknown profile must not overwrite same-version installation"
+        );
+
+        let root = scratch("same-version-profile");
+        let payload = root.join("resources").join("molis-work-runtime");
+        fs::create_dir_all(payload.join("runtime")).unwrap();
+        fs::create_dir_all(payload.join("dist").join("cli")).unwrap();
+        fs::write(payload.join("runtime").join("node"), "").unwrap();
+        fs::write(payload.join("dist").join("cli").join("main.js"), "").unwrap();
+        fs::write(payload.join("package.json"), r#"{"version":"0.1.0"}"#).unwrap();
+        write_build(&payload, B);
+        let home = root.join("home");
+        let release = home.join("releases").join("molis-work-0.1.0");
+        fs::create_dir_all(home.join("config")).unwrap();
+        write_build(&release, A);
+        write_installation(&home, "releases/molis-work-0.1.0");
+        write_release_profile(&release, "release");
+
+        assert!(
+            !embedded_runtime_upgrade_available(&root, &home),
+            "embedded dev payload (no profile file) must not overwrite installed release"
+        );
+        write_release_profile(&payload, "release");
+        assert!(
+            embedded_runtime_upgrade_available(&root, &home),
+            "matching release profile allows later same-version build"
+        );
+        write_release_profile(&payload, "bogus");
+        assert!(
+            !embedded_runtime_upgrade_available(&root, &home),
+            "invalid profile value is rejected"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     fn write_build(program: &std::path::Path, created_at: &str) {
@@ -822,7 +1070,7 @@ mod embedded_runtime_version_tests {
         fs::write(
             &cli,
             format!(
-                "#!/bin/sh\nprintf '%s\\n' \"$*\" > '{}'\n",
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nprintf '{{\"status\":\"installed\"}}\\n'\n",
                 receipt.display()
             ),
         )
@@ -837,7 +1085,70 @@ mod embedded_runtime_version_tests {
         assert_eq!(
             fs::read_to_string(&receipt).unwrap().trim(),
             format!(
-                "service install --home {} --confirm",
+                "service install --home {} --confirm --json",
+                PathBuf::from(&home).display()
+            ),
+        );
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn embedded_runtime_upgrade_restarts_managed_service_when_install_is_unchanged() {
+        let home = scratch("service-restart-after-upgrade");
+        let bin = home.join("bin");
+        let cli = bin.join("molis-work");
+        let receipt = home.join("called.txt");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(
+            &cli,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nif [ \"$1\" = \"service\" ] && [ \"$2\" = \"install\" ]; then\n  printf '{{\"status\":\"unchanged\"}}\\n'\nfi\n",
+                receipt.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&cli).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&cli, permissions).unwrap();
+
+        let refreshed = sync_managed_web_service_after_upgrade(&home);
+
+        assert!(refreshed);
+        assert_eq!(
+            fs::read_to_string(&receipt).unwrap().trim(),
+            format!(
+                "service install --home {} --confirm --json\nservice restart --home {} --confirm",
+                PathBuf::from(&home).display(),
+                PathBuf::from(&home).display()
+            ),
+        );
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn embedded_runtime_upgrade_does_not_restart_when_service_install_fails() {
+        let home = scratch("service-install-fails");
+        let bin = home.join("bin");
+        let cli = bin.join("molis-work");
+        let receipt = home.join("called.txt");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(
+            &cli,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexit 1\n",
+                receipt.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&cli).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&cli, permissions).unwrap();
+
+        assert!(!sync_managed_web_service_after_upgrade(&home));
+        assert_eq!(
+            fs::read_to_string(&receipt).unwrap().trim(),
+            format!(
+                "service install --home {} --confirm --json",
                 PathBuf::from(&home).display()
             ),
         );

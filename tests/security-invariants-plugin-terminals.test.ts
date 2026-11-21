@@ -5,6 +5,7 @@ import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Socket } from "node:net";
 import { WebSocket } from "ws";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, WORK_TERMINAL_PROVIDER_ID, workTerminalActions, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { attachMolisWorkPtySocket } from "@molis-ai/molis-work-app-local-host";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -126,4 +127,73 @@ test("SYS-15 S-47 terminal page controls only its server-created panel and canno
   assert.equal((await reopened.wait(message => message.type === "exit")).signal, 15);
   assert.equal(pty.alive("owned-terminal"), false);
   for (const client of [own, other, projectPage, reopened]) client.socket.terminate();
+});
+
+test("S-work-terminals platform work-terminal actions refuse non-person, delegated, plugin, and cross-project callers with zero spawned panels", async t => {
+  const f = await serveHomeRuntime(t);
+  const project = await f.project("Work Terminal Boundary");
+  const projectClient = f.host.actionClient(project.reference);
+  const homeClient = f.host.homeActionClient();
+  const refs = [
+    [workTerminalActions.open, { plugin_id: "io.molis.work.goals", subject: { kind: "goal", id: "G-1" }, runtime_id: "codex" }],
+    [workTerminalActions.list, { plugin_id: "io.molis.work.goals", subject: { kind: "goal", id: "G-1" } }],
+    [workTerminalActions.close, { panel_id: "missing-panel" }],
+    [workTerminalActions.prompt, { plugin_id: "io.molis.work.goals", subject: { kind: "goal", id: "G-1" } }],
+  ] as const;
+
+  const basePerson: ActionCallContext = {
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user",
+    project_id: project.project_id,
+    permissions: [],
+  };
+  const forbidden: Array<[string, ActionCallContext]> = [
+    ["agent", { ...basePerson, audience: "agent", actor_kind: "runtime" }],
+    ["plugin", { ...basePerson, audience: "plugin", actor_kind: "runtime" }],
+    ["workflow", { ...basePerson, audience: "workflow", actor_kind: "runtime" }],
+    ["mcp", { ...basePerson, audience: "mcp", actor_kind: "runtime" }],
+    ["delegated", { ...basePerson, delegated_by: "io.molis.work.goals" }],
+    ["calling_plugin_id", { ...basePerson, calling_plugin_id: "io.molis.work.goals" }],
+    ["host_plugin", {
+      ...basePerson,
+      host_plugin: {
+        plugin_id: "io.molis.work.goals",
+        install_id: "builtin:io.molis.work.goals",
+        actor_id: LOCAL_PERSON_ACTOR_ID,
+        project_id: project.project_id,
+        declaration: { manifest: {} as never },
+        assertActive: () => {},
+      },
+    }],
+  ];
+
+  for (const [label, caller] of forbidden) {
+    let discovered: Awaited<ReturnType<typeof projectClient.discover>> | null = null;
+    try {
+      discovered = await projectClient.discover(caller);
+    } catch (error) {
+      assert.ok(error instanceof ActionError && (error.code === "actions.forbidden" || error.kind === "forbidden"), `${label} discover refused`);
+    }
+    for (const [def, input] of refs) {
+      if (discovered) {
+        const view = discovered.find(entry => entry.capability_id === def.capability_id);
+        assert.ok(!view || !view.availability.available, `${label} must not see ${def.capability_id} as available`);
+      }
+      await assert.rejects(
+        projectClient.invoke(caller, { ...def, provider_id: WORK_TERMINAL_PROVIDER_ID } as never, input as never),
+        (error: unknown) => error instanceof ActionError && (error.code === "actions.forbidden" || error.kind === "forbidden"),
+        `${label} refused ${def.capability_id}`,
+      );
+    }
+  }
+
+  // Home caller without project_id is refused (project-scoped work terminals cannot run at Home scope).
+  const homeCaller: ActionCallContext = { ...basePerson, project_id: null };
+  for (const [def, input] of refs) {
+    await assert.rejects(
+      homeClient.invoke(homeCaller, { ...def, provider_id: WORK_TERMINAL_PROVIDER_ID } as never, input as never),
+      (error: unknown) => error instanceof ActionError && (error.code === "actions.scope_mismatch" || error.code === "actions.forbidden"),
+      `home caller without project refused ${def.capability_id}`,
+    );
+  }
 });

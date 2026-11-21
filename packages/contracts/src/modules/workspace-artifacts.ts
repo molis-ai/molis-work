@@ -663,23 +663,6 @@ export function mayHaveChangedFiles(outcome: GitResultOutcome): boolean {
 }
 
 /* ------------------------------------------------------------------ *
- * Event ids exchanged between workspace Plugins
- * ------------------------------------------------------------------ */
-
-/**
- * Subscribers must name the exact event they listen to, which means naming a
- * publisher's id. Those ids live here so a subscriber does not have to import
- * the publisher's package to spell one, and so the two cannot drift apart.
- * Validators stay with the publisher: only it knows what its payload means.
- */
-export const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
-export const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
-export const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";
-export const CODING_FILE_CHANGED_EVENT = "io.molis.work.coding.file-changed";
-export const CODING_WORKSPACE_INVALIDATED_EVENT = "io.molis.work.coding.workspace-invalidated";
-export const CODING_PREFERENCE_EVENT = "io.molis.work.coding.preference";
-
-/* ------------------------------------------------------------------ *
  * A Run's change set
  * ------------------------------------------------------------------ */
 

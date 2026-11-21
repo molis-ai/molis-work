@@ -1,0 +1,58 @@
+{
+  "routes": {
+    "workbench": {
+      "maxBytes": 2800000,
+      "assets": [
+        "/assets/molis-work-workbench.css",
+        "/assets/molis-work-workbench.js",
+        "/assets/molis-work-composer.js",
+        "/assets/ui-skin/folio-1.css"
+      ]
+    },
+    "arrival": {
+      "maxBytes": 750000,
+      "assets": [
+        "/assets/molis-work-arrival.css",
+        "/assets/molis-work-chooser-search.js",
+        "/assets/ui-skin/folio-1.css"
+      ]
+    },
+    "settings": {
+      "maxBytes": 1300000,
+      "assets": [
+        "/assets/molis-work-settings.css",
+        "/assets/molis-work-capabilities.js",
+        "/assets/molis-work-knowledge.js",
+        "/assets/molis-work-kit.js",
+        "/assets/molis-work-assistant-subtasks.js",
+        "/assets/molis-work-work-records.js",
+        "/assets/ui-skin/folio-1.css"
+      ]
+    },
+    "pluginFrame": {
+      "maxBytes": 950000,
+      "assets": [
+        "/assets/molis-work-plugin-frame.js",
+        "/assets/molis-work-composer.js",
+        "/desktop/pty-client.js"
+      ]
+    },
+    "pluginPacks": {
+      "maxBytes": 2800000,
+      "prefixes": ["/assets/molis-work-plugins/"],
+      "assets": ["/assets/molis-work-pages-editor.js"]
+    },
+    "fonts": {
+      "maxBytes": 7200000,
+      "suffixes": [".woff2"]
+    }
+  },
+  "maxSingleAssetBytes": 1500000,
+  "maxPluginAssetBytes": 600000,
+  "firstScreen": {
+    "arrival-empty": { "cold": 3300000, "warm": 900000 },
+    "chooser": { "cold": 3700000, "warm": 1250000 },
+    "workbench-default": { "cold": 4300000, "warm": 900000 },
+    "workbench-all-plugins": { "cold": 5100000, "warm": 1200000 }
+  }
+}

@@ -32,6 +32,9 @@ export function syncTransportBackoff() {
     assertReady() {
       if (Date.now() < notBefore) throw errors.transport_backoff(message);
     },
+    currentError() {
+      return errors.transport_backoff(message);
+    },
     offline(cause: unknown) {
       delay(null);
       message = cause instanceof Error ? cause.message : syncResponseMessage(undefined);

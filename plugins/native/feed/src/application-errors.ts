@@ -1,3 +1,4 @@
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { feedErrors } from "./contract/feed.js";
@@ -50,7 +51,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   const reported = value.details && typeof value.details === "object" ? (value.details as { error_code?: unknown }).error_code : undefined;
   const code = typeof reported === "string" && reported ? reported : typeof value.code === "string" && value.code ? value.code : "feed.unknown";
   const message = typeof value.message === "string" && value.message
-    ? value.message.slice(0, 400)
+    ? cutHead(value.message, 400)
     : "信息流操作失败";
   if (code === "feed.source_connection_changed" || code.includes("needs_auth") || code.includes("credential")) {
     return { code, category: "auth", retryable: false, user_action: "reconnect", safe_message: message };

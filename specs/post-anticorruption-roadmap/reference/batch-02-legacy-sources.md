@@ -21,7 +21,7 @@
 | 26 · T-181 | 真实存量引导标题是否曾存半字，沿设备 A 的[旧核对](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6517042142)，当次数为零；以后按干净重建 BL-928，不从当前代码猜旧 Home 内容。 |
 | 27、52、72 · 模型输入预算 | T-282、351 已收口信息助手、Alchemist 和 Todo 的材料。Knowledge 有实际宿主数据位测试。Memory 仍沿原暂停，注册默认指令与 prompt／system 的两个上限保留 BL-1002。 [`4b73d80714`](https://github.com/molis-ai/molis-work/commit/4b73d80714)、[`a1117b3bad`](https://github.com/molis-ai/molis-work/commit/a1117b3bad) |
 | 28、33、39、80、97、105 · 字数与组词 | PPT 大纲与 Goal 标题已有真实提交及长度边界用例；Characters 原表核出页面和库同按单元，不另派。指引和直接 Goal 创建归 BL-998，组词、Pages 备注归 BL-999。项目名三入口的统一和材料标题归 T-331／BL-944，材料边界在本批已复现。 [`0ac344d8cf`](https://github.com/molis-ai/molis-work/commit/0ac344d8cf) |
-| 29 · T-202 | 评论材料的第 18,000 个单元仍会切开一个字符，普通材料的分段也是相同算法。跨段完整性和手册的正文上限归 BL-974。 |
+| 29 · T-202 | 评论材料的第 18,000 个单元仍会切开一个字符，普通材料的分段也是相同算法。跨段完整性和手册的正文上限归 BL-974，已于 2026-11-21 修复并删除（见 [已删除的 BL](../../../docs/backlog-removed.md)）。 |
 | 30 · T-168 | RAC-1809～1811 区分已声明路由形状里的坏编码、未声明的页面路径和普通 Home 请求。S-47 未写这条边界，表和已有测试的对应归 BL-914。 |
 | 31 · T-208 | 下载链接、实际文件名及 Shelf 回执的 RAC-1995～1997 已在图片插件浏览器用例内。README 漏列这份文件，归 BL-973。 |
 | 32 · T-208 | T-212、213 已统一图片服务和 Runtime 的字符计数，五个界面输入框仍留 BL-985。 |

@@ -338,7 +338,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   .plugin-event-row strong { font-weight: 400; }
   .plugin-event-row p, .plugin-event-row small { color: var(--muted); font-size: 12px; margin-block: 4px; }
   [data-plugin-events-history] { margin-block: 16px; font-size: 12px; overflow-wrap: anywhere; }
-  [data-plugin-event-payload] { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; font-size: 12px; }
   [data-plugin-event-form] .mw-form__footer { flex-wrap: wrap; }
   @media (max-width: 600px) { .plugin-event-row { align-items: flex-start; flex-direction: column; } [data-plugin-events] .mw-btn { min-height: 44px; } }
   body.immersive-workbench .plugin-market-list :is([data-market-add], [data-market-upgrade]) { appearance: none; flex: none; min-height: 32px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; cursor: pointer; }
@@ -480,9 +479,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .plugin-market-project-trigger { max-width: none; width: auto; flex: 1; min-width: 0; }
     body.immersive-workbench .plugin-market-list { grid-template-columns: 1fr; }
   }
-
-  body.immersive-workbench .feed-source-directory > header { justify-content: flex-end; height: 30px; }
-  body.immersive-workbench .feed-source-directory > header > strong { display: none; }
 
   body.immersive-workbench .navigation-labels-toggle {
     flex: none; align-self: stretch; margin: 0 4px; padding: 0 8px; min-height: 28px;

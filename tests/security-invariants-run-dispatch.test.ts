@@ -1,12 +1,52 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { AgentReviewQueue, createPrologueNodeAdapter, guardNodeDispatch, type ReviewDecisionControl } from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, createCommandDispatchGuard, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
+
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+type NodeHostModule = {
+  createNodeHost(options?: { beforeCommandDispatch?: ReturnType<typeof createCommandDispatchGuard> }): {
+    declareSandbox(input: { posture: "workspace-write" }): Promise<void>;
+    authorizeRoot(input: { path: string }): Promise<{ readonly ref: { readonly kind: "authorized-root"; readonly id: string; readonly revision: number } }>;
+    runCommand(input: {
+      commandId?: string;
+      rootRef: { readonly kind: "authorized-root"; readonly id: string; readonly revision: number };
+      executable: string;
+      argv: readonly string[];
+      cwd: string;
+      envAllowlist: readonly string[];
+      timeoutMs: number;
+    }): Promise<{ exitCode: number; stdout: string; stderr: string; truncated: boolean; timedOut: boolean; cancelled: boolean }>;
+    startBackgroundCommand(input: {
+      commandId?: string;
+      rootRef: { readonly kind: "authorized-root"; readonly id: string; readonly revision: number };
+      executable: string;
+      argv: readonly string[];
+      cwd: string;
+      envAllowlist: readonly string[];
+      timeoutMs: number;
+    }): Promise<{ commandId: string }>;
+    openInteractive(input: {
+      commandId?: string;
+      rootRef: { readonly kind: "authorized-root"; readonly id: string; readonly revision: number };
+      executable: string;
+      argv: readonly string[];
+      cwd: string;
+      envAllowlist: readonly string[];
+      timeoutMs: number;
+    }): Promise<{ sessionId: string }>;
+    closeInteractive(sessionId: string): Promise<void>;
+    cancelCommand(commandId: string): Promise<boolean>;
+    closeStorage(): Promise<void>;
+  };
+};
+const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node")) as NodeHostModule;
 
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
 async function until<T>(read: () => Promise<T | undefined>, message: string): Promise<T> {
@@ -163,55 +203,173 @@ test("APR-07/08/11: the original command is reused across rounds and restart; ch
   assert.equal(await readFile(join(root, "receipt.txt"), "utf8"), "ran\nran\n", "loss of the exact directory at the final wait prevents a new process");
 });
 
-function commandBoundary() {
-  const calls: string[] = [], cancelled: string[] = [], guards = new AsyncLocalStorage<ReviewDecisionControl>();
-  const original: Parameters<typeof guardNodeDispatch>[0] = {
-    async runCommand(input) { calls.push(input.commandId!); return { exitCode: 0, stdout: "", stderr: "", truncated: false, timedOut: false, cancelled: false }; },
-    async startBackgroundCommand(input) { calls.push(input.commandId!); return { commandId: input.commandId! }; },
-    async cancelCommand(id) { cancelled.push(id); return false; },
+type GuardStore = Parameters<typeof createCommandDispatchGuard>[0];
+type GuardControl = NonNullable<ReturnType<GuardStore["getStore"]>>;
+
+async function commandBoundary(t: TestContext) {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "molis-node-dispatch-")));
+  const guards: GuardStore = new AsyncLocalStorage<GuardControl>();
+  const host = createNodeHost({ beforeCommandDispatch: createCommandDispatchGuard(guards) });
+  await host.declareSandbox({ posture: "workspace-write" });
+  const { ref: rootRef } = await host.authorizeRoot({ path: root });
+  t.after(async () => {
+    await host.closeStorage().catch(() => undefined);
+    await rm(root, { recursive: true, force: true });
+  });
+  const marker = join(root, "ran.txt");
+  const request = {
+    commandId: "original-command",
+    rootRef,
+    executable: "node",
+    argv: ["-e", "require('node:fs').appendFileSync('ran.txt','ok\\n')"],
+    cwd: ".",
+    envAllowlist: ["PATH"] as readonly string[],
+    timeoutMs: 5000,
   };
-  const host = guardNodeDispatch(original, guards), request: Parameters<typeof host.runCommand>[0] = {
-    commandId: "original-command", rootRef: { kind: "authorized-root", id: "original-root", revision: 1 }, executable: "node", argv: [], cwd: ".", envAllowlist: [], timeoutMs: 1000,
-  };
-  return { calls, cancelled, guards, host, request };
+  return { root, marker, guards, host, rootRef, request };
 }
 
-test("APR-11: a single command cancelled before it has a pid cannot spawn after preparation", async () => {
-  const f = commandBoundary(), entered = deferred(), release = deferred(), roundLive = true;
-  const control: ReviewDecisionControl = { assertCurrent() { assert.equal(roundLive, true); }, beforeEffect: async () => { entered.resolve(); await release.promise; } };
+test("APR-11: a single command cancelled before it has a pid cannot spawn after preparation", async t => {
+  const f = await commandBoundary(t);
+  const entered = deferred();
+  const release = deferred();
+  const roundLive = true;
+  const control: GuardControl = {
+    assertCurrent() {
+      assert.equal(roundLive, true);
+    },
+    beforeEffect: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  };
   const result = f.guards.run(control, () => f.host.runCommand(f.request));
   const refused = assert.rejects(result, { code: "CANCELLED" });
   await entered.promise;
-  assert.equal(await f.host.cancelCommand(f.request.commandId!), false, "the process owner has not registered a pid yet");
+  assert.equal(await f.host.cancelCommand(f.request.commandId), true, "the real NodeHost cancels the preparing command before spawn");
   assert.equal(roundLive, true, "single-call timeout does not stop the whole Run");
-  release.resolve(); await refused;
-  assert.deepEqual(f.cancelled, [f.request.commandId]); assert.deepEqual(f.calls, []);
-  await f.guards.run(control, () => f.host.runCommand(f.request));
-  assert.deepEqual(f.calls, [f.request.commandId], "the completed preparation retains no cancellation entry");
+  release.resolve();
+  await refused;
+  await assert.rejects(readFile(f.marker, "utf8"), { code: "ENOENT" });
+  const ok = await f.guards.run(control, () => f.host.runCommand(f.request));
+  assert.equal(ok.exitCode, 0);
+  assert.equal(await readFile(f.marker, "utf8"), "ok\n", "the completed preparation retains no cancellation entry");
 });
 
-test("APR-11: cancellation belongs to the original command; duplicate and missing ids cannot share preparation", async () => {
-  const f = commandBoundary(), entered = deferred(), release = deferred();
-  const control: ReviewDecisionControl = { assertCurrent() {}, beforeEffect: async () => { entered.resolve(); await release.promise; } };
+test("APR-11: cancellation belongs to the original command; duplicate and missing ids cannot share preparation", async t => {
+  const f = await commandBoundary(t);
+  const entered = deferred();
+  const release = deferred();
+  const control: GuardControl = {
+    assertCurrent() {},
+    beforeEffect: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  };
   const original = f.guards.run(control, () => f.host.runCommand(f.request));
   await entered.promise;
-  await assert.rejects(f.guards.run(control, () => f.host.runCommand(f.request)), { code: "agent.review_not_permitted" });
+  await assert.rejects(f.guards.run(control, () => f.host.runCommand(f.request)), { code: "COMMAND_DENIED" });
   await assert.rejects(f.guards.run(control, () => f.host.runCommand({ ...f.request, commandId: undefined })), { code: "agent.review_not_permitted" });
-  await f.host.cancelCommand("another-command"); release.resolve(); await original;
-  assert.deepEqual(f.calls, [f.request.commandId]);
+  await f.host.cancelCommand("another-command");
+  release.resolve();
+  const completed = await original;
+  assert.equal(completed.exitCode, 0);
+  assert.equal(await readFile(f.marker, "utf8"), "ok\n");
   await assert.rejects(f.host.runCommand({ ...f.request, commandId: "without-control" }), { code: "agent.review_not_permitted" });
-  assert.deepEqual(f.calls, [f.request.commandId]);
+  assert.equal(await readFile(f.marker, "utf8"), "ok\n");
 });
 
-test("APR-11: replacement async context cannot rescue an old command after its authority changed", async () => {
-  const f = commandBoundary(), entered = deferred(), release = deferred(); let active = true;
-  const old: ReviewDecisionControl = { assertCurrent() { if (!active) throw new Error("old authority revoked"); }, beforeEffect: async () => { entered.resolve(); await release.promise; } };
-  const result = f.guards.run(old, () => f.host.runCommand(f.request)), refused = assert.rejects(result, /old authority revoked/);
-  await entered.promise; active = false;
-  await f.guards.run({ beforeEffect() {}, assertCurrent() {} }, async () => { release.resolve(); await refused; });
-  assert.deepEqual(f.calls, []);
-  await f.guards.run({ beforeEffect() {}, assertCurrent() {} }, () => f.host.runCommand(f.request));
-  assert.deepEqual(f.calls, [f.request.commandId], "authority failure also releases only its own preparation entry");
+test("APR-11: replacement async context cannot rescue an old command after its authority changed", async t => {
+  const f = await commandBoundary(t);
+  const entered = deferred();
+  const release = deferred();
+  let active = true;
+  const old: GuardControl = {
+    assertCurrent() {
+      if (!active) throw new Error("old authority revoked");
+    },
+    beforeEffect: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  };
+  const result = f.guards.run(old, () => f.host.runCommand(f.request));
+  const refused = assert.rejects(result, /old authority revoked/);
+  await entered.promise;
+  active = false;
+  await f.guards.run({ beforeEffect() {}, assertCurrent() {} }, async () => {
+    release.resolve();
+    await refused;
+  });
+  await assert.rejects(readFile(f.marker, "utf8"), { code: "ENOENT" });
+  const ok = await f.guards.run({ beforeEffect() {}, assertCurrent() {} }, () => f.host.runCommand(f.request));
+  assert.equal(ok.exitCode, 0);
+  assert.equal(await readFile(f.marker, "utf8"), "ok\n", "authority failure also releases only its own preparation entry");
+});
+
+test("APR-11: interactive spawns are fail-closed without control, with revoked non-stdio control, or with revoked stdio transport", async t => {
+  const f = await commandBoundary(t);
+  const interactiveMarker = join(f.root, "interactive.txt");
+  const interactiveRequest = {
+    rootRef: f.rootRef,
+    executable: "node",
+    argv: ["-e", "require('node:fs').appendFileSync('interactive.txt','spawned\\n'); setTimeout(() => {}, 5000);"],
+    cwd: ".",
+    envAllowlist: ["PATH"] as readonly string[],
+    timeoutMs: 5000,
+  };
+
+  // 1. Missing control must fail closed (never fall through to open spawn).
+  await assert.rejects(f.host.openInteractive(interactiveRequest), { code: "agent.review_not_permitted" });
+  await assert.rejects(readFile(interactiveMarker, "utf8"), { code: "ENOENT" });
+
+  // 2. Non-stdio control whose beforeEffect or post-await assertCurrent fails must refuse before spawn.
+  let live = true;
+  const nonStdioRevoked: GuardControl = {
+    assertCurrent() {
+      if (!live) throw new Error("non-stdio interactive revoked");
+    },
+    async beforeEffect() {
+      live = false;
+    },
+  };
+  await assert.rejects(f.guards.run(nonStdioRevoked, () => f.host.openInteractive(interactiveRequest)), /non-stdio interactive revoked/);
+  await assert.rejects(readFile(interactiveMarker, "utf8"), { code: "ENOENT" });
+
+  // 3. Stdio MCP maintenance control still runs dual synchronous fence and rejects when transport is revoked.
+  const stdioRevoked: GuardControl = {
+    assertCurrent() {},
+    beforeEffect() {},
+    mcp: {
+      maintenance: {
+        kind: "stdio",
+        source: "test-mcp",
+        connection: "conn-1",
+        control: {
+          assertCurrent() {
+            throw new Error("stdio transport revoked");
+          },
+          beforeEffect() {},
+        },
+      },
+    },
+  };
+  await assert.rejects(f.guards.run(stdioRevoked, () => f.host.openInteractive(interactiveRequest)), /stdio transport revoked/);
+  await assert.rejects(readFile(interactiveMarker, "utf8"), { code: "ENOENT" });
+
+  // 4. Valid control allows interactive spawn and cleanly closes it.
+  let beforeEffectCalls = 0;
+  const activeControl: GuardControl = {
+    assertCurrent() {},
+    beforeEffect() {
+      beforeEffectCalls += 1;
+    },
+  };
+  const opened = await f.guards.run(activeControl, () => f.host.openInteractive(interactiveRequest));
+  t.after(() => f.host.closeInteractive(opened.sessionId));
+  assert.equal(beforeEffectCalls, 1);
+  await f.host.closeInteractive(opened.sessionId);
 });
 
 test("APR-11: an async final Run fence is refused before a model request", { timeout: 20_000 }, async t => {

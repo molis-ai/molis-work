@@ -5,6 +5,7 @@ import {
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
+import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type {
   PlacedObject, PlacementAssociation, PlacedObject as AttachedObject, PlacementAttachKindView, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription,
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
@@ -142,7 +143,8 @@ export class PlacementService {
    * 「挂到…」: the target's owner records the binding; an object living elsewhere is also used in the target's project so the project
    * lists it. Placement remembers in which project, and onto which plugin's kind, it attached the object (`placement.attached_in`).
    */
-  async attach(input: PlacedObject, projectId: string, target: { kind: string; id: string }, readRevision?: string): Promise<{ key: string }> {
+  async attach(input: PlacedObject, projectId: string, target: { kind: string; id: string }, readRevision?: string,
+    options?: { mode?: "live" | "fixed"; material_ref?: MaterialRef }): Promise<{ key: string }> {
     const object = this.locate(input).object;
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "workbench.index.can-t-read-item-right-now"));
@@ -153,18 +155,22 @@ export class PlacementService {
     const title = (read.context!.title || placementText(this.ports, "workbench.index.untitled")).slice(0, PLACEMENT_RELATION_LIMITS.title);
     const subject = { kind: object.kind, id: object.id };
     const after = await scope.client.invoke(scope.caller, relation.bind, { subject, target: { kind: target.kind, id: target.id },
-      read: { title, ...(readRevision ? { revision: readRevision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}) } }) as PlacementRelationResult;
+      read: { title, ...(readRevision ? { revision: readRevision.slice(0, PLACEMENT_RELATION_LIMITS.revision) } : {}) },
+      ...(options?.mode ? { mode: options.mode } : {}), ...(options?.material_ref ? { material_ref: options.material_ref } : {}) }) as PlacementRelationResult;
     if (!after.targets.some(one => one.kind === target.kind && one.id === target.id)) throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
-    await this.ports.beforeEffect?.();
-    this.remember(object);
-    this.ports.ledger.commands.put(ACCESS, { key: attachedInKey(relation.plugin_id, target.kind, object, projectId), type: TYPES.attached,
-      source: identity(object.kind, object.id), target: projectRef(projectId), cause: "placement.attach" });
-    if (object.project_id !== projectId) {
-      const spaces = await this.ports.spaces();
-      if (spaces.some(space => space.project_id === projectId && space.kind === "project")) {
-        await this.ports.beforeEffect?.();
-        this.ports.ledger.commands.put(ACCESS, { key: key("used_in", object.kind, object.id, projectId), type: TYPES.used, source: identity(object.kind, object.id),
-          target: projectRef(projectId), cause: "placement.attach" });
+    // A fixed version (an artifact version or captured snapshot) stands on its own; only a live-followed attachment records `placement.attached_in`.
+    if (options?.mode !== "fixed" && object.kind !== "artifact") {
+      await this.ports.beforeEffect?.();
+      this.remember(object);
+      this.ports.ledger.commands.put(ACCESS, { key: attachedInKey(relation.plugin_id, target.kind, object, projectId), type: TYPES.attached,
+        source: identity(object.kind, object.id), target: projectRef(projectId), cause: "placement.attach" });
+      if (object.project_id !== projectId) {
+        const spaces = await this.ports.spaces();
+        if (spaces.some(space => space.project_id === projectId && space.kind === "project")) {
+          await this.ports.beforeEffect?.();
+          this.ports.ledger.commands.put(ACCESS, { key: key("used_in", object.kind, object.id, projectId), type: TYPES.used, source: identity(object.kind, object.id),
+            target: projectRef(projectId), cause: "placement.attach" });
+        }
       }
     }
     return { key: attachedKey(projectId, target, subject) };

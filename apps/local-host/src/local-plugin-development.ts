@@ -7,7 +7,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@moli
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, refuseUnusableDevelopmentLanguage, runPluginDevelopment } from "./plugin-development.js";
-import { bindGoalsManagementActions, refusePayloadIdentity, registeredHostAction } from "./goal-callers.js";
+import { refusePayloadIdentity } from "./management-actions.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { installHostUiText } from "./ui-text-provider.js";
@@ -52,9 +52,20 @@ export async function runLocalPluginDevelopment(input: {
   });
   if (existingNames !== null) {
     if (existingNames.includes(markerName)) {
-      const existing = JSON.parse(await readFile(join(directory, markerName), "utf8")) as typeof marker;
-      if (existing.kind !== marker.kind || existing.schema_version !== marker.schema_version) throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
-    } else if (existingNames.length) throw developmentErrors.plugin_development_directory_occupied("Plugin 开发不能使用非空的普通目录或用户项目目录", { state_directory: directory });
+      let existing: unknown;
+      try {
+        existing = JSON.parse(await readFile(join(directory, markerName), "utf8"));
+      } catch {
+        throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
+      }
+      if (!existing || typeof existing !== "object" || Array.isArray(existing)
+        || (existing as Record<string, unknown>).kind !== marker.kind
+        || (existing as Record<string, unknown>).schema_version !== marker.schema_version) {
+        throw developmentErrors.plugin_development_directory_unsupported("不是受支持的 Plugin 开发状态目录", { state_directory: directory });
+      }
+    } else if (existingNames.length) {
+      throw developmentErrors.plugin_development_directory_occupied("Plugin 开发不能使用非空的普通目录或用户项目目录", { state_directory: directory });
+    }
   }
   // An existing state directory is opened before the language check too: a Home that already holds unadopted files is refused
   // (memory.unavailable) before the plugin directory is read. A new or empty directory is still made only after that check, so a wrong
@@ -81,17 +92,6 @@ export async function runLocalPluginDevelopment(input: {
 }
 
 
-/** The development project's board through the Goals action, as the management entry; a board Goals already made at its start is left as it is. */
-async function ensureBoard(host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<void> {
-  const initialize = registeredHostAction("goals.board.initialize");
-  if (!initialize) return;
-  try {
-    await bindGoalsManagementActions(host.actionClient(reference), reference).invoke(initialize, { idempotency_key: "plugin-development-board" });
-  } catch (error) {
-    if (!(error instanceof ActionError && ["goals.board.exists", "actions.missing", "actions.plugin_disabled"].includes(error.code))) throw error;
-  }
-}
-
 /** Host function for the isolated developer door; it is never a plugin capability. */
 export async function developInPrivateHost(host: MolisWorkLocalHost, reference: LocalHostProjectReference, input: PluginDevelopmentInput): Promise<PluginDevelopmentResult> {
   if (!developmentHosts.has(host)) throw new ActionError("actions.forbidden", "Plugin 开发只在为开发建的隔离宿主里运行，不在普通或真实 Home 的宿主里运行");
@@ -102,11 +102,11 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
   refusePayloadIdentity(request, ["audit_actor_id"]);
   return host.withProject(reference, async runtime => {
     if (request.project_id !== runtime.project_id) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
-    // The development project has no catalog to give it a root row, so it is made here; the board is Goals' to make (its start does, or this call).
+    // The development project has no catalog to give it a root row, so it is made here; any plugin initializes its own tables when started.
     writeProjectRoot(runtime.store.db, runtime.project_id, new Date().toISOString());
-    await ensureBoard(host, reference);
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
+      projectLibrary: typeof runtime.store.db.name === "string" ? { db: runtime.store.db, path: runtime.store.db.name } : null,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: runtime.project_id },
       artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db), bindInstallation: view => bindProjectArtifacts(runtime.store.db, view),

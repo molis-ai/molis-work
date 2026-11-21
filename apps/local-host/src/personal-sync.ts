@@ -7,6 +7,7 @@ import { builtinPluginByProjectKey } from './plugin-registry.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
+import { isPlatformSyncSelection } from './platform-sync-catalog.js';
 import {createPersonalFixedVersionBindings} from './personal-artifact-sync.js';
 import {createPersonalPluginRegistrations,createPersonalCharacterRegistration} from './personal-plugin-sync.js';
 import {createPersonalProjectRegistrations} from './personal-project-sync.js';
@@ -48,6 +49,26 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   await acceptance.refresh();
   children=[approvals,guidance,acceptance,...projectPlugins,...versions,...plugins];
   const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact:(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),hasReference:(projectId,reference)=>artifacts.hasReference(projectId,reference)});
-  service=new PersonalSync({home,spaceId:space.spaceId,endpoint,authority:{...lease,assertCurrent:check},registrations:[catalog,approvals,guidance,acceptance,...projectPlugins,...versions,...plugins],...(discover?{discover:async()=>{await runtimeAuthority.refresh();discovered=(await discover(check)).map(runtimeAuthority.bind);return discovered;}}:{})});
+  const tagGroup = (registration: SyncRegistration): SyncRegistration => ({
+    ...registration,
+    group: isPlatformSyncSelection(registration.selection) ? 'platform' : 'plugin',
+  });
+  const staticRegistrations = [catalog, approvals, guidance, acceptance, ...projectPlugins, ...versions, ...plugins].map(tagGroup);
+  service = new PersonalSync({
+    home,
+    spaceId: space.spaceId,
+    endpoint,
+    authority: { ...lease, assertCurrent: check },
+    registrations: staticRegistrations,
+    ...(discover
+      ? {
+          discover: async () => {
+            await runtimeAuthority.refresh();
+            discovered = (await discover(check)).map(registration => tagGroup(runtimeAuthority.bind(registration)));
+            return discovered;
+          },
+        }
+      : {}),
+  });
   return service;
 }

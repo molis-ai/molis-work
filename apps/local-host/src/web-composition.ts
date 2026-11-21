@@ -2,12 +2,11 @@ import { projectDeletionLabels } from "./web-project-deletion.js";
 import type { IncomingMessage } from "node:http";
 import type { WorkbenchRenderer, WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
-import { isTerminalRuntime } from "./plugin-terminal-runtimes.js";
 import { createLocalProjectSettingsHttp, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalArtifactHttp } from "./artifact-library-http.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
-import { createLocalGoalsReadHttp } from "./web-project-pages.js";
+import { createLocalProjectPagesHttp } from "./web-project-pages.js";
 import { registerConnectorDevicePolling } from "./connector-device-oauth.js";
 import { registerOnboardingStagingCleanup } from "./context-onboarding-service.js";
 import { createPeriodicTasks } from "./periodic-tasks.js";
@@ -40,10 +39,10 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   const projectSettings = createLocalProjectSettingsHttp(withCatalog,diagnostics);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();
-  const goalsReadHttp = createLocalGoalsReadHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
+  const projectPagesHttp = createLocalProjectPagesHttp({ withCatalog, renderer: workbenchRenderer, isDesktopShellRequest, pageCsp: PAGE_CSP });
   const handleOnboarding = createLocalOnboardingHttp({
     withCatalog, renderOnboarding: workbenchRenderer.renderMolisWorkOnboarding,
-    isRuntimeKind: isTerminalRuntime, cliAvailability: platform.cliAvailability,
+    cliAvailability: platform.cliAvailability,
     isDesktopShellRequest, pageCsp: PAGE_CSP,
   });
   const periodicTasks = createPeriodicTasks();
@@ -54,7 +53,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
     desktopRuntimeAvailability: platform.cliAvailability,
     projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
-    goalsReadHttp, handleOnboarding,
+    projectPagesHttp, handleOnboarding,
     /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
     periodicTasks,
   };

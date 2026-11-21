@@ -18,6 +18,7 @@ import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, 
 import type { WebServerOptions } from './web-types.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
+import { handleHomeMaintenanceHttp, HOME_MAINTENANCE_PATH } from './home-maintenance-gateway.js';
 import { MANAGEMENT_ACTION_PATH } from './management-action-client.js';
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
@@ -55,18 +56,33 @@ function dispatchPersonalSurface(entry:Surface,request:IncomingMessage,response:
 }
 
 type SelectedSpace = { space:StorageSpace; directory:string; session:WebAccountSession|null };
-function personalCopyContext(selected:SelectedSpace,home:string,withCatalog:LocalWebCatalogRunner|undefined,selection:(request:IncomingMessage)=>SelectedSpace,request:IncomingMessage,isStopping:()=>boolean){
-  if(selected.space.kind!=='personal'||!withCatalog||!selected.session)return null;
-  const identity=selected.session.auth.identity();
-  if(!identity)return null;
-  const targetSpaceId=selected.space.spaceId;
+function personalCopyContext(
+  selected: SelectedSpace,
+  home: string,
+  withCatalog: LocalWebCatalogRunner | undefined,
+  surfaces: ReadonlyMap<string, Surface>,
+  selection: (request: IncomingMessage) => SelectedSpace,
+  request: IncomingMessage,
+  isStopping: () => boolean,
+) {
+  if (selected.space.kind !== 'personal' || !withCatalog || !selected.session) return null;
+  const identity = selected.session.auth.identity();
+  if (!identity) return null;
+  const targetSpaceId = selected.space.spaceId;
+  const targetWithCatalog = surfaces.get(targetSpaceId)?.server.withSyncCatalog ?? withCatalog;
   return {
-    sourceHome:home,targetHome:selected.directory,targetSpaceId,actorId:identity.userId,
-    sourceWithCatalog:withCatalog,targetWithCatalog:withCatalog,
-    authorize:()=>{
-      if(isStopping())throw new ActionError('actions.unavailable','服务正在关闭。');
-      const current=selection(request);
-      if(current.space.kind!=='personal'||current.space.spaceId!==targetSpaceId)throw new ActionError('actions.forbidden','账号或空间已切换，请重新预览。');
+    sourceHome: home,
+    targetHome: selected.directory,
+    targetSpaceId,
+    actorId: identity.userId,
+    sourceWithCatalog: withCatalog,
+    targetWithCatalog,
+    authorize: () => {
+      if (isStopping()) throw new ActionError('actions.unavailable', '服务正在关闭。');
+      const current = selection(request);
+      if (current.space.kind !== 'personal' || current.space.spaceId !== targetSpaceId) {
+        throw new ActionError('actions.forbidden', '账号或空间已切换，请重新预览。');
+      }
     },
   };
 }
@@ -79,6 +95,7 @@ export interface SpaceWebSurface extends http.Server {
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
   matchesNativeAccountCallback?(url:URL,origin?:string):boolean;
+  activeWorkCount?():number;
 }
 
 /** A system browser has no WebView cookie. Only a pending native attempt on the live Home can complete here. */
@@ -363,11 +380,12 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
         // personal Host can be reached with its exact Home id and private token.
         const gatewayHome=request.headers['x-molis-work-home-id'];
-        const internal=[ACTION_GATEWAY_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,'/api/settings/demo'].includes(url.pathname);
+        const internal=[ACTION_GATEWAY_PATH,HOME_MAINTENANCE_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,'/api/settings/demo'].includes(url.pathname);
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);
-          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
+          const activeWork=[...surfaces.values()].reduce((sum,item)=>sum+(item.server.activeWorkCount?.()??0),0);
+          sendWebHealth(response,scoped&&!entry?503:200,{status:scoped&&!entry?'starting':'ok',process_id:process.pid,service_process_id:serviceProcessId(),desktop_tui:true,active_work:activeWork,account_required:!entry},entry?.token??rootToken,url.searchParams.get('challenge'));return;
         }
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}
@@ -383,16 +401,31 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           sendLocalWebJson(response,200,{homeDirectory:entry.home,controlToken:entry.token});return;
         }
         if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
-        if(internal && gatewayHome && gatewayHome!==actionGatewayHomeId(home)){
-          const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome);
-          const active=()=>!!entry && [...entry.users.values()].some(valid=>valid());
-          if(entry && active() && request.headers['x-molis-work-control-token']===entry.token){
-            entry.responses.set(response,active);response.once('close',()=>entry.responses.delete(response));
-            entry.server.emit('request',request,response);return;
+        if (url.pathname === HOME_MAINTENANCE_PATH && (!gatewayHome || gatewayHome === actionGatewayHomeId(home))) {
+          if (!authorizeLocalWebRequest(request, response, url, rootToken, mutations)) return;
+          await handleHomeMaintenanceHttp(request, response, url, home, null);
+          return;
+        }
+        if (internal && gatewayHome && gatewayHome !== actionGatewayHomeId(home)) {
+          const entry = [...surfaces.values()].find(item => actionGatewayHomeId(item.home) === gatewayHome);
+          const active = () => !!entry && [...entry.users.values()].some(valid => valid());
+          if (entry && active() && request.headers['x-molis-work-control-token'] === entry.token) {
+            entry.responses.set(response, active);
+            response.once('close', () => entry.responses.delete(response));
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method ?? '')) {
+              response.once('finish', () => {
+                if (response.statusCode >= 200 && response.statusCode < 300 && active()) {
+                  notifySyncChange(entry.space.spaceId);
+                }
+              });
+            }
+            entry.server.emit('request', request, response);
+            return;
           }
           // A valid root credential may reach its own gate, which reports the Home mismatch.
           // An unknown/retired space credential still gets only the opaque control refusal.
-          refuseLocalWebRequest(response);return;
+          refuseLocalWebRequest(response);
+          return;
         }
         const selected=selection(request);
         let token=selected.space.kind==='local'?rootToken:tokenFor(selected);
@@ -408,12 +441,28 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(accountEntry?.asset(request,response,url))return;
         if(installationEntry&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));return;}
-        if(url.pathname.startsWith('/api/sync')){
-          const expectedSpace=request.headers['x-molis-sync-space'];
-          if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
-          if(!webRequestAuthenticated(request,token)){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
-          if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request),copy:()=>personalCopyContext(selected,home,withCatalog,selection,request,isStopping)});
+        if (url.pathname.startsWith('/api/sync')) {
+          const expectedSpace = request.headers['x-molis-sync-space'];
+          if (expectedSpace && expectedSpace !== selected.space.spaceId) {
+            sendLocalWebJson(response, 409, { error: '空间已切换，请刷新页面。' });
+            return;
+          }
+          if (!webRequestAuthenticated(request, token)) {
+            sendLocalWebJson(response, 403, { error: '空间已切换，请刷新页面。' });
+            return;
+          }
+          if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+          await serveSpaceSync({
+            request,
+            response,
+            url,
+            local: selected.space.kind === 'local',
+            service: () => syncFor(selected, request),
+            copy: () => personalCopyContext(selected, home, withCatalog, surfaces, selection, request, isStopping),
+          });
+          if (request.method === 'POST' && url.pathname === '/api/sync/copy/execute' && response.statusCode === 200 && selected.space.kind === 'personal') {
+            notifySyncChange(selected.space.spaceId);
+          }
           return;
         }
         if(accountPath){

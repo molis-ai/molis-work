@@ -68,7 +68,6 @@ import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { actionInputMetrics } from "./gates/action-input-counts.mjs";
 import { CALL_BUDGET_ALLOWANCES, CALL_BUDGET_FILE, callBudgetProblems, contextCallMetric } from "./gates/call-budget.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
-import { reportStateVocabulary, stateVocabularySummary, stateVocabularyWantsText } from "./gates/state-vocabulary.mjs";
 import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
@@ -161,7 +160,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file) || stateVocabularyWantsText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -453,6 +452,7 @@ const METRIC_BASE_INPUTS = {
   scriptConstants: isSource,
   directEllipsisCuts: isSource,
   rawFetchInScripts: (file) => isSource(file) || browserWantsText(file),
+  packedStatements: isSource,
   contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),
   hostEntryExports: (file) => isStructureSource(file) || structureWantsText(file),
   layerExceptions: (file) => isStructureSource(file) || structureWantsText(file),
@@ -542,10 +542,6 @@ if (mergeBase) {
 
 // A2 is informational and is kept out of the metrics that determine admission or write the local baseline.
 const hostLines = reportHostLines(headSnapshot, baseSnapshot, renames);
-const stateVocabulary = await reportStateVocabulary(headSnapshot, baseSnapshot, { renames }).catch(error => ({
-  sites: [], previousSites: null, declaredManifests: 0, findings: [`could not finish the scan: ${error.message}`],
-}));
-if (!report) console.log(stateVocabularySummary(stateVocabulary));
 if (!report) console.log(hostLineSummary(hostLines));
 // R4: the Host entry's importable names, at the merge-base and now; report only until the batch's combined head is read (decision 37 ③).
 if (!report) console.log(hostEntryWidthSummary(measureHostEntryWidth(headSnapshot, root), baseSnapshot ? measureHostEntryWidth(baseSnapshot, root) : null));
@@ -554,6 +550,11 @@ if (!report) console.log(hostEntryWidthSummary(measureHostEntryWidth(headSnapsho
 const notes = [];
 const growth = () => METRICS.flatMap((metric) => metric.grew(head[metric.id], reference[metric.id], { renames }));
 // The limits may be tightened but never loosened or removed: compared with the merge-base's tooling/gates/limits.json.
+// Batch 100-2 (Decision 58) performed a single reviewed reset of the four giant-unit ceilings from 800/300/25/150
+// to 2500/1200/60/600 (`giantPolicy: "anti-god-object"`) paired with the AST `packedStatements` gate; once the
+// merge-base carries that policy, any subsequent loosening or policy removal is refused like before.
+const ANTI_GOD_OBJECT_POLICY = "anti-god-object";
+const ANTI_GOD_OBJECT_CEILINGS = { file: 2500, classLines: 1200, classMethods: 60, functionLines: 600 };
 const limitErrors = () => {
   if (!mergeBase) return [];
   const limitsFile = "tooling/gates/limits.json";
@@ -564,9 +565,15 @@ const limitErrors = () => {
     return [];
   }
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
+  const adoptingAntiGodObject = before.giantPolicy !== ANTI_GOD_OBJECT_POLICY && limits.giantPolicy === ANTI_GOD_OBJECT_POLICY;
+  const effectiveBefore = adoptingAntiGodObject ? { ...before, ...ANTI_GOD_OBJECT_CEILINGS } : before;
   const removed = RULE_LIMIT_KEYS.filter((key) => key in before && !(key in limits));
-  return [...LIMIT_KEYS, ...RULE_LIMIT_KEYS].filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`)
-    .concat(removed.map((key) => `limit "${key}" removed from tooling/gates/limits.json (it was ${before[key]}); limits only get tighter`));
+  const policyErrors = before.giantPolicy === ANTI_GOD_OBJECT_POLICY && limits.giantPolicy !== ANTI_GOD_OBJECT_POLICY
+    ? [`giantPolicy "${ANTI_GOD_OBJECT_POLICY}" cannot be removed or changed in tooling/gates/limits.json`]
+    : [];
+  return [...LIMIT_KEYS, ...RULE_LIMIT_KEYS].filter((key) => limits[key] > effectiveBefore[key]).map((key) => `limit "${key}" loosened ${effectiveBefore[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`)
+    .concat(removed.map((key) => `limit "${key}" removed from tooling/gates/limits.json (it was ${before[key]}); limits only get tighter`))
+    .concat(policyErrors);
 };
 // Every registered exception has to describe a giant unit that exists now, with a kind, a reason and its measured size. A
 // split or a rename that leaves the entry behind fails here, so the registry shrinks with the list.
@@ -574,7 +581,10 @@ const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry])
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions/, or key it by the new name after a rename`]
   : problemsOfException(entry, head.giant[unit]).map((problem) => `giant exception for ${unit}: ${problem}`)));
 const callBudgetErrors = () => callBudgetProblems(headSnapshot, baseSnapshot, isOwnRepository(root, import.meta.url));
-const retiredRecordErrors = () => headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`);
+const retiredRecordErrors = () => [
+  ...headSnapshot.files.filter(file => ["tooling/gates/baseline.json", "tooling/gates/page-assets.json", "tooling/gates/giant-exceptions.json"].includes(file)).map(file => `${file}: retired shared record; use checkout-local state or independent records`),
+  ...headSnapshot.files.filter(file => file.startsWith("tooling/gates/page-asset-allowances/") && file.endsWith(".json")).map(file => `${file}: retired per-byte page-asset allowance; use route budgets in tooling/gates/page-asset-budgets.json`),
+];
 const absolute = () => [...retiredRecordErrors(), ...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(headSnapshot, packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(headSnapshot, packageRegistry) : []), ...docGateProblems(headSnapshot), ...goldenHomeProblems({ ...headSnapshot, size: file => statSync(path.join(root, file)).size }), ...domEventProblems(headSnapshot), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(headSnapshot, { isSource }), ...kernelContextualProblems(headSnapshot), ...dualInstanceProblems(headSnapshot), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
@@ -600,12 +610,11 @@ const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges, hostLines, stateVocabulary }, null, 2));
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges, hostLines }, null, 2));
   } else {
     const env = { top: options.top ? Number(options.top) : undefined };
     console.log(`Health report: working tree${mergeBase ? ` against ${against}` : ""}; limits ${JSON.stringify(limits)}`);
     console.log("\n" + [hostLineSummary(hostLines), ...hostLineDetails(hostLines, env.top)].join("\n"));
-    console.log("\n" + stateVocabularySummary(stateVocabulary));
     for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
     const problems = specProblems();
     console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);

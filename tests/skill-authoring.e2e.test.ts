@@ -250,6 +250,40 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 drafting, replaying, comparin
   await page.wait("document.querySelectorAll('[data-sk-placeholder]').length === 2", { describe: state });
   // Typing character by character with characters already present in the body must never rewrite unrelated text.
   for (const step of ["项", "项目", "项目群", "", "工", "工具"]) await page.fill('[data-sk-placeholder="~~聊天工具"]', step);
+  // While ~~项目管理工具 is still unreplaced, rebuilding placeholderBase after manual edits must protect ~~项目管理工具 from "工具".
+  const descBefore = await page.evaluate<string>("document.querySelector('#au-description').value");
+  await page.fill("#au-description", `${descBefore} `);
+  await page.fill("#au-description", descBefore);
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "飞书");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 飞书，任务记进 ~~项目管理工具，别改项目进度。/);
+  // Rebuilding body template after a direct body edit also protects unreplaced ~~项目管理工具 when another placeholder equals "工具".
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "工具");
+  const bodyBeforeCount = await page.evaluate<string>("document.querySelector('[data-au-count] .mw-text-count__n').textContent");
+  await page.fill("#au-body", `${await page.evaluate<string>("document.querySelector('#au-body').value")}`);
+  await page.fill('[data-sk-placeholder="~~聊天工具"]', "企业微信测试群");
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 企业微信测试群，任务记进 ~~项目管理工具，别改项目进度。/);
+  assert.notEqual(
+    await page.evaluate<string>("document.querySelector('[data-au-count] .mw-text-count__n').textContent"),
+    bodyBeforeCount,
+    "body character count updates immediately when typing a placeholder",
+  );
+  // IME composing input must not rewrite body prematurely; compositionend commits the final replacement.
+  await page.evaluate(`(() => {
+    const input = document.querySelector('[data-sk-placeholder="~~聊天工具"]');
+    input.value = "gongju";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true, data: "gongju" }));
+  })()`);
+  assert.match(
+    await page.evaluate<string>("document.querySelector('#au-body').value"),
+    /结论发到 企业微信测试群，任务记进 ~~项目管理工具，别改项目进度。/,
+    "composing input does not rewrite body before compositionend",
+  );
+  await page.evaluate(`(() => {
+    const input = document.querySelector('[data-sk-placeholder="~~聊天工具"]');
+    input.value = "工具";
+    input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "工具" }));
+  })()`);
+  assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 工具，任务记进 ~~项目管理工具，别改项目进度。/);
   await page.fill('[data-sk-placeholder="~~项目管理工具"]', "Linear");
   assert.match(await page.evaluate<string>("document.querySelector('#au-body').value"), /结论发到 工具，任务记进 Linear，别改项目进度。/);
   // Rebuild placeholderBase after a manual wording edit: single-pass restore keeps "工具" from mutating inside "~~项目管理工具".

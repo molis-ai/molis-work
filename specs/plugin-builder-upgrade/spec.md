@@ -151,3 +151,8 @@ Alchemist 作为工作台产出的创意孵化与研究决策场景，验证“�
 实施时按实际改动包 README 选择定向测试；合同变动按合同变更流程更新快照。共享核心变更先 `pnpm build`，再按项目规则完成边界、健康、安全与完整回归；在隔离 Home 中完成真实模型生成、安装、运行和恢复验证，并记录用量、失败与人工介入。工程、产品实操和本人验收分别记录。
 
 尚待诊断与设计明确：原工作台真实端到端卡点、根因与体验缺口；现有工作流程／Manifest／UI 合同缺哪些表达能力；Alchemist 各领域事实的 owner 和实际能力映射；记忆与结构化生成的现行接缝；工作台创作交互和场景独立入口的高保真方案；旧实现及已生成插件的切换与回退路径。以上均不影响本次确定的独立范围与归并关系。
+
+### 7.1 2026-11-20 真断点前置与 Harness 增补（[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ⑤、[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ②）
+
+- **真断点先行（[47](../post-anticorruption-roadmap/reference/batches/47.md)、[48](../post-anticorruption-roadmap/reference/batches/48.md)、[68](../post-anticorruption-roadmap/reference/batches/68.md)）**：三批第一个子分支先修通 [11-03 创作台复现](reproduction-2026-11.md) 里尚未修完的真断点（首个阻塞的界面验收写死、G7 脆性断言、B12、B13、B14），并整理 `plugin-builder.designer.md` 与 `agent-studio.ts`，用例名或注释标明断点编号，验证通过后再扩展新项。
+- **创作台 Harness 升级（[68](../post-anticorruption-roadmap/reference/batches/68.md)／[83](../post-anticorruption-roadmap/reference/batches/83.md)）**：`designer` 重试改为同会话多轮修补（复用 60–100 KB KV 前缀），30 轮 `coder` 接入 Runtime `context-compaction`，清理 `plugin-builder.designer.md` 与 `skills/molis-plugin-dev/generated-*.md` 约 60 KB 重叠规则；消除 `studio:replay` 重复校验并将隔离 `smoke` 延展至设计冻结后的编译与验收；首次可用率与返修评测并入第 63 批 `horizontal/evaluation` + SIM 账本。

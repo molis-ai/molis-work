@@ -44,12 +44,22 @@ export interface WebPeriodicTask {
   readonly last_error: string | null;
 }
 
+/** Settings section discovered dynamically from a running plugin's Manifest `settings_entries` (PEQ-05/P1-1). */
+export interface DynamicPluginSettingsNavItem {
+  readonly section_id: string;
+  readonly plugin_id: string;
+  readonly label: string;
+  readonly icon?: import("@molis-ai/molis-work-plugin-sdk/ui").PluginIconName;
+}
+
 export interface MolisWorkSettingsView {
   agent_display_model?: AgentDisplayModel;
   section: WebSettingsSection | string;
   capabilities?: import("./capabilities.js").CapabilitiesView;
   functions_settings?: Omit<import("./judgment-rules/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
   plugin_settings_html?: string;
+  /** Settings sections declared dynamically by running third-party / installed plugins (`settings_entries`). */
+  dynamic_plugin_settings?: readonly DynamicPluginSettingsNavItem[];
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   show_project_approval_rules?: boolean;

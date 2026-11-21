@@ -59,7 +59,8 @@ export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerpr
 export { pluginTablesDescriptor, projectDatabases, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { bindStandaloneReviewActions, catalogManagementProject, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
-export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { createHomeSnapshot, createOnlineHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { HOME_MAINTENANCE_PATH, requestResidentHomeSnapshot } from "./home-maintenance-gateway.js";
 export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
@@ -213,7 +214,7 @@ export type { IntegrationProviderFactory } from "./integration-providers.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
-export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
+export { createLocalArtifactHttp, renderProjectArtifactContext } from "./artifact-library-http.js";
 
 export * from "./onboarding.js";
 
@@ -243,7 +244,7 @@ export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
-export { MCP_TOOLS } from "./mcp-platform-tools.js";
+export { MANAGEMENT_MCP_TOOLS, MCP_TOOLS, isPlatformMcpTool as isListedPlatformMcpTool } from "./mcp-platform-tools.js";
 export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
 export { createPresentationError } from "./mcp-v1-tool.js";
 export { assertMcpStartInput } from "./mcp-start-preflight.js";
@@ -262,7 +263,7 @@ export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopme
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
-export { createLocalGoalsReadHttp, createLocalProjectPagesHttp } from "./web-project-pages.js";
+export { createLocalProjectPagesHttp } from "./web-project-pages.js";
 export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
@@ -353,6 +354,7 @@ export { attachConversationFile, readConversationAttachment, holdsConversationAt
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
+export { forgetInstalledMemoryScene, pluginMemoryScene, rememberInstalledMemoryScene } from "./memory/memory-plugin-scene.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryInputSnapshots } from "./memory/memory-source-identity.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
@@ -422,7 +424,7 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindGoalsManagementActions } from "./goal-callers.js";
+export { bindManagementActions } from "./management-actions.js";
 export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 
@@ -431,7 +433,7 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
-export { createProjectGoalContent } from "./project-goal-content.js";
+export { createProjectChunkedContent } from "./project-chunked-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.
 export { pluginSyncDatabaseDeclaration, pluginSyncNamespace } from "./plugin-sync-database.js";
@@ -463,7 +465,7 @@ export { exportPluginData, pluginDataActionProvider, type PluginDataExportPorts 
 export { runtimeOverview, decideRuntimeRun, runtimeExpiredSeenRequest, runtimeRunDecisionRequest, type RuntimeOverview, type RuntimeOverviewPorts, type RunsClient } from "./runtime-overview.js";
 export { expiredOwnerKey, expiredSeen, markExpiredSeen, type ExpiredSeen } from "./runs-expired-seen.js";
 export { HostPresence, currentHostPresence, PRESENCE_HEARTBEAT_MS, PRESENCE_SLEEP_AFTER_MS, type RuntimeGap } from "./host-presence.js";
-export { attachHostPresence, homeHostUrl, readHostEndpoint, removeHostEndpoint, writeHostEndpoint } from "./host-endpoint.js";
+export { attachHostPresence, DEFAULT_HOST_PORT, homeHostUrl, HOST_CANDIDATE_PORTS, isLoopbackPortAvailable, readHostEndpoint, removeHostEndpoint, selectAvailableHostPort, SPARE_HOST_PORT_MAX, SPARE_HOST_PORT_MIN, writeHostEndpoint } from "./host-endpoint.js";
 export { residentHostAddress } from "./resident-host-request.js";
 export { webEntryDoor, webEntryProvider, type WebEntryDoor, type WebEntryCall } from "./web-entry-actions.js";
 export { createHostObservation, observationPluginDataCleared, scheduleWakeupRecords, type HostObservation } from "./observation-host.js";
@@ -474,3 +476,4 @@ export { contextOnboardingActions, contextOnboardingProvider } from "./context-o
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
+export { offerProjectAutomation } from "./automation-proactive.js";

@@ -10,9 +10,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { attentionChanged, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_FILE_CHANGED_EVENT, CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
-import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { openTestHome } from "./fixtures/test-home.js";
 

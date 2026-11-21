@@ -246,8 +246,8 @@ test("a registered event that nothing dispatches or listens to is stale", () => 
 test("an owner has to hold what it owns", () => {
   const request = domEventProblems(withRegistry(/name: "molis:side-open", kind: "request", owner: "side-panel"/, 'name: "molis:side-open", kind: "request", owner: "assistant"'));
   assert.ok(request.some((problem) => /"molis:side-open" is a request owned by "assistant", but none of its files .* listens to it/.test(problem)), request.join("\n"));
-  const announcement = domEventProblems(withRegistry(/name: "molis:assistant-effect", kind: "announcement", owner: "assistant"/, 'name: "molis:assistant-effect", kind: "announcement", owner: "coding"'));
-  assert.ok(announcement.some((problem) => /"molis:assistant-effect" is an announcement owned by "coding", but none of its files .* dispatches it/.test(problem)), announcement.join("\n"));
+  const announcement = domEventProblems(withRegistry(/name: "molis:assistant-effect", kind: "announcement", owner: "assistant"/, 'name: "molis:assistant-effect", kind: "announcement", owner: "character-handoff"'));
+  assert.ok(announcement.some((problem) => /"molis:assistant-effect" is an announcement owned by "character-handoff", but none of its files .* dispatches it/.test(problem)), announcement.join("\n"));
   // The kind decides which side the owner has to be on: placement dispatches molis:placement-changed and does not listen to it.
   const flipped = domEventProblems(withRegistry(/name: "molis:placement-changed", kind: "announcement"/, 'name: "molis:placement-changed", kind: "request"'));
   assert.ok(flipped.some((problem) => /"molis:placement-changed" is a request owned by "placement", but none of its files .* listens to it/.test(problem)), flipped.join("\n"));
@@ -258,8 +258,8 @@ test("an owner's files exist, and an owner without events is deleted", () => {
   assert.ok(moved.some((problem) => /owner "placement" names apps\/workbench\/src\/scripts\/client\/placement-moved\.ts, which is not a tracked file/.test(problem)), moved.join("\n"));
   const unused = domEventProblems(withRegistry("  placement: {", '  nobody: {\n    files: ["apps/workbench/src/side-panel.ts"],\n    state: "No event.",\n  },\n  placement: {'));
   assert.ok(unused.some((problem) => /owner "nobody" owns no event; delete it/.test(problem)), unused.join("\n"));
-  const empty = domEventProblems(withRegistry('files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"]', "files: []"));
-  assert.ok(empty.some((problem) => /owner "coding" needs files/.test(problem)), empty.join("\n"));
+  const empty = domEventProblems(withRegistry('files: ["plugins/native/coding/src/browser/main/mount-events.ts"]', "files: []"));
+  assert.ok(empty.some((problem) => /owner "character-handoff" needs files/.test(problem)), empty.join("\n"));
 });
 
 test("the registry itself is held to its shape: order, names, prefixes, fields", () => {
@@ -279,7 +279,7 @@ test("the registry itself is held to its shape: order, names, prefixes, fields",
   assert.ok(target.some((problem) => /"molis:side-context-result" has on "page"/.test(problem)), target.join("\n"));
   const flag = domEventProblems(withRegistry('on: "document", cancelable: true', 'on: "document", cancelable: false'));
   assert.ok(flag.some((problem) => /has cancelable: false; leave it out or write true/.test(problem)), flag.join("\n"));
-  const nobody = domEventProblems(withRegistry('name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing"', 'name: "molis:surface-landing-flash", kind: "request", owner: "ghost"'));
+  const nobody = domEventProblems(withRegistry('name: "molis:surface-landing-flash", kind: "request", owner: "surface-landing"', 'name: "molis:surface-landing-flash", kind: "request", owner: "ghost"'));
   assert.ok(nobody.some((problem) => /"molis:surface-landing-flash" is owned by "ghost", which is not in PAGE_STATE_OWNERS/.test(problem)), nobody.join("\n"));
   const silent = domEventProblems(withRegistry(/    summary: "The context row asks the page that reported the landing to show it once:[^\n]+\n/, ""));
   assert.ok(silent.some((problem) => /"molis:surface-landing-flash" needs a summary sentence/.test(problem)), silent.join("\n"));
@@ -428,13 +428,13 @@ test("a finding that the known gaps do not name is caught, by its event and by i
   const second = domEventReport(changed({ [NEW_FILE]: script('surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: "g" } }));') })).findings;
   assert.deepEqual(unrecorded(second, section).map((finding) => finding.split(" ")[0]), [`${NEW_FILE}:2`]);
   // A gap that the document stops naming (the event still reported on the real tree, so the finding comes back).
-  const forgotten = section.replace(/- `molis-work:work-mode-changed`[^\n]*\n/, "");
+  const forgotten = section.replace(/- `molis-work:select-item`[^\n]*\n/, "");
   assert.notEqual(forgotten, section);
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:work-mode-changed"]);
+  assert.deepEqual([...new Set(unrecorded(domEventReport(tree).findings, forgotten).map((finding) => /"([^"]+)"/.exec(finding)?.[1]))], ["molis-work:select-item"]);
   // Only that section counts: the same words further down the document do not record the gap.
   const document = readFileSync(path.join(root, GAPS_DOCUMENT), "utf8");
-  const elsewhere = document.replace(/- `molis-work:work-mode-changed`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis-work:work-mode-changed` is mentioned here.\n";
-  assert.deepEqual(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]), ["molis-work:work-mode-changed"]);
+  const elsewhere = document.replace(/- `molis-work:select-item`[^\n]*\n/, "") + "\n## 5. elsewhere\n\n`molis-work:select-item` is mentioned here.\n";
+  assert.deepEqual([...new Set(unrecorded(domEventReport(tree).findings, knownGaps(elsewhere)).map((finding) => /"([^"]+)"/.exec(finding)?.[1]))], ["molis-work:select-item"]);
 });
 
 // ---- the entry: `pnpm health:check` runs the gate -------------------------------------------------------------------
@@ -586,7 +586,7 @@ test("RAC-426: a page-state owner cannot mix plugin and platform files or two pl
   const shelfFiles = /(\bshelf:\s*\{\s*)files:\s*\[[^\]]*\],/;
   const shelfFile = PAGE_STATE_OWNERS.shelf.files[0];
   assert.deepEqual(domEventProblems(tree), []);
-  for (const mixed of [[shelfFile, SIDE], [shelfFile, PAGE_STATE_OWNERS.coding.files[0]]]) {
+  for (const mixed of [[shelfFile, SIDE], [shelfFile, PAGE_STATE_OWNERS["character-handoff"].files[0]]]) {
     const problems = domEventProblems(withRegistry(shelfFiles, `$1files: ${JSON.stringify(mixed)},`));
     assert.ok(problems.some(problem => /owner "shelf" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
   }

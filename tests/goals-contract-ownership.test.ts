@@ -4,8 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
-import { MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
-import { MANAGEMENT_GOAL_ACTIONS } from "@molis-ai/molis-work-app-mcp";
+import { MANAGEMENT_MCP_TOOLS, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 import * as contract from "@molis-ai/molis-work-plugin-goals/contract";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalEventFacts } from "@molis-ai/molis-work-plugin-goals/module";
@@ -157,20 +156,19 @@ const registered = (table: "goalEntryActions" | "goalPluginActions", key: string
 test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, the CLI names none, and the management tools carry the directory's words", () => {
   // CLI (PEQ-15): its Goals commands and their table were removed; it names no Goals action.
   assert.doesNotMatch(readFileSync(new URL("../apps/cli/src/command-dispatch.ts", import.meta.url), "utf8"), /\bGOALS\b|"goals\./u);
-  // Feed (Audit #10): discovers the work-goal promotion provider by role (`workGoalPromotionRoleOf`), not by hardcoded action IDs.
+  // Feed (Audit #10): discovers the work-item promotion provider by role (`workItemPromotionRoleOf`), not by hardcoded action IDs.
   const feedSource = readFileSync(new URL("../plugins/native/feed/src/goal-promotion.ts", import.meta.url), "utf8");
-  assert.match(feedSource, /workGoalPromotionRoleOf/u);
+  assert.match(feedSource, /workItemPromotionRoleOf/u);
   assert.doesNotMatch(feedSource, /"goals\.(create|directory\.read|inputs\.confirm)"/u);
   for (const name of ["create", "directoryItem", "inputsConfirm"] as const) {
     const entry = registered("goalEntryActions", name) as RegisteredAction & { action: { input_type?: string; output_type?: string } };
-    assert.ok(entry.action.input_type?.startsWith("molis.goal.promote."), `Goals ${name} tags its work-goal promotion input_type`);
-    assert.ok(entry.action.output_type?.startsWith("molis.goal.promote."), `Goals ${name} tags its work-goal promotion output_type`);
+    assert.ok(entry.action.input_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion input_type`);
+    assert.ok(entry.action.output_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion output_type`);
   }
-  // MCP: the one management operation Goals owns. The platform publishes the review operations.
-  assert.deepEqual(Object.keys(MANAGEMENT_GOAL_ACTIONS).sort(), ["initialize"]);
-  for (const [name, reference] of Object.entries(MANAGEMENT_GOAL_ACTIONS)) {
-    assert.deepEqual([reference.capability_id, reference.version], [registered("goalEntryActions", name).capability_id, registered("goalEntryActions", name).version], `MCP ${name}`);
-  }
+  // MCP: the one management tool Goals declares on its registration (batch 44 recheck); the platform names no Goals action. The
+  // platform publishes the review operations.
+  assert.deepEqual(MANAGEMENT_MCP_TOOLS.map(tool => [tool.name, tool.action.capability_id, tool.action.version, tool.opens_new_database]),
+    [["molis_work_v1_initialize", registered("goalEntryActions", "initialize").capability_id, registered("goalEntryActions", "initialize").version, true]]);
   // Coding: the five plugin actions, with the kind, scope and the one permission its Manifest declares for them.
   const coding = referencesIn("plugins/native/coding/src/goals-actions.ts", "GOALS_ACTIONS");
   assert.deepEqual(Object.keys(coding).sort(), Object.keys(PLUGIN_ACTIONS).sort());
@@ -209,4 +207,26 @@ test("CD-03 PEQ-04: Goals opens to other plugins only the actions another plugin
     "goals.progress.record", "goals.search.entries", "goals.state.read", "goals.subject.read"]);
   const note = goalsManifest.actions?.find(action => action.capability_id === "goals.note");
   assert.deepEqual(note?.action.audiences, ["user", "agent", "workflow", "mcp"]);
+});
+
+test("PEQ-04: platform contracts contain zero retired plugin-specific fields, events, or provider literals", () => {
+  const banned = [
+    { label: "goal_ids", pattern: /\bgoal_ids\b/u },
+    { label: "placement.goal_in", pattern: /\bplacement\.goal_in\b/u },
+    { label: "goal-acceptance", pattern: /\bgoal-acceptance\b/u },
+    { label: "work-mode-changed", pattern: /\bwork-mode-changed\b/u },
+    { label: "io.molis.work.coding.", pattern: /io\.molis\.work\.coding\./u },
+    { label: "io.molis.work.git.", pattern: /io\.molis\.work\.git\./u },
+    { label: "molis.goal.promote.", pattern: /molis\.goal\.promote\./u },
+  ];
+  const files = tracked("packages/contracts/src");
+  assert.ok(files.length > 20, "scans packages/contracts/src");
+  const hits: string[] = [];
+  for (const file of files) {
+    const text = source(file);
+    for (const rule of banned) {
+      if (rule.pattern.test(text)) hits.push(`${file}: ${rule.label}`);
+    }
+  }
+  assert.deepEqual(hits, [], `PEQ-04 retired plugin-specific literals re-entered packages/contracts/src:\n${hits.join("\n")}`);
 });

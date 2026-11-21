@@ -42,9 +42,14 @@ export interface PluginHostExecutorOptions {
   /** The Home the platform reaches in process; absent or `null`: none (a developed plugin, a bare executor in a test). */
   home?: PluginPlatformHome | null;
   /**
-   * The library in the Home that a definition's Manifest declares (`databases.home`), given only to a definition object the Host's
-   * start list holds. None for any other definition (a developed plugin that carries a built-in plugin's id, a generated one): a
-   * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
+   * The Host's own declaration of a definition's library in the Home (`databases.home`): given only for a definition object the
+   * Host's start list holds (`pluginEntryIdentity`), `undefined` for any other (a developed plugin that carries a built-in plugin's
+   * id, a generated one, a copy). It decides how the library is opened, not whether there is one (`homeLibraryFor`): with a
+   * declaration here, a definition the Host runs gets the library the registry holds as its own. Without one, or for a sandboxed
+   * definition even with one, the library its Manifest declares is opened under the ledger, with the owner and publisher taken
+   * from its install record (`record`). Only these are refused there: a Manifest that declares `project_rows` for such a library,
+   * and a missing install record or one for another plugin id. A sandboxed definition that declares a library in the Home is
+   * refused in a project's platform before this is asked, unless it is a dual project half (`openDeclaredLibrary`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
   /** The Host's checked start list identifies a dual project half; absent Home services are not redeemed for that half. */

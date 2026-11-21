@@ -1,12 +1,13 @@
-import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ACCEPTANCE_PROVIDER_ID, acceptanceActions, acceptanceErrors, type AcceptanceSubject } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import type { AcceptanceCaller, AcceptanceEvidencePorts, AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
 import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
-import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
+import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { acceptanceSubjectFromReview, assertAcceptanceObjectReadable, buildAcceptanceReviewOffer } from "./acceptance-review.js";
 import { assertReadsSubject, speaksForSubject, withProjectAcceptance } from "./acceptance-library.js";
 import { attentionChanged } from "./attention-changes.js";
+import { commitProjectReview } from "./project-review-commit.js";
 import { projectReviewForSystemWrite } from "./project-review-effect.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
@@ -24,17 +25,27 @@ function callerOf(caller: ActionCallContext): AcceptanceCaller {
     session: hostBoundSession(caller) ?? null };
 }
 
+const checkAuthority = (caller: ActionCallContext) => () => {
+  caller.signal?.throwIfAborted();
+  requireSynchronous(caller.assert_authority_current?.());
+};
+
 /** Cited evidence is looked up as the caller: what it cannot read backs nothing, and a round is only ever one of its own session. */
-function evidencePorts(caller: ActionCallContext, client: ActionClient): AcceptanceEvidencePorts {
+function evidencePorts(caller: ActionExecutionContext, client: ActionClient): AcceptanceEvidencePorts {
+  const assertCurrent = checkAuthority(caller);
   return {
-    artifactReadable: async reference => (await client.invoke(caller, READ_ARTIFACT, { reference }) as { selected: unknown }).selected != null,
+    artifactReadable: async reference => (await client.invoke(caller, READ_ARTIFACT, {
+      reference: { artifact_id: reference.artifact_id, version: reference.version },
+    }) as { selected: unknown }).selected != null,
     checkRun: async (run_id, command_call_ids) => {
       try { return await client.invoke(caller, CHECK_EVIDENCE, { run_id, command_call_ids }) as Awaited<ReturnType<AcceptanceEvidencePorts["checkRun"]>>; } catch (error) {
         if (error instanceof ActionError && error.code === "agent.run_unknown") return "none";
         throw error;
       }
     },
-    stopped: () => (caller as { signal?: AbortSignal }).signal?.aborted === true,
+    stopped: () => caller.signal?.aborted === true,
+    beforeCommit: () => caller.beforeEffect(),
+    assertCurrent,
   };
 }
 
@@ -76,9 +87,29 @@ export function acceptanceProvider(
     provider: { provider_id: ACCEPTANCE_PROVIDER_ID, title: "要求、证据与认可", kind: "system" },
     definitions: [A.set, A.deliver, A.report, A.read, A.review, A.decide],
     handlers: [
-      bindActionHandler(A.set, async (input, caller) => { await admit(caller, [input.subject], "only"); await caller.beforeEffect(); return run(caller, service => service.set(callerOf(caller), input)); }),
-      bindActionHandler(A.deliver, async (input, caller) => { await admit(caller, [input.subject], "or_readers"); await caller.beforeEffect(); return run(caller, service => service.deliver(callerOf(caller), input, evidencePorts(caller, clientFor(caller)))); }),
-      bindActionHandler(A.report, async (input, caller) => { await admit(caller, [input.subject], "or_readers"); await caller.beforeEffect(); return run(caller, service => service.report(callerOf(caller), input, evidencePorts(caller, clientFor(caller)))); }),
+      bindActionHandler(A.set, async (input, caller) => {
+        const check = checkAuthority(caller);
+        check();
+        await admit(caller, [input.subject], "only");
+        const project = await projectOf(callerOf(caller).project_id);
+        await caller.beforeEffect();
+        check();
+        return withProjectAcceptance(localHost, project, service => service.set(callerOf(caller), input, check));
+      }),
+      bindActionHandler(A.deliver, async (input, caller) => {
+        const check = checkAuthority(caller);
+        check();
+        await admit(caller, [input.subject], "or_readers");
+        check();
+        return run(caller, service => service.deliver(callerOf(caller), input, evidencePorts(caller, clientFor(caller))));
+      }),
+      bindActionHandler(A.report, async (input, caller) => {
+        const check = checkAuthority(caller);
+        check();
+        await admit(caller, [input.subject], "or_readers");
+        check();
+        return run(caller, service => service.report(callerOf(caller), input, evidencePorts(caller, clientFor(caller))));
+      }),
       bindActionHandler(A.read, async (input, caller) => { await admit(caller, input.subjects, "or_readers"); return run(caller, service => service.read(callerOf(caller), input)); }),
       bindActionHandler(A.review, async (input, caller) => {
         const person = callerOf(caller);
@@ -96,10 +127,7 @@ export function acceptanceProvider(
         const person = callerOf(caller);
         if (!person.person) throw acceptanceErrors.scope("只有用户本人能认可或退回");
         await caller.beforeEffect();
-        const check = () => {
-          caller.signal?.throwIfAborted();
-          requireSynchronous(caller.assert_authority_current?.());
-        };
+        const check = checkAuthority(caller);
         check();
         const bound = projectReviewForSystemWrite(caller, person.project_id, ACCEPTANCE_PROVIDER_ID);
         const project = await projectOf(person.project_id);
@@ -109,23 +137,14 @@ export function acceptanceProvider(
             if (bound.held.deadline !== undefined && Date.now() >= bound.held.deadline) {
               throw new ActionError("actions.expired", "原决定请求已过期");
             }
-            if (projectApprovalRules(store.db, person.project_id).read(false).revision !== bound.held.rulesRevision) {
-              throw new ActionError("actions.conflict", "项目审批规则已变化，请重新查看");
-            }
           };
           // The item decisions and the trusted-decision record commit together, or neither does (§10.2).
+          // Using `commitProjectReview` rolls back the transaction if a concurrent duplicate `request_key` already won,
+          // preventing unvouched ghost rows in `acceptance_decisions`.
           const view = store.db.transaction(() => {
             checkCommit();
             return service.decide(person, input, bound.held.decisionId, () => {
-              projectReviewDecisions(store.db, person.project_id).commit(
-                bound.held.command,
-                { actor_id: bound.held.actor_id, source: { kind: "person", actor_id: bound.held.actor_id, entry: bound.held.entry } },
-                bound.held.frozenChoice,
-                bound.held.review,
-                new Date().toISOString(),
-                checkCommit,
-                bound.held.decisionId,
-              );
+              commitProjectReview(store.db, bound.held, checkCommit);
             });
           }).immediate();
           try { attentionChanged(person.project_id); } catch { /* the write is done */ }

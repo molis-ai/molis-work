@@ -401,18 +401,23 @@ test("RAC-1214 a scheduled pull that fails judging after it committed spends its
   });
 });
 
-// RAC-2711 (T-339): a call refused by a revoked grant (T-400 made these kinds forbidden) is a refusal of the call itself. The capture
-// is thrown again and the whole write rolls back. The rule is an inbox admission, so the source_rule entry is written BEFORE the
-// artefacts call that refuses: the item, its entry and its disposition all go back to what they were before the call.
+// RAC-2711 (T-339, BL-982): a call refused by a revoked grant (T-400 made these kinds forbidden) is a refusal of the call itself. The
+// stand-in keeps the artifacts port's contract: capture answers with what `write` returned (afterIngest reads its result). The rule is an
+// inbox admission, so the source_rule entry is written BEFORE the artefacts call that refuses. Two things are proven, apart:
+//  1. the caller gets the original refusal synchronously: `evaluateItems` throws that very error during the call. The closure below
+//     does not hand a returned promise to the transaction, so a capture that recorded the refusal and went on would be a missing throw;
+//  2. the write made before the refusal rolls back: this follows from any throw out of the transaction, so it proves the entry existed
+//     and was undone, not who threw it.
 test("a capture whose call is refused by a revoked grant is thrown again and its whole write rolls back", async () => {
   for (const refused of ["mcp.action_revoked", "mcp.permission_revoked", "assistant.action_revoked"]) {
     await withProject(`molis-work-feed-revoked-${refused.split(".").join("-")}-`, async store => {
       let itemId = "", writtenBeforeRefusal = false;
+      let refusal: ActionError | undefined;
       let feed: FeedApp;
       const failing = { capture: (_projectId: string, write: (writer: object) => unknown) => {
         // The inbox admission already wrote its source_rule entry in this same transaction; the publish is what refuses the call.
         writtenBeforeRefusal = feed.listInboxEntries(DEMO_PROJECT_ID).some(entry => entry.subject_id === itemId && entry.reason === "source_rule");
-        write({ head: () => null, publish() { throw new ActionError(refused, "调用已被撤权", { kind: "forbidden" }); } });
+        return write({ head: () => null, publish() { throw (refusal = new ActionError(refused, "调用已被撤权", { kind: "forbidden" })); } });
       } };
       feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
       const source = workflowSource(feed, "src-1");
@@ -421,8 +426,13 @@ test("a capture whose call is refused by a revoked grant is thrown again and its
       feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
       const before = { entries: entriesOf(feed, item.item_id), item: feed.getFeedItem(DEMO_PROJECT_ID, item.item_id) };
       // The one write boundary a Runtime commits a step with: the synchronous capture step runs inside this transaction.
-      const run = () => store.db.transaction(() => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id])).immediate();
-      assert.throws(run, (error: { code?: string }) => error.code === refused, `${refused} is thrown again`);
+      const run = () => store.db.transaction(() => { void feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]); }).immediate();
+
+      // 1. Synchronous rethrow of the original refusal.
+      assert.throws(run, (error: unknown) => error === refusal, `${refused}: the caller gets the publish's own refusal, thrown during the call`);
+      assert.equal(refusal?.code, refused);
+
+      // 2. The write made before the refusal rolls back.
       assert.equal(writtenBeforeRefusal, true, "the source_rule entry was written before the refusal, so there was a write to roll back");
       assert.deepEqual(entriesOf(feed, item.item_id), before.entries, "the whole write rolled back: the source_rule entry is gone again");
       assert.deepEqual(feed.getFeedItem(DEMO_PROJECT_ID, item.item_id), before.item, "the item keeps the state it had before the refused call");

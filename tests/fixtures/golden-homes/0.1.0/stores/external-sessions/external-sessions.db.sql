@@ -90,7 +90,7 @@ CREATE TABLE session_suggestions (
   );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
 INSERT INTO "session_meta"("key","value") VALUES('binding_snapshot_digest','1f9ec858e65393e01c03ce6b91882454');
-INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','adc4112f497292f646e41c12390086a2');
+INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','a9fcb4b48a2d36831e1754d25dee6a1f');
 INSERT INTO "session_project_ai_reads"("project_id","allowed","revision","decided_by","decided_at") VALUES('project-ae076f4f-3257-40a5-be48-38652812f188',0,2,'web-user','2026-01-15T09:00:00.000Z');
 CREATE INDEX external_sessions_activity_idx
     ON external_sessions (last_activity_at DESC, session_key ASC);

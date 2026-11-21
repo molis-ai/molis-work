@@ -220,8 +220,8 @@ async fn fold_continuous_edit(
              WHERE space=?1 AND namespace=?2 AND key=?3 AND revision=?4
                AND NOT EXISTS(SELECT 1 FROM sync_history_pins p WHERE p.space=?1 AND p.namespace=?2 AND p.revision=?4)
                AND EXISTS(SELECT 1 FROM sync_heads h WHERE h.space=?1 AND h.namespace=?2 AND h.key=?3 AND h.revision=?5 AND h.deleted_at IS NULL)
-               AND EXISTS(SELECT 1 FROM sync_events e WHERE e.space=?1 AND e.namespace=?2 AND e.key=?3 AND e.revision=?4 AND e.action='write' AND e.value<>'null' AND e.created_at>=unixepoch()*1000-86400000)
-               AND EXISTS(SELECT 1 FROM sync_events older WHERE older.space=?1 AND older.namespace=?2 AND older.key=?3 AND older.revision<?4 AND older.action='write' AND older.value<>'null')",
+               AND EXISTS(SELECT 1 FROM sync_events e WHERE e.space=?1 AND e.namespace=?2 AND e.key=?3 AND e.revision=?4 AND e.action='write' AND e.value<>'null' AND e.created_at>=unixepoch()*1000-86400000
+                 AND EXISTS(SELECT 1 FROM sync_events older WHERE older.space=?1 AND older.namespace=?2 AND older.key=?3 AND older.revision<?4 AND older.action='write' AND older.value<>'null' AND older.created_at>=e.created_at-86400000))",
         )
         .bind(&args)?,
         db.prepare(

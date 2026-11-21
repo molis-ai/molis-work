@@ -32,18 +32,22 @@ test("RAC-803 the Host hand-writes no authority for Goals: no per-action provena
   const symbols = sources(HOST).filter(path => /\bpinPermissions\b|\bmanagementTreeAuthority\b|\bmanagementEventDecisionAuthority\b|\bhostEventDecisionAuthority\b/u.test(text(path)));
   assert.deepEqual(symbols, [], `a hand-written Goals authority is back in the Host: ${where(symbols)}`);
 
-  // A person's act gets its provenance from `entryUserAction` alone; a literal `user_action` in a Goals caller is the old private road.
-  for (const name of ["goal-callers.ts"]) {
+  // `goal-callers.ts` is deleted (PEQ-03/H1): management actions come from generic plugin declarations, web entry from `local-web-actions.ts`.
+  assert.equal(existsSync(join(HOST, "goal-callers.ts")), false, "goal-callers.ts stays deleted");
+  // A person's act gets its provenance from `entryUserAction` alone; a literal `user_action` in the Host callers is the old private road.
+  for (const name of ["management-actions.ts", "local-web-actions.ts"]) {
     const source = text(join(HOST, name));
     assert.doesNotMatch(source, /user_action\s*:\s*\{/u, `${name} writes a user_action by hand`);
     assert.doesNotMatch(source, /source\s*:\s*"(?:web|management)"\s*,\s*conversation_ref/u, `${name} writes a provenance by hand`);
   }
+  // The generic management action helper names no plugin or Goals action id.
+  assert.doesNotMatch(text(join(HOST, "management-actions.ts")), /"goals\./u, "management-actions.ts hardcodes no Goals action id");
   // The page entry binds the person once for every action; it does not know which action it carries (that was the old per-action branches).
-  const callers = text(join(HOST, "goal-callers.ts"));
-  const start = callers.indexOf("export function bindGoalsWebActions");
-  assert.notEqual(start, -1, "bindGoalsWebActions is gone or renamed: update this scan");
-  const web = callers.slice(start, callers.indexOf("\n}\n", start));
-  assert.doesNotMatch(web, /goalsActions\.|capability_id/u, "bindGoalsWebActions branches on an action");
+  const webActions = text(join(HOST, "local-web-actions.ts"));
+  const start = webActions.indexOf("export function bindWebEntryActions");
+  assert.notEqual(start, -1, "bindWebEntryActions is gone or renamed: update this scan");
+  const web = webActions.slice(start, webActions.indexOf("\n}\n", start));
+  assert.doesNotMatch(web, /goalsActions\.|capability_id/u, "bindWebEntryActions branches on an action");
 });
 
 test("RAC-803 the person at this machine holds no Goals permission of their own; the installation's grants are what reach Goals", () => {
@@ -59,4 +63,10 @@ test("RAC-805 Goals' tables have one owner: the table-owner gate passes with no 
   assert.deepEqual(shared, [], "a Goals table is listed as shared with another package; the Host calls Goals' actions instead");
   const gate = spawnSync(process.execPath, [join(ROOT, "scripts", "gates", "table-owners.mjs")], { encoding: "utf8" });
   assert.equal(gate.status, 0, gate.stdout + gate.stderr);
+});
+
+test("PEQ-03 H4 Workbench source names no hardcoded io.molis.work.goals plugin ID or Goals plugin API route", () => {
+  const workbench = join(ROOT, "apps", "workbench", "src");
+  const found = sources(workbench).filter(path => /io\.molis\.work\.goals/u.test(text(path)));
+  assert.deepEqual(found, [], `Workbench hardcodes io.molis.work.goals again: ${where(found)}`);
 });

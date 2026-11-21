@@ -6,7 +6,6 @@ export { handleMcpMessage } from "./protocol.js";
 export { createMcpRuntimeContextHandlers } from "./runtime-context-tools.js";
 export type { McpRuntimeContextPorts } from "./runtime-context-tools.js";
 export type { McpPresentationErrorFactory } from "./goal-presentation.js";
-export type { McpManagementActionSource, McpManagementActionText } from "./goal-tools.js";
 export {
   platformMcpTools,
   RUNTIME_MCP_TOOLS,
@@ -20,7 +19,7 @@ export { serveMcpStdio } from "./stdio.js";
 
 export { validateMolisWorkMcpLauncher } from "./launcher-validation.js";
 export type { McpLauncherValidationContext } from "./launcher-validation.js";
-export { dispatchMcpProjectTool, MANAGEMENT_GOAL_ACTIONS } from "./tool-dispatch.js";
-export type { McpToolDispatchPorts, McpManagementActions } from "./tool-dispatch.js";
+export { dispatchMcpProjectTool } from "./tool-dispatch.js";
+export type { McpDeclaredManagementTool, McpToolDispatchPorts, McpManagementActions } from "./tool-dispatch.js";
 
 export { formatMcpToolError } from "./tool-error.js";

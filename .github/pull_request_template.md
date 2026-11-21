@@ -22,7 +22,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小可用 `--update --base origin/main` 更新本工作树的本地快查，不提交快查文件
 - [ ] 公开 API（contracts 各 subpath、插件 SDK）有变化时：已 `pnpm api:update` 刷新 `tooling/gates/api/`，并在「做了什么」写明对插件和调用方的影响
 - [ ] 动作或消费场景（Manifest 声明的，或宿主登记的）的身份、权限、受众、输入输出有变化时：`pnpm build` 后已 `pnpm actions:update` 刷新 `tooling/gates/actions/`（`pnpm test:contracts` 会对照）；同一 `capability@version` 下形状变了的，写明已升版本并改完固定它的引用，或为什么没有固定它的引用会坏
-- [ ] 改过样式、客户端脚本或字体：`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（页面资源默认只许变小，缩小不写共享数字；功能必需、省不回的增长写明理由、字节数与试过的省法，经评审在 `tooling/gates/page-asset-allowances/` 添加任务独立增量许可，见 `AGENTS.md`）
+- [ ] 改过样式、客户端脚本、`/desktop/pty-client.js` 或字体：`pnpm build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（按 `tooling/gates/page-asset-budgets.json` 路由与首屏总载荷预算校验；预算内改动无需逐字节许可，上限只许收紧）
 - [ ] 相关用例：`node scripts/affected-tests.mjs` 选出的用例已跑 → 通过 / 失败数（它建议全量时，说明跑了还是按什么理由不跑）：
 - [ ] 全量回归（适用时）：`full-suite.yml` 的运行链接、对应提交、通过 / 失败 / 跳过情况；未运行写明原因。`node scripts/run-tests.mjs` 不带文件参数会包含浏览器用例，不是非浏览器子集：
 - [ ] 本机补验（macOS 专有、定向浏览器或失败复现）：按当前执行安排，经机器槽运行 `node scripts/machine-slot.mjs run browser --label "<任务> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`；列出文件与结果，不涉及写明：

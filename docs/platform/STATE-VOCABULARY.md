@@ -1,6 +1,6 @@
 # 平台公开状态词汇
 
-由 `node scripts/gates/state-vocabulary.mjs --table` 生成。
+数据来源：`packages/contracts/src/platform/state-vocabulary.ts` 与 `packages/contracts/src/platform/ui-state-rings.ts`。
 
 业务状态的迁移由各自主人执行。插件的状态由自己的 Manifest 声明。
 

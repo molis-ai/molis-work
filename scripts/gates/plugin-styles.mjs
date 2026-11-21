@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. A plugin whose page
-// runs in a frame sends the rules of its own namespace as `/assets/molis-work-plugins/<id>.css`, linked only by the frames
-// that need it (`apps/workbench/src/plugin-workbench.ts`); the pages the shell itself draws — Feed today, Goals until its
-// line moves — still have their stylesheet in the shared sheets. Each plugin's remaining count only falls.
+// runs in a frame or shell-linked client sends the rules of its own namespace as `/assets/molis-work-plugins/<id>.css`, linked
+// only by the surfaces that need it (`apps/workbench/src/plugin-workbench.ts`); any remaining plugin without an on-demand
+// stylesheet keeps its rules in the shared sheets. Each plugin's remaining count only falls.
 //
 // What is counted, per plugin with a registered stylesheet: the rule blocks (not bytes: the unit the splitter moves is a
 // rule) that name the plugin's own classes or data attributes and that one of the shared sheets still holds. The splitter
@@ -22,10 +22,8 @@
 // A registered `settingsStylesheet` is never split: the settings and workbench sheets take it whole, so all of its rules are
 // added to the plugin's count.
 //
-// Goals is measured the same way in spirit, but by name: it has no frame, so its registration's `stylesheet` and
-// `settingsStylesheet` stay whole in the shared sheets, and the three style constants this gate has always counted there
-// (`GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES`; `PLANNING_SETTINGS_STYLES` went with the method library in batch 41) are held and frozen in place of the generic count;
-// this is not import discovery.
+// Goals is measured by the same generic registration loop as every other plugin: its stylesheet splits on demand into
+// `/assets/molis-work-plugins/goals.css` via `stylesheetPrefixes: ["goal-"]` and `pageClients`.
 //
 // A number may only fall. `--update` refuses when any plugin grew relative to the reference (with `--base`: the merge-base's
 // copy, otherwise the committed file) and it refuses to write a plugin the file does not know, so a new plugin with rules in
@@ -36,9 +34,7 @@
 //    `stylesheetPrefixes` measures 0 here (the splitter sees no rule of its own). Text Stats is such a plugin today; its rules
 //    stay shared because it has no frame, and its number is not part of this budget.
 //  - Rules a plugin keeps in a host module rather than its registration stylesheet are not seen: only the registered
-//    `stylesheet` and `settingsStylesheet` and, for Goals, the two constants named above are measured. Rules Goals' registered sheets newly take in
-//    beyond those two are not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
-//    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
+//    `stylesheet` and `settingsStylesheet` are measured.
 //  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
 //    not counted. Names only inside `:is()` or `:where()` are stripped before that verdict, so `:is(.feed-card){color:red}`
 //    and `:where(.feed-card){color:red}` also stay shared without being counted. This gate does not change those split rules.
@@ -142,10 +138,9 @@ const NOTE = "Only decreases. For each plugin with a registered stylesheet, the 
   + "it that names the plugin, without discounting stylesheetShared (declaring a class shared cannot hide a rule, and a frame "
   + "does not make the number zero). stylesheetPrefixes are remembered per plugin and may only be added; the measurement uses "
   + "the reference/current/build prefix union only for counting the remainder, after splitting by current declarations. "
-  + "Goals counts only GOALS_DOCUMENT_STYLES and TRASH_GOAL_STYLES. Measured from "
-  + "the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update --base "
-  + "origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number or "
-  + "adding a plugin here is refused.";
+  + "Measured from the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update "
+  + "--base origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number "
+  + "or adding a plugin here is refused.";
 
 const git = (gitArgs) => {
   try { return execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"] }); }
@@ -205,13 +200,6 @@ async function measureFromBuild(knownPrefixes) {
     if (pack.settingsStylesheet) rules += countRules(pack.settingsStylesheet);
     if (rules > 0) measured[id] = rules;
   }
-
-  // Goals has no frame: its registered sheets stay whole in the shared sheets; the three constants it has always counted are measured by name.
-  const goals = await distModule("plugins/native/goals/dist/index.js", "the shell-drawn Goals document styles");
-  const goalsStyles = ["GOALS_DOCUMENT_STYLES", "TRASH_GOAL_STYLES"];
-  for (const name of goalsStyles) if (typeof goals[name] !== "string") return fail(`plugins/native/goals/dist/index.js no longer exports ${name}, which Goals' registered sheets put in the shared sheets`);
-  const goalsRules = countRules(goalsStyles.map((name) => goals[name]).join(""));
-  if (goalsRules > 0) measured.goals = goalsRules;
 
   return { measured, prefixes };
 }

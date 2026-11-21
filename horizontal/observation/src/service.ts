@@ -2,6 +2,7 @@ import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "
 import { observationActions, type ObservationCleanupResult, type ObservationFactInput, type ObservationRecorder, type ObservationService, type ObservationSink } from "@molis-ai/molis-work-contracts/services/observation";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
 import { sweepExpiredRecords } from "./cleanup.js";
+import type { CoveragePlanEntry } from "./coverage-plan.js";
 import { retentionActions, retentionSettingHandlers } from "./retention-setting.js";
 import { exitRecord, exitSkips, type ExitAction, type ExitObservation } from "./exit.js";
 import { handleHoldsList, handleHoldsPut, handleHoldsRelease } from "./holds.js";
@@ -19,6 +20,10 @@ export interface ObservationLayerOptions {
   readonly keys: (hasEvidence: () => boolean) => ObservationKeys;
   readonly flushDelayMs?: number;
   readonly batchRows?: number;
+  /** Additional coverage plan entries declared by installed plugins. */
+  readonly extraCoverage?: readonly CoveragePlanEntry[];
+  /** Plugin ids whose observation records belong to the `"flow"` bucket. */
+  readonly flowOwners?: ReadonlySet<string>;
 }
 
 /**
@@ -73,7 +78,12 @@ export class ObservationLayer {
     readonly definitions: readonly ActionDefinition[];
     readonly handlers: readonly ActionHandlerBinding[];
   } {
-    const deps = { env: this.options.env, writer: this.writer };
+    const deps = {
+      env: this.options.env,
+      writer: this.writer,
+      ...(this.options.extraCoverage ? { extraCoverage: this.options.extraCoverage } : {}),
+      ...(this.options.flowOwners ? { flowOwners: this.options.flowOwners } : {}),
+    };
     const bound = [
       this.reportAction(shellEntry),
       defineAction(observationActions.recordsQuery, (caller, input) => handleRecordsQuery(deps, caller, input)),

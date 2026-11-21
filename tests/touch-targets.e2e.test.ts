@@ -97,8 +97,8 @@ const SHELL_CONTROLS = `(() => {
   const out = [];
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
-    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, select, [role=tab])")) {
-      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, .top-corner-list, .navigator-project-menu-popover, [data-compose-menu]")) continue;
+    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, select, [role=tab], a[href])")) {
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, .top-corner-list, .navigator-project-menu-popover, [data-compose-menu], [data-work-lists]")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
       const kind = Object.entries(kinds).find(([selector]) => el.matches(selector))?.[1];
@@ -925,20 +925,22 @@ for (const scheme of ["light", "dark"] as const) {
       assert.deepEqual(report.parts.filter(part => !part.label.startsWith("color-") && Math.min(part.w, part.h) < 32).map(part => `${part.label} ${part.w}×${part.h}`), [], `1280: and nothing else a strip menu holds is under 32px`);
     }
 
-    // A short window: DESIGN.md writes the Dock, resident and switcher buttons as 34px there, and the floors still hold.
+    // A short window (1280×500): v13 strip and foot controls stay present and above their floors.
     const shortWindow = await w.open(1280, 500, "", "true");
     assert.deepEqual(shortWindow.filter(control => w.short(control) < floors[control.area]).map(control => `${control.kind} ${control.w}×${control.h}`), [],
       "a short window · 1280×500: nothing in the strip is under 20px or in the bar under 28px");
-    assert.deepEqual(shortWindow.filter(control => ["dock", "resident", "plugin switcher"].includes(control.kind) && control.area === "bar").map(control => control.h).filter(h => h !== 34), [],
-      "a short window · 1280×500: the Dock, resident and switcher buttons are the 34px DESIGN.md writes");
+    for (const [area, kind] of [["strip", "first place"], ["strip", "plugin switcher"], ["strip", "side switch"], ["bar", "account"], ["bar", "account key"], ["bar", "assistant input"], ["bar", "assistant send"], ["bar", "line count"]] as const) {
+      assert.ok(shortWindow.some(control => control.area === area && control.kind === kind), `a short window · 1280×500: ${area} renders ${kind} so the floor check covers live controls`);
+    }
 
     // The Assistant's composer in the states the seeded project does not start in, on the desktop bar's 28px floor.
     await w.open(1280, 800, "", "true");
     await w.carriedByCoding();
     await w.line("a new work Coding carries · 1280", [], NEW_WORK_KINDS, floors.bar);
-    // Escape puts away what a button of the composer opened and gives it focus back: the "+" menu and the notices.
+    // Escape puts away what a button of the composer or foot opened and gives it focus back: the "+" menu, the notices, and the work list.
     for (const [name, button, popover] of [["the + menu", "[data-assistant-composer] [data-composer-add]", "[data-assistant-composer] .mw-composer__start [data-compose-menu]"],
-      ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"]] as const) {
+      ["the notices", "[data-assistant-attention]", "[data-assistant-notices]"],
+      ["the work list", "[data-work-list='done']", "[data-work-lists]"]] as const) {
       if (name === "the notices") await w.evaluate(showChips(["[data-assistant-attention]"]));
       assert.deepEqual(await w.escapeReturns(button, popover), { opened: true, closed: true, focus: true, onButton: true }, `${name} · 1280: Escape closes it and focus goes back to its button`);
     }

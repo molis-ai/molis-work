@@ -451,6 +451,7 @@ test("without a model the work and its text are kept, with a next step", { timeo
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.kind, "invalid");
       assert.equal(error.details?.action, "打开模型设置");
+      assert.equal(error.details?.action_kind, "open_model_settings");
       const kept = error.details?.work;
       assert.ok(kept && typeof kept === "object" && "draft" in kept && "work_id" in kept);
       assert.equal(kept.draft, "Plan my week");
@@ -477,7 +478,8 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       const shown = error.message + pageText("en")("workbench.assistant-send.text-kept");
       assert.equal(shown, "No usable model is configured yet, so the assistant can’t start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
-      assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
+      assert.equal(error.details?.action, "打开模型设置", "the action stays backward-compatible while action_kind drives client routing");
+      assert.equal(error.details?.action_kind, "open_model_settings", "client routes the model-settings link by structured action_kind, not Chinese text");
       assert.equal(pageText("en")("workbench.settings-connectors.open-model-settings"), "Open model settings");
       const kept = error.details?.work as { draft?: string } | undefined;
       assert.equal(kept?.draft, text, "the text is kept word for word");
@@ -1585,6 +1587,41 @@ test("RAC-2921 Assistant.send keeps ordinary attachments and internal directorie
       assert.equal(Object.hasOwn(header, "version"), false);
     }
     await assert.rejects(f.service.materialAccess.material(sent.work.work_id, "missing"), /没有这份材料/);
+  } finally { await f.close(); }
+});
+
+/** Each part decodes alone: no lone half of a pair, and no replacement character where one was encoded (the input has none). */
+const decodesAlone = (text: string): boolean => text.isWellFormed() && !text.includes("\uFFFD") && Buffer.from(text, "utf8").toString("utf8") === text;
+
+test("BL-974 an ordinary round splits a long material at whole characters: a 🟢 across the 18,000th unit stays in one part, every part decodes alone, and the parts joined in order are the material", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "看过了。")]);
+  try {
+    // The material reaches the model as its formatted block (`formatSentMaterialBlock`): this head, then the text. The 🟢 is put
+    // across units 17,999 and 18,000 of that block, where a cut by unit index alone falls between its two halves.
+    const head = "用户明确添加；类型：text\n\n", body = "正文接在后面。".repeat(40);
+    const text = "a".repeat(17_999 - head.length) + "🟢" + body, block = head + text;
+    assert.equal(block.slice(17_999, 18_001), "🟢", "the 🟢 straddles the 18,000-unit boundary");
+    const sent = await f.service.send({ text: "读一下这段", request_id: "req-00000974",
+      materials: [{ material_id: "long-1", kind: "text", title: "长文", explicit: true, text }] }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" || undefined, "round");
+    const work = f.store.get("web-user", sent.work.work_id);
+    const frozen = (await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.text_materials
+      .filter(item => item.material_id.startsWith("material-long-1"));
+    const numbered = [["material-long-1.1", "材料：长文（1/2）"], ["material-long-1.2", "材料：长文（2/2）"]];
+    assert.deepEqual(frozen.map(item => [item.material_id, item.title]), numbered, "the run was frozen with both parts, numbered");
+    // What the provider was sent: each part with its header, then its text.
+    const request = f.requests[0] as { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> };
+    const parts = request.messages.flatMap(message => typeof message.content === "string" ? [message.content] : message.content.flatMap(part => part.type === "text" && part.text !== undefined ? [part.text] : []))
+      .filter(entry => entry.startsWith("Untrusted context data.")).map(entry => (JSON.parse(entry.slice(entry.indexOf("\n") + 1)) as { text: string }).text)
+      .map(entry => ({ header: JSON.parse(entry.split("\n")[0]!) as { title: string; material_id: string }, text: entry.slice(entry.indexOf("\n\n") + 2) }))
+      .filter(entry => entry.header.material_id?.startsWith("material-long-1"));
+    assert.deepEqual(parts.map(part => [part.header.material_id, part.header.title]), numbered, "part numbers and the part count");
+    for (const part of parts) {
+      assert.ok(part.text.length <= 18_000, "each part keeps the 18,000-unit limit");
+      assert.ok(decodesAlone(part.text), `${part.header.material_id} decodes alone`);
+    }
+    assert.ok(parts[0]!.text.endsWith("a") && parts[1]!.text.startsWith("🟢"), "the 🟢 goes whole into the second part");
+    assert.equal(parts.map(part => part.text).join(""), block, "the parts joined in order are the material exactly");
   } finally { await f.close(); }
 });
 

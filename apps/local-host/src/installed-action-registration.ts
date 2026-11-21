@@ -118,21 +118,27 @@ export function followInstalledActions(scope: ActionScope, record: PluginInstanc
 
 /** Runtime has already checked complete redemption. It owns the returned disposer, including failure and disable cleanup. */
 export function registerInstalledActions(definition: PluginDefinition, contribution: PluginContribution, record: PluginInstanceRecord,
-  registration: ActionProviderRegistration, actions: ProjectActions): (() => void) | undefined {
+  registration: ActionProviderRegistration, actions: ProjectActions,
+  dualBound?: { dualHomeRunning(): boolean; effectiveGrants(): readonly string[] }): (() => void) | undefined {
   const release = sources.get(definitionOrigin(definition))?.release;
   if (!release || !definition.manifest.actions?.length || contribution.kind !== 'app') return;
   const route = contribution.routes?.find(item => item.route_id === 'studio.call');
   if (!route) throw new Error('沙箱动作没有兑现调用路由');
   let resolved = false;
   const exposed = exposeInstalledPlugin(actions, release, async (_id, operation, input, caller) => {
+    if (dualBound && !dualBound.dualHomeRunning()) return { status: 409, body: { error: '个人空间插件已停用，项目实例不可用' } };
     const execution = { signal: caller.signal, beforeEffect: caller.beforeEffect, page_context: caller.page_context,
       locale: caller.locale, assert_authority_current: caller.assert_authority_current };
     return withProjectReachInvocation(execution, actions.project_id === null ? caller.project_id : null, record, async () => route.handle({
       method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: caller.actor_id, execution, body: { operation, input },
     }));
-  }, caller => resolved ? registration.availability?.(caller) ?? { available: true }
-    : { available: false, code: 'actions.plugin_unavailable', reason: '插件的实际依赖尚未完成注册' }, record, (id, caller) => {
-    return operationGrantAvailability(release.design.contract, id, record.grants)
+  }, caller => {
+    if (!resolved) return { available: false, code: 'actions.plugin_unavailable', reason: '插件的实际依赖尚未完成注册' };
+    if (dualBound && !dualBound.dualHomeRunning()) return { available: false, code: 'actions.plugin_unavailable', reason: '个人空间插件已停用或不可用' };
+    return registration.availability?.(caller) ?? { available: true };
+  }, record, (id, caller) => {
+    const grants = dualBound ? dualBound.effectiveGrants() : record.grants;
+    return operationGrantAvailability(release.design.contract, id, grants)
       ?? registration.handlers.find(item => item.capability_id === exposedActionId(release, id))?.availability?.(caller) ?? { available: true };
   });
   const publish = () => { resolved = true; };

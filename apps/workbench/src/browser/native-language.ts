@@ -26,6 +26,11 @@ export function nativeLanguagePublisher(language: () => NativeDocumentLanguage) 
       open: t.text("workbench.native-tray.open"), quit: t.text("workbench.native-tray.quit"),
       quit_keep_service: t.text("workbench.native-tray.quit-keep-service"), restore_appearance: t.text("workbench.native-tray.restore-appearance"),
       stopped: t.text("workbench.native-tray.stopped"), stopped_tip: t.text("workbench.native-tray.stopped-tip"),
+      quit_confirm_title: t.text("workbench.native-tray.quit-confirm-title"),
+      quit_confirm_body: t.text("workbench.native-tray.quit-confirm-body"),
+      quit_confirm_active_body: t.text("workbench.native-tray.quit-confirm-active-body"),
+      quit_confirm_upgrading_body: t.text("workbench.native-tray.quit-confirm-upgrading-body"),
+      quit_confirm_cancel: t.text("workbench.native-tray.quit-confirm-cancel"),
     } };
     pending = pending.then(() => {
       if (generation === document && turn === sequence && alive()) return invoke("native_set_locale", { document, sequence: turn, projection });

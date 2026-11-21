@@ -328,7 +328,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 
 | 条目 | 当前证据与可清理部分 | 应保留什么/执行方式 |
 | --- | --- | --- |
-| [BL-1039](../backlog/BL-1039.md) | 现行首次使用按钮已区分未连接/已连接，`tests/context-onboarding-action-copy.e2e.test.ts:22` 覆盖；第27批 action-copy spec §验证已有隔离实操证据 | 可关闭“未实现”的工程记录；本人验收并入 BL-batch27-acceptance，保留原编号到墓碑，不代签本人验收 |
+| [BL-1039](../../docs/backlog-removed.md) | 现行首次使用按钮已区分未连接/已连接，`tests/context-onboarding-action-copy.e2e.test.ts:22` 覆盖；第27批 action-copy spec §验证已有隔离实操证据 | 可关闭“未实现”的工程记录；本人验收并入 BL-batch27-acceptance，保留原编号到墓碑，不代签本人验收 |
 | [BL-1040](../backlog/BL-1040.md) | `plugins/native/git/src/browser/source.ts:103-124` 已将状态改普通文字、缺远端隐藏 PR；`tests/git-source-controls.e2e.test.ts:18` 覆盖真实本地仓库、AX 与键盘 | 可关闭重复工程记录，剩余体验认可并入第27批验收；与 QF-03 的刷新/冲突草稿恢复不是同一问题 |
 | [BL-040](../backlog/BL-040.md) | `packages/contracts/src/platform/plugin-sandbox.ts:121` 和 SDK sandbox-read-protocol 已有 subject_context；“生成插件不能声明对象读取器”过宽 | 已纠正正文：保留搜索来源与创作台草稿动作层缺口，区分read_protocol与ui.subject_context，未删除整条 |
 | [BL-055](../backlog/BL-055.md) | `packages/plugin-sandbox/src/runner.ts:31` 已是真实子进程沙箱，“当前进程内执行器”描述失效 | 已删除过时进程内括注；保留Jev质量/延迟、实际平台边界验证及跨项目草稿，负责人不变 |
@@ -1183,7 +1183,7 @@ QEA-151/152 当前构建实操通过。隔离浏览器 15 文件 48 项，包括
 
 用户于 2026-11-17 批准 `04fb175c75` 已测的首屏、静态资源及草稿 PR 更新与 Full，并批准只删除 Feed 失效版本例外。版本例外清理独立提交 `b3426dd027`。发布版本测试 35/35 和现行 Feed 来源、动作、租约的三个文件全部通过，合计 4 文件 52 项。工作中的 Host 同名用法继续由其现有例外登记。证据 `quality-audit-b82-release-and-feed.log`。
 
-资源登记独立提交 `8567f7b83b`。首屏清单使用实测新路径，旧采样标记仅供既有基点比较。新的许可记录 25 项静态增量、6 组需补足的首屏上限和 7 组具体入口，保留原资料导入许可。区域前后相同度量的绝对差异以第 81 批表为准。按正式测量策略用独立基点和候选 HTTP 实报计算零差异错误。门禁相关 3 文件 42 项通过，准确组合的远端运行以 PR 检查为准。[批准记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-combination.json)
+资源登记独立提交 `8567f7b83b`。首屏清单使用实测新路径，旧采样标记仅供既有基点比较。新的许可记录 25 项静态增量、6 组需补足的首屏上限和 7 组具体入口，保留原资料导入许可。区域前后相同度量的绝对差异以第 81 批表为准。按正式测量策略用独立基点和候选 HTTP 实报计算零差异错误。门禁相关 3 文件 42 项通过，准确组合的远端运行以 PR 检查为准。批准记录（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-combination.json`，已于第 100 批退役）
 
 ### 第 83 批远端失败与 QF-79 / P2 Coding 问答轮询丢失焦点
 
@@ -1203,7 +1203,7 @@ Linux CI 中全插件冷加载两种语言各比本机的门禁差额多 52 B。
 
 #### QF-80 / P3 Coding 私有样式进入共享表
 
-`plugins/native/coding/src/styles.ts:31,380` 只控制 Coding 的空白起始页和窄窗目录。它们原先通过共享根标记落在工作台表里，导致每页多带两条私有规则，Coding 共享预算由 9 实测到 11。给插件自己的起始面和目录使用现有命名空间，继续从同一布局状态判断。样式分配归工作台既有登记，具体可见性归 Coding。共享规则回到 9。基于实际 Host 路径，相对第 83 批，工作台共享 CSS 少 220 B，Coding 按需 CSS 多 174 B，两者合计少 46 B。Coding 按需 CSS 相对 main 增 64 B，登记为已有资源的小额变动。版本和 CSS 路径使用现有合同，迁移成本低。[资源记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-coding-styles.json)
+`plugins/native/coding/src/styles.ts:31,380` 只控制 Coding 的空白起始页和窄窗目录。它们原先通过共享根标记落在工作台表里，导致每页多带两条私有规则，Coding 共享预算由 9 实测到 11。给插件自己的起始面和目录使用现有命名空间，继续从同一布局状态判断。样式分配归工作台既有登记，具体可见性归 Coding。共享规则回到 9。基于实际 Host 路径，相对第 83 批，工作台共享 CSS 少 220 B，Coding 按需 CSS 多 174 B，两者合计少 46 B。Coding 按需 CSS 相对 main 增 64 B，登记为已有资源的小额变动。版本和 CSS 路径使用现有合同，迁移成本低。资源记录（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-coding-styles.json`，已于第 100 批退役）
 
 `tests/coding-git-handoff.e2e.test.ts:64,75,82` 在两次远端执行分别碰到确认框尚未准备和窄窗会话目录隐藏。测试现在等宿主原确认框可用，重载等原会话恢复，并在窄窗从真实返回控件进入 Files。核心交接、触发次数、写入、缓存失败、重开和目录移除前后的业务断言继续执行。记录 QEA-160。
 
@@ -1239,7 +1239,7 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 
 原 Goal 刷新、分窗和后台投影另 3 文件 17 项通过，含可见/隐藏投影的失败恢复、当前数据、刷新时窗格的变化。正式首屏和静态资源规则 2 文件 31 项通过。本批追加共 5 文件 48 项，证据 `quality-audit-b88-related.log`。
 
-现有工作台脚本相对以下第 89 批测量再增 35 B，实际工作台冷加载同增 35 B，热加载、目录发现和请求路径相同。最大静态净增的既有批准范围不变。此小额资源与 QF-15 两个新词包分开登记。[资源记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-goal-disclosures.json)
+现有工作台脚本相对以下第 89 批测量再增 35 B，实际工作台冷加载同增 35 B，热加载、目录发现和请求路径相同。最大静态净增的既有批准范围不变。此小额资源与 QF-15 两个新词包分开登记。资源记录（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-goal-disclosures.json`，已于第 100 批退役）
 
 ### 第 89 批主干整合与首屏复量
 
@@ -1252,7 +1252,7 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 | 到达、项目选择 | 883 B | 844 B |
 | 默认、全插件和示例工作台 | 902 B | 863 B |
 
-这次实际增加的静态文件为 `/assets/molis-work-knowledge.js` +38 B，工作台脚本减少 19 B。以最新 main 合并基点计算，最大冷增 2,100 B，最大热增 19 B。正式量法还需到达与项目选择的中英文冷额度 663／624 B，全插件工作台中英文冷额度 693／654 B。按第 83 批验证过的路径长度，再计全插件 Linux 冷额度各 8 B。新增词包为 `/assets/locale/workbench.zh.edfbad487ed13f33cb345453.js`、`/assets/locale/workbench.en.d2cfe764e8fa4c8bc25d0542.js`。用户于 2026-11-17 批准这两个内容地址和所列增量。原实报 `quality-audit-b89-{main,candidate}-{http,assets}.json`，对比 `quality-audit-b89-gate-comparison.json`。[批准记录](../../tooling/gates/page-asset-allowances/quality-experience-audit-import-warnings.json)
+这次实际增加的静态文件为 `/assets/molis-work-knowledge.js` +38 B，工作台脚本减少 19 B。以最新 main 合并基点计算，最大冷增 2,100 B，最大热增 19 B。正式量法还需到达与项目选择的中英文冷额度 663／624 B，全插件工作台中英文冷额度 693／654 B。按第 83 批验证过的路径长度，再计全插件 Linux 冷额度各 8 B。新增词包为 `/assets/locale/workbench.zh.edfbad487ed13f33cb345453.js`、`/assets/locale/workbench.en.d2cfe764e8fa4c8bc25d0542.js`。用户于 2026-11-17 批准这两个内容地址和所列增量。原实报 `quality-audit-b89-{main,candidate}-{http,assets}.json`，对比 `quality-audit-b89-gate-comparison.json`。批准记录（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-import-warnings.json`，已于第 100 批退役）
 
 加入第 88 批后，将 67 条实际静态资源及各页面的冷、热读回交给现行检查，两个检查均通过本机对照，已知 Linux 目录差额的对照也通过。组合相对上一推送最大首屏冷增 937 B、热增 0 B。新资源仅为已批准的两个词包地址。证据 `quality-audit-b90-resource-gates.log`。
 
@@ -1314,7 +1314,7 @@ Linux 的第四窗能读项目文件，后续保存外观超时。隔离 Home �
 | 项目选择 | −361 B | −348 B | −361 B |
 | 默认、全插件与示例工作台 | +59 B | +72 B | 0 B |
 
-相对已推送的 `ce1ad92513`，组合最多增加 72 B 冷加载。67 项静态资源仍为原路径，Workbench 增 59 B，Coding 增 67 B。实际数据为 `quality-audit-b100-{http,assets}.json`，对照原报告 `quality-audit-b91-{http,assets}.json`。[词包登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-transcription-english.json) · [首屏地址登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-shared-attention.json) · [脚本增量](../../tooling/gates/page-asset-allowances/quality-experience-audit-refresh-recovery.json)
+相对已推送的 `ce1ad92513`，组合最多增加 72 B 冷加载。67 项静态资源仍为原路径，Workbench 增 59 B，Coding 增 67 B。实际数据为 `quality-audit-b100-{http,assets}.json`，对照原报告 `quality-audit-b91-{http,assets}.json`。词包登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-transcription-english.json`，已于第 100 批退役） · 首屏地址登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-shared-attention.json`，已于第 100 批退役） · 脚本增量（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-refresh-recovery.json`，已于第 100 批退役）
 
 | 复验 | 本机实证 |
 | --- | --- |
@@ -1344,7 +1344,7 @@ QF-65 的窄窗回归在 780 × 493 的内容区复现。待审面在打开设�
 
 用同一测量器回放本轮候选和独立主干构建的 67 条静态资源、五种页面和两种语言。主干 `565840cce4` 相对构建基准 `2315213aba` 只补子任务 spec 记录。候选与上次推送 `2eef54d545` 相比，中英文共十组首屏的冷加载最多加 124 B，热加载相同或少 8 B。两个词包和实际首屏请求地址与已推送版相同。对最新主干，所有页面最大净增为冷 1,942 B、热 19 B，静态资源最大净增仍为 Git 脚本 8,403 B。
 
-本轮新增许可覆盖既有插件帧 123 B、工作台新的基线差额 15 B、助理子任务脚本组合差额 2 B。到达页按各语言 123 B 登记。全插件页按各语言实际冷差额 130 B，加第 83 批已验证的 Linux 路径差额 8 B。默认项目和选择页仍在已有许可内。原始数据 `quality-audit-b104-{http,assets,main-http,main-assets}.json`。[实测登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+本轮新增许可覆盖既有插件帧 123 B、工作台新的基线差额 15 B、助理子任务脚本组合差额 2 B。到达页按各语言 123 B 登记。全插件页按各语言实际冷差额 130 B，加第 83 批已验证的 Linux 路径差额 8 B。默认项目和选择页仍在已有许可内。原始数据 `quality-audit-b104-{http,assets,main-http,main-assets}.json`。实测登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 实际测量、按已验证 Linux 路径差额复算及静态资源政策比较均为零问题，22 条实际新增首屏要求仍由原批准匹配。完整重建及包边界、111 份 API 快照、动作合同、44 个结构快照和生成版本检查通过。组合的远端结论沿草稿 PR 保存。[草稿 PR #2101](https://github.com/molis-ai/molis-work/pull/2101)
 
@@ -1401,7 +1401,7 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 | 示例项目 / 中文 | −267,009、−275,728 | +717、+261 |
 | 示例项目 / 英文 | −268,420、−277,035 | −1,612、−1,527 |
 
-主线已批准的文案与本轮批准的词条在构建中按原规则生成 `/assets/locale/workbench.zh.fbd9103995793c87f7326dbc.js` 和 `/assets/locale/workbench.en.3025abfe45e9518b994c95d7.js`。第 105–108 批未添加工作台词条，22 条需批准的动态或内容地址由原许可匹配。相对上次推送，既有工作台脚本增 119 B，其余静态资源相同。对主干最大静态净增仍为 Git 脚本 8,403 B。本机既有资源与页面许可按实测登记，全插件页原已验证 Linux 差额另计 8 B。原始 `quality-audit-b107-main-{http,assets}.json` 与 `quality-audit-b108-candidate-{http,assets}.json`。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+主线已批准的文案与本轮批准的词条在构建中按原规则生成 `/assets/locale/workbench.zh.fbd9103995793c87f7326dbc.js` 和 `/assets/locale/workbench.en.3025abfe45e9518b994c95d7.js`。第 105–108 批未添加工作台词条，22 条需批准的动态或内容地址由原许可匹配。相对上次推送，既有工作台脚本增 119 B，其余静态资源相同。对主干最大静态净增仍为 Git 脚本 8,403 B。本机既有资源与页面许可按实测登记，全插件页原已验证 Linux 差额另计 8 B。原始 `quality-audit-b107-main-{http,assets}.json` 与 `quality-audit-b108-candidate-{http,assets}.json`。资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 ### 第 109 批主干的滚动中断交集
 
@@ -1423,7 +1423,7 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 
 主干基点为独立构建的 `e56bd6701a`。67 条静态资源及十组页面冷、热回放完成，22 项待核对的首屏内容地址及动态请求仍由原许可匹配。两条工作台词包继续使用上节的内容地址。相对含主干滚动中断的第 109 批，插件帧加 2 B、工作台脚本加 1 B，单页冷加载加 3 B，热加载最多加 1 B。当前基点上页面净增最多冷 2,096 B、热 20 B，最大静态净增仍是 Git 脚本 8,403 B。
 
-相对上次推送 `704773fe8e`，四类入门页面中最大冷增 759 B、热增 266 B，另外测量的示例项目最大冷增 1,069 B、热增 261 B。静态只有原工作台和插件帧脚本各净增 315 B、156 B，这包含第 108 批在内的改动和主干滚动中断。首次测量项目选择页的资料摘要超时，原量法重跑已完整收集。基线实报 `quality-audit-b109-main-{http,assets}.json`、候选实报 `quality-audit-b110-candidate-{http,assets}.json`、逐页比较 `quality-audit-b110-resources-verified.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+相对上次推送 `704773fe8e`，四类入门页面中最大冷增 759 B、热增 266 B，另外测量的示例项目最大冷增 1,069 B、热增 261 B。静态只有原工作台和插件帧脚本各净增 315 B、156 B，这包含第 108 批在内的改动和主干滚动中断。首次测量项目选择页的资料摘要超时，原量法重跑已完整收集。基线实报 `quality-audit-b109-main-{http,assets}.json`、候选实报 `quality-audit-b110-candidate-{http,assets}.json`、逐页比较 `quality-audit-b110-resources-verified.json`。登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 ### 第 111 批持久化界面文字和事实归属
 
@@ -1437,7 +1437,7 @@ PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成�
 
 独立构建 main `feffe94db0` 与候选，同样采集 67 条静态资源及十组首屏实报。合并主干后静态变化仅为主干批准的 Work Brief 脚本 116 B。主干新词包与本轮既有获准词条重新生成为 `/assets/locale/workbench.zh.aae6b6b26daff45c74ef27f1.js` 和 `/assets/locale/workbench.en.be9e464f384a6edb7b4da725.js`，22 条首屏要求仍匹配原许可。相对第 110 批，中文首屏每页冷增 378 B、英文 423 B，热量相同。相对 `704773fe8e`，四类页面最大冷增 1,137 B、热增 266 B，其余报告样本中示例项目最大冷增 1,447 B、热增 261 B。
 
-相对独立主干，冷加载最大净增 2,084 B、热加载 20 B，静态最大净增仍为 Git 脚本 8,403 B。英文到达及全插件页另各登记现测 5 B，后者含既有 Linux 路径差额。并发检查期间的两次本机测量分别在 chooser 的简报和到达页 Issues 入口超时，随后沿同一时限、原 HTTP 采样器和完整清单逐页回放通过。实际脚本体积、首屏策略及已验证 Linux 差额复算通过。原数据 `quality-audit-b111-{main,candidate}-{http,assets}.json` 与 `quality-audit-b111-resource-proof.json`。[登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+相对独立主干，冷加载最大净增 2,084 B、热加载 20 B，静态最大净增仍为 Git 脚本 8,403 B。英文到达及全插件页另各登记现测 5 B，后者含既有 Linux 路径差额。并发检查期间的两次本机测量分别在 chooser 的简报和到达页 Issues 入口超时，随后沿同一时限、原 HTTP 采样器和完整清单逐页回放通过。实际脚本体积、首屏策略及已验证 Linux 差额复算通过。原数据 `quality-audit-b111-{main,candidate}-{http,assets}.json` 与 `quality-audit-b111-resource-proof.json`。登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 ### 第 111 批准确提交的实操与远端结果
 
@@ -1483,7 +1483,7 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 
 ### 第 115 批首屏复量
 
-同口径实测 67 条静态资源、十组首屏 HTTP。相对 `9ce951d49b` 只新增 258 B 的工作台脚本内容，静态路径没有新增。删除重复词条后内容地址为中文 `/assets/locale/workbench.zh.ae54fb08ac73d15bb50b32f3.js`、英文 `/assets/locale/workbench.en.84c25955f4ea98463078b005.js`。既有授权的按语言内容定址范围及其他入口共匹配 22 条实际请求。相对产品源文件相同的主干构建，控量页面最大冷增 2,070 B、热增 20 B，静态最大净增仍为 Git 脚本 8,403 B。全插件页依既有 Linux 路径证据额外复算冷加载各 8 B。[资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+同口径实测 67 条静态资源、十组首屏 HTTP。相对 `9ce951d49b` 只新增 258 B 的工作台脚本内容，静态路径没有新增。删除重复词条后内容地址为中文 `/assets/locale/workbench.zh.ae54fb08ac73d15bb50b32f3.js`、英文 `/assets/locale/workbench.en.84c25955f4ea98463078b005.js`。既有授权的按语言内容定址范围及其他入口共匹配 22 条实际请求。相对产品源文件相同的主干构建，控量页面最大冷增 2,070 B、热增 20 B，静态最大净增仍为 Git 脚本 8,403 B。全插件页依既有 Linux 路径证据额外复算冷加载各 8 B。资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 | 页面 | 中文冷 / 热，B | 英文冷 / 热，B |
 | --- | ---: | ---: |
@@ -1497,7 +1497,7 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 
 ### 第 116 批 Linux 首屏实测
 
-`01539451ea` 的远端静态预算通过，67 条资源齐备。Linux 首屏的默认工作台中英文冷增 508／414 B，各比本机估值多 8 B。全插件工作台冷增 1,756／1,673 B，符合此前按每种语言各 8 B 的登记。到达页、选择页和热加载额度均通过，最大冷增仍是项目选择中文的 2,070 B。此次提交仅补默认工作台两条各 8 B 的冷加载记录及验收证据。 [Linux 作业](https://github.com/molis-ai/molis-work/actions/runs/44309181949/job/134818804848) · [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+`01539451ea` 的远端静态预算通过，67 条资源齐备。Linux 首屏的默认工作台中英文冷增 508／414 B，各比本机估值多 8 B。全插件工作台冷增 1,756／1,673 B，符合此前按每种语言各 8 B 的登记。到达页、选择页和热加载额度均通过，最大冷增仍是项目选择中文的 2,070 B。此次提交仅补默认工作台两条各 8 B 的冷加载记录及验收证据。 [Linux 作业](https://github.com/molis-ai/molis-work/actions/runs/44309181949/job/134818804848) · 资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 本机沿实际工作台、组件板和位置等入口复验 32 文件、301 项通过，Goals 的两个原录制用例按既有运行模式跳过。覆盖引导建项目和 3,000 份资料清点、Pages 只读拒写、Coding 两种目录读回及两种语言、Jelly 密钥隔离、灵光及两个真实关系目标、认可退回和改要求、共享位置的 9 项浏览器和 8 项服务、52 份规范化页面快照，以及工作台包必跑。日志 `quality-audit-b115-consumers.log`。
 
@@ -1535,9 +1535,9 @@ QEA-189 在原位置实现上接收相同修订的真实 HTTP 回答后，复现
 
 本地完整构建与重生成通过，111 份公开 API 快照、640 项 Manifest 动作、617 项额外宿主动作、44 个库结构、版本与包边界一致。真实事项动作 14/14 与归属不变量 5/5 通过，保存和撤销的角色服务 11/11，通过原 Coding HTTP 验证固定版实际生效。隔离 Home 的 3 条回执用例全部通过，两种现行 Skill 草稿打开后记录不变。Git 只读目录的用例在本机四倍限速与构建争用期间到原单项时限，正常速度同一用例 28.1 秒通过，失效审查无写入及最终磁盘结果保持。角色抽屉同文件的三条用例通过，窗口草稿用例在首次点设置前的页面加载命令超时，已安排同条件单独复验。日志 `quality-audit-b117-{regenerate,contract-gates,action-checks,browser-entries,git-context,git-context-normal}.log`。
 
-两次独立构建各测到 67 条静态资源，路径相同。相对新主干，最大静态净增仍为 Git 脚本的 8,403 B，工作台脚本实际净增 5,152 B，比上一额度多 2 B，按任务资源登记记录差额。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+两次独立构建各测到 67 条静态资源，路径相同。相对新主干，最大静态净增仍为 Git 脚本的 8,403 B，工作台脚本实际净增 5,152 B，比上一额度多 2 B，按任务资源登记记录差额。 资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
-两个构建均完成十组首屏实测。下表相对新主干 `8c844c5bb6`。22 条相对主干需要许可的请求均匹配既有授权，相对上一已批准组合无新增请求路径或词包地址。按上一候选实际 Linux 工作台的冷热净额各多 8 B 复算，默认和全插件工作台的四个冷量比原预留各多 2 B，已据此登记。热量额度和共享门禁口径沿用。工作台项目摘要首次采样及另一次 Host 健康等待分别在共同构建期间超时，顺序重测的实际结果列在表内。源数据 `quality-audit-b117-{main,candidate}-{assets,http}.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+两个构建均完成十组首屏实测。下表相对新主干 `8c844c5bb6`。22 条相对主干需要许可的请求均匹配既有授权，相对上一已批准组合无新增请求路径或词包地址。按上一候选实际 Linux 工作台的冷热净额各多 8 B 复算，默认和全插件工作台的四个冷量比原预留各多 2 B，已据此登记。热量额度和共享门禁口径沿用。工作台项目摘要首次采样及另一次 Host 健康等待分别在共同构建期间超时，顺序重测的实际结果列在表内。源数据 `quality-audit-b117-{main,candidate}-{assets,http}.json`。 资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 | 页面 | 中文冷 / 热，B | 英文冷 / 热，B |
 | --- | ---: | ---: |
@@ -1575,7 +1575,7 @@ Verify 首轮的产品子集第 1 片 66 份通过。Goals 刷新文件触及 24
 
 验收文件保留双方入口。新盖层用例也读回关闭设置后的原输入。Goals 页面按正规化后的实物对照，给右侧工作线放回唯一的 `data-overflow-fade` 后，52 条先前已验记录的哈希和字符数逐项吻合。16 份整页各减少 19 字符，36 份片段原样匹配。录制开关未启用。 [输入栏用例](../../tests/composer-bar-receiver.e2e.test.ts) · [页面记录对账](../../tests/goals-page-golden.test.ts#L250)
 
-相对 `afaeabdd4a`，实际 67 条静态资源中最大净增仍是 Git 的 8,403 B，工作台脚本净增 5,168 B，比上一组合多 16 B。原消息和词包的 22 条首屏许可继续命中。中文项目选择文档的实测增加 96 B，页面净增 2,166 B，扣除已有额度后登记 66 B。默认及全插件工作台的四组既有冷量各增 16 B，按上一组合实测的 Linux 平台差额复算通过。源数据 `quality-audit-b118-resource-proof.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+相对 `afaeabdd4a`，实际 67 条静态资源中最大净增仍是 Git 的 8,403 B，工作台脚本净增 5,168 B，比上一组合多 16 B。原消息和词包的 22 条首屏许可继续命中。中文项目选择文档的实测增加 96 B，页面净增 2,166 B，扣除已有额度后登记 66 B。默认及全插件工作台的四组既有冷量各增 16 B，按上一组合实测的 Linux 平台差额复算通过。源数据 `quality-audit-b118-resource-proof.json`。 资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 后续 main `73e8349007` 修正评估结果、业务交付计数及 Schedule 的拒绝分类。比较差异有两处共同改动，分别是 Observation 的 README 和动作快照。合并模拟通过，生产源码与本轮修改没有文本冲突。新界面组合的实测基点仍为 `afaeabdd4a`。 [后续主干修复](https://github.com/molis-ai/molis-work/pull/2131)
 
@@ -1611,7 +1611,7 @@ QEA-199 原 15 个场景仍由产品子集执行器运行。三个组内复用�
 
 Workbench 在每次同地址读取完成后的半秒归并被动提示。期间的最后一个提示仍触发后续读取。切换项目或界面走新地址，本人刷新可越过合并等待。业务写入、位置权限、Home 跨窗口与错误反馈由现有服务提供。迁移成本低，集中在正常页面的读取协调。新构建五轮的等你和角标请求每轮各 2 次，间隔 502～504 ms；第 3～4 条判断时可读健康，最大事件循环延迟 346～379 ms。二十条建议先显示，每轮 Inbox 只重读一次，中位完成 2,438 ms。原动作回归保存第一条已提交判断，取消后重试仅补写剩余项。此数据来自固定规则，用于确认界面与 Host 本身的等待。日志 `quality-audit-b120-attention-{after,server}.log`。 [真实按钮与时间](../../tests/inbox-evaluate-reads.e2e.test.ts#L119) · [取消和重试写入](../../tests/inbox-action-scenes.test.ts#L19)
 
-准确构建复量 67 条静态资源和十组首屏。相对上一候选，既有工作台脚本及六组工作台冷加载各增 75 B，项目选择中英文冷、热均增 99 B，热量相对主干仍减少 53／58 B。现有 22 条已批准请求继续命中，登记差额后本机两项策略通过。源数据 `quality-audit-b120-resource-proof.json`。 [资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+准确构建复量 67 条静态资源和十组首屏。相对上一候选，既有工作台脚本及六组工作台冷加载各增 75 B，项目选择中英文冷、热均增 99 B，热量相对主干仍减少 53／58 B。现有 22 条已批准请求继续命中，登记差额后本机两项策略通过。源数据 `quality-audit-b120-resource-proof.json`。 资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 隔离 Home 九份通知消费者文件共 31 项通过，包含多窗口、切项目、不可见窗格、无新数据时保持安静、404 与断线退避、真实位置菜单与批准后的读回、Home 停止失败和显式重试。另有五份服务与边界文件 35 项通过，核实际撤权和取消后的业务写入。完整生产构建、健康与 Goals 52 份记录逐项相符。后者整文件 56 项通过，两个原录制入口默认跳过。日志 `quality-audit-b120-attention-{build,consumers,server}.log`、`quality-audit-b120-{health,goals-golden-browser}.log`。
 
@@ -1635,7 +1635,7 @@ Workbench 在每次同地址读取完成后的半秒归并被动提示。期间�
 
 主干代码按前三行选取富文本，副本省下完整原文及着色数据。组合版沿这一实现过滤仅用于着色的节点变化。回执的收起继续识别原工作、轮次、消息组成的回复 ID。插入真实富文本、源文字变化或另一条回复进入时更新预览。长代码测试记录到着色完成的最后一帧，保留首见全文、后续分片颜色、完整复制及同一预览节点的断言，也从原按钮打开对话核读完整结果。 [回执绘制与观察](../../apps/workbench/src/browser/work-task-panel.ts#L78) · [QEA-203](../../tests/code-scale.e2e.test.ts#L262)
 
-两套独立构建以 `f1e875d11e` 实测 67 条静态资源及十组首屏，登记后两项均通过。工作台脚本净增 5,264 B，旧已验额度外需补登记 27 B。相对前一打包版 `97a60acd51`，工作台脚本与六组工作台冷量各增 705 B，其中主干预览的预算为 678 B。工作台热量相同，项目选择中英文冷量分别相同及减少 1 B。22 条原已批准的请求均匹配。最大单项净增仍是 Git 脚本 8,403 B。日志 `quality-audit-b122-resource-proof.json`。 [该批资源登记](../../tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json)
+两套独立构建以 `f1e875d11e` 实测 67 条静态资源及十组首屏，登记后两项均通过。工作台脚本净增 5,264 B，旧已验额度外需补登记 27 B。相对前一打包版 `97a60acd51`，工作台脚本与六组工作台冷量各增 705 B，其中主干预览的预算为 678 B。工作台热量相同，项目选择中英文冷量分别相同及减少 1 B。22 条原已批准的请求均匹配。最大单项净增仍是 Git 脚本 8,403 B。日志 `quality-audit-b122-resource-proof.json`。 该批资源登记（历史 `tooling/gates/page-asset-allowances/quality-experience-audit-review-catalog.json`，已于第 100 批退役）
 
 当前构建的长代码文件 10/10。新整合的评测和定时执行三份文件 32/32，核对回复判定、业务交付计数、证据及任务拒绝分类。包边界、111 份公开 API、640 项插件动作及 617 项宿主动作、44 个库结构和生成版本均符合源码。日志 `quality-audit-b122-main-services.log`、`quality-audit-b122-reply-consumers.log`。
 

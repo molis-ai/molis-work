@@ -1,6 +1,8 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginCatalogFor } from "./home-side.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
+import { projectPluginJudge } from "./project-action-availability.js";
 
 type Owner = { install_id: string; project_id: string | null; actor_id: string };
 export interface PageTerminalAccess {
@@ -38,8 +40,19 @@ export function pageTerminalOwnership(home?: string) {
       return { async assertPanel(panelId) {
         await page.assertCurrent();
         const owner = owners.get(panelId);
-        if (!owner || owner.install_id !== page.install_id || owner.project_id !== page.project_id || owner.actor_id !== page.actor_id)
+        if (!owner || owner.install_id !== page.install_id || owner.actor_id !== page.actor_id)
           throw new ActionError("actions.forbidden", "终端不属于当前插件页面");
+        if (owner.project_id === page.project_id) return;
+        // A Home-scoped plugin page (`page.project_id === null`) may attach to its own project work terminal
+        // only while that plugin is proven enabled/visible in `owner.project_id`; no catalog or an undecided judge refuses (fails closed).
+        if (page.project_id === null && owner.project_id !== null) {
+          const catalog = pluginCatalogFor(home);
+          const allowed = catalog
+            ? await catalog({ homeDirectory: home }, projects => projectPluginJudge(projects, owner.project_id!, home)(page.plugin_id) === true)
+            : false;
+          if (allowed) return;
+        }
+        throw new ActionError("actions.forbidden", "终端不属于当前插件页面");
       } };
     },
     clear() { owners.clear(); },

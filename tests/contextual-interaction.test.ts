@@ -213,7 +213,7 @@ test("judgment service screens what leaves the machine and records it; recall of
 // What the judgment was asked before the wording could be edited, word for word. The default registered in 设置 › 提示词 must read as this.
 const FROZEN_OPENING = (many: boolean) => `用户在文档里${many ? "选中了几段内容" : "选中了一段内容"}，想对它做一件事。`;
 const FROZEN_FIRST = "先看内容本身是什么：观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。";
-const FROZEN_SECOND = "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
+const FROZEN_SECOND = "再结合所在位置和当前对象，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
 const FROZEN_SURFACE = "助手应该以什么形式参与？如果用户只是在浏览、或者动作已经很明确，选 none。";
 const FROZEN_HINTS = {
   word: "他只选中了一个词：更可能想弄清它的意思或查证它。",

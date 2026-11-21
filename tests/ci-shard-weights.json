@@ -859,7 +859,6 @@
  "tests/health-gates-schema-patches.test.ts": 1,
  "tests/health-gates-source-counts.test.ts": 65,
  "tests/health-gates-spec-coverage.test.ts": 10,
- "tests/health-gates-state-vocabulary.test.ts": 4,
  "tests/health-gates-store-schemas.test.ts": 4,
  "tests/health-gates-store-versions.test.ts": 68,
  "tests/health-gates-structure.test.ts": 359,

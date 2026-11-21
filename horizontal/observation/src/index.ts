@@ -10,4 +10,4 @@ export { ObservationLayer } from "./service.js";
 export { observationSettingOwner, RETENTION_KEY, retentionActions } from "./retention-setting.js";
 export { readRecords, readCoverage, readCoverageGaps } from "./queries.js";
 export { snapshotText } from "./evidence.js";
-export { OBSERVATION_COVERAGE_PLAN } from "./coverage-plan.js";
+export { OBSERVATION_COVERAGE_PLAN, type CoveragePlanEntry } from "./coverage-plan.js";

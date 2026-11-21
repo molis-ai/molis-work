@@ -4,15 +4,16 @@ import type {
   FeedMaterialRecord,
 } from "../../contract/feed.js";
 import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export type Row = Record<string, unknown>;
 
 export function normalizeTitle(value: string): string {
-  return value.trim().slice(0, 300) || "未命名更新";
+  return cutHead(value.trim(), 300) || "未命名更新";
 }
 
 export function normalizeSummary(value: string): string {
-  return value.trim().slice(0, 2_000);
+  return cutHead(value.trim(), 2_000);
 }
 
 export function mapFeedMaterial(row: Row): FeedMaterialRecord {

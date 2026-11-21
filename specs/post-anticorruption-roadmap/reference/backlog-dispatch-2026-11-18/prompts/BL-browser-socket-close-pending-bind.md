@@ -2,7 +2,9 @@
 
 侧栏正在确认该看哪个项目，用户先关了窗口。检查完成后就不该又给已关闭的连接挂上监听。
 
-预计 **2–5 工时**。维护范围为A／宿主与安全。正式交付项为 [93-2](../../batches/93.md#batch-93-item-2)。[原始待办](../../../../backlog/BL-browser-socket-close-pending-bind.md) · [派工总表](../README.md)
+预计 **2–5 工时**。维护范围为A／宿主与安全。正式交付项为 [93-2](../../batches/93.md#batch-93-item-2)。[原始待办](https://github.com/molis-ai/molis-work/blob/3a6f2289a0b526d0496481ee060807c23ed337f3/specs/backlog/BL-browser-socket-close-pending-bind.md) · [派工总表](../README.md)
+
+**已合入，停止派发**。实现见 [#2149](https://github.com/molis-ai/molis-work/pull/2149)，复核见 [第 93 批](../../batches/93.md)，销号见 [Backlog 结清记录](../../../../../docs/backlog-removed.md)。
 
 ## 可复制的开工 Prompt
 

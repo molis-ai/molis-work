@@ -5,7 +5,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
-import { ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
+import { currentInstalledPluginHost, ensureInstalledPlugins, runningInstalledPluginPlatform } from "./installed-plugin-host.js";
 import { installedPluginEntries, installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
@@ -245,22 +245,34 @@ export function observedHomePlugins(homePlugins: HomePluginHost): InstalledPlugi
     .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageError(record.plugin_id, "code") }));
 }
 
+async function reconcileOpenDualProjectHalves(source: ProjectPluginHost | undefined, pluginId: string, action: "regrant" | "disable" | "enable" | "uninstall", permission?: string): Promise<void> {
+  if (!source?.options.homeDirectory) return;
+  for (const project of source.host.projects()) {
+    await source.host.withExistingRuntime(project, async runtime => {
+      const installed = currentInstalledPluginHost(runtime.store, runtime.project_id);
+      if (installed) await installed.reconcileDualHalf(pluginId, action, permission);
+    }).catch(() => undefined);
+  }
+}
+
 /**
  * Switches a package installed in the Home off or on, or takes it off (BL-715), for the Host settings door: only an installation that came from
  * a signed package (a plugin of the Host's build or a fixture is not reached here). Answers the state it is in afterwards.
  */
 export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall",
-  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }, caller?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<PackageControlOutcome> {
+  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }, caller?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>, source?: ProjectPluginHost): Promise<PackageControlOutcome> {
   if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
   await homePlugins.ready();
   // An uninstall finds and checks its row itself, a finished one named again included (BL-915).
   if (action !== "uninstall" && !homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
+  const wasDual = homePlugins.dualInstance(pluginId);
   const retained = await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} } : {}, caller);
+  if (wasDual || homePlugins.dualInstance(pluginId)) await reconcileOpenDualProjectHalves(source, pluginId, action);
   return controlOutcome(homePlugins.installation(pluginId)?.state ?? "uninstalled", retained);
 }
 
 /** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */
-export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void> {
+export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget, source?: ProjectPluginHost): Promise<void> {
   const platform = await homePlugins?.ready();
   const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
   if (!platform || !record || !homePlugins?.manifest(record.plugin_id)) {
@@ -268,6 +280,9 @@ export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined,
   }
   assertPermissionSwitchTarget(record, expected);
   await platform.runtime.regrant(installId, permission, granted);
+  if (!granted && homePlugins.dualInstance(record.plugin_id)) {
+    await reconcileOpenDualProjectHalves(source, record.plugin_id, "regrant", permission);
+  }
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

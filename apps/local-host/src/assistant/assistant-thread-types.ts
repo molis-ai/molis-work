@@ -1,5 +1,6 @@
 import type { AssistantReplyTarget, AssistantThreadContext, AssistantThreadDraft } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialParts } from "./assistant-material-parts.js";
 
 export interface AssistantThreadRound {
   request_id: string;
@@ -28,8 +29,8 @@ export interface ThreadReplyStatus {
 
 /** Discussion rounds consume only the owner-frozen snapshot; ordinary work memories and method catalogs stay out. */
 export function threadReplyMaterials(round: AssistantThreadRound) {
-  const text = round.context.text, count = Math.max(1, Math.ceil(text.length / 18000));
-  return { materials: Array.from({ length: count }, (_, index) => ({
-    material_id: `thread-${round.attempt_id}-${index}`, title: `${round.context.title} · 原评论上下文${round.context.truncated ? "（节选）" : ""} (${index + 1}/${count})`,
-    text: text.slice(index * 18000, (index + 1) * 18000) })), told: { undos: [] as string[], unsettled: [] as string[] } };
+  const parts = materialParts(round.context.text);
+  return { materials: parts.map((text, index) => ({
+    material_id: `thread-${round.attempt_id}-${index}`, title: `${round.context.title} · 原评论上下文${round.context.truncated ? "（节选）" : ""} (${index + 1}/${parts.length})`,
+    text })), told: { undos: [] as string[], unsettled: [] as string[] } };
 }

@@ -81,10 +81,10 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-form label, .goal-event-document .event-form fieldset { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .goal-event-document .event-form label > span, .goal-event-document .event-form legend { font-size: 12px; font-weight: 400; }
   /* The closure's deliverables, wherever the form opens (the Goal document or the workspace's side panel). */
-  .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
-  .closure-deliverables [data-closure-deliverable-list] label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-weight: 400; }
-  .closure-deliverables [data-closure-deliverable-list] input[type="checkbox"] { width: auto; margin: 0; padding: 0; }
-  .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); white-space: nowrap; }
+  .goal-event-document .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
+  .goal-event-document .closure-deliverables [data-closure-deliverable-list] label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-weight: 400; }
+  .goal-event-document .closure-deliverables [data-closure-deliverable-list] input[type="checkbox"] { width: auto; margin: 0; padding: 0; }
+  .goal-event-document .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); white-space: nowrap; }
   .goal-event-document .event-form small, .goal-event-document .form-lead, .goal-event-document .form-note { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-form input, .goal-event-document .event-form select, .goal-event-document .event-form textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); color: var(--ink); }
   .goal-event-document .check-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }
@@ -117,54 +117,50 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
     .goal-layout { grid-template-columns: 326px minmax(0, 1fr) !important; }
   }
   @container goal-event-read (max-width: 680px) {
-    .title-row { flex-direction: column; align-items: stretch; }
-    .header-actions { justify-content: flex-start; }
+    .goal-event-document .title-row { flex-direction: column; align-items: stretch; }
+    .goal-event-document .header-actions { justify-content: flex-start; }
     .goal-layout { grid-template-columns: minmax(0, 1fr) !important; }
-    .timeline-pane { border-right: 0; }
+    .goal-event-document .timeline-pane { border-right: 0; }
     .goal-layout.is-showing-detail .timeline-pane, .goal-layout:not(.is-showing-detail) .detail-pane { display: none !important; }
-    .detail-toolbar .mobile-back { display: inline-flex !important; }
-    .overview-grid { display: none !important; }
-    .overview-toggle { display: inline-flex !important; }
-    .overview-mobile-next { display: block !important; color: var(--blue); font-size: 11px; margin-top: 8px; }
+    .goal-event-document .detail-toolbar .mobile-back { display: inline-flex !important; }
+    .goal-event-document .overview-grid { display: none !important; }
+    .goal-event-document .overview-toggle { display: inline-flex !important; }
+    .goal-event-document .overview-mobile-next { display: block !important; color: var(--blue); font-size: 11px; margin-top: 8px; }
     .goal-overview.is-expanded .overview-grid { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 12px; }
     .goal-overview.is-expanded .overview-mobile-next { display: none; }
-    .overview-lead { font-size: 12px; }
-    .event-form .button.primary { width: 100%; }
-    .composer-bottom { flex-direction: column; align-items: stretch; }
-    .event-form input, .event-form select, .event-form textarea { font-size: 16px; }
-    .draft-form-row, .draft-list-grid, .decomposition-editor > div, .criterion-editor-grid, .draft-aux-form { grid-template-columns: minmax(0, 1fr) !important; }
-    .draft-list-grid label:last-child, .draft-aux-wide { grid-column: 1; }
-    .criteria-editor > header, .draft-contract-form > footer { align-items: stretch; flex-direction: column; }
-    .criteria-editor > header button, .draft-contract-form > footer button { align-self: stretch; }
-    .goal-edit-disclosure, .draft-editor-section { margin-left: 0; }
-    .timeline-entry { min-height: 56px; }
-    .event h2 { font-size: 17px; }
+    .goal-event-document .overview-lead { font-size: 12px; }
+    .goal-event-document .event-form .button.primary { width: 100%; }
+    .goal-event-document .composer-bottom { flex-direction: column; align-items: stretch; }
+    .goal-event-document .event-form input, .goal-event-document .event-form select, .goal-event-document .event-form textarea { font-size: 16px; }
+    .goal-edit-disclosure { margin-left: 0; }
+    .goal-event-document .timeline-entry { min-height: 56px; }
+    .goal-event-document .event h2 { font-size: 17px; }
   }
 
   .goal-event-document .detail-pane:has(> .event-form:not([hidden])) > .detail-toolbar { display: none; }
-  .event-form-heading { flex: none; padding: 12px 24px 12px; max-height: 35%; overflow: auto; }
+  .goal-event-document .event-form-heading { flex: none; padding: 12px 24px 12px; max-height: 35%; overflow: auto; }
   .goal-event-document .event-form-heading :is(h2,h3) { margin: 0; font-size: 17px; line-height: 1.4; }
-  .event-form-heading .form-lead { margin: 8px 0 0; line-height: 1.6; }
-  .event-form-heading > button { margin-bottom: 8px; }
-  .event-form-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 12px; padding: 4px 24px 16px; }
-  .event-form-body > * { flex-shrink: 0; }
-  .event-form-body textarea { max-height: 260px; resize: vertical; }
-  .event-form-bottom { flex: none; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--paper); }
-  .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; max-height: min(22dvh,120px); overflow: auto; }
+  .goal-event-document .event-form-heading .form-lead { margin: 8px 0 0; line-height: 1.6; }
+  .goal-event-document .event-form-heading > button { margin-bottom: 8px; }
+  .goal-event-document .event-form-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 12px; padding: 4px 24px 16px; }
+  .goal-event-document .event-form-body > * { flex-shrink: 0; }
+  .goal-event-document .event-form-body textarea { max-height: 260px; resize: vertical; }
+  .goal-event-document .event-form-bottom { flex: none; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--paper); }
+  .goal-event-document .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; max-height: min(22dvh,120px); overflow: auto; }
   /* The bottom strip already spaces the actions; the shared form footer's own padding doubled it (70px for a 44px row). */
   .goal-event-document .event-form-bottom > .event-form-actions { padding: 0; }
   /* On a very short window the fields come first: the lead under the form title gives way (390×500 left 45px of fields). */
   @media (max-height: 560px) { .goal-event-document .event-form-heading .form-lead { display: none; } }
-  .event-form[aria-busy=true] .event-form-body { animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both; }
-  @media (prefers-reduced-motion: reduce) { .event-form[aria-busy=true] .event-form-body { animation-duration: 0s; } }
+  .goal-event-document .event-form[aria-busy=true] .event-form-body { animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  @media (prefers-reduced-motion: reduce) { .goal-event-document .event-form[aria-busy=true] .event-form-body { animation-duration: 0s; } }
   .goal-event-document .event-conflict:not([hidden]) { flex: none; max-height: 25dvh; overflow: auto; }
   .goal-event-document .event-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; margin: 0; }
   @media (max-width: 760px) {
-    .event-form-heading { padding: 16px 16px 12px; }
-    .event-form-body { padding: 4px 16px 16px; }
-    .event-form-bottom { padding: 12px 16px; }
+    .goal-event-document .event-form-heading { padding: 16px 16px 12px; }
+    .goal-event-document .event-form-body { padding: 4px 16px 16px; }
+    .goal-event-document .event-form-bottom { padding: 12px 16px; }
   }
-  .event-form-help { color: var(--muted); font-size: 12px; line-height: 1.6; }
-  .event-form-actions .mw-btn { min-height: 36px; }
-  @media (max-width: 760px) { .event-form-actions .mw-btn { min-height: 44px; } }
+  .goal-event-document .event-form-help { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .goal-event-document .event-form-actions .mw-btn { min-height: 36px; }
+  @media (max-width: 760px) { .goal-event-document .event-form-actions .mw-btn { min-height: 44px; } }
 `;

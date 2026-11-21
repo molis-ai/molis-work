@@ -26,6 +26,17 @@ export declare const SANDBOX_INTEGRATION_OPERATIONS: {
 
 export declare const SANDBOX_INTEGRATION_SOURCE_SLOT = "source";
 
+export type SandboxActionProtocol = {
+    kind: 'placement_relation';
+    relation: string;
+    role: import("platform/placement").PlacementRelationRole;
+    target?: import("platform/placement").PlacementRelationTarget;
+    subject_kinds?: readonly string[];
+} | {
+    kind: 'settings';
+    role: 'read' | 'write';
+};
+
 export interface SandboxAttachmentPart {
     data_base64: string;
     byte_length: number;
@@ -59,6 +70,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
     input: SandboxSchema;
     output: SandboxSchema;
     read_protocol?: never;
+    action_protocol?: never;
     start?: SandboxOperationStart;
     trusted_review?: {
         readonly reader: string;
@@ -336,7 +348,7 @@ export interface SandboxNetworkResponse {
     body: string;
 }
 
-export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;
+export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation | SandboxProtocolOperation;
 
 export interface SandboxOperationExample {
     input: SandboxJson;
@@ -409,6 +421,7 @@ export interface SandboxPluginContract {
     };
     operations: SandboxOperationContract[];
     presentation?: PresentationDeclaration;
+    settings_entries?: SandboxSettingsDeclaration;
     entities: Array<{
         id: string;
         schema: SandboxSchema;
@@ -436,9 +449,21 @@ export interface SandboxPluginContract {
     }>;
 }
 
+export interface SandboxProtocolOperation extends SandboxOperationFields {
+    kind: 'query' | 'command';
+    action_protocol: SandboxActionProtocol;
+    read_protocol?: never;
+    input: ActionSchema;
+    output: ActionSchema;
+    background_job?: never;
+    trusted_review?: never;
+    start?: never;
+}
+
 export interface SandboxReadOperation extends SandboxOperationFields {
     kind: 'query';
     read_protocol: SandboxReadProtocol;
+    action_protocol?: never;
     input: ActionSchema;
     output: ActionSchema;
     background_job?: never;
@@ -454,6 +479,12 @@ export type SandboxReadProtocol = {
     subject_kinds: readonly string[];
 } | {
     kind: 'presentation_overview';
+} | {
+    kind: 'resume_summary';
+    subject_kinds: readonly string[];
+} | {
+    kind: 'work_terminal_prompt';
+    subject_kind: string;
 };
 
 export interface SandboxSchema {
@@ -576,6 +607,12 @@ export interface SandboxSdk {
 }
 
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+
+export interface SandboxSettingsDeclaration {
+    readonly entries: import("@molis-ai/molis-work-contracts/platform/settings").SettingEntryDeclaration[];
+    readonly read_operation: string;
+    readonly write_operation: string;
+}
 
 export type SandboxSqlRow = {
     [column: string]: SandboxSqlValue;

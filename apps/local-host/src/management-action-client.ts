@@ -12,7 +12,7 @@ import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import { bindGoalsManagementActions, goalsManagementContext, managementInputFields, requireManagementDefinition, type GoalsActionReference, type GoalsManagementActions } from "./goal-callers.js";
+import { bindManagementActions, managementContext, managementInputFields, requireManagementDefinition, type ManagementActionReference, type ManagementActions } from "./management-actions.js";
 
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 
@@ -58,7 +58,7 @@ export function upgradeOlderCatalog(home: string, upgrade: () => void): void {
   if (still) throw upgradeFailedRefusal(typeof still.details?.path === "string" ? still.details.path : "projects/catalog.db", "still_pending", "这个库升级没有成功，已放回升级之前的样子。");
 }
 
-function reviewOperation(reference: GoalsActionReference): keyof typeof trustedReviewActions | undefined {
+function reviewOperation(reference: ManagementActionReference): keyof typeof trustedReviewActions | undefined {
   return (Object.keys(trustedReviewActions) as Array<keyof typeof trustedReviewActions>).find(name => {
     const action = trustedReviewActions[name];
     return action.capability_id === reference.capability_id && action.version === reference.version;
@@ -71,10 +71,10 @@ function reviewOperation(reference: GoalsActionReference): keyof typeof trustedR
  */
 export interface ReviewManagementActions {
   readonly project_id: string;
-  invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output>;
+  invoke<Output = unknown>(reference: ManagementActionReference, input: object, evidence?: unknown): Promise<Output>;
 }
 
-function requireReview(reference: GoalsActionReference, evidence: unknown): keyof typeof trustedReviewActions {
+function requireReview(reference: ManagementActionReference, evidence: unknown): keyof typeof trustedReviewActions {
   const name = reviewOperation(reference);
   if (!name) throw new ActionError("actions.forbidden", "命令行只提供平台的审阅操作");
   if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
@@ -82,27 +82,27 @@ function requireReview(reference: GoalsActionReference, evidence: unknown): keyo
 }
 
 /** The resident's port, narrowed to the review operations before anything is sent. */
-export function reviewOnly(port: Pick<GoalsManagementActions, "project_id" | "invoke">): ReviewManagementActions {
-  return { project_id: port.project_id, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+export function reviewOnly(port: Pick<ManagementActions, "project_id" | "invoke">): ReviewManagementActions {
+  return { project_id: port.project_id, async invoke<Output>(reference: ManagementActionReference, input: object, evidence?: unknown) {
     requireReview(reference, evidence);
     return await port.invoke<Output>(reference, input);
   } };
 }
 
-/** The command line's standalone local entry: the protected review entry on the bound project, and no Goals port at all. */
+/** The command line's standalone local entry: the protected review entry on the bound project, and no plugin management port at all. */
 export function bindStandaloneReviewActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): ReviewManagementActions {
-  return { project_id: project.project_id, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+  return { project_id: project.project_id, async invoke<Output>(reference: ManagementActionReference, input: object, evidence?: unknown) {
     const name = requireReview(reference, evidence);
     return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;
   } };
 }
 
 /** The previously authorized standalone local entry of the management MCP. Production MCP forwards only to the resident. */
-export function bindStandaloneManagementActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): GoalsManagementActions {
-  const goals = bindGoalsManagementActions(host.actionClient(project), project, { signal });
-  return { ...goals, async invoke<Output>(reference: GoalsActionReference, input: object, evidence?: unknown) {
+export function bindStandaloneManagementActions(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal?: AbortSignal): ManagementActions {
+  const port = bindManagementActions(host.actionClient(project), project, { signal });
+  return { ...port, async invoke<Output>(reference: ManagementActionReference, input: object, evidence?: unknown) {
     const name = reviewOperation(reference);
-    if (!name) return goals.invoke<Output>(reference, input, evidence);
+    if (!name) return port.invoke<Output>(reference, input, evidence);
     if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
     return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;
   } };
@@ -112,11 +112,11 @@ export function bindStandaloneManagementActions(host: MolisWorkLocalHost, projec
 export function residentManagementActions(options: {
   home: string; origin: string; controlToken?:string; databasePath: string; projectId: string; signal?: AbortSignal;
   ensureResident?(): Promise<void>;
-  fallback(): Pick<GoalsManagementActions, "invoke">;
-}): GoalsManagementActions {
+  fallback(): Pick<ManagementActions, "invoke">;
+}): ManagementActions {
   const origin = residentHostOrigin(options.origin);
   let delivered = false;
-  return { project_id: options.projectId, fields: managementInputFields, async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
+  return { project_id: options.projectId, fields: managementInputFields, async invoke<Output = unknown>(reference: ManagementActionReference, input: object, evidence?: unknown): Promise<Output> {
     options.signal?.throwIfAborted();
     if (options.ensureResident) {
       const review = reviewOperation(reference);
@@ -125,7 +125,7 @@ export function residentManagementActions(options: {
         if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
         assertActionInput(schema, input);
       } else {
-        goalsManagementContext(options.projectId, reference, input, evidence, options.signal);
+        managementContext(options.projectId, reference, input, evidence, options.signal);
         assertActionInput(requireManagementDefinition(reference).action.input_schema, input);
       }
       await options.ensureResident(); options.signal?.throwIfAborted();

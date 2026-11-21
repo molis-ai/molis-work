@@ -78,6 +78,15 @@ test("SYS-15 S-47 page authority allows declared routes and refuses other plugin
     assert.equal(response.status, 403, `${path}: ${await response.text()}`);
   }
   assert.equal((await f.request("/api/host/directory-grants", { method: "POST", body: { plugin_id: a.id }, headers })).status, 403, "undeclared directory permission");
+  // S-plugin-page-person-routes: a plugin page cannot write another plugin's settings, the project's guidance, or drive work terminals as the person.
+  for (const [path, body] of [
+    ["/api/settings/plugin-entries/write", { plugin_id: b.id, key: "k", layer: "home", change: { set: "x" }, expected_revision: "1", request_id: "r" }],
+    ["/api/project-guidance", { kind: "context", content: "from a plugin page" }],
+    [`/api/work-terminals/${b.id}/item/one`, { runtime: "codex" }],
+  ] as const) {
+    const response = await f.request(path, { method: "POST", body, headers });
+    assert.equal(response.status, 403, `${path}: ${await response.text()}`);
+  }
   assert.equal((await f.request(`/api/plugins/${a.id}/state`, { headers: { "x-molis-plugin-page": "invented" } })).status, 403);
   await grantHomeProbe(f.host, a);
   assert.equal((await f.request(`/api/plugins/${a.id}/state`, { headers })).status, 403, "same installation after activation restart");
@@ -811,4 +820,19 @@ test("S-skill-authoring a plugin page cannot call the authored Skills routes thr
       body: { draft_id: "d", revision: 1, target: { kind: "new" }, scope: "project", intent: "i", instruction: "i", skill_id: "s" } });
     assert.equal(response.status, 403, `${route}: ${await response.text()}`);
   }
+});
+
+test("P1-D2 S-47 declared project page route surfaces stageErrorsOf HTTP status instead of 200 HTML shell", async t => {
+  const f = await serveHomeRuntime(t, {
+    actionAvailability: (_caller, view) => view.capability_id === "goals.stage.read"
+      ? { available: false, code: "actions.forbidden", kind: "forbidden", reason: "目标舞台读取被拒绝" }
+      : { available: true },
+  });
+  const project = await f.project("Denied stage page", ["goals"]);
+  const response = await f.request(`/projects/${project.project_id}/archive`, {
+    headers: { accept: "text/html" },
+  });
+  assert.equal(response.status, 403, await response.clone().text());
+  const body = await response.json() as { code?: string; error?: string };
+  assert.equal(body.code, "actions.forbidden");
 });

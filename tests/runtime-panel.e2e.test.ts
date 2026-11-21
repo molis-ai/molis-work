@@ -52,12 +52,18 @@ const FAKE_DESKTOP = `(() => {
 const STUB_HOME_ROUTES = `(() => {
   if (location.pathname !== "/") return;
   const posted = []; let overview = ${JSON.stringify({ ...OVERVIEW, missed: [missed("m1", -3)], expired: EXPIRED })};
+  let staleSeenOnce = true;
+  let overviewReads = 0;
   globalThis.__posted = posted;
+  globalThis.__overviewReads = () => overviewReads;
   const original = globalThis.fetch.bind(globalThis);
   globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input.url, location.origin);
-    const answer = body => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-    if (url.pathname === "/api/runtime/overview") return answer(overview);
+    const answer = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (url.pathname === "/api/runtime/overview") {
+      overviewReads += 1;
+      return answer(overview);
+    }
     if (url.pathname === "/api/runtime/runs/decide") {
       const body = JSON.parse(init.body); posted.push({ body, key: new Headers(init.headers).get("x-molis-work-idempotency-key") });
       overview = { ...overview, missed: overview.missed.filter(row => row.run_id !== body.run_id) };
@@ -65,8 +71,13 @@ const STUB_HOME_ROUTES = `(() => {
     }
     if (url.pathname === "/api/runtime/expired/seen") {
       const body = JSON.parse(init.body); posted.push({ body, key: new Headers(init.headers).get("x-molis-work-idempotency-key") });
+      if (staleSeenOnce) {
+        staleSeenOnce = false;
+        overview = { ...overview, expired: { ...overview.expired, through: "2026-11-12T09:05:00.000Z" } };
+        return answer({ applied: false, code: "runtime.expired_summary_stale", error: "这份汇总已失效，请刷新后再确认" }, 409);
+      }
       overview = { ...overview, expired: { count: 0, through: body.through, sources: [] } };
-      return answer({ seen_through: body.through });
+      return answer({ applied: true, seen_through: body.through });
     }
     return original(input, init);
   };
@@ -90,12 +101,15 @@ test("RES-10 RES-11 the Home's missed notice and 设置 › 运行", { timeout: 
   await waitFor(`document.querySelector('[data-runtime-panel] .mw-alert--success')`);
   assert.deepEqual(await evaluate(`globalThis.__posted.map(entry => entry.body)`), [{ scope_project_id: "p1", provider_id: "schedule", run_id: "m1", decision: "skip" }]);
   assert.equal(await evaluate(`typeof globalThis.__posted[0].key === "string" && globalThis.__posted[0].key.length > 0`), true, "sent as every page's writes are, with a one-time key");
-  // BL-missed-runs-never-expire: the Home says the same summary in the catalog's alert, and 「知道了」 goes to the Host's route.
+  // BL-missed-runs-never-expire: a 409 stale summary reloads overview instead of hiding the banner; confirming the refreshed summary hides it.
   assert.equal(await evaluate(`document.querySelector('[data-runtime-panel] [data-runtime-expired] > strong').textContent`), await text("expired", { count: 3 }));
   assert.equal(await evaluate(`document.querySelector('[data-runtime-expired-seen]').className.includes('mw-btn--secondary')`), true, "知道了 is a quiet button");
   await evaluate(`document.querySelector('[data-runtime-expired-seen]').click()`);
+  await waitFor(`globalThis.__overviewReads() >= 2 && document.querySelector('[data-runtime-expired-seen]')?.dataset.runtimeExpiredSeen === '2026-11-12T09:05:00.000Z'`);
+  assert.equal(await evaluate(`Boolean(document.querySelector('[data-runtime-panel] [data-runtime-expired]'))`), true, "409 reloads instead of optimistically hiding banner");
+  await evaluate(`document.querySelector('[data-runtime-expired-seen]').click()`);
   await waitFor(`!document.querySelector('[data-runtime-panel] [data-runtime-expired]')`);
-  assert.deepEqual(await evaluate(`globalThis.__posted.at(-1).body`), { through: EXPIRED.through });
+  assert.deepEqual(await evaluate(`globalThis.__posted.at(-1).body`), { through: "2026-11-12T09:05:00.000Z" });
 
   // ---- RES-11: 设置 › 运行 is the desktop's ----
   await navigate(() => command("Page.navigate", { url: `${origin}/settings/running` }, sessionId));

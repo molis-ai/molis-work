@@ -145,5 +145,8 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
       requestHash: () => "" }).read(project.project_id).entries[0]?.content), "保留恢复记录。");
     const deniedPrompt = await request(promptPath, {});
     assert.ok(deniedPrompt.status >= 400); assert.match(await deniedPrompt.text(), /说明停用/);
+    const badEncoding = await request("/api/project-guidance/%E0%A4%A", update);
+    assert.equal(badEncoding.status, 400);
+    assert.equal((await badEncoding.json() as { code?: string }).code, "actions.input_invalid");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

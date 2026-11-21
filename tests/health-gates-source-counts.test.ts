@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile } from "../scripts/gates/source-counts.mjs";
+import { countFile, countPackedStatements } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -79,6 +79,7 @@ before(() => {
   put("packages/alpha/src/named.ts", "export const old = 'GoalBoard';\n");
   put("packages/alpha/src/kept.ts", "export const KEPT_SCRIPT = `keep();`;\n");
   put("packages/alpha/src/ellipses.ts", 'export const a = (s: string) => s.slice(0, 10) + "…";\n');
+  put("packages/alpha/src/packed.ts", "export const p1 = 1; export const p2 = 2;\n");
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -123,6 +124,8 @@ const violations: Scenario[] = [
   { name: "BSH-10 leading template ellipsis in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + 'export const b = (s: string, n: number) => s.slice(0, 3) + `… ${n}`;\n'),
     expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
+  { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
+  { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
 ];
 
 for (const scenario of violations) {
@@ -149,19 +152,36 @@ for (const scenario of violations) {
 test("what the definitions leave out passes against the merge-base", () => {
   branch("allowed", () => {
     put("packages/alpha/src/ok.ts", [
-      "declare const run: () => void; declare const value: object;",
+      "declare const run: () => void;",
+      "declare const value: object;",
       "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
       "export const b = () => { try { run(); } catch (error) { throw new Error(String(error)); } };",
-      "export const c = () => Promise.resolve().catch(() => {});", "export const d = value as unknown;", "export const e = value as any as string;",
+      "export const c = () => Promise.resolve().catch(() => {});",
+      "export const d = value as unknown;",
+      "export const e = value as any as string;",
       "export const f = { dashboard_id: 1, dashboardId: 2, keyboardId: 3, 'goal-board': 4, GOAL_BOARDS_SCHEMA_SQL: 5 };",
-      "export const text = 'value as unknown as string';", "export const cut = (s: string) => s.slice(0, 4);", "// try { run(); } catch {}", ""].join("\n"));
-    // Old names are not read in tests: a test names them to assert that they are refused.
-    put("tests/refuses.test.ts", "export const refused = ['goalboard', 'board_id', 'GoalBoard'];\n");
+      "export const text = 'value as unknown as string';",
+      "export const cut = (s: string) => s.slice(0, 4);",
+      "export const loop = () => { for (let i = 0; i < 3; i++) run(); };",
+      "// try { run(); } catch {}",
+      "",
+    ].join("\n"));
+    // Old names and packed statements are not read in tests.
+    put("tests/refuses.test.ts", "export const refused = ['goalboard', 'board_id', 'GoalBoard']; const x = 1; const y = 2;\n");
     put("tests/fixtures/refuses.ts", "export const refused = ['goalboard', 'board_id'];\n");
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
   assert.doesNotMatch(run.out, /Lower than/, "nothing went down either");
+});
+
+test("Batch 100-2 definition: packedStatements counts sibling statements on the same line across blocks", () => {
+  assert.equal(countPackedStatements("a.ts", "const a = 1;\nconst b = 2;\n"), 0);
+  assert.equal(countPackedStatements("b.ts", "const a = 1; const b = 2;\n"), 1);
+  assert.equal(countPackedStatements("c.ts", "function f(x: number) { if (x) { return 1; } return 2; }\n"), 1);
+  assert.equal(countPackedStatements("d.ts", "function f(x: number) {\n  try { return x; } catch { return 0; }\n}\n"), 0);
+  assert.equal(countPackedStatements("e.ts", "function f(x: number) {\n  switch (x) {\n    case 1: const a = 1; return a;\n    default: return 0;\n  }\n}\n"), 1);
+  assert.equal(countPackedStatements("f.ts", "for (let i = 0; i < 10; i++) {\n  console.log(i);\n}\n"), 0);
 });
 
 test("changes that lower the counts, or only move them, pass against the merge-base", () => {

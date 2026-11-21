@@ -33,7 +33,7 @@ S-15 原章节入口：[调用者](security-invariants/S-15.md#调用者)、[权
 
 ### 内容包签名与安装
 
-本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。
+本人签名、预览的有效期和确认安装见 [S-84](security-invariants/S-84.md)。发布者撤销对本机签名与已装插件的影响见 [S-87](security-invariants/S-87.md)。本机账号环境切换与测试打包隔离（ENV-12/13）见 [S-account-environment-isolation](security-invariants/S-account-environment-isolation.md)。
 
 ## 2. 怎么跑
 
@@ -58,7 +58,7 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 
 ## 4. 开放项（没有守住，或守住的范围有限）
 
-- **桌面 IPC 的可达范围没有实测（F15 的另一半）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/runtime-capabilities/default.json` 现在只把 `native_set_locale` 与 `shelf_*`（胶囊的 `capsule_*` 已随第 44 批删除；含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给核过身份的那个端口（默认 4173）上 `127.0.0.1`/`localhost` 的页面，授权在启动时按端口加上（RES-08），原生 PTY 命令已无消费方并移除（S-14）。插件侧栏的外层同源 iframe 是宿主包装页，插件 HTML 自 #1018 起由 `apps/workbench/src/home-plugin-page.ts` 交给共同的不透明 frame；不能仅凭外层无 `sandbox` 推断插件获得同源权限。D0033 的真实侧栏浏览器探针验证插件不能读取两层可信父页的 DOM/控制令牌、没有原生 IPC 对象，并拒绝跨 owner/项目的桥请求。实际 Tauri WebView 命令可达性与 `tauri.conf.json` 的 `csp: null` 仍须真实桌面构建的 S5 探针；浏览器中的模拟 IPC 不能替代该证据。壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）。D0038 改为 cookie 配对的页面会话后，不再以“页面已经持有控制令牌”推断 IPC 等价；桌面仍只提供已限定的账号桥和一次性附着票据，真实 WebView 的命令可达性仍需 S5 实测。别的本机进程占着 4173 时，桌面不再连它：身份核不过就当没有宿主，自己起的宿主换到 4174–4199 里空的一个，授权也只给那个端口（第 25 批）；LaunchAgent 装的本机服务仍固定在 4173。
+- **桌面 IPC 的可达范围（F15 的另一半，第 102 批 `S5` 真实 macOS WKWebView 实测已补）**：S-14 钉住了能力文件；`apps/desktop/src-tauri/runtime-capabilities/default.json` 现在只把 `native_set_locale` 与 `shelf_*`（胶囊的 `capsule_*` 已随第 44 批删除；含 `platform_read_selected_file`、`shelf_admit_paths` 等）开放给核过身份的那个端口（默认 4173，被占时自动回退 4174–4199；LaunchAgent、CLI 与 Tauri 桌面均已统一按 `run/endpoint.json` + HMAC `/health?challenge=` 协商）上 `127.0.0.1`/`localhost` 的页面，授权在启动时按端口加上（RES-08），原生 PTY 命令已无消费方并移除（S-14）。第 102 批已把 `apps/desktop/src-tauri/tauri.conf.json` 的占位页 CSP 从 `null` 改为严格静态策略（`default-src 'none'; style-src 'self'; script-src 'none'; ...`，无 `'unsafe-inline'`，动态页 `S-21` 仍由 `local-host` HTTP `PAGE_CSP` 守住），并在 `main.rs` 实施分级 `S-14` IPC 校验（全部自定义命令均强制检查 `main` 窗口与活跃端口精确来源，仅显式列举的 6 个低危 UI 命令可复用 2.5s 活跃端口健康租约，其余所有敏感与未知命令一律失败关闭做实时 HMAC 验权）。2026-11-21 在真实 macOS WKWebView 构建（`molis-work-desktop`，隔离临时 `MOLIS_WORK_HOME` + 备选端口）实测 `S5`：① 顶层 `main` 窗口持有 `__TAURI__`，低危 UI 命令复用健康租约放行，越范围的 `runtime_settings_set`（非 `/settings/running`）与非法协议 `open_external_url` 均被拒绝；② 生产同款 `sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"` 插件 `srcdoc` 框在真实 WKWebView 中 `origin === "null"`、无 `__TAURI__` / `__TAURI_INTERNALS__`、无法读取 `parent.document` 或 `parent.__TAURI__`；③ 真实同源 `iframe` 自身不注入 `__TAURI__`（且第 102-1 批将移除工作台 Layer 1 嵌套分屏框）；④ 真实工作台经严格 CSP 占位页无报错跳转至 `/onboarding` 与插件框并加载完整资产。剩余敞口：壳向 Host 换到路径、核对之后到 `open` 之间仍有毫秒级的窗口（文件可能在这一刻被换成链接），没有消除（PG-113）；`S5` 实测依赖真实 macOS 图形会话，尚未纳入 Linux CI。
 - **“是不是本机”在两处不是共用那一份**：桌面壳的 Rust（`apps/desktop/adapters/tauri/src/main.rs`、`context_directories.rs`）是另一种语言；OAuth 代理 Worker（`apps/local-host/cloudflare/worker.ts`）单独用 `wrangler` 打包部署，今天不引用工作区里的任何包，部署步骤（`apps/local-host/cloudflare/README.md`）也不先构建，而 `contracts` 的子路径只导出构建产物。Worker 的那份与共用的那份等价，由 `tests/connector-oauth-broker.test.ts` 逐个写法比对钉住；要合成一份，先要让 Worker 的部署带上构建步骤（它是线上服务，由用户决定）。
 - **`/health` 等 GET 路由没有“只读”断言**：S-03 保证的是变更不绕过令牌，GET 路由是否真的只读靠评审；D0038 经用户选择 D 方案，HTML 只含 cookie 配对的随机 CSRF 证明，宿主控制令牌不进入页面；会话不赋予额外账号、空间、插件或 MCP 身份。同源脚本仍可能借会话请求允许的操作；未实现 E 方案的敏感操作独立确认。没有跨域读的头（宿主不发 `Access-Control-Allow-*`，见 S-03 的测试）。`/locale` 不是只读的：同源页面切语言时写 Home 记录 `config/ui-locale.json`，只认 `Sec-Fetch-Site: same-origin`（S-ui-locale-memory）。这个头挡的是别的网页直接改记录；看不到的部分是本机非浏览器进程能自带这个头，以及别的网页让浏览器顶层跳到 `/locale` 仍能改 Cookie（页面语言变了用户看得见，用户接着发送时回复语言和记录跟着页面走）。
 - **控制令牌文件已存在但权限过宽时不会收紧**：新文件是 0600（S-06），旧文件（别的版本或手工放的）原样沿用。处理需要用户定：沿用并收紧权限、或换新令牌（换新令牌会让常驻服务与 MCP 进程重连）。
@@ -70,14 +70,8 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 - **本机页面只挡本进程知道的监听口**：S-44 拒的是本进程的 Web 入口和它起的浏览器的调试口；另一个 Home 的宿主、桌面壳自己的监听口、本机上不相干的程序开的端口，进程无从得知，不在内。这些端口上的页面能不能被读，由人授予 `materials:fetch_local` 时一并承担，申请理由要写给人看（平台权限的人话说明见 BL-353）。
 - **早先卸载留下的连接绑定**：BL-596 之前卸载的插件，按安装的槽和 Home 安装分在各项目名下的按记录绑定没有删；现在它们在下一次删项目时被一并清掉（见 S-71）。装在没有登记进 Home 目录的项目里的安装（独立库）`heldInstalls` 看不到，不算别处装着。账号本身不动。
 - **原始文件头没有网页之外的证明**：S-45 靠的是网页脚本设不了 `Sec-` 头、且网页发的请求一定带 `Sec-Fetch-*`。握着控制令牌、不是浏览器的本机客户端可以自己带这个头，信任级别和它今天凭令牌就能做的事相同，没有变宽。「没有 `Sec-Fetch-*`」不当作肯定的证据（旧的 WKWebView 可能不发），只当作必要条件；桌面壳（Rust）发这个头、导入请求不再把路径放进请求体，是 Shelf 迁移 S2 的事，在它之前没有调用方。
-- **Goals 被拒时，宿主直接读它的表的路径不先查拒绝（S-46）**：建看板的路径先抛拒绝，Goals 的动作不进目录；但宿主自己读 Goals 表的几处还照常读：成果、端口与页面上显示的 Goal 标题（`apps/local-host/src/artifact-actions.ts`、`project-plugin-ports.ts`、`web-request.ts`），Goal 页面（`web-goals-read.ts`），收件箱按 Goal 的决定同步（`goalDecisionAttention.reconcile`），以及演示数据。被拒时这几处读到的是已不归 Goals 的那份表（或形状不对的表）；它们不写 Goals 的表，但收件箱同步会按读到的决定开关收件箱条目。Goals 装成普通插件（S9）以后这些读取改走它的动作，随之守住。
+- **Goals 私有表直接读取已于第 44 批清零（原 S-46 开放项已关闭）**：第 44 批已删除宿主 `web-goals-read.ts`、`goal-callers.ts` 及全部宿主直读 Goals 表的私路；Goals 现为普通项目插件，成果链接标题、页面、项目简介与收件箱均改走公开动作目录与插件自身声明，Goals 停用或被拒时其动作不进入目录，不再存在绕过拒绝的直读路径。
 - **沙箱项目库的内存按进程采样，写事务仍短暂占有共享库写锁（S-59）**：SQLite 内存不在 V8 堆内，Node 自带的 SQLite 编译时关了内存统计（`DEFAULT_MEMSTATUS=0`），`hard_heap_limit` 不生效（2026-11-08 在官方 24.15.0 上实测，切换驱动前也一样）。子进程控制器用 `process.memoryUsage.rss()` 每 50 毫秒采样所有 isolate 与原生分配，超过 256 MB 结束整个进程，不依赖 `ps`。两次采样之间可能超限；单个值可能先在 SQL Worker 内构造，结果字节检查保证它不会再送给 Host，不保证构造前拒绝。Host 同步写等锁时，子进程控制器仍能按 BEGIN 到 COMMIT 的 3 秒总时限结束它并释放锁（另有操作系统调度延迟），Host 自身的同步写仍会暂时阻塞。反复争锁的吞吐问题未由此解决，仍受 broker 操作频率限制；不宣称写锁等待为零。COMMIT 已发出但响应丢失时，只能报告结果未知，不保证回滚、不自动重试。
 - **审查页没写会跑仓库配置的程序（S-53）**：提交和推送的「执行范围」写明会运行仓库的 hooks；合并、拉取、切分支、建分支并切换会跑 `post-checkout`、`post-merge` 一类 hooks 和检出时的过滤器，放弃合并检出时跑 smudge 过滤器，解决冲突跑这个文件的 clean 过滤器和 `post-index-change`，暂存写暂存区时也跑 `post-index-change`，这些审查页都没写。批准本身守住了（不批准什么也不跑），缺的是批准时看到的说明。补审查文案（连同英文）放在 Git 的审查改成插件动作的那一片做。
 - **列出过滤器和真正执行之间的窗口（S-53）**：读状态及准备、刷新冲突的临时索引前，先列出仓库已配置的过滤器再逐个关掉。后两个步骤即使检查了其他索引条目，也不需要执行这些文件的内容过滤器。`tests/git-operations.test.ts` 的 QEA-162 用实际索引和无关条目验证。建写入者工作树和整合前先查文件用没用过滤器、内容转换，再去执行。两步是两个 Git 进程。中间有进程改了 `.git/config`（或整合时改了目标工作区的 `.gitattributes`），新加的过滤器仍可能执行，前提是有进程能在同一时刻写仓库的 `.git/` 或工作区。
 - **GitHub 的 secret scanning 与 push protection 在这个公开仓库上是关的**：要在仓库设置里开，属于用户的操作（`spec.md` §7）。
-
-### ENV-12/13 本机账号环境切换
-
-源码启动器共用固定回环端口。切换 dev/test 时生成新的凭据作用域；原环境的 Home 文件与凭据记录继续保留，账号所有者只读取当前作用域。关闭原进程仍由原账号所有者撤销在途租约，旧的浏览器附着票据和回调不进入新进程。环境与启动参数不从 HTTP 请求取得。启动器的代次和端口拒绝用例在 `scripts/environment-properties.test.mjs`，账号所有者的迟到请求拒绝沿用 `tests/security-invariants-account-host.test.ts` 与 `tests/personal-http.test.ts`。
-
-测试安装版从打包选择读取独立 Home 和桌面应用标识。测试壳启动、目录授权和升级都使用测试 Home，升级跳过共享常驻服务注册。`tests/release-profile.test.mjs` 核对测试与正式桌面标识和回调。试签载荷的启动验收覆盖 4173 回环监听，并断言调用进程的默认 Home 环境变量不会把宿主指向其他目录。

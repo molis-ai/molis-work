@@ -1,6 +1,6 @@
 import { objectSchema as closed, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, ActionError, WORK_GOAL_PROMOTION_PROTOCOL, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, WORK_ITEM_PROMOTION_PROTOCOL, defineSubjectOffersAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { findGoalPromotionProvider, type FeedGoalPromotionInput, type promoteFeedItemToGoal } from "./goal-promotion.js";
 import type { FeedItemRecord } from "./projection.js";
@@ -38,7 +38,7 @@ export const feedItemActions = {
   promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", /* @version action.feed.items.promote */ 1, "转为目标", "用这条消息新建一个目标并作为它的参考输入（由你本人操作时直接确认，由助理、AI、自动流程或外部工具操作时记为待你确认）；若已有有效关联目标则直接复用",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" } }, required: ["item", "goal_id", "created"] },
-    ["feed:read", "feed:write", "goals:read", "goals:write"], { authorship: "session", required_roles: Object.values(WORK_GOAL_PROMOTION_PROTOCOL) }),
+    ["feed:read", "feed:write", "goals:read", "goals:write"], { authorship: "session", required_roles: Object.values(WORK_ITEM_PROMOTION_PROTOCOL) }),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
 

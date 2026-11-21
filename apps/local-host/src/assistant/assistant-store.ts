@@ -14,6 +14,7 @@ import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
 import { AssistantObservedStates } from "./assistant-observed-states.js";
 import type { AssistantCardChoice, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import { CONVERSATION_ATTACHMENT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/services/materials";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { eachListener } from "../host-log.js";
 import { attentionChanged } from "../attention-changes.js";
@@ -228,6 +229,7 @@ export class AssistantStore {
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
+  #closed = false;
   readonly preferences: AssistantSettingRecords;
   readonly policies: AssistantActionPolicies;
   readonly permissionTransitions = new AssistantPermissionTransitions();
@@ -479,16 +481,52 @@ export class AssistantStore {
     return this.list(actorId, { archived, limit: 500 }).filter(work => parent.graph_id !== undefined && work.delegated_by?.graph_id === parent.graph_id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
+  /** Whether any stored work or round currently references this conversation attachment subject id. */
+  referencesAttachment(subjectId: string): boolean {
+    const pattern = `%"${subjectId.replace(/[\\%_]/g, character => `\\${character}`)}"%`;
+    const visit = (value: unknown): boolean => {
+      if (Array.isArray(value)) return value.some(visit);
+      if (!value || typeof value !== "object") return false;
+      const ref = value as Partial<{ subject?: { kind?: unknown; id?: unknown } }>;
+      if (ref.subject?.kind === CONVERSATION_ATTACHMENT_SUBJECT_KIND && ref.subject.id === subjectId) return true;
+      return Object.values(value).some(visit);
+    };
+    const matches = (sql: string) => (this.db.prepare(sql).all(pattern) as Array<{ body: string }>).some(row => visit(JSON.parse(row.body)));
+    return matches("SELECT body FROM assistant_works WHERE body LIKE ? ESCAPE '\\'")
+      || matches("SELECT body FROM assistant_rounds WHERE body LIKE ? ESCAPE '\\'");
+  }
 
+  close(): void {
+    if (this.#closed) return;
+    this.#closed = true;
+    this.#changes.clear();
+    this.db.close();
+  }
 }
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
 
+export interface SharedAssistantStore {
+  (): AssistantStore;
+  close(): void;
+}
+
 /** The serving Host and its entry points share one Assistant store and its change notifications. */
-export function assistantStoreFor(home: string): () => AssistantStore {
+export function assistantStoreFor(home: string): SharedAssistantStore {
   let store: AssistantStore | undefined;
-  return () => store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  let closed = false;
+  const open = (() => {
+    if (closed) throw new Error("Assistant store is closed");
+    return store ??= new AssistantStore(openBaselineHomeSqlite(home, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
+  }) as SharedAssistantStore;
+  open.close = () => {
+    closed = true;
+    const current = store;
+    store = undefined;
+    current?.close();
+  };
+  return open;
 }
 
 /** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */

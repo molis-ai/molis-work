@@ -20,20 +20,29 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       selected = goalId;
       rememberMomentumGoal(goalId);
       const tui = document.querySelector("[data-tui-pane]");
-      if (tui) { tui.setAttribute("data-tui-plugin-id", "io.molis.work.goals"); tui.setAttribute("data-tui-subject-kind", "goal"); tui.setAttribute("data-tui-subject-id", goalId); }
-      document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
-        pluginId: "io.molis.work.goals",
-        subjectKind: "goal",
-        subjectId: goalId,
-        title: item.goal.title,
-        status: item.status,
-        statusLabel: item.status_label,
-        statusMeaning: item.status_meaning,
-        statusIconMarkup: item.status_icon,
-        readOnly: item.terminal_read_only || null,
-      } }));
+      const goalsSurface = document.querySelector('[data-work-surface="goals"]');
+      const terminalPluginId = tui?.dataset.tuiPluginId || pluginManifestIds.goals || "";
+      const terminalSubjectKind = tui?.dataset.tuiSubjectKind || "goal";
+      if (tui && terminalPluginId && terminalSubjectKind) {
+        tui.setAttribute("data-tui-plugin-id", terminalPluginId);
+        tui.setAttribute("data-tui-subject-kind", terminalSubjectKind);
+        tui.setAttribute("data-tui-subject-id", goalId);
+      }
+      if (terminalPluginId && terminalSubjectKind) {
+        document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
+          pluginId: terminalPluginId,
+          subjectKind: terminalSubjectKind,
+          subjectId: goalId,
+          title: item.goal.title,
+          status: item.status,
+          statusLabel: item.status_label,
+          statusMeaning: item.status_meaning,
+          statusIconMarkup: item.status_icon,
+          readOnly: item.terminal_read_only || null,
+        } }));
+      }
       document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
-        plugin: "goals",
+        plugin: goalsSurface?.dataset.workSurface || "goals",
         itemId: goalId,
         title: item.goal.title,
       } }));
@@ -103,7 +112,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         .some((form) => form.getClientRects().length > 0 || form.closest("[data-goal-node-workspace]")?.hidden);
       if (dirtyVisibleForm) return true;
       return active?.matches?.('input, textarea, select, [contenteditable="true"]') && Boolean(
-        active.closest?.('[data-directory-panel="sources"], [data-work-surface="feed"], [data-work-surface="sources"]'),
+        active.closest?.('[data-directory-panel]:not([data-directory-panel="root"]):not([data-directory-panel="goals"]), [data-work-surface]:not([data-work-surface="goals"])'),
       );
     };
 

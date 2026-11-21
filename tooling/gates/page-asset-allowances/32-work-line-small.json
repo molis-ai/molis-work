@@ -1,8 +1,0 @@
-{
-  "reason": "第 32 批第一次全量之后的修复：Coding 的代码着色让每段切片撑到最长一行并带上块的行尾留白（VUX-33，coding.js +144）；插件框架脚本把输入框安放的通知（molisWorkBarPlace）接回（plugin-frame.js +24）。都不到 10 KB，没有新增资源。",
-  "review": "分支 batch/32 合入 main 06f86d244d 后本机 `pnpm page-assets:check` 实测：/assets/molis-work-plugins/coding.js 359005 → 359149（+144），/assets/molis-work-plugin-frame.js 309632 → 309656（+24）。许可照实测取整。",
-  "assets": {
-    "/assets/molis-work-plugins/coding.js": 150,
-    "/assets/molis-work-plugin-frame.js": 30
-  }
-}

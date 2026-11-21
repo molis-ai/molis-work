@@ -6,20 +6,49 @@ export async function serveMcpStdio(options: {
   handleMessage(message: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown> | null>;
   input?: Readable;
   output?: Writable;
+  signal?: AbortSignal;
 }): Promise<void> {
-  const input = options.input ?? process.stdin, output = options.output ?? process.stdout;
+  const input = options.input ?? process.stdin;
+  const output = options.output ?? process.stdout;
   const lines = createInterface({ input, crlfDelay: Infinity });
   type Pending = { message: Record<string, unknown>; controller: AbortController; wireError?: Record<string, unknown> };
   const queue: Pending[] = [];
-  let active: Pending | undefined, running = false, ended = false;
+  let active: Pending | undefined;
+  let running = false;
+  let ended = false;
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
-      lines.removeListener("line", onLine); lines.removeListener("close", onClose);
-      input.removeListener("error", fail); output.removeListener("error", fail); lines.close();
+      options.signal?.removeEventListener("abort", onAbort);
+      lines.removeListener("line", onLine);
+      lines.removeListener("close", onClose);
+      input.removeListener("error", fail);
+      output.removeListener("error", fail);
+      lines.close();
     };
-    const stop = () => { ended = true; active?.controller.abort(new Error("MCP input closed")); queue.length = 0; };
-    const fail = (error: unknown) => { stop(); cleanup(); reject(error); };
-    const onClose = () => { stop(); if (!running) { cleanup(); resolve(); } };
+    const stop = (reason = "MCP input closed") => {
+      ended = true;
+      active?.controller.abort(new Error(reason));
+      queue.length = 0;
+    };
+    const fail = (error: unknown) => {
+      stop();
+      cleanup();
+      reject(error);
+    };
+    const onClose = () => {
+      stop();
+      if (!running) {
+        cleanup();
+        resolve();
+      }
+    };
+    const onAbort = () => {
+      stop("MCP server shutting down");
+      if (!running) {
+        cleanup();
+        resolve();
+      }
+    };
     const write = (message: Record<string, unknown>) => new Promise<void>((done, failed) => {
       output.write(JSON.stringify(message) + "\n", error => error ? failed(error) : done());
     });
@@ -67,7 +96,11 @@ export async function serveMcpStdio(options: {
       queue.push({ message, wireError, controller: new AbortController() });
       void drain().catch(error => { if (!ended) fail(error); });
     }
-    lines.on("line", onLine); lines.once("close", onClose);
-    input.once("error", fail); output.once("error", fail);
+    lines.on("line", onLine);
+    lines.once("close", onClose);
+    input.once("error", fail);
+    output.once("error", fail);
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

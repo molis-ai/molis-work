@@ -40,6 +40,35 @@ test('PCSYNC-OPT-01 signed rounds reuse an Auth proof and mutations still check 
  assert.equal((await f.call('/v1/round','bob')).status,401);
 });
 
+test('PCSYNC-OPT-01 key rotation evicts unverifiable cached read proof and re-fetches instead of returning 401',async t=>{
+ const key1=generateKeyPairSync('ed25519'),key2=generateKeyPairSync('ed25519');
+ let activeKey=key1,activeKid='sync-key-1';
+ let publishedJwks=[{...key1.publicKey.export({format:'jwk'}),kid:'sync-key-1',alg:'EdDSA',use:'sig'}];
+ const f=await cloudFixture(t,{signedAuth(request,Response){
+  const {pathname,origin}=new URL(request.url);
+  if(pathname==='/.well-known/molis-sync-jwks.json'){
+   return Response.json({keys:publishedJwks});
+  }
+  assert.equal(pathname,'/api/v2/auth/sync-read-proof');
+  const user=request.headers.get('Authorization')?.slice(7);
+  const iat=Math.floor(Date.now()/1000);
+  const payload={iss:origin,aud:'work',sub:user,iat,exp:iat+30,scope:'molis-sync:read',token_sha256:createHash('sha256').update(user).digest('hex')};
+  const encoded=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
+  const message=encoded({alg:'EdDSA',typ:'molis-sync-read+jwt',kid:activeKid})+'.'+encoded(payload);
+  const signature=sign(null,Buffer.from(message),activeKey.privateKey).toString('base64url');
+  return Response.json({data:{proof:message+'.'+signature}});
+ }});
+ assert.equal((await f.call('/v1/round','alice')).status,200);
+ // Rotate Auth to key2 and drop key1 from JWKS; bob's unknown kid forces the Worker to refresh JWKS to key2-only.
+ activeKey=key2;activeKid='sync-key-2';
+ publishedJwks=[{...key2.publicKey.export({format:'jwk'}),kid:'sync-key-2',alg:'EdDSA',use:'sig'}];
+ assert.equal((await f.call('/v1/round','bob')).status,200);
+ // alice still has a cached unexpired key1 proof; verification fails against key2-only JWKS and must evict & retry once.
+ const afterRotation=await f.call('/v1/round','alice');
+ assert.equal(afterRotation.status,200,'cached proof signed by retired key must evict and re-fetch a valid proof');
+ assert.equal((await afterRotation.json()).policy.spaceId,f.space('alice'));
+});
+
 test('PCSYNC-01/26 round summaries isolate accounts and report ordinary tombstones, never retained archives',async t=>{
  const f=await cloudFixture(t);
  assert.equal((await f.call('/v1/round','invalid')).status,401);assert.equal((await f.call('/v1/round','wrong-app')).status,403);

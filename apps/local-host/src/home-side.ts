@@ -36,6 +36,8 @@ export interface PluginPlatformHome {
   readonly settingsVersionClaims?: SettingsVersionClaims;
   /** Captures the matching Home activation's permission, never exposes that activation to a project. */
   capturePermission(project: PluginInstanceRecord, permission: string): () => void;
+  /** Whether a dual-instance plugin's matching Home half is currently running (S-48, PEQ-06). */
+  dualHomeRunning?(project: PluginInstanceRecord): boolean;
   assertStorageOwner(): StorageOwner;
 }
 
@@ -87,6 +89,9 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
         if (sides.get(directory)?.host.homePlugins !== owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         check();
       };
+    }, dualHomeRunning(project) {
+      const owner = sides.get(directory)?.host.homePlugins;
+      return owner ? owner.dualHomeRunning(project) : false;
     }, assertStorageOwner: homeStorageAssertion(directory) };
 }
 

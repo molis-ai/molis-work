@@ -40,7 +40,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "node scripts/start-account-environment.mjs",
+    "dev": "node scripts/start-account-environment.mjs --env dev",
     "versions:generate": "node scripts/generate-versions.mjs --write",
     "versions:check": "node scripts/generate-versions.mjs --check",
     "preflight": "node scripts/preflight-env.mjs",
@@ -91,7 +91,8 @@
     "desktop:install:macos": "bash apps/desktop/tooling/install-macos-app.sh",
     "desktop:start:macos": "bash apps/desktop/tooling/start-macos-app.sh",
     "molis-work": "tsx apps/desktop/launchers/cli/main.ts",
-    "typecheck:tests": "tsc -p tooling/types/tsconfig.tests.json"
+    "typecheck:tests": "tsc -p tooling/types/tsconfig.tests.json",
+    "typecheck:tests:check": "node scripts/gates/test-typecheck.mjs"
   },
   "dependencies": {
     "@adeptify/intelligence-client": "file:vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",

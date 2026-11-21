@@ -15,7 +15,7 @@ export const SETTINGS_DOCUMENT_STYLES = `
      kept hidden at the end of the card (an error that has not happened) or a template is not it. The rule weighs what
      a plain last-child rule weighed, so a page's own margin on its last block still wins as it did. */
   .mw-settings-section__rows { min-width: 0; padding: 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-card, 12px); background: var(--paper); }
-  .mw-settings-section__rows > :not([hidden], template):where(:not(:has(~ :not([hidden], template)))) { margin-bottom: -1px; }
+  .mw-settings-section__rows > :not([hidden], template, :empty):where(:not(:has(~ :not([hidden], template, :empty)))) { margin-bottom: -1px; }
   .mw-settings-section__note { margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
   /* What a card holds that is not a row (a form, a group under its own small heading): ruled off like a row, on the note's padding. */
   .mw-settings-section__block { min-width: 0; margin: 0; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
@@ -86,7 +86,7 @@ export const SETTINGS_DOCUMENT_STYLES = `
   .mw-object-row__state[data-tone="warning"] { color: var(--tone-attention, var(--amber)); }
   .mw-object-row__state[data-tone="danger"] { color: var(--red); font-weight: var(--weight-control, 500); }
   .mw-object-row__action { grid-area: 1 / 2 / 2 / 3; display: flex; align-items: center; gap: 8px; min-height: 60px; margin-left: 12px; }
-  .mw-object-row__chevron { grid-column: 3; display: grid; margin-left: 12px; color: var(--faint); transition: transform var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  .mw-object-row__chevron { grid-column: 3; display: grid; margin-left: 12px; color: var(--faint); transition: transform var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   .mw-object-row__chevron svg { width: 14px; height: 14px; }
   summary.mw-object-row__head:hover .mw-object-row__chevron { color: var(--ink-soft); }
   .mw-object-row__fold[open] > summary .mw-object-row__chevron { transform: rotate(90deg); color: var(--ink-soft); }

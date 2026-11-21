@@ -47,6 +47,8 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
+import { HomeConsentLedger } from "./home-plugin-store.js";
+import { publisherStanding } from "./installed-publisher-standing.js";
 import { pluginSourcePullFor } from "./plugin-source-pull-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
@@ -149,7 +151,21 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
-    if (options.home) registerWorkTerminalOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id, assertActive });
+    if (options.home) {
+      const currentRecord = readRecord();
+      const standing = currentRecord?.publisher_trust === "pinned" ? publisherStanding(new HomeConsentLedger(options.home.directory)) : undefined;
+      registerWorkTerminalOwner({
+        home: options.home.directory, install_id: context.install_id, project_id: options.project_id,
+        installation_generation: context.installation_generation, plugin_id: manifest.plugin_id,
+        publisher_key_id: currentRecord?.publisher_trust === "pinned" ? currentRecord.publisher_signature : null,
+        assertActive: () => {
+          assertActive();
+          if (!pluginActivationOpen(context)) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+          if (standing && currentRecord && !standing.trusted(currentRecord)) throw new ActionError("actions.forbidden", "此插件发布者已被撤销信任");
+        },
+        requireGrant: permission => { assertActive(); context.requireGrant(permission); },
+      });
+    }
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
       revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };

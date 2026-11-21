@@ -7,14 +7,10 @@ import { createTrialAuthServer,trialAccountConfig } from "../../examples/persona
 
 /** Only remote identity is substituted; installed clients still perform real PKCE, credential storage and account selection. */
 export async function installedAccountAuth(root: string, origin: string) {
-  const nodeTestContext = process.env.NODE_TEST_CONTEXT;
-  assert.ok(nodeTestContext, "Installed account fixtures must run under node --test");
   const server = createTrialAuthServer({ webOrigin: origin, stateFile: join(root, "test-auth.json") });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const environment = {
-    // The trusted test launcher supplies this because MCP strips the caller environment.
-    NODE_TEST_CONTEXT: nodeTestContext,
     MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify(trialAccountConfig(`http://127.0.0.1:${address.port}`,origin)),
     MOLIS_WORK_SECRET_BACKEND: "file",
     MOLIS_WORK_CLOUD_ORIGIN: "", MOLIS_WORK_SYNC_ORIGIN: "", MOLIS_WORK_SYNC_LOCAL: "",

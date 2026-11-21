@@ -96,23 +96,6 @@ export const COSS_CONTROL_STYLES = `
     font: 11px/20px ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  .preference-option {
-    border-color: var(--control-border);
-    border-radius: var(--radius-control);
-  }
-  .preference-option:hover {
-    border-color: var(--control-input);
-    background: var(--control-fill);
-  }
-  .preference-option[aria-pressed="true"],
-  .preference-option[aria-current="true"] {
-    border-color: var(--control-input);
-    color: var(--ink);
-    background: var(--control-fill-hover);
-  }
-  .preference-option[aria-pressed="true"] .preference-check,
-  .preference-option[aria-current="true"] .preference-check { color: var(--ink); }
-
   button:focus-visible:not([class^="mw-"]),
   input:focus-visible:not([class^="mw-"]),
   textarea:focus-visible:not([class^="mw-"]),
@@ -138,28 +121,8 @@ export const COSS_CONTROL_STYLES = `
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
   }
 
-  /* Task configuration has one active path and a stable dialog shell. */
-  .feed-task-dialog-shell { display: flex; flex-direction: column; max-height: calc(100dvh - 50px); }
-  .feed-task-dialog-shell > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 24px 24px 16px; border-bottom: 1px solid var(--line); }
-  .feed-task-dialog-shell h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
-  .feed-task-dialog-shell header p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
-  .feed-task-dialog-body { overflow-y: auto; min-height: 0; padding: 16px 24px 24px; }
-  .feed-task-dialog-shell > footer { display: flex; gap: 8px; justify-content: end; border-top: 1px solid var(--line); padding: 12px 24px; }
-  [data-feed-source-choices] { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; border: 0; }
-  .feed-source-choice__mark { display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
-  .feed-source-choice__mark svg { width: 14px; height: 14px; }
-  .feed-source-choice strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: var(--weight-control, 500); }
-  .feed-source-choice small { color: var(--faint); font-size: 12px; line-height: 1; white-space: nowrap; }
-  .feed-task-extra { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 16px; }
-  .feed-task-extra summary, .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
-  .feed-task-extra summary small { margin-left: 8px; color: var(--muted); font-weight: 400; }
-  .feed-task-health { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
-  .feed-task-health strong { color: var(--ink); font-weight: var(--weight-control, 500); }
-  .feed-task-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
   [data-feed-task] { position: relative; }
-  .feed-task-config-trigger { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--muted); border-radius: 5px; cursor: pointer; }
-  .feed-task-config-trigger:hover { color: var(--ink); background: var(--nav-hover); }
-  .feed-task-config-trigger svg { width: 16px; height: 16px; }
   .form-disclosure { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
   .form-disclosure[open] > summary { margin-bottom: 12px; }
   .event-form-body > :is(label,fieldset) { margin: 0; }
@@ -169,11 +132,6 @@ export const COSS_CONTROL_STYLES = `
   .event-form-status:not([hidden]), .event-field-error:not([hidden]) { padding: 12px 12px; border-left: 2px solid currentColor; margin-block: 12px; font-size: 13px; line-height: 1.6; }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; border: 0; border-radius: 8px; background: var(--red-soft); }
   body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
-  @media (max-width: 640px) {
-    .feed-task-dialog-shell { max-height: calc(100dvh - 18px); }
-    .feed-task-dialog-shell > header, .feed-task-dialog-body { padding: 16px; }
-    .feed-task-health { flex-direction: column; gap: 4px; }
-  }
 
   /* Motion communicates focus and feedback; moving panes remain under the pointer. */
   :where(button:not(:disabled), summary):active { filter: brightness(.94); }
@@ -188,24 +146,18 @@ export const COSS_CONTROL_STYLES = `
   .mw-modal-cover[popover] { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: var(--scrim); }
   :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-disclosure[open] { border-color: var(--line-strong); }
-  :is(.form-disclosure, .feed-task-extra) summary { transition: color var(--dur-hover) var(--ease-quint); }
-  :is(.form-disclosure, .feed-task-extra) summary:hover { color: var(--ink); }
+  .form-disclosure summary { transition: color var(--dur-hover) var(--ease-quint); }
+  .form-disclosure summary:hover { color: var(--ink); }
   body.immersive-workbench .tab-item[aria-current] { box-shadow: inset 0 1px 0 color-mix(in srgb,var(--ink) 6%,transparent); }
   @media (prefers-reduced-motion: reduce) {
     :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
     [popover]:popover-open { animation: none; }
   }
 
-  .policy-form footer.form-actions, .project-preferences-page .settings-save-footer.form-actions, .feed-plan-actions { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }
+  .project-preferences-page .settings-save-footer.form-actions { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }
   .form-actions > button { min-height: 36px; }
-  @media (max-width: 760px) { .form-actions > button, .feed-plan-actions > button { min-height: 44px; } }
+  @media (max-width: 760px) { .form-actions > button { min-height: 44px; } }
 
-  :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 36px; }
-  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; } }
-  @media (max-width: 760px), (pointer: coarse) {
-    :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
-    .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }
-    .frame-picker > header button { min-width: 44px; }
-    .frame-picker-tools :is(input, select) { font-size: 16px; }
-  }
+  :is(.form-actions, .event-form-actions) { --control-h: 36px; }
+  @media (max-width: 760px) { :is(.form-actions, .event-form-actions) { --control-h: 44px; } }
 `;

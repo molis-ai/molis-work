@@ -68,6 +68,23 @@ test("PEQ-04 C1 Goals' attach parts and placement's 「挂到…」 run through 
     assert.deepEqual(await call(goalsActions.attachList.capability_id, { subject: { kind: object.kind, id: object.id } }), { targets: [goal] }, "Goals keeps the binding placement asked for");
     assert.deepEqual(await call("placement.unlink", { key }), { removed: true });
     assert.deepEqual(await call(goalsActions.attachList.capability_id, { subject: { kind: object.kind, id: object.id } }), { targets: [] });
+
+    // Fixed-mode attach through the same generic placement_relation contract: pins the document via its owner and records a fixed artifact input, never a live-followed binding.
+    const pinnedAttach = await call<{ key: string }>("placement.attach", { object, project_id: project.project_id, target: goal, mode: "fixed" });
+    assert.ok(pinnedAttach.key);
+    assert.deepEqual(await call(goalsActions.attachList.capability_id, { subject: { kind: object.kind, id: object.id } }), { targets: [] }, "fixed-mode attach does not create a live-followed binding");
+    const fixedInputs = await call<{ inputs: Array<{ reference: { artifact_id: string; version: number }; title: string }> }>(goalsActions.artifactInputsList.capability_id, { goal_id });
+    assert.equal(fixedInputs.inputs.length, 1);
+    assert.equal(fixedInputs.inputs[0]!.title, "放好的一页");
+
+    // An existing artifact version also attaches directly via placement.attach.targets + placement.attach without naming any Goals route.
+    const artRef = fixedInputs.inputs[0]!.reference;
+    const artObj = { kind: "artifact", id: JSON.stringify([artRef.artifact_id, artRef.version]), project_id: project.project_id };
+    const artTargets = await call<{ kinds: { kind: string; targets: { id: string }[] }[] }>("placement.attach.targets", { project_id: project.project_id, object: artObj });
+    assert.ok(artTargets.kinds.find(entry => entry.kind === "goal")?.targets.some(t => t.id === made.targets[0]!.id));
+    await call<{ key: string }>("placement.attach", { object: artObj, project_id: project.project_id, target: { kind: "goal", id: made.targets[0]!.id }, mode: "fixed" });
+    const madeInputs = await call<{ inputs: Array<{ reference: { artifact_id: string; version: number } }> }>(goalsActions.artifactInputsList.capability_id, { goal_id: made.targets[0]!.id });
+    assert.deepEqual(madeInputs.inputs.map(i => i.reference), [artRef]);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

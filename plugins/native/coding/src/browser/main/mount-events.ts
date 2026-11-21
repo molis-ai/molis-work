@@ -84,7 +84,7 @@ async function bringCharacter(page: Page, selected: CharacterCodingDetail) {
 
 function listenCharacter(page: Page) {
   const { lifetime, s } = page;
-  lifetime.listen(window, "molis-work:character-coding", event => {
+  lifetime.listen(window, "molis-work:character-run-open", event => {
     const selected = detailOf<CharacterCodingDetail>(event);
     if (s.creatingCharacterSession || !selected?.reference) return;
     s.creatingCharacterSession = true;

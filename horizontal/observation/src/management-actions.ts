@@ -25,6 +25,7 @@ import type { ObservationWriter } from "./writer.js";
 export interface ManagementActionDeps {
   readonly env: ObservationEnvironment;
   readonly writer: ObservationWriter;
+  readonly flowOwners?: ReadonlySet<string>;
 }
 
 export function openForManagement(writer: ObservationWriter): DatabaseSync {
@@ -100,7 +101,7 @@ export async function handleSettingsSet(
 export function handleSpaceGet(deps: ManagementActionDeps, caller: ActionCallContext): ObservationSpaceView {
   assertPersonCaller(caller);
   const db = openForManagement(deps.writer);
-  return computeObservationSpace(db);
+  return computeObservationSpace(db, deps.flowOwners);
 }
 
 export async function handleCleanupPreview(
@@ -116,7 +117,7 @@ export async function handleCleanupPreview(
     }
   }
   const db = openForManagement(deps.writer);
-  return previewCleanup(db, input, deps.env.now());
+  return previewCleanup(db, input, deps.env.now(), deps.flowOwners);
 }
 
 export async function handleCleanupApply(
@@ -132,5 +133,5 @@ export async function handleCleanupApply(
     }
   }
   const db = openForManagement(deps.writer);
-  return applyCleanup(db, input, deps.env.now());
+  return applyCleanup(db, input, deps.env.now(), deps.flowOwners);
 }

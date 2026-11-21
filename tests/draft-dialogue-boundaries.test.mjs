@@ -9,7 +9,7 @@ for (const [method, file, action, capabilityId] of [
   ["checkGoalTreeProposal", "goal-tree-check", "treeCheck", "goals.tree.check"],
   ["decideGoalTreeProposal", "goal-tree-decision", "treeDecide", "goals.tree.decide"],
 ]) test(`${method} stays behind the shared action and original Module owners`, () => {
-  const application = read(`plugins/native/goals/src/${file}.ts`), callers = read("apps/local-host/src/goal-callers.ts");
+  const application = read(`plugins/native/goals/src/${file}.ts`), registration = read("plugins/native/goals/src/registration.ts");
   assert.deepEqual(checkGoalTreeApplicationOwnership(application, method), []);
   for (const extra of ["store.immediate(operation)", `coordinator.${method}(input)`, "db.prepare('INSERT INTO goal_tree_proposals VALUES (?)')"]) {
     assert.match(checkGoalTreeApplicationOwnership(`${application}\n${extra}`, method).join("\n"), /Module owners/);
@@ -19,7 +19,7 @@ for (const [method, file, action, capabilityId] of [
   const typed = read("apps/local-host/src/project-capabilities.ts");
   assert.equal(typed.includes(`goalsActions.${action}`), false, "no typed bridge is registered for the action");
   assert.equal(typed.includes(`coordinator.${method}(`), false, "typed transport cannot bypass action policy");
-  assert.equal(callers.includes(`"${capabilityId}"`), action !== "treeDecide", "only non-decision actions stay in management callers; treeDecide uses the generic trusted review door");
+  assert.equal(registration.includes(`"${capabilityId}"`), action !== "treeDecide", "only non-decision actions stay in management_actions; treeDecide uses the generic trusted review door");
   assert.ok(read("plugins/native/goals/src/tree-actions.ts").includes(`goalsTreeActions.${action}`), "and the Goals owner registers it");
 });
 

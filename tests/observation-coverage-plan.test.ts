@@ -3,7 +3,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { OBSERVATION_SERVICE_PREFIXES } from "@molis-ai/molis-work-contracts/services/observation";
-import { OBSERVATION_COVERAGE_PLAN } from "@molis-ai/molis-work-service-observation";
+import { OBSERVATION_COVERAGE_PLAN, type CoveragePlanEntry } from "@molis-ai/molis-work-service-observation";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
 
 // OCL-09, OCL-16 (specs/observation-collection/spec.md; contract-design §8): the coverage plan says what this build records, and it is checked
 // against the code that records: every kind of fact said to be complete is written somewhere by its owner, under its owner's prefix, and
@@ -25,9 +26,21 @@ const code = [join(root, "apps/local-host/src"), ...readdirSync(join(root, "hori
 const prefixOf = (owner: string) => owner === "observation" ? "observation" : owner === "shell" ? OBSERVATION_SERVICE_PREFIXES.shell : owner.startsWith("plugin:") ? owner.slice("plugin:".length)
   : OBSERVATION_SERVICE_PREFIXES[owner.slice("service:".length) as keyof typeof OBSERVATION_SERVICE_PREFIXES];
 
+const ALL_COVERAGE_ENTRIES: readonly CoveragePlanEntry[] = [
+  ...OBSERVATION_COVERAGE_PLAN,
+  ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(registration => (registration.observation?.coverage ?? []).map(entry => ({
+    owner: `plugin:${registration.manifest.plugin_id}`,
+    fact: entry.fact,
+    entries: entry.entries,
+    state: entry.state,
+    ...(entry.reason ? { reason: entry.reason } : {}),
+  }))),
+];
+
 test("OCL-09 OCL-16: each kind of fact in the plan is its owner's, named once, with a reason exactly when it is not complete", () => {
   const seen = new Set<string>();
-  for (const entry of OBSERVATION_COVERAGE_PLAN) {
+  assert.equal(OBSERVATION_COVERAGE_PLAN.some(entry => entry.owner.startsWith("plugin:")), false, "platform coverage plan names no plugin");
+  for (const entry of ALL_COVERAGE_ENTRIES) {
     assert.ok(prefixOf(entry.owner), `${entry.owner} is a known owner`);
     assert.ok(entry.fact.startsWith(`${prefixOf(entry.owner)}.`), `${entry.fact} is under ${entry.owner}'s prefix`);
     assert.ok(!seen.has(entry.fact), `${entry.fact} is named once`); seen.add(entry.fact);
@@ -38,7 +51,7 @@ test("OCL-09 OCL-16: each kind of fact in the plan is its owner's, named once, w
 });
 
 test("OCL-09 OCL-16: every fact said to be complete is written by the code, and every sink the Host wires has its facts in the plan", () => {
-  for (const entry of OBSERVATION_COVERAGE_PLAN.filter(item => item.state === "complete")) {
+  for (const entry of ALL_COVERAGE_ENTRIES.filter(item => item.state === "complete")) {
     const name = entry.fact.slice(entry.fact.indexOf(".") + 1);
     // An Agent round's facts are written as `agent.<name>` by the run projection; every other fact's name is a literal where it is recorded.
     // The shell's facts are named in its page script, in either quote.

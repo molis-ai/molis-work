@@ -479,6 +479,7 @@ export interface ActionCallOrigin {
 
 export interface ActionClient {
     discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
+    discoverOne?(context: ActionCallContext, reference: ActionReference): ActionView | undefined | Promise<ActionView | undefined>;
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
@@ -2220,6 +2221,7 @@ export interface BackgroundTaskPhrase {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
+    discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
@@ -3778,6 +3780,8 @@ export interface PlacementMoveInput {
 
 export interface PlacementRelationBindInput extends PlacementRelationTargetInput {
     read?: PlacementRelationRead;
+    mode?: "live" | "fixed";
+    material_ref?: MaterialRef;
 }
 
 export interface PlacementRelationCandidates {
@@ -4012,6 +4016,13 @@ export interface PluginDataExportResult {
     readonly sections: readonly PluginDataSectionSnapshot[];
 }
 
+export interface PluginDataFileSnapshot {
+    readonly path: string;
+    readonly byte_length: number;
+    readonly content_base64?: string;
+    readonly truncated?: boolean;
+}
+
 export interface PluginDataSectionDeclaration {
     readonly plugin_id: string;
     readonly section_id: string;
@@ -4028,6 +4039,8 @@ export interface PluginDataSectionSnapshot {
     readonly schema_version: number;
     readonly title?: string;
     readonly items: readonly unknown[];
+    readonly files?: readonly PluginDataFileSnapshot[];
+    readonly truncated?: boolean;
 }
 
 export interface PluginDatabase extends PluginDatabaseReader {
@@ -5768,6 +5781,10 @@ export declare const RESUME_SUMMARY_SCHEMAS: {
                             readonly required: readonly ["surface", "id"];
                             readonly additionalProperties: false;
                         };
+                        readonly detail: {
+                            readonly type: "string";
+                            readonly maxLength: 2000;
+                        };
                     };
                     readonly required: readonly ["subject", "title", "next_hint", "status_label", "open"];
                     readonly additionalProperties: false;
@@ -5823,10 +5840,64 @@ export declare const RESUME_SUMMARY_SCHEMAS: {
                             readonly required: readonly ["surface", "id"];
                             readonly additionalProperties: false;
                         };
+                        readonly detail: {
+                            readonly type: "string";
+                            readonly maxLength: 2000;
+                        };
                     };
                     readonly required: readonly ["subject", "title", "next_hint", "status_label", "open"];
                     readonly additionalProperties: false;
                 };
+            };
+            readonly progress: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly total: {
+                        readonly type: "integer";
+                        readonly minimum: 0;
+                    };
+                    readonly done: {
+                        readonly type: "integer";
+                        readonly minimum: 0;
+                    };
+                    readonly items: {
+                        readonly type: "array";
+                        readonly maxItems: 200;
+                        readonly items: {
+                            readonly type: "object";
+                            readonly properties: {
+                                readonly id: {
+                                    readonly type: "string";
+                                    readonly minLength: 1;
+                                    readonly maxLength: 200;
+                                };
+                                readonly title: {
+                                    readonly maxLength: 500;
+                                    readonly type: "string";
+                                };
+                                readonly status: {
+                                    readonly enum: readonly ["open", "completed", "cancelled"];
+                                };
+                                readonly next_hint: {
+                                    readonly type: "string";
+                                    readonly maxLength: 2000;
+                                };
+                                readonly pending_decision_count: {
+                                    readonly type: "integer";
+                                    readonly minimum: 0;
+                                };
+                                readonly updated_at: {
+                                    readonly type: "string";
+                                    readonly maxLength: 80;
+                                };
+                            };
+                            readonly required: readonly ["id", "title", "status", "next_hint", "pending_decision_count", "updated_at"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                };
+                readonly required: readonly ["total", "done", "items"];
+                readonly additionalProperties: false;
             };
         };
         readonly required: readonly ["title", "focus", "next"];
@@ -6062,12 +6133,27 @@ export interface ResumeItem {
         surface: string;
         id: string;
     };
+    detail?: string;
+}
+
+export interface ResumeProgressItem {
+    id: string;
+    title: string;
+    status: "open" | "completed" | "cancelled";
+    next_hint: string;
+    pending_decision_count: number;
+    updated_at: string;
 }
 
 export interface ResumeSummary {
     title: string;
     focus: ResumeItem | null;
     next: ResumeItem[];
+    progress?: {
+        total: number;
+        done: number;
+        items: ResumeProgressItem[];
+    };
 }
 
 export interface ResumeSummaryInput {
@@ -7521,13 +7607,6 @@ export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, W
 
 export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
 
-export declare const WORK_GOAL_PROMOTION_PROTOCOL: Record<WorkGoalPromotionRole, {
-    readonly input_type: string;
-    readonly output_type: string;
-}>;
-
-export declare const WORK_GOAL_PROMOTION_ROLES: readonly ["directory.read", "create", "inputs.confirm"];
-
 export declare const WORK_ITEM_CREATE_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -7898,6 +7977,13 @@ export declare const WORK_ITEM_PARTS: {
     };
 };
 
+export declare const WORK_ITEM_PROMOTION_PROTOCOL: Record<WorkItemPromotionRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const WORK_ITEM_PROMOTION_ROLES: readonly ["directory.read", "create", "inputs.confirm"];
+
 export declare const WORK_ITEM_RELATED_INPUT_SCHEMA: {
     readonly type: "object";
     readonly properties: {
@@ -8137,8 +8223,6 @@ export interface WorkExecutorWorkspace {
     path: string;
 }
 
-export type WorkGoalPromotionRole = (typeof WORK_GOAL_PROMOTION_ROLES)[number];
-
 export interface WorkItemCreateInput {
     name: string;
     request_id: string;
@@ -8169,6 +8253,8 @@ export interface WorkItemNextStep {
 }
 
 export type WorkItemPart = keyof typeof WORK_ITEM_PARTS;
+
+export type WorkItemPromotionRole = (typeof WORK_ITEM_PROMOTION_ROLES)[number];
 
 export interface WorkItemRelatedInput {
     subject: ActionSubject;
@@ -8842,7 +8928,7 @@ export declare function workExecutorRoleOf(action: {
     output_type?: string;
 }): WorkExecutorRole | null;
 
-export declare function workGoalPromotionRoleOf(action: TypedActionShape): WorkGoalPromotionRole | null;
+export declare function workItemPromotionRoleOf(action: TypedActionShape): WorkItemPromotionRole | null;
 
 export declare const workTerminalActions: {
     readonly list: ActionDefinition<WorkTerminalListInput, WorkTerminalListResult>;

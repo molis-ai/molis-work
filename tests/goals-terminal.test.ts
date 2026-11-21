@@ -6,8 +6,8 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase, molisWorkHostProjectReference, pluginPagesFor, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, defineWorkTerminalPromptAction, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { WORK_TERMINAL_PROVIDER_ID, workTerminalActions } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_PLUGIN_ID, goalsWorkPromptAction } from "@molis-ai/molis-work-plugin-goals";
@@ -442,4 +442,181 @@ test("PEQ-17 work-terminal open refuses mid-flight caller revocation or plugin d
   });
   assert.equal(tpPanels(), 0, "mid-flight plugin stop leaves zero panel rows");
   assert.equal(await runs(), beforeStop, "mid-flight plugin stop spawns zero PTY processes");
+});
+
+test("PEQ-17 work terminals refuse mid-flight regrant revocation, kill live Home-plugin processes when hidden from project, allow closing after subject deletion, and support Home-page attach", { timeout: 60_000 }, async t => {
+  const PROBE_PLUGIN_ID = "io.molis.work.example.wt-probe";
+  const HOME_PROBE_ID = "io.molis.work.example.wt-home-probe";
+  let objectExists = true;
+  const projectPromptAction = defineWorkTerminalPromptAction(`${PROBE_PLUGIN_ID}.prompt`, 1, "probe_item", "探针对象", ["probe:prompt"]);
+  const projectProbe: PluginDefinition = {
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: PROBE_PLUGIN_ID, version: "1.0.0", name: "WT Probe", kind: "app",
+      publisher: { publisher_id: "example", signature: "wt-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
+      permissions: [
+        { permission: "storage:private", required: true, reason: "private storage" },
+        { permission: "probe:prompt", required: false, reason: "optional work prompt permission" },
+      ],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [projectPromptAction],
+      work_terminals: [{ subject_kind: "probe_item", prompt_action: projectPromptAction.capability_id }],
+    },
+    start: () => ({
+      kind: "app",
+      actions: [{
+        capability_id: projectPromptAction.capability_id, version: 1,
+        handle: (_caller, input: { subject_id: string }) => {
+          if (!objectExists) throw new ActionError("actions.missing", "对象已删除");
+          return { subject: { kind: "probe_item", id: input.subject_id }, title: "探针对象", read_only: false, instruction: "Work on probe" };
+        },
+      }],
+    }),
+  };
+
+  const homePromptAction = defineWorkTerminalPromptAction(`${HOME_PROBE_ID}.prompt`, 1, "home_item", "个人对象", ["homeprobe:read"]);
+  const homeProbe: PluginDefinition = {
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: HOME_PROBE_ID, version: "1.0.0", name: "Home WT Probe", kind: "app",
+      publisher: { publisher_id: "example", signature: "wt-home-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
+      permissions: [{ permission: "homeprobe:read", required: true, reason: "read home probe" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [homePromptAction],
+      work_terminals: [{ subject_kind: "home_item", prompt_action: homePromptAction.capability_id }],
+    },
+    start: () => ({
+      kind: "app",
+      actions: [{
+        capability_id: homePromptAction.capability_id, version: 1,
+        handle: (_caller, input: { subject_id: string }) => ({
+          subject: { kind: "home_item", id: input.subject_id }, title: "个人对象", read_only: false, instruction: "Work on home item",
+        }),
+      }],
+    }),
+  };
+
+  const { f, project, reference } = await served(t, { pluginFixtures: { project: [projectProbe], home: [homeProbe] } });
+  const client = f.host.actionClient(reference);
+  const catalogPath = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => catalog.databasePath);
+  const panelCount = () => {
+    const db = openTestSqlite(catalogPath, { fileMustExist: true });
+    try { return (db.prepare("SELECT COUNT(*) AS n FROM plugin_terminal_panels").get() as { n: number }).n; }
+    finally { db.close(); }
+  };
+  await f.host.localPersonContext(reference);
+  const projectPlatform = await f.host.withProject(reference, runtime => runningProjectPlatform(runtime.store, project.project_id));
+  assert.ok(projectPlatform);
+  const probeInstall = projectPlatform.runtime.list().find(row => row.plugin_id === PROBE_PLUGIN_ID);
+  assert.ok(probeInstall, "probe fixture plugin is installed in project platform");
+  await projectPlatform.runtime.regrant(probeInstall.install_id, "probe:prompt", true);
+  // Obtain a fresh person context AFTER granting probe:prompt so allowed_actions includes the probe prompt action.
+  const person = await f.host.localPersonContext(reference);
+
+  // 1. P0-4: mid-flight regrant(..., false) revoking optional permission required by work_prompt blocks openWorkTerminal with zero spawn.
+  const beforeRegrant = await runs();
+  let regrantCalls = 0;
+  await assert.rejects(client.invoke({
+    ...person,
+    validate_authority: async () => {
+      if (++regrantCalls === 3) {
+        await projectPlatform.runtime.regrant(probeInstall.install_id, "probe:prompt", false);
+      }
+    },
+  }, workTerminalActions.open, { plugin_id: PROBE_PLUGIN_ID, subject: { kind: "probe_item", id: "obj-1" }, runtime: "codex", key: "regrant-race" }), (error: { code?: string }) => {
+    assert.ok(error.code === "actions.forbidden" || error.code === "plugin.grant_denied", `unexpected code: ${error.code}`);
+    return true;
+  });
+  assert.ok(regrantCalls >= 3, `expected mid-flight regrant to fire, got regrantCalls=${regrantCalls}`);
+  assert.equal(panelCount(), 0, "mid-flight regrant leaves zero panel rows");
+  assert.equal(await runs(), beforeRegrant, "mid-flight regrant spawns zero processes");
+
+  // Re-grant probe:prompt, open a real panel, then delete the underlying object and verify P2-8 close succeeds and removes panel.
+  await projectPlatform.runtime.regrant(probeInstall.install_id, "probe:prompt", true);
+  const probeCaller = await f.host.localPersonContext(reference);
+  const openedObj = await client.invoke(probeCaller, workTerminalActions.open, {
+    plugin_id: PROBE_PLUGIN_ID, subject: { kind: "probe_item", id: "obj-del" }, runtime: "codex", key: "del-tab",
+  }) as { panel_id: string; started: boolean };
+  assert.equal(openedObj.started, true);
+  assert.equal(panelCount(), 1);
+  objectExists = false;
+  const closedDeleted = await client.invoke(probeCaller, workTerminalActions.close, {
+    plugin_id: PROBE_PLUGIN_ID, subject: { kind: "probe_item", id: "obj-del" }, key: "del-tab",
+  }) as { closed: true };
+  assert.deepEqual(closedDeleted, { closed: true }, "P2-8: closing a terminal after its subject was deleted succeeds");
+  assert.equal(panelCount(), 0, "P2-8: panel row removed after deleted-subject close");
+
+  // 2. P2-9 + P0-5 (WT-3): Home-scoped plugin opens real process, Home-scoped page (project_id: null) attaches via WebSocket,
+  // and hiding the Home plugin in project settings immediately kills the live process.
+  const pidFile = join(fakeHome, "home-wt.pid");
+  const homeCaller = await f.host.localPersonContext(reference);
+  const openedHome = await client.invoke(homeCaller, workTerminalActions.open, {
+    plugin_id: HOME_PROBE_ID, subject: { kind: "home_item", id: "h1" },
+    command: "/bin/sh", args: ["-c", `echo $$ > '${pidFile}'; exec /bin/sleep 60`], key: "home-live",
+  }) as { panel_id: string; started: boolean };
+  assert.equal(openedHome.started, true);
+  let pid = 0;
+  for (let i = 0; i < 100 && !pid; i += 1) {
+    if (existsSync(pidFile)) pid = Number((await readFile(pidFile, "utf8")).trim());
+    if (!pid) await new Promise(resolve => setTimeout(resolve, 25));
+  }
+  assert.ok(pid > 0, "Home plugin work terminal spawned a real OS process");
+  assert.doesNotThrow(() => process.kill(pid, 0), "spawned process is alive before hiding Home plugin");
+
+  // P2-9: Home-scoped plugin page (project_id: null) attaches to its own project work terminal.
+  const homePageAuth = pluginPagesFor(f.home).open(HOME_PROBE_ID, null, LOCAL_PERSON_ACTOR_ID);
+  const ws = new WebSocket(f.origin.replace("http:", "ws:") + "/pty");
+  const wsMessages: Array<Record<string, unknown>> = [];
+  ws.on("message", raw => wsMessages.push(JSON.parse(raw.toString())));
+  t.after(() => ws.terminate());
+  await new Promise<void>((resolve, reject) => { ws.once("open", () => resolve()); ws.once("error", reject); });
+  ws.send(JSON.stringify({ type: "page-auth", pageId: homePageAuth.page_id }));
+  ws.send(JSON.stringify({ type: "spawn", panelId: openedHome.panel_id, attachOnly: true }));
+  const attached = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const deadline = Date.now() + 5000;
+    const poll = () => {
+      const hit = wsMessages.find(m => m.type === "spawned" || m.type === "error");
+      if (hit) return resolve(hit);
+      if (Date.now() > deadline) return reject(new Error("timed out waiting for Home page attach"));
+      setTimeout(poll, 20);
+    };
+    poll();
+  });
+  assert.equal(attached.type, "spawned", `P2-9: Home-scoped page attached (${JSON.stringify(attached)})`);
+  ws.close();
+
+  // P0-5 (WT-3): Hide the Home plugin from this project -> live OS process MUST die immediately.
+  const settings = await json(await f.request("/api/settings/project-plugins"));
+  const projRow = (settings.body.projects as Array<{ project_id: string; revision: string }>).find(row => row.project_id === project.project_id)!;
+  const hidden = await f.request(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, {
+    method: "DELETE",
+    body: { plugin_id: HOME_PROBE_ID, expected_revision: projRow.revision },
+  });
+  assert.equal(hidden.status, 200, await hidden.clone().text());
+  let alive = true;
+  for (let i = 0; i < 60 && alive; i += 1) {
+    try { process.kill(pid, 0); await new Promise(resolve => setTimeout(resolve, 25)); } catch { alive = false; }
+  }
+  assert.equal(alive, false, "P0-5: hiding Home plugin from project immediately kills its live work-terminal process");
+
+  // S-work-terminal-attach: once the Home plugin is not enabled in the panel's project, its Home-scoped page may no longer attach (fails closed).
+  const refusedPage = pluginPagesFor(f.home).open(HOME_PROBE_ID, null, LOCAL_PERSON_ACTOR_ID);
+  const ws2 = new WebSocket(f.origin.replace("http:", "ws:") + "/pty");
+  const ws2Messages: Array<Record<string, unknown>> = [];
+  ws2.on("message", raw => ws2Messages.push(JSON.parse(raw.toString())));
+  t.after(() => ws2.terminate());
+  await new Promise<void>((resolve, reject) => { ws2.once("open", () => resolve()); ws2.once("error", reject); });
+  ws2.send(JSON.stringify({ type: "page-auth", pageId: refusedPage.page_id }));
+  ws2.send(JSON.stringify({ type: "spawn", panelId: openedHome.panel_id, attachOnly: true }));
+  const refusedAttach = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const deadline = Date.now() + 5000;
+    const poll = () => {
+      const hit = ws2Messages.find(m => m.type === "spawned" || m.type === "error");
+      if (hit) return resolve(hit);
+      if (Date.now() > deadline) return reject(new Error("timed out waiting for the refused Home page attach"));
+      setTimeout(poll, 20);
+    };
+    poll();
+  });
+  assert.equal(refusedAttach.type, "error", `S-work-terminal-attach: a hidden Home plugin's page cannot attach (${JSON.stringify(refusedAttach)})`);
+  assert.match(String(refusedAttach.message), /终端不属于当前插件页面/u);
+  ws2.close();
 });

@@ -318,8 +318,14 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     artifactRequest?.abort();
     const controller = artifactRequest = new AbortController();
     delete selection.artifactFragmentPath;
-    const message = document.createElement("p"); message.textContent = readText("workbench.plugin-workbench.loading-artifacts"); message.role = "status";
-    detail.replaceChildren(message);
+    const message = document.createElement("p");
+    message.textContent = readText("workbench.plugin-workbench.loading-artifacts");
+    message.role = "status";
+    if (workspace?.hidden && directory && directory.querySelector("[data-artifact-retry]")) {
+      directory.replaceChildren(message);
+    } else {
+      detail.replaceChildren(message);
+    }
     try {
       const options = {as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal};
       const template = document.createElement("template");
@@ -348,9 +354,18 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     } catch (error) {
       if (controller.signal.aborted) return;
       delete selection.artifactFragmentPath;
-      molisWorkRequest.show(message,error);
-      const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = readText("common.control.retry");
-      detail.replaceChildren(message, button);
+      const box = document.createElement("div");
+      box.className = "mw-empty mw-empty--error";
+      box.setAttribute("role", "alert");
+      molisWorkRequest.show(message, error);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mw-btn mw-btn--secondary mw-btn--sm";
+      button.dataset.artifactRetry = path;
+      button.textContent = readText("common.control.retry");
+      box.append(message, button);
+      if (workspace?.hidden && directory) directory.replaceChildren(box);
+      else detail.replaceChildren(box);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
   ${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT + ARTIFACT_WORKS_CLIENT_SCRIPT + ARTIFACT_HANDOFF_CLIENT_SCRIPT + ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}

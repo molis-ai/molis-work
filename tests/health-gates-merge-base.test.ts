@@ -750,4 +750,44 @@ test("CCR-08 retired shared records cannot be reintroduced", () => {
   const result = gate("--base", "main");
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /retired shared record/);
+
+  branch("retired-allowance-file", () => put("tooling/gates/page-asset-allowances/foo.json", "{}\n"));
+  const allowance = gate("--base", "main");
+  assert.equal(allowance.code, 1, allowance.out);
+  assert.match(allowance.out, /retired per-byte page-asset allowance/);
+});
+
+test("Batch 100-2 giantPolicy anti-god-object permits the reviewed ceiling reset once and strictly ratchets thereafter", () => {
+  scratchRepo("anti-god-object", () => {
+    put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
+    put("packages/alpha/src/index.ts", "export const alpha = 1;\n");
+    commit("legacy limits");
+
+    // Adopting anti-god-object at the reviewed ceilings passes.
+    git("checkout", "-q", "-b", "adopt");
+    put("tooling/gates/limits.json", JSON.stringify({ giantPolicy: "anti-god-object", file: 2500, classLines: 1200, classMethods: 60, functionLines: 600, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
+    commit("adopt anti-god-object");
+    const adopted = gate("--base", "main");
+    assert.equal(adopted.code, 0, adopted.out);
+
+    // Exceeding the approved reset ceilings or loosening non-giant limits during adoption still fails.
+    put("tooling/gates/limits.json", JSON.stringify({ giantPolicy: "anti-god-object", file: 2501, classLines: 1200, classMethods: 60, functionLines: 600, vendoredPrologueSdk: 3, docsJsonBytes: 65536 }, null, 2) + "\n");
+    const overCeiling = gate("--base", "main");
+    assert.equal(overCeiling.code, 1, overCeiling.out);
+    assert.match(overCeiling.out, /limit "file" loosened 2500 → 2501/);
+    assert.match(overCeiling.out, /limit "vendoredPrologueSdk" loosened 2 → 3/);
+
+    // Once merged into base, any subsequent loosening or policy removal fails.
+    put("tooling/gates/limits.json", JSON.stringify({ giantPolicy: "anti-god-object", file: 2500, classLines: 1200, classMethods: 60, functionLines: 600, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
+    git("tag", "post-adopt");
+    put("tooling/gates/limits.json", JSON.stringify({ giantPolicy: "anti-god-object", file: 2501, classLines: 1200, classMethods: 60, functionLines: 600, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
+    const loosened = gate("--base", "post-adopt");
+    assert.equal(loosened.code, 1, loosened.out);
+    assert.match(loosened.out, /limit "file" loosened 2500 → 2501/);
+
+    put("tooling/gates/limits.json", JSON.stringify({ file: 2500, classLines: 1200, classMethods: 60, functionLines: 600, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
+    const droppedPolicy = gate("--base", "post-adopt");
+    assert.equal(droppedPolicy.code, 1, droppedPolicy.out);
+    assert.match(droppedPolicy.out, /giantPolicy "anti-god-object" cannot be removed/);
+  });
 });

@@ -13,6 +13,7 @@
     "status": 200,
     "type": "application/json",
     "keys": [
+      "active_work",
       "desktop_tui",
       "process_id",
       "project_count",
@@ -993,7 +994,7 @@
   "GET <missing>/ (page)": {
     "status": 404,
     "type": "text/plain",
-    "text": "Molis Work 数据库不存在，请先运行 molis-work v1 init --db <home>/projec"
+    "text": "Molis Work 项目数据库不存在（<home>/projects/<missing>/molis-work.db）"
   },
   "GET /projects/personal/health": {
     "status": 200,

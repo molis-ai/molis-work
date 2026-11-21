@@ -1,3 +1,7 @@
-# 页面资源增长许可
+# 页面资源增长许可（已退役）
 
-每项任务使用独立 JSON 文件，格式和审批边界见[开发手册](../../../docs/cli-and-development.md#页面资源体积)。普通缩小无需添加文件。已采用的记录保留原样、不能重复使用；不填写虚构的审批，也不复制旧批准作为新额度。
+状态：已退役（第 100 批 `100-2` / 决定 58）。
+
+逐字节任务许可文件已统一替换为路由与首屏总载荷预算表 [`tooling/gates/page-asset-budgets.json`](../page-asset-budgets.json)（覆盖工作台、到达页、设置页、插件 iframe 运行时与 `/desktop/pty-client.js`、插件包和字体，以及四个门禁首屏路由冷/热上限）。规则与口径见[开发手册](../../../docs/cli-and-development.md#页面资源体积)与 [`tooling/gates/README.md`](../README.md)。
+
+禁止再向本目录添加新的 `.json` 文件（由 `scripts/check-health-gates.mjs` 守卫）。

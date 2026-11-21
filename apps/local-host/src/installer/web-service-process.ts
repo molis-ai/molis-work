@@ -145,6 +145,6 @@ export class WebServiceProcess {
     authority.current();
     if (!await this.environment.portCheck()) return;
     authority.current();
-    throw installerErrors["installer.service.conflict"]("127.0.0.1:4173 已有进程监听；Molis Work 不会接管、终止或随机改用其他端口");
+    throw installerErrors["installer.service.conflict"]("127.0.0.1:4173–4199 均已有进程监听；Molis Work 不会接管或终止现有监听");
   }
 }

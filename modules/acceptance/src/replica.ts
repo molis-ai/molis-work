@@ -1,3 +1,4 @@
+import { ACCEPTANCE_EVIDENCE_MAX } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { canonicalJsonText, createSyncConflictState, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { createSqliteReplica, namespacedReplicaDatabase, type ReplicaDatabase } from "@molis-ai/molis-work-storage";
@@ -32,12 +33,90 @@ export function acceptanceSyncKey(projectId: string, subject: { provider_id: str
   return JSON.stringify([projectId, ACCEPTANCE_JOURNAL, subject.provider_id, subject.subject.kind, subject.subject.id]);
 }
 
-function rowsOf(input: unknown, columns: readonly string[]): Row[] {
+const CHECK_KINDS = new Set(["engineering", "hands_on"]);
+const CHECK_VERDICTS = new Set(["supports", "contradicts"]);
+const CHECK_TIERS = new Set(["self_reported", "peer_reviewed", "machine_checked"]);
+const CHECK_GAPS = new Set(["evidence_missing", "evidence_stale", "wrong_object", "evidence_unreadable", "check_failed"]);
+const DECISIONS = new Set(["accepted", "returned"]);
+
+const nonEmptyText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const positiveInt = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1;
+const bitFlag = (value: unknown): boolean => value === 0 || value === 1;
+
+function parseJson(raw: unknown): unknown {
+  if (typeof raw !== "string") throw invalid();
+  try { return JSON.parse(raw); } catch { throw invalid(); }
+}
+
+function validateEvidenceRef(ref: unknown): "artifact_version" | "command_receipt" {
+  if (!isRecord(ref)) throw invalid();
+  const keys = Object.keys(ref);
+  if (ref.kind === "artifact_version") {
+    if (keys.length !== 3 || !nonEmptyText(ref.artifact_id) || !positiveInt(ref.version)) throw invalid();
+    return "artifact_version";
+  }
+  if (ref.kind === "command_receipt") {
+    if (keys.length !== 3 || !nonEmptyText(ref.run_id) || !nonEmptyText(ref.call_id)) throw invalid();
+    return "command_receipt";
+  }
+  throw invalid();
+}
+
+/** Rejects tampered or malformed acceptance rows before they can enter SQLite or crash `store.rows()` JSON parsing (S-acceptance-evidence-tier, EVD-43). */
+function validateRow(table: Table, row: Row): void {
+  if (table === "requirements") {
+    if (!nonEmptyText(row.requirement_id) || !positiveInt(row.version) || !nonEmptyText(row.statement)
+      || !(row.expected === null || typeof row.expected === "string") || !(row.part === null || typeof row.part === "string")
+      || !bitFlag(row.requires_person) || !bitFlag(row.withdrawn) || !(typeof row.position === "number" && Number.isInteger(row.position) && row.position >= 0)
+      || !bitFlag(row.by_person) || !nonEmptyText(row.actor_id) || !nonEmptyText(row.created_at)) throw invalid();
+    return;
+  }
+  if (table === "deliveries") {
+    if (!positiveInt(row.round) || !nonEmptyText(row.version) || !(row.summary === null || typeof row.summary === "string")
+      || !(row.made_in_session === null || nonEmptyText(row.made_in_session)) || !(row.made_in_run === null || nonEmptyText(row.made_in_run))
+      || !nonEmptyText(row.actor_id) || !nonEmptyText(row.delivered_at)) throw invalid();
+    if (row.touches_json !== null) {
+      const touches = parseJson(row.touches_json);
+      if (!Array.isArray(touches) || !touches.every(nonEmptyText)) throw invalid();
+    }
+    return;
+  }
+  if (table === "checks") {
+    if (!nonEmptyText(row.check_id) || !positiveInt(row.clock) || !nonEmptyText(row.requirement_id)
+      || !positiveInt(row.requirement_version) || !positiveInt(row.round)
+      || typeof row.kind !== "string" || !CHECK_KINDS.has(row.kind)
+      || typeof row.verdict !== "string" || !CHECK_VERDICTS.has(row.verdict)
+      || typeof row.tier !== "string" || !CHECK_TIERS.has(row.tier)
+      || !(row.gap === null || (typeof row.gap === "string" && CHECK_GAPS.has(row.gap)))
+      || !nonEmptyText(row.checked_version) || !nonEmptyText(row.method) || !nonEmptyText(row.observed)
+      || !(row.reporter_session === null || nonEmptyText(row.reporter_session))
+      || !nonEmptyText(row.actor_id) || !nonEmptyText(row.reported_at)) throw invalid();
+    const evidence = parseJson(row.evidence_json);
+    if (!Array.isArray(evidence) || evidence.length > ACCEPTANCE_EVIDENCE_MAX) throw invalid();
+    const kinds = evidence.map(validateEvidenceRef);
+    if (row.tier !== "self_reported") {
+      if (row.gap !== null || !nonEmptyText(row.reporter_session) || kinds.length === 0) throw invalid();
+      if (row.tier === "machine_checked" && !kinds.includes("command_receipt")) throw invalid();
+      if (row.tier === "peer_reviewed" && (kinds.includes("command_receipt") || !kinds.includes("artifact_version"))) throw invalid();
+    }
+    return;
+  }
+  if (!nonEmptyText(row.decision_id) || !positiveInt(row.clock) || !nonEmptyText(row.requirement_id)
+    || !positiveInt(row.requirement_version) || !positiveInt(row.stands_round) || !nonEmptyText(row.version)
+    || typeof row.decision !== "string" || !DECISIONS.has(row.decision)
+    || !(row.note === null || typeof row.note === "string")
+    || (row.decision === "returned" && !nonEmptyText(row.note))
+    || !nonEmptyText(row.origin) || !nonEmptyText(row.origin_ref) || !nonEmptyText(row.actor_id) || !nonEmptyText(row.decided_at)) throw invalid();
+}
+
+function rowsOf(table: Table, input: unknown, columns: readonly string[]): Row[] {
   if (!Array.isArray(input)) throw invalid();
   return input.map(value => {
     if (!isRecord(value) || Object.keys(value).length !== columns.length || !columns.every(column => Object.hasOwn(value, column))
       || !Object.values(value).every(cell => cell === null || typeof cell === "string" || typeof cell === "number" && Number.isFinite(cell))) throw invalid();
-    return value as Row;
+    const row = value as Row;
+    validateRow(table, row);
+    return row;
   });
 }
 
@@ -72,7 +151,7 @@ export function acceptanceReplica(db: ReplicaDatabase, projectId: string, spaceI
   };
   const parse = (input: unknown) => {
     if (!isRecord(input) || Object.keys(input).length !== 7 || input.space_id !== spaceId || input.project_id !== projectId || typeof input.created_at !== "string") throw invalid();
-    return { created_at: input.created_at, ...Object.fromEntries((Object.keys(TABLES) as Table[]).map(table => [table, rowsOf(input[table], TABLES[table])])) as Record<Table, Row[]> };
+    return { created_at: input.created_at, ...Object.fromEntries((Object.keys(TABLES) as Table[]).map(table => [table, rowsOf(table, input[table], TABLES[table])])) as Record<Table, Row[]> };
   };
   /** Requirements and deliveries: one copy must be the other's beginning. */
   const forward = (no: number, table: "requirements" | "deliveries", incoming: Row[]) => {

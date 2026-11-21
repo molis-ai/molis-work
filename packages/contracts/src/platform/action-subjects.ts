@@ -64,7 +64,7 @@ const required = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: 
   truncated: { type: "boolean" } };
 const properties = { ...required, attached_to: { type: "array", maxItems: 100, items: ACTION_SUBJECT_SCHEMA } };
 const paging = { offset: position, length: position };
-const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
+const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_.-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 const belongsTo = { type: ["string", "null"], maxLength: 120 };
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo, ...paging }, required: Object.keys(required), additionalProperties: false };
 /** The v1 output before `project_id` was added: readers declared with it keep working. */

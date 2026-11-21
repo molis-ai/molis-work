@@ -8,7 +8,7 @@ import test from "node:test";
 import { sampleFirstScreen } from "../scripts/first-screen/http.mjs";
 import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows, requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
 import { firstScreenMeasurementKey, firstScreenProblems, firstScreenReportMatches, measureFirstScreenApart } from "../scripts/gates/first-screen.mjs";
-import { assetProblems, readNewAllowances } from "../scripts/gates/page-assets-policy.mjs";
+import { parsePageAssetBudgets } from "../scripts/gates/page-assets-policy.mjs";
 
 const arrival = { id: "arrival-empty", path: "/" };
 const signal = new AbortController().signal;
@@ -232,117 +232,57 @@ test("FSS-BG-03 heartbeats alone time out and an explicit abort closes the owned
 
 const pageKey = "workbench-default/zh";
 const measured = () => Object.fromEntries(GATED_PAGES.flatMap(page => ["zh", "en"].map(locale => [
-  `${page}/${locale}`, { totals: { cold: 20_000, warm: 20_000 }, entries: { "/": { cold: 15_000, warm: 15_000 }, "/unchanged": { cold: 5_000, warm: 5_000 } } },
+  `${page}/${locale}`, { totals: { cold: 20_000, warm: 10_000 }, entries: { "/": { cold: 15_000, warm: 8_000 }, "/unchanged": { cold: 5_000, warm: 2_000 } } },
 ])));
-const permit = fields => ({ "task.json": JSON.stringify({ reason: "fixture", review: "test review", ...fields }) });
-const budget = (cold, warm) => ({ pages: { [pageKey]: { cold, warm } } });
-const entryApproval = (entry, fields = {}) => ({ pages: ["workbench-default"], locale: "zh", entry, change: "new", ...fields });
-const approve = (...entryApprovals) => ({ userApproval: "approval reference", entryApprovals });
-
-test("FSS-BG-01/02 a warm-only regression consumes only new allowance for that page and locale", () => {
-  const base = measured(), candidate = measured();
-  candidate[pageKey].entries["/"].warm += 5;
-  candidate[pageKey].totals.warm += 5;
-  candidate["workbench-demo/en"] = { totals: { cold: 1_000_000, warm: 1_000_000 }, entries: {} };
-  assert.match(firstScreenProblems(base, candidate, {}, {}).errors.join(), /workbench-default\/zh warm grew.*\+5/);
-  const allowance = permit(budget(0, 5));
-  assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, []);
-  assert.match(firstScreenProblems(base, candidate, allowance, allowance).errors.join(), /cover 0 bytes/);
-  assert.match(firstScreenProblems(base, base, {}, allowance).errors.join(), /cannot be changed or removed/);
-  assert.match(firstScreenProblems(base, candidate, permit(budget(5, 0)), {}).errors.join(), /warm grew/);
+const makeBudgets = (firstScreenOverrides = {}) => ({
+  routes: { shell: { maxBytes: 50_000, assets: ["/assets/a.css"] } },
+  maxSingleAssetBytes: 30_000,
+  maxPluginAssetBytes: 20_000,
+  firstScreen: {
+    "arrival-empty": { cold: 25_000, warm: 12_000 },
+    chooser: { cold: 25_000, warm: 12_000 },
+    "workbench-default": { cold: 25_000, warm: 12_000 },
+    "workbench-all-plugins": { cold: 25_000, warm: 12_000 },
+    ...firstScreenOverrides,
+  },
 });
 
-test("FSS-BG-02 a new or >10,000 B entry requires approval even when page totals shrink", () => {
-  const base = measured(), candidate = measured();
-  candidate[pageKey].entries = { "/": { cold: 900, warm: 900 }, "/new": { cold: 700, warm: 200 },
-    "/unchanged": { cold: 15_001, warm: 15_000 } };
-  candidate[pageKey].totals = { cold: 16_601, warm: 16_100 };
-  const failed = firstScreenProblems(base, candidate, {}, {});
-  assert.match(failed.errors.join(), /\/new: new entry requires userApproval/);
-  assert.match(failed.errors.join(), /\/unchanged: growth over 10 KB requires userApproval/);
-  assert.deepEqual(failed.draft.pages, {}, "an approval is independent of the page byte budget");
-  const pageOnly = firstScreenProblems(base, candidate, permit({ ...budget(0, 0), userApproval: "approval reference" }), {});
-  assert.deepEqual(pageOnly.errors, failed.errors);
-  const approvedNew = permit(approve(entryApproval("/new")));
-  assert.deepEqual(firstScreenProblems(base, candidate, approvedNew, {}).errors, [
-    "workbench-default/zh /unchanged: growth over 10 KB requires userApproval",
-  ]);
-  assert.deepEqual(firstScreenProblems(base, candidate, approvedNew, approvedNew).errors, failed.errors);
-  const approvedBoth = permit(approve(entryApproval("/new"), entryApproval("/unchanged", { change: "growth" })));
-  assert.deepEqual(firstScreenProblems(base, candidate, approvedBoth, {}).errors, []);
-  const wrongChange = permit(approve(entryApproval("/new"), entryApproval("/unchanged")));
-  assert.deepEqual(firstScreenProblems(base, candidate, wrongChange, {}).errors, firstScreenProblems(base, candidate, approvedNew, {}).errors);
-  assert.match(firstScreenProblems(base, candidate, permit({ assets: { "/assets/new.css": 3 }, userApproval: "asset only" }), {}).errors.join(), /\/new: new entry requires/);
+test("FSS-BG-01/02 Batch 100-2 first-screen route ceilings pass inside budget, ignore demo, and reject overruns or loosening", () => {
+  const candidate = measured();
+  candidate["workbench-demo/en"] = { totals: { cold: 10_000_000, warm: 10_000_000 }, entries: {} };
+  const budgets = makeBudgets();
+  assert.deepEqual(firstScreenProblems(candidate, budgets).errors, []);
+
+  // Small growth within the route ceiling passes with zero per-byte allowance files.
+  candidate[pageKey].totals.warm = 11_500;
+  assert.deepEqual(firstScreenProblems(candidate, budgets).errors, []);
+
+  // Exceeding cold or warm route ceiling fails explicitly.
+  candidate[pageKey].totals.warm = 12_001;
+  assert.match(firstScreenProblems(candidate, budgets).errors.join("\n"), /workbench-default\/zh warm total 12001 B exceeds first-screen budget 12000 B/);
+
+  // Loosening a first-screen ceiling against merge-base fails.
+  const loosened = makeBudgets({ "workbench-default": { cold: 25_000, warm: 13_000 } });
+  assert.match(firstScreenProblems(measured(), loosened, budgets).errors.join("\n"), /firstScreen\.workbench-default\.warm loosened 12000 → 13000/);
+
+  // Tightening passes cleanly.
+  const tightened = makeBudgets({ "workbench-default": { cold: 24_000, warm: 11_000 } });
+  assert.deepEqual(firstScreenProblems(measured(), tightened, budgets).errors, []);
+
+  // Incomplete measurement fails.
+  const missing = measured();
+  delete missing[pageKey];
+  assert.match(firstScreenProblems(missing, budgets).errors.join("\n"), /workbench-default\/zh: incomplete page measurement/);
 });
 
-test("FSS-BG-02 an approval for one scoped request does not cover another source, mode, language, or page", () => {
-  const base = measured(), candidate = measured();
-  const top = "/projects/seed/";
-  const frame = "/projects/seed/side/issues/capture";
-  const request = "/api/events";
-  const approved = requestKey(request, frame, SSE_FIRST_EVENT);
-  const topStream = requestKey(request, top, SSE_FIRST_EVENT);
-  const finite = requestKey(request, frame);
-  for (const key of [pageKey, "workbench-default/en", "workbench-all-plugins/zh"]) {
-    candidate[key].path = top;
-    candidate[key].project = "seed";
-    candidate[key].entries = { "/": { cold: 200, warm: 200 }, [approved]: { cold: 1, warm: 1 } };
-    candidate[key].totals = { cold: 201, warm: 201 };
-  }
-  candidate[pageKey].entries[topStream] = { cold: 1, warm: 1 };
-  candidate[pageKey].entries[finite] = { cold: 1, warm: 1 };
-  candidate[pageKey].totals = { cold: 203, warm: 203 };
-  const allowance = permit(approve(entryApproval(request, { response: SSE_FIRST_EVENT, document: "/projects/<project>/side/issues/capture" })));
-  const result = firstScreenProblems(base, candidate, allowance, {});
-  assert.deepEqual(result.errors, [
-    `${pageKey} ${topStream}: new entry requires userApproval`,
-    `${pageKey} ${finite}: new entry requires userApproval`,
-    `workbench-default/en ${approved}: new entry requires userApproval`,
-    `workbench-all-plugins/zh ${approved}: new entry requires userApproval`,
-  ]);
-  assert.ok(result.approvalRows.includes(`${pageKey} ${approved} (new entry): task.json`));
-});
-
-test("FSS-BG-02 a startup pack approval matches a single content address for that owner and language", () => {
-  const base = measured(), candidate = measured();
-  const localeEntry = (owner, tag, digit) => `/assets/locale/${owner}.${tag}.${digit.repeat(24)}.js`;
-  const approved = localeEntry("workbench", "zh", "a");
-  const allowance = permit(approve(entryApproval("/assets/locale/workbench.zh.<digest>.js")));
-  const next = candidate[pageKey];
-  next.entries = { "/": { cold: 900, warm: 900 }, [approved]: { cold: 500, warm: 100 } };
-  next.totals = { cold: 1400, warm: 1000 };
-  assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, []);
-  for (const path of [localeEntry("workbench", "en", "b"), localeEntry("other", "zh", "b"), `${approved}?other=1`]) {
-    next.entries[path] = { cold: 500, warm: 100 };
-    next.totals = { cold: 1900, warm: 1100 };
-    assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, [`${pageKey} ${path}: new entry requires userApproval`]);
-    delete next.entries[path];
-  }
-  const duplicate = localeEntry("workbench", "zh", "b");
-  next.entries[duplicate] = { cold: 500, warm: 100 };
-  assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, [
-    `${pageKey} ${duplicate}: multiple paths for /assets/locale/workbench.zh.<digest>.js`,
-  ]);
-});
-
-test("FSS-BG-02 a content-hash rotation of an existing startup locale pack compares against its previous digest", () => {
-  const base = measured(), candidate = measured();
-  const localeEntry = (digit) => `/assets/locale/workbench.zh.${digit.repeat(24)}.js`;
-  const oldPack = localeEntry("a"), newPack = localeEntry("b");
-  base[pageKey].entries = { "/": { cold: 15_000, warm: 15_000 }, [oldPack]: { cold: 5_000, warm: 100 } };
-  base[pageKey].totals = { cold: 20_000, warm: 15_100 };
-  // Rotating the digest without growing over 10 KB is not a new entry; total growth still obeys page allowances.
-  candidate[pageKey].entries = { "/": { cold: 14_800, warm: 15_000 }, [newPack]: { cold: 5_200, warm: 100 } };
-  candidate[pageKey].totals = { cold: 20_000, warm: 15_100 };
-  assert.deepEqual(firstScreenProblems(base, candidate, {}, {}).errors, []);
-  // Growing the rotated pack by > 10 KB still demands explicit growth userApproval on the logical entry.
-  candidate[pageKey].entries = { "/": { cold: 4_000, warm: 15_000 }, [newPack]: { cold: 15_001, warm: 100 } };
-  candidate[pageKey].totals = { cold: 19_001, warm: 15_100 };
-  assert.deepEqual(firstScreenProblems(base, candidate, {}, {}).errors, [
-    `${pageKey} ${newPack}: growth over 10 KB requires userApproval`,
-  ]);
-  const approvedGrowth = permit(approve(entryApproval("/assets/locale/workbench.zh.<digest>.js", { change: "growth" })));
-  assert.deepEqual(firstScreenProblems(base, candidate, approvedGrowth, {}).errors, []);
+test("FSS-BG-02 Batch 100-2 page-asset-budgets.json parser validates every firstScreen gated page", () => {
+  const valid = makeBudgets();
+  assert.deepEqual(parsePageAssetBudgets(JSON.stringify(valid)), valid);
+  const missingPage = { ...valid, firstScreen: { ...valid.firstScreen } };
+  delete missingPage.firstScreen.chooser;
+  assert.throws(() => parsePageAssetBudgets(JSON.stringify(missingPage)), /firstScreen\.chooser/);
+  const unknownPage = { ...valid, firstScreen: { ...valid.firstScreen, "workbench-demo": { cold: 1, warm: 1 } } };
+  assert.throws(() => parsePageAssetBudgets(JSON.stringify(unknownPage)), /unknown firstScreen page/);
 });
 
 test("FSS-BG-05 first-screen artifact cache keys depend on rows and validate cached measurements strictly", () => {
@@ -362,23 +302,6 @@ test("FSS-BG-05 first-screen artifact cache keys depend on rows and validate cac
   const missingDemo = { ...pages };
   delete missingDemo["workbench-demo/en"];
   assert.equal(firstScreenReportMatches({ sha, key: keyA, pages: missingDemo }, sha, keyA), false);
-});
-
-test("FSS-BG-02 page-only and combined allowances preserve old asset rejection and validate both categories", () => {
-  const old = { "/assets/base.css": 5 };
-  const next = { "/assets/base.css": 6 };
-  assert.match(assetProblems(next, old, permit(budget(1, 1)), {}).join(), /base.css grew/);
-  assert.deepEqual(assetProblems(next, old, permit({ assets: { "/assets/base.css": 1 }, ...budget(1, 0) }), {}), []);
-  for (const invalid of [
-    {}, { assets: {} }, { pages: {} }, budget(0, 0), budget(-1, 1), budget(1.5, 1), budget("2", 1),
-    { ...budget(1, 0), other: 1 }, { assets: {}, ...budget(1, 0) },
-    { pages: { [pageKey]: { cold: 1, extra: 1 } } }, { pages: { "workbench-demo/en": { cold: 1, warm: 1 } } },
-    { entryApprovals: [entryApproval("/new")] }, approve(), approve(entryApproval("/*", { pages: ["*"] })),
-    approve(entryApproval("/new", { response: "all-events" })), approve(entryApproval("/new", { extra: true })),
-    approve(entryApproval("/assets/locale/workbench.en.<digest>.js")), approve(entryApproval("/foo.<digest>.js")),
-  ]) {
-    assert.match(readNewAllowances(permit(invalid), {}).errors.join(), /invalid allowance/);
-  }
 });
 
 // FSS-BG-05: each build is measured by the candidate's checker, in a process of its own. A build's Host installs process-wide state

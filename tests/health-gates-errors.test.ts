@@ -264,7 +264,7 @@ test("what the rules must not flag stays green against the merge-base", () => {
       // Not codes: sentences, a message in the message slot, a value that is not a literal, a log call, a factory with one argument.
       'export const c = [new Error("Bad_Code is a sentence."), new MessageFirstError("Looks_Like_Code", "alpha.ok")];',
       "export const d = (code: string, cause: string) => [new AlphaError(code, \"x\"), new AlphaError(`alpha.${cause}`, \"x\"), new Error(code)];",
-      'export const e = () => { logger.error("not.a.Code", "log line"); console.error("Also.Not", "log"); };',
+      'export const e = () => {\n  logger.error("not.a.Code", "log line");\n  console.error("Also.Not", "log");\n};',
       'export const f = () => context.error("Not a code, a sentence", "x");',
       'export const g = (error: Error) => context.error("lonely");'));
     put("modules/alpha/src/errors.ts", read("modules/alpha/src/errors.ts") + "export class HelperThing { error = 1 }\nexport class Widget extends Base {}\ndeclare class Base {}\n");

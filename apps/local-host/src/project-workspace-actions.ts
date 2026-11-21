@@ -12,6 +12,8 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { checkWorkspaceFile } from "./workspace-files.js";
 import { changedProjectPluginEnablement, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { disposeWorkTerminalsForHomePluginInProject } from "./work-terminal-service.js";
 import { hostErrors } from "./host-errors.js";
 import { hostLog } from "./host-log.js";
 
@@ -122,6 +124,19 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
         caller.signal?.throwIfAborted();
         return { before, saved: catalog.setProjectPlugin(projectId, caller.actor_id, input) };
       }, caller.beforeEffect));
+      const home = catalogOwner()?.home;
+      if (home) {
+        const beforeHidden = new Set(before.hidden);
+        const savedPlugins = new Set(saved.plugins);
+        const disabledKeys = new Set<string>([
+          ...saved.hidden.filter(id => !beforeHidden.has(id)),
+          ...before.plugins.filter(id => !savedPlugins.has(id)),
+        ]);
+        for (const key of disabledKeys) {
+          const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key || item.manifest.plugin_id === key);
+          disposeWorkTerminalsForHomePluginInProject(home, entry?.manifest.plugin_id ?? key, projectId);
+        }
+      }
       const changed = changedProjectPluginEnablement(before, saved);
       if (changed.size === 0) return saved;
       try {

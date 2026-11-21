@@ -2,7 +2,7 @@ import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { sideItemOpenedTabs, sideOpenedTabs } from "./plugin-place.js";
 import { SIDE_PANE_FACTORY } from "../../side-panel.js";
 import { recordRows, searchRows } from "../../search-rows.js";
-import { pluginNoReopenRecords, pluginSurfaceAliases, pluginTabGlyphs } from "../../plugin-catalog.js";
+import { pluginManifestIds, pluginNoReopenRecords, pluginSurfaceAliases, pluginTabGlyphs } from "../../plugin-catalog.js";
 import { readClientPluginDirectory, readClientPluginTitles } from "../../plugin-directory.js";
 import { createTabWorkspaceOps, isLoosePluginTab, settlePluginTabs, withLayout, withPluginGroups, withSidePane } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
@@ -31,7 +31,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { pluginTitle: (plugin) => plugin, homeNavigationFrom: () => () => false, adoptHomeLead: () => null, releaseHomeLead() {}, apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
-  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
+  const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())}, PLUGIN_MANIFEST_IDS = ${JSON.stringify(pluginManifestIds())}, RECORD_ROWS = ${JSON.stringify(recordRows())}, SURFACE_ALIASES = ${JSON.stringify(pluginSurfaceAliases())}, NO_REOPEN_RECORDS = ${JSON.stringify(pluginNoReopenRecords())};
   // A plugin whose only place is a side view (plugin-place) opens there: the right side is a pane of this workspace, so it is
   // the side's own open (recall or open, never a second copy), not an event sent before the workspace knows.
   const SIDE_OPENED = ${sideOpenedTabs()};
@@ -287,9 +287,12 @@ ${TAB_WORKSPACE_DRAG_PART}
   /* The entries that open a cover, wherever the bar keeps them. Pressed again while their cover is up, they close it. */
   const COVER_OPENERS = {
     settings: '[data-directory-open="settings"]',
+    capabilities: '[data-capabilities-open]',
     "project-settings": '[data-directory-open="project-settings"]',
     market: ':is([data-dock], [data-global-menu]) [data-plugin-id="market"]',
   };
+  const CAPABILITY_COVER_SECTIONS = new Set(["library", "connections", "access", "history"]);
+  const activeCoverOpener = () => state.exclusive === "settings" && CAPABILITY_COVER_SECTIONS.has(String(coverPlace || "").split(" ")[0]) ? "capabilities" : state.exclusive;
   const tabShareObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const node = entry.target;
@@ -375,7 +378,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     const surface = target?.closest("[data-work-surface]");
     if (!surface) return;
     const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
-    const spec = plugin !== "feed" && SEARCH_ROWS.find(([id]) => id === plugin);
+    const spec = !NO_REOPEN_RECORDS.includes(plugin) && SEARCH_ROWS.find(([id]) => id === plugin);
     const row = spec ? target.closest(spec[1]) : null;
     const itemId = row && surface.contains(row) ? row.dataset[spec[2]] : "";
     const pane = ops.focused(state);
@@ -393,7 +396,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
       if (surface.getAttribute("data-expanded") === "true") {
         // A record opened without its row being clicked (a note just created): the row the plugin marks as chosen names it.
-        const spec = plugin !== "feed" && SEARCH_ROWS.find(([id]) => id === plugin);
+        const spec = !NO_REOPEN_RECORDS.includes(plugin) && SEARCH_ROWS.find(([id]) => id === plugin);
         if (spec) setTimeout(() => {
           const pane = ops.focused(state);
           if (!pane || state.exclusive || pane.activeTabId || pane.viewPlugin !== plugin || historyLock) return;
@@ -522,7 +525,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (embedded || !state.exclusive || event.target?.nodeType !== 1) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     const kind = coverKindOf(event.target);
-    if (!kind || kind !== state.exclusive) return;
+    if (!kind || kind !== activeCoverOpener()) return;
     event.preventDefault();
     event.stopPropagation();
     event.target.closest("details[open]")?.removeAttribute("open");

@@ -178,7 +178,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `apps/workbench/src/shell-page-renderer.ts` | 11 | 2 | 227 行 |
 | `apps/local-host/src/assistant/assistant-store.ts` | 10 | 1 | 282 行 / 44 方法 |
 | `apps/local-host/src/plugin-builder/agent-surface.ts` | 8 | 2 | 196 行 |
-| `apps/local-host/src/web-goals-read.ts` | 8 | 1 | 175 行 |
+| `apps/local-host/src/web-goals-read.ts` | 8 | 1 | 175 行（第 44 批删除，文件已删） |
 | `horizontal/agent-host/src/adapters/prologue.ts` | 8 | 3 | 1,026 行 |
 | `horizontal/agent-host/src/index.ts` | 8 | 2 | 409 行 / 12 方法 |
 | `apps/local-host/src/agent-host-composition.ts` | 7 | 1 | 261 行 |
@@ -246,7 +246,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `project-host.ts` | `MolisWorkLocalHost` 类 361 行 / 24 方法 | 归线 · §4.6 · W4-04、W5-01、W5-02 | 项目 composition owner。`constructor` 153 行，文件里 26 处 `registerProvider`，插件族迁到 Runtime 时各删各的（W4-04 先删 Form 的），W5-02 再把名单改成由声明生成。这几片之后类仍超限，W6-04 重量时在门禁里会看到，同一片补拆。宿主自己的服务装配不随插件名单消失（例如 `connectorAccountActionProvider` 那一行连接器装配，#762 记），W6-04 把它们提成按服务分的装配函数，连接器那一段放到连接器的文件旁边。 | 14 |
 | `web-catalog.ts` | `handleLocalCatalogWebRequest` 函数 336 行 | 已拆 · W5-10（批 G） | 已做：路由分支改成 `web-catalog-routes.ts` 里按原顺序排的 `CATALOG_ROUTES` 条目（`{id, handle}`，由 W5-07 的 `dispatchWebRoutes` 依次试），设置页与插件设置页两个大分支搬到 `web-catalog-settings.ts`；`web-catalog.ts` 现 28 行，只建请求上下文、分发、再给 `/api` 的 400 与 404。 | 15 |
 | `web-connectors-settings.ts` | 已不是巨大单元：`handleLocalConnectorsSettingsHttp` 函数约 115 行（2026-10-26 核，原 227 行） | 已低于阈值 · W5-11 | 连接器提供方设置与 OAuth 的 HTTP。决定 #7 说连接器路由以后搬进各自的官方接入插件，那是 W5-11（Codex C4）。函数已在阈值以下，不再冻结；搬迁时仍按路由或按服务商分开搬，不整体搬进新文件。 | 0 |
-| `web-goals-read.ts` | `createLocalGoalsReadHttp` 函数 175 行 | 拆 · W5-10 | `createLocalGoalsReadHttp` 内的 `page`（91）、`settings`（43）、`fragments`（30）三个路由处理各成函数，装配函数只列出它们。 | 8 |
+| `web-goals-read.ts` | `createLocalGoalsReadHttp` 函数 175 行 | 拆 · W5-10；第 44 批去 Goals 私路后删除（文件已删） | `createLocalGoalsReadHttp` 内的 `page`（91）、`settings`（43）、`fragments`（30）三个路由处理各成函数，装配函数只列出它们。 | 8 |
 | `web-project-settings.ts` | `createLocalProjectSettingsHttp` 函数 189 行<br>`handle` 函数 182 行 | 拆 · W5-10 | `handle` 的 `if` 路由分支（最大 47、32、24 行）改成路由表，每个路由一个函数。`handle` 内嵌在 `createLocalProjectSettingsHttp` 里（同一段计两次）。 | 3 |
 | `web-server.ts` | `createLocalWebServerFactory` 函数 241 行<br>`createMolisWorkWebServer` 函数 238 行 | 拆 · W5-10 | `createMolisWorkWebServer` 49 条语句：HTTP 服务（`server` 74）、本机宿主（`localHost` 16）、周期调度（`schedulerTimer` 14，每 30 秒推进 Feed 与 Schedule）、侧栏浏览器登记（`unregisterSurfaces` 13）、PTY 挂接（12）、关停（`server.once("close")` 12）各成启动函数，装配函数只按顺序调用并登记关停。它内嵌在 `createLocalWebServerFactory` 里（同一段计两次）。 | 7 |
 
@@ -348,7 +348,7 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 已拆（W5-10 R4a） | 章节搬到 `catalog-controls.ts`（控件）、`catalog-layout.ts`（目录与外壳）、`catalog-compose.ts`（选项与组合）、`catalog-parts.ts`（`section`/`mark`/`specimen`），`renderPrimitiveCatalog` 只列章节；页尾演示脚本改成 `src/browser/catalog.ts` 打包进 `dist/catalog-client.js`（`page-clients.ts` 读）。除脚本外，板子的 HTML 与拆分前逐字节相同。 | 3 |
 | `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 5 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/archive/repository-anti-corruption/spec.md` §W4-12。 | 3 |
 | `design-system` | `src/styles/craft-finish.ts` | 文件 2,313 行 | 已拆样式，脚本留 W5-04（R4a） | 1,720 行样式拆成 `craft-finish-bar.ts`、`craft-finish-assistant.ts`、`craft-finish-pages.ts` 三份（按小节切、级联顺序不变，拼出的 `CRAFT_FINISH_STYLES` 与拆分前逐字节相同），共用的选择器片段在 `craft-finish-selectors.ts`；不登记例外。235 行 `CRAFT_FINISH_CLIENT_SCRIPT` 仍在 `craft-finish.ts`：搬到新文件会让「文本程序」计数在新文件 0→1，所以留到 W5-04 打包成 TypeScript（BL-550）。 | 14 |
-| `design-system` | `src/styles/momentum.ts` | 文件 819 行（门禁量） | 例外 · 样式表 | `MOMENTUM_STYLES` 一个模板字符串，纯 CSS（Goals 动量视图）。2026-10-25 复核（用户「本身合理可以不硬拆，标明即可」）：维持例外，`kind: stylesheet`；#1289 合入后在 `giant-exceptions.json` 补 `size: 819`。 | 4 |
+| `design-system` | `src/styles/momentum.ts` | 文件 819 行（门禁量） | 例外 · 样式表；第 44 批随 Goals 样式迁包删除（文件已删） | `MOMENTUM_STYLES` 一个模板字符串，纯 CSS（Goals 动量视图）。原作为样式表例外保留；第 44 批将 Goals 样式迁入 `plugins/native/goals` 按需样式包后整文件删除。 | 4 |
 | `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/archive/repository-anti-corruption/spec.md` §W4-12。 | 1 |
 | `design-system` | `src/styles/primitives.ts` | 文件 1,258 行（门禁量） | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。2026-10-25 复核：维持例外，`kind: stylesheet`；#1289 合入后补 `size: 1258`。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 已拆（W5-10） | `startIm` 剩约 35 行装配：页面状态收进一个 `ImState`（原来 29 个闭包变量），元素与服务放进 `ImCtx`，十层各一个自包含工厂 `controller-{shell,composer,sync,rooms,topics,navigate,dialogs,startup,page,clicks}.ts`（最大 126 行），层与层经 `c.<名字>` 后绑定调用，仍由 `client.ts` 用 `toString` 序列化进页面。函数体逐字搬动，只把变量引用改成 `s.<名字>`/`c.<名字>`；一处原有的空 `catch` 补了说明。浏览器用例交集成批。 | 1 |

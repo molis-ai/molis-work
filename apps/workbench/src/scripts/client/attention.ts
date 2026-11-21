@@ -30,6 +30,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const count = tab?.parentElement?.querySelector("[data-background-tasks-count]");
   const list = document.querySelector("[data-background-tasks-list]");
   let background = { tasks: [], incomplete: true }, key = "", reading = null, scheduled = null, again = false, readSequence = 0;
+  globalThis.molisWorkAttentionSequence = () => readSequence;
   // These are this page's command attempts, not the provider's task states. A refreshed row keeps the same in-flight attempt.
   const commands = new Map();
   const commandKey = (task, command) => JSON.stringify([task.project_id, task.id, command.role, command.action, command.input]);
@@ -135,7 +136,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const data = await molisWorkRequest(address, { signal: current.controller.signal });
       if (reading !== current || address !== readAddress()) return;
       showTasks(data.background_tasks, sequence);
-      document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
+      document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started, sequence }) }));
       heard = new Date().toISOString();
     } catch (error) {
       if (reading !== current || address !== readAddress()) return;
@@ -216,7 +217,18 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       navigator.locks.request(name, { signal: held.signal }, lead).catch(() => {});
     }).catch(() => {});
   };
-  document.addEventListener("molis-work:attention-refresh", () => void read(true));
+  document.addEventListener("molis-work:attention-refresh", (event) => {
+    if (event?.detail?.reconnected === true) {
+      delay = 1000;
+      lost = false;
+      if (!document.hidden && !gone.has(route("/api/attention"))) {
+        // Re-enter via close()+listen() so navigator.locks single-leader ownership is preserved and any wedged stream is replaced.
+        close();
+        listen();
+      }
+    }
+    void read(true);
+  });
   // A hidden page hears nothing (N54); coming back it connects again, and the stream's first word reads. A page told it is shown
   // while its stream is still open reads once: what changed outside the Host's word (a store a crash left) shows when it is looked at.
   document.addEventListener("visibilitychange", listen);

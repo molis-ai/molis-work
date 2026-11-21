@@ -10,7 +10,7 @@ import { SOURCE_PULL_EVIDENCE_KEY_MISSING } from "@molis-ai/molis-work-contracts
 import { createAlchemistSearchPort, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createEvidenceContentStore, createLazyFileSecretStore, RESEARCH_EVIDENCE_DIRECTORY, type SecretStore } from "@molis-ai/molis-work-storage";
 import { holdSearchNetwork } from "./fixtures/alchemist-search-network.js";
-import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { homeStorageTree } from "./fixtures/home-storage-files.js";
 import { createTestSourcePull } from "./fixtures/source-pull.js";
 
@@ -160,4 +160,89 @@ for (const keyed of [false, true]) test(`BL-1065: research ${keyed ? "with the o
   else assert.ok(h.key(), "the first save made the key");
   assert.ok(Object.keys(homeStorageTree(h.home)).some(path => path.includes(`/${RESEARCH_EVIDENCE_DIRECTORY}/blobs/`)), "the research body was saved");
   if (feedBody) assert.equal(h.feed().read(feedBody.contentRef), "动态旧正文");
+});
+
+test("P1-F4: corrupted evidence key reports missing (not creatable), never overwrites, maps mid-flight loss, and checks assertCurrent before sealingStatus", async t => {
+  await t.test("corrupted key (not 32 bytes) with zero blobs reports missing and never overwrites", st => {
+    const h = isolatedHome(st);
+    assert.equal(h.secrets.createIfAbsent(KEY_REF, "not-32-bytes"), true);
+    assert.equal(h.feed().sealingStatus(), "missing");
+    assert.equal(h.research().sealingStatus(), "missing");
+    assert.throws(() => h.feed().write("should-not-overwrite"), KEY_MISSING);
+    assert.equal(h.key(), "not-32-bytes", "corrupted key entry is preserved, never overwritten");
+  });
+
+  await t.test("Alchemist search runs assertCurrent() before sealingStatus()", async st => {
+    const h = isolatedHome(st);
+    h.feed().write("动态旧正文");
+    h.loseKey();
+    const network = holdSearchNetwork(st, "dns");
+    network.release();
+    const port = createAlchemistSearchPort({ homeDirectory: h.home, projectId: "project-revoked", secretStore: h.secrets });
+    st.after(() => port.shutdown());
+    await assert.rejects(
+      port.search({
+        query: "users retain original interviews for product decisions",
+        lens: "market_space",
+        assertCurrent: () => {
+          throw Object.assign(new Error("caller authority revoked"), { code: "actions.forbidden" });
+        },
+      } as Parameters<typeof port.search>[0]),
+      (error: Error & { code?: string }) => error.code === "actions.forbidden",
+    );
+    assert.equal(network.seen.connections, 0);
+  });
+
+  await t.test("mid-search key loss in Alchemist maps storage.evidence_content.key_unavailable to alchemist.research_evidence_key_missing", async st => {
+    const h = isolatedHome(st);
+    h.feed().write("initial-body-creates-valid-key");
+    const network = holdSearchNetwork(st, "dns");
+    network.release();
+    const port = createAlchemistSearchPort({ homeDirectory: h.home, projectId: "project-mid-search", secretStore: h.secrets });
+    st.after(() => port.shutdown());
+    await assert.rejects(
+      port.search({
+        query: "users retain original interviews for product decisions",
+        lens: "market_space",
+        beforeDispatch: async () => {
+          // Key disappears after pre-flight sealingStatus() succeeded and right before search writes its body.
+          h.secrets.deleteIfPresent(KEY_REF);
+        },
+      } as Parameters<typeof port.search>[0]),
+      (error: Error & { code?: string }) => error.code === "alchemist.research_evidence_key_missing",
+    );
+  });
+
+  await t.test("mid-pull key loss in SourcePullPort maps storage.evidence_content.key_unavailable to SOURCE_PULL_EVIDENCE_KEY_MISSING", async st => {
+    const h = isolatedHome(st);
+    h.feed().write("initial-body-creates-valid-key");
+    const directory = mkdtempSync(join(tmpdir(), "molis-work-p1f4-midpull-"));
+    const databasePath = join(directory, "project.sqlite");
+    seedDemoBoard(databasePath);
+    const store = new LocalProjectDatabase(databasePath);
+    st.after(() => {
+      store.close();
+      rmSync(directory, { recursive: true, force: true });
+    });
+    const fetchMidLoss = async () => {
+      // Key disappears while the network fetch is in flight, before body write.
+      h.secrets.deleteIfPresent(KEY_REF);
+      return new Response(
+        `<?xml version="1.0"?><rss version="2.0"><channel><title>Mid</title><item><title>One</title><link>https://example.com/1</link><description>Body text for mid-pull key loss</description></item></channel></rss>`,
+        { status: 200, headers: { "content-type": "application/rss+xml" } },
+      );
+    };
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, db => createTestSourcePull({
+      db,
+      home: h.home,
+      secretStore: h.secrets,
+      fetch: fetchMidLoss,
+    }));
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
+    await assert.rejects(
+      service.sync(source.source_id, { idempotencyKey: "p1f4-mid-pull-0001" }),
+      (error: Error & { code?: string }) => error.code === "feed.source_sync_interrupted",
+    );
+    assert.equal(service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).last_error_code, SOURCE_PULL_EVIDENCE_KEY_MISSING);
+  });
 });

@@ -2,7 +2,7 @@
 
 > 2026-11-13 从 `specs/prologue-tool-strategy/spec.md` 并入本目录；正文保留，只改相对链接。
 
-状态：需求已整理（2026-10-21；2026-10-27 用户确定按任务和执行阶段自动查找、选择并调用已授权工具，说明按需加载，用户可点名或限制，发现不扩权），其余策略仍待逐项评审，尚未实施本次决定。独立需求；工具的形状、副作用链与审批沿用 [action-architecture](../action-architecture/spec.md) 与 Prologue `tool/` 合同，本 spec 只补“给模型看哪些、怎么找、怎么省、怎么证明用得对”。
+状态：需求已整理（2026-10-21；2026-10-27 用户确定按任务和执行阶段自动查找、选择并调用已授权工具，说明按需加载，用户可点名或限制，发现不扩权；**2026-11-19 / 11-20 [决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ② 已拍板工具面全面静态化、Anthropic 按需 `defer_loading`、Coding 废 56 字符哈希改保留 `act__` 前缀的可读短名及 `apply_patch`／`read-resource`／`invokeAll` 安全并行波，排入 91A／62 实施，当前尚未写码**），其余策略仍待逐项评审，尚未实施本次决定。独立需求；工具的形状、副作用链与审批沿用 [action-architecture](../action-architecture/spec.md) 与 Prologue `tool/` 合同，本 spec 只补“给模型看哪些、怎么找、怎么省、怎么证明用得对”。
 
 同系列：[Skill](skill.md) · [MCP](mcp.md) · [Context](context.md)。
 
@@ -175,6 +175,13 @@ Molis 的 [Prologue AI 手册](../../docs/platform/PROLOGUE-AI.md) 已要求“�
 - 现有系统工具闭集约 29 项，P0 不改变“闭集永远带 schema”。扩展闭集延后 schema 只是待裁决项，不在本 PR 实施范围。
 - 与 Skill 的边界：`find-tools` / `find-skills` 分开；选中 Skill 的工具可见性由 Skill 策略补，本 spec 不替它决定。
 - 与 Context 的边界：perTool 观察上限在 Tool 层裁原始观察；Context 的来源预算再决定打包放不放。两层都可见，不把一次裁剪说成删除。
+
+### 8.2 复查与拍板记录（2026-11-19 / 11-20 红队终校，[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ②）
+
+本节仅记录已拍板排期与红队强制护栏，**尚未实施写码**：
+
+- **第 91 批（91A）止血窗口**：修复 Prologue `edit` 工具函数替换防 `$` 损坏及唯一性校验、截断工具 JSON 拒执行、熔断器／`tool-after` 修复；Molis 侧改用已有 `ActionService.discoverOne()` 做按能力 O(1) 点查，**禁止盲目整轮缓存 `discover()` 结果**（防止中途撤权或版本变更被旧缓存绕过）。
+- **第 62 批窗口二（工具面全面静态化）**：① 个人助理动作网关保持静态 Schema，发现的能力 Schema 通过工具观察回传 + 精确参数纠错，须先通过 MiniMax G1–G4 参数纠错门槛再撤出 `parameterBranches`；② Anthropic 端点按需启用原生 `defer_loading`；③ Coding 56 字符 SHA-256 哈希工具名改为稳定可读命名空间短名并**强制保留 `act__` 前缀（守 `S-28`）**；④ 上游补齐 `apply_patch` 多段原子编辑、`read-resource`／`grep-resource` 按需读取溢出 `ResourceStore`（解除 Host 64 KiB 进程输出硬销毁）、Agent Loop 先修复 `invokeAll` 漏传回调与中止信号（及 `input.allowed` 锁表）且初期**仅限 `safe-read` 类工具并行**（并行波原子审批衔接 [105-1](../post-anticorruption-roadmap/reference/batches/105.md#batch-105-item-1)）、`code-mode` 结构化步骤传值与确定性 JSON 键序序列化。
 
 ## 9. 参考
 

@@ -10,8 +10,8 @@ import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.m
 import { pluginStylesBuildFixture } from "./fixtures/plugin-styles-build.ts";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
-// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which its registered sheets put
-// straight into the shared sheets). A frame does not make the count zero and declaring a class shared does not hide a rule.
+// blocks that name it and are still there (measured uniformly across all registered plugins via the first slice's splitter).
+// A frame does not make the count zero and declaring a class shared does not hide a rule.
 // Each number only falls.
 //
 // The rules are mutation-verified here on a small scratch repository: one violation added on a branch makes `--base main`
@@ -349,12 +349,13 @@ test("RAC-769 a missing build is exit 2, never a pass", () => {
   assert.match(missing.out, /apps\/workbench\/dist\/plugin-workbench\.js is missing \(the registered plugin packs\); build the workspace first/);
 });
 
-test("RAC-769 this repository's own build freezes the shell-drawn rules and the few declared-shared leftovers", () => {
+test("RAC-769 this repository's own build freezes the few declared-shared leftovers with no Goals special case", () => {
   const reported = run(repoRoot, "--report", "--json");
   assert.equal(reported.code, 0, reported.out);
   const report = JSON.parse(reported.out) as { measured: Record<string, number>; budget: Record<string, number>; budgetPrefixes: Record<string, string[]> };
-  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "form", "goals", "plugin-builder"],
-    "framed plugins keep only what their registration declares shared; the shell-drawn ones keep a frozen number");
+  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "form", "plugin-builder"],
+    "on-demand plugins (including Goals, Feed and Inbox) keep zero namespace rules in the shared sheet; only declared-shared leftovers remain");
+  assert.deepEqual(report.budgetPrefixes?.["goals"], ["goal-"], "Goals' prefix stays remembered so its rules cannot fall back to the shared sheet");
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);
   const passed = run(repoRoot);

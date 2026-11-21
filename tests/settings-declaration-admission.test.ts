@@ -53,7 +53,8 @@ test("SPC-C01: public Manifest parsing validates setting text, layers and the ow
   assert.throws(changed(draft => { draft.actions![1]!.action!.input_schema = { type: "object" }; }), pathOfRefusal("settings_entries.write"));
   assert.throws(changed(draft => { draft.settings_entries!.entries[0]!.title = { key: "somebody.else.title" }; }), pathOfRefusal("settings_entries.entries[0].title"));
   assert.throws(changed(draft => { Reflect.set(draft.settings_entries!.entries[0]!, "layers", ["task"]); }), pathOfRefusal("settings_entries.entries[0].layers"));
-  assert.throws(() => parsePluginPackageManifest(manifest), pathOfRefusal("settings_entries"));
+  assert.equal(parsePluginPackageManifest(manifest), manifest, "signed app packages accept valid settings_entries");
+  assert.throws(() => parsePluginPackageManifest({ ...manifest, kind: "integration" }), pathOfRefusal("settings_entries"));
 });
 
 function usingDb<T>(path: string, run: (db: DatabaseSync) => T): T {

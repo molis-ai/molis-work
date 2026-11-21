@@ -121,3 +121,37 @@ test("A4-2 the round's hook reads nothing outside the round's directory: through
   }
   assert.equal(store.size, 0, "nothing was read or checked for a file outside the directory");
 });
+
+test("B35 P1-E1: LSP applyEdits clamps oversized character positions to each line end (LF and CRLF) and keeps same-start edits deterministic", async (t) => {
+  // Case 1: character = 2147483647 on line 0 with CRLF must clamp before \r\n without swallowing line 1.
+  const crlfEdits = [
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 2147483647 } }, newText: "package main" },
+  ];
+  {
+    const { intelligence } = round(t, { FAKE_LSP_CUSTOM_EDITS: JSON.stringify(crlfEdits) });
+    const checked = await intelligence.checkWrite({ path: "src/crlf.go", before: undefined, after: "package main   \r\nvar x = 1\r\n" });
+    assert.equal(checked.text, "package main\r\nvar x = 1\r\n");
+  }
+
+  // Case 2: same-start insertion + replacement (in either order) and multiple zero-width insertions at one position.
+  const sameStartForward = [
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }, newText: "/*a*/" },
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }, newText: "/*b*/" },
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, newText: "package" },
+  ];
+  {
+    const { intelligence } = round(t, { FAKE_LSP_CUSTOM_EDITS: JSON.stringify(sameStartForward) });
+    const checked = await intelligence.checkWrite({ path: "src/same-start-a.go", before: undefined, after: "pkg_old main\n" });
+    assert.equal(checked.text, "/*a*//*b*/package main\n");
+  }
+
+  const sameStartReverse = [
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, newText: "package" },
+    { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }, newText: "/*pre*/" },
+  ];
+  {
+    const { intelligence } = round(t, { FAKE_LSP_CUSTOM_EDITS: JSON.stringify(sameStartReverse) });
+    const checked = await intelligence.checkWrite({ path: "src/same-start-b.go", before: undefined, after: "pkg_old main\n" });
+    assert.equal(checked.text, "/*pre*/package main\n");
+  }
+});

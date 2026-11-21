@@ -70,6 +70,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const keptHash = (hash, section) => !hash ? "" : (declared(ADDRESS_HASHES, section) + " " + addressOf(section).hash).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
   const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
+  let lastSettingsSection = "appearance";
   const retained = new WeakMap();
   const disposePage = (root) => { retained.get(root)?.dispose(); retained.delete(root); };
   const pageOf = (root, options) => ({
@@ -156,6 +157,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     let active = options.preset;
     let loading = null;
     const markNav = (section) => {
+      if (options.kind === "settings" && section && !CAPABILITY_SECTIONS.includes(section)) lastSettingsSection = section;
       nav?.querySelectorAll("[data-settings-section]").forEach((button) => {
         const current = button.dataset.settingsSection === section;
         if (current) {
@@ -437,14 +439,19 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const href = typeof detail.href === "string" ? detail.href : "", wasOpen = covered();
     opened = null;
-    if (openProjectSettingsFromUrl(href, true) || openGlobalSettingsFromUrl(href, true)) returns?.open(detail, opened.kind + " " + opened.section, wasOpen);
-    else returns?.refuse(detail.return_id);
+    if (openProjectSettingsFromUrl(href, true) || openGlobalSettingsFromUrl(href, true)) {
+      event.preventDefault?.();
+      returns?.open(detail, opened.kind + " " + opened.section, wasOpen);
+    } else returns?.refuse(detail.return_id);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
     .some((row) => row.dataset.settingsSection === section);
   document.addEventListener("molis-work:open-settings-section", (event) => {
     const section = event.detail?.section;
-    if (typeof section === "string" && knownGlobalSection(section)) openShell("settings", section);
+    if (typeof section === "string" && knownGlobalSection(section)) {
+      event.preventDefault?.();
+      openShell("settings", section);
+    }
   });
   const requestedSection = new URLSearchParams(location.search).get("settings");
   if (requestedSection) setTimeout(() => {
@@ -475,7 +482,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     }
     const globalOpener = event.target.closest("[data-directory-open=settings]");
     if (globalOpener) {
-      openShell("settings", globalSettings?.getActive() || "appearance");
+      const active = globalSettings?.getActive() || "";
+      openShell("settings", active && !CAPABILITY_SECTIONS.includes(active) ? active : lastSettingsSection);
       return;
     }
     const link = event.target.closest("a[href]");
@@ -512,6 +520,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   globalThis.molisWorkSettingsLanguageRoots = () => [globalSettings, projectSettings]
     .flatMap(panel => panel ? [...panel.caches.values()] : []).filter(root => root.dataset.settingsSource);
   const leave = (section) => {
+    if (lastSettingsSection === section) lastSettingsSection = "appearance";
     for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {
       if (!panel) continue;
       void panel.drop(section).then(dropped => { if (dropped && panel.getActive() === section) void panel.loadSection(first); });

@@ -122,14 +122,12 @@ export const STYLES = `
   .tree-dep.is-ready em { color: var(--green); }
   .tree-dep.is-blocked em { color: var(--red); }
   .goal-status { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; font-weight: 400; }
-  .goal-status--clarifying, .goal-status--executing, .goal-status--reviewing, .goal-status--revalidating, .goal-status--in_progress { color: var(--tone-progress, var(--blue)); }
-  .goal-status--clarification_pending, .goal-status--clarification_decision_pending, .goal-status--compound_closure_pending, .goal-status--completion_pending, .goal-status--review_pending, .goal-status--waiting_for_human, .goal-status--revalidation_pending, .goal-status--waiting_user { color: var(--tone-attention, var(--amber)); }
-  .goal-status--execution_pending, .goal-status--continue { color: var(--tone-idle, var(--ink-soft)); }
-  .goal-status--clarification_blocked, .goal-status--execution_blocked, .goal-status--completion_blocked, .goal-status--review_blocked, .goal-status--revalidation_blocked, .goal-status--invalidated, .goal-status--blocked { color: var(--tone-blocked, var(--red)); }
-  .goal-status--replaced { color: var(--tone-quiet, var(--muted)); }
-  .goal-status--waiting_children, .goal-status--waiting { color: var(--tone-hold, var(--ink-soft)); }
-  .goal-status--satisfied, .goal-status--completed { color: var(--tone-done, var(--green)); }
-  .goal-status--trashed, .goal-status--archived { color: var(--tone-quiet, var(--muted)); }
+  .goal-status--in_progress { color: var(--tone-progress, var(--blue)); }
+  .goal-status--waiting_user { color: var(--tone-attention, var(--amber)); }
+  .goal-status--blocked { color: var(--tone-blocked, var(--red)); }
+  .goal-status--waiting { color: var(--tone-hold, var(--ink-soft)); }
+  .goal-status--completed { color: var(--tone-done, var(--green)); }
+  .goal-status--archived { color: var(--tone-quiet, var(--muted)); }
   .tree-node.is-selected .goal-status { color: var(--goal-status-tone, inherit); }
   .tree-footer { padding: 0 24px; border-top: 1px solid var(--line); display: flex; align-items: center; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 55%, var(--paper)); }
   .tree-footer small { margin-left: auto; color: var(--muted); }

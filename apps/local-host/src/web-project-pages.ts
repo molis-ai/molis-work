@@ -7,12 +7,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
 import { matchPageRoute } from "./page-routes.js";
 import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
-import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-library-http.js";
+import { renderProjectArtifactContext } from "./artifact-library-http.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, type MolisWorkWebView, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -23,6 +22,7 @@ import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
+import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
@@ -100,7 +100,7 @@ async function readSubjectArtifactContext(subjectId: string, actions: BoundActio
   try {
     const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: subjectId, supported_types: declaredArtifactTypes() }));
     const delivered = embeds.filter(embed => embed.relationship === "output");
-    html = await renderGoalArtifactContext(delivered, readArtifactDisplay);
+    html = await renderProjectArtifactContext(delivered, readArtifactDisplay);
     outputs = delivered.length;
     inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {
       const selected = embed.view.selected;
@@ -153,8 +153,10 @@ export function createLocalProjectPagesHttp(ports: {
       const embed = url.searchParams.get("embed") === "1";
       if (open === "rules") return redirectProjectRules(response, view.project.project_id, isDesktopShellRequest(request, url));
       let guidance;
-      try { guidance = await actions.invoke(projectGuidanceActions.read, {}); }
-      catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+      if (open === "guidance") {
+        try { guidance = await actions.invoke(pinnedProjectGuidanceRead, {}); }
+        catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+      }
       const html = renderMolisWorkProjectSettingsHub(
         { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } },
         guidance, controlToken, isDesktopShellRequest(request, url), open, embed ? open : null,
@@ -229,8 +231,16 @@ export function createLocalProjectPagesHttp(ports: {
         sendJson(response, 404, { error: "页面不存在" });
         return true;
       }
+      const stageError = stageErrorsOf(view)?.[owner.project_plugin_id];
+      if (stageError) {
+        sendJson(response, actionHttpStatus(stageError), actionErrorBody(stageError));
+        return true;
+      }
       const routeError = asStagePayload(view.stage_data?.[owner.project_plugin_id])?.route_error;
-      if (routeError) { sendJson(response, routeError.status, { error: routeError.error }); return true; }
+      if (routeError) {
+        sendJson(response, routeError.status, { error: routeError.error });
+        return true;
+      }
     }
     const desktopShell = isDesktopShellRequest(request, url);
     const projectConfiguration = options.project
@@ -255,5 +265,3 @@ export function createLocalProjectPagesHttp(ports: {
 
   return { settings, fragments, page };
 }
-
-export { createLocalProjectPagesHttp as createLocalGoalsReadHttp };

@@ -73,6 +73,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     ): ReturnType<ProjectService["touch"]>;
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void;
     removeFacts(projectId: string): number;
+    syncStagedPlugins(projectId: string, desiredPlugins: readonly string[]): void;
     removeWorkspaceMembershipsForProject(projectId: string): number;
     findDeletion(actorId: string, idempotencyKey: string): StoredProjectDeletion | null;
     insertDeletion(record: StoredProjectDeletion): void;
@@ -152,6 +153,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       appendEvent: (projectId, type, actorId, payload) =>
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
+      syncStagedPlugins: (projectId, desiredPlugins) => this.records.syncStagedPlugins(projectId, desiredPlugins),
       removeWorkspaceMembershipsForProject: (projectId) =>
         repository.workspaces.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),

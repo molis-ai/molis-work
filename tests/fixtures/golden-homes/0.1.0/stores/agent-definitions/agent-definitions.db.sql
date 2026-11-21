@@ -44,7 +44,7 @@ INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-ending-review','2026-01-15T09:00:00.000Z',2,NULL,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-main','2026-01-15T09:00:00.000Z',1,NULL,'agent:io.molis.work.assistant',NULL);
 INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-thread','2026-01-15T09:00:00.000Z',2,1,'agent:io.molis.work.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-work','2026-01-15T09:00:00.000Z',3,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-work','2026-01-15T09:00:00.000Z',4,NULL,'agent:io.molis.work.assistant',NULL);
 DELETE FROM sqlite_sequence;
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);
 CREATE INDEX skill_cases_by_owner ON skill_cases(owner_ref, created_at);

@@ -92,13 +92,14 @@
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
 | 上次使用语言（JSON 文件，不是库） | `config/ui-locale.json` | 1 | 文件里的 `schema_version` | `horizontal/appearance/src/locale-memory.ts#SCHEMA_VERSION` | 低版本升级；高版本读成「没有记录」且不覆盖原文件 |
-| 新用户引导（JSON 文件，不是库） | `config/onboarding.json` | 1 | `schema_version` | `apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了（不是 JSON、没有版本号）时按没有引导过显示，日志记一行；完成或关掉引导时保存被拒并报错（高版本 `storage.store_too_new`，读不了 `storage.schema_version_mismatch`），文件不变。会先建东西的三个入口（整理后采用、「空白开始」进个人空间、`/api/onboarding/initialize`）在建项目、个人空间之前先查同一条，查不过就报这条拒绝，什么都不建，整理也不记下已采用。版本对时认不出的字段回默认值；文件不在当作没有引导过 |
+| 新用户引导（JSON 文件，不是库） | `config/onboarding.json` | 1 | `schema_version` | `apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了（不是 JSON、没有版本号）时按没有引导过显示，日志记一行；完成或关掉引导时保存被拒并报错（高版本 `storage.store_too_new`，读不了 `storage.schema_version_mismatch`），文件不变。会先建东西的两个入口（整理后采用、「空白开始」进个人空间）在建项目、个人空间之前先查同一条，查不过就报这条拒绝，什么都不建，整理也不记下已采用。版本对时认不出的字段回默认值；文件不在当作没有引导过 |
 | 项目到达记录（JSON 文件，不是库） | `config/project-arrival.json` | 1 | `schema_version` | `apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION` | 低版本由升级过程升。高版本或读不了时当作空（项目选择器没有上次打开的顺序和项目介绍），日志记一行；打开项目、留下介绍时的写入被拒，这些写入本来就不报错，人看不到；文件不变。版本对时只留认得出的项目行；文件不在当作空 |
-| 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 低版本由升级过程升。高版本或读不了时按没有决定处理：拦过的网站不再拦，助理可以用浏览器，日志记一行；设网站或开关助理时保存被拒并报错，文件不变，被拒的设定也不生效。版本对时只留形状对的网站行，`assistant` 不是 `false` 就算开；文件不在当作没有决定 |
+| 侧栏浏览器的网站决定（JSON 文件，不是库） | `browser/sites.json` | 1 | `version` | `apps/local-host/src/browser/browser-surfaces.ts#BROWSER_SITES_VERSION` | 低版本由升级过程升。高版本或读不了时采取 fail-closed：关闭助理使用侧栏浏览器并阻断全部网站，日志记一行；设网站或开关助理时保存被拒并报错，文件不变，被拒的设定也不生效。版本对时只留形状对的网站行，`assistant` 不是 `false` 就算开；文件不在当作没有决定（助理可用、不阻断） |
 | 电脑操作设置（JSON 文件，不是库） | `computer/settings.json` | 1 | `version` | `apps/local-host/src/computer/computer-settings.ts#COMPUTER_SETTINGS_VERSION` | 低版本由升级过程升。高版本或读不了时总开关关、人加的禁用应用读成空（内置的禁用应用不受影响），日志记一行；改开关或禁用应用时保存被拒并报错，文件不变。版本对时只有 `enabled` 是 `true` 才算开，只留形状对的禁用应用；文件不在时总开关关 |
 | 电脑操作记录（JSON 文件，不是库） | `computer/records/<id>/record.json` | 1 | `version` | `apps/local-host/src/computer/computer-records.ts#COMPUTER_RECORD_VERSION` | 低版本由升级过程升。高版本、读不了或 `id`、`steps`、`started_at`、`ended_at` 不对的那一条不列出，不追加步骤、不结束、不清理截图，按编号删除也被拒，文件不变（读不了的日志记一行）；别的记录照常列出和清理 |
 | 插件的模型选择（JSON 文件，不是库） | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 | `schema_version` | `apps/local-host/src/model-configuration.ts#MODEL_PREFERENCE_SCHEMA_VERSION` | 低版本由升级过程升级。读的时候版本不是 1 或字段不对都报 `host.model_configuration_invalid`（「模型偏好文件无效，原文件已保留」），不是 JSON 时报解析错误，都不改文件；文件不在当作没有选。保存新的选择时先按同一份文件定义读原文件：高版本报 `storage.store_too_new`，还没升级报 `storage.upgrade_pending`，读不了（不是 JSON、没有版本号、字段不对）报 `storage.schema_version_mismatch`，都在建插件自己的供应商、给连接定第一个地址之前拒绝，什么都不改；文件不在或版本对才整份替换 |
 | 常驻 Web 服务的收据（JSON 文件，不是库） | `config/web-service.json` | 1 | `schema_version` | `apps/local-host/src/installer/web-service-contract.ts#schema_version` | 读的时候不看版本，只看 `owner`、`label`、`plist_path`、`plist_hash`；文件不在或不是 JSON 时当作没有收据，已有的同名 LaunchAgent 算不是自己的，不覆盖（报 `conflict`）；设计 §2.6 不让它进升级链 |
+| 本机 Runtime 接入收据（JSON 文件，不是库） | `runtime-integrations/<runtime>.json` | 1 | `schema_version` | `apps/local-host/src/installer/runtime-integration-receipt.ts#CURRENT` | 现行干净 v1（不再包含已退役的 `goal-advance` Skill 链接）；高版本或非法结构拒绝读取并不覆盖原文件，低版本升级 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝。不进升级链，也不清空：它存着研究报告引用的证据正文（用户 2026-11-08 定，理由是这个插件要重做，`specs/backlog/BL-377.md`） |
 
 Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-30干净重建取代。实现历史见 [Pages与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
@@ -121,7 +122,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 统一起点登记：2026-11-07，main 提交 `1b69dcb222`
 
-> **2026-11-19 发布前清理复位（用户明确批准）：** 应用尚未对外发布、无存量外部用户；用户批准将开发期间累计的 12 个 `v2`～`v5` 库及 Goals 同步集合统一拍平回第 1 版（删除具体历史升级段、Files 退役切换、Goals 审批移交、旧开发金样 `0.1.0`～`0.1.1-dev.6` 与历史结构夹具），保留通用升级引擎并在干净 v1 基线上重新生成 `0.1.0` 金样。具体复位项登记在 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md#存储版本变更登记) 与 `tooling/gates/schemas/v1-reset-exceptions.json`；本轮之后继续按「版本只升不降、带连续升级段」执行。
+> **2026-11-19／2026-11-20 发布前清理复位（用户明确批准）：** 应用尚未对外发布、无存量外部用户；用户批准将开发期间累计的 12 个 `v2`～`v5` 库及 Goals 同步集合统一拍平回第 1 版（删除具体历史升级段、Files 退役切换、Goals 审批移交、旧开发金样 `0.1.0`～`0.1.1-dev.6` 与历史结构夹具），随后第 44 批选项 A 及 2026-11-20 独立复核整改（A2 补齐 `acceptance_*` 表 SQLite `CHECK` 约束）一并落入干净 v1 基线，保留通用升级引擎并在干净 v1 基线上重新生成 `0.1.0` 金样。具体复位项与同版 v1 哈希变更分别登记在 [CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md#存储版本变更登记)、`tooling/gates/schemas/v1-reset-exceptions.json` 与 `tooling/gates/schemas/same-version-exceptions.json`；本轮之后继续按「版本只升不降、带连续升级段」执行。
 
 **统一起点：2026-11-07。** 操作者是第 02 批统筹会话，用户在场并确认开始。
 

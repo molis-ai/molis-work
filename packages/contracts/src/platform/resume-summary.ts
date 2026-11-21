@@ -19,6 +19,17 @@ export interface ResumeItem {
   /** Where it stands, in the owner's words (「进行中」). */
   status_label: string;
   open: { surface: string; id: string };
+  /** Optional one-line detail on where the focused item stands (progress summary or purpose). */
+  detail?: string;
+}
+/** Optional item-level progress record reported by a plugin for project brief / progress overview rendering. */
+export interface ResumeProgressItem {
+  id: string;
+  title: string;
+  status: "open" | "completed" | "cancelled";
+  next_hint: string;
+  pending_decision_count: number;
+  updated_at: string;
 }
 export interface ResumeSummaryInput {
   /** What the host says it is working on (a terminal opened for an object). The owner answers it as the focus when it is one of its own. */
@@ -31,16 +42,27 @@ export interface ResumeSummary {
   focus: ResumeItem | null;
   /** What comes after, at most five. */
   next: ResumeItem[];
+  /** Optional progress track items for the project brief (distinct from a plugin that does not publish progress counts). */
+  progress?: {
+    total: number;
+    done: number;
+    items: ResumeProgressItem[];
+  };
 }
 
 const text = { type: "string", maxLength: 2000 } as const;
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 const RESUME_ITEM_SCHEMA = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { ...text, maxLength: 500 }, next_hint: text, status_label: { type: "string", maxLength: 80 },
-  open: { type: "object", properties: { surface: id, id }, required: ["surface", "id"], additionalProperties: false } },
+  open: { type: "object", properties: { surface: id, id }, required: ["surface", "id"], additionalProperties: false }, detail: text },
   required: ["subject", "title", "next_hint", "status_label", "open"], additionalProperties: false } as const;
+const RESUME_PROGRESS_ITEM_SCHEMA = { type: "object", properties: { id, title: { ...text, maxLength: 500 }, status: { enum: ["open", "completed", "cancelled"] },
+  next_hint: text, pending_decision_count: { type: "integer", minimum: 0 }, updated_at: { type: "string", maxLength: 80 } },
+  required: ["id", "title", "status", "next_hint", "pending_decision_count", "updated_at"], additionalProperties: false } as const;
 export const RESUME_SUMMARY_SCHEMAS = {
   input: inputSchemaFor<ResumeSummaryInput>()({ type: "object", properties: { focus: ACTION_SUBJECT_SCHEMA }, additionalProperties: false } as const),
-  output: { type: "object", properties: { title: { ...id, maxLength: 120 }, focus: { anyOf: [{ type: "null" }, RESUME_ITEM_SCHEMA] }, next: { type: "array", maxItems: 5, items: RESUME_ITEM_SCHEMA } },
+  output: { type: "object", properties: { title: { ...id, maxLength: 120 }, focus: { anyOf: [{ type: "null" }, RESUME_ITEM_SCHEMA] }, next: { type: "array", maxItems: 5, items: RESUME_ITEM_SCHEMA },
+    progress: { type: "object", properties: { total: { type: "integer", minimum: 0 }, done: { type: "integer", minimum: 0 }, items: { type: "array", maxItems: 200, items: RESUME_PROGRESS_ITEM_SCHEMA } },
+      required: ["total", "done", "items"], additionalProperties: false } },
     required: ["title", "focus", "next"], additionalProperties: false },
 } as const;
 

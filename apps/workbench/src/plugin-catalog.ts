@@ -103,6 +103,11 @@ export function pluginNoReopenRecords(): readonly string[] {
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.workbench.reopenRecord === false).map(entry => entry.project_plugin_id);
 }
 
+/** Manifest `plugin_id` for each built-in plugin, keyed by its `project_plugin_id`. */
+export function pluginManifestIds(): Readonly<Record<string, string>> {
+  return Object.fromEntries(BUILTIN_PLUGIN_CATALOG.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
+}
+
 const SURFACE_ALIAS_MAP = pluginSurfaceAliases();
 
 function shippedDirectoryIds(): string[] {

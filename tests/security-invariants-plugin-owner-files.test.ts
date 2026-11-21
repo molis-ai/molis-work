@@ -396,4 +396,252 @@ test("S-plugin-data plugins.data refuses non-person, delegated, quarantined, uno
     (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
     "cross-publisher Home DB ledger mismatch is refused",
   );
+
+  // 6. P1-2: project-scoped export refuses Home-level owner_files for built-in Shelf, third-party Home sandbox plugins,
+  //    and non-builtin execution: "host" plugins (never falling back to real homeDirectory).
+  const shelfDir = join(f.home, "shelf");
+  mkdirSync(shelfDir, { recursive: true });
+  writeFileSync(join(shelfDir, "catalog.json"), JSON.stringify({ copies: [{ id: "cross-project-secret" }] }));
+  assert.ok(
+    listed.sections.some(section => section.plugin_id === "io.molis.work.shelf" && section.scope === "home"),
+    "built-in Shelf without databases and with runtime.scope=home must declare home-scoped sections",
+  );
+  const shelfHomeExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: "io.molis.work.shelf" }) as PluginDataExportResult;
+  assert.ok(shelfHomeExport.sections.some(section => section.files?.some(file => file.path === "catalog.json")), "Shelf exports under Home scope");
+  await assert.rejects(
+    projectClient.invoke(basePerson, exportRef, { plugin_id: "io.molis.work.shelf", project_id: project.project_id }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.scope_mismatch",
+    "built-in Shelf Home owner_files must be refused under project scope",
+  );
+
+  const homeSandboxFilesId = "io.molis.work.example.p12homesandbox";
+  const hostExecFilesId = "io.molis.work.example.p12hostexec";
+  const multiInstallId = "io.molis.work.example.p23multi";
+  const projectOnlyHomeDbId = "io.molis.work.example.p23projonly";
+  const hardenedDbDecl: HomePluginDatabaseDeclaration = {
+    store_name: "p23multi",
+    version: 1,
+    read_permission: "p23multi:read",
+    write_permission: "p23multi:write",
+    schema: "CREATE TABLE m_items (id INTEGER PRIMARY KEY, label TEXT NOT NULL);",
+  };
+  const projectOnlyDbDecl: HomePluginDatabaseDeclaration = {
+    store_name: "p23projonly",
+    version: 1,
+    read_permission: "p23po:read",
+    write_permission: "p23po:write",
+    schema: "CREATE TABLE po_items (id INTEGER PRIMARY KEY, label TEXT NOT NULL);",
+  };
+
+  const homeSandboxFilesManifest: PluginManifest = {
+    schema_version: 1, host_api_version: 1, plugin_id: homeSandboxFilesId, version: "1.0.0", name: "Home Sandbox Files",
+    kind: "app", publisher: { publisher_id: "third-party", signature: "sig-home-sandbox-files" },
+    entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
+    permissions: [
+      { permission: "storage:private", required: true, reason: "storage" },
+      { permission: "owner-files:read", required: false, reason: "read" },
+      { permission: "owner-files:write", required: false, reason: "write" },
+    ],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    runtime: { scope: "home" },
+    owner_files: { store_name: "files", entries: [{ name: "notes", kind: "directory" }], read_permission: "owner-files:read", write_permission: "owner-files:write" },
+  };
+  const hostExecFilesManifest: PluginManifest = {
+    ...homeSandboxFilesManifest,
+    plugin_id: hostExecFilesId, name: "Host Exec Forged",
+    publisher: { publisher_id: "third-party", signature: "sig-host-exec-forged" },
+    owner_files: { store_name: "shelf", entries: [{ name: "catalog.json", kind: "file" }], read_permission: "owner-files:read", write_permission: "owner-files:write" },
+  };
+  const multiActiveManifest: PluginManifest = {
+    ...makeManifest(multiInstallId, "sig-multi-active", hardenedDbDecl),
+    owner_files: { store_name: "files", entries: [{ name: "notes", kind: "directory" }], read_permission: "owner-files:read", write_permission: "owner-files:write" },
+  };
+  const multiRetainedManifest: PluginManifest = {
+    ...makeManifest(multiInstallId, "sig-multi-old", hardenedDbDecl),
+    version: "0.9.0",
+    owner_files: { store_name: "files", entries: [{ name: "notes", kind: "directory" }], read_permission: "owner-files:read", write_permission: "owner-files:write" },
+  };
+  const projectOnlyManifest: PluginManifest = {
+    ...makeManifest(projectOnlyHomeDbId, "sig-proj-only", projectOnlyDbDecl),
+    databases: { home: projectOnlyDbDecl },
+  };
+
+  {
+    const homeDb = new DatabaseSync(homeSqlitePath(f.home, "plugin-runtime"));
+    try {
+      const installs = new SqlitePluginRuntimeRepository(homeDb);
+      const releases = new SqlitePluginRuntimeReleaseArtifactRepository(homeDb);
+      const now = new Date().toISOString();
+      const seedRow = (
+        manifest: PluginManifest,
+        opts: { installId: string; execution: "sandbox" | "host"; state: PluginInstanceRecord["state"]; retain?: boolean; updatedAt?: string },
+      ) => {
+        const digest = pluginManifestDigest(manifest);
+        releases.save({
+          plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, version: manifest.version,
+          manifest_digest: digest, manifest, module_source: "export default {};",
+        });
+        installs.save({
+          install_id: opts.installId, installation_generation: "1", plugin_id: manifest.plugin_id, version: manifest.version,
+          publisher_id: manifest.publisher.publisher_id, publisher_signature: manifest.publisher.signature, publisher_trust: "pinned",
+          manifest_digest: digest, deployment: "local", selected_entrypoint: "./index.js", execution: opts.execution,
+          state: opts.state, recovery_count: 0, last_error_code: null, grants: ["storage:private"],
+          installed_at: now, updated_at: opts.updatedAt ?? now,
+          uninstalled_at: opts.state === "uninstalled" ? now : null, retain_private_data: opts.retain === true,
+        });
+      };
+      seedRow(homeSandboxFilesManifest, { installId: "install-p12-home-sandbox", execution: "sandbox", state: "running" });
+      seedRow(hostExecFilesManifest, { installId: "install-p12-host-exec", execution: "host", state: "running" });
+      // Active install has lexicographically EARLIER install_id than uninstalled-retained row (would be overwritten by naive ORDER BY install_id).
+      seedRow(multiActiveManifest, { installId: "install-aaa-active", execution: "sandbox", state: "running", updatedAt: "2026-11-20T00:00:00.000Z" });
+      seedRow(multiRetainedManifest, { installId: "install-zzz-retained", execution: "sandbox", state: "uninstalled", retain: true, updatedAt: "2026-11-21T00:00:00.000Z" });
+    } finally {
+      homeDb.close();
+    }
+    const projDb = new DatabaseSync(project.reference.storage_key);
+    try {
+      const installs = new SqlitePluginRuntimeRepository(projDb);
+      const releases = new SqlitePluginRuntimeReleaseArtifactRepository(projDb);
+      const digest = pluginManifestDigest(projectOnlyManifest);
+      const now = new Date().toISOString();
+      releases.save({
+        plugin_id: projectOnlyManifest.plugin_id, publisher_signature: projectOnlyManifest.publisher.signature,
+        version: projectOnlyManifest.version, manifest_digest: digest, manifest: projectOnlyManifest, module_source: "export default {};",
+      });
+      installs.save({
+        install_id: "install-proj-only", installation_generation: "1", plugin_id: projectOnlyManifest.plugin_id,
+        version: projectOnlyManifest.version, publisher_id: "third-party", publisher_signature: projectOnlyManifest.publisher.signature,
+        publisher_trust: "pinned", manifest_digest: digest, deployment: "local", selected_entrypoint: "./index.js",
+        execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, grants: ["storage:private"],
+        installed_at: now, updated_at: now, uninstalled_at: null, retain_private_data: false,
+      });
+    } finally {
+      projDb.close();
+    }
+  }
+
+  // Write real Home sandbox owner_files for homeSandboxFilesId and multiInstallId.
+  const hsNotesDir = join(f.home, "plugin-files", "install-p12-home-sandbox", "files", "notes");
+  mkdirSync(hsNotesDir, { recursive: true });
+  writeFileSync(join(hsNotesDir, "cross.txt"), "home-only-secret");
+  const hsHomeExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: homeSandboxFilesId }) as PluginDataExportResult;
+  assert.equal(hsHomeExport.sections[0]?.files?.length, 1, "third-party Home sandbox owner_files export under Home scope");
+  await assert.rejects(
+    projectClient.invoke(basePerson, exportRef, { plugin_id: homeSandboxFilesId, project_id: project.project_id }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.scope_mismatch",
+    "third-party Home sandbox owner_files must be refused under project scope",
+  );
+
+  // Non-builtin execution: "host" plugin must never fall back to real homeDirectory under Home or project scope.
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: hostExecFilesId }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "non-builtin execution:host plugin must be refused under Home scope",
+  );
+  await assert.rejects(
+    projectClient.invoke(basePerson, exportRef, { plugin_id: hostExecFilesId, project_id: project.project_id }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "non-builtin execution:host plugin must be refused under project scope",
+  );
+
+  // 7. P2-3: multi-install selection prefers active over uninstalled-retained regardless of install_id order,
+  //    and project-only installs cannot borrow projectPublisherSignature to access Home libraries.
+  const multiLib = await openSandboxHomeLibrary(
+    f.home,
+    { plugin_id: multiInstallId, publisher_signature: "sig-multi-active" },
+    hardenedDbDecl,
+    homeStores(),
+    () => {},
+    { install_id: "install-aaa-active", installation_generation: "1" },
+  );
+  await multiLib.close();
+  {
+    const mdb = new DatabaseSync(homeSqlitePath(f.home, hardenedDbDecl.store_name));
+    try { mdb.prepare("INSERT INTO m_items(id, label) VALUES (1, 'active-row')").run(); } finally { mdb.close(); }
+  }
+  const activeNotesDir = join(f.home, "plugin-files", "install-aaa-active", "files", "notes");
+  const oldNotesDir = join(f.home, "plugin-files", "install-zzz-retained", "files", "notes");
+  mkdirSync(activeNotesDir, { recursive: true });
+  mkdirSync(oldNotesDir, { recursive: true });
+  writeFileSync(join(activeNotesDir, "from-active.txt"), "active-file");
+  writeFileSync(join(oldNotesDir, "from-old.txt"), "stale-file");
+  const multiExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: multiInstallId }) as PluginDataExportResult;
+  assert.deepEqual(multiExport.sections[0]?.files?.map(file => file.path), ["notes/from-active.txt"], "active install's sandbox files win over later install_id retained row");
+
+  const projOnlyLib = await openSandboxHomeLibrary(
+    f.home,
+    { plugin_id: projectOnlyHomeDbId, publisher_signature: "sig-proj-only" },
+    projectOnlyDbDecl,
+    homeStores(),
+    () => {},
+    { install_id: "install-proj-only", installation_generation: "1" },
+  );
+  await projOnlyLib.close();
+  await assert.rejects(
+    projectClient.invoke(basePerson, exportRef, { plugin_id: projectOnlyHomeDbId, project_id: project.project_id }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "project-only install must not borrow projectPublisherSignature to export a Home DB",
+  );
+
+  // 8. P2-3: verifyInstalledHomeLibrary refuses hardlinks, symlinks, tampered user_version, and foreign storage space.
+  const multiDbFile = homeSqlitePath(f.home, hardenedDbDecl.store_name);
+  const hardCopy = join(f.home, "p23-hardlink-outside.db");
+  linkSync(multiDbFile, hardCopy);
+  try {
+    await assert.rejects(
+      homeClient.invoke(homePerson, exportRef, { plugin_id: multiInstallId }),
+      (error: unknown) => error instanceof ActionError,
+      "hardlinked third-party Home DB must be refused by snapshotFileStat",
+    );
+  } finally {
+    rmSync(hardCopy, { force: true });
+  }
+
+  // Tamper PRAGMA user_version -> refused; restore -> passes.
+  {
+    const mdb = new DatabaseSync(multiDbFile);
+    try { mdb.exec("PRAGMA user_version = 99;"); } finally { mdb.close(); }
+  }
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: multiInstallId }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "third-party Home DB with mismatched PRAGMA user_version must be refused",
+  );
+  {
+    const mdb = new DatabaseSync(multiDbFile);
+    try { mdb.exec("PRAGMA user_version = 1;"); } finally { mdb.close(); }
+  }
+
+  // Tamper molis_storage_space -> refused; restore -> passes.
+  let originalSpaceRow: { space_id: string; descriptor: string } | undefined;
+  {
+    const mdb = new DatabaseSync(multiDbFile);
+    try {
+      originalSpaceRow = mdb.prepare("SELECT space_id, descriptor FROM molis_storage_space WHERE singleton = 1").get() as { space_id: string; descriptor: string };
+      const foreignSpace = { spaceId: "space_foreign_0000000000000000", kind: "local", ownerUserId: null, teamId: null, issuer: null, applicationId: null };
+      mdb.prepare("UPDATE molis_storage_space SET space_id = ?, descriptor = ? WHERE singleton = 1").run(foreignSpace.spaceId, JSON.stringify(foreignSpace));
+    } finally { mdb.close(); }
+  }
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: multiInstallId }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden",
+    "third-party Home DB belonging to another storage space must be refused",
+  );
+  {
+    const mdb = new DatabaseSync(multiDbFile);
+    try {
+      mdb.prepare("UPDATE molis_storage_space SET space_id = ?, descriptor = ? WHERE singleton = 1")
+        .run(originalSpaceRow!.space_id, originalSpaceRow!.descriptor);
+    } finally { mdb.close(); }
+  }
+
+  // Replace DB file with symlink -> refused.
+  const outsideTarget = join(f.home, "p23-symlink-target.db");
+  fs.renameSync(multiDbFile, outsideTarget);
+  symlinkSync(outsideTarget, multiDbFile);
+  await assert.rejects(
+    homeClient.invoke(homePerson, exportRef, { plugin_id: multiInstallId }),
+    (error: unknown) => error instanceof ActionError,
+    "symlinked third-party Home DB must be refused by snapshotFileStat",
+  );
 });

@@ -394,6 +394,13 @@
     "shelf.agent-prompt.shelf-shortcut.title": "Shelf quick action",
     "shelf.agent-prompt.shelf-shortcut.purpose": "Process material using the user’s selected quick action",
     "shelf.capability-library.shelf-items-admit-v1.title": "Add to Shelf",
-    "shelf.capability-library.shelf-material-save-v1.title": "Save to project knowledge"
+    "shelf.capability-library.shelf-material-save-v1.title": "Save to project knowledge",
+    "shelf.help.title": "Shelf",
+    "shelf.help.what": "Your personal staging area and clipboard history for snippets, images, and files you want ready across any project.",
+    "shelf.help.example-1": "Paste a quote or screenshot onto Shelf while researching",
+    "shelf.help.example-2": "Open Shelf in the side pane to drop staged materials into a doc or the assistant",
+    "shelf.help.scope": "Stored locally in your personal space; items leave Shelf only when you explicitly copy, move, or send them.",
+    "shelf.help.advanced-summary": "Quick actions and clipboard settings",
+    "shelf.help.advanced": "Configure quick actions, shortcuts, and retention under Settings › Plugins › Shelf."
   }
 }

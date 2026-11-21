@@ -169,7 +169,7 @@ export function createLocalArtifactHttp() {
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
   ): Promise<boolean> {
     try {
-      if (pathname === "/api/artifacts/import" && request.method === "POST") return importArtifactJson(request, response, context);
+      if (pathname === "/api/artifacts/import" && request.method === "POST") return await importArtifactJson(request, response, context);
       if (pathname === "/api/artifacts/import/original" && request.method === "POST") { await importRawOriginal(request, response, context); return true; }
       // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
       if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {

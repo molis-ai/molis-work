@@ -31,6 +31,7 @@ import { renderMcpSettings, renderRuntimeSettings } from "./settings-runtimes.js
 import { renderProjectSettings } from "./settings-project-manager.js";
 import { renderFunctionsWorkbench } from "./judgment-rules/ui.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
 const NETWORK_DOC_HREF = {
@@ -150,7 +151,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
-    <div class="settings-content">${content}</div>
+    <div class="settings-content">${withSettingsHelp(capabilities && view.section !== "connectors" && view.section !== "mcp" ? "capabilities" : view.section, content)}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(primitives.environmentName?.())}

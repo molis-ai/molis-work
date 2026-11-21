@@ -169,8 +169,8 @@ export class AssistantService {
       followed: async projectId => new Set((await Promise.all(
         store.list(actorId, { limit: Number.MAX_SAFE_INTEGER })
           .filter(work => work.project_ref?.project_id === projectId)
-          .map(work => this.jobs.views(work)),
-      )).flat().map(job => job.job_id)),
+          .map(work => this.jobs.followedJobIds(work)),
+      )).flat()),
     });
   }
 

@@ -150,6 +150,13 @@
     "risk.status.mitigating": "处置中",
     "risk.status.open": "未处理",
     "risk.view.overview": "风险",
-    "risk.view.record": "风险"
+    "risk.view.record": "风险",
+    "risk.help.title": "风险登记",
+    "risk.help.what": "记录项目里的潜在风险、影响程度、缓解措施与复查节奏，避免关键隐患在推进中被遗忘。",
+    "risk.help.example-1": "登记一项发布或依赖风险，写明触发条件和应对方案",
+    "risk.help.example-2": "按严重程度筛选未关闭风险，缓解后再标记关闭",
+    "risk.help.scope": "风险记录存在当前项目本机库里；如设置定期复查提醒，只会按你的授权在本机触发提醒。",
+    "risk.help.advanced-summary": "关联目标与定期复查",
+    "risk.help.advanced": "可以和项目目标互相引用，方便在收尾前逐项核对高风险是否已解决。"
   }
 }

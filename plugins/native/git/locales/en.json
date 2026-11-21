@@ -264,6 +264,13 @@
     "git.conflict.changed": "The file changed since these edits began. Review the current file before keeping your edits or loading it.",
     "git.conflict.keep-edit": "Keep my edits for this file",
     "git.conflict.use-disk": "Load current file",
-    "git.conflict.current-file": "Current file"
+    "git.conflict.current-file": "Current file",
+    "git.help.title": "Git",
+    "git.help.what": "Inspect branches, changed files, and commit history for the project’s linked workspace, and stage, commit, or push changes.",
+    "git.help.example-1": "Review modified files, stage what belongs together, and write a commit message",
+    "git.help.example-2": "Check recent commits and push to a configured remote after confirming",
+    "git.help.scope": "Operates only on repositories linked under Project settings › Workspaces; pushing or opening a pull request leaves your computer and asks confirmation first.",
+    "git.help.advanced-summary": "Local-only repos and commit suggestions",
+    "git.help.advanced": "Staging and local commits work even without a remote; suggested commit messages never overwrite your typed draft unless you choose to adopt them."
   }
 }

@@ -408,6 +408,11 @@ export const PAGES_STYLES = `
   }
   .pages-folder-actions button svg { width: 12px; height: 12px; }
   .pages-folder-actions button:hover { background: var(--nav-hover); color: var(--ink); }
+  .pages-version-pickers { display: flex; flex-wrap: wrap; gap: 12px; }
+  .pages-version-diff :is(h3, p, pre) { margin: 0; }
+  .pages-version-diff ul { padding: 0; margin: 0; list-style: none; }
+  .pages-version-block { display: grid; gap: 8px; padding-block: 12px; border-top: 1px solid var(--line); }
+  .pages-version-block pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
   .mw-dialog.pages-template-dialog { width: min(420px, calc(100vw - 32px)); }
   .pages-template-list { gap: 4px; }
   .pages-template-item {

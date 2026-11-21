@@ -253,10 +253,11 @@ test("RAC-1487: a side view is guarded through both loading windows; a real poin
   assets.respondClient();
   await browser.waitFor("document.querySelector('[data-side-view-root] > [data-work-surface=lingguang]')?.dataset.uiClientState === 'ready'", 30_000);
   const ready = { state: await sideSurfaceState(browser), posts: assets.posts(), count: count() };
-  // Positive control on the same target after release: one real pointer reaches the child and makes one spark.
-  await clickInsideFrame(browser, child, "[data-lingguang-capture]");
+  // The iframe can be ready before Chromium routes input to the child. Wait for a real hit on the same target.
+  await armTrustedProbe(child);
+  await child.click("[data-lingguang-capture]");
   await child.waitFor("document.querySelector('[data-lingguang-title]')?.getClientRects().length && !!document.querySelector('[data-lingguang-id]')", 30_000);
-  const delivered = { posts: assets.posts(), count: count() };
+  const delivered = { trusted: await trustedClicks(child), posts: assets.posts(), count: count() };
   assert.equal(window1Before.bridgeRequests, 2);
   assert.deepEqual(window1Before.hidden, [true, 0]);
   assert.deepEqual(window1Before.state, { inert: true, busy: "true", state: "loading" }, "window one guards the surface");
@@ -268,6 +269,7 @@ test("RAC-1487: a side view is guarded through both loading windows; a real poin
   assert.equal(window2.posts, 0); assert.equal(window2.count, 0);
   assert.deepEqual(ready.state, { inert: false, busy: null, state: "ready" }, "ready releases the guard");
   assert.equal(ready.posts, 0); assert.equal(ready.count, 0, "a guarded pointer is not replayed when the client becomes ready");
+  assert.deepEqual(delivered.trusted, { pointerdown: 1, click: 1 }, "one real pointer reaches the ready control");
   assert.equal(delivered.posts, 1); assert.equal(delivered.count, 1, "one real click after release creates exactly one spark");
 });
 

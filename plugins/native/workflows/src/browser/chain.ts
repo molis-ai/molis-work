@@ -2,8 +2,8 @@ import type { WorkflowLink } from "../model.js";
 import { uid } from "./dom.js";
 import type { ActionRef, Chain } from "./types.js";
 
-/** The chain rules the page edits with. They mirror `insertStation`, `removeStation` and `moveStation` of the model, which the Host applies on save. */
-export const handLink = (): WorkflowLink => ({ kind: "manual", title_template: "", body_template: "", instructions: "" });
+/** The chain rules the page edits with. New links default to direct pass-through (PF-A13) so no template syntax is needed. */
+export const handLink = (): WorkflowLink => ({ kind: "function", title_template: "", body_template: "{正文}", instructions: "" });
 export const tint = (plugin: string) => `var(--plugin-${plugin}, var(--muted))`;
 export const ruleKey = (ref: ActionRef | null | undefined) => ref ? `${ref.capability_id}@${ref.version}@${ref.provider_id}` : "";
 

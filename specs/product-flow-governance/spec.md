@@ -309,3 +309,27 @@
 2026-10-27 文档验证：仓库文档与形状聚合检查通过（含相对链接、锚点、spec 索引），差异空白检查通过；PFG-01～21 连续且无重复或前缀冲突。编号报告为 21 项：12 项人工标准，9 项行为标准尚无测试引用，保留为后续整改追溯缺口。本轮未运行产品构建、浏览器/模型回归或全量健康门禁；静态核查不等于真实路径、最终产物或本人验收。
 
 2026-10-27 工作台补充：用户确定 §4.6 的统一方向、「＋」原地列表菜单及现有标签／标签组 UI 优化，新增 PFG-22～26。已有模拟原型只支持方向讨论，本次遵照要求停止继续设计；生产整合、真实持久化／异常恢复及新增验收仍待实施，原产品验证边界不变。
+
+<a id="batch-40-preflight"></a>
+
+## 9. 开工前检查（路线书第 40 批：产品治理与全产品文案落地）
+
+2026-11-21 按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md) §4、§4.1 作答。对应[第 40 批](../post-anticorruption-roadmap/reference/batches/40.md)两项交付（`40-1` 配置、工作交接与使用治理，`40-2` 全产品文案与按需帮助）；视觉与引导侧（[视觉体验](../visual-ui-experience/spec.md#batch-40-preflight)、[上手覆盖](../onboarding-coverage/spec.md#batch-40-preflight)）共用本表。定样结论：按需帮助复用第 03 批已批准方案 A（`docs/design/on-demand-help/`），先在本批分支上把 4 个 `组件板新增` 部件落成 `/__ui/catalog` 标本再接入产品代码；其余治理简化全部复用既有页面结构与组件板实件，不新增需要定样的新流或整页。
+
+| # | 结论 |
+| --- | --- |
+| 1 事实主人 | 不新增第二个事实主人。判断规则草稿、试跑、发布与场景绑定归 `modules/judgment-rules`；工作流链条与交接归 `plugins/native/workflows`；提示词原文与个人覆盖归 `apps/local-host/src/agent-definitions/`；助理每日额度归 `system.assistant-settings`（`settings_entries`，`assistant.daily_tokens`）；电脑操作开关与个人禁区列表归 `ComputerSettings`（`computer/settings.json`）；每个插件的按需帮助内容归该插件自身 Manifest 的 `ui.help` 与该插件自己的 `locales/{zh,en}.json` 词包，宿主与工作台不为某个插件硬编码帮助文本。 |
+| 2 插件同等待遇 | 所有内置插件、第三方插件与创作台生成插件通过同一份公开合同 `ui.help`（以及沙箱合同 `SandboxPluginContract.help`）声明按需帮助，走同一套 `@molis-ai/molis-work-plugin-sdk/ui` 校验与渲染、同一套 `@molis-ai/molis-work-design-system` 方案 A 卡片与 `plugin-frame` → 右栏 `help` 视图桥接。宿主不为单个内置插件开私有帮助分支，也不新增构建期接线。 |
+| 3 能力注册 | 复用既有动作目录：判断规则继续走 `functions.authoring.*` 与 `functions.scenes.*`；助理个人设置继续走 `assistant.preferences.{read,write}@1`（`settings_entries`，校验调用者身份、版本与幂等键）；工作流交接继续走 `workflows.instances.continue` 等既有动作，不另起第二套编排。本机可验证应用清单（`GET /api/computer/apps`）只读扫描本机已装 `.app` 元数据，受既有本机控制校验保护，无外部副作用。 |
+| 4 合同 | 最小扩展公开 UI 与插件 Manifest 合同（阶段一，同 PR 改完所有消费者、同步 `pnpm api:update`）：① `packages/contracts/src/platform/ui.ts` 新增 `UiHelpSectionDeclaration`、`UiHelpTopicDeclaration`、`UiHelpDeclaration`；② `packages/contracts/src/platform/plugin-manifest.ts` 在 `ui` 下加可选字段 `help?: UiHelpDeclaration`；③ `packages/contracts/src/platform/plugin-sandbox.ts` 在 `SandboxPluginContract` 下加可选字段 `help`；④ `packages/plugin-sdk/src/ui.ts`（单独快照 `ui.txt`，不碰在途 `#2199` 占用的 `index.txt`）导出 `validateUiHelpDeclaration`、`renderHelpButton`、`renderPreActionFacts`、`renderHelpContent` 等公共构图工具。不单开合同 PR（当前无其他在途批等待该字段），PR 最终头做合同与标本合审。 |
+| 5 放在哪个包 | 严格遵守包分层：类型合同放 `packages/contracts/src/platform/`；作者可见的声明校验与 HTML 辅助放 `packages/plugin-sdk/src/`；4 个组件板实件样式、方案 A 客户端控制器与生成插件布局胶水放 `packages/design-system/src/`；组件板标本、右栏 `help` 视图、设置页与判断规则/能力包前端放 `apps/workbench/src/`；提示词受控格式分离、本机应用识别放 `apps/local-host/src/`；工作流交接改动落在 `plugins/native/workflows/src/`；各插件帮助声明落在各自 `manifest.ts` 与 `locales/`；不新建 `horizontal/` 包。 |
+| 6 表与存储 | 不新增数据库表，不改任何库或版本化文件 schema 版本（`computer/settings.json` 保持 v1、`prompt_overrides` 保持现行结构、`functions` 与 `workflows` 表结构不变）。首次访问提示的「已跳过」记忆沿用浏览器 `localStorage` 按表面键存储（无跨设备业务事实）。 |
+| 7 兼容与迁移 | 不新增任何历史格式兼容读取或数据迁移。提示词受控格式分离采用结构化拆段/拼装（原有整段覆盖仍按完整自定义体有效读写，不引入双套存储字段）。 |
+| 8 安全边界 | 不放宽任何安全边界：① 提示词简化只改「做事方法与内容偏好」，无法修改任何动作/工具/外发权限，系统输出格式由程序侧守住；② 判断规则「试用并启用到这里」仍经既有乐观锁版本校验与明确目标绑定，绝不静默扩大作用范围，历史运行仍锁定原版本；③ 电脑禁区应用选择器只识别本机 `.app` 的真实 `CFBundleIdentifier` 与名称，内置禁区不可移除，实际执行拦截仍由 `app-tiers.ts` 与 `computer-policy.ts` 强制生效；④ 插件 iframe 发往右栏 `help` 视图的 `molis:side-open` 负载只接受有界纯文本结构化节（拒绝任意 HTML、限定条数与长度，右栏仅用 `textContent` 渲染，防 XSS）；⑤ 看帮助不产生任何设置写入或授权副作用（VUX-55／ONB-48）。 |
+| 9 调用次数 | 遵循 N42～N56：① 判断规则「试用并启用到这里」复用一次试跑 + 一次发布 + 一次当前目标启用（仅在明确点选启用时触发，不重复列表查询）；② 提示词在能力包详情内联编辑复用已加载的 `prompt` 数据，保存只发一次 `POST /api/agent-definitions/prompts/...`；③ 电脑禁区应用清单在打开设置页时按需请求一次 `GET /api/computer/apps`（单次目录读取、不轮询）；④ 按需帮助内容随页面自身词包与 `FrameConfig` 一次带入，点开帮助卡片零额外网络请求；⑤ 决策前 `.mw-facts` 复用页面已拉取的就绪状态。 |
+| 10 升级与数据 | 已有判断规则与已发布版本绑定、已有工作流链条与手动/函数/AI/判断连线、已有提示词覆盖、已有 `assistant.daily_tokens` 与 `computer/settings.json` 禁区列表在升级后原样可读可用。 |
+| 11 成果与过程项 | 不涉及新成果类型或过程项（仅改善配置、交接与帮助体验）。 |
+| 12 页面、外壳与文字 | 不新增整页例外；右栏 `help` 作为工作台既有右栏的按需隐藏标签（仅在点击「在右栏继续看」时出现，关闭后还原右栏原状态），复用已登记的 `molis:side-open` 事件（不新增未登记跨模块事件）。全批控制页面资源增量远低于每项 10 KB 且不新增 `/assets/*` 文件，不碰资源红线。所有新增与修改文案一律走各主人 `locales/{zh,en}.json` 稳定键 + `t()`/`t.text()`，严守零 AI 黑话四查（`「…」`、` › `、英文 Sentence case、动词开头、七态词色对齐、`audit-ui-copy --strict` 与 `translations --missing` 零报错），全用 `DESIGN.md` 语义令牌。 |
+| 13 错误 | 复用各包既有 `defineErrorCodes`（`assistantErrors`、`functionsErrors`、`workflowsErrors`、`computerErrors` 等），不新建 `Error` 子类；帮助读取异常提供 `.mw-empty--error` 原地降级与「再试一次」，不阻塞主页面。 |
+| 14 冲突面 | 避开在途 PR 与活跃批次独占面：不碰 `36A-3` 在改的顶栏事件页签、底栏三清单与助理对话框主干；不碰 `#2199` 在改的 `packages/plugin-sdk/src/index.ts` 与 `tooling/gates/api/plugin-sdk/index.txt`；`apps/workbench/resources/locales/{zh,en}.json` 走 `molis-json` 合并驱动；合回前每日同步 `origin/main` 并重跑 `pnpm merge:regenerate`。 |
+| 15 全局最优与 §4.1 平台能力检查 | **① 插件**：24 个内置插件、第三方与生成插件均可通过 Manifest `ui.help` + `@molis-ai/molis-work-plugin-sdk/ui` 获得完全一致的方案 A 帮助与 `.mw-facts`，作者只需写结构化 `TextRef` 而非自造浮层/右栏通信；**② 平台**：按需帮助卡片、右栏 `help` 视图与 `plugin-frame` 转发收进平台外壳与 Design System（§4.1 明确属于通用平台能力，替代在宿主或单插件里各写一份）；个人设置消费 38-1 已有 `settings_entries`（`assistant.daily_tokens`）与唯一主人 `ComputerSettings`，不造第二套设置框架；**③ 助理**：助理每日额度、电脑禁区、提示词覆盖、判断规则和工作流交接均仍经原有权威后端与动作边界，无界面调用与审批拦截口径完全一致；**④ 各类平台能力**：接入了 `settings_entries`、组件板实件、能力包（09）、插件语言文件（14）、右栏 `molis:side-open` 与创作台生成页面渲染器，无重叠抽象；**⑤ 后续开发**：第 45-1 批只需在 `.mw-help-content` 预留的底部动作槽接上「从帮助去准备并返回」即可，无需重写 24 个插件和设置页的帮助框架；后续新增插件按 `skills/molis-plugin-dev/` 声明 `ui.help` 即可自动带帮助，零宿主改动。 |

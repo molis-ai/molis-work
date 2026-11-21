@@ -210,6 +210,13 @@
     "git.conflict.changed": "文件已在编辑后发生变化。请核对当前文件，再选择保留编辑或载入当前内容。",
     "git.conflict.keep-edit": "保留我的编辑",
     "git.conflict.use-disk": "载入当前文件",
-    "git.conflict.current-file": "当前文件"
+    "git.conflict.current-file": "当前文件",
+    "git.help.title": "Git",
+    "git.help.what": "查看当前项目工作目录的分支、变动文件与提交历史，按需暂存、提交或准备远端推送与合并请求。",
+    "git.help.example-1": "核对本次改动文件，选好要暂存的内容后写说明提交",
+    "git.help.example-2": "查看最近提交历史，并在确认后推送到已配置的远端仓库",
+    "git.help.scope": "只操作「项目设置 › 工作目录」里绑定的仓库；推送远端和创建合并请求属于外发操作，执行前都会清晰展示目标仓库并由你确认。",
+    "git.help.advanced-summary": "无远端仓库与提交说明建议",
+    "git.help.advanced": "本地仓库尚未配置远端时，暂存和本地提交照常可用；采用 AI 提交说明建议不会覆盖你手写的文字，除非你明确点采用。"
   }
 }

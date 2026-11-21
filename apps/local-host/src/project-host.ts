@@ -103,7 +103,7 @@ import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
 import { homePluginEntries } from "./plugin-registry.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { hostLog, logSearchIndexFailure } from "./host-log.js";
+import { hostLog, logSearchIndexFailure, repeatingFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { projectApprovalsProvider } from "./project-review-entry.js";
 import { closeHomeStorageLifetime, ensureHomeStorageOwner, releaseHomeStorageOwner, retainInitializationCleanup } from "./home-storage-lifetime.js";
@@ -523,10 +523,13 @@ export class MolisWorkLocalHost {
     return prepareProjectActionDirectory(this.plugins, reference, caller.signal);
   }
 
+  private readonly homePluginStarts = repeatingFailure("home-plugins", "start_failed");
+
   private async prepareHomeActions(): Promise<void> {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     if (inLanguagePreview()) return;
-    await this.homePlugins?.ready().catch(() => undefined);
+    // The directory is listed without the Home's plugins when they do not start; their page offers the retry. Said once, not per call.
+    await this.homePlugins?.ready().then(() => this.homePluginStarts.worked("ready"), (error: unknown) => this.homePluginStarts.failed("ready", error));
     await this.homePlugins?.refreshPublicActions();
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     this.systemFunctions?.refresh();

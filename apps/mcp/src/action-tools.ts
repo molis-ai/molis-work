@@ -46,21 +46,35 @@ export function createActionMcpPorts(options: {
   toolName?(action: ActionReference): string;
 }): McpProtocolPorts {
   const context = (): ActionCallContext => ({ ...options.context(), audience: "mcp" });
+  const toolName = options.toolName ?? actionMcpToolName;
+  // Which action each listed name stood for (batch 103-2): a call looks up that one action instead of the whole directory. The lookup
+  // judges visibility for the caller of this call, and a name not listed yet, or whose action moved, falls back to the whole directory.
+  const listed = new Map<string, ActionReference>();
   const catalog = async (caller: ActionCallContext) => {
     const entries = new Map<string, ActionView>();
     for (const view of await options.service.discover(caller)) {
-      const name = (options.toolName ?? actionMcpToolName)(view);
+      const name = toolName(view);
       if (entries.has(name)) throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
       entries.set(name, view);
     }
+    listed.clear();
+    for (const [name, view] of entries) listed.set(name, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
     return entries;
+  };
+  const one = async (caller: ActionCallContext, name: string) => {
+    const reference = listed.get(name);
+    if (reference && options.service.discoverOne) {
+      const view = await options.service.discoverOne(caller, reference);
+      if (view && toolName(view) === name) return view;
+    }
+    return (await catalog(caller)).get(name);
   };
   return {
     serverInfo: options.serverInfo,
     get tools() { return catalog(context()).then(entries => [...entries].filter(([, view]) => view.availability.available).map(([name, view]) => actionMcpToolDefinition(view, name))); },
     async callTool(name, arguments_) {
       const caller = context();
-      const view = (await catalog(caller)).get(name);
+      const view = await one(caller, name);
       if (!view) throw new ActionError("actions.mcp_unavailable", "能力未授权、已停用或当前不可用，请刷新能力列表");
       const wrapped = !objectSchema(view.action.input_schema);
       if (wrapped && (!Object.hasOwn(arguments_, "input") || Object.keys(arguments_).some(key => key !== "input"))) {

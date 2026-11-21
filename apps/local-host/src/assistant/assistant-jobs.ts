@@ -128,7 +128,7 @@ export class AssistantJobs {
 
   /** The Host started: hear each job that ends (and at once each that ended while it was away), told once. */
   async attach(): Promise<void> {
-    this.#listening ??= (await this.#graphs()).onJobEnded(ended => void this.#ended(ended).catch(() => undefined));
+    this.#listening ??= (await this.#graphs()).onJobEnded(ended => void this.#ended(ended).catch((error: unknown) => hostLog.warn("assistant", "job_end_unsettled", error)));
   }
 
   async #ended(at: { graph_id: string; node_id: string }): Promise<void> {

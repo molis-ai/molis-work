@@ -1219,7 +1219,7 @@
     "database.conversation_attachments_baseline": 1,
     "database.dataset_database": 1,
     "database.directory_grants_baseline": 1,
-    "database.external_sessions_database": 1,
+    "database.external_sessions_database": 2,
     "database.feed_home_database": 1,
     "database.feed_project_database": 1,
     "database.form_database": 1,

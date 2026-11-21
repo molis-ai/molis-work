@@ -32,6 +32,7 @@ import { hostTextGeneration } from "./host-complete-text.js";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { runBackgroundWorkIn } from "./ui-locale-memory.js";
 import { matchingActions, type HostActionClient } from "./local-host-types.js";
+import { exactActionView } from "./exact-action-view.js";
 
 export interface KnowledgeHostPorts {
   homeDirectory: string;
@@ -161,8 +162,7 @@ function pluginKnowledgeClient(client: HostActionClient): HostActionClient {
     discover: async caller => (await client.discover(caller)).filter(allowedForPlugin),
     discoverMatching: async (caller, select) => (await matchingActions(client, caller, select)).filter(allowedForPlugin),
     invoke: async (caller, reference, input) => {
-      const target = (await client.discover(caller)).find(view => view.capability_id === reference.capability_id
-        && view.version === reference.version && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
+      const target = await exactActionView(client, caller, reference);
       if (target && !allowedForPlugin(target)) throw new ActionError("actions.forbidden", "插件不能代读仅限本人的对象来源");
       return client.invoke(caller, reference, input);
     },

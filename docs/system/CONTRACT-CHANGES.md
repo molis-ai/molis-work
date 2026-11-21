@@ -151,6 +151,7 @@
 | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
+| `external-sessions/external-sessions.db` | 1 → 2 | 第 103 批 103-2（用户 2026-11-21 弹窗同意）：`external_sessions` 加 `subagent INTEGER NOT NULL DEFAULT 0`，Claude Code 子代理轨迹记在所属会话下（`forked_from`），列表与搜索不显示；已有行都是普通会话，升级段只有这一句 SQL，无读取兼容，0.1.0 v1 金样经它回放 | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE#1→2` |
 
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |

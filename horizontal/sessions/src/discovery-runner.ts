@@ -186,7 +186,7 @@ function commitDiscoveredBatch(params: {
           seen_via: seenVia, title: candidate.title, directory_key: dirKey, directory_path: canonicalPath,
           activity: candidate.activity, return_target: candidate.return_target,
           reported_project_id: resolved.reported_project_id, last_activity_at: candidate.last_activity_at,
-          forked_from: forkedFromKey, gone_at: null,
+          forked_from: forkedFromKey, ...(candidate.subagent ? { subagent: true as const } : {}), gone_at: null,
         });
         seenKeys.add(sessionKey);
         batchChanged = true;
@@ -304,7 +304,7 @@ export async function executeDiscoveryJob(params: {
       const identifiedByPath = new Map<string, SessionDirectoryIdentity | null>();
       for (const candidate of batch.sessions) {
         if (candidate.directory && !identifiedByPath.has(candidate.directory)) {
-          identifiedByPath.set(candidate.directory, ports.directories.identify(candidate.directory));
+          identifiedByPath.set(candidate.directory, await (ports.directories.identifyAsync?.(candidate.directory) ?? ports.directories.identify(candidate.directory)));
         }
       }
 

@@ -106,7 +106,7 @@ export interface UpgradeMaintenanceOptions {
 export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onListening }: UpgradeMaintenanceOptions): Promise<void> {
   installHostUiText();
   const started_at = Date.now(), token = readExistingControlToken(home);
-  let done = 0, finished = false, arrivalStylesheet: string | undefined;
+  let done = 0, finished = false, arrivalStylesheet: Promise<string> | undefined;
   const answer = (request: IncomingMessage, response: ServerResponse) => {
     if (refuseForeignRequest(request, response)) return;
     if (foreignOrigin(request.headers.origin)) { refuseLocalWebRequest(response); return; }
@@ -124,7 +124,7 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
     }
     if (request.method === "GET" && url.pathname === "/assets/molis-work-arrival.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-      response.end(arrivalStylesheet ??= tightenServedCss(hostRecoveryPages.arrivalStylesheet()));
+      void (arrivalStylesheet ??= tightenServedCss(hostRecoveryPages.arrivalStylesheet())).then(text => response.end(text));
       return;
     }
     if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {

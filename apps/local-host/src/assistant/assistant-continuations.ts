@@ -32,6 +32,8 @@ export class AssistantContinuations {
   private readonly starts = new Map<string, { requestKey: string; promise: Promise<AgentContinuationStartAnswer> }>();
   /** The runtime could not be reached to serve the starter: written when it starts failing, again once it has been served. */
   private readonly starterFailures = repeatingFailure("assistant", "continuation_starter_failed");
+  /** A work that could not be taken up stays where it was; said once per work until one take-up of it works again. */
+  private readonly takeUpFailures = repeatingFailure("assistant", "continuation_take_up_failed");
   private readonly inputs = new Map<string, symbol>();
   private readonly stopped = new AbortController();
   private readonly observers = new Set<() => void>();
@@ -126,7 +128,7 @@ export class AssistantContinuations {
   private async takeUpWaiting(): Promise<void> {
     for (const work of this.works()) {
       if (this.stopped.signal.aborted) return;
-      await this.takeUp(work).catch(() => undefined);
+      await this.takeUp(work).then(() => this.takeUpFailures.worked(work.work_id), (error: unknown) => this.takeUpFailures.failed(work.work_id, error));
     }
   }
 

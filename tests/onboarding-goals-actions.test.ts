@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, ensureSystemAgentService, LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
@@ -12,7 +11,6 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { agentHostCapabilities, type AgentSessionOwner, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { managementGoals } from "./goal-management-caller.js";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import { watchSettlements, type Settlement } from "./fixtures/settlements.js";
@@ -21,7 +19,6 @@ import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole 
 // N-12: Host-internal callers of Goals (the first-run Goal) call the Goals actions, through the client that starts the project's
 // Runtime plugins (Goals is one of them). The project guidance a Run starts with is the platform's since batch 44 (contract-design §9).
 
-const CONTROL_TOKEN = "onboarding-goals-actions-control-token-0123456789";
 const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf", "io.molis.work.text-stats"];
 
 const personCaller = (projectId: string): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,

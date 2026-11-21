@@ -195,8 +195,8 @@ test("B27G-08 a companion reached from any Host subdirectory, by any import form
 test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is gone, Coding is no hybrid, and only the supervisor starts the companions", () => {
   assert.equal(existsSync(join(repoRoot, "apps/local-host/src/coding-surface.ts")), false);
   const gate = readFileSync(join(repoRoot, "tests/builtin-plugin-assembly-gate.test.ts"), "utf8");
-  // The current assembly gate freezes Goals as its only remaining hybrid; Coding has left that list.
-  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\["goals"\]\);/);
+  // The current assembly gate has no hybrid left (batch 44 PEQ-03 took Goals out too); Coding is not on it.
+  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\);/);
   const dir = join(repoRoot, "apps/local-host/src");
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
   // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Every file under the Host's

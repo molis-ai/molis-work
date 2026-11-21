@@ -89,7 +89,8 @@ function drawIntegration(body: IntegrationBody & { files: NonNullable<Integratio
   for (const file of body.files) {
     if (file.before_text === undefined || file.after_text === undefined) continue;
     const side: DiffSide = { workspace_id: "integration", workspace_name: "integration", path: file.path.join("/"), source_plugin_id: CODING_PLUGIN_ID, content_version: 1 };
-    const view = compareChange(GROUP, { before: side, after: { ...side } }, { before: file.before_text ?? "", after: file.after_text ?? "", created: file.before_text === null });
+    const view = compareChange(GROUP, { before: side, after: { ...side } }, { before: file.before_text ?? "", after: file.after_text ?? "",
+      created: file.before_text === null, removed: file.after_text === null });
     file.diff_html = renderDiff({ view, fold_context: 3, sides: false, labels: LABELS, primitives: primitives() });
   }
 }

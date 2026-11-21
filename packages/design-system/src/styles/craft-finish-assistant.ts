@@ -310,7 +310,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* The conversation: the person's words on the right, the Host's in the middle, the answer as text, what it did as quiet lines. */
-  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 24px 22px 16px; font-size: 13.5px; line-height: 1.7; overscroll-behavior: contain; }
+  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 24px 22px 16px; font-size: 13px; line-height: 1.7; overscroll-behavior: contain; }
   /* What was said stands on the input (helm.html .pz .lv-b): a short conversation leaves its room above, not under. */
   ${ASSIST} .assistant-thread::before { content: ""; flex: none; margin-top: auto; margin-bottom: -10px; }
   ${ASSIST} .assistant-empty { max-width: 94%; margin: 0; color: var(--ink); }

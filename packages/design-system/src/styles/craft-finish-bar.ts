@@ -518,8 +518,8 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-head-mark { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
   ${ASSIST} .assistant-head-mark:empty { display: none; }
   ${ASSIST} .assistant-head-mark svg { width: 14px; height: 14px; }
-  ${ASSIST} .assistant-head-title { flex: 0 1 auto; min-width: 0; max-width: 62%; margin: 0; overflow: hidden; color: var(--ink); font-size: 12.5px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-head-note { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-head-title { flex: 0 1 auto; min-width: 0; max-width: 62%; margin: 0; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-head-note { flex: 0 1000 auto; min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-head-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; }
   ${ASSIST} .assistant-head .dock-window-action { position: relative; flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
   ${ASSIST} .assistant-head .dock-window-action[hidden] { display: none; }
@@ -537,7 +537,7 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-panel[data-layout="split"] [data-assistant-side-toggle], ${ASSIST} .assistant-panel[data-layout="drawer"] :is([data-assistant-expand], [data-assistant-retract]) { display: none; }
   /* A page that takes the words itself is not repeated here (helm.html .dd-own): one card at the conversation's foot says so,
      with the way to ask the Assistant instead. */
-  ${ASSIST} .assistant-page-takes { flex: none; display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin: auto 22px 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 12.5px; }
+  ${ASSIST} .assistant-page-takes { flex: none; display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin: auto 22px 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
   ${ASSIST} .assistant-page-takes[hidden] { display: none; }
   ${ASSIST} .assistant-page-takes > svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
   ${ASSIST} .assistant-page-takes > p { flex: 1 1 auto; min-width: 0; margin: 0; line-height: 1.5; }
@@ -565,7 +565,7 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-main { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   /* The information column (helm.html .lz): a shade back from the conversation, its cards 8px apart. It never sets the
      conversation's height (POLISH-17: the height follows what was said): its own content scrolls inside it. */
-  ${ASSIST} .assistant-side { --sidebg: color-mix(in srgb, var(--ink) 3.5%, var(--popover)); container: info-col / size; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--sidebg); box-shadow: inset 1px 0 0 var(--line); color: var(--ink-soft); font-size: 12.5px; line-height: 1.5; }
+  ${ASSIST} .assistant-side { --sidebg: color-mix(in srgb, var(--ink) 3.5%, var(--popover)); container: info-col / size; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--sidebg); box-shadow: inset 1px 0 0 var(--line); color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
   ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; inset: 44px 0 0; display: none; }
   ${ASSIST} .assistant-panel[data-layout="drawer"]:is([data-side="open"]) .assistant-side, ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side:not([data-info="info"]) { display: flex; }
   /* The column's tabs (.zt): 信息, then the three lists with their counts, words on the column's own ground; the chosen one is a
@@ -587,9 +587,9 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-event-card[hidden] { display: none; }
   /* 上下文 (.zc.ctx): four quiet rows on the column's ground — the name, then its value at the right. */
   ${ASSIST} .info-context { padding: 4px 12px 0; }
-  ${ASSIST} .info-context > h4 { margin: 0 0 5px; color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 16px; }
+  ${ASSIST} .info-context > h4 { margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 16px; }
   ${ASSIST} .info-context > dl { margin: 0; }
-  ${ASSIST} .info-context-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 25px; font-size: 12.5px; }
+  ${ASSIST} .info-context-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 25px; font-size: 13px; }
   ${ASSIST} .info-context-row[hidden] { display: none; }
   ${ASSIST} .info-context-row > dt { flex: none; color: var(--muted); }
   ${ASSIST} .info-context-row > dd { min-width: 0; margin: 0; overflow: hidden; color: var(--ink); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }

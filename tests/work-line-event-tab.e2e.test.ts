@@ -107,6 +107,11 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns th
   await evaluate(openRow);
   await waitFor(`${CARD} && document.activeElement?.matches('[data-task-panel-close]')`);
   assert.equal(await evaluate(`(() => { const card = document.querySelector('[data-work-task-float]').getBoundingClientRect(), column = document.querySelector('[data-assistant-side]').getBoundingClientRect(), tabs = document.querySelector('[data-info-tabs]').getBoundingClientRect(); return card.left >= column.left && card.right <= column.right && card.top >= tabs.bottom && card.bottom <= column.bottom; })()`), true, "decision 49: the card stands in the information column's place, under its tabs");
+  // Esc takes the innermost first (36A-3): the card goes, the row it was opened from has the focus again and its list still shows.
+  for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+  await waitFor(`!document.querySelector('[data-work-task-float]') && document.activeElement === ${ROW} && document.querySelector('[data-assistant-side]').dataset.info === ${LIST}`);
+  await evaluate(`${ROW}.click()`);
+  await waitFor(`${CARD} && document.activeElement?.matches('[data-task-panel-close]')`);
   // WLN-35, WLN-18: narrower, the card stays inside the window; on a phone it is a layer that stands clear of the line.
   for (const [width, height] of [[900, 800], [390, 780]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);

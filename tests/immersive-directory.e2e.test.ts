@@ -383,6 +383,8 @@ test("顶条与事项线：输入框常驻在线上，回答在上方先写问�
   // POLISH-19 (the tab row is gone), POLISH-72: one line names whom the words are said to; a wide window shows the information
   // column at the conversation's right, and the conversation stays right above the input.
   assert.deepEqual(await evaluate("[document.querySelectorAll('.assistant-tab').length, document.querySelector('[data-assistant-head-title]').textContent, document.querySelector('[data-assistant-head]').dataset.about]"), [0, "助理", "main"], "no tab row: the line says it is the main conversation with the Assistant");
+  // WLN-15: what the tab row reached has a place of its own: 另起一件 and 全部工作 are in the menu at the conversation's top right.
+  assert.deepEqual(await evaluate("['[data-assistant-new]', '[data-assistant-works-toggle]'].map(key => Boolean(document.querySelector('[data-assistant-more-menu] ' + key)))"), [true, true], "WLN-15: 另起一件 and 全部工作 are under 更多");
   assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
     return s.width>0 && s.left>=m.right-1 && Math.abs(m.left-c.left)<=1 && Math.abs(m.right-c.right)<=1 && p.left>=0 && s.right<=innerWidth;})()`), "the information column at the right, the conversation as wide as the input, all inside the window");
   assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");

@@ -81,7 +81,10 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       const event = line.event(card.subject), said = event ? line.facts(event) : uiText.text("workbench.work-line.not-on-line-now");
       // Under the name: who registered it, then how it stands in the colour of its mark (amber: your turn; red: it failed).
       const stands = event ? line.parts(event) : null;
-      if (facts.title !== said) {
+      // (Drawn again when any of it moves: the same words can stand for another state, an event with no summary going from 在办 to 办完.)
+      const stood = stands ? [said, stands.owner, stands.state, stands.glyph].join("\n") : said;
+      if (facts.dataset.drawn !== stood) {
+        facts.dataset.drawn = stood;
         facts.title = said;
         if (page || !stands) facts.textContent = said;
         else {

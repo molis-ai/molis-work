@@ -181,6 +181,8 @@ test("VUX-39 the board's Assistant shows its usage detail running, reported and 
   assert.equal(left, "", "no Chinese left in the panel in English words and English interface");
   // POLISH-19: no tab row; the works are named in the list of all works, in English.
   assert.equal(await inFrame<number>("return d.querySelectorAll('.assistant-tab').length;"), 0);
+  // (The list of all works is drawn when asked for, from 更多 › 全部工作.)
+  await inFrame("d.querySelector('[data-assistant-works-toggle]').click();");
   assert.deepEqual(await inFrame<boolean[]>("return ['Sign-in keeps the old session cookie', 'Plan the trial review', \"Reply to Yijun Wang's email\"].map((title) => [...d.querySelectorAll('.assistant-works-item')].some((n) => n.textContent.includes(title)));"), [true, true, true]);
   assert.match((await usage()).summary, /^Usage · 18,200 tokens$/);
   // Mixed words: one thread holds both languages.

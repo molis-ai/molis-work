@@ -137,7 +137,7 @@ button.work-stack-more:hover{background:var(--amber-soft)}
    ring while it is being done, a hollow ring while it waits its turn, an amber dot when it is yours, a red one when it failed,
    a grey ring for what comes next, a dashed one for a suggestion, a faint tick when it is done. */
 .work-dg{flex:none;display:inline-block;box-sizing:border-box;width:11px;height:11px;border-radius:50%}
-.work-dg[data-g="run"]{background:conic-gradient(var(--accent) 35%,color-mix(in srgb,var(--accent) 24%,transparent) 0);-webkit-mask:radial-gradient(circle,transparent 3.3px,#000 3.9px);mask:radial-gradient(circle,transparent 3.3px,#000 3.9px)}
+.work-dg[data-g="run"]{border:2px solid color-mix(in srgb,var(--accent) 24%,transparent);border-top-color:var(--accent);transform:rotate(45deg)}
 .work-dg[data-g="you"]{width:8px;height:8px;margin:0 1.5px;background:var(--amber)}
 .work-dg[data-g="bad"]{width:8px;height:8px;margin:0 1.5px;background:var(--red)}
 .work-dg[data-g="next"]{width:9px;height:9px;margin:0 1px;border:1.5px solid var(--faint)}
@@ -149,14 +149,14 @@ button.work-stack-more:hover{background:var(--amber-soft)}
    rows, a line that says what the list is. A row is an event: its mark, its name, and under it what it says and what it is;
    facts are cut before the name, which keeps six characters (POLISH-09). The tasks done for it stand under it behind a rule,
    a sub-agent's step under its task; the tasks of no event close 在办 as a group. */
-.work-lists{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);font-size:12.5px}
+.work-lists{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);font-size:13px}
 .work-lists[hidden]{display:none}
 .work-lists-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:7px;height:40px;padding:0 8px 0 12px;box-shadow:inset 0 -1px 0 var(--line)}
-.work-lists-head>small{min-width:0;${ELLIPSIS};color:var(--muted);font-size:11.5px}
+.work-lists-head>small{min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-lists-sources{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px 0}
 .work-lists-sources:empty{display:none}
 .work-lists-body{flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:none;padding:6px}
-.work-lists-foot{flex:none;margin:0;padding:8px 12px 10px;box-shadow:inset 0 1px 0 var(--line);color:var(--faint);font-size:11.5px;line-height:1.5}
+.work-lists-foot{flex:none;margin:0;padding:8px 12px 10px;box-shadow:inset 0 1px 0 var(--line);color:var(--faint);font-size:12px;line-height:1.5}
 .work-lists-foot:empty{display:none}
 .work-list{display:flex;flex-direction:column;gap:1px}
 .work-list[hidden]{display:none}
@@ -166,12 +166,12 @@ button.work-stack-more:hover{background:var(--amber-soft)}
 .work-list .work-event>svg{width:12px;height:12px;color:var(--faint)}
 .work-event-n{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 .work-list .work-event-name{flex:none;min-width:0;${ELLIPSIS};color:var(--ink);font-size:13px;font-weight:500;line-height:19px;text-align:start}
-.work-list .work-event-note{flex:none;min-width:0;${ELLIPSIS};color:var(--muted);font-size:11.5px;font-weight:400;line-height:16px;text-align:start}
+.work-list .work-event-note{flex:none;min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px;font-weight:400;line-height:16px;text-align:start}
 .work-list .work-event[data-state="done"] .work-event-name{color:var(--ink-soft)}
 .work-list .work-event:is([data-state="gone"],[data-state="denied"],[data-state="unreadable"]) .work-event-name{color:var(--muted)}
-.work-list-group{margin:6px 0 2px;padding:6px 8px 0;box-shadow:inset 0 1px 0 var(--line);color:var(--faint);font-size:11.5px}
-.work-lists-empty{margin:0;padding:14px 8px;color:var(--muted);font-size:12.5px}
-.work-lists-earlier{width:100%;height:30px;margin-top:2px;padding:0 8px;border:0;border-radius:9px;background:none;color:var(--accent);font:inherit;font-size:12.5px;text-align:start;cursor:pointer}
+.work-list-group{margin:6px 0 2px;padding:6px 8px 0;box-shadow:inset 0 1px 0 var(--line);color:var(--faint);font-size:12px}
+.work-lists-empty{margin:0;padding:14px 8px;color:var(--muted);font-size:13px}
+.work-lists-earlier{width:100%;height:30px;margin-top:2px;padding:0 8px;border:0;border-radius:9px;background:none;color:var(--accent);font:inherit;font-size:13px;text-align:start;cursor:pointer}
 .work-lists-earlier:hover{background:var(--control-fill,var(--surface-soft))}
 /* Where the conversation stands against the foot (POLISH-16, POLISH-72; 960 and wider): the conversation column sits on the
    input, exactly as wide, their edges one; the information column begins at its right edge and ends at the card stack's, its
@@ -251,13 +251,13 @@ ${PRESSABLE}>svg{flex:none;width:14px;height:14px}
 /* The left wing gives what it holds by its own width (a split view or an open side panel narrows it, not only the window): a capsule that cannot hold its name drops its note (the script marks it tight); the head's name shortens; an unreadable source drops its words under 640px and its name under 560px; under 400px (a 1024px window) a line with events keeps only the head's glyph and count. A state word never goes. */
 ${TASK_FLOAT_STYLES}
 /* One task's card, in the float that takes the information column's place, with the way back. */
-.work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--shadow-raised,var(--lift-3));color:var(--ink-soft);font-size:12.5px;animation:craft-rise ${MOVE}}
+.work-task-panel{display:flex;flex-direction:column;width:340px;max-width:100%;max-height:min(56vh,480px);overflow:hidden;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line),var(--shadow-raised,var(--lift-3));color:var(--ink-soft);font-size:13px;animation:craft-rise ${MOVE}}
 .work-task-panel-head{flex:none;display:flex;align-items:center;gap:6px;min-height:44px;min-width:0;padding:0 8px 0 6px;border-bottom:1px solid var(--line)}
 .work-task-panel-head>svg{width:16px;height:16px;flex:none}
 .work-task-panel-head>.work-dg{margin:0 2px}
 .work-task-panel-n{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .work-task-panel-title{min-width:0;${ELLIPSIS};color:var(--ink);font-size:13px;font-weight:600}
-.work-task-panel-n>small{min-width:0;${ELLIPSIS};color:var(--muted);font-size:11.5px}
+.work-task-panel-n>small{min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-task-panel-body{display:flex;flex-direction:column;min-height:0;padding:6px;overflow:auto}
 .work-task-panel-body[data-card]{gap:10px;padding:10px 12px 12px}
 /* A task under its event (helm.html .rp-r.sub): behind a rule, its mark, its name, the step it is on at the right, and stop or
@@ -265,11 +265,11 @@ ${TASK_FLOAT_STYLES}
 .work-task-row{display:flex;align-items:center;gap:4px;min-width:0;min-height:30px;margin-left:15px;padding:0 4px 0 0;border-radius:0 8px 8px 0;box-shadow:inset 1.5px 0 0 var(--line-strong)}
 .work-task-row:hover,.work-task-row[data-on]{background:var(--control-fill,var(--nav-hover))}
 .work-task-row[data-level="2"]{margin-left:31px}
-.work-task-row-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;height:30px;padding:0 4px 0 12px;border:0;border-radius:inherit;background:transparent;color:inherit;font:inherit;font-size:12.5px;text-align:left;white-space:nowrap;cursor:pointer}
+.work-task-row-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;height:30px;padding:0 4px 0 12px;border:0;border-radius:inherit;background:transparent;color:inherit;font:inherit;font-size:13px;text-align:left;white-space:nowrap;cursor:pointer}
 .work-task-row-main:disabled{cursor:default}
 .work-task-row-main:focus-visible{outline-offset:-2px}
 .work-task-row-title{flex:0 1 auto;min-width:min(6em,100%);${ELLIPSIS};color:var(--ink-soft);font-weight:500}
-.work-task-row-step{flex:1 1000 auto;min-width:0;${ELLIPSIS};color:var(--muted);font-size:11.5px;text-align:end}
+.work-task-row-step{flex:1 1000 auto;min-width:0;${ELLIPSIS};color:var(--muted);font-size:12px;text-align:end}
 .work-task-row[data-state="done"] .work-task-row-title{color:var(--muted)}
 .work-task-row-key{flex:none;height:22px;padding:0 6px;border:0;border-radius:6px;background:none;color:var(--accent);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
 .work-task-row-key:hover:not(:disabled){background:var(--accent-soft)}
@@ -278,7 +278,7 @@ ${TASK_FLOAT_STYLES}
 /* In a card (这件事现在怎样, 从这里交办出去的) the rows have no rule: they are the card's own list (.zs). */
 .work-card-tasks{display:flex;flex-direction:column;margin:8px -8px -4px}
 .work-card-tasks[hidden]{display:none}
-.work-card-tasks>small{padding:0 8px 2px;color:var(--faint);font-size:11.5px}
+.work-card-tasks>small{padding:0 8px 2px;color:var(--faint);font-size:12px}
 .work-card-tasks .work-task-row{margin-left:0;border-radius:9px;box-shadow:none}
 .work-card-tasks .work-task-row[data-level="2"]{margin-left:16px}
 .work-card-tasks .work-task-row-main{gap:9px;padding:0 4px 0 8px}
@@ -322,9 +322,9 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
    amber when you are asked to decide or approve, red when it failed — then 这件事现在怎样, each a card of its own; a task's
    card uses their sections and actions too. */
 .work-card{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0}
-.work-card-part{flex:none;min-width:0;padding:10px 12px 11px;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);color:var(--ink-soft);font-size:12.5px}
+.work-card-part{flex:none;min-width:0;padding:10px 12px 11px;border-radius:12px;background:var(--popover);box-shadow:0 0 0 1px var(--line);color:var(--ink-soft);font-size:13px}
 .work-card-part[hidden]{display:none}
-.work-card-part>h4,.work-card-part-head>h4{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;margin:0 0 5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:16px}
+.work-card-part>h4,.work-card-part-head>h4{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;margin:0 0 5px;color:var(--muted);font-size:12px;font-weight:600;line-height:16px}
 .work-card-part-head{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:5px}
 .work-card-part-head>h4{margin:0}
 .work-card-ask{background:var(--amber-soft);box-shadow:none}
@@ -336,7 +336,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-ask>.work-card-result>.work-card-quote{margin-top:0}
 .work-card-ask p{margin:0;color:var(--ink);font-size:13px;line-height:1.6}
 .work-card-ask .work-card-actions .mw-btn:not(.mw-btn--primary){background:var(--popover)}
-.work-card-name{display:flex;align-items:center;gap:8px;min-width:0;color:var(--ink);font-size:13.5px}
+.work-card-name{display:flex;align-items:center;gap:8px;min-width:0;color:var(--ink);font-size:13px}
 .work-card-name:empty{display:none}
 .work-card-name>strong{min-width:0;${ELLIPSIS};font-weight:600}
 .work-card-facts{display:flex;align-items:center;gap:10px;min-width:0;margin:3px 0 0;${ELLIPSIS};color:var(--muted);font-size:12px}
@@ -353,7 +353,7 @@ ${W} ${BUTTON_GROUNDS} .mw-btn--secondary:not(:disabled){border-color:var(--line
 .work-card-source>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .work-card-quote{margin-top:8px;padding:8px 10px;border-radius:var(--r-row,8px);background:var(--surface-soft);color:var(--ink-soft);line-height:1.6}
 .work-card-section{display:flex;flex-direction:column;gap:4px;margin-top:8px}
-.work-card-section>h4{margin:0 0 2px;color:var(--faint);font-size:11.5px;font-weight:400}
+.work-card-section>h4{margin:0 0 2px;color:var(--faint);font-size:12px;font-weight:400}
 .work-card-body:not(:empty){margin-top:8px}
 /* 信息 with no event in front: how the place stands. The three counts that name a list open it; 该你 is the stack beside it. */
 .work-place-card:empty,.assistant-event-card:not([hidden])~.work-place-card{display:none}
@@ -366,7 +366,7 @@ button.work-place-n:focus-visible{outline:var(--focus-stroke);outline-offset:-1p
 .work-place-n[data-zero]>em{color:var(--muted);font-weight:400}
 .work-place-n[data-zero]>.work-dg[data-g="you"]{background:none;border:1.5px solid var(--faint);width:9px;height:9px;margin:0 1px}
 .work-card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;margin-top:9px}
-.work-card-actions>.mw-btn{height:28px;padding:0 12px;font-size:12.5px}
+.work-card-actions>.mw-btn{height:28px;padding:0 12px;font-size:13px}
 .work-card-result{display:flex;flex-direction:column;gap:8px}
 .work-card-preview{max-height:9.9em;overflow:hidden;white-space:pre-line;overflow-wrap:anywhere}
 .work-card-process>summary{padding:0 2px;color:var(--muted);font-size:11px;font-weight:500;cursor:pointer}
@@ -416,12 +416,12 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-decision+.work-decision{margin-top:10px;padding-top:10px;box-shadow:inset 0 1px 0 color-mix(in srgb,var(--amber) 28%,transparent)}
 .work-task-panel-body>.work-decision{margin:0;padding:10px 12px 11px;border-radius:12px;background:var(--amber-soft)}
 .work-decision-ask{margin:0;color:var(--ink);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
-.work-decision-changes{display:flex;flex-direction:column;gap:3px;margin:7px 0 0;padding:0;list-style:none;color:var(--ink);font-size:12.5px}
+.work-decision-changes{display:flex;flex-direction:column;gap:3px;margin:7px 0 0;padding:0;list-style:none;color:var(--ink);font-size:13px}
 .work-decision-changes>li{display:flex;align-items:flex-start;gap:7px;min-width:0}
 .work-decision-changes>li>svg{flex:none;width:12px;height:12px;margin-top:3px;color:var(--amber)}
 .work-decision-changes>li>span{min-width:0;overflow-wrap:anywhere}
 .work-decision-changes>li b{font-weight:500}
-.work-decision-why{display:block;margin-top:7px;${ELLIPSIS};color:var(--muted);font-size:11.5px}
+.work-decision-why{display:block;margin-top:7px;${ELLIPSIS};color:var(--muted);font-size:12px}
 .work-decision-note{width:100%;min-height:44px;margin-top:8px;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--r-control,6px);background:var(--paper);color:var(--ink);font:inherit;font-size:13px;resize:vertical}
 .work-decision-note[aria-invalid="true"]{border-color:var(--red)}
 .work-place-menu{position:static;display:flex;flex-direction:column;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row,8px);box-shadow:none}

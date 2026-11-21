@@ -90,8 +90,6 @@ export interface WorkBarHandle {
   focus(subject: ActionSubject | null): void;
   /** The Assistant's works changed (a reply came, the main conversation came to wait or no longer does): the expand key and the stack follow. */
   conversation(state: { unread: boolean }): void;
-  /** The information column shows what is known about the thing in front (an event was opened from outside the lists). */
-  showInfo(): void;
   /** The event of this object on the line as last read, as a press on it would open it; null when the line does not show it. */
   /** The event as a press on it would hand it over, with where it stands now (`group`: in the stack, or one of the lists). */
   event(subject: ActionSubject): (LineEventPress & { group: WorkListId | "you" }) | null;
@@ -321,9 +319,11 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     event.preventDefault();
     (to ?? (event.key === "ArrowUp" ? tabs.querySelector<HTMLElement>(`[data-info-tab="${open}"]`) : null))?.focus();
   });
-  // Esc, innermost first: a list goes back to 信息 before the conversation closes (the float and the menus take theirs earlier).
+  // Esc, innermost first: a list goes back to 信息 before the conversation closes. A task's card standing in the column's
+  // place, or the list of all works, is further in: this leaves the key to it (their own listeners come after this one).
   document.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || open === "info" || dialog.hidden || document.querySelector("dialog[open]")) return;
+    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || open === "info" || dialog.hidden) return;
+    if (document.querySelector("dialog[open], [data-work-task-float], [data-assistant-works]:not([hidden])")) return;
     event.preventDefault();
     event.stopPropagation();
     show("info", column.contains(document.activeElement));
@@ -357,7 +357,7 @@ interface StackItem { readonly id: string; draw(more: number): string }
  * under 960px it is 该你 N inside the input, and its card opens above the input (第 6 条). A card the person is on is not swapped
  * under them (POLISH-42).
  */
-function installStack({ line, counts, stack }: FootParts & { readonly stack: HTMLElement }, read: { waiting(): StackItem[] }) {
+function installStack({ line, counts, stack }: FootParts & { readonly stack: HTMLElement }, read: { waiting(): StackItem[]; counted(): void }) {
   let front = "";
   const close = (give = false) => {
     if (!line.hasAttribute("data-stack-open")) return;
@@ -367,12 +367,16 @@ function installStack({ line, counts, stack }: FootParts & { readonly stack: HTM
     if (give) chip?.focus();
   };
   const paint = (prefer?: string) => {
+    // The first place's number is said with every drawing of the stack: the two count the same things (WLN-39).
+    read.counted();
     const all = read.waiting(), chip = counts.querySelector<HTMLElement>("[data-work-stack-toggle]");
     if (chip) { chip.hidden = !all.length; chip.querySelector("[data-n]")!.textContent = String(all.length); chip.setAttribute("aria-label", uiText.text("workbench.work-line.your-turn-n", { n: all.length })); }
     if (!all.length) {
       const hadFocus = stack.contains(document.activeElement);
       front = ""; close(); stack.innerHTML = renderStackEmpty(); stack.removeAttribute("data-count");
-      if (hadFocus) (counts.querySelector<HTMLElement>("[data-work-list]") ?? line.querySelector<HTMLElement>(".mw-composer__input"))?.focus({ preventScroll: true });
+      // The keys inside the input are away while the conversation is open: then the column's chosen tab, else the input.
+      const seen = (node: HTMLElement) => node.getClientRects().length > 0;
+      if (hadFocus) ([...counts.querySelectorAll<HTMLElement>("[data-work-list]"), ...line.querySelectorAll<HTMLElement>('[data-info-tab][aria-selected="true"]')].find(seen) ?? line.querySelector<HTMLElement>(".mw-composer__input"))?.focus({ preventScroll: true });
       return;
     }
     const held = stack.contains(document.activeElement) || stack.matches(":hover");
@@ -505,7 +509,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       ...(look ? [{ id: "look", draw: (more: number) => renderStackLook({ n: look, more }) }] : []),
     ];
   };
-  const cardStack = installStack({ line, counts, stack }, { waiting: waitingItems });
+  const cardStack = installStack({ line, counts, stack }, { waiting: waitingItems, counted: () => paintWaiting(waitingCount()) });
   // The key that opens the conversation: a dot when a reply came while it was closed, amber when the Assistant waits for a confirmation.
   const expand = counts.querySelector<HTMLElement>("[data-dialog-open]"), dot = expand?.querySelector<HTMLElement>("[data-work-expand-dot]");
   let unread = false;
@@ -544,7 +548,9 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     issues = result.issues;
     return before;
   };
-  function waitingCount(): number { return waitingEvents().length + tasks.loose().length; }
+  // What waits for the person, as the stack holds it with nothing in front: the events and loose tasks, the main conversation
+  // when it waits, and one for whatever wants a look. An event the conversation is about still counts (POLISH-40).
+  function waitingCount(): number { return waitingEvents().length + tasks.loose().length + (host.mainWaiting?.() ? 1 : 0) + (toLook().length ? 1 : 0); }
   const draw = (result: WorkLineReadResult, before = adopt(result)): boolean => {
     // The same events in the same states are the same lists: nothing is redrawn, so a press or a scroll under way is not lost.
     const drawn = JSON.stringify([result.events.map(event => [event.id, event.title, event.summary, event.wing, event.rank, stateOf(event), event.tasks.running, event.tasks.waiting, Boolean(event.suggestion)]), result.issues.map(issue => issue.title)]);
@@ -552,7 +558,6 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const first = shown === "";
     shown = drawn;
     list.draw(event => !first && !before.has(event.id));
-    paintWaiting(waitingCount());
     const arrived = first ? [] : result.events.filter(event => asksYou(event) && (!before.get(event.id) || !asksYou(before.get(event.id)!)));
     cardStack.paint(arrived[0]?.id);
     // An event that came to wait for the person since the last read says so once (the shared "your turn" ring) on the stack.
@@ -718,10 +723,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const tasksChanged = table ? tasks.take(table, started ?? 0, sequence) : false;
     const lineDrawn = read ? draw(read, before) : false;
     if (!lineDrawn && (tasksChanged || (read && wasChecking))) {
-      if (tasksChanged) {
-        list.draw();
-        paintWaiting(waitingCount());
-      }
+      if (tasksChanged) list.draw();
       cardStack.paint();
     }
     tasks.offline(null);
@@ -784,7 +786,6 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       paintExpand();
       cardStack.paint();
     },
-    showInfo: () => list.show("info"),
   };
 }
 

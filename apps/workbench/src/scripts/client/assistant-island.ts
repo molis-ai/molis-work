@@ -104,6 +104,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, readText("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
   const stateLabel = (state) => STATE_LABELS[state] ? readText(STATE_LABELS[state]) : state || ""; const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
+  const SUB_RING = { completed: "round-ended", "reconcile-required": "verify", cancelled: "stopped", "awaiting-input": "answer", "awaiting-review": "approval", compacting: "running", pausing: "paused" }; // a sub-agent's states the ring has no name for, as the ring's (one that waits for the person, in amber)
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? readText("workbench.assistant-island.personal")
     : title || (project && scope.project_id === project.id ? (project.title || readText("workbench.assistant-island.project")) : readText("workbench.assistant-island.another-project"));
   const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
@@ -259,10 +260,9 @@ ${ASSISTANT_SIDE_PATH_PART}
 
   /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
   const renderUsage = (work) => usagePane.paint(work);
-  // Raising a work's cap is done in its usage box, in the information column.
+  // Raising a work's cap is done in its usage box, among the work's details.
   const openUsage = () => {
-    if (!spacious()) drawerOpen = true;
-    host.lineInfo?.(); paintLayout();
+    setDetails(true);
     const details = usageBox?.querySelector("details");
     if (details) details.open = true;
     usageBox?.querySelector("input")?.focus();
@@ -294,14 +294,17 @@ ${ASSISTANT_STRIP_PART}
   // choices of a new one take the information column's place; the back key, or Esc, returns to what the column showed.
   const detailsPane = island.querySelector("[data-info-details]"), infoColumn = island.querySelector("[data-assistant-side]");
   const setDetails = (open, back) => {
-    if (!detailsPane || detailsPane.hidden === !open) return;
+    if (!detailsPane) return;
+    if (open && !spacious() && !drawerOpen) { drawerOpen = true; paintLayout(); } // a phone's width: asking for the details asks for the column
+    if (detailsPane.hidden === !open) return;
     detailsPane.hidden = !open; infoColumn?.toggleAttribute("data-details", open);
     if (open) { setPanel(true); detailsPane.querySelector("[data-info-details-close]")?.focus(); } else if (back) island.querySelector("[data-assistant-more]")?.focus();
   };
   island.querySelector("[data-info-details-open]")?.addEventListener("click", () => setDetails(true));
   detailsPane?.querySelector("[data-info-details-close]")?.addEventListener("click", () => setDetails(false, true));
   detailsPane?.addEventListener("keydown", (event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); setDetails(false, true); } });
-  infoColumn?.querySelector("[data-info-tabs]")?.addEventListener("click", () => setDetails(false));
+  // The column was asked for something else (a tab, a list's key in the input, an event opened): the details give way.
+  if (infoColumn && "MutationObserver" in window) new MutationObserver(() => setDetails(false)).observe(infoColumn, { attributes: true, attributeFilter: ["data-info"] });
   const metaRow = (label, ...content) => { const term = el("dt", "", label), detail = el("dd"); detail.append(...content); return [term, detail]; };
   function paintSum() {
     const work = view && view.work.work_id === curId ? view.work : getWork();
@@ -413,7 +416,7 @@ ${ASSISTANT_HEAD_PART}
   const heardReply = (work) => {
     const replies = thread.querySelectorAll(":scope > [data-round] > .assistant-msg--assistant[data-reply-id]"), last = replies[replies.length - 1];
     const reply = last && String(last.dataset.text || "").trim() ? last.dataset.replyId : "", at = work ? work.work_id : null;
-    if (at !== lastReply.work) { const asked = Boolean(at) && askedIn === at; lastReply = { work: at, reply: asked ? "" : reply }; if (!asked) return; }
+    if (at !== lastReply.work) { const asked = Boolean(at) && askedIn === at; lastReply = { work: at, reply: asked ? "" : reply }; if (!asked) { if (at) askedIn = null; return; } }
     if (reply && reply !== lastReply.reply) { lastReply.reply = reply; askedIn = null; if (panel && panel.hidden) host.lineConversation?.({ unread: true }); }
   };
   const render = () => {
@@ -703,7 +706,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   if (panel && "MutationObserver" in window) new MutationObserver(() => {
     if (!panel.hidden && !spacious()) drawerOpen = false;
     paintLayout();
-    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); restIfStale(); }
+    if (panel.hidden) { conversationObjects?.clear(); setWorks(false); setDetails(false); restIfStale(); }
     else { void conversationObjects?.update(false); cardHandle?.update(); drawHead(); paintJump(); }
   }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the conversation's head: a click anywhere else in the panel puts it away.
@@ -748,7 +751,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       return works.filter((work) => work.delegated_by && !work.delegated_by.taken_back_at && !work.archived).map((work) => ({ parent: { kind: WORK_KIND, id: work.delegated_by.work_id }, subject: { kind: WORK_KIND, id: work.work_id },
         key: JSON.stringify([work.work_id]), title: work.title, ring: ringState(work.state), step: stateLabel(work.state) }))
         .concat(sdk.map((child) => ({ parent: { kind: WORK_KIND, id: curId }, key: JSON.stringify([curId, child.parent_run.run_id, child.subagent_id]), title: child.role_name || child.role_id,
-          ring: child.state === "completed" ? "round-ended" : child.state === "reconcile-required" ? "verify" : child.state === "cancelled" ? "stopped" : child.state,
+          ring: SUB_RING[child.state] || child.state,
           step: globalThis.t.text("workbench.subtask-conversation.phase." + (child.state === "cancelled" ? "stopped" : child.state)) })));
     },
     openSubtask: (key) => { try { const [work, run, child] = JSON.parse(key); if (typeof work === "string") void openSubtask(work, run, child); } catch { /* not a key of this page */ } },

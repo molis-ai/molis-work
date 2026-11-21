@@ -116,7 +116,18 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
     await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && ${shown(review)}`, 10_000);
     const { gap, under, band, thread } = await evaluate<{ gap: number; under: number; band: boolean; thread: number }>(clear);
     if (width > 540) assert.ok(thread >= 0 && under >= 0, `at ${width}px the thread ends ${thread}px above the next steps, which end ${under}px above the input`);
-    else assert.ok(band && gap >= 0 && under >= 0, `at ${width}px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
+    else {
+      assert.ok(band && gap >= 0 && under >= 0, `at ${width}px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
+      // 36A-3 (POLISH-22): at a phone's width 更多 › 详情 is reached with a real pointer. The press lands in the conversation, which
+      // puts the drawer away; asking for the details brings the column over the conversation with them in it.
+      const details = "(() => { const pane = document.querySelector('[data-info-details]'); return !pane.hidden && pane.getClientRects().length > 0; })()";
+      await click("[data-info-details-open]");
+      await waitFor(`${details} && document.activeElement?.matches('[data-info-details-close]')`, 5_000);
+      await click("[data-info-details-close]");
+      await waitFor("document.querySelector('[data-info-details]').hidden && document.activeElement?.matches('[data-assistant-more]')", 5_000);
+      await click("[data-assistant-side-toggle]");
+      await waitFor("document.querySelector('[data-assistant-panel]').dataset.side === 'closed'", 5_000);
+    }
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 520, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click(review);

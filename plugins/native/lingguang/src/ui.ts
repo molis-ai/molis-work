@@ -54,7 +54,7 @@ export function renderLingguangWorkbench(_model: LingguangUiModel): string {
     label: uiText.text("lingguang.page.title"),
     dataset: "lingguang",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-lingguang="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-lingguang="directory">
       <header class="plugin-stage-chrome lingguang-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-lingguang-capture>${icon("plus")}<span>${uiText("lingguang.action.capture")}</span></button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-import-file title="${uiText("lingguang.action.import-hint")}">${icon("upload")}<span>${uiText("lingguang.action.import")}</span></button>

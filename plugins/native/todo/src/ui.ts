@@ -54,7 +54,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
     label: "待办",
     dataset: "todo",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree todo-list" data-todo="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree todo-list" data-todo="directory">
       <header class="todo-chrome">
         <nav class="mw-toggle-group todo-views" data-slot="toggle-group" data-overflow-fade aria-label="${uiText("todo.chrome.views-label")}">
           ${VIEWS.map((view, index) => toggle("data-todo-view", view, index === 0, ` data-todo-view-label="${uiText(view[1])}"`)).join("")}

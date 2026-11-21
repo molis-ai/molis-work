@@ -27,7 +27,7 @@ async function eventually(check: () => Promise<boolean>) {
 /** The production prepared/install/start/bind/PTY/finish path; no direct installer or invented initialization. */
 export async function connectedPrivateCli(t: TestContext) {
   const f = await openTestHome(t), home = realpathSync(f.home);
-  const vaultPath = join(home, "feed", "secrets.json"), keyPath = join(home, "feed", "secrets.key");
+  const vaultPath = join(home, "security", "secrets.json"), keyPath = join(home, "security", "secrets.key");
   let observedBeforeDownload = false;
   const source = await createCliPackageFixture(t, home, async () => {
     const vault = JSON.parse(readFileSync(vaultPath, "utf8")) as { version: number; backend: string; entries: Record<string, string> };

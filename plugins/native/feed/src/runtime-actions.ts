@@ -1,3 +1,4 @@
+import { feedInformationPlanAction } from "./information-plan.js";
 import { feedRunsActions } from "./missed-pulls.js";
 import { feedDemoSeedAction } from "./demo-seed.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -84,7 +85,7 @@ export const FEED_PROJECT_ACTIONS: ActionDefinition[] = [
   ...[feedArtifactPreview, ...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions),
     ...Object.values(feedSourceActions), ...FEED_INBOX_ACTIONS, ...FEED_NOTIFICATION_ACTIONS, feedSubjectAction, feedSourceSubjectAction, feedSearchEntriesAction,
     feedWorkEventsAction, ...Object.values(feedRunsActions)].map(runtimeAction),
-  WAKE, feedDemoSeedAction, ...feedPresentationActions,
+  WAKE, feedDemoSeedAction, feedInformationPlanAction, ...feedPresentationActions,
 ];
 
 /** Every action of Feed's Manifest: the project half's, and the Home half's three for the reference ledger (the Home half answers only them). */

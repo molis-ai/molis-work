@@ -142,9 +142,9 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   await click('[data-top-corner-toggle]');
   // The guarded point checks the actual Feed control and its Host frame after the menu closes.
   await feed.point('[data-feed-source-header] [data-feed-add-toggle]');
-  await expectContained(".immersive-titlebar", ".feed-stage-tree", feed);
-  await expectContained("[data-top-corner-toggle]", ".feed-stage-tree", feed);
-  await expectContained(".workbench-bar", ".feed-stage-tree", feed);
+  await expectContained(".immersive-titlebar", ".mw-stage-tree", feed);
+  await expectContained("[data-top-corner-toggle]", ".mw-stage-tree", feed);
+  await expectContained(".workbench-bar", ".mw-stage-tree", feed);
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

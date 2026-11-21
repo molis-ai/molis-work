@@ -12,6 +12,7 @@ import type { HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 import { invalidRestore } from "./home-restore-input.js";
 import { snapshotDatabaseOptions } from "./home-snapshot-inventory.js";
 import { memoryRuntimePolicy } from "./memory/memory-runtime-policy.js";
+import { memorySceneTaxonomy } from "./memory/memory-plugin-scene.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { freshMemoryHome } from "./memory/memory-initialization.js";
 import { memoryRestoreFile } from "./home-restore-owner-payload.js";
@@ -67,7 +68,7 @@ export async function retainHomeRestoreMemory(input: {
   const home = journal.home_directory, assertCurrent = () => control.assertCurrent();
   const incoming = readMemoryLedgerRestoreFacts({ homeDirectory: home, storageOwner, assertCurrent, candidatesFor: retention });
   const scopes = [...new Map([...retention.memories, ...retention.candidates, ...retention.sources].map(item => [JSON.stringify([item.scope, item.owner]), { scope: item.scope, owner: item.owner }])).values()];
-  const policy = memoryRuntimePolicy(() => undefined).policy;
+  const policy = memoryRuntimePolicy(() => undefined, undefined, memorySceneTaxonomy(home)).policy;
   const sdk = journal.files.some(file => file.path === "agent-runtime/records.sqlite" || file.path.startsWith("agent-runtime/records/"))
     ? await openPrologueMemoryRestore({ storageRoot: join(home, "agent-runtime"), appVersion: PRODUCT_VERSION, operationId: journal.operation_id,
       scopes, policy: { ...policy, matrix: { default: { actions: ["manage-read", "delete"], formation: [] } } },

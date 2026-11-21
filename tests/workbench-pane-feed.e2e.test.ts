@@ -27,7 +27,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   // Soft Workbench: one timeline; each row names its source and the source menu scope it belongs to.
   await main.waitFor("document.querySelectorAll('[data-feed-rows] [data-feed-entry-id]').length>0");
-  const firstRow = await main.evaluate<{ source: string; task: string; label: string }>("(()=>{const row=document.querySelector('[data-feed-rows] [data-feed-entry-id]');return {source:row.dataset.feedEntrySourceId,task:row.dataset.feedEntryTask,label:row.querySelector('.feed-entry-source')?.textContent||''};})()");
+  const firstRow = await main.evaluate<{ source: string; task: string; label: string }>("(()=>{const row=document.querySelector('[data-feed-rows] [data-feed-entry-id]');return {source:row.dataset.feedEntrySourceId,task:row.dataset.feedEntryTask,label:row.querySelector('.mw-entry-source')?.textContent||''};})()");
   assert.ok(firstRow.source && firstRow.label);
   assert.ok(await main.evaluate(`Boolean(document.querySelector('[data-feed-source-rail] [data-feed-task="${firstRow.task}"]'))`), "the row's scope is a source in the menu");
   const sources = await main.evaluate<string[]>("[...document.querySelectorAll('[data-feed-task]')].map(x=>x.dataset.feedTask)");

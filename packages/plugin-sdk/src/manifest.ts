@@ -4,6 +4,7 @@ import { parsePluginSyncDeclaration } from "./plugin-sync.js";
 import { SURFACE_BROWSER_PERMISSION, type PluginDeclarationProblem, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TEXT_REF_LIMITS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isMemoryPluginScene } from "@molis-ai/molis-work-contracts/services/memory";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
 import { inspectAgentDeclaration } from "./agent-declarations.js";
@@ -67,8 +68,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
-  if (manifest.memory_scene !== undefined && manifest.memory_scene !== "coding" && manifest.memory_scene !== "common") {
-    invalid('memory_scene 只能是 "coding" 或 "common"');
+  if (manifest.memory_scene !== undefined && !isMemoryPluginScene(manifest.memory_scene)) {
+    invalid('memory_scene 只能是 "common"，或这个插件自己的场景名：小写字母开头、只用小写字母、数字和连字符、至多 40 字，且不是 assistant、agent、both');
   }
   if (!Array.isArray(manifest.entrypoints) || (manifest.entrypoints.length === 0 && manifest.kind !== "content")) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");

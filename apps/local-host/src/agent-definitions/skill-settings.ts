@@ -35,8 +35,8 @@ export type SkillSetting = {
   actor_id: string;
 };
 
-/** Who read a Skill's body for a round, as the catalog shows it. */
-export type SkillUseCaller = "assistant" | "coding" | "agent";
+/** Who read a Skill's body for a round, as the catalog shows it: `assistant`, a plugin scene (Coding's `coding`), or `agent`. */
+export type SkillUseCaller = string;
 
 /** One accepted use, with the reference and name the round used. */
 export interface SkillUse {
@@ -119,9 +119,9 @@ export class SkillSettingsStore {
   }
 
   /** How many of each Skill's kept uses in this scope each entry made: one read for a whole list. */
-  usesByCaller(scopeRef: string): Map<string, Partial<Record<SkillUseCaller, number>>> {
+  usesByCaller(scopeRef: string): Map<string, Record<SkillUseCaller, number>> {
     const rows = this.db.prepare("SELECT install_id, skill_id, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, caller").all(scopeRef) as Array<{ install_id: string; skill_id: string; caller: SkillUseCaller; count: number }>;
-    const result = new Map<string, Partial<Record<SkillUseCaller, number>>>();
+    const result = new Map<string, Record<SkillUseCaller, number>>();
     for (const row of rows) {
       const key = `${row.install_id}\0${row.skill_id}`;
       result.set(key, { ...result.get(key), [row.caller]: Number(row.count) });

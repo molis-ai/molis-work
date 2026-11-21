@@ -31,7 +31,7 @@ export function renderMemorySettings({ scope, projectId, projects = [] }: { scop
     ${renderSettingsSection({ title: personal ? uiText.text("workbench.settings-memory.my-memories") : uiText.text("workbench.settings-memory.project-s-memories"), id: "memory-items-title", className: "memory-items",
       lead: renderListToolbar({ label: uiText.text("workbench.settings-memory.filter-memories"),
         search: `<input class="mw-input memory-search" type="search" maxlength="400" data-memory-filter="query" placeholder="${uiText("workbench.settings-memory.search-memories")}" aria-label="${uiText("workbench.settings-memory.search-memories")}">`,
-        filters: `<select class="mw-select" data-memory-filter="scene" aria-label="${uiText("workbench.settings-memory.scene")}"><option value="">${uiText("workbench.settings-memory.all-scenes")}</option><option value="coding">${uiText("workbench.settings-memory.coding")}</option><option value="assistant">${uiText("workbench.settings-memory.assistant")}</option><option value="common">${uiText("workbench.settings-memory.common")}</option><option value="unclassified">${uiText("workbench.settings-memory.unclassified")}</option></select><select class="mw-select" data-memory-filter="state" aria-label="${uiText("workbench.settings-memory.state")}"><option value="">${uiText("workbench.settings-memory.all-states")}</option><option value="active">${uiText("workbench.settings-memory.active")}</option><option value="disabled">${uiText("workbench.settings-memory.switch-off")}</option><option value="paused">${uiText("workbench.settings-memory.paused")}</option></select>`,
+        filters: `<select class="mw-select" data-memory-filter="scene" aria-label="${uiText("workbench.settings-memory.scene")}"><option value="">${uiText("workbench.settings-memory.all-scenes")}</option><option value="assistant">${uiText("workbench.settings-memory.assistant")}</option><option value="common">${uiText("workbench.settings-memory.common")}</option><option value="unclassified">${uiText("workbench.settings-memory.unclassified")}</option></select><select class="mw-select" data-memory-filter="state" aria-label="${uiText("workbench.settings-memory.state")}"><option value="">${uiText("workbench.settings-memory.all-states")}</option><option value="active">${uiText("workbench.settings-memory.active")}</option><option value="disabled">${uiText("workbench.settings-memory.switch-off")}</option><option value="paused">${uiText("workbench.settings-memory.paused")}</option></select>`,
         more: { label: uiText.text("workbench.settings-memory.more-filters"), body: `<select class="mw-select" data-memory-filter="kind" aria-label="${uiText("workbench.settings-memory.kind")}"><option value="">${uiText("workbench.settings-memory.all-kinds")}</option><option value="preference">${uiText("workbench.settings-memory.preference")}</option><option value="convention">${uiText("workbench.settings-memory.convention")}</option><option value="fact">${uiText("workbench.settings-memory.background-fact")}</option><option value="experience">${uiText("workbench.settings-memory.lesson")}</option><option value="habit">${uiText("workbench.settings-memory.habit")}</option><option value="project-decision">${uiText("workbench.settings-memory.project-decision")}</option></select><select class="mw-select" data-memory-filter="lifecycle" aria-label="${uiText("workbench.settings-memory.retention")}"><option value="">${uiText("workbench.settings-memory.all-retention-types")}</option><option value="long-term">${uiText("workbench.settings-memory.long-term")}</option><option value="short-term">${uiText("workbench.settings-memory.short-term")}</option><option value="session">${uiText("workbench.settings-memory.within-session")}</option></select><select class="mw-select" data-memory-filter="source" aria-label="${uiText("workbench.settings-memory.source")}"><option value="">${uiText("workbench.settings-memory.all-sources")}</option><option value="said">${uiText("workbench.settings-memory.said")}</option><option value="accepted">${uiText("workbench.settings-memory.accepted")}</option><option value="auto">${uiText("workbench.settings-memory.kept-automatically")}</option><option value="manual">${uiText("workbench.settings-memory.added")}</option><option value="imported">${uiText("workbench.settings-memory.imported")}</option><option value="plugin">${uiText("workbench.settings-memory.kept-plugin")}</option></select><select class="mw-select" data-memory-filter="expired" aria-label="${uiText("workbench.settings-memory.expiry-state")}"><option value="">${uiText("workbench.settings-memory.all-expiry-states")}</option><option value="true">${uiText("workbench.settings-memory.expired-2")}</option><option value="false">${uiText("workbench.settings-memory.not-expired")}</option></select>` },
         end: `<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${uiText("workbench.settings-memory.add")}</button>` }),
       body: `      <div class="memory-toolbar" data-memory-batch>
@@ -77,8 +77,10 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const params = new URLSearchParams((context || location).search);
     const kind = params.get("memory_session_kind"), sessionId = params.get("memory_session_id");
     const sessionMode = params.has("memory_session_kind") || params.has("memory_session_id");
-    const validTarget = !sessionMode || ["coding", "assistant"].includes(kind) && sessionId && sessionId.trim() && sessionId.length <= 200
-      && params.getAll("memory_session_kind").length === 1 && params.getAll("memory_session_id").length === 1 && (kind !== "coding" || project);
+    // A session is the Assistant's or a plugin's own scene (its Manifest memory_scene); a plugin's belongs to a project.
+    const sessionKind = kind === "assistant" || /^[a-z][a-z0-9-]{0,39}$/.test(kind || "") && !["common", "agent", "both"].includes(kind);
+    const validTarget = !sessionMode || sessionKind && sessionId && sessionId.trim() && sessionId.length <= 200
+      && params.getAll("memory_session_kind").length === 1 && params.getAll("memory_session_id").length === 1 && (kind === "assistant" || project);
     const targetBase = target => (target.project_id ? "/projects/" + encodeURIComponent(target.project_id) : "")
       + "/api/memory/sessions/" + target.kind + "/" + encodeURIComponent(target.id);
     const base = sessionMode && validTarget ? targetBase({ kind, id: sessionId, project_id: project || null })
@@ -160,7 +162,19 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     };
     const KIND = { preference: "workbench.settings-memory.preference", convention: "workbench.settings-memory.convention", fact: "workbench.settings-memory.background-fact", experience: "workbench.settings-memory.lesson" };
     const FORMAL_KIND = { ...KIND, habit: "workbench.settings-memory.habit", "project-decision": "workbench.settings-memory.project-decision" };
-    const CLASS = { coding: "workbench.settings-memory.coding", assistant: "workbench.settings-memory.assistant", common: "workbench.settings-memory.common", "long-term": "workbench.settings-memory.long-term", "short-term": "workbench.settings-memory.short-term", session: "workbench.settings-memory.within-session" };
+    const CLASS = { assistant: "workbench.settings-memory.assistant", common: "workbench.settings-memory.common", "long-term": "workbench.settings-memory.long-term", "short-term": "workbench.settings-memory.short-term", session: "workbench.settings-memory.within-session" };
+    // Plugin scenes are what plugins declare (memory_scene), listed and named by the Host with the page's data; the platform's are words here.
+    const pluginScenes = () => data?.scenes || [];
+    const sceneText = scene => scene === "assistant" || scene === "common" ? readText(CLASS[scene]) : pluginScenes().find(row => row.scene === scene)?.name || scene;
+    const fillScenes = () => {
+      for (const select of root.querySelectorAll('[data-memory-filter="scene"], [data-memory-class="current_scene"], [data-memory-class="scene"]')) {
+        const before = [...select.options].find(option => option.value === "assistant") || null;
+        for (const { scene, name } of pluginScenes()) {
+          if ([...select.options].some(option => option.value === scene)) continue;
+          const option = el("option", "", name); option.value = scene; select.insertBefore(option, before);
+        }
+      }
+    };
     const SOURCE = { said: "workbench.settings-memory.said", accepted: "workbench.settings-memory.accepted", auto: "workbench.settings-memory.kept-automatically", manual: "workbench.settings-memory.added", imported: "workbench.settings-memory.imported", plugin: "workbench.settings-memory.kept-plugin" };
     const STATE = { active: "workbench.settings-memory.active", disabled: "workbench.settings-memory.switch-off", paused: "workbench.settings-memory.paused" };
     const CHANGE = { kept: "workbench.settings-memory.keep", auto_kept: "workbench.settings-memory.kept-automatically", replaced: "workbench.settings-memory.replaced", auto_replaced: "workbench.settings-memory.replaced-automatically", merged: "workbench.settings-memory.merged", edited: "workbench.settings-memory.edit", restored: "workbench.settings-memory.went-back-earlier-version", moved: "workbench.settings-memory.moved",
@@ -454,7 +468,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     }
 
     const { textEditor, classificationText, expiryText, renewalEditor, itemEditor, historyPanel } = (${MEMORY_EDITORS_CLIENT_SCRIPT})({
-      L, el, button, paint, run, ask, fail, api, mutation, day, appliesText, CLASS, KIND, FORMAL_KIND, sessionMode, params,
+      L, el, button, paint, run, ask, fail, api, mutation, day, appliesText, CLASS, sceneText, pluginScenes, KIND, FORMAL_KIND, sessionMode, params,
       scope: () => scope, busy: () => busy, reader: () => reader, removing: () => removing });
 
     const BATCH_STATES = { completed: "workbench.settings-memory.done", "already-absent": "workbench.settings-memory.removed", conflict: "workbench.settings-memory.version-conflicts", "not-executed": "workbench.settings-memory.not-run-yet", unknown: "workbench.settings-memory.outcome-unknown" };
@@ -652,7 +666,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
 
     function paint() {
       if (!data) return;
-      paintSummary(); if (!sessionMode) { paintChanges(); paintPairs(); paintPrefs(); paintUpkeep(); } paintCandidates(); paintItems(); paintNavigation();
+      fillScenes(); paintSummary(); if (!sessionMode) { paintChanges(); paintPairs(); paintPrefs(); paintUpkeep(); } paintCandidates(); paintItems(); paintNavigation();
       $("[data-memory-new]").hidden = true;
     }
 

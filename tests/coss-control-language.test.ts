@@ -107,7 +107,7 @@ test("workbench, settings, and the way in keep the Coss control layer after late
   assert.ok(settings.includes(marker));
   assert.ok(arrival.includes(marker));
   assert.ok(workbench.lastIndexOf(".mw-btn--primary") > workbench.lastIndexOf(marker));
-  assert.doesNotMatch(workbench, /feed-detail-actions \.button-primary \{ color: var\(--paper\); background: var\(--blue-dark\);/);
+  assert.doesNotMatch(workbench, /mw-detail-actions \.button-primary \{ color: var\(--paper\); background: var\(--blue-dark\);/);
   assert.doesNotMatch(workbench, /feed-stage-add-actions \.button-primary \{ color: var\(--paper\); background: var\(--blue-dark\);/);
 });
 

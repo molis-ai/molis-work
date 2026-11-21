@@ -217,7 +217,7 @@ test("保存时检查连接：没通过什么都不留；通过才保存，并�
       assert.equal(failed.text.includes(wrongKey), false, "错误里不带密钥");
       assert.deepEqual((await providers()).providers, [], "供应商没有保存");
       assert.deepEqual(await connections(), [], "输入的密钥没有变成连接");
-      const secretsFile = path.join(root, "home/feed/secrets.json");
+      const secretsFile = path.join(root, "home/security/secrets.json");
       assert.equal((await readFile(secretsFile, "utf8").catch(() => "")).includes(wrongKey), false, "密钥没有落到密钥库");
       assert.equal(standIn.requests.length, 1, "只检查一次");
       assert.equal(standIn.requests[0]!.model, "stand-in-model");

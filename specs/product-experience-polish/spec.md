@@ -59,7 +59,7 @@
      - **单栏推入档（`< 680px`）**：所有双栏舞台（`.plugin-stage-shell`、`goal-board`、`Sessions`、`Jelly`、`PPT`、`Diff` 并排）自动切换为「列表占满 → 点开详情占满 + 左上返回钮」（`Plugin Builder` 在 `<760px` 切顶部「对话设计 / 实时预览」分段页签）。
 2. **主从舞台两档目录宽度与去「纸中套卡／卡套卡」**：
    - 冻结 `--stage-list-w: 240px`（紧凑 `220px`）与富摘要目录 `--stage-list-wide-w: 280px`（封顶 `300px`，禁用百分比拉肥）；所有主从左栏统一 `--surface-soft` + `1px solid var(--line)`，右栏独占 `--paper`。
-   - 拆除 `Feed` `.feed-detail` 阴影圆角二层白卡壳与多处 3～4 层套盒（生成插件目录行、Todo、Risk、设置子页、逐项审阅栏），以留白与单根分割线建层。
+   - 拆除 `Feed` `.mw-detail` 阴影圆角二层白卡壳与多处 3～4 层套盒（生成插件目录行、Todo、Risk、设置子页、逐项审阅栏），以留白与单根分割线建层。
 3. **四档标准居中版心契约（淘汰 12 种野生宽度）**：
    - `--measure-reading: 680px ~ 720px`（Pages 正文、灵光编辑与对话同轴居中、Feed/Inbox 正文、Jelly 笔记、Coding 对话）；
    - `--measure-form: 760px ~ 880px`（设置全集 `760px`、Form 编辑器、Goals 文档 `880px` 齐头居中去 `32px` 阶梯缩进、首页与 Work Brief `640+24+216=880px`）；
@@ -85,7 +85,7 @@
 
 - **Goals**：清除 2 处拿中文 `"请求决定"` 做分支判断的逻辑；修复解除关系 `t.text()` 乱码；静态 `open` 投影去旋转 `"running"`；提案「退回修正」补 `.mw-btn`、收敛一屏多阳色；画布/看板取消单击 `220ms` 延迟；可逆「回收站恢复」取消强制填理由弹窗改即时+Undo；列表主从切 `@container goal-board`、文档收至 `880px` 齐头去 `32px` 阶梯缩进并压缩顶部套盒、补 15 处 `mw-select`。
 - **Inbox**：将 `.inbox-reference-footer` 从正文上方下移为独立页脚，正文锁定 `680px` 居中；修复投影与列表状态冲突及忽略钮染墨蓝 Bug；「标记已处理 / 忽略」改即时生效 + `6.5s` Undo Toast + `molisReflow` + 自动推进下一条未处理项。
-- **Feed + 4 个官方集成（`rss / gmail / github / youtube`）**：为 `rss` 与 `youtube` 补完整中英 `locales`，4 集成 `manifest.json` 补 `icon`；关闭行严格仅展示来源与标题（去掉常驻摘要与「没有附加摘要」），点开后同步更新 `<svg class="mw-ring">`；拆 `.feed-detail` 二层阴影白卡收至 `680px` 阅读版心；搜索补防抖、忽略改 Undo Toast + `molisReflow`、去左栏重复 `<h1>`、清退 11 处裸 `<select>`、修英文断句 `"Every day at"` 与开发自证语。
+- **Feed + 4 个官方集成（`rss / gmail / github / youtube`）**：为 `rss` 与 `youtube` 补完整中英 `locales`，4 集成 `manifest.json` 补 `icon`；关闭行严格仅展示来源与标题（去掉常驻摘要与「没有附加摘要」），点开后同步更新 `<svg class="mw-ring">`；拆 `.mw-detail` 二层阴影白卡收至 `680px` 阅读版心；搜索补防抖、忽略改 Undo Toast + `molisReflow`、去左栏重复 `<h1>`、清退 11 处裸 `<select>`、修英文断句 `"Every day at"` 与开发自证语。
 - **Todo**：接管 7 处原生日期框；去「重要 / 今天截止」的越界琥珀、删除 999px 胶囊与日期重复副标题；删除确认切危险红；勾选完成补 `optimisticToggle` 失败回滚、`molisReflow` 与 `molisCraft.celebrate`；拆收集箱卡套卡并切 `@container`。
 - **Schedule**：待机「已启用」退隐中性、修英文按钮 `"Resumed"` → `"Resume"`、首屏补唯一阳色入口、接管原生 `time`、日历翻月接 `molisCraft.turn`、缺模型接 `host.returns.go`、去 `capability_id / object_ref` 技术黑话。
 - **Issues**：缩略图删除角标去 `--action` 实底与字符 `×`；移除整理失败越界琥珀；Toast 切宿主队列（解决 `nowrap` 截断）；删图接 `molisReflow`、新建/完成接 `land / celebrate`；缺模型接 `host.returns.go`。
@@ -142,7 +142,7 @@
 3. **UXP-03** `packages/design-system/src/browser/copy-feedback.ts` 无硬编码中文默认值，全站绕过 `molisCopy` 的 5 处裸 `navigator.clipboard.writeText` 清零；全站 7 大编辑器落地统一五态自动保存模型（空闲静默不刷绿、超 `250ms` 保存中、成功 `2s` 淡隐、失败红字保留草稿并带就地重试）；`host.confirm` 支持 `tone: "danger"` 与具体动词，全站表单／确认弹窗严格「左取消、右主动作」。
 4. **UXP-04** 生成插件共享渲染器实现每页平面最多 1 个 `mw-btn--primary` 且弹窗提交恒为 `primary`；清除 `.pc-count::before` 硬编码中文、`% 4` 轮转琥珀、目录行卡套卡、`:hover translateY(-1px)`、`"✓ "` 字符与 `sparkles` 回退身份标；市场卡片 `:not([hidden])` 按钮折行修复且 `960px` 双列等高。
 5. **UXP-05** `.tab-pane-body` 与 `.tab-workspace-exclusive` 声明 `container: plugin-stage / inline-size`，全仓插件与舞台响应统一按 `≥960 / 680–959 / <680px` 三档 `@container` 切换；在 `1440px` 桌面二分屏（每窗格 `~680px`）与开右侧面板（`~540–600px`）下，所有主从双栏、三栏（PPT）与并排对比（Diff）自动折叠无挤压、无横向裁切溢出。
-6. **UXP-06** 全产品收敛为四档居中标准版心（`680–720 / 760–880 / 960 / 1152px`）与两档 `--surface-soft` 主从左栏（`240 / 280px`），消除灵光同页左右跳轴、PPT 贴左、Dataset 四级锯齿、Goals `32px` 阶梯缩进、Feed `.feed-detail` 纸中套卡与全站多处 3～4 层套盒；`.plugin-stage-detail-bar` 锁死 `48px` 单行无 `overflow-x` 菜单裁切；Inbox 处置页脚下置于正文之后；Sessions/Cognia/Jelly 压缩多层顶栏并修 Jelly `top: -28px` 截断；Plugin Builder `.as-board` 不遮挡画布且窄窗单视口分段切换。
+6. **UXP-06** 全产品收敛为四档居中标准版心（`680–720 / 760–880 / 960 / 1152px`）与两档 `--surface-soft` 主从左栏（`240 / 280px`），消除灵光同页左右跳轴、PPT 贴左、Dataset 四级锯齿、Goals `32px` 阶梯缩进、Feed `.mw-detail` 纸中套卡与全站多处 3～4 层套盒；`.plugin-stage-detail-bar` 锁死 `48px` 单行无 `overflow-x` 菜单裁切；Inbox 处置页脚下置于正文之后；Sessions/Cognia/Jelly 压缩多层顶栏并修 Jelly `top: -28px` 截断；Plugin Builder `.as-board` 不遮挡画布且窄窗单视口分段切换。
 7. **UXP-07** 全仓清除四起色彩语义倒置（Dataset/PPT 错误涂绿、电脑面板 `--accent` 实心主按钮、灵光 `.lingguang-note` 悬浮遮挡与 Plugin Builder 深色白底弹窗），收回全部越界 `--amber`（仅用于「轮到你」）、清零常态无意义绿/蓝签与静止态误转 `"running"` 环，清零硬编码 `#hex` 孤岛与私读 `data-resolved-theme="dark"`，全仓手敲 Unicode 图标与 Shelf 21 处私绘 SVG 迁回 Lucide 图标库。
 8. **UXP-08** 修复全仓所有 P0 级文案与功能断层：租户订阅表单与 Goals 解除关系不再输出 `"这句话暂时显示不了"`；清除 Goals／浏览器／电脑面板的中文译文分支判断；修复 `"Imported / Completed / Started / Resumed"` 动词时态错误与灵光发言人 `"记下"`；`rss / youtube` 补双语 `locales`；清零 Plugin Builder 的 `Jev / G1–G6 / 合同`、Jelly 裸 JSON 及全仓裸 UTC 时间切片；Artifacts/Sessions/Shelf/Cognia/Alchemist/Images 加载失败均可原地恢复重试、零白屏吞错或永卡加载态。
 9. **UXP-09** 高频可逆操作（Inbox 标记已处理/忽略、Feed 忽略、Coding/Alchemist 归档、Goals 回收站恢复）取消多余阻塞确认，改为即时执行 + `6.5s` Undo Toast + `molisReflow`（Inbox 同步顺推下一条）；Goals 取消单击 `220ms` 延迟；Diff 与 Git 均支持 `[data-diff-unfold]` 展开；Text Stats 具备就地实时输入框；补齐缺模型/缺连接的 `host.returns.go` 往返与浮层 `Escape` 焦点归还。

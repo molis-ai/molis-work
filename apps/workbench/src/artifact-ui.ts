@@ -36,7 +36,7 @@ export const ARTIFACT_WORKBENCH_STYLES = `${FILE_PREVIEW_STYLES}
   .artifact-continue-actions, .artifact-goal-input form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
   .artifact-goal-input form select { flex:1 1 200px; min-width:0; }
   .artifact-version-list .mw-dir-row,
-  .artifact-version-list .feed-stage-entry { width:100%; }
+  .artifact-version-list .mw-stage-entry { width:100%; }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }
   .artifact-detail header:not(.plugin-stage-detail-bar) { display:flex; gap:16px; align-items:baseline; margin:24px 0; }
   .artifact-detail h1 { font-size:24px; margin:0; line-height:1.25; }

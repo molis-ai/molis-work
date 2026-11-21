@@ -1,3 +1,5 @@
+import { skillEntriesOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { builtinScenePlugins } from "../memory/memory-plugin-scene.js";
 import type { SkillDisplayWords } from "./skill-display-words.js";
 import { resolveCategoryPlaceholders, type CategoryAccounts } from "./skill-connector-categories.js";
 import { createHash } from "node:crypto";
@@ -215,7 +217,8 @@ export class SkillCatalog {
    */
   async kitReport(caller: ActionCallContext): Promise<KitReport> {
     const { skills } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
-    const english = caller.locale === "en", forWhom = { assistant: english ? "Assistant" : "助理", coding: "Coding" } as const;
+    const english = caller.locale === "en", scenePlugins = builtinScenePlugins();
+    const forWhom = (entry: string) => entry === "assistant" ? (english ? "Assistant" : "助理") : scenePlugins.get(entry)?.name ?? entry;
     return { entries: skills.map(skill => {
       const used = counts.get(settingKey(skill.ref.install_id, skill.ref.skill_id));
       return { kind: "skill" as const, entry_id: settingKey(skill.ref.install_id, skill.ref.skill_id).replace("\0", "/"), name: skill.name, description: skill.description,
@@ -223,7 +226,7 @@ export class SkillCatalog {
         version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版`, ...skill.based_on?.newer_version
           ? { change: { kind: "default_updated" as const, base_version: skill.based_on.source.version, default_version: skill.based_on.newer_version } } : {} },
         declares: { tools: skill.tools.slice(0, 64), permissions: [], connector_categories: skill.connector_categories.slice(0, 64) }, scope: skill.pack.scope,
-        where: skill.applies_to === "both" ? [forWhom.assistant, forWhom.coding] : [forWhom[skill.applies_to]], availability: skill.availability.available
+        where: skillEntriesOf(skill.applies_to, [...scenePlugins.keys()]).map(forWhom), availability: skill.availability.available
           ? { available: true as const } : { available: false as const, reason: skill.availability.reason, ...(skill.availability.detail ? { detail: skill.availability.detail } : {}) },
         usage: used ? { kind: "recent" as const, count: used.count, last_at: used.last_at, kept: { rows_per_key: USES_KEPT } } : { kind: "none" as const },
         export: skill.pack.trust === "host" ? "reference" as const : "package" as const, skill,

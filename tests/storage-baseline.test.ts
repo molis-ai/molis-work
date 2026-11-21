@@ -288,7 +288,7 @@ test("RAC-427 platform env prefix, project database filename and security direct
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   runWithMolisWorkHome("/tmp/pg097-home", () => {
-    assert.equal(resolveHomeSecurityDirectory(), join(realpathSync("/tmp"), "pg097-home", "feed"));
+    assert.equal(resolveHomeSecurityDirectory(), join(realpathSync("/tmp"), "pg097-home", "security"));
   });
   const previousNext = process.env.MOLIS_WORK_HOME;
   const previousLegacy = process.env.GOALBOARD_HOME;

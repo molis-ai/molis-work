@@ -190,7 +190,7 @@ test("SKP-10: a coding round's tool calls carry its Skill consumer and the named
     action: { title: "读", description: "", kind: "query", audiences: ["agent"], effect: "read", subject_kinds: [], permissions: [],
       input_schema: { type: "object" }, output_schema: { type: "object" } } } as never;
   const authority = { manifest: { ...manifest, roles: [{ ...manifest.roles[0]!, workspace: "required" as const }] }, authorizedDirectories: [DIRECTORY],
-    skillCatalog: countingCatalog().catalog,
+    skillCatalog: { ...countingCatalog().catalog, workspaceConsumer: "coding" },
     actions: async (...args: unknown[]) => { seen.push(args); return { discover: async () => [view], invoke: async () => ({}) } as never; } };
   await host.start("probe", { ...startRequest([]), action_tools: [{ capability_id: "demo.read", version: 1, provider_id: "demo" }] }, authority);
   const round = seen[0]?.[3] as { consumer: string; named: unknown[]; round?: string };

@@ -43,7 +43,7 @@ export async function handleSkillSettingsHttp(request: IncomingMessage, response
         const named = body.refs[0] as SkillRef;
         const listed = await client.invoke(caller, { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
         const appliesTo = listed.skills.find(skill => isDeepStrictEqual(skill.ref, named))?.applies_to;
-        return { status: 200, body: await invoke({ ...caller, skill_round: { consumer: appliesTo === "coding" ? "coding" : "assistant", named: [named] } }) };
+        return { status: 200, body: await invoke({ ...caller, skill_round: { consumer: appliesTo && appliesTo !== "both" ? appliesTo : "assistant", named: [named] } }) };
       }
       return { status: 200, body: await invoke() };
     } });

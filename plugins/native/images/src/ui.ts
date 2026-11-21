@@ -35,7 +35,7 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
   return renderPluginStageShell({
     surface: "images", label: uiText.text("images.page.title"), dataset: "images",
     body: `
-      <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-images="directory">
+      <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-images="directory">
         <header class="plugin-stage-chrome">
           <button class="mw-btn mw-btn--ghost tree-create" type="button" data-images-new>${icon("plus")}<span>${uiText("images.compose.new")}</span></button>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${icon("refresh")}<span>${uiText("images.history.refresh")}</span></button>

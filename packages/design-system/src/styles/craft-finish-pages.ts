@@ -123,12 +123,12 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
 
   /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
-  ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item) {
+  ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node) {
     border-radius: var(--r-row);
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item):active:not(:disabled) { background: var(--nav-press); }
-  ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .source-list-item.is-selected) {
+  ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
+  ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected) {
     background: var(--nav-active); box-shadow: none; color: var(--ink);
   }
   ${SHELL} .tree-pane .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) { background: var(--nav-active); box-shadow: none; border-radius: var(--r-row); }
@@ -226,8 +226,8 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
-    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .tui-menu,
-    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
+    .tree-filter, .tui-menu,
+    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, ${CENTRED_DIALOG},
     dialog.mw-sheet, .assistant-panel) { background-color: var(--popover); }
   ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
@@ -280,7 +280,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
 
   /* ─── Lists and rows ─── */
-  ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow) {
+  ${WORKBENCH} :is(.tree-entry, .mw-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow) {
     transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
@@ -387,16 +387,16 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${STAGE_LIST}:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary { border-color: transparent; background: var(--control-fill); color: var(--ink); }
     ${STAGE_LIST}:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary:hover:not(:disabled) { background: var(--nav-hover); }
     /* Rows: one comfortable line with a wash on hover; groups read as quiet section labels. */
-    ${STAGE_LIST} .feed-stage-entry {
+    ${STAGE_LIST} .mw-stage-entry {
       height: auto; min-height: 44px; grid-template-rows: auto; padding: 8px 12px; border-radius: 8px;
     }
-    ${STAGE_LIST} .feed-stage-item { min-height: 0; }
-    ${STAGE_LIST} .feed-stage-entry .feed-stage-leading strong { font-size: 13px; line-height: 20px; }
-    ${STAGE_LIST} :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta, .feed-stage-entry > time) { font-size: 12px; }
+    ${STAGE_LIST} .mw-stage-item { min-height: 0; }
+    ${STAGE_LIST} .mw-stage-entry .mw-stage-leading strong { font-size: 13px; line-height: 20px; }
+    ${STAGE_LIST} :is(.mw-entry-source, .plugin-stage-fact, .plugin-stage-meta, .mw-stage-entry > time) { font-size: 12px; }
     ${STAGE_LIST} .goal-collection-fold { margin: 0 0 16px; }
     ${STAGE_LIST} .goal-collection-fold > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); }
     ${STAGE_LIST} .goal-collection-fold > summary strong { font-size: 12px; color: var(--ink-soft); }
-    ${STAGE_LIST} .goal-collection-fold .feed-stage-entry { padding-left: 32px; }
+    ${STAGE_LIST} .goal-collection-fold .mw-stage-entry { padding-left: 32px; }
     ${STAGE_LIST} > .mw-empty,
     ${STAGE_LIST} > div:only-child > .mw-empty:only-child { min-height: calc(100% - 84px); }
     /* A plugin that wraps its empty state in its own list still gets the calm centred invitation. */
@@ -423,7 +423,7 @@ export const CRAFT_PAGES_STYLES = `  /* A phone: two rows at the foot, the Assis
     ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
       content: var(--stage-desc, "") / ""; order: -1; flex: 1 0 100%; margin: -4px 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted);
     }
-    ${STAGE_LIST} .feed-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
+    ${STAGE_LIST} .mw-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
   }
 
   /* ─── Plugin market ─── */

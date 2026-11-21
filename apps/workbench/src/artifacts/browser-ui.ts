@@ -67,11 +67,11 @@ function directory({ view, routePrefix, primitives: p, typeTitle, languagePrevie
           ? "blocked"
           : "done";
       const link = languagePreview ? "" : ` href="${p.escape(routePrefix + artifactVersionPath(artifact))}" draggable="true" data-frame-asset="artifact" data-frame-asset-id="${p.escape(`${artifact.artifact_id}#${artifact.version}`)}" data-frame-asset-title="${p.escape(title)}" data-frame-asset-caption="${p.escape(`v${artifact.version}`)}"`;
-      return `<article class="feed-stage-item">
-        <a class="feed-stage-entry directory-list-row${selected ? " is-selected" : ""}"${link}>
-          ${languagePreview ? "" : `<span class="feed-stage-leading" translate="no"><strong>${p.escape(title)}</strong></span>`}
-          <span class="feed-entry-source">v${artifact.version}</span>
-          <span class="mw-status mw-status--${statusTone} mw-status--plain feed-entry-status" data-mw-state="${artifact.lifecycle_state === "archived" ? "archived" : artifact.availability === "unavailable" ? "unavailable" : "ready"}">${status}</span>
+      return `<article class="mw-stage-item">
+        <a class="mw-stage-entry directory-list-row${selected ? " is-selected" : ""}"${link}>
+          ${languagePreview ? "" : `<span class="mw-stage-leading" translate="no"><strong>${p.escape(title)}</strong></span>`}
+          <span class="mw-entry-source">v${artifact.version}</span>
+          <span class="mw-status mw-status--${statusTone} mw-status--plain mw-entry-status" data-mw-state="${artifact.lifecycle_state === "archived" ? "archived" : artifact.availability === "unavailable" ? "unavailable" : "ready"}">${status}</span>
         </a>
       </article>`;
     }).join("");

@@ -61,7 +61,7 @@ for (const width of [1440, 390]) {
       assert.equal(JSON.parse(artifact.payload_json).title, "后续编辑仍在文稿中");
       assert.equal(project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions WHERE artifact_id = ?").get(final.artifact_id)!.n, 1);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-      await waitFor("document.querySelector('.pages-doc-row .feed-entry-status .mw-state-ring')?.dataset.mwState === 'saved'"); // RING-07
+      await waitFor("document.querySelector('.pages-doc-row .mw-entry-status .mw-state-ring')?.dataset.mwState === 'saved'"); // RING-07
       await screenshot("recovered");
     } finally { db.close(); pages.close(); }
   });

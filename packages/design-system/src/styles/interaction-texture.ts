@@ -6,7 +6,9 @@ import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
  * Structure, density and component ownership stay with the existing layers. */
 
 /** Menus, popovers and compact dialogs that share one raised-surface recipe. */
-const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu, .source-filter-menu > .source-filter-row, .feed-filter-panel)";
+// `.tui-menu.tui-menu` matches what `.tui-menu` does; it keeps the list's weight at two classes, as it was while Feed's two-class filter row
+// selector was in it, so the rules that use it still win where they did (BL-b44-feed-home-dir-and-styles).
+const RAISED_SURFACE = ":is(.navigator-project-menu-popover, .tree-filter, .global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog, .tui-menu.tui-menu)";
 
 /** Modals that dim the app behind them. */
 const SCRIMMED = ":is(.global-search-dialog, .runtime-plan-dialog, .goal-trash-dialog)";
@@ -73,7 +75,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   ${renderPluginTintBindings()}
 
   /* Ownership wash follows the current plugin onto its list and empty mark, not onto the paper. */
-  body.immersive-workbench :is(.plugin-stage-list, .tree-pane) :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .feed-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
+  body.immersive-workbench :is(.plugin-stage-list, .tree-pane) :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .mw-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
     background: var(--nav-active);
   }
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has(.is-selected),
@@ -86,7 +88,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .plugin-stage-chrome .tree-create svg { color: var(--plugin-tint, var(--muted)); }
 
   /* Directory rows: press feedback, and a current row that reads as selected, not merely hovered. */
-  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .source-list-item, .mw-dir-row):active {
+  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .mw-dir-row):active {
     background: var(--nav-press);
   }
   body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected {
@@ -125,7 +127,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body ${SCRIMMED}::backdrop,
   body.immersive-workbench ${SCRIMMED}::backdrop,
   html[data-resolved-theme="dark"] body.immersive-workbench ${SCRIMMED}::backdrop,
-  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-frame-picker])::backdrop {
+  body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker])::backdrop {
     background: var(--scrim);
     backdrop-filter: none;
   }
@@ -182,9 +184,9 @@ export const INTERACTION_TEXTURE_STYLES = `
   .mw-dir-row[data-settings-section="rules"] { --plugin-tint: var(--tone-done); }
 
   /* Kickers are the same quiet tags, never stadium pills. */
-  body[data-desktop-shell="true"] .feed-detail-kicker span,
-  body[data-desktop-shell="true"] .feed-detail-kicker span:first-child,
-  .feed-detail-kicker > :is(span, .mw-status) {
+  body[data-desktop-shell="true"] .mw-detail-kicker span,
+  body[data-desktop-shell="true"] .mw-detail-kicker span:first-child,
+  .mw-detail-kicker > :is(span, .mw-status) {
     padding: 4px 8px;
     border-radius: 5px;
     font-size: 11px;
@@ -234,7 +236,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
 
   /* Directory empty states share one calm block instead of six paddings and three alignments. */
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .artifact-empty, .goal-collection-empty, .tree-filter-empty) {
+  body.immersive-workbench .tree-pane :is(.artifact-empty, .goal-collection-empty, .tree-filter-empty) {
     margin: 0;
     padding: 16px 12px;
     border: 0;
@@ -244,19 +246,6 @@ export const INTERACTION_TEXTURE_STYLES = `
     font-size: 12px;
     line-height: 1.6;
     text-align: left;
-  }
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty) strong {
-    display: block;
-    color: var(--ink-soft);
-    font-size: 12px;
-    font-weight: var(--weight-control, 500);
-  }
-  body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty) > svg {
-    display: block;
-    width: var(--icon-md);
-    height: var(--icon-md);
-    margin-bottom: 8px;
-    color: var(--faint);
   }
   body.immersive-workbench .tree-pane .tree-filter-empty p { margin: 0 0 8px; }
 

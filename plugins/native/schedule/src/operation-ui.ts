@@ -26,10 +26,10 @@ const occurrenceWords = (state: ScheduledOperationOccurrence["state"]): string =
   }
 };
 export function renderOperationRow(run: ScheduledOperationView, p: ScheduleUiPrimitives): string {
-  return `<article class="inbox-stage-item feed-stage-item"><button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="operation:${p.escape(run.id)}">
-    <span class="feed-stage-leading"><strong>${p.escape(run.pluginTitle)} · ${p.escape(run.operationTitle)}</strong></span>
-    <span class="feed-entry-source">${run.job ? p.escape(p.formatDate(run.job.next_due_at)) : uiText('schedule.operation.alarm-missing')}</span>
-    <span class="mw-status mw-status--${run.state.startsWith('needs_') ? 'attention' : 'quiet'} mw-status--plain feed-entry-status" data-mw-state="${ringStates[run.state]}">${stateWords(run.state)}</span>
+  return `<article class="inbox-stage-item mw-stage-item"><button class="mw-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="operation:${p.escape(run.id)}">
+    <span class="mw-stage-leading"><strong>${p.escape(run.pluginTitle)} · ${p.escape(run.operationTitle)}</strong></span>
+    <span class="mw-entry-source">${run.job ? p.escape(p.formatDate(run.job.next_due_at)) : uiText('schedule.operation.alarm-missing')}</span>
+    <span class="mw-status mw-status--${run.state.startsWith('needs_') ? 'attention' : 'quiet'} mw-status--plain mw-entry-status" data-mw-state="${ringStates[run.state]}">${stateWords(run.state)}</span>
   </button></article>`;
 }
 export function renderOperationDetail(run: ScheduledOperationView, p: ScheduleUiPrimitives): string {
@@ -41,15 +41,15 @@ export function renderOperationDetail(run: ScheduledOperationView, p: ScheduleUi
   const recover = (decision: string, label: string) => `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-operation-decision="${decision}" data-operation-id="${p.escape(run.id)}" data-confirmation="${p.escape(JSON.stringify(confirmation))}">${label}</button>`;
   const controls = review ? (canRecover ? unknown ? recover('skip', uiText.text('schedule.operation.skip')) + recover('retry', uiText.text('schedule.operation.retry')) : recover('resume', uiText.text('schedule.action.confirm-restore')) : '')
     : run.job && run.state !== 'completed' ? `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-enabled-action="${run.state !== 'enabled'}" data-schedule-job-id="${p.escape(run.jobId)}" data-schedule-detail-id="operation:${p.escape(run.id)}">${run.state === 'enabled' ? uiText('schedule.action.pause') : uiText('schedule.action.resume')}</button>` : '';
-  return `<article class="feed-detail inbox-reference-detail" data-schedule-detail="operation:${p.escape(run.id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText('schedule.action.back')}">${p.icon('chevron-right')}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(run.pluginTitle)}</span><span class="mw-status mw-status--${review ? 'attention' : 'quiet'}" data-mw-state="${ringStates[run.state]}">${stateWords(run.state)}</span></div></header>
-    <header class="feed-detail-header"><h1>${p.escape(run.operationTitle)}</h1></header>
+  return `<article class="mw-detail inbox-reference-detail" data-schedule-detail="operation:${p.escape(run.id)}" hidden>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${uiText('schedule.action.back')}">${p.icon('chevron-right')}</button><div class="mw-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(run.pluginTitle)}</span><span class="mw-status mw-status--${review ? 'attention' : 'quiet'}" data-mw-state="${ringStates[run.state]}">${stateWords(run.state)}</span></div></header>
+    <header class="mw-detail-header"><h1>${p.escape(run.operationTitle)}</h1></header>
     <div class="inbox-reference-body"><p>${p.escape(run.detail ?? '')}</p><p data-schedule-operation-target>${target ? p.escape(`${target.title} · ${target.version} · ${target.publisher}`) : uiText('schedule.job.install-first')}</p>
       ${target && !canRecover && review ? `<p>${uiText('schedule.operation.gone')}</p>` : ''}
       <dl class="inbox-attention-context"><div><dt>${uiText('schedule.operation.function')}</dt><dd>${p.escape(run.operationId)}</dd></div><div><dt>${uiText('schedule.job.repeat')}</dt><dd>${run.repeat === 'none' ? uiText('schedule.label.once') : run.repeat === 'daily' ? uiText('schedule.operation.daily') : uiText('schedule.operation.weekly')}</dd></div></dl>
       <p>${uiText('schedule.operation.input')}</p><pre data-schedule-operation-input>${p.escape(JSON.stringify(run.input, null, 2))}</pre>
     </div>
-    <div class="inbox-reference-footer"><div class="feed-detail-actions">${controls}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-operation-refresh="${p.escape(run.id)}">${uiText('schedule.operation.refresh')}</button></div><p class="feed-action-status" data-schedule-action-status role="status" hidden></p></div>
+    <div class="inbox-reference-footer"><div class="mw-detail-actions">${controls}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-operation-refresh="${p.escape(run.id)}">${uiText('schedule.operation.refresh')}</button></div><p class="mw-action-status" data-schedule-action-status role="status" hidden></p></div>
     <div class="schedule-thread">${run.occurrences.map(item => renderOccurrence(item, p)).join('') || `<p>${uiText('schedule.operation.not-run')}</p>`}</div>
   </article>`;
 }

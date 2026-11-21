@@ -175,7 +175,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-tool > span, body.immersive-workbench .tree-tool > b, body.immersive-workbench .tree-tool > small { display: none; }
   body.immersive-workbench .tree-filter-control { margin: 0; flex: none; }
   body.immersive-workbench .tree-tool svg { width: 14px; height: 14px; }
-  body.immersive-workbench .immersive-workspace :is(.tree-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
+  body.immersive-workbench .immersive-workspace .tree-scroll { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 4px 0; margin: 0; }
   body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
@@ -189,7 +189,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-toggle svg { width: 12px; height: 12px; }
   body.immersive-workbench .tree-children { padding-left: 8px; margin: 0 0 0 8px; border-left: 1px solid var(--line); }
   body.immersive-workbench .tree-pane .tree-footer,
-  body.immersive-workbench .tree-pane .feed-directory-footer,
   body.immersive-workbench .tree-pane [data-tree-footer] { display: none !important; }
   body.immersive-workbench .immersive-workspace .personal-sidebar-footer { flex: none; height: auto; min-height: 0; margin: 0; padding: 4px 8px; border: 0; border-top: 0; background: transparent; display: block; }
   body.immersive-workbench .immersive-workspace .personal-account { display: flex; align-items: center; min-width: 0; min-height: 36px; gap: 8px; padding: 4px 8px; border: 0; border-radius: 6px; color: var(--ink); text-decoration: none; }
@@ -347,7 +346,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-note { margin-top: 32px; }
   body.immersive-workbench [data-artifact-directory] { flex: none; height: auto; min-height: 0; overflow: visible; }
   body.immersive-workbench .artifact-version-list .mw-dir-row,
-  body.immersive-workbench .artifact-version-list .feed-stage-entry { width: 100%; }
+  body.immersive-workbench .artifact-version-list .mw-stage-entry { width: 100%; }
   body.immersive-workbench .immersive-artifact-surface .plugin-stage-list .artifact-empty { max-width: 32ch; margin: 0; padding: 8px; color: var(--muted); text-align: left; }
   body.immersive-workbench .immersive-artifact-surface .plugin-stage-workspace .artifact-detail,
   body.immersive-workbench .immersive-artifact-surface .plugin-stage-workspace .artifact-empty { max-width: none; margin: 0; }

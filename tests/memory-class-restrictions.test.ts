@@ -18,11 +18,13 @@ test("classification restrictions accept the declared vocabulary and reject malf
   const valid = restriction({ scene: "coding", lifecycle: "session" });
   const invalid = [null, {}, [null], new Array(1), [{ ...valid, extra: true }], [{ ...valid, form: "on" }], [{ ...valid, read: "on" }],
     [{ ...valid, selector: { ...valid.selector, extra: "x" } }], [{ ...valid, selector: { consumer: "agent" } }],
-    [{ ...valid, selector: { ...valid.selector, consumer: "stranger" } }], [{ ...valid, selector: { ...valid.selector, current_scene: "writing" } }],
-    [{ ...valid, selector: { ...valid.selector, scene: "writing" } }], [{ ...valid, selector: { ...valid.selector, kind: "unknown" } }],
+    [{ ...valid, selector: { ...valid.selector, consumer: "stranger" } }], [{ ...valid, selector: { ...valid.selector, current_scene: "Writing" } }],
+    [{ ...valid, selector: { ...valid.selector, scene: "agent" } }], [{ ...valid, selector: { ...valid.selector, kind: "unknown" } }],
     [{ ...valid, selector: { ...valid.selector, lifecycle: "forever" } }], [{ ...valid, selector: { ...valid.selector, kind: undefined } }]];
   for (const value of invalid) assert.equal(isMemoryClassRestrictions(value), false);
   assert.equal(isMemoryClassRestrictions([]), true);
+  // BL-b44-coding-scene-enum: a scene is a name a plugin declares, so any well-formed one is a selector; one no plugin declares matches nothing.
+  assert.equal(isMemoryClassRestrictions([restriction({ current_scene: "notes", scene: "notes" })]), true);
 });
 
 // MEM-CLASS-01 / MEM-27: property insertion order is not row identity or precedence.

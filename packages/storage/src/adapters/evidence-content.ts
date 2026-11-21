@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
+import { HOME_SECURITY_DIRNAME, resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
 const errors = defineErrorCodes("storage.evidence_content", { key_unavailable: "unavailable" });
@@ -257,7 +257,7 @@ export const RESEARCH_EVIDENCE_DIRECTORY = "search-content";
 
 /**
  * Every directory of the Home whose bodies are sealed with the one content key (BL-1065, user 2026-11-19): Feed's
- * `feed/evidence` and each Alchemist project's `alchemist/projects/<project>/search-content`. The Home is read off the
+ * `security/evidence` and each Alchemist project's `alchemist/projects/<project>/search-content`. The Home is read off the
  * store's own root, so a store at either place sees all the others; a root elsewhere (a test directory, an archive being
  * checked) answers for itself alone. A new place that seals with this key is added here, not at its caller.
  */
@@ -265,7 +265,7 @@ function keySharingRoots(root: string): string[] {
   const resolved = path.resolve(root);
   const parent = path.dirname(resolved), grandparent = path.dirname(parent);
   const projects = path.dirname(parent);
-  const home = path.basename(resolved) === "evidence" && path.basename(parent) === "feed"
+  const home = path.basename(resolved) === "evidence" && path.basename(parent) === HOME_SECURITY_DIRNAME
     ? grandparent
     : path.basename(resolved) === RESEARCH_EVIDENCE_DIRECTORY && path.basename(projects) === "projects"
       && path.basename(path.dirname(projects)) === "alchemist"
@@ -281,7 +281,7 @@ function keySharingRoots(root: string): string[] {
   }
   const research = entries.filter((entry) => entry.isDirectory())
     .map((entry) => path.join(researchProjects, entry.name, RESEARCH_EVIDENCE_DIRECTORY));
-  return [...new Set([resolved, path.join(home, "feed", "evidence"), ...research])];
+  return [...new Set([resolved, path.join(home, HOME_SECURITY_DIRNAME, "evidence"), ...research])];
 }
 
 /** Whether `root` still holds any sealed body; stops at the first one. */

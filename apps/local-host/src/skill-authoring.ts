@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
+import { isSkillAppliesTo, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
   type SkillAuthoredSaveResult, type SkillDraftAdoptRequest, type SkillDraftAdoptResult, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
 import { draftCases, untriedCases, type SkillDraftStore } from './agent-definitions/skill-drafts.js';
@@ -214,6 +214,6 @@ export async function draftSkill(intent: string, complete: HostTextForCommit | u
   const body = cutHead(text('body').replace(/\r\n?/gu, '\n').split('\n').slice(0, SKILL_LIMITS.bodyLines).join('\n'), SKILL_LIMITS.bodyChars).trim();
   if (!name || !description || !body) throw unreadable();
   const whenNot = cutHead(text('when_not_to_use'), SKILL_LIMITS.whenChars);
-  const applies = (SKILL_APPLIES_TO as readonly string[]).includes(text('applies_to')) ? text('applies_to') as SkillAppliesTo : 'assistant';
+  const applies = isSkillAppliesTo(text('applies_to')) ? text('applies_to') as SkillAppliesTo : 'assistant';
   return { name, description, applies_to: applies, body, ...(whenNot ? { when_not_to_use: whenNot } : {}) };
 }

@@ -83,7 +83,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
     label: "Pages",
     dataset: "pages",
     body: `
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
+    <div class="plugin-stage-list mw-stage-list mw-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
         <div class="pages-create">
           <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${uiText("pages.action.new-doc")}</span></button>

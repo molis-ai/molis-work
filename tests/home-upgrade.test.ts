@@ -3,13 +3,14 @@
 // take the lock are in tests/home-upgrade-entries.test.ts.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, truncateSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, REMOVED_HOME_STORES, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
-import { acquireStorageOwner, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { acquireUpgradedHomeOwner, dismissUpgradeNotice, ensureHomeUpgraded, pendingUpgradeUnits, REMOVED_HOME_STORES, runHomeUpgrade, upgradeNoticeFor, type HomeUpgradeDescriptor } from "@molis-ai/molis-work-app-local-host";
+import { acquireStorageOwner, HOME_LAYOUT_MOVES, openBaselineHomeSqlite, personalStorageSpace, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { HOME_LAYOUT_MOVES as GATE_LAYOUT_MOVES, withCurrentLayout } from "../scripts/golden/layout-moves.mjs";
 import {
   ADD_TAG, BASELINE_V2, failingBaseline, ledgerFile, ledgerOf, notesDescriptor, notesOf, onStore, openNode, present, relativeStore, seedStore, sha256, stampFile, storePath, unitOf, upgradeTestHome, useDescriptors, V1, V2, versionOf, writeLedger,
 } from "./fixtures/home-upgrade-home.js";
@@ -464,4 +465,47 @@ test("SKL-41-2: the removed-store list starts empty at the clean v1 origin and a
   assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["first/first.db", "committed"]]);
   assert.deepEqual(bodies(), notes, "a store the build still has keeps its rows");
   assert.equal(runHomeUpgrade(home).ran, false, "nothing left to do on the next start");
+});
+
+/** A Home made before the platform's security directory was renamed: the vault, its key and an evidence body under `feed/`. */
+function oldSecurityLayout(home: string): Record<string, string> {
+  const files = { "secrets.json": '{"version":1}', "secrets.key": "test-only-key", "evidence/blobs/aa/one.blob": "sealed body" };
+  for (const [file, body] of Object.entries(files)) { mkdirSync(dirname(join(home, "feed", file)), { recursive: true }); writeFileSync(join(home, "feed", file), body); }
+  return files;
+}
+
+test("BL-b44-feed-home-dir-and-styles: a Home that still has feed/ has it renamed to security/ once, whole, before the stores are listed", t => {
+  const { home } = upgradeTestHome(t);
+  seedStore(home, "first");
+  useDescriptors(t, notesDescriptor("first"));
+  const files = oldSecurityLayout(home);
+  assert.ok(pendingUpgradeUnits(home) > 0, "an old directory alone is work waiting for the lock");
+  runHomeUpgrade(home);
+  assert.equal(existsSync(join(home, "feed")), false, "no second copy of the secrets is left behind");
+  for (const [file, body] of Object.entries(files)) assert.equal(readFileSync(join(home, "security", file), "utf8"), body, file);
+  assert.equal(pendingUpgradeUnits(home), 0);
+  assert.equal(runHomeUpgrade(home).ran, false, "nothing left to do on the next start");
+});
+
+test("BL-b44-feed-home-dir-and-styles: an old feed/ that is a link, or a Home with both names, is not guessed at: the round stops and nothing moves", t => {
+  const { home } = upgradeTestHome(t);
+  useDescriptors(t, notesDescriptor("first"));
+  oldSecurityLayout(home);
+  mkdirSync(join(home, "security"));
+  writeFileSync(join(home, "security", "secrets.json"), '{"version":1,"other":true}');
+  assert.throws(() => runHomeUpgrade(home), { code: "storage.upgrade_failed", details: { path: "security", reason: "layout_conflict" } });
+  assert.equal(readFileSync(join(home, "feed", "secrets.json"), "utf8"), '{"version":1}');
+  assert.equal(readFileSync(join(home, "security", "secrets.json"), "utf8"), '{"version":1,"other":true}');
+
+  rmSync(join(home, "security"), { recursive: true });
+  renameSync(join(home, "feed"), join(home, "elsewhere"));
+  symlinkSync(join(home, "elsewhere"), join(home, "feed"));
+  assert.throws(() => runHomeUpgrade(home), { code: "storage.upgrade_failed", details: { path: "feed", reason: "layout_refused" } });
+  assert.equal(existsSync(join(home, "security")), false);
+});
+
+test("BL-b44-feed-home-dir-and-styles: the golden gates read a path under a renamed directory as held under its new name too, by the storage list", () => {
+  assert.deepEqual(GATE_LAYOUT_MOVES, HOME_LAYOUT_MOVES, "scripts/golden/layout-moves.mjs keeps its own copy of the storage list, and the two agree");
+  assert.deepEqual(withCurrentLayout("feed/secrets.json"), ["feed/secrets.json", "security/secrets.json"]);
+  assert.deepEqual(withCurrentLayout("feeds/secrets.json"), ["feeds/secrets.json"]);
 });

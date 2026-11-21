@@ -1,3 +1,5 @@
+import { createFeedInformationPlanHandler } from "./information-plan.js";
+import { FEED_INSTRUCTIONS } from "./prompts.js";
 import { createFeedRunsHandlers } from "./missed-pulls.js";
 import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
@@ -54,7 +56,7 @@ const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, fe
  * bodies are read through the platform (`services.sourcePull.evidence`). Writes happen only inside `createFeedWriter`'s commit.
  */
 export function createFeedPlugin(): PluginDefinition {
-  return { manifest: feedManifest, async start(context) {
+  return { manifest: feedManifest, instructions: FEED_INSTRUCTIONS, async start(context) {
     for (const permission of feedManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id, services = context.services;
     const database = services?.project_database, attention = services?.attention, contextLedger = services?.contextLedger, artifacts = services?.artifacts;
@@ -149,6 +151,13 @@ export function createFeedPlugin(): PluginDefinition {
     };
     const delegation = services?.actions?.directory;
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
+    // Inbox's open entries, through its public read; without Inbox (removed or turned off) there are none to show or plan for.
+    const stageInboxEntries = async (): Promise<readonly AttentionEntryRecord[]> => {
+      const actions = services.actions!;
+      const availability = actions.availability(FEED_STAGE_INBOX_READ);
+      if (!availability.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(availability.code ?? "")) return [];
+      return (await actions.invokeQuery<Record<string, never>, { entries: AttentionEntryRecord[] }>(FEED_STAGE_INBOX_READ, {})).entries;
+    };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedPresentationHandlers(projectId, feedPresentationRecords(ports.sql, projectId), new SourcesModule(ports.sql).query),
       { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
@@ -159,14 +168,10 @@ export function createFeedPlugin(): PluginDefinition {
             const id = feedSourcePresentationId(source);
             return id ? [(async () => [source.source_id, await (vocabulary ?? noVocabulary()).presentation(id, { cursor: source.cursor })] as const)()] : [];
           }))),
-          inboxEntries: async () => {
-            const actions = services.actions!;
-            const availability = actions.availability(FEED_STAGE_INBOX_READ);
-            if (!availability.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(availability.code ?? "")) return [];
-            return (await actions.invokeQuery<Record<string, never>, { entries: AttentionEntryRecord[] }>(FEED_STAGE_INBOX_READ, {})).entries;
-          },
+          inboxEntries: stageInboxEntries,
           promoteAvailable: async () => delegation ? promoteOffered(await delegation.discover()) : false,
         } }),
+      createFeedInformationPlanHandler(feed, projectId, { model: services.model, inboxEntries: stageInboxEntries }),
       ...createFeedRuleHandlers(feed, projectId, hydrate, sceneRuntime.selection, (caller, body) => writer.commit(caller, body)),
       // The platform's notifications are written in one commit, as the platform's notification service; a judgment that fails afterwards keeps the item and comes back as the receipt's code.
       ...createFeedNotificationHandlers(projectId, { feed: () => feed }),

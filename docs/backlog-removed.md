@@ -6,6 +6,9 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-b44-coding-scene-enum | 已完成并删除 | 2026-11-21（用户经弹窗定）：合同不再写 `"coding"`，场景是插件在 Manifest `memory_scene` 申报的名字，平台只有 `assistant`、`common`、`agent`、`both`；Coding 申报 `coding`，已存取值不变、不升库版本；名单在 Host 启动时从内置插件与留存包读，运行中新装的新场景重启后生效、安装预览会说。合同改动记在 `docs/system/CONTRACT-CHANGES.md` 第 8 节 |
+| BL-b44-information-plan-to-feed | 已完成并删除 | 2026-11-21：动作改为 Feed 的 `feed.information.plan@1`，提示词键改到 Feed 名下，人改过的提示词由 Agent 定义库 1→2 的升级步骤搬过去（`CONTRACT-CHANGES.md`「当前保留机制」） |
+| BL-b44-feed-home-dir-and-styles | 已完成并删除 | 2026-11-21：Home 的 `feed/`（密钥与证据）升级时整目录改名为 `security/`；共用列表类名改 `mw-`，只属于 Feed 的规则搬进 Feed 样式表；别的插件的同类问题与门禁另记 BL-b44-shared-styles-plugin-names |
 | BL-tests-umask | 已完成并删除 | 2026-11-19：离线恢复与运行时备份测试夹具显式设置权限，在 `umask 077` 与 `022` 下均通过原权限断言（`apps/local-host/src/installer/runtime-installation-files.ts`、`tests/fixtures/home-restore.ts`、`tests/fixtures/runtime-config-backups.ts`、`tests/home-snapshot-cli.test.ts`、`tests/security-invariants-home-restore-recovery.test.ts`、`tests/security-invariants-runtime-backups.test.ts`），由 [#2171](https://github.com/molis-ai/molis-work/pull/2171)（`9d25c9d1cd`）合入，正式交付项 [73-3](../specs/post-anticorruption-roadmap/reference/batches/73.md#batch-73-item-3) 离线恢复回归切片；条目 2026-11-20 删除 |
 | BL-981 | 已完成并删除 | 2026-11-19：知识检索不可读原因与模型所选理由按完整字符边界截断（`horizontal/knowledge/src/errors.ts`、`tests/knowledge-locate-budget.test.ts`），由 [#2177](https://github.com/molis-ai/molis-work/pull/2177)（`4f2bd4e5f5`）合入；条目 2026-11-20 删除 |
 | BL-985 | 已完成并删除 | 2026-11-19：Images 五个输入框与服务端共用同一套按字符计数和上限校验（`plugins/native/images/src/limits.ts`、`plugins/native/images/src/browser/limits.ts`、`tests/images-input-limits.e2e.test.ts`），由 [#2177](https://github.com/molis-ai/molis-work/pull/2177)（`4f2bd4e5f5`）合入；条目 2026-11-20 删除 |

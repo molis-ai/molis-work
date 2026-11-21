@@ -93,7 +93,8 @@ test("SKP-10: the round hands its consumer and frozen named list to the action c
   };
   const host = new AgentHost(); host.register(adapter);
   const authority: AgentStartAuthority = { manifest, authorizedDirectories: [DIRECTORY],
-    skillCatalog: { named: [named], list: async (_consumer, refs) => refs.map(entry), readBodies: async (_consumer, refs) => refs.map(ref => ({ ref, ok: true as const, name: ref.skill_id, body: "做法" })) },
+    // Coding's declared scene, as the Host's composition passes it (`skillConsumerOf`, BL-b44-coding-scene-enum).
+    skillCatalog: { workspaceConsumer: "coding", named: [named], list: async (_consumer, refs) => refs.map(entry), readBodies: async (_consumer, refs) => refs.map(ref => ({ ref, ok: true as const, name: ref.skill_id, body: "做法" })) },
     actions: async (_runtime, _validate, _session, skillRound) => { seen.push(skillRound); return { discover: async () => [viewUnderTest], invoke: async () => ({ results: [] }) }; } };
   const request: AgentStartRequest = { session: { session_id: "session-1", runtime_id: "probe" }, project_id: "project", plugin_id: CODING, install_id: "install-1",
     actor_id: "tester", task: "读一下", role_id: "reader", directory: { canonical_path: DIRECTORY, realpath_verified: true }, skills: [named],

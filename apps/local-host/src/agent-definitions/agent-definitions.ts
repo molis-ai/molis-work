@@ -31,7 +31,15 @@ export const PROMPT_USES_KEPT = 200;
  * 1 → 2 only creates the first two tables, empty (user 2026-11-06, spec §9 item 6); 2 → 3 only creates the other four, empty (user
  * 2026-11-16, spec §9).
  */
-export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 1, schema: `
+/**
+ * 1 → 2 (BL-b44-information-plan-to-feed, user 2026-11-21): the information plan's instruction moved from the Host's `system:information`
+ * to Feed, so the person's edit, its history and its uses move to the key Feed's instruction is read by. Only the keys change; the
+ * bodies, revisions and the version an edit was based on stay as they were. The literal names are what the stores hold, not a reference
+ * to Feed's package.
+ */
+const MOVED_PROMPT_KEYS: ReadonlyArray<readonly [from: string, to: string]> = [["system:information/information.plan", "io.molis.work.feed/feed.information-plan"]];
+
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: /* @version database.agent_definitions_baseline */ 2, schema: `
 CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL, default_ref TEXT
 );
@@ -43,7 +51,9 @@ CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL, source_ref TEXT
 );
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}${SKILL_WORK_TABLES_SQL}`,
-  upgrades: [] };
+  upgrades: [{ from: 1, run: db => {
+    for (const [from, to] of MOVED_PROMPT_KEYS) for (const table of ["prompt_overrides", "prompt_history", "prompt_uses"]) db.prepare(`UPDATE ${table} SET key = ? WHERE key = ?`).run(to, from);
+  } }] };
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
 

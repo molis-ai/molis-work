@@ -8,12 +8,13 @@
  * nothing in a project and sends nothing out (PWA-16). It runs as a `trial` observation source, which reports and effect figures
  * leave out (PWA-83).
  */
+import { builtinScenePlugins, skillAudienceDeclared } from "../memory/memory-plugin-scene.js";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { SandboxAgentBody } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SKILL_APPLIES_TO, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { skillEntriesOf, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_CASE_LIMITS, SKILL_CASES_MAX, SKILL_REVISE_INSTRUCTION_CHARS, SKILL_TRIAL_OUTPUT_CHARS, skillErrors,
   type SkillAuthoredFields, type SkillCase, type SkillCaseFields, type SkillCasePutRequest, type SkillCatalogEntry, type SkillDraft, type SkillDraftCreateRequest,
   type SkillDraftDiscardResult, type SkillDraftOrigin, type SkillDraftReviseRequest, type SkillDraftSummary, type SkillDraftTarget, type SkillDraftUpdateRequest,
@@ -44,7 +45,8 @@ export interface SkillWorkshopPorts {
 
 const EMPTY: SkillAuthoredFields = { name: "", description: "", applies_to: "assistant", body: "" };
 const scopeOfRef = (scopeRef: string): SkillScope => scopeRef === "home" ? "home" : "project";
-const consumersOf = (appliesTo: SkillAppliesTo): SkillTrialConsumer[] => appliesTo === "both" ? ["assistant", "coding"] : [appliesTo];
+/** The entries a draft is replayed in: the Assistant and the built-in plugin scenes `applies_to` names (BL-b44-coding-scene-enum). */
+const consumersOf = (appliesTo: SkillAppliesTo): SkillTrialConsumer[] => skillEntriesOf(appliesTo, [...builtinScenePlugins().keys()]);
 const sourceOf = (skill: CatalogSkill): SkillSourceRef => ({ install_id: skill.ref.install_id, plugin_id: skill.pack.plugin_id, skill_id: skill.ref.skill_id,
   version: skill.ref.version, name: (skill.display ?? skill.declaration).name });
 const sameSkill = (skill: CatalogSkill, source: Pick<SkillSourceRef, "install_id" | "skill_id">) => skill.ref.install_id === source.install_id && skill.ref.skill_id === source.skill_id;
@@ -320,7 +322,7 @@ export class SkillWorkshop {
     const { cells, answers } = await withObservationSource("trial", async () => {
       await authority.beforeDispatch();
       const outputs = await Promise.all(runs.map(run => {
-        const data = fencedMaterials({ role: ROLES[run.consumer], skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
+        const data = fencedMaterials({ role: roleOf(run.consumer), skill: { name: run.fields.name, body: run.fields.body }, task: known.task, ...(known.material ? { material: known.material } : {}) },
           randomBytes(8).toString("hex"));
         return complete(this.ports.resolve(instructed(SKILL_TRIAL, data)), authority);
       }));
@@ -388,9 +390,12 @@ function summaryVerdict(trials: readonly SkillTrial[], activeCases: readonly Ski
 }
 
 /** The entries' roles in a replay, as each one works: the same words the trial instruction names. */
-const ROLES: Record<SkillTrialConsumer, string> = {
-  assistant: "助理：替用户处理日常工作的助手，面对的是用户本人，产出可以直接交给用户的结果（文字、清单、表格、草稿）。",
-  coding: "Coding：在代码仓库里工作的编程助手，产出代码改动、命令或技术说明。",
+const ASSISTANT_ROLE = "助理：替用户处理日常工作的助手，面对的是用户本人，产出可以直接交给用户的结果（文字、清单、表格、草稿）。";
+/** A plugin scene's entry works as the plugin that declares it says it does: its name and summary. */
+const roleOf = (consumer: SkillTrialConsumer): string => {
+  if (consumer === "assistant") return ASSISTANT_ROLE;
+  const plugin = builtinScenePlugins().get(consumer);
+  return plugin ? `${plugin.name}：${plugin.summary}` : consumer;
 };
 
 /** A kept version's fields, from its declaration and body. */
@@ -420,7 +425,7 @@ function revisedFields(answer: string, before: SkillAuthoredFields): SkillAuthor
   const body = cutHead((text("body") ?? before.body).replace(/\r\n?/gu, "\n").split("\n").slice(0, SKILL_LIMITS.bodyLines).join("\n"), SKILL_LIMITS.bodyChars).trim();
   if (!name || !body) return undefined;
   const whenNot = cutHead(text("when_not_to_use") ?? before.when_not_to_use ?? "", SKILL_LIMITS.whenChars);
-  const applies = (SKILL_APPLIES_TO as readonly string[]).includes(text("applies_to") ?? "") ? text("applies_to") as SkillAppliesTo : before.applies_to;
+  const applies = skillAudienceDeclared(text("applies_to")) ? text("applies_to") as SkillAppliesTo : before.applies_to;
   return { name, description, applies_to: applies, body, ...(whenNot ? { when_not_to_use: whenNot } : {}), ...(before.argument_hint ? { argument_hint: before.argument_hint } : {}) };
 }
 

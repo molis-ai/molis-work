@@ -142,7 +142,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await child.evaluate("document.querySelector('[data-feed-search]').value='';document.querySelector('[data-feed-search]').dispatchEvent(new Event('input',{bubbles:true}))");
   await child.waitFor(`document.querySelector('[data-frame-asset-id="${item.item_id}"]')`);
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`); await sourceHandle();
-  await child.evaluate(`(() => {const row=document.querySelector('[data-frame-asset-id="${item.item_id}"]'),list=row.closest('.feed-stage-tree');list.scrollTop=row.getBoundingClientRect().top-list.getBoundingClientRect().top<list.clientHeight/2?list.scrollHeight:0;})()`);
+  await child.evaluate(`(() => {const row=document.querySelector('[data-frame-asset-id="${item.item_id}"]'),list=row.closest('.mw-stage-tree');list.scrollTop=row.getBoundingClientRect().top-list.getBoundingClientRect().top<list.clientHeight/2?list.scrollHeight:0;})()`);
   await b.waitFor(`!document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-host-frame-drag="${item.item_id}"]')`);
   await child.evaluate(`document.querySelector('[data-frame-asset-id="${item.item_id}"]').scrollIntoView({block:'center'})`); await sourceHandle();
   const restoreSlots = async () => {
@@ -468,7 +468,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 3);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=feed] > p').click()");
-  const feedPreview = await readPreview('.frame-reading .feed-rich-content', '.feed-detail-actions, [data-open-source-record], [data-feed-action]');
+  const feedPreview = await readPreview('.frame-reading .feed-rich-content', '.mw-detail-actions, [data-open-source-record], [data-feed-action]');
   assert.match(feedPreview.text, /只验证引用/);
   assert.equal(feedPreview.hasForbidden, false);
   assert.equal(feedPreview.surface, "goals");

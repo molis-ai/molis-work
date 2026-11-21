@@ -465,13 +465,13 @@ test("plugin list titles yield at the squeeze edge", () => {
   // Within the title rule itself; an unrelated later rule must not decide these.
   assert.match(workbench, /\.mw-dir-row__copy strong \{[^}]*text-overflow: ellipsis/);
   assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[^}]*mask-image:/);
-  assert.doesNotMatch(withPlugins, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
+  assert.doesNotMatch(withPlugins, /\.mw-stage-leading strong[^{}]*\{[^}]*mask-image:/);
   assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
-  assert.match(withPlugins, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
+  assert.match(withPlugins, /\.mw-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
   assert.match(withPlugins, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);
-  assert.match(withPlugins, /\.feed-stage-entry:has\(\.plugin-stage-kind\) \.feed-entry-status \{[\s\S]*background: transparent/);
-  assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.feed-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
+  assert.match(withPlugins, /\.mw-stage-entry:has\(\.plugin-stage-kind\) \.mw-entry-status \{[\s\S]*background: transparent/);
+  assert.match(withPlugins, /\.plugin-stage-list[\s\S]*\.mw-stage-entry:is\(\.is-selected[\s\S]*--plugin-tint/);
   // Project home (DESIGN.md → Home): one centred column that scrolls in its own box, plugin cards in an auto-fit grid.
   assert.match(workbench, /\.immersive-home \.home-scroll \{[^}]*overflow: auto;[^}]*max-width: 1280px/);
   assert.match(workbench, /\.home-plugin-cards \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 27rem\), 1fr\)\)/);
@@ -480,12 +480,12 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
   // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
   assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
-  assert.match(withPlugins, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
-  assert.match(withPlugins, /\.feed-stage-leading strong \{ flex: 1;/);
+  assert.match(withPlugins, /\.mw-stage-entry \.mw-entry-status \{[\s\S]*overflow: visible/);
+  assert.match(withPlugins, /\.mw-stage-leading strong \{ flex: 1;/);
   assert.match(withPlugins, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);
   assert.match(
     workbench,
-    /body\.immersive-workbench :is\(\.tree-entry, \.feed-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
+    /body\.immersive-workbench :is\(\.tree-entry, \.mw-stage-entry, \.source-list-item, \.goal-collection-fold > summary, \.mw-dir-row, \.mw-dir-row-wrap\) \{ transition: none; \}/,
   );
 });
 
@@ -593,7 +593,7 @@ test("inbox detail title uses full detail width and avoids hard-coded workbench 
   const shared = renderMolisWorkWorkbenchStylesheet();
   assert.doesNotMatch(shared, /\[data-inbox-workbench\]/, "Inbox-only rules load on demand in /assets/molis-work-plugins/inbox.css");
   const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
-  assert.match(withPlugins, /\[data-inbox-workbench\] \.inbox-reference-detail > \.feed-detail-header h1 \{ width: 100%; max-width: none; \}/);
+  assert.match(withPlugins, /\[data-inbox-workbench\] \.inbox-reference-detail > \.mw-detail-header h1 \{ width: 100%; max-width: none; \}/);
   const detailReading = readFileSync(new URL("../apps/workbench/src/styles/detail-reading.ts", import.meta.url), "utf8");
   assert.doesNotMatch(detailReading, /\[data-inbox-workbench\][^{]*font-size/);
   const inboxStyles = readFileSync(new URL("../plugins/native/inbox/src/styles.ts", import.meta.url), "utf8");

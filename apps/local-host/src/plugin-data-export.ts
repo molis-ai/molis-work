@@ -45,7 +45,8 @@ interface DiscoveredPluginData {
   sandboxProjectInstallId?: string;
 }
 
-function loadVerifiedManifest(
+/** An installation's Manifest as the host can vouch for it: its stored release, else a pinned package whose digest matches the record. */
+export function loadVerifiedManifest(
   db: PluginRuntimeDatabase,
   packages: SandboxPackageStore,
   row: ReturnType<SqlitePluginRuntimeRepository["list"]>[number],

@@ -169,3 +169,12 @@ body.proto-body { margin: 0; display: flex !important; flex-direction: column; o
   .ps-foot .ps-acts { display: grid; grid-template-columns: auto minmax(0, 1fr); }
   .ps-steps li + li::before { width: 12px; margin: 0 6px; }
 }
+
+/* The key step: the sheet's body is replaced by one key, its two fields and the same foot. */
+.ps-keys { display: flex; flex-direction: column; gap: 10px; padding: 4px 20px 16px; outline: none; }
+.ps-keys h4 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 18px; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+.ps-keys h4 span { font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.ps-key { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 52px; padding: 0 12px 0 10px; border-radius: 12px; background: var(--rail); }
+.ps-key__fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 184px); gap: 12px; }
+.ps-key__fields .mw-field { min-width: 0; }
+@media (max-width: 560px) { .ps-key__fields { grid-template-columns: minmax(0, 1fr); } }

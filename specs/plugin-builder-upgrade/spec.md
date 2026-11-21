@@ -152,6 +152,12 @@ Alchemist 作为工作台产出的创意孵化与研究决策场景，验证“�
 
 尚待诊断与设计明确：原工作台真实端到端卡点、根因与体验缺口；现有工作流程／Manifest／UI 合同缺哪些表达能力；Alchemist 各领域事实的 owner 和实际能力映射；记忆与结构化生成的现行接缝；工作台创作交互和场景独立入口的高保真方案；旧实现及已生成插件的切换与回退路径。以上均不影响本次确定的独立范围与归并关系。
 
+### 7.0 2026-11-21 安装确认的定样（第 47 批，用户定）
+
+- **确认放在哪**：嵌在创作台的安装阶段里，是一张由 Molis Work 自己画的「安装单」，不弹框、不跳转；创作台（和任何插件页面）不能替人显示、预先勾选或按下这个确认。样子以 [`docs/design/studio-package-install/`](../../docs/design/studio-package-install/README.md) 第二版为准：一屏不滚动，必需权限带锁、可选权限整块可点，进度与结果占安装单自己的位置，安装文件坏了在插件自己的位置就地恢复。
+- **平台落点**：创作台只交出本机签名的安装包；「插件页面里放一块由外壳画的安装单」做成平台能力，任何插件页面都能用，和装别人做的插件是同一个确认。
+- **旧通道的已装产物**：不带过来，不新增迁移代码；创作台里的草稿还在，重新装一次按新方式装上。
+
 ### 7.1 2026-11-20 真断点前置与 Harness 增补（[决定 57](../post-anticorruption-roadmap/reference/decisions.md#decision-57) ⑤、[决定 58](../post-anticorruption-roadmap/reference/decisions.md#decision-58) ②）
 
 - **真断点先行（[47](../post-anticorruption-roadmap/reference/batches/47.md)、[48](../post-anticorruption-roadmap/reference/batches/48.md)、[68](../post-anticorruption-roadmap/reference/batches/68.md)）**：三批第一个子分支先修通 [11-03 创作台复现](reproduction-2026-11.md) 里尚未修完的真断点（首个阻塞的界面验收写死、G7 脆性断言、B12、B13、B14），并整理 `plugin-builder.designer.md` 与 `agent-studio.ts`，用例名或注释标明断点编号，验证通过后再扩展新项。

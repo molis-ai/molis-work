@@ -1,0 +1,5 @@
+# S-state-machine-registry-metadata
+
+| ID | 不变量（拒绝什么） | 代码位置 | 测试（CI 里跑） | 测试（只在本机跑） |
+| --- | --- | --- | --- | --- |
+| S-state-machine-registry-metadata | 状态机登记（`system.state-machines` 的 `state_machines.list@1`、`state_machines.get@1`）把已存的 Manifest 当数据读：不执行插件入口、不启动插件、不产生任何权限，也不新增权限。每条声明先过声明检查再逐字段抄出，只有编号、版本、状态与家族、起始与终止状态五项离开；冒用平台或别的插件编号、带多余字段（业务内容、密钥、转换表）的声明整条不列，标为未知并给出原因，不猜、不补。读不到已存发行物的安装同样标为未知；已卸载的不留条目。请求的项目和调用方所在项目不一致以 `actions.scope_mismatch` 拒绝；调用被取消或授权已变时不返回结果。 | `packages/plugin-runtime/src/state-machine-registry.ts`、`packages/plugin-sdk/src/state-machine-declaration.ts`、`apps/local-host/src/state-machine-registry.ts`、`packages/contracts/src/platform/plugin-state-machines.ts` | `tests/security-invariants-state-machine-registry.test.ts`「stored declarations are data: no entrypoint runs, nothing is granted, and only the five declared fields leave」「the registry reads stopped, switched-off and never-started installations from their stored release」「the provider stays registered without a Home」 | — |

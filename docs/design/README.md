@@ -60,7 +60,7 @@
 - [设计讨论交接与研究资料](ui-renewal-2026-09-21/README.md)
 - [统一输入框定样](unified-input/README.md)
 - [卸载后留下的项目（第 27 批 · BL-915，已完成）](uninstall-retained/README.md)
-- [创作台做的插件怎样安装、升级和恢复（第 47 批，用户选 C，等确认样子）](studio-package-install/README.md)
+- [创作台做的插件怎样安装、升级和恢复（第 47 批，用户选 C，2026-11-21 确认第二版）](studio-package-install/README.md)
 - [Work Brief 首页与简报核心：可点的定样（路线书第 19 批）](work-brief-core/README.md)
 - [事项线：方向原型](work-line/README.md)
 - [事项线第一片定样（第 32 批）](work-line-32/README.md)

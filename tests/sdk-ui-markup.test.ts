@@ -273,10 +273,13 @@ test("RISK-01 the severity grid lights one place, reads without colour, and carr
   assert.match(large, /mw-severity-grid--neutral/);
 });
 
-test("VUX-55: ui.help and sandbox help declarations validate structure, owner keys, and default_topic", () => {
+test("VUX-55: ui.help and sandbox help declarations validate structure, owner keys, locales, and default_topic", () => {
+  const locales = { default: "zh", available: ["zh", "en"] };
   const validManifest = {
     plugin_id: "io.molis.work.native.schedule",
     ui: {
+      contributions: [] as string[],
+      locales,
       help: {
         default_topic: "page",
         topics: [{
@@ -293,8 +296,34 @@ test("VUX-55: ui.help and sandbox help declarations validate structure, owner ke
   assert.deepEqual(sdkUi.uiHelpDeclarationProblems(validManifest), []);
   assert.ok(sdkUi.uiHelpDeclarationProblems({
     plugin_id: "io.molis.work.native.schedule",
-    ui: { help: { default_topic: "missing", topics: [{ id: "page", title: { key: "other.help.title" }, sections: [{ id: "s1", heading: { key: "schedule.help.h" } }] }] } },
+    ui: {
+      contributions: [],
+      locales,
+      help: { default_topic: "missing", topics: [{ id: "page", title: { key: "other.help.title" }, sections: [{ id: "s1", heading: { key: "schedule.help.h" } }] }] },
+    },
   }).length >= 3, "rejects foreign key prefix, section without body/items, and unknown default_topic");
+  assert.ok(sdkUi.uiHelpDeclarationProblems({
+    plugin_id: "io.molis.work.native.schedule",
+    ui: {
+      contributions: [],
+      help: { topics: [{ id: "page", title: { key: "schedule.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "schedule.help.what" } }] }] },
+    },
+  }).some((msg) => msg.includes("ui.locales")), "rejects plugin-owned keys when ui.locales is omitted");
+  assert.deepEqual(sdkUi.uiHelpDeclarationProblems({
+    plugin_id: "io.molis.work.native.schedule",
+    ui: {
+      contributions: [],
+      help: { topics: [{ id: "page", title: { key: "common.help.title" }, sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "common.help.load-failed-body" } }] }] },
+    },
+  }), [], "common.* keys do not require ui.locales");
+  assert.ok(sdkUi.uiHelpDeclarationProblems({
+    plugin_id: "io.molis.work.native.schedule",
+    ui: {
+      contributions: [],
+      locales,
+      help: { topics: [{ id: "page", title: { literal: "硬编码标题" }, sections: [{ id: "what", heading: { key: "schedule.help.h", args: [{ name: "n", kind: "number", number: 1 }] }, body: { key: "schedule.help.b" } }] }] },
+    },
+  }).length >= 2, "rejects literal text and parameterized args in manifest ui.help");
   assert.deepEqual(sdkUi.sandboxHelpDeclarationProblems({
     pluginId: "io.molis.generated.tracker",
     help: { topics: [{ id: "page", title: "进度表", sections: [{ id: "what", heading: "这是什么", body: "记录每周进展" }] }] },

@@ -61,16 +61,33 @@ async function readAppBundle(appPath: string): Promise<AppIdentity | null> {
   }
 }
 
+const SCAN_CONCURRENCY = 8;
+
+async function readAppBatch(paths: readonly string[]): Promise<Array<AppIdentity | null>> {
+  const results = new Array<AppIdentity | null>(paths.length).fill(null);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(SCAN_CONCURRENCY, paths.length) }, async () => {
+    while (cursor < paths.length) {
+      const index = cursor++;
+      results[index] = await readAppBundle(paths[index]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 async function scanDirectories(directories: readonly string[], maxApps: number): Promise<AppIdentity[]> {
   const seen = new Map<string, AppIdentity>();
   for (const dir of directories) {
+    if (seen.size >= maxApps) break;
     if (!fs.existsSync(dir)) continue;
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
     const candidates = entries
       .filter(entry => entry.name.endsWith(".app") && (entry.isDirectory() || entry.isSymbolicLink()))
       .map(entry => path.join(dir, entry.name));
-    const results = await Promise.all(candidates.map(readAppBundle));
+    const remaining = maxApps - seen.size;
+    const results = await readAppBatch(candidates.slice(0, Math.max(remaining * 2, remaining)));
     for (const app of results) {
       if (!app || seen.has(app.bundle_id)) continue;
       seen.set(app.bundle_id, app);

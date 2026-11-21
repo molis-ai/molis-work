@@ -1,7 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { readText } from "./common.js";
 
-interface PromptRecordResponse {
+export interface PromptRecordResponse {
   prompt: {
     key: string;
     title: string;
@@ -12,14 +12,14 @@ interface PromptRecordResponse {
   };
   editor: {
     editable: string;
-    locked_format: string;
+    locked_format: string | null;
     required_keys: string[];
     format_intact: boolean;
   };
 }
 
 interface PromptEditorHooks {
-  onSaved: () => void;
+  onSaved: (next: PromptRecordResponse) => void;
   say: (text: string, tone?: "success" | "danger") => void;
 }
 
@@ -38,10 +38,10 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
  * stay locked; full-text editing remains reachable behind a collapsible advanced panel with
  * targeted format validation and one-click restore-to-default.
  */
-export function mountKitPromptEditor(container: HTMLElement, promptKey: string, hooks: PromptEditorHooks): void {
+export function mountKitPromptEditor(container: HTMLElement, promptKey: string, hooks: PromptEditorHooks, initialData?: PromptRecordResponse): void {
   const token = String(Date.now()) + ":" + Math.random().toString(16).slice(2);
   container.dataset.kitPromptToken = token;
-  container.replaceChildren(el("p", "kit-note mw-loading", readText("workbench.settings-prompts.loading")));
+  if (!initialData) container.replaceChildren(el("p", "kit-note mw-loading", readText("workbench.settings-prompts.loading")));
 
   const request = (path: string, body?: object): Promise<PromptRecordResponse> =>
     page.molisWorkRequest("/api/agent-definitions" + path, body ? { body } : {}) as Promise<PromptRecordResponse>;
@@ -108,7 +108,7 @@ export function mountKitPromptEditor(container: HTMLElement, promptKey: string, 
         const next = await work();
         render(next);
         hooks.say(readText(toastKey), "success");
-        hooks.onSaved();
+        hooks.onSaved(next);
       } catch (cause) {
         page.molisWorkRequest.show(errorEl, cause);
         errorEl.hidden = false;
@@ -183,6 +183,10 @@ export function mountKitPromptEditor(container: HTMLElement, promptKey: string, 
     container.append(form);
   };
 
+  if (initialData) {
+    render(initialData);
+    return;
+  }
   void request("/prompt?key=" + encodeURIComponent(promptKey))
     .then(render)
     .catch((cause) => {

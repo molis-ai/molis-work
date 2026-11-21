@@ -292,7 +292,7 @@
     "todo.help.example-1": "在输入框随手记下一件事并写上截止日期，系统会自动排进对应分组",
     "todo.help.example-2": "按项目筛选当前要推进的任务，完成后打勾并可随时撤销",
     "todo.help.scope": "保存在个人本机空间里，可按项目归属筛选；勾选完成或移除后都有即时撤销入口。",
-    "todo.help.advanced-summary": "分组视图与与助理配合",
+    "todo.help.advanced-summary": "分组视图与助理配合",
     "todo.help.advanced": "让助理「记一下」某件事时，它会按用途记进这里并标明所属项目或个人空间。"
   }
 }

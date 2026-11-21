@@ -4,7 +4,7 @@ import { renderAlert, renderEmpty, renderSkeleton, type AttrValue } from "@molis
 import { act, button, esc, kitOf, linkedKitEntry, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
 import { skillWriting, type WritingFocus } from "./writing.js";
 import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
-import { mountKitPromptEditor } from "./prompt-editor.js";
+import { mountKitPromptEditor, type PromptRecordResponse } from "./prompt-editor.js";
 import { packViews, type View } from "./view.js";
 import type { KitSettingsPage } from "./writing-context.js";
 
@@ -22,6 +22,7 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
   let followLink = Boolean(link.get("install") && (link.get("skill") || link.get("role")));
   const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined, disposed = false;
+  let savedPrompt: PromptRecordResponse | undefined;
 
   const say = (text: string, tone: "success" | "danger" = "success", next?: { label: string; attrs: Record<string, AttrValue> }) => notify(notice, text, tone, next);
 
@@ -110,7 +111,16 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
     }
     const promptBox = body.querySelector<HTMLElement>("[data-kit-prompt-editor]");
     if (promptBox && entry?.kind === "prompt" && promptBox.dataset.kitPromptEditor) {
-      mountKitPromptEditor(promptBox, promptBox.dataset.kitPromptEditor, { onSaved: () => void load(), say });
+      const promptKey = promptBox.dataset.kitPromptEditor;
+      const cached = savedPrompt?.prompt.key === promptKey ? savedPrompt : undefined;
+      savedPrompt = undefined;
+      mountKitPromptEditor(promptBox, promptKey, {
+        onSaved: (next) => {
+          savedPrompt = next;
+          void load();
+        },
+        say,
+      }, cached);
     }
     writing.focus(body, focus);
     if (focus === "detail") body.querySelector<HTMLElement>(".kit-detail h3")?.focus();

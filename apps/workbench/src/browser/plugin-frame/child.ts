@@ -172,11 +172,28 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
  */
 function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
   if (side || !document.querySelector("script[data-mw-help-declaration]")) return;
+  let floatingBtn: HTMLButtonElement | null = null;
+  const avoidOverlap = () => {
+    if (!floatingBtn || !floatingBtn.isConnected) return;
+    floatingBtn.classList.remove("mw-help-auto-trigger--top");
+    const rect = floatingBtn.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const points: Array<[number, number]> = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + 4, rect.top + rect.height / 2],
+      [rect.right - 4, rect.top + rect.height / 2],
+    ];
+    const blocked = points.some(([x, y]) => document.elementsFromPoint(x, y).some((el) => {
+      if (el === floatingBtn || floatingBtn?.contains(el)) return false;
+      return Boolean(el.closest('button, a, input, select, summary, [role="button"]'));
+    }));
+    if (blocked) floatingBtn.classList.add("mw-help-auto-trigger--top");
+  };
   const ensure = () => {
     if (document.querySelector("[data-mw-help-trigger]")) return;
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "mw-btn mw-btn--ghost mw-btn--sm";
+    btn.className = "mw-btn mw-btn--ghost";
     btn.dataset.slot = "button";
     btn.dataset.mwHelpTrigger = "true";
     btn.dataset.mwHelpAuto = "true";
@@ -192,15 +209,21 @@ function mountDeclaredHelp(side: boolean, root: HTMLElement): void {
     label.dataset.slot = "button-label";
     label.textContent = uiText.text("common.help.title");
     btn.append(svg, label);
-    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome");
+    const slot = root.querySelector<HTMLElement>("[data-help-slot], .pc-app-actions, .mw-frame__actions, .plugin-stage-chrome, .as-head-actions, .wb-head-actions");
     if (slot) {
       slot.append(btn);
     } else {
       btn.classList.add("mw-help-auto-trigger");
-      document.body.append(btn);
+      const host = document.createElement("div");
+      host.className = "mw-help-auto-host";
+      host.append(btn);
+      document.body.append(host);
+      floatingBtn = btn;
+      requestAnimationFrame(avoidOverlap);
     }
   };
   ensure();
+  addEventListener("resize", avoidOverlap);
   document.addEventListener("molis-work:language-changed", () => {
     const auto = document.querySelector<HTMLElement>('[data-mw-help-auto="true"] [data-slot="button-label"]');
     if (auto) auto.textContent = uiText.text("common.help.title");

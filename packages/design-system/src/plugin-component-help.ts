@@ -93,7 +93,7 @@ export function pcHelp(c: State & Kit) {
   helpBar.hidden = true;
   root.append(helpBar);
 
-  const trigger = make("button", undefined, "mw-btn mw-btn--ghost mw-btn--sm");
+  const trigger = make("button", undefined, "mw-btn mw-btn--ghost mw-btn--md");
   trigger.type = "button";
   trigger.dataset.slot = "button";
   trigger.dataset.mwHelpTrigger = "true";

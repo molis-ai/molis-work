@@ -132,9 +132,8 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     return el;
   };
 
-  const collectTopics = (): Map<string, ResolvedTopic> => {
-    const map = new Map<string, ResolvedTopic>();
-    for (const node of document.querySelectorAll("script[data-mw-help-data]")) {
+  const readDataScripts = (root: ParentNode, map: Map<string, ResolvedTopic>): void => {
+    for (const node of root.querySelectorAll("script[data-mw-help-data]")) {
       try {
         const list = JSON.parse(node.textContent || "[]") as unknown;
         if (Array.isArray(list)) {
@@ -148,6 +147,11 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
         // Ignore malformed inline script.
       }
     }
+  };
+
+  const collectTopics = (trigger?: HTMLElement): Map<string, ResolvedTopic> => {
+    const map = new Map<string, ResolvedTopic>();
+    // Declarations load first so more specific runtime data (`data-mw-help-data`, e.g. generated plugins) wins.
     for (const node of document.querySelectorAll("script[data-mw-help-declaration]")) {
       try {
         const decl = JSON.parse(node.textContent || "null") as { default_topic?: string; topics?: RawDeclarationTopic[] } | null;
@@ -176,6 +180,9 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
         // Ignore malformed declaration.
       }
     }
+    readDataScripts(document, map);
+    const localScope = trigger?.closest(".pc-view, [data-installed-plugin], [data-settings-panel], [data-work-surface]");
+    if (localScope) readDataScripts(localScope, map);
     for (const [id, value] of providers) {
       try {
         const resolved = typeof value === "function" ? value() : value;
@@ -265,33 +272,50 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
       }
       wrap.append(sec);
     }
-    if (topic.nextStep) {
-      const next = mk("div", "mw-help-next");
-      next.append(mk("h4", "mw-help-next__title", topic.nextStep.title));
-      next.append(mk("p", "mw-help-next__fact", topic.nextStep.fact));
-      const acts = mk("div", "mw-help-next__actions");
-      if (topic.nextStep.actionHref) {
-        const link = mk("a", "mw-btn mw-btn--primary mw-btn--sm");
-        link.dataset.slot = "button";
-        link.setAttribute("href", topic.nextStep.actionHref);
-        link.append(mk("span", "", topic.nextStep.actionLabel));
-        acts.append(link);
-      } else {
-        const btn = mk("button", "mw-btn mw-btn--primary mw-btn--sm");
-        btn.type = "button";
-        btn.dataset.slot = "button";
-        btn.append(mk("span", "", topic.nextStep.actionLabel));
-        acts.append(btn);
-      }
-      next.append(acts);
-      wrap.append(next);
-    }
     return wrap;
+  };
+
+  const safeHelpHref = (href: string): string | null => {
+    const trimmed = href.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return trimmed;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") return parsed.href;
+    } catch {
+      // Reject malformed or disallowed protocols such as javascript: or data:.
+    }
+    return null;
+  };
+
+  const buildNextStep = (nextStep: NonNullable<ResolvedTopic["nextStep"]>): HTMLDivElement => {
+    const slot = mk("div", "mw-help-card__next");
+    const next = mk("div", "mw-help-next");
+    next.append(mk("h4", "mw-help-next__title", nextStep.title));
+    next.append(mk("p", "mw-help-next__fact", nextStep.fact));
+    const acts = mk("div", "mw-help-next__actions");
+    const safeHref = nextStep.actionHref ? safeHelpHref(nextStep.actionHref) : null;
+    if (safeHref) {
+      const link = mk("a", "mw-btn mw-btn--primary mw-btn--sm");
+      link.dataset.slot = "button";
+      link.setAttribute("href", safeHref);
+      link.append(mk("span", "", nextStep.actionLabel));
+      acts.append(link);
+    } else {
+      const btn = mk("button", "mw-btn mw-btn--primary mw-btn--sm");
+      btn.type = "button";
+      btn.dataset.slot = "button";
+      btn.append(mk("span", "", nextStep.actionLabel));
+      acts.append(btn);
+    }
+    next.append(acts);
+    slot.append(next);
+    return slot;
   };
 
   const canMoveToSide = (): boolean => {
     if (document.body?.hasAttribute("data-standalone-help")) return false;
-    return Boolean(document.querySelector("[data-side-panel]")) || window.parent !== window;
+    return Boolean(document.querySelector("[data-side-panel], [data-help-specimen-side]")) || window.parent !== window;
   };
 
   const place = (card: HTMLDivElement, trigger: HTMLElement): number => {
@@ -329,7 +353,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
       return;
     }
     close(false);
-    const topics = collectTopics();
+    const topics = collectTopics(trigger);
     const topic = topics.get(topicId) || topics.get("page") || null;
     const card = mk("div", "mw-help-card");
     card.id = trigger.getAttribute("aria-controls") || "mw-help-region";
@@ -387,7 +411,9 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
       foot.append(sideBtn);
     }
 
-    card.append(head, body, foot);
+    const nextSlot = topic && !topic.failed && topic.nextStep ? buildNextStep(topic.nextStep) : null;
+    if (nextSlot) card.append(head, body, nextSlot, foot);
+    else card.append(head, body, foot);
     document.body.append(card);
     trigger.setAttribute("aria-expanded", "true");
     const scroller = scrollTarget(trigger);

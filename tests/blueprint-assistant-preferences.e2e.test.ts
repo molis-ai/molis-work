@@ -116,16 +116,30 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   });
   assert.equal(resetRes.prompt.effective, "default");
 
-  // VUX-55 / ONB-48: settings page mounts Scheme A Help, Esc closes and returns focus to trigger without losing input.
+  // VUX-55 / ONB-48: settings page mounts Scheme A Help, expanded button shows --nav-active wash, Esc closes and returns focus without losing input.
   await waitFor("!!document.querySelector('[data-mw-help-trigger]')");
   await click("[data-mw-help-trigger]");
   await waitFor("!!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'true'");
+  const expandedBg = await evaluate<string>("getComputedStyle(document.querySelector('[data-mw-help-trigger]')).backgroundColor");
+  assert.notEqual(expandedBg, "rgba(0, 0, 0, 0)", `expanded ghost Help trigger must show --nav-active wash, got ${expandedBg}`);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('.mw-help-card') && document.querySelector('[data-mw-help-trigger]')?.getAttribute('aria-expanded') === 'false'");
   const focusDiag = await evaluate<{ same: boolean; hasFocus: boolean; active: string; count: number }>("({ same: document.activeElement === document.querySelector('[data-mw-help-trigger]'), hasFocus: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 120) || '', count: document.querySelectorAll('[data-mw-help-trigger]').length })");
   assert.equal(focusDiag.same, true, `Esc returns focus to the Help trigger (${JSON.stringify(focusDiag)})`);
 
-  // VUX-54 / VUX-55 / VUX-56: catalog specimens prove pre-action facts stay visible when closed, skipped tip persists across reload, failure recovers on retry, and 390px has no overflow.
+  // VUX-55 (B5): project settings routes and capabilities connections/access mount their dedicated help topics.
+  const projectId = b.projectId;
+  assert.ok(projectId);
+  const rulesHtml = await (await fetch(`${origin}/projects/${encodeURIComponent(projectId)}/settings/rules`)).text();
+  assert.match(rulesHtml, /data-help-topic="settings-authorizations"/u, "project settings rules redirects to authorizations with help");
+  const guidanceEmbedHtml = await (await fetch(`${origin}/projects/${encodeURIComponent(projectId)}/settings/guidance?embed=1`)).text();
+  assert.match(guidanceEmbedHtml, /data-help-topic="settings-guidance"/u, "embedded project settings guidance mounts guidance help");
+  const connectionsHtml = await (await fetch(`${origin}/capabilities/connections`)).text();
+  assert.match(connectionsHtml, /data-help-topic="settings-connectors"/u, "capabilities/connections maps to connectors help");
+  const accessHtml = await (await fetch(`${origin}/capabilities/access`)).text();
+  assert.match(accessHtml, /data-help-topic="settings-mcp"/u, "capabilities/access maps to mcp help");
+
+  // VUX-54 / VUX-55 / VUX-56: catalog specimens prove pre-action facts stay visible when closed, skipped tip persists across reload, failure recovers on retry, side-pane transfer renders lists+collapsible, and 390px has no overflow.
   await navigate(() => command("Page.navigate", { url: origin + "/__ui/catalog#on-demand-help" }, sessionId));
   await waitFor("!!document.querySelector('#on-demand-help [data-mw-help-tip]') && !!document.querySelector('#on-demand-help .mw-facts')");
   assert.equal(await evaluate<boolean>("document.querySelector('#on-demand-help .mw-facts').getBoundingClientRect().height > 0"), true, "pre-action facts stay visible while Help is closed");
@@ -139,6 +153,11 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await waitFor("!!document.querySelector('.mw-help-card .mw-empty--error [data-mw-help-retry]')");
   await click(".mw-help-card [data-mw-help-retry]");
   await waitFor("!!document.querySelector('.mw-help-card .mw-help-section') && !document.querySelector('.mw-help-card .mw-empty--error')");
+  await waitFor("!!document.querySelector('.mw-help-card [data-mw-help-to-side]')");
+  await click(".mw-help-card [data-mw-help-to-side]");
+  await waitFor("!document.querySelector('[data-help-specimen-side]')?.hidden && document.querySelectorAll('[data-help-specimen-side-body] .mw-help-section').length >= 3 && !!document.querySelector('[data-help-specimen-side-body] details.mw-collapsible')");
+  await click("#specimen-help-entry");
+  await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await waitFor("document.documentElement.clientWidth <= 390");
   assert.equal(await evaluate<boolean>("document.documentElement.scrollWidth <= 390"), true, "Scheme A Help fits 390px without horizontal overflow");
@@ -152,6 +171,22 @@ test("ONB-22/23/28, PWA-36, PF-A14, PF-A15, VUX-54/55/56, ONB-48: settings, prom
   await waitFor("!!document.querySelector('.mw-help-card .mw-help-section')");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await waitFor("!document.querySelector('.mw-help-card')");
+
+  // VUX-55 (B4): transferring Help from a framed plugin to the right side panel while another tab is open restores that prior tab on close instead of closing the side panel.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${encodeURIComponent(projectId)}/?openPlugin=todo` }, sessionId));
+  await waitFor("!!document.querySelector('[data-side-panel]')");
+  const priorTab = await evaluate<string | null>(`(() => {
+    const tab = [...document.querySelectorAll('[data-side-tab]')].find((el) => !el.hidden && el.dataset.sideTab && el.dataset.sideTab !== 'help');
+    if (!tab) return null;
+    document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: tab.dataset.sideTab, focus: false }, cancelable: true }));
+    return tab.dataset.sideTab;
+  })()`);
+  assert.ok(priorTab, "project workbench has an existing right-side tab to open before Help");
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true'`);
+  await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'help', target: { title: '待办', sections: [{ id: 'what', heading: '这是什么', body: '说明' }] }, focus: true }, cancelable: true }))`);
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab=\"help\"]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-side-tab=\"help\"]')?.hidden");
+  await click("[data-side-help-close]");
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tab="${priorTab}"]')?.getAttribute('aria-selected') === 'true' && document.querySelector('[data-side-tab="help"]')?.hidden === true`);
 });
 
 test("ONB-28/29: after a partial adoption the reopened page retries only the unconfirmed setting", async t => {

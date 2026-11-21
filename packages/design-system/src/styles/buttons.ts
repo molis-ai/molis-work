@@ -58,26 +58,31 @@ export const BUTTON_STYLES = `
     color: var(--action-ink);
     box-shadow: var(--lift-1);
   }
-  .mw-btn--primary:is(:active, [aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
+  .mw-btn--primary:is(:active, [aria-expanded="true"]):not(:disabled) {
+    background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
+  }
+  .mw-btn--primary[aria-pressed="true"]:not(:disabled) {
     background: var(--action-hover, var(--action)); border-color: var(--action-hover, var(--action));
   }
   /* Secondary is the soft button: a wash on whatever surface it sits on, no outline. Its size is the button's own
      (.mw-btn and --sm, --md, --lg), so a small secondary stands as tall as the small primary and ghost beside it. */
   .mw-btn--secondary { background: var(--control-fill); color: var(--ink); }
-  .mw-btn--secondary:hover:not(:disabled) {
-    border-color: transparent;
-    background: var(--nav-hover);
-  }
+  .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
+  /* Pressed/expanded state on ghost & secondary uses low-specificity :where() after base rules so it wins over
+     .mw-btn--ghost without overriding higher-specificity page option pills (Batch 03 / VUX-55). */
   :where(.mw-btn--secondary, .mw-btn--ghost):where([aria-expanded="true"], [aria-pressed="true"]):not(:disabled) {
     background: var(--nav-active);
     color: var(--ink);
   }
+  .mw-btn--secondary:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--nav-hover);
+  }
+  .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   .mw-btn--secondary:active:not(:disabled),
   .mw-btn--ghost:active:not(:disabled) {
     background: var(--nav-press);
   }
-  .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
-  .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
   .mw-btn--ghost:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
   /* Danger is a red wash with red words: it warns without shouting louder than the primary beside it. */

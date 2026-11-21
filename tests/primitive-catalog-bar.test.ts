@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, pluginMarketCards, railEntries, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginFrameSurface, renderStagePage } from "@molis-ai/molis-work-app-workbench";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installHostUiText, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { uiHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -107,4 +108,61 @@ test("VUX-55 VUX-58: every native built-in plugin manifest declares valid biling
       }
     }
   }
+});
+
+test("VUX-55 VUX-59 (B2): installed frames do not inherit plugin-builder help and third-party manifest.ui.help flows through renderStagePage", () => {
+  const installedHtml = renderPluginFrameSurface(
+    '<main class="as-preview-page"></main>',
+    "app-1",
+    "Generated App",
+    true,
+    false,
+    "plugin-builder",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    { owner: "io.molis.work.generated.demo", page: "/projects/p/plugins/io.molis.work.generated.demo?frame=workbench" },
+  );
+  assert.doesNotMatch(installedHtml, /data-mw-help-declaration/u, "installed plugin frame must not inherit plugin-builder ui.help");
+
+  const thirdPartyManifest: PluginManifest = {
+    ...BUILTIN_PLUGIN_CATALOG[0]!.manifest,
+    plugin_id: "io.example.vendor.tracker",
+    name: "Vendor Tracker",
+    ui: {
+      contributions: ["vendor.tracker.stage"],
+      views: [{ view_id: "stage", slot: "stage", title: "Tracker", contribution_id: "vendor.tracker.stage" }],
+      help: {
+        default_topic: "page",
+        topics: [{
+          id: "page",
+          title: { key: "tracker.help.title" },
+          sections: [{ id: "what", heading: { key: "common.help.section-what" }, body: { key: "tracker.help.what" } }],
+        }],
+      },
+    },
+  };
+  const rendered = renderStagePage(
+    {
+      descriptor: {
+        contribution_id: "vendor.tracker.stage",
+        kind: "primary-page",
+        label: "Tracker",
+        slots: [],
+        surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }],
+      },
+      render: () => '<main data-work-surface="tracker" data-work-surface-label="Tracker"></main>',
+    },
+    {},
+    "tracker",
+    false,
+    undefined,
+    {
+      manifest: thirdPartyManifest,
+      client: { clientMounts: "surfaces", clientFactory: "() => {}" },
+    },
+  );
+  assert.match(rendered.html, /data-mw-help-declaration/u, "non-builtin manifest.ui.help flows through renderStagePage");
+  assert.match(rendered.html, /tracker\.help\.title/u, "non-builtin help topic keys are preserved verbatim");
 });

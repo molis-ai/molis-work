@@ -236,7 +236,11 @@ function wireCatalogOnDemandHelp(): void {
   document.addEventListener("molis:side-open", (event) => {
     const detail = (event as CustomEvent<{
       tab?: string;
-      target?: { context?: string; focusId?: string | null; sections?: Array<{ id: string; heading: string; body?: string }> };
+      target?: {
+        context?: string;
+        focusId?: string | null;
+        sections?: Array<{ id: string; heading: string; body?: string; items?: string[]; collapsible?: boolean; summary?: string }>;
+      };
     }>).detail;
     if (detail?.tab !== "help" || !sidePreview || !detail.target) return;
     const payload = detail.target;
@@ -254,11 +258,37 @@ function wireCatalogOnDemandHelp(): void {
         h4.className = "mw-help-section__heading";
         h4.textContent = section.heading;
         sec.append(h4);
-        if (section.body) {
-          const p = document.createElement("p");
-          p.className = "mw-help-section__body";
-          p.textContent = section.body;
-          sec.append(p);
+        const fill = (parent: HTMLElement) => {
+          if (section.body) {
+            const p = document.createElement("p");
+            p.className = "mw-help-section__body";
+            p.textContent = section.body;
+            parent.append(p);
+          }
+          if (Array.isArray(section.items) && section.items.length) {
+            const ul = document.createElement("ul");
+            ul.className = "mw-help-section__list";
+            for (const item of section.items) {
+              const li = document.createElement("li");
+              li.textContent = item;
+              ul.append(li);
+            }
+            parent.append(ul);
+          }
+        };
+        if (section.collapsible) {
+          const det = document.createElement("details");
+          det.className = "mw-collapsible";
+          det.dataset.slot = "collapsible";
+          const sum = document.createElement("summary");
+          sum.textContent = section.summary || section.heading;
+          const inner = document.createElement("div");
+          inner.className = "mw-collapsible__body";
+          fill(inner);
+          det.append(sum, inner);
+          sec.append(det);
+        } else {
+          fill(sec);
         }
         wrap.append(sec);
       }

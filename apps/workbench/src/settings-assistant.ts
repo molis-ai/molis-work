@@ -388,19 +388,25 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     };
     fields.set(key, render);
     const write = async change => {
-      if (!latest || latest.state !== "ok" || save.disabled) return;
+      if (!latest || latest.state !== "ok" || save.disabled) {
+        if (latest?.state === "ok") paint(latest.value);
+        return false;
+      }
       const request = { key, layer: "personal", expected_revision: latest.revision, change };
       if (!pending || JSON.stringify(pending.change) !== JSON.stringify(change) || pending.expected_revision !== latest.revision)
         pending = { ...request, request_id: crypto.randomUUID() };
       save.disabled = true; reset.disabled = true; error.hidden = true;
-      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); }
+      try { const result = await rulesApi("/preferences", pending); pending = undefined; render(result.values[0]); if (key === "assistant.daily_tokens") await refreshUsage(); return true; }
       catch (failure) {
+        if (latest?.state === "ok") paint(latest.value);
         molisWorkRequest.show(error, failure); error.hidden = false;
         if (failure.code === "assistant.setting_conflict") { pending = undefined; await loadPreferences(); }
+        return false;
       } finally { save.disabled = latest?.state !== "ok"; reset.disabled = false; }
     };
     form.addEventListener("submit", event => { event.preventDefault(); void write({ set: value() }); });
     reset.addEventListener("click", () => void write({ inherit: true }));
+    return { ready: () => Boolean(latest && latest.state === "ok" && !save.disabled), restore: () => { if (latest?.state === "ok") paint(latest.value); } };
   }
   preference("assistant.lookback", rangeForm, rangeForm.querySelector("[data-inherit]"), root.querySelector("[data-lookback-source]"), rangeError,
     () => ({ count: Number(count.value), unit: unit.value }), value => { count.value = String(value.count); unit.value = value.unit; });
@@ -417,7 +423,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     });
     if (budgetCustom && active === "custom") budgetCustom.open = true;
   };
-  preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
+  const budgetPref = preference("assistant.daily_tokens", budgetForm, root.querySelector("[data-budget-inherit]"), root.querySelector("[data-budget-source]"), budgetError,
     () => Number(budgetInput.value || 0), value => {
       budgetInput.value = value ? String(value) : "";
       syncBudgetPresets(value);
@@ -434,6 +440,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       budgetInput.focus();
       return;
     }
+    if (!budgetPref.ready()) { budgetPref.restore(); return; }
     budgetInput.value = preset === "0" ? "" : preset;
     syncBudgetPresets(Number(preset || 0));
     budgetForm.requestSubmit();

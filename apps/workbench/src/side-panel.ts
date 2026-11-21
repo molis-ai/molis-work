@@ -357,12 +357,14 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
+    const dropHelpTab=()=>{const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
     if(tab==='help'){
       const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');
-      if(detail.close===true){if(helpBtn)helpBtn.hidden=true;setOpen(false);save();return true;}
+      if(detail.close===true){if(helpBtn)helpBtn.hidden=true;dropHelpTab();setOpen(false);save();return true;}
       if(helpBtn)helpBtn.hidden=false;
     }
     if(tab!==undefined&&!offered(tab))return false;
+    if(tab!=='help'&&buttons().find(button=>button.dataset.sideTab==='help')?.hidden)dropHelpTab();
     setOpen(true,{tab,target:detail.target,focus:detail.focus===true});save();
     return true;
   };
@@ -472,7 +474,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
-    if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
+    if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){document.dispatchEvent(new CustomEvent('molis:side-open',{detail:event.data,cancelable:true}));return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);save();return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){
       const keys=event.data.keys;

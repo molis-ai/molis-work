@@ -16,6 +16,7 @@ export const ON_DEMAND_HELP_SPECIMEN_STYLES = `
   .mw-help-spec-head{display:flex;align-items:center;gap:8px;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--line)}
   .mw-help-spec-head strong{font-size:15px;font-weight:600}
   .mw-help-spec-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .mw-help-spec-link{margin:0}
   .mw-help-spec-side{border:1px solid var(--line);border-radius:var(--r-card,12px);overflow:hidden;min-height:220px}
 `.replace(/\n\s*/g, "");
 
@@ -70,8 +71,10 @@ export function renderOnDemandHelpSection(say: (key: string) => string): string 
           skipLabel: say("workbench.on-demand-help-specimens.skip"),
           topic: "specimen-page",
         })}
-        <div class="mw-help-spec-row">
+        <p class="mw-help-spec-link">
           ${renderHelpButton({ topic: "specimen-page", focus: "who", label: say("workbench.on-demand-help-specimens.about-this"), variant: "link", id: "specimen-who-entry" })}
+        </p>
+        <div class="mw-help-spec-row">
           ${renderButton({ variant: "ghost", size: "sm", icon: "question", label: say("workbench.on-demand-help-specimens.expanded-ghost"), attrs: { "aria-expanded": "true" } })}
           ${renderButton({ variant: "secondary", size: "sm", label: say("workbench.on-demand-help-specimens.pressed-secondary"), attrs: { "aria-pressed": "true" } })}
         </div>

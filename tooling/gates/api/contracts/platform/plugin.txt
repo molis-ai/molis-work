@@ -4770,7 +4770,7 @@ export interface PluginManifest {
         page_routes?: UiPageRouteDeclaration[];
         subject_context?: UiSubjectContextDeclaration[];
         locales?: PluginLocalesDeclaration;
-        help?: import("platform/ui-help").UiHelpDeclaration;
+        help?: UiHelpDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;

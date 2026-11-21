@@ -97,9 +97,11 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const lockSlot = el("div", "prompt-editor-lock-slot");
     const count = el("span", "settings-muted prompt-editor-count");
     const syncCount = () => { count.textContent = area.value.length + " / 20000"; };
-    area.addEventListener("input", syncCount);
+    let dirty = false;
+    area.addEventListener("input", () => { dirty = true; syncCount(); });
     syncCount();
     let editorInfo = null;
+    let cachedDetail = null;
     const actions = el("div", "prompt-editor-actions");
     const save = el("button", "mw-btn mw-btn--primary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-my-version"));
     save.type = "button";
@@ -145,12 +147,16 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const advSlot = el("div", "prompt-editor-advanced-slot");
     box.append(label, lockSlot, actions, error, advSlot);
     void api("/prompt?key=" + encodeURIComponent(prompt.key)).then((detail) => {
-      if (!box.isConnected || !detail?.editor) return;
+      if (!box.isConnected) return;
+      cachedDetail = detail;
+      if (!detail?.editor) return;
       editorInfo = detail.editor;
       if (!editorInfo.locked_format) return;
-      area.value = editorInfo.editable;
-      area.rows = Math.min(14, Math.max(4, editorInfo.editable.split("\n").length + 1));
-      syncCount();
+      if (!dirty) {
+        area.value = editorInfo.editable;
+        area.rows = Math.min(14, Math.max(4, editorInfo.editable.split("\n").length + 1));
+        syncCount();
+      }
       const lock = el("div", "mw-facts");
       lock.dataset.promptLockedFormat = "true";
       lock.append(el("h4", "mw-facts__heading", globalThis.t.text("workbench.settings-prompts.locked-format-title")));
@@ -173,6 +179,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       fullArea.maxLength = 20000;
       fullArea.value = prompt.body;
       fullArea.dataset.promptFullText = "true";
+      fullArea.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.advanced-full-edit"));
       const saveFull = el("button", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.save-full-text"));
       saveFull.type = "button";
       saveFull.addEventListener("click", () => {
@@ -205,7 +212,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       if (!history.open || history.dataset.loaded) return;
       history.dataset.loaded = "1";
       try {
-        const data = await api("/prompt?key=" + encodeURIComponent(prompt.key));
+        const data = cachedDetail ?? await api("/prompt?key=" + encodeURIComponent(prompt.key));
         const list = el("ul", "prompt-history-list");
         if (!data.history.length) list.append(el("li", "settings-muted", globalThis.t.text("workbench.settings-prompts.not-edited-yet")));
         data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? globalThis.t.text("workbench.settings-prompts.restore-default") : globalThis.t.text("common.control.save")) + " · " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: row.at, style: "datetime-with-seconds" } }) + (row.default_ref ? " · " + signedVersion(row.default_ref) : ""))));

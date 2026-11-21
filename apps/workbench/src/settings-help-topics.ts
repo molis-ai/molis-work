@@ -27,7 +27,7 @@ const SETTINGS_HELP_IDS = new Set([
   "characters",
   "plugins",
   "grants",
-  "approvals",
+  "rules",
 ]);
 
 /** Builds the Scheme A on-demand help topic for a global or project settings section (VUX-55). */

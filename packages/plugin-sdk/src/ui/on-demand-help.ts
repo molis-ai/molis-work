@@ -96,12 +96,21 @@ export interface MwHelpTopicData {
   };
 }
 
-function validHelpText(value: unknown, owner: string, allowString: boolean): boolean {
-  if (allowString && typeof value === "string") return value.trim().length > 0 && value.length <= MAX_VISIBLE_LITERAL;
-  return tryOwnedTextRef(value, owner) !== null;
+function helpTextProblem(value: unknown, owner: string, field: string, allowString: boolean, hasLocales: boolean): string | null {
+  if (allowString && typeof value === "string") {
+    return value.trim().length > 0 && value.length <= MAX_VISIBLE_LITERAL ? null : `${field} 必须是有效的文字引用`;
+  }
+  const ref = tryOwnedTextRef(value, owner);
+  if (!ref) return `${field} 必须是有效的文字引用`;
+  if (!allowString && "literal" in ref) return `${field} 须引用语言文件键，不能直接写原文`;
+  if ("key" in ref) {
+    if (ref.args !== undefined) return `${field} 不接收插值参数`;
+    if (!allowString && !ref.key.startsWith("common.") && !hasLocales) return `${field} 引用本插件的词须声明 ui.locales`;
+  }
+  return null;
 }
 
-function inspectHelpObject(help: unknown, owner: string, path: string, allowString: boolean): string[] {
+function inspectHelpObject(help: unknown, owner: string, path: string, allowString: boolean, hasLocales: boolean): string[] {
   if (!isRecord(help)) return [`${path} 必须是对象`];
   const problems: string[] = [];
   for (const key of Object.keys(help)) {
@@ -110,6 +119,10 @@ function inspectHelpObject(help: unknown, owner: string, path: string, allowStri
   if (!Array.isArray(help.topics) || help.topics.length === 0 || help.topics.length > UI_HELP_LIMITS.maxTopics) {
     return [...problems, `${path}.topics 必须是 1 到 ${UI_HELP_LIMITS.maxTopics} 个帮助主题的数组`];
   }
+  const checkText = (value: unknown, field: string) => {
+    const problem = helpTextProblem(value, owner, field, allowString, hasLocales);
+    if (problem) problems.push(problem);
+  };
   const topicIds = new Set<string>();
   for (const [ti, rawTopic] of help.topics.entries()) {
     const tPath = `${path}.topics[${ti}]`;
@@ -127,10 +140,8 @@ function inspectHelpObject(help: unknown, owner: string, path: string, allowStri
     } else {
       topicIds.add(rawTopic.id);
     }
-    if (!validHelpText(rawTopic.title, owner, allowString)) problems.push(`${tPath}.title 必须是有效的文字引用`);
-    if (rawTopic.first_visit_tip !== undefined && !validHelpText(rawTopic.first_visit_tip, owner, allowString)) {
-      problems.push(`${tPath}.first_visit_tip 必须是有效的文字引用`);
-    }
+    checkText(rawTopic.title, `${tPath}.title`);
+    if (rawTopic.first_visit_tip !== undefined) checkText(rawTopic.first_visit_tip, `${tPath}.first_visit_tip`);
     if (!Array.isArray(rawTopic.sections) || rawTopic.sections.length === 0 || rawTopic.sections.length > UI_HELP_LIMITS.maxSectionsPerTopic) {
       problems.push(`${tPath}.sections 必须是 1 到 ${UI_HELP_LIMITS.maxSectionsPerTopic} 节的数组`);
       continue;
@@ -152,19 +163,20 @@ function inspectHelpObject(help: unknown, owner: string, path: string, allowStri
       } else {
         sectionIds.add(rawSection.id);
       }
-      if (!validHelpText(rawSection.heading, owner, allowString)) problems.push(`${sPath}.heading 必须是有效的文字引用`);
+      checkText(rawSection.heading, `${sPath}.heading`);
       const hasBody = rawSection.body !== undefined;
       const hasItems = rawSection.items !== undefined;
       if (!hasBody && !hasItems) problems.push(`${sPath} 至少需要 body 或 items`);
-      if (hasBody && !validHelpText(rawSection.body, owner, allowString)) problems.push(`${sPath}.body 必须是有效的文字引用`);
+      if (hasBody) checkText(rawSection.body, `${sPath}.body`);
       if (hasItems) {
-        if (!Array.isArray(rawSection.items) || rawSection.items.length === 0 || rawSection.items.length > UI_HELP_LIMITS.maxItemsPerSection
-          || rawSection.items.some(item => !validHelpText(item, owner, allowString))) {
+        if (!Array.isArray(rawSection.items) || rawSection.items.length === 0 || rawSection.items.length > UI_HELP_LIMITS.maxItemsPerSection) {
           problems.push(`${sPath}.items 必须是 1 到 ${UI_HELP_LIMITS.maxItemsPerSection} 条有效文字引用`);
+        } else {
+          for (const [ii, item] of rawSection.items.entries()) checkText(item, `${sPath}.items[${ii}]`);
         }
       }
       if (rawSection.collapsible !== undefined && typeof rawSection.collapsible !== "boolean") problems.push(`${sPath}.collapsible 必须是布尔值`);
-      if (rawSection.summary !== undefined && !validHelpText(rawSection.summary, owner, allowString)) problems.push(`${sPath}.summary 必须是有效的文字引用`);
+      if (rawSection.summary !== undefined) checkText(rawSection.summary, `${sPath}.summary`);
     }
   }
   if (help.default_topic !== undefined && (typeof help.default_topic !== "string" || !topicIds.has(help.default_topic))) {
@@ -177,13 +189,13 @@ function inspectHelpObject(help: unknown, owner: string, path: string, allowStri
 export function uiHelpDeclarationProblems(manifest: Pick<PluginManifest, "plugin_id" | "ui">): string[] {
   const help = manifest.ui?.help;
   if (help === undefined) return [];
-  return inspectHelpObject(help, manifest.plugin_id, "ui.help", false);
+  return inspectHelpObject(help, manifest.plugin_id, "ui.help", false, Boolean(manifest.ui?.locales));
 }
 
 /** Validates `SandboxPluginContract.help` (VUX-55, VUX-59): allows literal copy or owned TextRefs. */
 export function sandboxHelpDeclarationProblems(contract: Pick<SandboxPluginContract, "pluginId" | "help">): string[] {
   if (contract.help === undefined) return [];
-  return inspectHelpObject(contract.help, contract.pluginId, "help", true);
+  return inspectHelpObject(contract.help, contract.pluginId, "help", true, true);
 }
 
 /** Trigger button for Scheme A on-demand help ("帮助" at header or "了解此项" beside a field). */

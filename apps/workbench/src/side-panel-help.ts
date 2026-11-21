@@ -104,7 +104,7 @@ export const SIDE_HELP_SCRIPT = String.raw`(() => {
 
   document.addEventListener("molis:side-open", (event) => {
     const detail = event.detail;
-    if (!detail || detail.tab !== "help") return;
+    if (!detail || detail.tab !== "help" || detail.close === true) return;
     const wasOpen = document.body.dataset.sideOpen === "true";
     if (!wasOpen) {
       openedSideForHelp = true;

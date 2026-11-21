@@ -46,7 +46,6 @@
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
-import { parseV1ResetExceptions, V1_RESET_FILE } from "./store-schemas.mjs";
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
@@ -217,26 +216,25 @@ export function storeVersionProblems({ read, readBase }) {
   const baseOrigin = originRegistered(baseChecklist, `merge-base:${CHECKLIST_FILE}`, () => false);
   const afterOrigin = headOrigin || baseOrigin;
   const definitions = afterOrigin ? checklistDefinitions(checklist) : null;
-  const parsedResets = parseV1ResetExceptions(read(V1_RESET_FILE));
-  const resetVectorMatches = !parsedResets.why && parsedResets.rows.length > 0 && parsedResets.rows.every((row) =>
-    base.get(`\`${row.place}\``) === row.from_version && head.get(`\`${row.place}\``) === row.to_version);
   const problems = [];
-  if (parsedResets.why) problems.push(parsedResets.why);
-  if (baseOrigin && !headOrigin) problems.push(`${CHECKLIST_FILE} §4: the merge-base has the unified origin registered; it cannot go back to 未登记`);
+  if (baseOrigin && !headOrigin) {
+    problems.push(`${CHECKLIST_FILE} §4: the merge-base has the unified origin registered; it cannot go back to 未登记`);
+  }
   for (const [cell, version] of head) {
     const before = base.get(cell);
-    if (before === undefined || before === version) continue;
+    if (before === undefined || before === version) {
+      continue;
+    }
     const place = cell.replace(/^`|`$/g, "");
-    const isApprovedV1Reset = resetVectorMatches && parsedResets.rows.some((row) => row.place === place && row.from_version === before && row.to_version === version);
-    if (afterOrigin && version < before && !isApprovedV1Reset) {
+    if (afterOrigin && version < before) {
       problems.push(`${CHECKLIST_FILE}: ${cell} went from ${before} to ${version}; after the unified origin a version does not go down`);
       continue;
     }
     const found = entries.filter((entry) => entry.place === place && entry.from === before && entry.to === version);
     if (found.length === 0) {
-      const maintenance = afterOrigin && !isApprovedV1Reset ? `its upgrade step as \`${definitions.get(cell)}#${before}→${version}\`` : "which commit changed it, how a Home in use is brought to it";
+      const maintenance = afterOrigin ? `its upgrade step as \`${definitions.get(cell)}#${before}→${version}\`` : "which commit changed it, how a Home in use is brought to it";
       problems.push(`${CHECKLIST_FILE}: ${cell} went from ${before} to ${version}; add the row \`${place}\` | ${before} → ${version} to the 库版本维护清单 in ${SPEC_FILE}「存储版本变更登记」(${maintenance})`);
-    } else if (afterOrigin && !isApprovedV1Reset) {
+    } else if (afterOrigin) {
       // The list keeps history, so the same numbers can have an older row in prose: one row that holds up is enough, and a row
       // that points somewhere says more about what is wrong than an old one that does not.
       const pointing = found.filter((entry) => UPGRADE_POINTER.test(entry.maintenance));

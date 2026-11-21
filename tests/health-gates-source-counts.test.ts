@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countPackedStatements } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -26,7 +26,7 @@ const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
 const gate = (...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
-  return { code: run.status, out: `${run.stdout}${run.stderr}` };
+  return { code: run.status, stdout: run.stdout, out: `${run.stdout}${run.stderr}` };
 };
 
 // The definitions, one snippet each. Everything the header of source-counts.mjs says is counted, and what it says is not.
@@ -40,6 +40,8 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["real code and a script in one file: only the script is counted here", "try { f(); } catch {}\nexport const SCRIPT = `try { g(); } catch {}`;", { emptyCatchesInScripts: 1 }, true],
   ["the old product name in any case", "const a = 'GoalBoard'; const b = 'goalboard-v1-demo'; const c = process.env.GOALBOARD_HOME;", { oldNames: 3 }, true],
   ["retired PG-097 platform names", "const a = process.env.MOLIS_JELLY_WHISPER_HELPER; const b = resolveFeedSecurityDirectory();", { oldNames: 2 }, true],
+  ["retired CPK-08 capability-pack symbols", "const a = 'molis-coding-method'; const b = 'agent.skills.discover'; const c = 'agent.skills.install'; type D = AgentSkillLibrary | AgentRoleSkillsDeclaration | AgentSkillsCapability; const e = UNREGISTERED_MODEL_CALLS;", { oldNames: 7 }, true],
+  ["retired WMD-13 Files plugin id in ordinary source", "export const id = 'io.molis.work.files';", { oldNames: 1 }, true],
   ["board_id in its spellings", "const a = x.board_id; const b = boardId; const c = existing_board_id; const d = listBoardId; const e = BOARD_ID; const f = boardIds;", { oldNames: 6 }, true],
   ["names that merely contain board", "const a = dashboard_id; const b = dashboardId; const c = keyboardId; const d = boardIdentity; const e = DASHBOARD_ID; const f = KEYBOARD_IDS;", {}, true],
   ["BOARD_ID as the tail of an upper-case name", "const a = CONFLICTING_BOARD_ID; const b = BOARD_IDS;", { oldNames: 2 }, true],
@@ -126,6 +128,21 @@ const violations: Scenario[] = [
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
   { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
   { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
+  { name: "PG-097 retired name in Rust source", mutate: () => put("apps/desktop/adapters/tauri/src/probe.rs", 'const ENV: &str = "MOLIS_JELLY_WHISPER";\n'), expect: [/uses of an old name \(goalboard, board_id\) in apps\/desktop\/adapters\/tauri\/src\/probe\.rs 0 → 1/] },
+  { name: "PG-097 retired name in Swift source", mutate: () => put("apps/local-host/native/materials/Probe.swift", 'let dir = "resolveFeedSecurityDirectory"\n'), expect: [/in apps\/local-host\/native\/materials\/Probe\.swift 0 → 1/] },
+  { name: "PG-097 GoalBoard backflow in shell installer", mutate: () => put("scripts/install-macos-app.sh", 'APP="GoalBoard.app"\n'), expect: [/in scripts\/install-macos-app\.sh 0 → 1/] },
+  { name: "PG-097 retired name in workflow YAML and Makefile", mutate: () => {
+    put(".github/workflows/probe.yml", "env:\n  MOLIS_JELLY_MODE: on\n");
+    put("Makefile", "all:\n\techo resolveFeedSecurityDirectory\n");
+  }, expect: [/in \.github\/workflows\/probe\.yml 0 → 1/, /in Makefile 0 → 1/] },
+  { name: "CPK-08 deleted symbol and skill-selection.ts backflow", mutate: () => {
+    put("packages/alpha/src/cpk.ts", "export const name = 'molis-coding-method';\n");
+    put("packages/alpha/src/skill-selection.ts", "export const pick = 1;\n");
+  }, expect: [/in packages\/alpha\/src\/cpk\.ts 0 → 1/, /in packages\/alpha\/src\/skill-selection\.ts 0 → 1/] },
+  { name: "WMD-13 retired Files plugin id and directory backflow", mutate: () => {
+    put("apps/workbench/src/files-ref.ts", "export const id = 'io.molis.work.files';\n");
+    put("plugins/native/files/package.json", '{"name":"@molis-ai/molis-work-plugin-files"}\n');
+  }, expect: [/in apps\/workbench\/src\/files-ref\.ts 0 → 1/, /in plugins\/native\/files\/package\.json 0 → 1/] },
 ];
 
 for (const scenario of violations) {
@@ -175,6 +192,16 @@ test("what the definitions leave out passes against the merge-base", () => {
   assert.doesNotMatch(run.out, /Lower than/, "nothing went down either");
 });
 
+test("WMD-13 and PG-097 definition: S-75 host-plugin-ids reservation and non-TS helpers behave as documented", () => {
+  assert.equal(countFile("apps/local-host/src/host-plugin-ids.ts", 'export const IDS = new Set(["io.molis.work.files"]);\n', { inSource: true }).oldNames, 0);
+  assert.equal(countFile("packages/design-system/src/primitives/catalog-skill-selection.ts", "export const ok = 1;\n", { inSource: true }).oldNames, 0);
+  assert.equal(countFile("packages/alpha/src/skill-selection.ts", "export const bad = 1;\n", { inSource: true }).oldNames, 1);
+  assert.equal(countNonTsOldNames("apps/desktop/adapters/tauri/src/main.rs", "const OLD: &str = \"GoalBoard\";\n"), 1);
+  assert.equal(countNonTsOldNames("pnpm-lock.yaml", "goalboard MOLIS_JELLY_X\n"), 0);
+  assert.equal(countNonTsOldNames("docs/history.yaml", "goalboard MOLIS_JELLY_X\n"), 0);
+  assert.equal(countNonTsOldNames("plugins/native/files/src/index.ts", "export const x = 1;\n"), 1);
+});
+
 test("Batch 100-2 definition: packedStatements counts sibling statements on the same line across blocks", () => {
   assert.equal(countPackedStatements("a.ts", "const a = 1;\nconst b = 2;\n"), 0);
   assert.equal(countPackedStatements("b.ts", "const a = 1; const b = 2;\n"), 1);
@@ -207,7 +234,9 @@ test("the report lists each count per file, next to the merge-base's", () => {
   const text = gate("--report", "--base", "main").out;
   assert.match(text, /Empty catch blocks \(browser scripts in string and template literals\): 1 in 1 files/);
   assert.match(text, /Old names \(goalboard, board_id\) in sources: 1 in 1 files/);
-  const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
+  const report = gate("--report", "--json", "--base", "main");
+  assert.equal(report.code, 0, report.out);
+  const json = JSON.parse(report.stdout);
   assert.deepEqual(json.head.emptyCatchesInScripts, { "packages/alpha/src/script.ts": 1 });
   assert.deepEqual(json.head.oldNames, { "packages/alpha/src/named.ts": 1 });
   assert.deepEqual(json.head.scriptConstants, { "packages/alpha/src/kept.ts": 1 });

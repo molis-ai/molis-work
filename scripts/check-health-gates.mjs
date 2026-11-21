@@ -39,7 +39,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
-import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
+import { oldNamesWantsText, SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { browserWantsText } from "./gates/browser-graph.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
@@ -160,7 +160,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
+const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || oldNamesWantsText(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -448,7 +448,7 @@ const METRIC_BASE_INPUTS = {
   schemaExecs: schemaExecsWantText,
   compatMarkers: isSource,
   emptyCatchesInScripts: isSource,
-  oldNames: isSource,
+  oldNames: (file) => isSource(file) || oldNamesWantsText(file),
   scriptConstants: isSource,
   directEllipsisCuts: isSource,
   rawFetchInScripts: (file) => isSource(file) || browserWantsText(file),

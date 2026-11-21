@@ -3,7 +3,7 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registration } from "@molis-ai/molis-work-plugin-goals/registration";
-import { workbenchClientSource, pluginOnDemandStylesheet, pluginPageClients, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles,
+import { workbenchClientSource, pluginOnDemandStylesheet, pluginPageClientScript, pluginSettingsClients, pluginSettingsStyles, pluginWorkbenchPacks, pluginWorkbenchStyles,
   renderMolisWorkCapabilitiesClientScript } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
@@ -38,14 +38,27 @@ test("RAC-2091 and APR-19 project rule settings use the shared authorization sty
   }
 });
 
-test("RAC-2092 the Goals page script takes each factory from the registration, by name", () => {
-  const script = workbenchClientSource(), clients = goals.pageClients!;
-  assert.deepEqual(Object.keys(clients).sort(), ["goalsDialogs", "goalsDocument", "goalsEventDocument", "goalsLifecycle", "goalsMomentum",
-    "goalsNavigation", "goalsPanels", "goalsProposal", "goalsRefresh", "goalsRelation", "goalsTree"]);
-  assert.equal(pluginPageClients("goals"), clients);
-  for (const [name, factory] of Object.entries(clients)) assert.equal(count(script, factory), 1, `${name} is in the page script once`);
-  assert.doesNotMatch(script, /\(undefined\)\(/u, "no factory the page script names is missing");
-  assert.throws(() => pluginPageClients("files"), /files registers no page clients/u);
+test("RAC-2092 PCL-01 the shell's page script takes Goals' page client from the registration, once, without naming the plugin", () => {
+  const script = workbenchClientSource(), client = goals.pageClient!;
+  assert.equal(typeof client, "string");
+  assert.equal(Object.hasOwn(goals, "pageClients"), false, "the factories-by-name field is gone (no old field kept)");
+  assert.equal(count(script, client), 1, "the page client is in the page script once");
+  assert.match(pluginPageClientScript(), /^\[\["goals", \(host\) => /u, "the shell lists every registered page client with its plugin");
+  assert.equal(pluginPageClientScript([]), "[]", "a registration list without page clients gives none");
+});
+
+// PCL-02: the shell's page scripts do not name Goals. The four files below are the follow-ups the spec leaves out (placement's
+// attach-to-a-Goal flow, the Artifacts goal-input client, the Assistant's tab kinds and glyphs); their counts only go down.
+test("PCL-02 the shell's page scripts do not name Goals outside the listed follow-ups", async () => {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const dir = new URL("../apps/workbench/src/scripts/client/", import.meta.url);
+  const allowed: Record<string, number> = { "placement.ts": 85, "plugin-workbench.ts": 3, "assistant-materials.ts": 2, "assistant-side-kit.ts": 1 };
+  const found: Record<string, number> = {};
+  for (const name of (await readdir(dir)).filter((file) => file.endsWith(".ts"))) {
+    const words = ((await readFile(new URL(name, dir), "utf8")).match(/goal/giu) ?? []).length;
+    if (words > (allowed[name] ?? 0)) found[name] = words;
+  }
+  assert.deepEqual(found, {});
 });
 
 test("RAC-2093 and APR-19 project rule updates use the same client as authorization settings", () => {

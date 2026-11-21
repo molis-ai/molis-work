@@ -234,7 +234,7 @@ export interface PluginWorkbenchRegistration {
     readonly clientAssetSpecifiers?: Readonly<Record<string, string>>;
     readonly settingsClient?: string;
     readonly settingsStylesheet?: string;
-    readonly pageClients?: Readonly<Record<string, string>>;
+    readonly pageClient?: string;
     readonly searchRow?: PluginSearchRow;
     readonly surfaceAliases?: readonly string[];
     readonly searchRecordKinds?: readonly string[];

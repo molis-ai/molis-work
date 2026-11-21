@@ -33,8 +33,10 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
         return;
       }
-      if (handleTreeDisclosureClick(target)) return;
-      if (handleMomentumNavigationClick(target)) return;
+      for (const page of pages) {
+        const handled = page.click?.(target, event);
+        if (handled) { if (handled !== true) await handled; return; }
+      }
       if (target.closest("[data-tui-focus-return]")) {
         setWorkspaceMode("focus");
         return;
@@ -44,39 +46,14 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
         setDirectoryCollapsed(!workspace.classList.contains("is-directory-collapsed"));
         return;
       }
-      if (handleMomentumSelectionClick(target, event)) return;
-      if (handleMomentumZoomClick(target)) return;
-      const goalLink = target.closest("[data-select-goal]");
-      if (goalLink) {
-        if (goalLink.closest("[data-goal-stage-list]")) {
-          const goalId = goalLink.dataset.selectGoal;
-          if (stageListGestureTimer) { clearTimeout(stageListGestureTimer); stageListGestureTimer = null; }
-          if (Number(event.detail) > 1) frameContainer?.openFrame(goalId);
-          else stageListGestureTimer = setTimeout(() => { stageListGestureTimer = null; void selectGoal(goalId); }, 220);
-          return;
-        }
-        openDirectorySurface("goals", goalLink.dataset.selectGoal, goalLink.textContent?.trim(), event);
-        return;
-      }
-      if (handleGoalDialogClick(target)) return;
-      const focusSectionTrigger = target.closest("[data-focus-section-trigger]");
-      if (focusSectionTrigger) {
-        const factor = focusSectionTrigger.dataset.goalFactorTab;
-        if (factor) setGoalFactor(factor, true, true);
-        else activateFocusSection(focusSectionTrigger);
-        return;
-      }
-      if (handleGoalFactorClick(target)) return;
       const sectionLink = target.closest('a[href^="#"]');
       if (sectionLink) {
         const targetId = sectionLink.getAttribute("href")?.slice(1);
         const targetElement = targetId ? document.getElementById(targetId) : null;
-        const targetReader = targetId ? eventReaderFromTargetId(targetId) : "";
-        const targetFactor = targetId ? goalFactorFromTargetId(targetId) : "";
-        if (targetId && (targetElement || targetReader || targetFactor)) {
+        const openTarget = targetId ? pages.map((page) => page.anchor?.(targetId)).find(Boolean) : null;
+        if (targetId && (targetElement || openTarget)) {
           event.preventDefault();
-          if (targetReader) openEventReader(targetReader);
-          if (targetFactor) setGoalFactor(targetFactor, true);
+          openTarget?.();
           history.replaceState(null, "", "#" + targetId);
           if (targetElement) {
             const deepLinkScrollTarget = revealDeepLinkTarget(targetElement);
@@ -90,7 +67,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const surfaceLink = target.
         if (!await window.molisCopy?.(copy, copy.dataset.copyValue, { done: globalThis.t.text("workbench.events-secondary.copied"), failed: globalThis.t.text("workbench.events-secondary.could-not-copy") })) showToast(globalThis.t.text("workbench.events-secondary.clipboard-unavailable-copy-manually"), true);
         return;
       }
-      if (handleGoalRelationDisclosureClick(target)) return;
-      const lifecycleClick = handleGoalLifecycleClick(target);
-      if (lifecycleClick) { await lifecycleClick; return; }
+      for (const page of pages) {
+        const handled = page.clickAfter?.(target, event);
+        if (handled) { if (handled !== true) await handled; return; }
+      }
 `;

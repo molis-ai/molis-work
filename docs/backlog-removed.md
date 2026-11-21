@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-b44-shell-goals-state | 已完成并删除 | 2026-11-21：通用的页面客户端接口 `workbench.pageClient` 取代第 44 批的 `pageClients`（[页面客户端生命周期](../specs/page-client-lifecycle/spec.md)），Goals 的页面数据、选中项、画布与看板框、归档与回收站视图、后台刷新与决定回执从外壳搬回 Goals，写成 `plugins/native/goals/src/browser/` 里带类型的 TypeScript 并由 esbuild 打包；外壳页面脚本不再点名 Goals（PCL-02），剩下几处记 [BL-shell-goals-leftovers](../specs/backlog/BL-shell-goals-leftovers.md) |
 | BL-tests-umask | 已完成并删除 | 2026-11-19：离线恢复与运行时备份测试夹具显式设置权限，在 `umask 077` 与 `022` 下均通过原权限断言（`apps/local-host/src/installer/runtime-installation-files.ts`、`tests/fixtures/home-restore.ts`、`tests/fixtures/runtime-config-backups.ts`、`tests/home-snapshot-cli.test.ts`、`tests/security-invariants-home-restore-recovery.test.ts`、`tests/security-invariants-runtime-backups.test.ts`），由 [#2171](https://github.com/molis-ai/molis-work/pull/2171)（`9d25c9d1cd`）合入，正式交付项 [73-3](../specs/post-anticorruption-roadmap/reference/batches/73.md#batch-73-item-3) 离线恢复回归切片；条目 2026-11-20 删除 |
 | BL-981 | 已完成并删除 | 2026-11-19：知识检索不可读原因与模型所选理由按完整字符边界截断（`horizontal/knowledge/src/errors.ts`、`tests/knowledge-locate-budget.test.ts`），由 [#2177](https://github.com/molis-ai/molis-work/pull/2177)（`4f2bd4e5f5`）合入；条目 2026-11-20 删除 |
 | BL-985 | 已完成并删除 | 2026-11-19：Images 五个输入框与服务端共用同一套按字符计数和上限校验（`plugins/native/images/src/limits.ts`、`plugins/native/images/src/browser/limits.ts`、`tests/images-input-limits.e2e.test.ts`），由 [#2177](https://github.com/molis-ai/molis-work/pull/2177)（`4f2bd4e5f5`）合入；条目 2026-11-20 删除 |

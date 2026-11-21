@@ -17,45 +17,17 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     if (!ops.writeView(state, paneId, view, tabId)) return false;
     apply(); persist(); return true;
   };
-  const rootForTab = (tab) => tab?.kind === "system" ? systemTabs.root(tab) : supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.view !== "work"
-    ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
+  const rootForTab = (tab) => {
+    if (tab?.kind === "system") return systemTabs.root(tab);
+    if (!tab) return null;
+    const own = pageClient?.(tab.plugin)?.tabRoot?.(tab);
+    return own !== undefined ? own : topLevelSurface(tab.plugin);
+  };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab || tab.kind === "system") return;
-    declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
+    declareTab?.(tab);
     selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null, tab.view);
-    if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
-      if (supportsGoalFrames() && tab.view !== "work") { applySelection?.(tab.itemId); if (showGoalFrame?.(tab.itemId) !== false) return; }
-      releaseFrame?.();
-      applySelection?.(tab.itemId);
-      if ((getDocumentGoalId() !== tab.itemId || loadingGoalId) && loadingGoalId !== tab.itemId) {
-        const goalId = tab.itemId;
-        loadingGoalId = goalId;
-        void loadGoalDocument(goalId).then((loaded) => {
-          if (loaded) {
-            document.dispatchEvent(new CustomEvent("molis-work:record-document-loaded", { detail: { recordId: goalId } }));
-            const tui = document.querySelector("[data-tui-pane]");
-            const pluginId = tui?.dataset.tuiPluginId || PLUGIN_MANIFEST_IDS.goals || "";
-            const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
-            if (pluginId && subjectKind) document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-ready", { detail: { pluginId, subjectKind, subjectId: goalId } }));
-          }
-        }).finally(() => { if (loadingGoalId === goalId) loadingGoalId = null; });
-      }
-      setWorkspaceMode("focus", false, true);
-      const collapse = document.querySelector("[data-goal-collapse]");
-      collapse?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
-      collapse?.setAttribute("title", globalThis.t.text("workbench.tab-workspace-panes.back-goal-canvas"));
-      return;
-    }
-    if (tab.plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-panes.collapse-goal-return-canvas"));
-      if (keepFrame) {
-        setWorkSurface("goals");
-        setWorkspaceMode("graph", false, true);
-        return;
-      }
-      (restoreBoard || showCanvas)?.();
-      return;
-    }
+    pageClient?.(tab.plugin)?.showTab?.(tab, keepFrame);
   };
   const mount = (pane, node) => {
     const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
@@ -64,8 +36,8 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     node.hidden = false;
   };
   const collectMounted = () => [
-    ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-goal-canvas-shell], :scope > [data-goal-frame-surface], :scope > [data-document-pane]"),
-    ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-goal-canvas-shell], [data-tab-pane-body] > [data-goal-frame-surface], [data-tab-pane-body] > [data-document-pane]"),
+    ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-surface-stage]"),
+    ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-surface-stage]"),
     ...document.querySelectorAll("[data-system-tab]"),
     ...(exclusiveEl ? [...exclusiveEl.children] : []),
   ];
@@ -134,7 +106,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
         renderStrip(coveredPane, titlebarStrip);
       }
       const node = [...document.querySelectorAll('[data-work-surface="' + state.exclusive + '"]')]
-        .find((candidate) => !candidate.closest("[data-goal-canvas-shell]"));
+        .find((candidate) => !candidate.closest("[data-surface-host]"));
       if (exclusiveEl) {
         exclusiveEl.hidden = false;
         [...exclusiveEl.children].forEach((child) => { if (child !== node) pool.append(child); });
@@ -190,15 +162,15 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     if (focusedTab && focusedTab.kind !== "system") {
       const surface = focusedTab.plugin;
       if (getSurface() !== surface) setWorkSurface(surface, false, false, "restore");
-      if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
+      if (!["settings", "project-settings"].includes(document.querySelector("[data-directory-pane]")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
       }
-      if (focusedTab.plugin === "goals" && focusedTab.kind === "item" && !embedded && (state.panes.length > 1 || panesEl.querySelector('iframe[data-pane-tab="' + focusedTab.id + '"]'))) applySelection?.(focusedTab.itemId);
+      if (focusedTab.kind === "item" && !embedded && (state.panes.length > 1 || panesEl.querySelector('iframe[data-pane-tab="' + focusedTab.id + '"]'))) pageClient?.(focusedTab.plugin)?.focusItem?.(focusedTab.itemId);
       document.title = tabLabel(focusedTab) + " · Molis Work";
     } else if (focusedView) {
       const surface = focusedView;
       if (getSurface() !== surface) setWorkSurface(surface, false, false, "restore");
-      if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
+      if (!["settings", "project-settings"].includes(document.querySelector("[data-directory-pane]")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);
       }
       document.title = (focusedView === "home" ? globalThis.t.text(personal ? "workbench.tab-workspace-panes.personal-home" : "workbench.tab-workspace-panes.project-home") : ops.pluginTitle(focusedView)) + " · Molis Work";
@@ -292,7 +264,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
             if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
             surfaceShows.set(tab.plugin, "tab:" + tab.id);
           } else if (viewPlugin === "home") {
-            declareGoal(null);
+            declareTab?.(null);
             if (returning) restoreScroll(node);
             selectItem(node, null, readView(pane.id));
           } else {

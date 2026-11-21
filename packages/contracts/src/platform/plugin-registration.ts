@@ -85,10 +85,11 @@ export interface PluginWorkbenchRegistration {
    */
   readonly settingsStylesheet?: string;
   /**
-   * For a plugin without a frame whose page the shell draws: the factories that page's script calls, by name. The shell takes
-   * them from this registration (`pluginPageClients`), never from the plugin's package.
+   * For a plugin without a frame whose page the shell draws: its page client, a factory script `(host) => client | null` that
+   * the shell's page script calls once at start (specs/page-client-lifecycle). The shell takes every registered one from the
+   * registration list and never names a plugin; the client returns `null` when this page carries none of its page data.
    */
-  readonly pageClients?: Readonly<Record<string, string>>;
+  readonly pageClient?: string;
   readonly searchRow?: PluginSearchRow;
   /** Surface aliases routed to this plugin's canonical surface (e.g. Feed's `sources`). */
   readonly surfaceAliases?: readonly string[];

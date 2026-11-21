@@ -76,13 +76,13 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = p
 const splits = new WeakMap<BuiltinPluginWorkbenchPack, SplitStylesheet | null>();
 
 /**
- * A plugin that carries a client (`clientFactory` in a frame, or `pageClients` drawn in the shell) sends the rules of its
+ * A plugin that carries a client (`clientFactory` in a frame, or `pageClient` drawn in the shell) sends the rules of its
  * own namespaces as a sheet of its own (PG-070, PEQ-08): framed plugins link it inside their frame, shell-drawn plugins
  * link it in the workbench head only when enabled in the project (`pluginShellStyleLinks`), and standalone settings pages
  * link it via `pluginSettingsStyleLinks`.
  */
 function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
-  if (!pack.stylesheet || (!pack.clientFactory && !pack.pageClients)) return null;
+  if (!pack.stylesheet || (!pack.clientFactory && !pack.pageClient)) return null;
   let split = splits.get(pack);
   if (split === undefined) splits.set(pack, split = splitPluginStylesheet(pack.stylesheet, pack.project_plugin_id, pack.stylesheetShared, pack.stylesheetPrefixes));
   return split;
@@ -117,11 +117,12 @@ export function pluginSettingsClients(packs: readonly BuiltinPluginWorkbenchPack
   return packs.map((pack) => pack.settingsClient ?? "").join("");
 }
 
-/** The factories a plugin registers for the page the shell draws for it (`pageClients`); a plugin that registers none stops the build. */
-export function pluginPageClients(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Readonly<Record<string, string>> {
-  const clients = packs.find((pack) => pack.project_plugin_id === id)?.pageClients;
-  if (!clients) throw new Error(`${id} registers no page clients`);
-  return clients;
+/**
+ * The page clients of the plugins whose page the shell draws (`pageClient`, specs/page-client-lifecycle), in registration order,
+ * as one script expression: an array of `[plugin, factory]`. The shell's page script calls each and never names a plugin.
+ */
+export function pluginPageClientScript(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  return `[${packs.filter((pack) => pack.pageClient).map((pack) => `[${JSON.stringify(pack.project_plugin_id)}, ${pack.pageClient}]`).join(", ")}]`;
 }
 
 /** The links a plugin's settings page needs beside the host's own settings sheet: the sheets its frame would link (PG-070). */
@@ -131,12 +132,12 @@ export function pluginSettingsStyleLinks(contributionId: string, packs: readonly
   return framedStyles(pack, packs).map(id => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");
 }
 
-/** The on-demand sheets that enabled shell-drawn plugins (`pageClients`, no iframe) need in the workbench head (PEQ-08). */
+/** The on-demand sheets that enabled shell-drawn plugins (`pageClient`, no iframe) need in the workbench head (PEQ-08). */
 export function pluginShellStyleLinks(enabled: readonly string[], packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
   const active = new Set(enabled);
   const ids = new Set<string>();
   for (const pack of packs) {
-    if (!pack.pageClients || pack.clientFactory || !active.has(pack.project_plugin_id)) continue;
+    if (!pack.pageClient || pack.clientFactory || !active.has(pack.project_plugin_id)) continue;
     for (const id of framedStyles(pack, packs)) ids.add(id);
   }
   return [...ids].map(id => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css" data-plugin-shell-style="${escapeAttr(id)}">`).join("");

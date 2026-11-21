@@ -14,14 +14,15 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       if (plugin === "home" || plugin === "market") return "root"; const directory = plugin;
       return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
     };
-  const supportsGoalFrames = () => document.body.dataset.boardView === "current";
-  const findTopLevelSurface = (plugin) => plugin === "goals"
-    ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
-    : [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')]
-      .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
+  const findTopLevelSurface = (plugin) => {
+    const page = pageClient?.(plugin);
+    if (page?.topLevel) return page.topLevel();
+    return [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')].find((node) => !node.closest("[data-surface-host]")) || null;
+  };
   const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface, "restore"); return surface; };
   const titleForItem = (plugin, itemId, fallback) => {
-    if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
+    const page = pageClient?.(plugin);
+    if (page?.itemTitle) return page.itemTitle(itemId, fallback);
     const row = ((spec) => spec && [...document.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId))(RECORD_ROWS.find(([id]) => id === plugin));
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
@@ -44,27 +45,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     shellCollapse.add(plugin);
     queueMicrotask(() => shellCollapse.delete(plugin));
     selectItem(topLevelSurface(plugin), null, readView(ops.focused(state).id));
-    if (plugin === "goals") {
-      document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", globalThis.t.text("workbench.tab-workspace-plugins.collapse-goal-return-canvas"));
-      (restoreBoard || showCanvas)?.();
-      return;
-    }
+    if (pageClient?.(plugin)?.showDefault?.()) return;
     collapsePluginStage(plugin);
-  };
-  // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
-  // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
-  const declareGoal = (goalId, fallback) => {
-    const title = goalId ? titleForItem("goals", goalId, fallback) : "";
-    const surface = document.querySelector('[data-work-surface="goals"]'), tui = document.querySelector("[data-tui-pane]");
-    const pluginId = tui?.dataset.tuiPluginId || PLUGIN_MANIFEST_IDS.goals || "";
-    const subjectKind = tui?.dataset.tuiSubjectKind || "goal";
-    const surfaceTitle = surface?.dataset.workSurfaceLabel || "";
-    document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
-      if (goalId && pluginId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: pluginId, surface_title: surfaceTitle,
-        object: { kind: subjectKind, id: goalId, ...(title ? { title } : {}) },
-        belongs_to: { plugin_id: pluginId, kind: subjectKind, id: goalId, title: title || "" } }));
-      else node.removeAttribute("data-assistant-context");
-    });
   };
   const forgetRecord = (plugin) => {
     if (!plugin || !openRecords[plugin]) return false;
@@ -220,7 +202,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (openInSide(plugin, itemId, title) || openItemInSide(plugin, itemId, title, from) || recall(plugin, itemId)) return;
     column = "main";
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
-    if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
+    if (view !== undefined) ops.writeView(state, ops.focused(state).id, pageClient?.(plugin)?.itemView ? pageClient(plugin).itemView(view) : view, tab.id);
     apply();
     persist();
     host.prepareSurface?.(findTopLevelSurface(plugin), "open");
@@ -245,11 +227,12 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (openRecords[plugin] === itemId) forgetRecord(plugin);
     if (closed) { apply(); persist(); }
   };
-  const openGoalWork = () => {
+  // An item tab's view, asked by the plugin it belongs to (its work area, or back to its default).
+  const setItemView = (plugin, view) => {
     const tab = ops.activeTab(state);
-    if (tab?.plugin !== "goals" || tab.kind !== "item") return;
-    writeView(ops.focused(state).id, "work", tab.id);
-    if (embedded) notifyParent("workbench-pane-view", { view: "work" });
+    if (tab?.plugin !== plugin || tab.kind !== "item") return;
+    writeView(ops.focused(state).id, view, tab.id);
+    if (embedded) notifyParent("workbench-pane-view", { view });
   };
   // The mount names its owner and surface. Layout remains the only owner of pane/tab selection.
   const ownSurfaces = (origin) => origin.dataset.pluginOwner && origin.dataset.pluginContribution

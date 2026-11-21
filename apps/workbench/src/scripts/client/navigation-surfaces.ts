@@ -8,45 +8,27 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
     const canonicalSurface = (surface) => (Object.hasOwn(SURFACE_ALIASES, surface) ? SURFACE_ALIASES[surface] : surface);
     const directoryPanelFor = (directory) => directory;
 
-    const restoreLastGoal = (openGoalsDirectory = false) => {
-      let goalId = "";
-      try {
-        const goalUi = JSON.parse(sessionStorage.getItem(currentGoalUiStorageKey) || sessionStorage.getItem(goalUiStorageKey) || "null");
-        goalId = String(goalUi?.selected || "");
-        if (openGoalsDirectory) {
-          const nextGoalUi = goalUi && typeof goalUi === "object" ? goalUi : {};
-          sessionStorage.setItem(currentGoalUiStorageKey, JSON.stringify({
-            ...nextGoalUi,
-            navigationVersion: desktopNavigationStateVersion,
-            directory: "goals",
-            workSurface: "goals",
-          }));
-        }
-      } catch {}
-      const available = new Set(visibleGoals().map((item) => item.goal.goal_id));
-      if (!available.has(goalId)) goalId = state.active_goal_id || "";
-      location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
-    };
+    const scrollPaneOf = (surface) => pageFor(surface)?.scrollPane?.() || desktopWorkSurfaces.find(item => item.dataset.workSurface === surface);
 
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
       const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
       if (!nextSurface) {
-        if (surface === "goals" && goalData) restoreLastGoal(true);
+        pageFor(surface)?.open?.();
         return false;
       }
       const surfaceChanged = activeDesktopSurface !== surface;
       // Passive restore must not retry the current failed client.
       if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
-        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
-        if (activeDesktopSurface === "goals") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
+        desktopSurfaceScroll[activeDesktopSurface] = scrollPaneOf(activeDesktopSurface)?.scrollTop || 0;
+        pageFor(activeDesktopSurface)?.hidden?.();
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
       if (!tabWorkspace) {
         desktopWorkSurfaces.forEach((candidate) => {
-          if (candidate.closest("[data-goal-canvas-shell]")) return;
+          if (candidate.closest("[data-surface-host]")) return;
           candidate.hidden = candidate !== nextSurface;
         });
       }
@@ -56,16 +38,17 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
         if (active) item.setAttribute("aria-current", "page");
         else item.removeAttribute("aria-current");
       });
-      if (surfaceChanged) setWorkspaceMode(surface === "goals" ? goalWorkspaceMode : "focus", false, true);
+      if (surfaceChanged) setWorkspaceMode(pageFor(surface)?.workspaceMode?.() || "focus", false, true);
       immersiveNavigation?.sync();
       const label = nextSurface.dataset.workSurfaceLabel || surface;
-      if (goalData) documentPane.setAttribute("aria-label", label);
+      pages.forEach((page) => page.scrollPane?.()?.setAttribute("aria-label", label));
       requestAnimationFrame(() => {
-        const scrollPane = surface === "goals" ? documentPane : nextSurface;
-        scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0; if (surfaceChanged && surface === "goals" && activeDesktopSurface === "goals" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();
+        const scrollPane = pageFor(surface)?.scrollPane?.() || nextSurface;
+        scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0;
+        if (surfaceChanged && activeDesktopSurface === surface) pageFor(surface)?.shown?.();
       });
       pluginWorkbench?.open(surface);
-      frameContainer?.sync();
+      pages.forEach((page) => page.surfaceSet?.());
       if (persist) queueSave();
       return true;
     };
@@ -100,12 +83,12 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
        when there is one: its place in the directory decides whether the directory column opens. */
     const openSurfaceEntry = (surface, origin = null, clickEvent) => {
       const available = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === surface);
-      if (surface === "goals" && !available) {
+      if (!available && pageFor(surface)?.open) {
         saveUiState();
-        restoreLastGoal(true);
+        pageFor(surface).open();
         return;
       }
-      const directory = surface === "goals" || OWN_DIRECTORY_SURFACES.includes(surface) ? surface : "root";
+      const directory = pageFor(surface) || OWN_DIRECTORY_SURFACES.includes(surface) ? surface : "root";
       const nextDirectory = directory !== "root" && document.querySelector('[data-directory-panel="' + directory + '"]')
         ? directory
         : "root";
@@ -113,13 +96,13 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
       const pluginId = origin?.dataset.pluginId;
       if (pluginId && pluginId !== "home" && pluginId !== "market" && nextDirectory !== "root") setDirectoryCollapsed?.(false, false);
       if (!openDirectorySurface(surface, undefined, undefined, clickEvent)) setDesktopWorkSurface(surface, true, true);
-      if (surface === "home" && !collectionView && localPathname() !== "/") {
+      if (surface === "home" && uiScope === "current" && localPathname() !== "/") {
         history.pushState({ workSurface: "home" }, "", route("/"));
       }
       if (matchMedia("(max-width: 760px)").matches) setMobileView(nextDirectory === "root" || surface === "home" || surface === "market" ? "document" : "tree");
     };
 
-    const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => !Object.hasOwn(SURFACE_ALIASES, id))];
+    const listPluginSections = () => [...new Set([...pages.map((page) => page.surface), ...OWN_DIRECTORY_SURFACES.filter((id) => !Object.hasOwn(SURFACE_ALIASES, id))])];
 
     const syncPluginDirectory = (directory) => {
       const empty = directory === "root";
@@ -137,7 +120,7 @@ export const CLIENT_NAVIGATION_SURFACES_SCRIPT = `
 
     const setPluginSectionExpanded = (id) => {
       const sectionId = canonicalSurface(id);
-      if (!LIST_PLUGIN_SECTIONS.includes(sectionId)) return;
+      if (!listPluginSections().includes(sectionId)) return;
       setDirectoryCollapsed?.(false, false);
       setDesktopDirectory(sectionId, true, false);
     };

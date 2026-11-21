@@ -1733,7 +1733,7 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, sur
   }
   // The client script is a browser script written in a template string, so its calls are template text: `hasInText`, not `hasInCode`.
   if (/const (?:goalTreeDecisionForm|contractDecisionForm|candidateDecisionForm|rewireDecisionForm) =/u.test(clientDispatch)
-      || !hasInText(clientDispatch, "handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
+      || !hasInCode(clientDispatch, "handleGoalProposalSubmit(submittedForm, event)")) errors.push("plugins/native/goals: proposal submission behavior belongs to the Goals page client");
   return errors;
 }
 
@@ -1745,7 +1745,7 @@ export function checkProposalUiOwnershipInTree(repositoryRoot) {
     "apps/workbench/src/index.ts",
     "plugins/native/goals/src/page/factories.ts",
     "plugins/native/goals/src/page/surfaces.ts",
-    "apps/workbench/src/scripts/client/events-accessibility.ts",
+    "plugins/native/goals/src/browser/page.ts",
   ].map(file => read(file) + (file === "apps/workbench/src/index.ts" ? read("apps/workbench/src/ui-composition.ts") : ""));
   const pageDirectory = path.join(repositoryRoot, "plugins/native/goals/src/page");
   const pageSources = fs.readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => fs.readFileSync(path.join(pageDirectory, name), "utf8")).join("\n");

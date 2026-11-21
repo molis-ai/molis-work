@@ -98,9 +98,6 @@ if (isMain) {
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
-    if (mcpStartup) {
-      server.once("error", error => { reportMcpWebStartupFailure(error); shutdown(); });
-    }
     const listenWithRetry = async (preferred: number, allowFallback: boolean): Promise<number> => {
       const candidates = allowFallback
         ? [preferred, ...HOST_CANDIDATE_PORTS.filter(candidate => candidate !== preferred)]
@@ -132,6 +129,7 @@ if (isMain) {
     };
     const listeningPort = await listenWithRetry(port, explicitPort === undefined);
     if (mcpStartup) {
+      server.once("error", error => { reportMcpWebStartupFailure(error); shutdown(); });
       stopStartupWatch = watchMcpWebStartup(path.resolve(homeArgument!), `http://127.0.0.1:${listeningPort}`, shutdown);
       finishMcpWebStartup();
     }

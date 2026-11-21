@@ -199,7 +199,10 @@ function installLists({ line, counts, lists, body, sources, heading }: ListParts
     if (!path.includes(lists) && !target?.closest("[data-work-list]")) show("");
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !event.defaultPrevented && open && !document.querySelector("dialog[open]")) { event.preventDefault(); show("", true); }
+    if (event.key === "Escape" && !event.defaultPrevented && open && !document.querySelector("dialog[open]")) {
+      event.preventDefault();
+      show("", true);
+    }
   });
   document.addEventListener("molis-work:place-changed", () => { if (open) show(""); });
   window.addEventListener("molis:surface-interaction", () => { if (open) show(""); });
@@ -262,7 +265,10 @@ function installStack({ line, counts, stack }: FootParts & { readonly stack: HTM
     if (line.hasAttribute("data-stack-open") && !path.includes(stack) && !target?.closest("[data-work-stack-toggle]")) close();
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !event.defaultPrevented && line.hasAttribute("data-stack-open") && !document.querySelector("dialog[open]")) { event.preventDefault(); close(true); }
+    if (event.key === "Escape" && !event.defaultPrevented && line.hasAttribute("data-stack-open") && !document.querySelector("dialog[open]")) {
+      event.preventDefault();
+      close(true);
+    }
   });
   document.addEventListener("molis-work:place-changed", () => close());
   window.addEventListener("molis:surface-interaction", () => close());
@@ -322,7 +328,12 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   };
   const cardStack = installStack({ line, counts, stack }, { waiting: waitingEvents, card: cardOf, closeLists: list.close });
 
-  const adopt = (result: WorkLineReadResult) => { const before = events; events = new Map(result.events.map(event => [event.id, event])); issues = result.issues; return before; };
+  const adopt = (result: WorkLineReadResult) => {
+    const before = events;
+    events = new Map(result.events.map(event => [event.id, event]));
+    issues = result.issues;
+    return before;
+  };
   const draw = (result: WorkLineReadResult, before = adopt(result)): boolean => {
     // The same events in the same states are the same lists: nothing is redrawn, so a press or a scroll under way is not lost.
     const drawn = JSON.stringify([result.events.map(event => [event.id, event.title, event.summary, event.wing, event.rank, stateOf(event), event.tasks.running, event.tasks.waiting, Boolean(event.suggestion)]), result.issues.map(issue => issue.title)]);
@@ -340,11 +351,25 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
 
   // The tasks this page heard wait on the person, by task and decision (WLN-06): the row stays, folded, once the task no longer waits.
   const asked = new Map<string, { at: string; provider: string; title: string; event: WorkLineEvent; settled: boolean }>();
-  const panel = installTaskPanel(host, { events: () => events.values(), press, keyOf, hue, again, request, repaint: () => { cards.paint(); list.draw(); cardStack.paint(); }, acceptance: (slot, target) => acceptance.overview(slot, () => [target]) });
+  const panel = installTaskPanel(host, {
+    events: () => events.values(), press, keyOf, hue, again, request,
+    repaint: () => {
+      cards.paint();
+      list.draw();
+      cardStack.paint();
+    },
+    acceptance: (slot, target) => acceptance.overview(slot, () => [target]),
+  });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
   // Requirements hang on the event's own object or on the tasks done for it; the card asks about both.
-  const acceptance = installAcceptance(host.route, request, open => { if (open) { list.close(); cardStack.close(); } host.dialog?.(open); });
+  const acceptance = installAcceptance(host.route, request, open => {
+    if (open) {
+      list.close();
+      cardStack.close();
+    }
+    host.dialog?.(open);
+  });
   const cards = installEventCards(host, { event: eventOf, keyOf, press, rows: panel.rows, decisions: panel.decisions,
     acceptance: (slot, subject) => acceptance.overview(slot, () => { const event = eventOf(subject); return [...(event ? [{ provider_id: event.source.provider_id, subject }] : []), ...panel.subjects(subject)]; }),
     // Who registered it, then how it stands: the owner's own line about it, or that it waits for the person.
@@ -373,8 +398,13 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const { line: read, tasks: table, started } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null; started: number }>).detail;
     const before = read ? adopt(read) : events, tasksChanged = table ? panel.take(table, started) : false, lineDrawn = read ? draw(read, before) : false;
     if (read) { checking(null); knownAt = new Date().toISOString(); try { sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: read })); } catch { /* a convenience of this tab */ } }
-    if (tasksChanged && !lineDrawn) { list.draw(); cardStack.paint(); }
-    panel.offline(null); cards.paint(); acceptance.refresh();
+    if (tasksChanged && !lineDrawn) {
+      list.draw();
+      cardStack.paint();
+    }
+    panel.offline(null);
+    cards.paint();
+    acceptance.refresh();
   });
   // Not heard: what is shown stays, said to be as of the last read; nothing is redone or restarted from here (WLN-05, WLN-29).
   document.addEventListener("molis-work:attention-unreachable", event => {

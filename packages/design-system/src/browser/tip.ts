@@ -127,8 +127,11 @@ document.addEventListener("pointerdown", (event) => {
   const at = event.target as Element;
   held = window.setTimeout(() => show(node, at), HOLD_MS);
   const finish = () => {
-    removeEventListener("pointermove", moved); removeEventListener("pointerup", finish); removeEventListener("pointercancel", finish);
-    if (owner === node) held = window.setTimeout(hide, 1500); else clearTimeout(held);
+    removeEventListener("pointermove", moved);
+    removeEventListener("pointerup", finish);
+    removeEventListener("pointercancel", finish);
+    if (owner === node) held = window.setTimeout(hide, 1500);
+    else clearTimeout(held);
   };
   addEventListener("pointerup", finish, { once: true });
   addEventListener("pointercancel", finish, { once: true });

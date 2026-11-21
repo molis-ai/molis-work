@@ -340,7 +340,10 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
     if (r.ticket !== token || id !== ports.current()) return;
     if (targetPath && result.change.files[r.index]?.path !== targetPath) {
       const matched = result.change.files.findIndex(file => file.path === targetPath);
-      if (matched >= 0 && matched !== r.index) { await open(r, nextRun, false, matched, requireFixed, mode); return; }
+      if (matched >= 0 && matched !== r.index) {
+        await open(r, nextRun, false, matched, requireFixed, mode);
+        return;
+      }
     }
     r.value = result;
     ports.onRead?.(nextRun, result.change.files, result.net_groups || []);

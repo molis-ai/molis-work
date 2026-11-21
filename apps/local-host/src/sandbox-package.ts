@@ -243,7 +243,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   if (contract.presentation !== undefined) refuse('集成包的合同不能声明对象呈现');
   const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
   for (const operation of contract.operations) {
-    if (operation.read_protocol !== undefined || operation.external !== undefined) refuse('集成包的操作不能声明对象读取协议或外发标记');
+    if (operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.external !== undefined) refuse('集成包的操作不能声明平台协议或外发标记');
     const entry = ids.find(([, id]) => id === operation.id) ?? refuse('合同里有平台之外的操作：' + operation.id);
     const fixed = SANDBOX_INTEGRATION_CONTRACT[entry[0] as keyof typeof SANDBOX_INTEGRATION_OPERATIONS];
     for (const field of ['kind', 'input', 'output', 'effects'] as const) {

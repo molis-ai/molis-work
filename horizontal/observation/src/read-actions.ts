@@ -28,7 +28,7 @@ import {
   recordsProjectFilter,
 } from "./access.js";
 import { classifyCoverageKind, classifyRecordKind, classifyScopeGroup } from "./classification.js";
-import { OBSERVATION_COVERAGE_PLAN } from "./coverage-plan.js";
+import { OBSERVATION_COVERAGE_PLAN, type CoveragePlanEntry } from "./coverage-plan.js";
 import { observationErrors } from "./errors.js";
 import { snapshotText } from "./evidence.js";
 import type { ObservationKeys } from "./keys.js";
@@ -135,6 +135,8 @@ function toObservationRecord(row: StoredRecordRow): ObservationRecord {
 export interface ReadActionDeps {
   readonly env: ObservationEnvironment;
   readonly writer: ObservationWriter;
+  readonly extraCoverage?: readonly CoveragePlanEntry[];
+  readonly flowOwners?: ReadonlySet<string>;
 }
 
 /**
@@ -246,7 +248,7 @@ export async function handleRecordsQuery(
           source_class: row.source_class,
           provider_id: row.provider_id,
           ...(operation ? { operation } : {}),
-        });
+        }, deps.flowOwners);
         const lagLate = Date.parse(row.received_at) - Date.parse(row.occurred_at) > LATE_ARRIVAL_LAG_MS;
         const outOfOrderLate = maxSeenOccurredAt !== null && row.occurred_at < maxSeenOccurredAt;
         if (maxSeenOccurredAt === null || row.occurred_at > maxSeenOccurredAt) maxSeenOccurredAt = row.occurred_at;
@@ -366,6 +368,8 @@ function mergeCoverageEntries(
   currentPlatformVersion: string,
   baselineSince: string,
   defaultProjectId: string,
+  extraCoverage: readonly CoveragePlanEntry[] = [],
+  flowOwners?: ReadonlySet<string>,
 ): ObservationCoverageEntryView[] {
   const seenKeys = new Set<string>();
   const entries: ObservationCoverageEntryView[] = [];
@@ -377,8 +381,8 @@ function mergeCoverageEntries(
       fact: row.fact,
       entry: row.entry,
       project_id: row.project_id,
-      kind: classifyCoverageKind(row.owner, row.fact, row.entry),
-      scope_group: classifyScopeGroup(row.owner, row.entry),
+      kind: classifyCoverageKind(row.owner, row.fact, row.entry, flowOwners),
+      scope_group: classifyScopeGroup(row.owner, row.entry, flowOwners),
       state: row.state,
       since: row.since,
       since_version: row.since_version,
@@ -391,7 +395,7 @@ function mergeCoverageEntries(
   }
 
   if (platformVersionFilter === undefined || platformVersionFilter === currentPlatformVersion) {
-    for (const plan of OBSERVATION_COVERAGE_PLAN) {
+    for (const plan of [...OBSERVATION_COVERAGE_PLAN, ...extraCoverage]) {
       for (const entry of plan.entries) {
         const key = `${plan.owner}\u0000${plan.fact}\u0000${entry}`;
         if (seenKeys.has(key)) continue;
@@ -400,8 +404,8 @@ function mergeCoverageEntries(
           fact: plan.fact,
           entry,
           project_id: defaultProjectId,
-          kind: classifyCoverageKind(plan.owner, plan.fact, entry),
-          scope_group: classifyScopeGroup(plan.owner, entry),
+          kind: classifyCoverageKind(plan.owner, plan.fact, entry, flowOwners),
+          scope_group: classifyScopeGroup(plan.owner, entry, flowOwners),
           state: plan.state,
           since: baselineSince,
           since_version: currentPlatformVersion,
@@ -459,6 +463,8 @@ export async function handleCoverageGet(
     deps.env.platformVersion,
     baselineSince,
     defaultProjectId,
+    deps.extraCoverage,
+    deps.flowOwners,
   );
 
   const gapWhere: string[] = [];
@@ -482,8 +488,8 @@ export async function handleCoverageGet(
     fact: row.fact,
     entry: row.entry,
     project_id: row.project_id,
-    kind: classifyCoverageKind(row.owner, row.fact, row.entry),
-    scope_group: classifyScopeGroup(row.owner, row.entry),
+    kind: classifyCoverageKind(row.owner, row.fact, row.entry, deps.flowOwners),
+    scope_group: classifyScopeGroup(row.owner, row.entry, deps.flowOwners),
     state: row.state,
     started_at: row.started_at,
     ended_at: row.ended_at,

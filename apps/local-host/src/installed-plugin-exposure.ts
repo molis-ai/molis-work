@@ -10,7 +10,8 @@ import { operationGrantAvailability } from './installed-permission-projection.js
 import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 interface ExposurePorts {
-  actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
+  actions: Parameters<typeof exposeInstalledPlugin>[0];
+  platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'> & Partial<Pick<PluginPlatform, 'dualHomeRunning' | 'effectiveGrants'>>;
   exposed: Map<string, InstalledPluginActions>; recoveryErrors: RecoveryErrors;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   closed(): boolean; withdraw(pluginId: string): void; changed(): void; catalog(): Promise<unknown>;
@@ -33,7 +34,8 @@ export function installedPluginExposure(c: ExposurePorts) {
       const now = c.recordFor(pluginId);
       return !c.closed() && c.exposed.get(pluginId) === exposure && c.platform.supervisor.generation(pluginId) === epoch
         && now?.install_id === record.install_id && now.installation_generation === record.installation_generation
-        && now.version === record.version && now.manifest_digest === record.manifest_digest && now.state === 'running';
+        && now.version === record.version && now.manifest_digest === record.manifest_digest && now.state === 'running'
+        && (!c.platform.dualHomeRunning || c.platform.dualHomeRunning(now));
     };
     try {
       const registered = followInstalledActions(c.actions, record, release);
@@ -45,8 +47,12 @@ export function installedPluginExposure(c: ExposurePorts) {
           ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
       },
         () => ready && current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation },
-        // Read at each call: a permission switch restarts the activation but keeps this exposure (BL-701).
-        id => operationGrantAvailability(release.design.contract, id, c.recordFor(pluginId)?.grants ?? []) ?? { available: true });
+        // Read at each call: a permission switch or Home S-48 ceiling change updates effective grants immediately (BL-701, PEQ-06).
+        id => {
+          const now = c.recordFor(pluginId);
+          const grants = now ? (c.platform.effectiveGrants ? c.platform.effectiveGrants(now) : now.grants) : [];
+          return operationGrantAvailability(release.design.contract, id, grants) ?? { available: true };
+        });
       const refresh = exposure.refresh;
       if (control) exposure.refresh = policies => {
         try { check(); } catch {

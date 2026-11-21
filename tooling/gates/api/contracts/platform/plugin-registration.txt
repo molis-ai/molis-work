@@ -162,9 +162,27 @@ export type PluginDistributionVerifier = (release: {
     publisherKeyId: string;
 }, signedPackage: unknown, files: ReadonlyMap<string, Uint8Array>) => void;
 
+export interface PluginManagementActionDeclaration {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly refused_identity_fields?: readonly string[];
+}
+
+export interface PluginObservationCoverageDeclaration {
+    readonly fact: string;
+    readonly entries: readonly ("plugin" | "workbench" | "cli" | "mcp" | "agent" | "workflow" | "schedule" | "background" | "host" | "desktop")[];
+    readonly state: "complete" | "not_connected" | "unavailable" | "not_applicable" | "by_rule";
+    readonly reason?: string;
+    readonly record_kind?: "flow" | "content";
+}
+
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
     readonly approval_outcomes?: PluginApprovalOutcomesBinding;
+    readonly observation?: {
+        readonly coverage?: readonly PluginObservationCoverageDeclaration[];
+    };
+    readonly management_actions?: readonly PluginManagementActionDeclaration[];
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;

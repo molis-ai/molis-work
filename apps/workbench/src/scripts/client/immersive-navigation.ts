@@ -88,7 +88,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     viewChosenAt = Date.now();
     if (Date.now() - workRequestedAt < 3000) { workRequestedAt = 0; setView("work", true); }
     else setView(saved.view || (hasTerminalSession() ? "work" : "document"));
-    document.dispatchEvent(new CustomEvent("molis-work:work-mode-changed", { detail: { goalId, mode: workMode } }));
   };
   let viewChosenAt = 0;
   // 打开工作区 on a Goal's frame asks for its work area: the Goal opens in its terminal, and that is remembered as its view.

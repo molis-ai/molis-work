@@ -98,6 +98,7 @@ function developmentRig(directory: string, failure?: "start" | "stop") {
     const repository = new SqlitePluginRuntimeRepository(store.db), privateStorage = new SqlitePluginPrivateStorage(store.db);
     const actions = pluginActions(store, DEMO_PROJECT_ID), ui = new UiHost();
     const options = { project_id: DEMO_PROJECT_ID, actor_id: "local-plugin-developer", repository, ...versions, actions, ui,
+      projectLibrary: { db: store.db, path: file },
       privateStorageFor: (context, declaration) => privateStorage.forPlugin(context, declaration),
       deleteInstallationData: (id: string) => privateStorage.deleteInstallationData(id) } satisfies Parameters<typeof runPluginDevelopment>[1];
     const input = { directory: sample, project_id: DEMO_PROJECT_ID, grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true as const };

@@ -418,7 +418,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const result = row.querySelector('[data-connection-result]'), name = old.dataset.connectionName || '';
         // Coding's MCP settings do not report their usages yet (BL-1050), so what the page counts is never all there is.
         const coding = mcp ? [globalThis.t.text("workbench.connectors-settings.coding-s-mcp-settings-can-t-be-checked", { name })] : [];
-        const link = () => mcp ? panel.querySelector('[data-connector-next-link][href^="/settings/coding-settings"]')?.cloneNode(true) : null;
+        const link = () => mcp ? panel.querySelector('[data-connector-next-link][data-connector-next-kind="mcp-tools"]')?.cloneNode(true) : null;
         let shown, left = 0;
         const controls = nodes => {
           shown = nodes; const actions = make('div'); actions.className = 'settings-connector-actions';

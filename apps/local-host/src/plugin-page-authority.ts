@@ -335,7 +335,7 @@ export class PluginPageAuthority {
       page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     check();
-    return { install_id: page.activation.install_id, project_id: page.project_id, actor_id: page.activation.actor_id,
+    return { install_id: page.activation.install_id, plugin_id: page.activation.manifest.plugin_id, project_id: page.project_id, actor_id: page.activation.actor_id,
       async assertCurrent() { check(); await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; } };
   }
 

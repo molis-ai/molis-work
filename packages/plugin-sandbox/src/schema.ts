@@ -1,6 +1,6 @@
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { compileActionSchema } from '@molis-ai/molis-work-kernel';
-import { sandboxReadProtocolAction } from '@molis-ai/molis-work-plugin-sdk/presentation';
+import { sandboxActionProtocolAction, sandboxReadProtocolAction } from '@molis-ai/molis-work-plugin-sdk/presentation';
 import { assertSandboxJson, assertSandboxMatches, assertSandboxSchema, sandboxBackgroundProblems, sandboxLocaleProblems, sandboxStartProblems, type SandboxSchemaFailure } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
@@ -50,20 +50,24 @@ export function assertEffects(effects: unknown): asserts effects is SandboxEffec
 type OperationValidator = (side: 'input' | 'output', value: unknown, checkBytes?: () => void) => void;
 
 function operationValidator(operation: SandboxOperationContract): OperationValidator {
-  if (operation.read_protocol === undefined) {
+  if (operation.read_protocol === undefined && operation.action_protocol === undefined) {
     assertSchema(operation.input);
     assertSchema(operation.output);
     return (side, value, checkBytes) => { assertMatches(operation[side], value); checkBytes?.(); };
   }
   const definition = (() => {
-    try { return sandboxReadProtocolAction(operation); }
-    catch (error) { throw new SandboxError('sandbox.invalid_contract', error instanceof Error ? error.message : 'Invalid read_protocol'); }
+    try {
+      return operation.read_protocol !== undefined
+        ? sandboxReadProtocolAction(operation)
+        : sandboxActionProtocolAction(operation);
+    }
+    catch (error) { throw new SandboxError('sandbox.invalid_contract', error instanceof Error ? error.message : 'Invalid operation protocol'); }
   })();
   const validators = { input: compileActionSchema(definition.action.input_schema), output: compileActionSchema(definition.action.output_schema!) };
   return (side, value, checkBytes) => {
     assertJson(value);
     checkBytes?.();
-    if (!validators[side](value)) throw new SandboxError('sandbox.schema_mismatch', `Value does not match the fixed read protocol ${side}`);
+    if (!validators[side](value)) throw new SandboxError('sandbox.schema_mismatch', `Value does not match the fixed protocol ${side}`);
   };
 }
 

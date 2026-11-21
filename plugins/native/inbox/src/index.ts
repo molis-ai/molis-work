@@ -1,4 +1,5 @@
 export * from "./ui.js";
+export { INBOX_STYLES } from "./styles.js";
 export * from "./projection.js";
 export * from "./routes.js";
 export { inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers } from "./actions.js";

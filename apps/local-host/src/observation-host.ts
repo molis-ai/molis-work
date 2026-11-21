@@ -12,10 +12,11 @@ import {
 import type { LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { OBSERVATION_PROVIDER_ID, observationActions, type ObservationService } from "@molis-ai/molis-work-contracts/services/observation";
 import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
-import { ObservationLayer, observationKeys, purgeObservationPluginFile, type ObservationEnvironment, type PluginPurge } from "@molis-ai/molis-work-service-observation";
+import { ObservationLayer, observationKeys, purgeObservationPluginFile, type CoveragePlanEntry, type ObservationEnvironment, type PluginPurge } from "@molis-ai/molis-work-service-observation";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { hostLog } from "./host-log.js";
 import { isRegenerableDemo } from "./plugin-demo-seed.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { OBSERVATION_OWNER } from "./project-deleted-owners.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -183,7 +184,22 @@ export function createHostObservation(home: string, ports: HostObservationPorts 
   };
   const secrets = createLazyFileSecretStore(home);
   const automaticSecrets = createLazyFileSecretStore(home, { keychain: "cached" });
-  const layer = new ObservationLayer({ home, env, keys: hasEvidence => {
+  const extraCoverage: CoveragePlanEntry[] = [];
+  const flowOwners = new Set<string>();
+  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
+    for (const entry of registration.observation?.coverage ?? []) {
+      extraCoverage.push({
+        owner: `plugin:${registration.manifest.plugin_id}`,
+        fact: entry.fact,
+        entries: entry.entries,
+        state: entry.state,
+        ...(entry.reason ? { reason: entry.reason } : {}),
+        ...(entry.record_kind ? { record_kind: entry.record_kind } : {}),
+      });
+      if (entry.record_kind === "flow") flowOwners.add(registration.manifest.plugin_id);
+    }
+  }
+  const layer = new ObservationLayer({ home, env, extraCoverage, flowOwners, keys: hasEvidence => {
     const automatic = observationKeys(automaticSecrets, hasEvidence), explicit = observationKeys(secrets, hasEvidence);
     // Recording must not ask to unlock unrelated credentials. Explicit evidence reads retain the original access path.
     return { digest: automatic.digest, seal: automatic.seal, open: explicit.open };

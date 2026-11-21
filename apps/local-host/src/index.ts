@@ -213,7 +213,7 @@ export type { IntegrationProviderFactory } from "./integration-providers.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
-export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
+export { createLocalArtifactHttp, renderProjectArtifactContext } from "./artifact-library-http.js";
 
 export * from "./onboarding.js";
 
@@ -262,7 +262,7 @@ export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopme
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 export { readProjectReference } from "./project-file-reference.js";
-export { createLocalGoalsReadHttp, createLocalProjectPagesHttp } from "./web-project-pages.js";
+export { createLocalProjectPagesHttp } from "./web-project-pages.js";
 export { createLocalWebCoreFactory, createLocalWebServerFactory } from "./web-server.js";
 export type { WebServerOptions } from "./web-types.js";
 export type { LocalWebPlatform } from "./web-composition.js";
@@ -422,7 +422,7 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindGoalsManagementActions } from "./goal-callers.js";
+export { bindManagementActions, bindGoalsManagementActions } from "./management-actions.js";
 export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 
@@ -431,7 +431,7 @@ export { builtinSyncBindings } from "./builtin-sync.js";
 export { personalRuntimeSyncAuthority } from "./personal-runtime-sync-authority.js";
 export { bindPersonalSpaceAuthority, assertPersonalSpaceAuthority } from "./personal-space-authority.js";
 export { pluginSyncAuthority, withPluginSyncAuthority } from "./plugin-sync-authority.js";
-export { createProjectGoalContent } from "./project-goal-content.js";
+export { createProjectChunkedContent } from "./project-chunked-content.js";
 
 // Trusted embedders compile declared baselines and bind their existing account/copy lease.
 export { pluginSyncDatabaseDeclaration, pluginSyncNamespace } from "./plugin-sync-database.js";

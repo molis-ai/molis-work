@@ -132,7 +132,7 @@ const selection = (): SurfaceFocus => ({ context_id: "ctx-wording", plugin_id: "
   object: { kind: "pages_document", id: "d1", version: 3, title: "计划" }, targets: [{ kind: "text_range", role: "paragraph", text: "我们认为主因是上手困难。" }] });
 
 const FROZEN_FIRST = "先看内容本身是什么：观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。";
-const FROZEN_SECOND = "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
+const FROZEN_SECOND = "再结合所在位置和当前对象，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。";
 const instructionsOf = (questions: Record<string, unknown>, which: "next" | "surface") => (questions[which] as { instructions: string }).instructions;
 
 test("over HTTP: what the person saved in 设置 › 提示词 for the selection bar is what Jev is asked, the default is asked before, and a restored default again", { timeout: 60_000 }, async t => {

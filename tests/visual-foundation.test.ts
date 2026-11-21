@@ -590,8 +590,12 @@ test("RAC-372 the generated-plugin renderer is sent to the page as one factory m
 });
 
 test("inbox detail title uses full detail width and avoids hard-coded workbench font sizes", () => {
-  const sheet = renderMolisWorkWorkbenchStylesheet();
-  assert.match(sheet, /\[data-inbox-workbench\] \.inbox-reference-detail > \.feed-detail-header h1 \{ width: 100%; max-width: none; \}/);
+  const shared = renderMolisWorkWorkbenchStylesheet();
+  assert.doesNotMatch(shared, /\[data-inbox-workbench\]/, "Inbox-only rules load on demand in /assets/molis-work-plugins/inbox.css");
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
+  assert.match(withPlugins, /\[data-inbox-workbench\] \.inbox-reference-detail > \.feed-detail-header h1 \{ width: 100%; max-width: none; \}/);
   const detailReading = readFileSync(new URL("../apps/workbench/src/styles/detail-reading.ts", import.meta.url), "utf8");
   assert.doesNotMatch(detailReading, /\[data-inbox-workbench\][^{]*font-size/);
+  const inboxStyles = readFileSync(new URL("../plugins/native/inbox/src/styles.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(inboxStyles, /\[data-inbox-workbench\][^{]*font-size/);
 });

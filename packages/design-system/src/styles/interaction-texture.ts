@@ -86,7 +86,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .plugin-stage-chrome .tree-create svg { color: var(--plugin-tint, var(--muted)); }
 
   /* Directory rows: press feedback, and a current row that reads as selected, not merely hovered. */
-  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .feed-list-item, .source-list-item, .mw-dir-row):active {
+  body.immersive-workbench .tree-pane :is(.tree-entry, .desktop-module-item, .source-list-item, .mw-dir-row):active {
     background: var(--nav-press);
   }
   body.immersive-workbench .immersive-workspace .tree-pane .directory-list-row.is-selected {
@@ -166,35 +166,12 @@ export const INTERACTION_TEXTURE_STYLES = `
     letter-spacing: 0;
   }
   .goal-status svg {  flex: none; }
-  .goal-status--continue,
-  .goal-status--execution_pending { --goal-status-tone: var(--tone-idle); }
-  .goal-status--clarifying,
-  .goal-status--executing,
-  .goal-status--reviewing,
-  .goal-status--revalidating,
   .goal-status--in_progress { --goal-status-tone: var(--tone-progress); }
-  .goal-status--clarification_pending,
-  .goal-status--clarification_decision_pending,
-  .goal-status--compound_closure_pending,
-  .goal-status--completion_pending,
-  .goal-status--review_pending,
-  .goal-status--waiting_for_human,
-  .goal-status--revalidation_pending,
   .goal-status--waiting_user { --goal-status-tone: var(--tone-attention); }
-  .goal-status--waiting_children,
   .goal-status--waiting { --goal-status-tone: var(--tone-hold); }
-  .goal-status--clarification_blocked,
-  .goal-status--execution_blocked,
-  .goal-status--completion_blocked,
-  .goal-status--review_blocked,
-  .goal-status--revalidation_blocked,
-  .goal-status--invalidated,
   .goal-status--blocked { --goal-status-tone: var(--tone-blocked); }
-  .goal-status--satisfied,
   .goal-status--completed { --goal-status-tone: var(--tone-done); }
-  .goal-status--trashed,
-  .goal-status--archived,
-  .goal-status--replaced { --goal-status-tone: var(--tone-quiet); }
+  .goal-status--archived { --goal-status-tone: var(--tone-quiet); }
 
   .mw-dir-row[data-settings-section="appearance"] { --plugin-tint: var(--tone-attention); }
   .mw-dir-row[data-settings-section="runtimes"] { --plugin-tint: var(--tone-progress); }

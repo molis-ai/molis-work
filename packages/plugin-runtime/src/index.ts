@@ -106,7 +106,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   private permissionBound(record: PluginInstanceRecord, definition: PluginDefinition, permission: string): (() => void) | undefined {
-    return definition.manifest.permissions.some(item => item.permission === permission && item.required === false)
+    return grantCeiling(this.options, definition).permissions.some(item => item.permission === permission && item.required === false)
       ? this.options.permissionBound?.(record, definition)?.(permission) : undefined;
   }
 

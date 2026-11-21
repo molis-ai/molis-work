@@ -41,7 +41,7 @@ export function createBackgroundLane(options: { contract: SandboxPluginContract;
   return {
     check(operationId, input) {
       const operation = operations.get(operationId);
-      if (!operation || operation.kind !== 'command') throw new SandboxError('sandbox.invalid_request', `${operationId} is not a command of this package`);
+      if (!operation || operation.kind !== 'command' || operation.action_protocol !== undefined) throw new SandboxError('sandbox.invalid_request', `${operationId} is not a command of this package`);
       assertMatches(operation.input, input);
     },
     async run(operationId, input, control) {

@@ -2,7 +2,7 @@
 
 ## 白话说明
 
-DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 通过宿主构造的管理动作端口；命令行（`molis-work v1`）不再经 Host Client 的 typed 能力，由 Host 造一个管理调用者（`apps/local-host/src/goal-callers.ts` 的 `bindGoalsManagementActions`：本机这个人、出处 management、一次一个 Goals 动作），每条命令调 Goals 的一个动作（W3-07 PR-3，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Available+projection、trash+work state、planning methods+composition 分别是一个 Host 组合操作，避免异步迁移拆开原有一致性。初始化、快照、恢复事实、回收站等行为归官方 Goals Plugin 的动作实现；公共输入输出合同归 contracts，由 owner 使用。Host 注册动作提供方，不再登记这些 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
+DV1 的项目命令不再从 `withProject` 拿 Coordinator 或 availability：管理 MCP 与命令行（`molis-work v1`）通过宿主构造的受保护审阅管理动作端口（`apps/local-host/src/management-actions.ts` 的 `bindManagementActions`，本机这个人、出处 management，仅放行平台审批动作 `project.approvals.request.read@1` 与 `project.approvals.request.decide@1`；原 `goal-callers.ts` 与 CLI 写死的 7 个 Goals 命令已于第 44 批删除，链路见 `docs/system/CALL-CHAINS.md` 链 8），所以一条命令在调用记录里只留一行动作记录，不再另有 typed 能力的一行。`withScope` 只保持打开 Runtime 到响应完成的资源周期，不暴露 Store，也不把整个 callback 放进串行队列；内部具名 invoke 仍按原队列执行。Host 注册动作提供方，不再登记已退役的 Goals typed 桥。DV1 已通过复核；逐项证据见 `specs/molis-work-architecture-reorganization/dv1-validation.md`。
 
 Goals 的项目初始化、Goal 创建、说明、结构提案与事件决定统一消费 Goals owner 的动作；Coding 的目录、约定、状态、进展与回执按动作 id 和版本调用 Goals 的五个插件动作（Goals 的合同在 `plugins/native/goals/src/contract/`，Coding 就地声明用到的字段，PG-111），原四个 typed 依赖已删除；四项受限读写要求宿主当前运行且声明消费的内置实例，生成插件仍被拒绝。网页与管理 CLI/MCP 从真实调用上下文取得各自权限，不另留管理 typed 桥。管理决定的操作者固定为本机这个人，输入里的身份与出处不授予权力；出处由受保护 Host 调用者构造。插件开发改走隔离 Host 的 `developInPrivateHost`，不登记 typed 开发能力。typed 通道已删（R8）；现存宿主内服务全部以动作登记，消费者与退场按防腐线 W3-07-PR-9 核对。
 
@@ -21,11 +21,11 @@ Local Host 是本地产品的“总装配间”。以前 Web、CLI、MCP 各自�
 
 ## 动作客户端与宿主内服务
 
-对外业务入口使用 `ActionClient` 调用 owner 的动作。CLI 与管理 MCP 经 `bindGoalsManagementActions` 获取一次调用的可信管理身份；当前 Home 已登记且连接的项目交给常驻宿主，明确拒绝、取消或结果未知时不回退。未连接或未登记项目保留进程内执行。网页从其受保护入口构造本机用户身份。
+对外业务入口使用 `ActionClient` 调用 owner 的动作。CLI 与管理 MCP 经受保护的平台审批管理端口获取一次调用的可信管理身份（`project.approvals.request.read@1` 与 `project.approvals.request.decide@1`）；当前 Home 已登记且连接的项目交给常驻宿主，明确拒绝、取消或结果未知时不回退。未连接或未登记项目保留进程内执行。网页从其受保护入口构造本机用户身份。
 
 `MolisWorkLocalHost.withProject` 是宿主装配的私有资源端口，复用同一 Runtime；它不授予业务调用权。`LocalHostProjectClient.invoke` 保留给 Agent、调度与工作区等宿主内服务，不能恢复已退役的 Goals 协议。`tests/typed-registry-inventory.test.ts` 对照完整装配和无工作区装配，断言装配的 Host 不登记 typed 条目；健康门禁继续禁止新增 typed 定义与注册。
 
-完整 Goal Contract、项目说明和 active-goal 由宿主调用 Goals 原动作。项目事件决定和目标树批准先经 `POST /api/project-approvals/request` 读取原对象版本，再经 `POST /api/project-approvals/decide` 交给原动作。管理 CLI `review-request`／`review-decide` 和管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 使用同一个决定服务。入口固定本人、项目和操作出处，事务核对原审批规则和业务版本。平台保存决定，Goals 写入同一事务的原业务结果。
+项目说明（项目指导）已归平台项目服务（`modules/projects`，`projects.guidance.*@1`），不依赖 Goals；任何插件声明需要可信决定的动作（含 Goals 事件决定、目标树批准与第三方插件动作）统一先经 `POST /api/project-approvals/request` 读取原对象版本，再经 `POST /api/project-approvals/decide` 交给原动作。管理 CLI `review-request`／`review-decide` 和管理 MCP `molis_work_v1_review_request`／`molis_work_v1_review_decide` 使用同一个决定服务。入口固定本人、项目和操作出处，事务核对原审批规则和业务版本。平台保存决定，对应动作主人写入同一事务的原业务结果。
 
 ### 现存宿主内服务与生产消费者
 

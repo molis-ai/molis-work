@@ -483,7 +483,7 @@
                 "surface": {
                   "type": "string",
                   "minLength": 1,
-                  "pattern": "^[a-zA-Z0-9_-]+$"
+                  "pattern": "^[a-zA-Z0-9_.-]+$"
                 },
                 "id": {
                   "type": "string",
@@ -1366,6 +1366,7 @@
           ]
         },
         "scope": "project",
+        "scheduling": "concurrent",
         "kind": "query"
       }
     },
@@ -1409,6 +1410,7 @@
           "additionalProperties": false
         },
         "scope": "project",
+        "scheduling": "concurrent",
         "kind": "operation"
       }
     },
@@ -1974,6 +1976,15 @@
       }
     }
   ],
+  "databases": {
+    "project": {
+      "store_name": "sample-notes",
+      "version": 1,
+      "schema": "CREATE TABLE sample_notes_state (id INTEGER PRIMARY KEY CHECK (id = 1), revision INTEGER NOT NULL DEFAULT 0, notes_json TEXT NOT NULL DEFAULT '[]');",
+      "read_permission": "storage:private",
+      "write_permission": "storage:private"
+    }
+  },
   "work_terminals": [
     {
       "subject_kind": "sample_note",

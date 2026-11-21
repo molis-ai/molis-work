@@ -1,6 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+import type { DynamicPluginSettingsNavItem } from "./settings-view.js";
 
 /**
  * The one list of global settings categories. The independent settings page and the settings cover in the
@@ -61,10 +62,18 @@ export function hostSettingsSectionLabel(id: string): string | undefined {
 const PLUGIN_GROUP = "workbench.settings-sections.plugins";
 const HOST_ORDER_END = 100;
 
-function globalSettingsSections(shown: readonly string[] | undefined, desktop: boolean): GlobalSettingsSection[] {
+function globalSettingsSections(
+  shown: readonly string[] | undefined,
+  desktop: boolean,
+  dynamicPlugins: readonly DynamicPluginSettingsNavItem[] = [],
+): GlobalSettingsSection[] {
+  const builtinPluginNav = listPluginSettingsNavItems(shown);
+  const coveredPluginIds = new Set(builtinPluginNav.map(item => item.plugin_id));
+  const coveredSectionIds = new Set([...HOST_SECTIONS.map(item => item.id), ...builtinPluginNav.map(item => item.section_id)]);
+  const dynamicNav = dynamicPlugins.filter(item => !coveredPluginIds.has(item.plugin_id) && !coveredSectionIds.has(item.section_id));
   const placed = [
     ...HOST_SECTIONS.filter(section => desktop || !section.desktop).map((section) => ({ ...section, kind: "host" as const, addressQuery: "", addressHash: "" })),
-    ...listPluginSettingsNavItems(shown).map((item) => ({
+    ...builtinPluginNav.map((item) => ({
       id: item.section_id,
       label: item.label,
       icon: item.icon as PluginIconName,
@@ -73,6 +82,16 @@ function globalSettingsSections(shown: readonly string[] | undefined, desktop: b
       kind: "plugin" as const,
       addressQuery: item.address.query,
       addressHash: item.address.hash,
+    })),
+    ...dynamicNav.map((item) => ({
+      id: item.section_id,
+      label: item.label,
+      icon: (item.icon ?? "settings") as PluginIconName,
+      order: Number.MAX_SAFE_INTEGER,
+      group: "",
+      kind: "plugin" as const,
+      addressQuery: "",
+      addressHash: "",
     })),
   ].sort((left, right) => left.order - right.order);
   let group = HOST_SECTIONS[0]!.group;
@@ -84,9 +103,13 @@ function globalSettingsSections(shown: readonly string[] | undefined, desktop: b
 }
 
 /** The same list, split where the group changes, for a navigation with group labels. */
-export function groupedGlobalSettingsSections(shown?: readonly string[], desktop = false): { group: string; sections: GlobalSettingsSection[] }[] {
+export function groupedGlobalSettingsSections(
+  shown?: readonly string[],
+  desktop = false,
+  dynamicPlugins: readonly DynamicPluginSettingsNavItem[] = [],
+): { group: string; sections: GlobalSettingsSection[] }[] {
   const groups: { group: string; sections: GlobalSettingsSection[] }[] = [];
-  for (const section of globalSettingsSections(shown, desktop)) {
+  for (const section of globalSettingsSections(shown, desktop, dynamicPlugins)) {
     const last = groups.at(-1);
     if (last?.group === section.group) last.sections.push(section);
     else groups.push({ group: section.group, sections: [section] });

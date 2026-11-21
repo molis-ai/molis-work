@@ -117,8 +117,8 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
       // Tests run against isolated mock services, so they may seed the store (e.g. to test a query with data).
       // The operation's real permissions are still enforced by the examples below and by G6.
       const seeding = { ...operation.effects, storage: ['read', 'write'] as Array<'read' | 'write'> };
-      const { read_protocol, ...testOperation } = operation;
-      void read_protocol;
+      const { read_protocol, action_protocol, ...testOperation } = operation;
+      void read_protocol; void action_protocol;
       const testContract: SandboxPluginContract = { ...options.contract, entities: [], pages: [], acceptance: [], operations: [{ ...testOperation, kind: 'command', effects: seeding, input: { type: 'null' }, output: { type: 'integer', minimum: 1 }, examples: [{ input: null, output: 1 }] }] };
       const runner = await startRunner({ ...options, grants: { ...options.grants, storage: ['read', 'write'] } }, testPath, testContract, mockHost(options.mockServices), `tests-${index}`);
       try { tests += await runner.call(operation.id, null) as number; } finally { await runner.stop(); }

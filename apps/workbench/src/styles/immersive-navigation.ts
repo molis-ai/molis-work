@@ -481,9 +481,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .plugin-market-list { grid-template-columns: 1fr; }
   }
 
-  body.immersive-workbench .feed-source-directory > header { justify-content: flex-end; height: 30px; }
-  body.immersive-workbench .feed-source-directory > header > strong { display: none; }
-
   body.immersive-workbench .navigation-labels-toggle {
     flex: none; align-self: stretch; margin: 0 4px; padding: 0 8px; min-height: 28px;
     color: var(--muted); justify-content: center; font-size: 12px;

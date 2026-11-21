@@ -358,7 +358,7 @@ jobs:
 
       # Plugin style budget (PG-070, RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts,
       # per plugin, the rule blocks still there although an on-demand sheet could carry them (the first slice's splitter, read
-      # from the build; Goals' document styles, which page-assets imports straight into the shared sheets). Every number only
+      # from the build across all registered plugins equally). Every number only
       # falls, and a plugin whose page runs in a frame must not appear at all. It is measured from the build the verify step
       # just made, so it comes after it. tooling/gates/plugin-styles.json is compared with the merge-base's copy, so a PR
       # cannot raise a number or add a plugin to the budget by editing that file, only by changing the gate, which is reviewed.

@@ -35,7 +35,7 @@ plugin-libraries/plugin-libraries.db	apps/local-host	1	3f1e077abbfc48cb	-
 plugin-originals/plugin-originals.db	apps/local-host	1	3ad6632f1b839415	-
 plugin-runtime/plugin-runtime.db	apps/local-host	1	e69c29d592801ef1	-
 ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
-projects/*/molis-work.db	apps/local-host	1	1aa01fa380885255	-
+projects/*/molis-work.db	apps/local-host	1	7957487bb66423a2	-
 projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
 projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-

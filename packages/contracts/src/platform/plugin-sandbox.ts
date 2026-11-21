@@ -120,6 +120,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
   input: SandboxSchema;
   output: SandboxSchema;
   read_protocol?: never;
+  action_protocol?: never;
   /** Only on a command. */
   start?: SandboxOperationStart;
   /** The package's own read-only review query and the kinds of objects it can review. */
@@ -138,12 +139,15 @@ export interface SandboxDataOperation extends SandboxOperationFields {
 
 export type SandboxReadProtocol = { kind: 'subject_context'; subject_kind: string }
   | { kind: 'presentation_values'; subject_kinds: readonly string[] }
-  | { kind: 'presentation_overview' };
+  | { kind: 'presentation_overview' }
+  | { kind: 'resume_summary'; subject_kinds: readonly string[] }
+  | { kind: 'work_terminal_prompt'; subject_kind: string };
 
 /** The fixed public action schemas are used verbatim, outside the ordinary sandbox schema subset. */
 export interface SandboxReadOperation extends SandboxOperationFields {
   kind: 'query';
   read_protocol: SandboxReadProtocol;
+  action_protocol?: never;
   input: ActionSchema;
   output: ActionSchema;
   background_job?: never;
@@ -151,9 +155,32 @@ export interface SandboxReadOperation extends SandboxOperationFields {
   start?: never;
 }
 
-export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation;
+/** Fixed platform action protocols whose operations may be queries or commands (`placement_relation` and `settings`). */
+export type SandboxActionProtocol =
+  | { kind: 'placement_relation'; relation: string; role: import("./placement.js").PlacementRelationRole; target?: import("./placement.js").PlacementRelationTarget; subject_kinds?: readonly string[] }
+  | { kind: 'settings'; role: 'read' | 'write' };
+
+export interface SandboxProtocolOperation extends SandboxOperationFields {
+  kind: 'query' | 'command';
+  action_protocol: SandboxActionProtocol;
+  read_protocol?: never;
+  input: ActionSchema;
+  output: ActionSchema;
+  background_job?: never;
+  trusted_review?: never;
+  start?: never;
+}
+
+export type SandboxOperationContract = SandboxDataOperation | SandboxReadOperation | SandboxProtocolOperation;
 /** A string is the author’s literal. Generated interface words carry a reference to the owner’s language pack. */
 export type SandboxVisibleText = string | TextRef;
+
+/** Sandbox contract settings declaration pointing to this contract's own `action_protocol: { kind: 'settings' }` operations. */
+export interface SandboxSettingsDeclaration {
+  readonly entries: import("./settings.js").SettingEntryDeclaration[];
+  readonly read_operation: string;
+  readonly write_operation: string;
+}
 
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
@@ -163,6 +190,7 @@ export interface SandboxPluginContract {
   ui?: { readonly locales: PluginLocalesDeclaration };
   operations: SandboxOperationContract[];
   presentation?: PresentationDeclaration;
+  settings_entries?: SandboxSettingsDeclaration;
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   pages: Array<{
     id: string;

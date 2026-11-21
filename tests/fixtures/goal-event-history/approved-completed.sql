@@ -591,7 +591,7 @@ CREATE TABLE acceptance_deliveries (
     round INTEGER NOT NULL,
     version TEXT NOT NULL,
     summary TEXT,
-    touches_json TEXT,
+    touches_json TEXT CHECK (touches_json IS NULL OR (json_valid(touches_json) AND json_type(touches_json) = 'array')),
     made_in_session TEXT,
     made_in_run TEXT,
     actor_id TEXT NOT NULL,
@@ -608,17 +608,18 @@ CREATE TABLE acceptance_checks (
     requirement_id TEXT NOT NULL,
     requirement_version INTEGER NOT NULL,
     round INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    verdict TEXT NOT NULL,
-    tier TEXT NOT NULL,
-    gap TEXT,
+    kind TEXT NOT NULL CHECK (kind IN ('engineering', 'hands_on')),
+    verdict TEXT NOT NULL CHECK (verdict IN ('supports', 'contradicts')),
+    tier TEXT NOT NULL CHECK (tier IN ('self_reported', 'peer_reviewed', 'machine_checked')),
+    gap TEXT CHECK (gap IS NULL OR gap IN ('evidence_missing', 'evidence_stale', 'wrong_object', 'evidence_unreadable', 'check_failed')),
     checked_version TEXT NOT NULL,
     method TEXT NOT NULL,
     observed TEXT NOT NULL,
-    evidence_json TEXT NOT NULL,
+    evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json) = 'array'),
     reporter_session TEXT,
     actor_id TEXT NOT NULL,
-    reported_at TEXT NOT NULL
+    reported_at TEXT NOT NULL,
+    CHECK (tier = 'self_reported' OR (gap IS NULL AND json_array_length(evidence_json) > 0 AND reporter_session IS NOT NULL AND length(trim(reporter_session)) > 0))
   );
 INSERT INTO acceptance_checks VALUES(1,'goal-check:080a315afb7a636c16fbaa249c2bc48c30b67681fd61d97e89d01ac3228fbc26',8,49,'MIXED-C1',1,1,'engineering','supports','self_reported',NULL,'goal-event:gevt-75b666e9-56d7-4929-b6d0-7474b5937be3','（Goals 的报告没有写核对方法）','（Goals 的报告没有写看到了什么）','[]',NULL,'mixed-runtime','2026-09-10T07:29:38.103Z');
 CREATE TABLE acceptance_decisions (
@@ -630,13 +631,14 @@ CREATE TABLE acceptance_decisions (
     requirement_version INTEGER NOT NULL,
     stands_round INTEGER NOT NULL,
     version TEXT NOT NULL,
-    decision TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK (decision IN ('accepted', 'returned')),
     note TEXT,
     origin TEXT NOT NULL CHECK (origin IN ('trusted_decision')),
     origin_ref TEXT NOT NULL,
     actor_id TEXT NOT NULL,
     decided_at TEXT NOT NULL,
-    UNIQUE (decision_id, requirement_id)
+    UNIQUE (decision_id, requirement_id),
+    CHECK (decision = 'accepted' OR (note IS NOT NULL AND length(trim(note)) > 0))
   );
 INSERT INTO acceptance_decisions VALUES(1,'gedec-fe7294b3-8446-424e-9418-2932bb8027d9',8,51,'imported-policy:MIXED-OWNER',1,1,'goal-event:gevt-75b666e9-56d7-4929-b6d0-7474b5937be3','accepted',NULL,'trusted_decision','gedec-fe7294b3-8446-424e-9418-2932bb8027d9','existing-user','2026-09-10T08:08:53.175Z');
 CREATE TABLE acceptance_sync_resolving (marker INTEGER PRIMARY KEY CHECK (marker = 1));

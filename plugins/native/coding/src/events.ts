@@ -11,24 +11,13 @@ import { CODING_ROLE_IDS } from "./roles.js";
  */
 
 /**
- * Event ids live in this Plugin's own namespace; the Host enforces that. They
- * are declared in Contracts so Files and Git can name what they subscribe to
- * without importing Coding, while the validators below stay here — only the
- * publisher knows what its payload means.
+ * Event ids owned by Coding, living in this Plugin's own namespace (enforced by the Host).
+ * Validators stay with the publisher: only Coding knows what its payloads mean.
  */
-export {
-  CODING_RUN_UPDATED_EVENT,
-  CODING_FILE_CHANGED_EVENT,
-  CODING_PREFERENCE_EVENT,
-  CODING_WORKSPACE_INVALIDATED_EVENT,
-} from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-
-import {
-  CODING_RUN_UPDATED_EVENT,
-  CODING_FILE_CHANGED_EVENT,
-  CODING_PREFERENCE_EVENT,
-  CODING_WORKSPACE_INVALIDATED_EVENT,
-} from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+export const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
+export const CODING_FILE_CHANGED_EVENT = "io.molis.work.coding.file-changed";
+export const CODING_WORKSPACE_INVALIDATED_EVENT = "io.molis.work.coding.workspace-invalidated";
+export const CODING_PREFERENCE_EVENT = "io.molis.work.coding.preference";
 
 export interface CodingFileChanged {
   project_id: string;

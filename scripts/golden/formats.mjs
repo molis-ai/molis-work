@@ -44,6 +44,8 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "format.ui.appearance-state": { file: "interface/state.json", field: "schema_version" },
   "format.ui.last-locale": { file: "config/ui-locale.json", field: "schema_version" },
   "format.model.preference": { file: "jelly/preferences.json", field: "schema_version" },
+  // A sample with fixed values: only an installed Home has a receipt (scripts/golden/populate.mjs `runtimeReceiptSample`).
+  "format.runtime.integration.receipt": { file: "runtime-integrations/*", field: "schema_version" },
   "format.home.installation": { absent: "config/installation.json is written by the installer, and a golden Home is made by running a Host, not by installing one" },
   "database.search.text-index": { absent: "search/ is a rebuildable index the snapshot leaves out (upgrade-chain-design §2.3); its first raise is the user's call" },
 });

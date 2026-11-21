@@ -80,6 +80,8 @@ export interface PluginInstallPorts {
   homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome>;
   /** The release's folder of the packages it ships uninstalled (`bundledPackagesDirectory`); a Host without one ships none. */
   bundledDirectory?: string;
+  /** Synchronously notified when a publisher pin is revoked so live work terminals and open installations stop immediately (S-87). */
+  onPublisherRevoked?(keyId: string): void;
   now?(): string;
 }
 
@@ -436,6 +438,7 @@ export class PluginInstallService {
     const pin = this.ports.ledger.revokePublisher(keyId, this.now());
     if (!pin) throw pluginErrors.publisher_untrusted('没有固定过这个发布者');
     consentsChanged();
+    this.ports.onPublisherRevoked?.(keyId);
     return pin;
   }
 

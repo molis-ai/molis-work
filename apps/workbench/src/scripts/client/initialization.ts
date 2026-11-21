@@ -361,23 +361,28 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     if (selected && tuiPane) {
       try {
-        tuiPane.setAttribute("data-tui-plugin-id", "io.molis.work.goals");
-        tuiPane.setAttribute("data-tui-subject-kind", "goal");
-        tuiPane.setAttribute("data-tui-subject-id", selected);
+        const goalsSurface = q('[data-work-surface="goals"]');
+        const terminalPluginId = tuiPane.dataset.tuiPluginId || pluginManifestIds.goals || "";
+        const terminalSubjectKind = tuiPane.dataset.tuiSubjectKind || "goal";
         const selectedItem = visibleGoals().find((entry) => entry.goal.goal_id === selected);
-        document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
-          pluginId: "io.molis.work.goals",
-          subjectKind: "goal",
-          subjectId: selected,
-          title: selectedItem?.goal.title || selected,
-          status: selectedItem?.status || "",
-          statusLabel: selectedItem?.status_label || "",
-          statusMeaning: selectedItem?.status_meaning || "",
-          statusIconMarkup: selectedItem?.status_icon || "",
-          readOnly: selectedItem?.terminal_read_only || null,
-        } }));
+        if (terminalPluginId && terminalSubjectKind) {
+          tuiPane.setAttribute("data-tui-plugin-id", terminalPluginId);
+          tuiPane.setAttribute("data-tui-subject-kind", terminalSubjectKind);
+          tuiPane.setAttribute("data-tui-subject-id", selected);
+          document.dispatchEvent(new CustomEvent("molis-work:work-terminal-subject-changed", { detail: {
+            pluginId: terminalPluginId,
+            subjectKind: terminalSubjectKind,
+            subjectId: selected,
+            title: selectedItem?.goal.title || selected,
+            status: selectedItem?.status || "",
+            statusLabel: selectedItem?.status_label || "",
+            statusMeaning: selectedItem?.status_meaning || "",
+            statusIconMarkup: selectedItem?.status_icon || "",
+            readOnly: selectedItem?.terminal_read_only || null,
+          } }));
+        }
         document.dispatchEvent(new CustomEvent("molis-work:record-selected", { detail: {
-          plugin: "goals",
+          plugin: goalsSurface?.dataset.workSurface || "goals",
           itemId: selected,
           title: selectedItem?.goal.title || selected,
         } }));

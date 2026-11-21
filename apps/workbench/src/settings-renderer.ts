@@ -105,7 +105,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           ? uiText.text("workbench.settings-renderer.diagnostics")
         : view.section === "update" ? uiText.text("workbench.settings-update.title")
         : view.section === "running" ? uiText.text("workbench.settings-running.title")
-          : (pluginPage?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
+          : (pluginPage?.label ?? view.dynamic_plugin_settings?.find(item => item.section_id === view.section)?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
@@ -148,7 +148,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   ${renderIconSprite()}
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
-    ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins))}
+    ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}

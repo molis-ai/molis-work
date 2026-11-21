@@ -36,8 +36,8 @@ export interface ArtifactHttpContext {
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
-  /** Whether this project has a Goal to take a version as its input; a project without Goals (RAC-400) does not offer 「作为 Goal 的输入」. */
-  readonly goalsAvailable?: () => Promise<boolean>;
+  /** Optional override for whether an input-target plugin is available; when omitted, discovered from active `placement_relation` actions. */
+  readonly inputTargetAvailable?: () => Promise<boolean>;
   readonly readArtifactDisplay: ReadArtifactDisplay;
   readonly controlToken: string;
   readonly desktopShell: boolean;
@@ -96,7 +96,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
 
-export async function renderGoalArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
+export async function renderProjectArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
   const words = await readArtifactDisplay(embeds.flatMap(({ view }) => view.selected ? [view.selected] : []));
   return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, importedDocumentWarnings, typeTitle: version => words(version)?.title });
@@ -135,39 +135,41 @@ async function importRawOriginal(request: IncomingMessage, response: ServerRespo
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+async function importArtifactJson(request: IncomingMessage, response: ServerResponse, context: ArtifactHttpContext): Promise<boolean> {
+  const stop = new AbortController();
+  const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
+  const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
+  const input = await readArtifactImportBody(request);
+  // Preserve the established HTTP wire errors; the shared action contract
+  // still validates the complete input before any business operation.
+  if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
+    throw documentErrors.source_invalid("请选择支持的文档来源");
+  }
+  if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
+    throw documentErrors.content_invalid("请选择要导入的文件");
+  }
+  const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
+    const transport = on_progress ? { on_progress } : undefined;
+    const saved = input.source === "file"
+      ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
+      : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
+    const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
+    return { status: result.reused ? 200 : 201, body: result };
+  };
+  // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
+  if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
+  const result = await answer();
+  sendLocalWebJson(response, result.status, result.body);
+  return true;
+}
+
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
 export function createLocalArtifactHttp() {
   return async function handleArtifactNativePluginHttp(
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
   ): Promise<boolean> {
     try {
-      if (pathname === "/api/artifacts/import" && request.method === "POST") {
-        const stop = new AbortController();
-        const signal = AbortSignal.any([responseAbortSignal(response), stop.signal]);
-        const control = { signal, beforeEffect: async () => signal.throwIfAborted() };
-        const input = await readArtifactImportBody(request);
-        // Preserve the established HTTP wire errors; the shared action contract
-        // still validates the complete input before any business operation.
-        if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
-          throw documentErrors.source_invalid("请选择支持的文档来源");
-        }
-        if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
-          throw documentErrors.content_invalid("请选择要导入的文件");
-        }
-        const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
-          const transport = on_progress ? { on_progress } : undefined;
-          const saved = input.source === "file"
-            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, control, transport)
-            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, control, transport);
-          const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-          return { status: result.reused ? 200 : 201, body: result };
-        };
-        // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
-        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
-        const result = await answer();
-        sendLocalWebJson(response, result.status, result.body);
-        return true;
-      }
+      if (pathname === "/api/artifacts/import" && request.method === "POST") return importArtifactJson(request, response, context);
       if (pathname === "/api/artifacts/import/original" && request.method === "POST") { await importRawOriginal(request, response, context); return true; }
       // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
       if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {
@@ -261,7 +263,11 @@ export function createLocalArtifactHttp() {
       const referrers = linked && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = linked ? { ...linked, referrers } : undefined;
-      const goalInput = !links || !context.goalsAvailable || await context.goalsAvailable();
+      const goalInput = !links
+        ? true
+        : context.inputTargetAvailable
+          ? await context.inputTargetAvailable()
+          : (await context.actions.discover().catch(() => [])).some(view => view.availability.available && view.action.placement_relation?.role === "bind");
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];

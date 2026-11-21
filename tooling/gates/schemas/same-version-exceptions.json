@@ -14,5 +14,13 @@
     "to": "423b08698498fad5",
     "approved": "user 2026-11-19 (Batch 44 Option A pre-release v1 flattening following #2163)",
     "reason": "Batch 44 plugin equal standing removes Goals-owned guidance and requirement/judgment/conclusion tables (now platform-owned) and adds goal_requirement_links and goal_event_closures.acceptance_round directly into clean pre-release v1 baseline."
+  },
+  {
+    "store": "projects/*/molis-work.db",
+    "version": 1,
+    "from": "1aa01fa380885255",
+    "to": "7957487bb66423a2",
+    "approved": "user 2026-11-20 (Batch 44 audit fix P0-1 Option A pre-release v1 CHECK constraints)",
+    "reason": "Adds SQLite CHECK constraints on acceptance_checks (kind, verdict, tier, gap, evidence_json JSON array & elevated-tier evidence/session invariants), acceptance_deliveries.touches_json, and acceptance_decisions (decision, returned note) to close S-acceptance-evidence-tier EVD-43 regression."
   }
 ]

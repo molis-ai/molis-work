@@ -113,7 +113,7 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
   return { exec: sql => db.exec(sql), prepare: sql => db.prepare(sql) as never, transaction: <T>(operation: () => T) => Object.assign(() => run(operation), { immediate: () => run(operation) }) };
 }
 
-const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write", "goals:read", "goals:write"] });
+const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write", "goals:read", "goals:write", "context-ledger:write", "artifacts:read"] });
 
 function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   beforeEffect?: () => void | Promise<void>;

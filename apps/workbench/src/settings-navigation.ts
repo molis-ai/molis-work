@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { globalSettingsSectionPath, groupedGlobalSettingsSections } from "./settings-sections.js";
+import type { DynamicPluginSettingsNavItem } from "./settings-view.js";
 
 export interface WebProjectNavigation {
   project_id: string;
@@ -120,6 +121,7 @@ function renderSettingsNavigation(
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
   shownPlugins?: readonly string[],
+  dynamicPlugins?: readonly DynamicPluginSettingsNavItem[],
 ): string {
   const href = (path: string) => settingsContextHref(path, project, desktopShell);
   const current = (section: SettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
@@ -127,7 +129,7 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${uiText("workbench.settings-navigation.system-settings")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${uiText("workbench.settings-navigation.return-project")}</a>
     <div class="settings-nav-body">
-      ${groupedGlobalSettingsSections(shownPlugins, desktopShell).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
+      ${groupedGlobalSettingsSections(shownPlugins, desktopShell, dynamicPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
       ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
   </nav>`;

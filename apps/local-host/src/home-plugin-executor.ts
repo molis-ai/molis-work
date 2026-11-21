@@ -10,7 +10,9 @@ import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPri
 import { UiHost, createPluginUiClient, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
-import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
+import { outsidePluginAction, pluginActivationOpen } from "@molis-ai/molis-work-plugin-runtime";
+import { HomeConsentLedger } from "./home-plugin-store.js";
+import { publisherStanding } from "./installed-publisher-standing.js";
 import { openPluginDatabase } from "./plugin-home-database-client.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
@@ -190,7 +192,18 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));
-      registerWorkTerminalOwner({ home: this.options.home, install_id: context.install_id, project_id: null, assertActive });
+      const homeStanding = record?.publisher_trust === "pinned" ? publisherStanding(new HomeConsentLedger(this.options.home)) : undefined;
+      registerWorkTerminalOwner({
+        home: this.options.home, install_id: context.install_id, project_id: null,
+        installation_generation: context.installation_generation, plugin_id: manifest.plugin_id,
+        publisher_key_id: record?.publisher_trust === "pinned" ? record.publisher_signature : null,
+        assertActive: () => {
+          assertActive();
+          if (!pluginActivationOpen(context)) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
+          if (homeStanding && record && !homeStanding.trusted(record)) throw new ActionError("actions.forbidden", "此插件发布者已被撤销信任");
+        },
+        requireGrant: permission => authorize(permission),
+      });
       this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; this.options.wakeView(manifest.plugin_id); withdrawText?.(); try { terminal?.dispose(); disposeWorkTerminalsForOwner({ home: this.options.home, install_id: context.install_id }); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution: pluginTextViews(contribution, context) };
     } catch (error) {

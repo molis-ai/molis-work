@@ -57,7 +57,12 @@ test("C7 Goals' resume summary keeps the recovery order and leaves completed Goa
   assert.equal(summary.focus?.status_label, "进行中");
   assert.equal(summary.next.some(item => item.subject.id === "done"), false);
   assert.ok(summary.next.length <= 5);
-  assert.deepEqual(goalsResumeSummary([], undefined, none), { title: "目标", focus: null, next: [] });
+  assert.equal(summary.progress?.total, directory.length);
+  assert.equal(summary.progress?.done, 1);
+  assert.ok(summary.progress?.items.some(item => item.id === "done" && item.status === "completed"));
+  assert.deepEqual(goalsResumeSummary([], undefined, none), {
+    title: "目标", focus: null, next: [], progress: { total: 0, done: 0, items: [] },
+  });
   // A focused Goal the first page left out is read on its own.
   const read = (id: string) => id === "beyond" ? directoryFor([["beyond", "open", true]])[0]! : null;
   assert.equal(goalsResumeSummary(directory, { kind: "goal", id: "beyond" }, read).focus?.subject.id, "beyond");

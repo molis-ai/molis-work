@@ -106,6 +106,13 @@
     "lingguang.agent-prompt.lingguang-conversation.title": "Discuss an idea",
     "lingguang.agent-prompt.lingguang-conversation.purpose": "Use the selected idea and conversation history to give a concrete response that can move the work forward",
     "lingguang.capability-library.lingguang-placement-copy-v1.title": "Lingguang",
-    "lingguang.capability-library.lingguang-placement-move-v1.title": "Lingguang"
+    "lingguang.capability-library.lingguang-placement-move-v1.title": "Lingguang",
+    "lingguang.help.title": "Lingguang",
+    "lingguang.help.what": "A fast scratchpad for rough ideas, links, and files that you can later promote into Pages, Todo, Jelly, or Goals.",
+    "lingguang.help.example-1": "Capture a quick thought or link without worrying about where it belongs yet",
+    "lingguang.help.example-2": "Convert a mature note into a Pages doc, to-do, or goal in one click",
+    "lingguang.help.scope": "Stored locally with clear personal vs. project placement; fetching a link reads only the public URL you paste.",
+    "lingguang.help.advanced-summary": "Converting notes",
+    "lingguang.help.advanced": "Converting a note keeps the link back to the original capture so you never lose context."
   }
 }

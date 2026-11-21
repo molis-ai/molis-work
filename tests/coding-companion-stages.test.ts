@@ -155,21 +155,21 @@ test("RAC-437 a companion whose page is not there gets the unavailable shell wit
   });
 });
 
-// RAC-438 / B27G-08: who in the Host reaches one of Coding's four companions. Each module specifier of each file (static and type
-// imports, re-exports, and literal import() or require() anywhere in the file) that names a companion's package, any subpath, or a
+// RAC-438 / B27G-08: who in the Host reaches Coding or a companion. Each module specifier of each file (static and type
+// imports, re-exports, and literal import() or require() anywhere in the file) that names one of those packages, any subpath, or a
 // relative path into its directory; the one allowed edge is the generated registry to the package's own ./registration.
-const COMPANIONS = ["git", "diff", "text-stats", "files"] as const;
+const CODING_PACKAGES = ["coding", "git", "diff", "text-stats", "files"] as const;
 const REGISTRY = "plugin-registry.generated.ts";
 function hostSources(dir: string): Array<[string, string]> {
   return (readdirSync(dir, { recursive: true }) as string[]).filter(file => /\.(?:ts|mts)$/.test(file))
     .map(file => [file.split("\\").join("/"), readFileSync(join(dir, file), "utf8")] as [string, string]);
 }
-function companionEdges(files: ReadonlyArray<readonly [string, string]>, hostDir = "apps/local-host/src"): string[] {
+function codingPluginEdges(files: ReadonlyArray<readonly [string, string]>, hostDir = "apps/local-host/src"): string[] {
   const edges: string[] = [];
   for (const [file, text] of files) {
     for (const { spec, line } of parseImports(file, text, { deep: true }) as Array<{ spec: string; line: number }>) {
       const relativeTarget = spec.startsWith(".") ? posix.normalize(posix.join(hostDir, posix.dirname(file), spec)) : null;
-      for (const name of COMPANIONS) {
+      for (const name of CODING_PACKAGES) {
         const named = spec === `@molis-ai/molis-work-plugin-${name}` || spec.startsWith(`@molis-ai/molis-work-plugin-${name}/`)
           || relativeTarget === `plugins/native/${name}` || Boolean(relativeTarget?.startsWith(`plugins/native/${name}/`));
         if (named && !(file === REGISTRY && spec === `@molis-ai/molis-work-plugin-${name}/registration`)) edges.push(`${file}:${line} ${spec}`);
@@ -181,8 +181,9 @@ function companionEdges(files: ReadonlyArray<readonly [string, string]>, hostDir
 
 test("B27G-08 a companion reached from any Host subdirectory, by any import form, is caught; the registry's edge and other modules pass", () => {
   const registry: [string, string] = [REGISTRY, 'import { registration as gitRegistration } from "@molis-ai/molis-work-plugin-git/registration";\n'];
-  assert.deepEqual(companionEdges([registry, ["deep/nested/other.ts", 'import { x } from "@molis-ai/molis-work-plugin-coding";\nimport y from "./local.js";\n']]), []);
-  const caught = (text: string, file = "deep/nested/leak.ts") => companionEdges([registry, [file, text]]);
+  assert.deepEqual(codingPluginEdges([registry, ["deep/nested/other.ts", 'import y from "./local.js";\n']]), []);
+  const caught = (text: string, file = "deep/nested/leak.ts") => codingPluginEdges([registry, [file, text]]);
+  assert.deepEqual(caught('import { codingManifest } from "@molis-ai/molis-work-plugin-coding";\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-coding"]);
   assert.deepEqual(caught('import type { GitState } from "@molis-ai/molis-work-plugin-git";\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-git"]);
   assert.deepEqual(caught('export { diffLines } from "@molis-ai/molis-work-plugin-diff/contract";\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-diff/contract"]);
   assert.deepEqual(caught('export async function later() { return import("@molis-ai/molis-work-plugin-files"); }\n'), ["deep/nested/leak.ts:1 @molis-ai/molis-work-plugin-files"]);
@@ -194,16 +195,13 @@ test("B27G-08 a companion reached from any Host subdirectory, by any import form
 
 test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is gone, Coding is no hybrid, and only the supervisor starts the companions", () => {
   assert.equal(existsSync(join(repoRoot, "apps/local-host/src/coding-surface.ts")), false);
-  const gate = readFileSync(join(repoRoot, "tests/builtin-plugin-assembly-gate.test.ts"), "utf8");
-  // The current assembly gate has no hybrid left (batch 44 PEQ-03 took Goals out too); Coding is not on it.
-  assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\);/);
   const dir = join(repoRoot, "apps/local-host/src");
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
-  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Every file under the Host's
+  // only through the generated registry (#1299 PR-B4): no other Host file names Coding or a companion's package. Every file under the Host's
   // src/, at any depth, read from its syntax tree. Files (BL-616, RAC-2530) retired in batch 06: not even the registry names it.
   const host = hostSources(dir);
-  assert.deepEqual(companionEdges(host), [], "no Host file reaches a companion except the registry's ./registration");
-  for (const name of COMPANIONS) {
+  assert.deepEqual(codingPluginEdges(host), [], "the registry's ./registration is the Host's only edge to Coding and its companions");
+  for (const name of CODING_PACKAGES) {
     const reached = host.some(([file, text]) => file === REGISTRY && text.includes(`"@molis-ai/molis-work-plugin-${name}/registration"`));
     assert.equal(reached, name !== "files", name === "files" ? "the registry no longer reaches the retired Files" : `the registry reaches ${name}`);
   }

@@ -1,6 +1,7 @@
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { t as uiText, renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument, type AppearanceSettingsModel } from "./settings-appearance.js";
+import { withSettingsHelp } from "./settings-help-topics.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
 
@@ -103,14 +104,14 @@ function returnBarTemplate(_L: SettingsDirectoryPrimitives["readText"]): string 
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string, model?: AppearanceSettingsModel): string {
   const { readText, htmlLang } = primitives;
   const locale = WORKBENCH_LANGUAGES.languages.find(row => row.html_lang === htmlLang())?.tag ?? WORKBENCH_LANGUAGES.default;
-  const appearance = renderAppearanceSettingsDocument({
+  const appearance = withSettingsHelp("appearance", renderAppearanceSettingsDocument({
     readText,
     currentLocale: () => locale,
     localeSwitchHref,
   }, nextPath, model).replace(
     '<section class="settings-document appearance-document"',
     '<section class="settings-document appearance-document" data-settings-panel="appearance"',
-  );
+  ));
   return `<section class="desktop-work-surface settings-stage" data-work-surface="settings" data-work-surface-label="${uiText("workbench.settings-directory.settings")}" hidden>
     ${returnBarTemplate(readText)}<div class="settings-content" data-settings-stage-body>${appearance}</div>
   </section>`;
@@ -128,7 +129,7 @@ export function renderProjectSettingsWorkSurface(
     icon: (name) => icon(name),
     withDesktopQuery, projectDeletionLabels: primitives.projectDeletionLabels,
   });
-  const general = project ? folds.renderGeneralPage(project, desktopShell) : "";
+  const general = project ? withSettingsHelp("general", folds.renderGeneralPage(project, desktopShell)) : "";
   return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${uiText("workbench.settings-directory.project-settings")}" hidden>
     ${returnBarTemplate(readText)}<div class="settings-content" data-settings-stage-body>${general}</div>
   </section>`;

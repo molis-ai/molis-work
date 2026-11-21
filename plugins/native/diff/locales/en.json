@@ -43,6 +43,13 @@
     "diff.waiting.choose-input": "Choose what to compare: two pinned file versions, a Coding change, or unstaged Git changes",
     "diff.waiting.choose-snapshots": "Choose two pinned file versions to compare",
     "diff.waiting.git-change-set": "Choose a change in Git and it shows here",
-    "diff.waiting.snapshots": "Pin a “Before” and “After” version in the Materials reader first to view their differences here"
+    "diff.waiting.snapshots": "Pin a “Before” and “After” version in the Materials reader first to view their differences here",
+    "diff.help.title": "Diff",
+    "diff.help.what": "Compare two file snapshots or workspace changes line by line before approving edits or committing.",
+    "diff.help.example-1": "Open a changed file from Files or Git to inspect additions and removals",
+    "diff.help.example-2": "Compare two fixed snapshots to verify every change",
+    "diff.help.scope": "Strictly read-only — never modifies source files or commits.",
+    "diff.help.advanced-summary": "Working with Files and Git",
+    "diff.help.advanced": "When nothing is selected yet, open Files to pick snapshots to compare."
   }
 }

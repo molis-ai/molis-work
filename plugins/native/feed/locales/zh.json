@@ -399,6 +399,13 @@
     "feed.add-source.other-account": "其他服务的账号",
     "feed.add-source.other-account-hint": "服务连接里的其他账号",
     "feed.ui.other-account-explain": "账号在「设置 › 服务连接」中管理。先建来源，再在来源设置里选用哪个账号；只列出 Feed 能按账号拉取的服务。",
-    "feed.ui.account-service": "服务"
+    "feed.ui.account-service": "服务",
+    "feed.help.title": "Feed",
+    "feed.help.what": "把 RSS、网页搜索、邮件或代码仓动态汇总到同一条信息流，看完后把有价值的条目留进资料、收件箱或目标。",
+    "feed.help.example-1": "添加 RSS 或项目相关关键词来源，每天集中扫一遍新动态",
+    "feed.help.example-2": "遇到重要条目一键收入项目资料、加入 Inbox，或转成新目标",
+    "feed.help.scope": "拉取订阅来源时会访问你添加的外部网址或已连接账号；不会替你对外发帖或回复，删除来源不影响已保存的资料。",
+    "feed.help.advanced-summary": "去重与自动判断规则",
+    "feed.help.advanced": "重复拉取会自动按条目编号去重；需要自动筛选时，可在「能力 › 判断规则」里绑定已发布规则。"
   }
 }

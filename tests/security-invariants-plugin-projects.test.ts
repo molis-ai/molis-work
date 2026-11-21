@@ -123,8 +123,7 @@ function breakProjectCatalog(home: string): () => void {
   return () => { const back = openTestSqlite(join(home, "projects", "catalog.db")); back.exec("ALTER TABLE projects_hidden RENAME TO projects"); back.close(); };
 }
 
-// RAC-2735 (T-358): a project catalog that cannot be read is a Host failure the plugin must not see raw — the SQLite/filesystem error
-// can carry the library's local path. The plugin sees the one plugin-facing availability error, with the unchanged Chinese wording.
+// RAC-2735 (T-358): a damaged catalog produces a Host diagnostic with schema details. The plugin receives only the availability error.
 test("S-96 RAC-2735 a project catalog that cannot be read is answered as actions.unavailable, without a local path", async t => {
   const f = await started(t), project = await f.project("S-96 目录读失败");
   assert.deepEqual(await f.exist([project.project_id]), { [project.project_id]: true }, "the service answers while the catalog is readable");
@@ -136,6 +135,7 @@ test("S-96 RAC-2735 a project catalog that cannot be read is answered as actions
         assert.ok(error instanceof ActionError, "the plugin sees an ActionError, not the raw SQLite error");
         assert.equal(error.code, "actions.unavailable");
         assert.equal(error.message, "项目目录暂时读不到");
+        assert.equal(error.details, undefined, "catalog diagnostics stay with the Host");
         assert.doesNotMatch(error.message, /catalog\.db|home-runtime-|\/(?:Users|private|var)\//u, "no local path reaches the plugin");
         return true;
       });
@@ -147,7 +147,7 @@ test("S-96 RAC-2735 a project catalog that cannot be read is answered as actions
     assert.equal(warning!.event, "projects_catalog_unreadable");
     assert.deepEqual(Object.keys(warning!.error!).sort(), ["code", "name"], "the logged error has only name and code");
     assert.equal(typeof warning!.error!.name, "string");
-    assert.equal(warning!.error!.code, "SQLITE_ERROR");
+    assert.equal(warning!.error!.code, "catalog.database_invalid");
     assert.equal(warning!.fields, undefined, "the warning has no path-bearing fields");
     assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|home-runtime-|\/(?:Users|private|var)\//u, "no local path reaches the Host log");
   } finally { restore(); }

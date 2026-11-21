@@ -8,7 +8,7 @@ import { inflateRawSync } from "node:zlib";
 
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
-  ActionError, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
+  ActionError, bindActionHandler, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
   defineSubjectContextAction, defineWorkflowContentActions, subjectContext, type ActionCallContext, type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
@@ -21,7 +21,7 @@ import { pptManifest, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { formManifest, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
-import { datasetManifest, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { createDatasetContentHandlers, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, ownDatasetStores, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
@@ -113,7 +113,7 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
   return { exec: sql => db.exec(sql), prepare: sql => db.prepare(sql) as never, transaction: <T>(operation: () => T) => Object.assign(() => run(operation), { immediate: () => run(operation) }) };
 }
 
-const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write", "goals:read", "goals:write", "context-ledger:write", "artifacts:read"] });
+const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write", "goals:read", "goals:write", "context-ledger:write", "artifacts:read", "form:read", ...DATASET_ACTION_PERMISSIONS] });
 
 function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   beforeEffect?: () => void | Promise<void>;
@@ -340,6 +340,43 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
     [edge.source.id, edge.target.id, edge.type]), [[copy.object.id, source.id, CONTEXT_RELATION_TYPES.copied_from]]);
   await f.service.move(converted.object, "personal");
   assert.deepEqual(placementRelationsFor(f.ledger, "q4", [source, converted.object]), [], "the previous location no longer proves a relation in this project");
+});
+
+test("S-placement-conversion-source: caller URLs cannot bind a conversion to another form's dataset", async t => {
+  const f = fixture();
+  const home = await mkdtemp(join(tmpdir(), "placement-form-source-"));
+  const datasets = openDatasetStore(home);
+  t.after(async () => { datasets.close(); await rm(home, { recursive: true, force: true }); });
+  const formRead = defineSubjectContextAction("form.subject.read", 1, "form", "问卷", ["form:read"]);
+  f.actions.registerProvider({
+    provider: { provider_id: formManifest.plugin_id, plugin_id: formManifest.plugin_id, title: formManifest.name, kind: "plugin", project_id: "q4" },
+    definitions: [formRead],
+    handlers: [bindActionHandler(formRead, ({ subject_id: id }) => {
+      if (id !== "form-A/问卷") throw new ActionError("form.not_found", "问卷不存在");
+      return subjectContext({ subject: { kind: "form", id }, revision: "1", title: "问卷 A", content: "" });
+    })],
+  });
+  f.actions.registerProvider({
+    provider: { provider_id: datasetManifest.plugin_id, title: datasetManifest.name, kind: "plugin", project_id: "q4" },
+    definitions: Object.values(datasetContentActions),
+    handlers: createDatasetContentHandlers(ownDatasetStores(run => run(datasets))),
+  });
+  const formBUrl = "molis-source://form/form-B";
+  const formB = datasets.receiveCsv("q4", "form-B", "问卷 B", "request_id,姓名\nanswer-B,乙", formBUrl);
+  const convert = (source: PlacedObject, request_id: string, url?: string) => f.service.convert({
+    source, request_id, to: { station: "dataset" }, to_project_id: "q4",
+    payload: { title: "答卷", body: "request_id,姓名\nanswer-A,甲", url },
+  });
+
+  const source = { kind: "form", id: "form-A/问卷", project_id: "q4" };
+  const first = await convert(source, "first-form", formBUrl);
+  assert.notEqual(first.object.id, formB.id);
+  assert.equal((await convert(source, "next-form")).object.id, first.object.id);
+  assert.equal(datasets.receiveCsv("q4", "verified-form-A", "问卷 A", "request_id,姓名\nanswer-A,甲",
+    "molis-source://form/form-A%2F%E9%97%AE%E5%8D%B7").id, first.object.id);
+  const other = await convert({ kind: "clip", id: "clip-1", project_id: null }, "unrelated-source", "  " + formBUrl);
+  assert.notEqual(other.object.id, formB.id);
+  assert.deepEqual(datasets.get(formB.id, "q4"), formB);
 });
 
 test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", async () => {
@@ -584,7 +621,7 @@ test("a form collects on this computer and through answer files, honestly", asyn
   const submissions = forms.listSubmissions(form.id, "personal");
   assert.deepEqual(submissions.map(item => item.source).sort(), ["file", "fill"]);
   const csv = formResultsCsv(form, submissions);
-  assert.ok(csv.startsWith("﻿提交时间,来源,最常用的功能,最希望改进的地方"));
+  assert.ok(csv.startsWith("﻿request_id,提交时间,来源,最常用的功能,最希望改进的地方"));
   assert.match(csv, /答卷文件,移动端/);
   const page = formFillPageHtml(form);
   assert.ok(!page.includes("Beta </script> 满意度\","), "the title cannot end the data script");

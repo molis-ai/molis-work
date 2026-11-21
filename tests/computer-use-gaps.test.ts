@@ -3,7 +3,7 @@ import { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { desktopState, observeSurface, performSurface, surfaceContext } from "./fixtures/surface-target.js";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -530,6 +530,48 @@ test("RAC-910 RAC-911: the Host puts a record on the Shelf only through Shelf's 
     assert.equal(admitted.length, 0);
   } finally {
     server.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("PF-A15: verifiable local app discovery lists human-readable app names, preserves built-in forbidden tiers, and enforces user forbidden changes", async () => {
+  const { listVerifiableComputerApps } = await import("@molis-ai/molis-work-app-local-host");
+  const root = mkdtempSync(path.join(tmpdir(), "cu-apps-"));
+  const home = mkdtempSync(path.join(tmpdir(), "cu-apps-home-"));
+  const makeApp = (folder: string, bundleId: string, displayName: string) => {
+    const contents = path.join(root, `${folder}.app`, "Contents");
+    mkdirSync(contents, { recursive: true });
+    writeFileSync(path.join(contents, "Info.plist"),
+      `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${bundleId}</string><key>CFBundleDisplayName</key><string>${displayName}</string></dict></plist>`);
+  };
+  makeApp("Notes", "com.apple.Notes", "备忘录");
+  makeApp("1Password", "com.1password.1password", "1Password");
+  const settings = new ComputerSettings(home);
+  try {
+    const initial = await listVerifiableComputerApps(settings.forbidden(), { directories: [root], useCache: false });
+    assert.deepEqual(initial.map(a => a.bundle_id).sort(), ["com.1password.1password", "com.apple.Notes"]);
+    const notes = initial.find(a => a.bundle_id === "com.apple.Notes")!;
+    const pwd = initial.find(a => a.bundle_id === "com.1password.1password")!;
+    assert.equal(notes.name, "备忘录");
+    assert.equal(notes.tier, "ask");
+    assert.equal(notes.user_forbidden, false);
+    assert.equal(pwd.tier, "forbidden");
+    assert.equal(pwd.built_in, true);
+
+    settings.forbid({ bundle_id: "com.apple.Notes", name: "备忘录" });
+    const afterForbid = await listVerifiableComputerApps(settings.forbidden(), { directories: [root], useCache: false });
+    const blockedNotes = afterForbid.find(a => a.bundle_id === "com.apple.Notes")!;
+    assert.equal(blockedNotes.tier, "forbidden");
+    assert.equal(blockedNotes.built_in, false);
+    assert.equal(blockedNotes.user_forbidden, true);
+
+    settings.allow("com.apple.Notes");
+    settings.allow("com.1password.1password");
+    const afterAllow = await listVerifiableComputerApps(settings.forbidden(), { directories: [root], useCache: false });
+    assert.equal(afterAllow.find(a => a.bundle_id === "com.apple.Notes")!.tier, "ask");
+    assert.equal(afterAllow.find(a => a.bundle_id === "com.1password.1password")!.tier, "forbidden", "built-in forbidden cannot be revoked");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
   }
 });

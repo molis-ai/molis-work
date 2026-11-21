@@ -118,6 +118,19 @@ export const diffManifest: PluginManifest = {
   },
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
   ui: { locales: { default: "zh", available: ["zh", "en"] },
+    help: {
+      default_topic: "page",
+      topics: [{
+        id: "page",
+        title: { key: "diff.help.title" },
+        sections: [
+          { id: "what", heading: { key: "common.help.section-what" }, body: { key: "diff.help.what" } },
+          { id: "examples", heading: { key: "common.help.section-examples" }, items: [{ key: "diff.help.example-1" }, { key: "diff.help.example-2" }] },
+          { id: "scope", heading: { key: "common.help.section-scope" }, body: { key: "diff.help.scope" } },
+          { id: "advanced", heading: { key: "common.help.section-advanced" }, collapsible: true, summary: { key: "diff.help.advanced-summary" }, body: { key: "diff.help.advanced" } },
+        ],
+      }],
+    },
     contributions: [DIFF_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "browse", slot: "navigator", title: "Diff", contribution_id: DIFF_UI_CONTRIBUTION_ID, icon: "git-compare", hue: "cyan", order: 65 },
